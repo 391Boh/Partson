@@ -49,7 +49,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
 
   return (
     <div
-      className={`relative transition-all duration-200 ease-out ${
+      className={`ml-5 relative transition-all duration-200 ease-out ${
         isSidebarVisible ? 'w-1/3' : 'w-16'
       } overflow-hidden rounded-xl shadow-lg fixed top-0 left-0 z-30 bg-gradient-to-br from-blue-100/50 to-pink-50/50 backdrop-blur-sm`}
       style={{ height: 'calc(95vh - 96px)' }}

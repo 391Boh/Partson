@@ -157,7 +157,7 @@ return (
         transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
       >
         <h1 className="text-4xl sm:text-5xl font-extrabold text-white">
-          <span className="bg-gradient-to-r from-blue-300 to-indigo-400 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r drop-shadow-sm from-blue-300 to-indigo-400 bg-clip-text text-transparent">
             Ласкаво просимо!
           </span>
           <span className="text-white mt-3 block text-xl sm:text-2xl">
@@ -202,17 +202,17 @@ return (
   animate={{ opacity: 1, y: 0 }}
   transition={{ duration: 0.6, delay: 0.4 }}
 >
-  <div className="h-full rounded-xl shadow-lg border border-blue-400/20 bg-gradient-to-br from-blue-300 via-blue-500 to-blue-700 backdrop-blur-lg relative overflow-hidden h-64"> {/* Фіксована висота */}
+  <div className="h-full rounded-xl shadow-lg border border-red-30/10 bg-gradient-to-br from-red-300 via-red-350 to-blue-500 backdrop-blur-5xl relative overflow-hidden h-full"> {/* Фіксована висота */}
     <motion.div
-      className="absolute inset-0 bg-gradient-to-r from-blue-200 via-white/30 to-blue-400 opacity-50 blur-xl"
+      className="absolute inset-0 bg-gradient-to-r from-blue-200 via-white/30 to-blue-400 opacity-200 blur-xl "
       animate={{ scale: [1, 1.02, 1] }}
       transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
     />
     <div className="relative z-10 w-full flex flex-col justify-center px-6 py-4"> {/* Компактніші відступи */}
-      <h2 className="text-2xl font-extrabold text-white text-center mb-3 tracking-tight"> {/* Компактніший текст */}
-        <span className="text-yellow-400">🎁</span> <span className="drop-shadow-sm">Отримайте бонуси!</span>
+      <h2 className="text-2xl font-extrabold text-white  text-center mb-3 tracking-tight"> {/* Компактніший текст */}
+        <span className="text-yellow-400">🎁</span> <span className="text-blue drop-shadow-sm">Отримайте бонуси!</span>
       </h2>
-      <ul className="space-y-2 my-3 text-white text-base w-full max-h-md mx-auto"> {/* Менший текст і відступи */}
+      <ul className="space-y-2 my-3 text-gray-600 text-base w-full max-h-md mx-auto"> {/* Менший текст і відступи */}
         {[
           "5% знижки на перше замовлення",
           "Ексклюзивні пропозиції",
@@ -242,7 +242,7 @@ return (
         </motion.button>
         <motion.button
           className="py-2 px-6 rounded-full text-white font-medium text-base shadow-md 
-                    bg-gradient-to-r from-red-400 to-orange-600 transition-all duration-300 
+                    bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-300 
                     hover:from-red-500 hover:to-orange-700 hover:shadow-lg"
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.98 }}
@@ -312,7 +312,7 @@ return (
 
       {/* Step 3: Order */}
       <motion.div
-  className="p-6 rounded-xl border border-blue-200/20 bg-gradient-to-br from-blue-150 via-blue-300 to-blue-400 backdrop-blur-lg hover:border-purple-200 transition-all hover:shadow-lg"
+  className="p-6 rounded-xl border border-blue-100/20 bg-gradient-to-br from-blue-130 via-blue-150 to-blue-200 backdrop-blur-lg hover:border-purple-200 transition-all hover:shadow-lg"
   variants={{
     hidden: { opacity: 0, y: 20 },
     visible: {

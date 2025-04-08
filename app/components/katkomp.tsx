@@ -53,7 +53,7 @@ const Category: React.FC<CategoryProps> = ({ selectedCategory, handleCategoryCha
 
   return (
     <motion.div
-      className="p-6 rounded-2xl border bg-gradient-to-br from-gray-100 to-gray-200 border-gray-200 hover:border-red-500 transition-all hover:shadow-md backdrop-blur-sm h-full flex flex-col"
+      className="p-6 rounded-2xl border bg-gradient-to-br from-gray-300 via-gray-200 to-gray-100 border-gray-200 hover:border-red-500 transition-all hover:shadow-md backdrop-blur-sm h-full flex flex-col"
       variants={{
         hidden: { opacity: 0, y: 20 },
         visible: {

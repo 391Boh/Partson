@@ -254,3 +254,13 @@ h1, h2, h3 {
 
   
 }
+.text-border {
+  font-size: 3rem; /* Розмір тексту */
+  font-weight: bold;
+  color: white; /* Основний колір тексту */
+  text-shadow:
+    1px 1px 2px black,    /* тінь праворуч і вниз */
+    -1px -1px 2px black,  /* тінь зліва і вгору */
+    1px -1px 2px black,   /* тінь праворуч і вгору */
+    -1px 1px 2px black;   /* тінь зліва і вниз */
+}
