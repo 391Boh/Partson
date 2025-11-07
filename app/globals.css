@@ -24,6 +24,16 @@ h1, h2, h3 {
 }
 
 /* Власні компоненти */
+
+@media (max-width: 768px) {
+  .logo {
+    width: 100px; /* зменшуємо розмір логотипу на мобільних */
+    height: auto;
+    image-rendering: crisp-edges; /* забезпечує чіткість */
+  }
+}
+
+
 @layer components {
   .btn-primary {
     @apply block px-4 py-3 bg-gray-700 text-white  transition-all duration-300 ease-out 
@@ -42,7 +52,7 @@ h1, h2, h3 {
     }
 
     .punmenu {
-      @apply absolute left-0 mt-12 w-50 bg-gradient-to-r from-gray-700 to-gray-100 text-white rounded-lg shadow-lg overflow-hidden transition-all duration-300 border-2 border-blue-400 ;
+      @apply absolute left-0 mt-12 w-50 text-white rounded-lg shadow-lg overflow-hidden transition-all duration-300 border-2 border-blue-400 ;
     }
 
     .menubut {
@@ -61,6 +71,22 @@ h1, h2, h3 {
         transform: scale(1);
       }
     }
+
+    @keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out;
+}
+
     
     .animate-fadeIn {
       animation: fadeIn 0.4s ease-out forwards;
@@ -75,6 +101,55 @@ h1, h2, h3 {
         opacity: 1;
       }
     }
+
+    /* Анімація для градієнту */
+    @keyframes gradientBG {
+      0%, 100% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+    }
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .animate-fadeUp {
+      animation: fadeUp 0.6s ease-out;
+    }
+
+    
+    @keyframes gradientShift {
+      0% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+      100% {
+        background-position: 0% 50%;
+      }
+    }
+    
+    .animate-gradient {
+      background-size: 300% 300%;
+      animation: gradientShift 6s ease infinite;
+    }
+    
+    
+    .animate-gradient-slow {
+      background: linear-gradient(90deg, #a8c0ff, #b0d0e8, #f3a6a6);
+      background-size: 300% 300%;
+      animation: gradientBG 20s ease-in-out infinite;
+    }
+    
     
     .animate-underline {
       animation: underline 0.7s ease-out forwards;
@@ -111,6 +186,15 @@ h1, h2, h3 {
       box-shadow: 0 10px 20px rgba(0,0,0,0.1);
     }
     
+
+.perspective {
+  perspective: 1000px;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
     .productName {
       color: #3498db;
       border-bottom: 1px solid #eee;
@@ -160,6 +244,19 @@ h1, h2, h3 {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+
+      
+    }
+
+    
+    .animate-fadeIn {
+      animation: fadeIn 0.3s ease-out;
+    }
+    
     
     .errorContainer {
       text-align: center;
@@ -173,6 +270,22 @@ h1, h2, h3 {
     .errorMessage {
       color: #e74c3c;
       margin: 15px 0;
+    }
+    
+    .perspective {
+      perspective: 1000px;
+    }
+    .transform-style {
+      transform-style: preserve-3d;
+    }
+    .backface-hidden {
+      backface-visibility: hidden;
+    }
+    .rotate-y-180 {
+      transform: rotateY(180deg);
+    }
+    .rotate-y-360 {
+      transform: rotateY(360deg);
     }
     
     .retryButton {
@@ -216,6 +329,27 @@ h1, h2, h3 {
   height: 200px;
   z-index: 0;
 }
+
+
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+
+
+.text-shadow-outline {
+  text-shadow: 
+    2px 2px 4px rgba(0, 0, 0, 0.7),   /* чорний контур */
+    -2px -2px 4px rgba(255, 0, 0, 0.7); /* червоний контур */
+}
+
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 
 /* Анімація обертання */
 @keyframes rotate {
@@ -263,4 +397,14 @@ h1, h2, h3 {
     -1px -1px 2px black,  /* тінь зліва і вгору */
     1px -1px 2px black,   /* тінь праворуч і вгору */
     -1px 1px 2px black;   /* тінь зліва і вниз */
+}
+
+/* Приховати скролбар але залишити скрол */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE і Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Opera */
 }

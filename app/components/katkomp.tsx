@@ -53,90 +53,69 @@ const Category: React.FC<CategoryProps> = ({ selectedCategory, handleCategoryCha
 
   return (
     <motion.div
-      className="p-6 rounded-2xl border bg-gradient-to-br from-gray-300 via-gray-200 to-gray-100 border-gray-200 hover:border-red-500 transition-all hover:shadow-md backdrop-blur-sm h-full flex flex-col"
+      className="p-4 mb-4 rounded-2xl bg-gradient-to-br from-gray-100 via-white to-gray-100 border border-gray-200 shadow-md h-full flex flex-col"
       variants={{
         hidden: { opacity: 0, y: 20 },
-        visible: {
-          opacity: 1,
-          y: 0,
-          transition: {
-            duration: 0.6,
-            ease: [0.16, 1, 0.3, 1],
-          },
-        },
-      }}
-      whileHover={{
-        y: -6,
-        transition: { duration: 0.3 },
+        visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
       }}
     >
-      {/* Header */}
-      <div className="flex items-center justify-start mb-4">
-        <div className="bg-red-100 w-12 h-12 rounded-full flex items-center justify-center mr-3">
-          <span className="text-xl font-bold text-red-600">2</span>
+      {/* Заголовок */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="bg-red-100 w-10 h-10 rounded-full flex items-center justify-center">
+          <span className="text-lg font-bold text-red-600">2</span>
         </div>
-        <h3 className="text-xl font-semibold text-gray-800 w-full text-left">Обирай категорію</h3>
+        <h3 className="text-lg md:text-xl font-semibold text-gray-800">Обирай категорію</h3>
       </div>
 
-      {/* Search Input */}
-      <div className="relative mb-6">
+      {/* Пошук */}
+      <div className="relative mb-4">
         <input
           type="text"
           placeholder="Пошук категорії..."
-          className="bg-white w-full p-3 pl-12 text-lg border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
+          className="bg-white w-full p-2.5 pl-10 text-sm md:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent shadow-sm"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
         <svg
-          className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500"
+          className="w-4 h-4 md:w-5 md:h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-          />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
       </div>
 
-      {/* Category Buttons - Now with fixed height and flex-grow */}
+      {/* Список категорій */}
       <motion.div
-     ref={scrollRef}
-     className="relative opacity-100 bg-gradient-to-br from-red-1 via-red-30 to-red-50 overflow-x-auto scrollbar-thumb-red-300 scrollbar-track-gray-200 scrollbar-thumb-rounded-full scrollbar-w-2 scrollbar-h-2 pb-2 flex-grow"
-     initial={{ opacity: 0 }}
-     animate={{ opacity: 1 }}
-     transition={{ delay: 0.4 }}
-     onMouseDown={handleMouseDown}
-     onMouseMove={handleMouseMove}
-     onMouseUp={handleMouseUp}
-     onMouseLeave={handleMouseUp}
-     style={{
-       scrollbarColor: "#db2828 #f0f0f0", // червоний колір для скролбару та світлий фон
-       scrollbarWidth: "thin", // Тонкий скролбар
-       overflowY: "scroll", // Завжди активний скролбар
-     }}
-     
+        ref={scrollRef}
+        className="relative overflow-x-auto no-scrollbar pb-2 flex-grow select-none"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        style={{ overflowY: "hidden", scrollBehavior: "smooth" }}
       >
         {filteredCategories.length > 0 ? (
-          <div className="flex gap-4 h-full items-center">
+          <div className="flex gap-3">
             {filteredCategories.map((category) => {
               const isSelected = selectedCategory === category.name;
               return (
                 <motion.button
                   key={category.id}
                   onClick={() => handleCategoryChange(category.name)}
-                  className={`flex flex-col items-center justify-center p-4 rounded-2xl flex-shrink-0 transition-all w-48 h-36 ${
+                  className={`flex flex-col items-center justify-center rounded-xl flex-shrink-0 transition-all min-w-[140px] md:min-w-[160px] h-28 md:h-32 ${
                     isSelected
-                      ? "bg-red-500 text-white shadow-md"
+                      ? "bg-red-500 text-white shadow-lg"
                       : "bg-white border border-gray-200 hover:border-red-400 hover:shadow-md text-gray-800"
                   }`}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
                 >
-                  <div className="w-16 h-16 mb-2">
+                  <div className="w-12 h-12 md:w-14 md:h-14 mb-1.5">
                     <img
                       src={category.logo}
                       alt={category.name}
@@ -144,7 +123,7 @@ const Category: React.FC<CategoryProps> = ({ selectedCategory, handleCategoryCha
                       loading="lazy"
                     />
                   </div>
-                  <span className="text-sm font-bold text-center leading-tight">
+                  <span className="text-xs md:text-sm font-medium text-center leading-tight px-2">
                     {category.name}
                   </span>
                 </motion.button>
@@ -153,10 +132,9 @@ const Category: React.FC<CategoryProps> = ({ selectedCategory, handleCategoryCha
           </div>
         ) : (
           <motion.div
-            className="text-center py-6 text-gray-500 text-lg h-full flex items-center justify-center"
+            className="text-center py-6 text-gray-500 text-sm md:text-base flex items-center justify-center w-full"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
           >
             Категорії не знайдено
           </motion.div>

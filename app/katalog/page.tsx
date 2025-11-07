@@ -1,14 +1,31 @@
-"use client";
+'use client';
 
-import { useState } from 'react';
-import Data from 'app/components/Data';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Data from 'app/components/Data';
 import FilterSidebar from 'app/components/filtrtion';
+import Order from 'app/components/Order';
+
+interface CartItem {
+  name: string;
+  code: string;
+  quantity: number;
+  price: number;
+}
 
 const Katalog: React.FC = () => {
+  const searchParams = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  useEffect(() => {
+    const search = searchParams.get('search') || '';
+    setSearchQuery(search);
+  }, [searchParams]);
+
   const [selectedCars, setSelectedCars] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [isSidebarVisible, setIsSidebarVisible] = useState<boolean>(true);
+  const [isOrderVisible, setIsOrderVisible] = useState<boolean>(false);
 
   const handleCarChange = (car: string) => {
     setSelectedCars((prev) =>
@@ -21,15 +38,21 @@ const Katalog: React.FC = () => {
     setSelectedCategories(value ? [value] : []);
   };
 
-  const searchParams = useSearchParams();
-  const searchQuery = searchParams?.get('search') || '';
-
   const toggleSidebar = () => {
     setIsSidebarVisible((prev) => !prev);
   };
 
+  const toggleOrder = () => {
+    setIsOrderVisible((prev) => !prev);
+  };
+
+  const addToCart = (item: CartItem) => {
+    console.log('🛒 Додано в кошик:', item);
+    // логіка додавання в кошик
+  };
+
   return (
-    <div className="fixed inset-0 top-[94px] flex overflow-hidden">
+    <div className="fixed inset-0 mt-20 flex overflow-hidden">
       <FilterSidebar
         selectedCars={selectedCars}
         handleCarChange={handleCarChange}
@@ -40,10 +63,13 @@ const Katalog: React.FC = () => {
       <div className="flex-1">
         <Data
           searchQuery={searchQuery}
+          searchFilter="all"
           selectedCars={selectedCars}
           selectedCategories={selectedCategories}
         />
       </div>
+
+      {isOrderVisible && <Order onClose={toggleOrder} />}
     </div>
   );
 };

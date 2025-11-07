@@ -27,11 +27,11 @@ export default function Footer() {
           <ul className="space-y-2 text-sm">
             <li className="flex items-center gap-2">
               <FaPhoneAlt className="text-gray-400" />
-              <a href="tel:+380961234567" className="hover:text-white">+38 (063) 421-18-51</a>
+              <a href="tel:+380634211851" className="hover:text-white">+38 (063) 421-18-51</a>
             </li>
             <li className="flex items-center gap-2">
               <FaEnvelope className="text-gray-400" />
-              <a href="mailto:info@myshop.ua" className="hover:text-white">romaniukbboogg@gmail.com</a>
+              <a href="mailto:romaniukbboogg@gmail.com" className="hover:text-white">romaniukbboogg@gmail.com</a>
             </li>
           </ul>
         </div>

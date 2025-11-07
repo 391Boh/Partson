@@ -1,227 +1,295 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, User, Menu, Search, Phone, Info, MessageCircle } from 'lucide-react';
-import { Car, List, Truck, CreditCard, MapPin, Users } from 'lucide-react';
+import { ShoppingCart, User, Menu, Info, MessageCircle, Car, List, Truck, CreditCard, MapPin, Users, Phone } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { auth } from 'firebase';
-import SearchBar from 'app/components/serch';
-import Data from 'app/components/Data';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import SearchBar from 'app/components/Search';
 import Contact from 'app/components/Contact';
 import Order from 'app/components/Order';
 import Login from 'app/components/Login';
 import Register from 'app/components/Register';
 import AccountInfo from 'app/components/AccountInfo';
-import katalog from 'app/katalog/page';
-import InformationPage from 'app/Inform/page';
+import { useCart } from 'app/context/CartContext';
 
-// Типізація пропсів
 interface HeaderProps {
   setIsChatOpen: (open: boolean) => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ setIsChatOpen }) => {
-  const [activeMenu, setActiveMenu] = useState<string>(""); // Без null
-  const [isContactOpen, setIsContactOpen] = useState(false);
-  const [isOrderOpen, setIsOrderOpen] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
-  const [showAccountInfo, setShowAccountInfo] = useState(false);
-  const [user, setUser] = useState(auth.currentUser);
+  const { cartItems } = useCart();
+  const [activeMenu, setActiveMenu] = useState<string>('');
+  
+  const [modals, setModals] = useState({
+    contact: false,
+    order: false,
+    login: false,
+    register: false,
+    accountInfo: false,
+  });
+
+  const [user, setUser] = useState<any>(null);
   const navRef = useRef<HTMLDivElement>(null);
 
-  // Слідкуємо за змінами автентифікації користувача
+  const auth = getAuth();
+
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((authUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
       setUser(authUser);
     });
     return () => unsubscribe();
-  }, []);
+  }, [auth]);
 
-  // Тогл для меню
-  const toggleMenu = (menu: string) => {
-    setActiveMenu(menu === activeMenu ? "" : menu);
-  };
-
-  // Закриваємо меню при натисканні поза ним
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (navRef.current && !navRef.current.contains(event.target as Node)) {
-        setActiveMenu(""); // Тут теж "" замість null
+        setActiveMenu('');
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const toggleMenu = (menu: string) => {
+    setActiveMenu(prev => (prev === menu ? '' : menu));
+  };
+
+  // Відкриває лише одну модалку одночасно
+  const openModal = (modalName: keyof typeof modals) => {
+    setModals({
+      contact: false,
+      order: false,
+      login: false,
+      register: false,
+      accountInfo: false,
+      [modalName]: true,
+    });
+  };
+
+  const closeModal = (modalName: keyof typeof modals) => {
+    setModals(prev => ({ ...prev, [modalName]: false }));
+  };
+
+  const buttonBaseClass =
+    'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-300';
+
+  const dropdownBaseClass =
+    'absolute z-50 mt-2 w-56 bg-gradient-to-br from-gray-700 to-gray-800 text-white rounded-2xl border-2 border-blue-500 shadow-2xl p-3 space-y-2 animate-fadeIn';
+
   return (
-    <header className="bg-gradient-to-b from-gray-600 to-gray-800 text-white p-4 flex justify-between items-center relative">
-      {/* Логотип */}
-      <div className="flex items-center gap-6">
+    <header className="bg-gradient-to-b from-gray-600 to-gray-800 pl-2 text-white py-2 px-4 sm:px-6 flex items-center justify-between flex-wrap gap-y-2">
+      {/* Логотип і меню */}
+      <div className="flex items-center gap-2 flex-wrap">
         <Link href="/" className="flex items-center">
-          <Image src="/Car-parts.svg" alt="PartsOn Logo" width={120} height={40} priority />
+          <Image
+            src="/Car-parts.png"
+            alt="PartsOn Logo"
+            width={0}
+            height={0}
+            sizes="(max-width: 768px) 100px, 120px"
+            className="w-[70px] sm:w-[120px] h-auto object-contain"
+          />
         </Link>
+
         <nav ref={navRef}>
-          <ul className="flex gap-6 items-center relative">
-            
-{/* Меню */}
-<li className="relative">
-  <button
-    onClick={() => toggleMenu("menu")}
-    className={`flex items-center gap-2 p-3 rounded-lg border transition-all duration-300 
-      ${activeMenu === "menu" ? "bg-gray-600 border-blue-500" : "bg-gray-700 border-transparent"}
-      text-white shadow-md hover:bg-gray-600 hover:border-gray-500 hover:shadow-lg`}
-  >
-    <Menu size={20} />
-    <span>Меню</span>
-  </button>
-
-  {activeMenu === "menu" && (
-    <ul className="punmenu">
-      <li>
-        <Link
-          href="/katalog?tab=auto"
-          className="btn-primary flex items-center gap-2"
-          onClick={() => toggleMenu("")}
-        >
-          <Car size={20} /> Обрати авто
-        </Link>
-      </li>
-      <li>
-        <Link
-          href="/katalog?tab=category"
-          className="btn-primary flex items-center gap-2"
-          onClick={() => toggleMenu("")}
-        >
-          <List size={20} /> Каталог
-        </Link>
-      </li>
-    </ul>
-  )}
-</li>
-
-
-<li className="relative">
-  <button
-    onClick={() => toggleMenu("info")}
-    className={`flex items-center gap-2 p-3 rounded-lg border transition-all duration-300 
-      ${activeMenu === "info" ? "bg-gray-600 border-blue-500" : "bg-gray-700 border-transparent"}
-      text-white shadow-md hover:bg-gray-600 hover:border-gray-500 hover:shadow-lg`}
-  >
-    <Info size={20} />
-    <span>Інформація</span>
-  </button>
-
-  {activeMenu === "info" && (
-    <ul className="punmenu">
-      <li>
-        <Link
-          href="/Inform?tab=delivery"
-          className="btn-primary flex items-center gap-2"
-          onClick={() => toggleMenu("")} // Закриває меню
-        >
-          <Truck size={20} /> Доставка
-        </Link>
-      </li>
-      <li>
-        <Link
-          href="/Inform?tab=payment"
-          className="btn-primary flex items-center gap-2"
-          onClick={() => toggleMenu("")}
-        >
-          <CreditCard size={20} /> Оплата
-        </Link>
-      </li>
-      <li>
-        <Link
-          href="/Inform?tab=about"
-          className="btn-primary flex items-center gap-2"
-          onClick={() => toggleMenu("")}
-        >
-          <Users size={20} /> Про нас
-        </Link>
-      </li>
-      <li>
-        <Link
-          href="/Inform?tab=location"
-          className="btn-primary flex items-center gap-2"
-          onClick={() => toggleMenu("")}
-        >
-          <MapPin size={20} /> Локація
-        </Link>
-      </li>
-    </ul>
-  )}
-</li>
-
-
-            {/* Кнопка онлайн підтримки в хедері */}
-            <li>
+          <ul className="flex gap-2 items-center flex-wrap">
+            {/* Меню */}
+            <li className="relative">
               <button
-                onClick={() => setIsChatOpen(true)}
-                className="flex items-center gap-2 p-3 rounded-full text-white 
-                bg-gradient-to-r from-blue-500 to-blue-600 shadow-inner shadow-blue-800/40 
-                hover:shadow-xl hover:scale-110 hover:ring-2 hover:ring-blue-300"
+                onClick={() => toggleMenu("menu")}
+                className={`${buttonBaseClass} ${activeMenu === 'menu' ? 'bg-blue-600 border-blue-300' : 'bg-gray-700 border-transparent'} border-2 shadow-inner hover:bg-gray-600 hover:border-blue-400 hover:shadow-xl`}
               >
-                <MessageCircle size={24} />
-                <span>Онлайн підтримка</span>
+                <Menu size={15} />
+                <span className="hidden lg:inline">Меню</span>
+              </button>
+              {activeMenu === "menu" && (
+                <ul className={`${dropdownBaseClass} absolute left-1/2 -translate-x-1/2 mt-8 w-44 z-50`}>
+                  <li>
+                    <Link
+                      href="/katalog?tab=auto"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-300 ease-in-out transform hover:bg-blue-600 hover:text-white hover:scale-105 hover:shadow-lg"
+                      onClick={() => toggleMenu("")}
+                    >
+                      <Car size={18} />
+                      <span className="hidden inline ">Обрати авто</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/katalog?tab=category"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-300 ease-in-out transform hover:bg-blue-600 hover:text-white hover:scale-105 hover:shadow-lg"
+                      onClick={() => toggleMenu("")}
+                    >
+                      <List size={18} />
+                      <span className="hidden inline">Каталог</span>
+                    </Link>
+                  </li>
+                </ul>
+              )}
+            </li>
+
+            {/* Інформація */}
+            <li className="relative">
+              <button
+                onClick={() => toggleMenu("info")}
+                className={`${buttonBaseClass} ${activeMenu === 'info' ? 'bg-blue-600 border-blue-300' : 'bg-gray-700 border-transparent'} border-2 shadow-inner hover:bg-gray-600 hover:border-blue-400 hover:shadow-2xl`}
+              >
+                <Info size={15} />
+                <span className="hidden lg:inline">Інформація</span>
+              </button>
+              {activeMenu === "info" && (
+                <ul className={`${dropdownBaseClass} absolute left-1/2 -translate-x-1/2 mt-8 w-44 z-50`}>
+                  <li>
+                    <Link
+                      href="/Inform?tab=delivery"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-300 ease-in-out transform hover:bg-blue-600 hover:text-white hover:scale-105 hover:shadow-lg"
+                      onClick={() => toggleMenu("")}
+                    >
+                      <Truck size={18} />
+                      <span className="hidden inline">Доставка</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/Inform?tab=payment"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-300 ease-in-out transform hover:bg-blue-600 hover:text-white hover:scale-105 hover:shadow-lg"
+                      onClick={() => toggleMenu("")}
+                    >
+                      <CreditCard size={18} />
+                      <span className="hidden inline">Оплата</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/Inform?tab=about"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-300 ease-in-out transform hover:bg-blue-600 hover:text-white hover:scale-105 hover:shadow-lg"
+                      onClick={() => toggleMenu("")}
+                    >
+                      <Users size={18} />
+                      <span className="hidden inline">Про нас</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/Inform?tab=location"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-300 ease-in-out transform hover:bg-blue-600 hover:text-white hover:scale-105 hover:shadow-lg"
+                      onClick={() => toggleMenu("")}
+                    >
+                      <MapPin size={18} />
+                      <span className="hidden inline">Локація</span>
+                    </Link>
+                  </li>
+                </ul>
+              )}
+            </li>
+
+            {/* Підтримка */}
+            <li className="ml-2 hidden lg:block">
+              <button
+                onClick={() => {
+                  // Закриваємо всі модалки
+                  setModals({
+                    contact: false,
+                    order: false,
+                    login: false,
+                    register: false,
+                    accountInfo: false,
+                  });
+                  // Відкриваємо чат
+                  setIsChatOpen(true);
+                  // Закриваємо меню, якщо відкрите
+                  setActiveMenu('');
+                }}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-inner hover:shadow-xl hover:scale-110 hover:ring-2 hover:ring-blue-300"
+              >
+                <MessageCircle size={20} />
+                <span className="hidden lg:inline">Онлайн підтримка</span>
               </button>
             </li>
           </ul>
         </nav>
       </div>
 
-      {/* Поле пошуку */}
-      <SearchBar onSearch={(query) => console.log(query)} />
+      {/* Пошук */}
+      <div className="hidden lg:block lg:max-w-xl px-4 sm:px-2 mx-auto">
+        <SearchBar onSearch={(query) => console.log(query)} />
+      </div>
 
-      {/* Профіль, Замовлення та Контакти */}
-      <nav>
-        <ul className="flex gap-6 items-center">
-          <li>
-            <button
-              onClick={() => {
-                if (user) {
-                  setShowAccountInfo(true);
-                } else {
-                  setShowLogin(true);
-                }
-              }}
-              className="menu-button flex items-center gap-2 p-3 rounded-lg bg-gray-700 text-white shadow-md hover:bg-gray-600"
-            >
-              <User size={20} />
-              <span>Профіль</span>
-            </button>
-          </li>
-          <li>
-            <button
-              onClick={() => setIsOrderOpen(true)}
-              className="menu-button flex items-center gap-2 p-3 rounded-lg bg-gray-700 text-white shadow-md hover:bg-gray-600"
-            >
-              <ShoppingCart size={20} />
-              <span>Замовлення</span>
-            </button>
-          </li>
-          <li>
-            <button
-              onClick={() => setIsContactOpen(true)}
-              className="flex items-center gap-3 px-5 py-3 bg-red-600 text-white text-lg rounded-xl hover:bg-red-500 shadow-md"
-            >
-              <Phone size={22} />
-              <span>Контакти</span>
-            </button>
-          </li>
-        </ul>
+      {/* Дії справа */}
+<nav className="flex items-center gap-2 whitespace-nowrap overflow-x-auto no-scrollbar flex-nowrap">
+        <button
+          onClick={() =>
+            user ? openModal('accountInfo') : openModal('login')
+          }
+          className={`${buttonBaseClass} bg-gray-700 border-1 hover:bg-gray-600 hover:border-blue-400 shadow text-white`}
+        >
+          <User size={18} />
+          <span className="hidden lg:inline flex-shrink-0 ">Профіль</span>
+        </button>
+
+        <button
+          onClick={() => openModal('order')}
+          className={`${buttonBaseClass} relative bg-gray-700 border-1 hover:bg-gray-600 hover:border-blue-400 shadow text-white`}
+        >
+          <ShoppingCart size={18} />
+          <span className="hidden lg:inline flex-shrink-0 ">Замовлення</span>
+          {cartItems.length > 0 && (
+            <span className="absolute top-1 right-0 w-4 h-4 text-xs font-semibold text-white bg-orange-400 rounded-full transform translate-x-1 -translate-y-1 flex justify-center items-center">
+              {cartItems.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => openModal('contact')}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm shadow"
+        >
+          <Phone size={18} />
+          <span className="hidden lg:inline flex-shrink-0 ">Контакти</span>
+        </button>
       </nav>
 
-      {/* Відображення модальних вікон */}
-      {isContactOpen && <Contact onClose={() => setIsContactOpen(false)} />}
-      {isOrderOpen && <Order onClose={() => setIsOrderOpen(false)} />}
-      {showLogin && <Login onClose={() => setShowLogin(false)} onShowRegister={() => setShowRegister(true)} />}
-      {showRegister && <Register onClose={() => setShowRegister(false)} onShowLogin={() => setShowLogin(true)} />}
-      {showAccountInfo && user && <AccountInfo user={user} onClose={() => setShowAccountInfo(false)} />}
+      {/* Модальні вікна */}
+
+      {/* Contact - без закриття по бекдропу */}
+      {modals.contact && (
+        <div className="fixed inset-0 z-[60] flex justify-center items-center pointer-events-none">
+          <div className="pointer-events-auto">
+            <Contact onClose={() => closeModal('contact')} />
+          </div>
+        </div>
+      )}
+
+      {/* Order - без закриття по бекдропу */}
+      {modals.order && (
+        <div className="fixed inset-0 z-[60] flex justify-center items-center pointer-events-none">
+          <div className="pointer-events-auto">
+            <Order onClose={() => closeModal('order')} />
+          </div>
+        </div>
+      )}
+
+      {/* Login */}
+      {modals.login && (
+        <Login
+          onClose={() => closeModal('login')}
+          onShowRegister={() => openModal('register')}
+        />
+      )}
+
+      {/* Register */}
+      {modals.register && (
+        <Register
+          onClose={() => closeModal('register')}
+          onShowLogin={() => openModal('login')}
+        />
+      )}
+
+      {/* Account Info */}
+      {modals.accountInfo && user && (
+        <AccountInfo user={user} onClose={() => closeModal('accountInfo')} />
+      )}
     </header>
   );
 };

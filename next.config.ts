@@ -1,24 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  async rewrites() {
-    return [
-      {
-        source: '/api/getData', // локальний маршрут
-        destination: 'http://192.168.0.101/RetailShopAuto1/hs/serv/getdata', // зовнішній сервер
-      },
-    ];
-  },
+  transpilePackages: ['leaflet', 'react-leaflet'],
+  // rewrites видаляємо, бо вони викликають 404 при авторизації
 };
 
-module.exports = {
-  // ...інші налаштування
-  transpilePackages: ['leaflet', 'react-leaflet']
-}
-
-
 module.exports = nextConfig;
-
-
-
-
-

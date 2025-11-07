@@ -1,11 +1,31 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
+import {
+  signOut,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+} from "firebase/auth";
 import { auth } from "firebase";
-import { doc, getDoc, setDoc, query, collection, where, getDocs } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  query,
+  collection,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import { db } from "firebase";
-import { LogOut, Key, X, Trash2, Edit, Save } from "lucide-react";
+import {
+  LogOut,
+  Key,
+  X,
+  Trash2,
+  Edit,
+  Save,
+} from "lucide-react";
 
 interface User {
   email: string | null;
@@ -34,6 +54,14 @@ const AccountInfo: React.FC<AccountInfoProps> = ({ user, onClose }) => {
   const [tempPhone, setTempPhone] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  // Забороняємо скролл фону при відкритті модалки
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, []);
 
   useEffect(() => {
     if (!user || !user.uid) return;
@@ -222,185 +250,279 @@ const AccountInfo: React.FC<AccountInfoProps> = ({ user, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex justify-center items-center backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
       <div
         ref={modalRef}
-        className="bg-gradient-to-br from-gray-800 to-gray-600 p-8 rounded-3xl border border-gray-600 w-96 relative transform transition-all duration-300 shadow-xl"
+        className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl border border-gray-700 max-w-3xl w-full sm:max-h-[90vh] max-h-[65vh] overflow-y-auto p-6 relative
+        grid grid-cols-1 gap-6
+        md:grid-cols-[1fr_auto] md:max-w-4xl"
       >
-        <button onClick={onClose} className="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl">
-          <X size={24} />
+        
+        {/* Закрити */}
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 text-gray-400 hover:text-white transition-colors"
+          aria-label="Закрити"
+          title="Закрити"
+        >
+          <X size={28} />
         </button>
-        <h2 className="text-xl font-bold text-white text-center mb-4">Ваш профіль</h2>
-        <div className="text-white space-y-4">
-          <div className="bg-gray-600 p-3 rounded-lg">
-            <p className="font-semibold">Ім'я:</p>
-            {loading ? (
-              <p className="text-gray-300">Завантаження...</p>
-            ) : isEditingName ? (
-              <div className="flex items-center gap-2">
+
+        
+
+        {/* Заголовок */}
+        <h2 className="text-2xl font-extrabold text-white text-center md:col-span-full mb-2 tracking-wide">
+          Ваш профіль
+        </h2>
+
+           {/* Вийти з акаунту */}
+         <button
+  onClick={handleSignOut}
+  className="w-50 sm:w-70  bg-red-500 hover:bg-red-600 transition rounded-xl py-3 text-white font-semibold tracking-wide"
+>
+
+            <div className="flex items-center justify-center gap-2">
+              <LogOut size={30} />
+              Вийти з акаунту
+            </div>
+          </button>
+
+        <div className="flex flex-col gap-4 md:col-span-full">
+          {/* Ім'я */}
+          <section className="bg-gray-800 rounded-xl p-4 shadow-inner border border-gray-700 flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-lg mb-1 text-white">Ім'я</h3>
+              {loading ? (
+                <p className="text-gray-400">Завантаження...</p>
+              ) : isEditingName ? (
                 <input
                   type="text"
-                  className={`flex-1 p-2 rounded-lg bg-gray-700 text-white placeholder-gray-400 border ${
-                    tempName && tempName.trim() === "" ? "border-red-500" : tempName ? "border-green-500" : "border-gray-600"
-                  }`}
                   value={tempName || ""}
                   onChange={(e) => setTempName(e.target.value)}
+                  className={`w-full rounded-md bg-gray-900 p-2 placeholder-gray-500 border ${
+                    tempName?.trim() === ""
+                      ? "border-red-500"
+                      : tempName
+                      ? "border-green-500"
+                      : "border-gray-600"
+                  } text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition`}
+                  placeholder="Введіть ім'я"
+                  autoFocus
                 />
+              ) : (
+                <p className="text-gray-300 truncate">{name || "Не вказано"}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {isEditingName ? (
                 <button
                   onClick={handleSaveName}
-                  className="text-gray-400 hover:text-green-500 transition"
+                  className="text-green-400 hover:text-green-600 transition"
+                  aria-label="Зберегти ім'я"
                   title="Зберегти ім'я"
                 >
                   <Save size={20} />
                 </button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between">
-                <p className="text-gray-300">{name}</p>
+              ) : (
                 <button
                   onClick={() => {
                     setTempName(name);
                     setIsEditingName(true);
                   }}
-                  className="text-gray-400 hover:text-blue-500 transition"
+                  className="text-blue-400 hover:text-blue-600 transition"
+                  aria-label="Редагувати ім'я"
                   title="Редагувати ім'я"
                 >
                   <Edit size={20} />
                 </button>
-              </div>
-            )}
-          </div>
-          <div className="bg-gray-600 p-3 rounded-lg">
-            <p className="font-semibold">Email:</p>
-            <p className="text-gray-300">{user?.email}</p>
-          </div>
-          <div className="bg-gray-600 p-3 rounded-lg">
-            <p className="font-semibold">Номер телефону:</p>
-            {loading ? (
-              <p className="text-gray-300">Завантаження...</p>
-            ) : isEditingPhone ? (
-              <div className="flex items-center gap-2">
+              )}
+            </div>
+          </section>
+
+          {/* Email */}
+          <section className="bg-gray-800 rounded-xl p-4 shadow-inner border border-gray-700 flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-lg mb-1 text-white">Email</h3>
+              <p className="text-gray-300 truncate">{user?.email || "Не вказано"}</p>
+            </div>
+          </section>
+
+          {/* Телефон */}
+          <section className="bg-gray-800 rounded-xl p-4 shadow-inner border border-gray-700 flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-lg mb-1 text-white">Телефон</h3>
+              {loading ? (
+                <p className="text-gray-400">Завантаження...</p>
+              ) : isEditingPhone ? (
                 <input
-                  type="text"
-                  className={`flex-1 p-2 rounded-lg bg-gray-700 text-white placeholder-gray-400 border ${
-                    phoneError ? "border-red-500" : tempPhone && tempPhone.length >= 12 ? "border-green-500" : "border-gray-600"
-                  }`}
+                  type="tel"
                   value={tempPhone || ""}
                   onChange={(e) => setTempPhone(e.target.value)}
+                  className={`w-full rounded-md bg-gray-900 p-2 placeholder-gray-500 border ${
+                    phoneError
+                      ? "border-red-500"
+                      : tempPhone && tempPhone.trim() !== ""
+                      ? "border-green-500"
+                      : "border-gray-600"
+                  } text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition`}
+                  placeholder="+380 ХХХ ХХХ ХХ ХХ"
+                  autoFocus
                 />
+              ) : (
+                <p className="text-gray-300 truncate">{phone || "Не вказано"}</p>
+              )}
+              {phoneError && (
+                <p className="text-red-500 text-sm mt-1">{phoneError}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {isEditingPhone ? (
                 <button
                   onClick={handleSavePhone}
-                  className="text-gray-400 hover:text-green-500 transition"
-                  title="Зберегти номер телефону"
+                  className="text-green-400 hover:text-green-600 transition"
+                  aria-label="Зберегти телефон"
+                  title="Зберегти телефон"
                 >
                   <Save size={20} />
                 </button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between">
-                <p className="text-gray-300">{phone}</p>
+              ) : (
                 <button
                   onClick={() => {
                     setTempPhone(phone);
+                    setPhoneError(null);
                     setIsEditingPhone(true);
                   }}
-                  className="text-gray-400 hover:text-blue-500 transition"
-                  title="Редагувати номер телефону"
+                  className="text-blue-400 hover:text-blue-600 transition"
+                  aria-label="Редагувати телефон"
+                  title="Редагувати телефон"
                 >
                   <Edit size={20} />
                 </button>
-              </div>
-            )}
-            {phoneError && <p className="text-red-500 text-sm mt-1">{phoneError}</p>}
-          </div>
-          <div className="bg-gray-600 p-3 rounded-lg">
-            <p className="font-semibold">VIN:</p>
-            {vins.length > 0 ? (
-              vins.map((vin, index) => (
-                <div key={index} className="flex items-center justify-between mt-2">
-                  <p className="text-gray-300">{vin}</p>
-                  <button
-                    onClick={() => handleDeleteVin(index)}
-                    className="text-gray-400 hover:text-red-500 transition"
-                    title="Видалити VIN"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              ))
+              )}
+            </div>
+          </section>
+
+          {/* Список VIN */}
+          <section className="bg-gray-800 rounded-xl p-4 shadow-inner border border-gray-700">
+            <h3 className="font-semibold text-lg mb-3 text-white">VIN-коди</h3>
+            {vins.length === 0 ? (
+              <p className="text-gray-400 italic">Список порожній</p>
             ) : (
-              <p className="text-gray-300">Додайте VIN</p>
+              <ul className="flex flex-col gap-2 max-h-40 overflow-y-auto">
+                {vins.map((vin, idx) => (
+                  <li
+                    key={vin + idx}
+                    className="flex items-center justify-between bg-gray-700 rounded-md px-3 py-2 text-gray-200 font-mono text-sm select-text"
+                  >
+                    <span className="truncate">{vin}</span>
+                    <button
+                      onClick={() => handleDeleteVin(idx)}
+                      aria-label={`Видалити VIN ${vin}`}
+                      title="Видалити VIN"
+                      className="text-red-400 hover:text-red-600 transition p-1 rounded"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
             {isVinFieldVisible ? (
-              <div className="mt-2">
+              <div className="mt-3 flex gap-2">
                 <input
                   type="text"
-                  className={`w-full p-2 rounded-lg bg-gray-700 text-white placeholder-gray-400 border ${
-                    vinError ? "border-red-500" : newVin.length === 17 ? "border-green-500" : "border-gray-600"
-                  }`}
-                  placeholder="Введіть VIN"
                   value={newVin}
-                  onChange={(e) => {
-                    setNewVin(e.target.value.slice(0, 17));
-                    validateVin(e.target.value.slice(0, 17));
-                  }}
+                  onChange={(e) => setNewVin(e.target.value.toUpperCase())}
+                  maxLength={17}
+                  placeholder="Введіть VIN (17 символів)"
+                  className={`flex-grow rounded-md bg-gray-900 p-2 placeholder-gray-500 border ${
+                    vinError ? "border-red-500" : "border-gray-600"
+                  } text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition font-mono`}
+                  autoFocus
                 />
                 <button
                   onClick={handleAddVin}
-                  className="mt-2 w-full bg-green-600 hover:bg-green-700 text-white p-2 rounded-lg transition"
+                  className="text-green-400 hover:text-green-600 transition p-2 rounded"
+                  aria-label="Додати VIN"
+                  title="Додати VIN"
                 >
-                  Додати VIN
+                  <Save size={20} />
                 </button>
-                {vinError && <p className="text-red-500 text-sm mt-1">{vinError}</p>}
+                <button
+                  onClick={() => {
+                    setIsVinFieldVisible(false);
+                    setNewVin("");
+                    setVinError(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-200 transition p-2 rounded"
+                  aria-label="Скасувати додавання VIN"
+                  title="Скасувати"
+                >
+                  <X size={20} />
+                </button>
               </div>
             ) : (
               <button
                 onClick={() => setIsVinFieldVisible(true)}
-                className="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition"
+                className="mt-3 text-blue-400 hover:text-blue-600 transition font-semibold"
+                aria-label="Додати VIN"
+                title="Додати VIN"
               >
-                Додати VIN
+                + Додати VIN
               </button>
             )}
-          </div>
-        </div>
-        <div className="mt-5 space-y-3">
-          {showPasswordField && (
-            <div>
-              <input
-                type="password"
-                className={`w-full p-2 rounded-lg bg-gray-700 text-white placeholder-gray-400 border ${
-                  passwordError ? "border-red-500" : newPassword.length >= 6 ? "border-green-500" : "border-gray-600"
-                }`}
-                placeholder="Введіть новий пароль"
-                value={newPassword}
-                onChange={(e) => {
-                  setNewPassword(e.target.value);
-                  validatePassword(e.target.value);
-                }}
-              />
+            {vinError && <p className="text-red-500 text-sm mt-1">{vinError}</p>}
+          </section>
+
+          {/* Зміна паролю */}
+          <section className="bg-gray-800 rounded-xl p-4 shadow-inner border border-gray-700 flex items-center justify-between">
+            <h3 className="font-semibold text-lg text-white">Пароль</h3>
+            {showPasswordField ? (
+              <div className="flex gap-2 items-center w-full max-w-xs">
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Новий пароль"
+                  className={`w-full rounded-md bg-gray-900 p-2 placeholder-gray-500 border ${
+                    passwordError ? "border-red-500" : "border-gray-600"
+                  } text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition`}
+                  autoFocus
+                />
+                <button
+                  onClick={handleChangePassword}
+                  className="text-green-400 hover:text-green-600 transition p-2 rounded"
+                  aria-label="Змінити пароль"
+                  title="Змінити пароль"
+                >
+                  <Save size={20} />
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPasswordField(false);
+                    setNewPassword("");
+                    setPasswordError(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-200 transition p-2 rounded"
+                  aria-label="Скасувати зміну паролю"
+                  title="Скасувати"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            ) : (
               <button
-                onClick={handleChangePassword}
-                className="mt-2 w-full bg-green-600 hover:bg-green-700 text-white p-2 rounded-lg transition"
+                onClick={() => setShowPasswordField(true)}
+                className="text-blue-400 hover:text-blue-600 transition"
+                aria-label="Змінити пароль"
+                title="Змінити пароль"
               >
-                Підтвердити зміну пароля
+                <Key size={20} />
               </button>
-              {passwordError && <p className="text-red-500 text-sm mt-1">{passwordError}</p>}
-            </div>
-          )}
-          <div className="flex justify-between">
-            <button
-              onClick={handleSignOut}
-              className="flex items-center justify-center p-2 bg-red-600 rounded-lg hover:bg-red-700 transition-colors duration-200"
-            >
-              <LogOut size={20} className="text-white" />
-            </button>
-            <button
-              onClick={() => setShowPasswordField(!showPasswordField)}
-              className="flex items-center justify-center p-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors duration-200"
-            >
-              <Key size={20} className="text-white" />
-            </button>
-          </div>
+            )}
+          </section>
+
+       
         </div>
       </div>
     </div>

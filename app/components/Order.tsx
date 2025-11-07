@@ -1,106 +1,281 @@
-"use client";
+'use client';
 
-import { useEffect, useRef } from "react";
-import { ShoppingCart, X } from "lucide-react";
-import Link from "next/link";
-
-interface CartItem {
-  id: number;
-  name: string;
-  price: number;
-  quantity?: number; // Додано quantity для майбутнього використання
-}
+import {
+  ShoppingCart,
+  X,
+  ClipboardList,
+  Plus,
+  Truck,
+  CreditCard,
+  PackageCheck,
+  ChevronUp,
+  ChevronDown,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useCart } from 'app/context/CartContext';
+import { useEffect, useState } from 'react';
+import Zamovl from './zamovl';
+import { db, auth } from 'firebase.js';
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy
+} from 'firebase/firestore';
+import { onAuthStateChanged, User } from 'firebase/auth';
 
 interface OrderProps {
-  cartItems?: CartItem[]; // Робимо cartItems необов'язковим
   onClose: () => void;
 }
 
-const Order: React.FC<OrderProps> = ({ cartItems = [], onClose }) => {
-  const orderRef = useRef<HTMLDivElement>(null);
+const Order: React.FC<OrderProps> = ({ onClose }) => {
+  const { cartItems, removeFromCart, clearCart } = useCart();
+  const [isOrdering, setIsOrdering] = useState(false);
+  const [showPastOrders, setShowPastOrders] = useState(false);
+  const [pastOrders, setPastOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
-  // Закриття модального вікна при кліку поза ним
+  const totalAmount = cartItems.reduce(
+    (total, item) => total + (item.price || 0) * (item.quantity || 1),
+    0
+  );
+
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (orderRef.current && !orderRef.current.contains(event.target as Node)) {
-        onClose();
+    const unsubscribe = onAuthStateChanged(auth, currentUser => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const fetchPastOrders = async () => {
+      if (!user) return;
+      setLoadingOrders(true);
+      try {
+        const q = query(
+          collection(db, 'orders'),
+          where('uid', '==', user.uid),
+          orderBy('createdAt', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+        const orders = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setPastOrders(orders);
+      } catch (error) {
+        console.error('Помилка при завантаженні замовлень:', error);
+      } finally {
+        setLoadingOrders(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onClose]);
 
-  // Розрахунок загальної суми замовлення
-  const totalAmount = cartItems.reduce((total, item) => total + (item.price * (item.quantity || 1)), 0);
+    if (showPastOrders) {
+      fetchPastOrders();
+      setExpandedOrderId(null);
+    }
+  }, [showPastOrders, user]);
+
+  const toggleExpandOrder = (orderId: string) => {
+    setExpandedOrderId(prev => (prev === orderId ? null : orderId));
+  };
+
+  if (isOrdering) {
+    return (
+      <Zamovl
+        cartItems={cartItems}
+        totalAmount={totalAmount}
+        onBack={() => setIsOrdering(false)}
+        onCloseAll={() => {
+          setIsOrdering(false);
+          onClose();
+        }}
+        onClearCart={clearCart}
+      />
+    );
+  }
+
+  if (showPastOrders) {
+    return (
+      <div className="fixed top-28 right-5 w-[90%] max-w-[520px] max-h-[75vh] overflow-y-auto bg-gradient-to-br from-gray-800 via-gray-700 to-gray-600 border-8 border-slate-700 rounded-2xl shadow-2xl p-6 z-[9999] flex flex-col gap-6 animate-fadeIn">
+        <div className="flex justify-between items-center pb-4 border-b border-slate-700">
+          <h3 className="text-slate-100 text-2xl font-bold">Попередні замовлення</h3>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white transition"
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        {!user ? (
+          <div className="text-center text-white">
+            <p>Будь ласка, увійдіть у свій акаунт, щоб переглянути замовлення.</p>
+            <Link href="/login" className="mt-4 inline-block px-5 py-3 bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+              Увійти
+            </Link>
+          </div>
+        ) : loadingOrders ? (
+          <div className="loader"></div>
+        ) : pastOrders.length > 0 ? (
+          <div className="flex flex-col gap-4">
+            {pastOrders.map(order => {
+              const isExpanded = expandedOrderId === order.id;
+              return (
+                <div
+                  key={order.id}
+                  className="bg-slate-700 p-4 rounded-xl text-white shadow-lg transition hover:brightness-105 cursor-pointer"
+                  onClick={() => toggleExpandOrder(order.id)}
+                >
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-bold text-sm sm:text-base">Замовлення #{order.orderId || order.id}</h4>
+                    {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </div>
+                  <p className="text-slate-400 text-xs sm:text-sm">
+                    {order.createdAt?.seconds
+                      ? new Date(order.createdAt.seconds * 1000).toLocaleString()
+                      : '—'}
+                  </p>
+
+                  {isExpanded && (
+                    <div className="space-y-4 mt-2">
+                      <ul className="list-disc list-inside text-slate-300 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800 text-sm">
+                        {order.cartItems?.map((item: any, idx: number) => (
+                          <li key={idx}>{item.name} — {item.quantity} шт.</li>
+                        ))}
+                      </ul>
+
+                      <div className="flex flex-wrap gap-4 text-xs sm:text-sm text-slate-300">
+                        <div className="flex items-center gap-1">
+                          <ClipboardList size={16} />
+                          <span>Сума: <span className="text-emerald-400 font-semibold">{order.totalAmount || order.total} грн</span></span>
+                        </div>
+                        {order.deliveryMethod && (
+                          <div className="flex items-center gap-1">
+                            <Truck size={16} />
+                            <span>Доставка: {order.deliveryMethod}</span>
+                          </div>
+                        )}
+                        {order.warehouse && (
+                          <div className="flex items-center gap-1">
+                            <PackageCheck size={16} />
+                            <span>Відділення: {order.warehouse}</span>
+                          </div>
+                        )}
+                        {order.paymentMethod && (
+                          <div className="flex items-center gap-1">
+                            <CreditCard size={16} />
+                            <span>Оплата: {order.paymentMethod}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center text-white">
+            <p>У вас ще немає минулих замовлень.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div
-      ref={orderRef}
-      className="absolute top-28 right-5 w-80 bg-gradient-to-br from-gray-500 to-gray-800 
-                    border-2 border-gray-400 rounded-xl shadow-lg shadow-gray-500 
-                    p-5 animate-fadeIn flex flex-col gap-4 z-50 contacts-container
-                    shadow-inner shadow-gray-900/40"
-    >
-      {/* Заголовок та кнопка закриття */}
-      <div className="flex justify-between items-center border-b border-gray-700 pb-3">
-        <h3 className="text-gray-100 text-xl font-semibold">Ваше замовлення</h3>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-200 transition"
-        >
+    <div className="fixed top-28 right-5 w-[90%] max-w-[520px] max-h-[75vh] overflow-y-auto bg-gradient-to-br from-gray-800 via-gray-700 to-gray-600 border-8 border-slate-700 rounded-2xl shadow-2xl p-6 z-[9999] flex flex-col gap-4 animate-fadeIn">
+      <div className="flex justify-between items-center pb-4 border-b border-slate-700">
+        <h3 className="text-slate-100 text-2xl font-bold">Ваше замовлення</h3>
+        <button onClick={onClose} className="text-slate-400 hover:text-white transition">
           <X size={24} />
         </button>
       </div>
 
-      {/* Вміст кошика */}
-      {cartItems.length > 0 ? (
-        <div className="space-y-4">
-          {/* Список товарів */}
-          {cartItems.map((item) => (
-            <div
-              key={item.id}
-              className="flex justify-between items-center p-3 bg-gray-800 rounded-lg"
-            >
-              <span className="text-gray-300 font-medium">{item.name}</span>
-              <span className="text-gray-400">
-                {item.price} грн {item.quantity && `x ${item.quantity}`}
-              </span>
-            </div>
-          ))}
+      {/* Кнопки "Попередні замовлення" та "Підтвердити" */}
+      <div className="flex justify-between gap-4 mb-4">
+        <button
+          onClick={() => setShowPastOrders(true)}
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gray-700 text-white shadow hover:bg-gray-600 transition duration-300 hover:scale-105"
+        >
+          <ClipboardList size={20} />
+          Попередні замовлення
+        </button>
 
-          {/* Загальна сума */}
-          <div className="flex justify-between items-center p-3 bg-gray-800 rounded-lg">
-            <span className="text-gray-300 font-medium">Загалом:</span>
-            <span className="text-gray-400 font-semibold">{totalAmount} грн</span>
+        {cartItems.length > 0 && (
+      <button
+  onClick={() => setIsOrdering(true)}
+  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-md transition-all duration-200 transform hover:scale-105"
+>
+  <ShoppingCart size={20} />
+  <span className="font-medium">Підтвердити</span>
+</button>
+
+        )}
+      </div>
+
+      {cartItems.length > 0 ? (
+        <>
+          <div className="flex-grow overflow-y-auto pr-2 space-y-4 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
+            {cartItems.map((item, index) => (
+              <div
+                key={item.code || index}
+                className="flex justify-between items-center p-4 bg-slate-700 rounded-xl hover:brightness-110 transition shadow"
+              >
+                <div className="flex flex-col gap-1">
+                  <Link
+                    href={`/katalog?search=${encodeURIComponent(item.name?.replace(/\s*\(.*?\)/g, '') || '')}&filter=all`}
+                    className="text-white font-medium hover:underline hover:text-blue-400 transition"
+                  >
+                    {item.name?.replace(/\s*\(.*?\)/g, '')}
+                  </Link>
+                  <p className="text-slate-300 text-sm">
+                    {item.price} грн <span className="text-slate-400">x {item.quantity} шт.</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => removeFromCart(item.code)}
+                  className="text-red-500 hover:text-red-300 transition"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            ))}
           </div>
 
-          {/* Кнопка оформлення замовлення */}
-          <button
-            className="w-full bg-green-700 text-white py-3 rounded-lg text-lg font-semibold
-                       hover:bg-green-800 transition shadow-md hover:shadow-lg"
-          >
-            Оформити замовлення
-          </button>
-        </div>
+          <div className="space-y-3 mt-4 border-t border-slate-700 pt-4">
+            <div className="grid grid-cols-2 gap-4 bg-slate-800 p-4 rounded-lg">
+              <div className="flex flex-col">
+                <span className="text-slate-400 text-sm">Найменувань</span>
+                <span className="text-white font-semibold text-lg">{cartItems.length} шт.</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-slate-400 text-sm">Сума до сплати</span>
+                <span className="text-emerald-400 font-semibold text-lg">{totalAmount} грн</span>
+              </div>
+            </div>
+          </div>
+        </>
       ) : (
-        /* Повідомлення про порожній кошик */
-        <div className="text-center text-gray-400 flex flex-col items-center gap-5">
-          <ShoppingCart size={50} className="text-gray-500" />
-          <p className="text-gray-300 text-lg font-medium">Кошик порожній</p>
-          <p className="text-gray-400 text-sm">
+        <div className="text-center text-slate-400 flex flex-col items-center gap-8 mt-2 p-8 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 rounded-3xl shadow-2xl border border-gray-600">
+          <ShoppingCart size={80} className="text-slate-500 animate-pulse" />
+          <p className="text-white text-2xl font-extrabold tracking-wide">Кошик порожній</p>
+          <p className="max-w-xs text-slate-300 text-base leading-relaxed">
             Додайте товари з каталогу, щоб оформити замовлення.
           </p>
-          <Link
-            href="/catalog"
-            className="relative flex items-center gap-2 p-3 rounded-full text-white 
-                bg-gradient-to-r from-blue-500 to-blue-600 shadow-inner shadow-blue-800/40
-                transition-all duration-300 ease-in-out
-                hover:shadow-xl hover:shadow-blue-900/50 
-                hover:scale-110 hover:brightness-110 
-                hover:ring-2 hover:ring-blue-300 hover:ring-opacity-50"
-          >
-            Перейти в каталог
-          </Link>
+          <div className="flex justify-center w-full mt-3">
+            <Link
+              href="/katalog"
+              className="inline-flex items-center gap-3 px-6 py-3 rounded-full text-white bg-gradient-to-r from-blue-600 to-blue-800 shadow-lg hover:scale-110 hover:brightness-125 transition-transform duration-300"
+            >
+              Додати товари
+              <Plus size={20} />
+            </Link>
+          </div>
         </div>
       )}
     </div>

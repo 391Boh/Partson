@@ -1,6 +1,8 @@
-import { FC, useState, useEffect, useCallback } from 'react';
+'use client';
+
+import { FC, useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Auto from 'app/components/autochose';
+import Auto from 'app/components/Auto';
 import Category from 'app/components/katkomp';
 import { FaChevronLeft, FaChevronRight, FaCar, FaTh } from 'react-icons/fa';
 
@@ -12,15 +14,20 @@ interface FilterSidebarProps {
 }
 
 const FilterSidebar: FC<FilterSidebarProps> = ({
-  selectedCars, // Виправлено опечатку (було selectedCars)
+  selectedCars,
   handleCarChange,
   isSidebarVisible,
   toggleSidebar,
 }) => {
   const searchParams = useSearchParams();
   const [activeComponent, setActiveComponent] = useState<'auto' | 'category'>('auto');
-  const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>(selectedCars); // Ініціалізуємо з пропсів
+  const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>(selectedCars);
   const [sortByPriceAsc, setSortByPriceAsc] = useState(true);
+
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+  const touchEndY = useRef<number | null>(null);
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
@@ -33,88 +40,134 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     setInternalSelectedCars(selectedCars);
   }, [selectedCars]);
 
-  const handleInternalCarChange = useCallback((car: string) => {
-    setInternalSelectedCars(prev => {
-      const updatedCars = prev.includes(car)
-        ? prev.filter(c => c !== car)
-        : [...prev, car];
-      handleCarChange(car); // Викликаємо оригінальний обробник
-      return updatedCars;
-    });
-  }, [handleCarChange]);
+  const handleInternalCarChange = useCallback(
+    (car: string) => {
+      setInternalSelectedCars(prev => {
+        const updated = prev.includes(car)
+          ? prev.filter(c => c !== car)
+          : [...prev, car];
+        handleCarChange(car);
+        return updated;
+      });
+    },
+    [handleCarChange]
+  );
+
+  const toggleSortOrder = useCallback(() => {
+    setSortByPriceAsc(prev => !prev);
+  }, []);
 
   const handleComponentToggle = useCallback((component: 'auto' | 'category') => {
     setActiveComponent(component);
   }, []);
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+    touchEndY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const target = e.target as HTMLElement;
+
+    if (target.closest('.scrollable')) return;
+
+    if (
+      touchStartX.current !== null &&
+      touchEndX.current !== null &&
+      touchStartY.current !== null &&
+      touchEndY.current !== null
+    ) {
+      const deltaX = touchStartX.current - touchEndX.current;
+      const deltaY = touchStartY.current - touchEndY.current;
+
+      if (Math.abs(deltaY) > Math.abs(deltaX)) return;
+
+      if (Math.abs(deltaX) > 50 && Math.abs(deltaY) < 50) {
+        if (deltaX > 0 && isSidebarVisible) toggleSidebar();
+        else if (deltaX < 0 && !isSidebarVisible) toggleSidebar();
+      }
+    }
+
+    touchStartX.current = null;
+    touchEndX.current = null;
+    touchStartY.current = null;
+    touchEndY.current = null;
+  };
+
   return (
     <div
-      className={`ml-5 relative transition-all duration-200 ease-out ${
-        isSidebarVisible ? 'w-1/3' : 'w-16'
-      } overflow-hidden rounded-xl shadow-lg fixed top-0 left-0 z-30 bg-gradient-to-br from-blue-100/50 to-pink-50/50 backdrop-blur-sm`}
-      style={{ height: 'calc(95vh - 96px)' }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onClick={!isSidebarVisible ? toggleSidebar : undefined}
+      className={`fixed top-0 mt-28 left-0 z-[9999] transition-all duration-200 ease-out
+        ${isSidebarVisible
+          ? 'w-full h-[445vh] sm:h-500vh] md:h-[105vh] lg:w-1/3 lg:h-[60vh]'
+          : 'w-12 h-screen cursor-pointer'}
+        ${isSidebarVisible ? 'rounded-none sm:rounded-xl' : 'rounded-xl'}
+        overflow-hidden shadow-lg ml-2
+        bg-gradient-to-br from-blue-100/50 to-pink-50/50 backdrop-blur-sm`}
     >
-      {/* Toggle button */}
-      <button
-        onClick={toggleSidebar}
-        className="absolute top-4 right-4 p-2 text-gray-600 hover:text-gray-800 focus:outline-none z-10 cursor-pointer transition duration-200 ease-in-out"
-        aria-label={isSidebarVisible ? 'Згорнути панель' : 'Розгорнути панель'}
-      >
-        {isSidebarVisible ? <FaChevronLeft size={24} /> : <FaChevronRight size={24} />}
-      </button>
+      {isSidebarVisible && (
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            toggleSidebar();
+          }}
+          className="absolute top-3 right-3 p-4 text-gray-600 hover:text-gray-800 focus:outline-none z-10 transition duration-200"
+          aria-label="Згорнути панель"
+        >
+          <FaChevronLeft size={18} />
+        </button>
+      )}
 
-      {/* Icons when collapsed */}
       {!isSidebarVisible && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center space-y-4 z-20">
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center space-y-3 z-20">
+          <FaChevronRight size={18} className="mb-4 text-gray-500 animate-pulse" />
           <button
-            onClick={() => {
+            onClick={e => {
+              e.stopPropagation();
               setActiveComponent('auto');
               toggleSidebar();
             }}
-            className="flex items-center justify-center bg-white p-3 rounded-full shadow-lg hover:bg-gray-200 focus:outline-none"
+            className="bg-white p-2 rounded-full shadow-lg hover:bg-gray-200 transition"
             aria-label="Вибір авто"
           >
-            <FaCar size={20} className="text-gray-600" />
+            <FaCar size={18} className="text-gray-600" />
           </button>
-
           <button
-            onClick={() => {
+            onClick={e => {
+              e.stopPropagation();
               setActiveComponent('category');
               toggleSidebar();
             }}
-            className="flex items-center justify-center bg-white p-3 rounded-full shadow-lg hover:bg-gray-200 focus:outline-none"
+            className="bg-white p-2 rounded-full shadow-lg hover:bg-gray-200 transition"
             aria-label="Вибір категорії"
           >
-            <FaTh size={20} className="text-gray-600" />
+            <FaTh size={18} className="text-gray-600" />
           </button>
         </div>
       )}
 
-      {/* Sidebar content */}
       {isSidebarVisible && (
-        <div className="p-4 flex pt-20 flex-col h-full">
-          <div className="flex-1 overflow-auto">
+        <div className="p-3 pt-4 flex flex-col h-full">
+          <div className="flex-1 overflow-auto scrollable max-h-[42vh] sm:max-h-[520vh]">
             {activeComponent === 'auto' ? (
-              <div className="h-full">
-                <Auto 
-                  selectedCars={internalSelectedCars} 
-                  handleCarChange={handleInternalCarChange} 
-                />
-              </div>
+              <Auto selectedCars={internalSelectedCars} handleCarChange={handleInternalCarChange} />
             ) : (
-              <div className="h-full flex flex-col">
-                <Category 
-                  // Додайте необхідні пропси для Category, якщо потрібно
-                />
-              </div>
+              <Category />
             )}
           </div>
 
-          {/* Switch buttons */}
-          <div className="mt-4 flex space-x-2">
+          <div className="pt-2 flex space-x-2 text-sm">
             <button
               onClick={() => handleComponentToggle('auto')}
-              className={`flex-1 py-2 px-4 rounded-xl shadow-md backdrop-blur-sm transition-all duration-300 hover:scale-105 ${
+              className={`flex-1 py-2 px-2 rounded-xl shadow-md backdrop-blur-sm transition-all hover:scale-105 ${
                 activeComponent === 'auto'
                   ? 'bg-blue-200/70 text-blue-800 font-semibold'
                   : 'bg-white/30 text-gray-700 hover:bg-white/50'
@@ -124,36 +177,34 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             </button>
             <button
               onClick={() => handleComponentToggle('category')}
-              className={`flex-1 py-2 px-4 rounded-xl shadow-md backdrop-blur-sm transition-all duration-300 hover:scale-105 ${
+              className={`flex-1 py-2 px-2 rounded-xl shadow-md backdrop-blur-sm transition-all hover:scale-105 ${
                 activeComponent === 'category'
                   ? 'bg-pink-100/60 text-pink-800 font-semibold'
                   : 'bg-white/30 text-gray-700 hover:bg-white/50'
               }`}
             >
-              Вибір категорії
+              Категорії
             </button>
           </div>
 
-          {/* Sort by price */}
-          <div className="mt-6 flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-800">Сортування</h3>
+          <div className="mt-3 flex justify-between items-center text-sm">
+            <h3 className="font-medium text-gray-800">Сортування</h3>
             <button
-              onClick={() => setSortByPriceAsc(!sortByPriceAsc)}
-              className={`px-4 py-2 rounded-xl shadow-md backdrop-blur-sm transition-all duration-500 ease-in-out hover:scale-105 ${
+              onClick={toggleSortOrder}
+              className={`px-3 py-1 rounded-xl shadow-md backdrop-blur-sm transition-all hover:scale-105 ${
                 sortByPriceAsc
                   ? 'bg-blue-200/60 text-blue-800'
                   : 'bg-pink-100/60 text-pink-800'
               }`}
             >
-              {sortByPriceAsc ? 'Низька ціна' : 'Висока ціна'}
+              {sortByPriceAsc ? '↓ Ціна' : '↑ Ціна'}
             </button>
           </div>
 
-          {/* Search button */}
-          <div className="mt-6">
+          <div className="mt-4">
             <button
               onClick={() => alert('Знайти!')}
-              className="w-full py-2 px-4 rounded-xl bg-blue-600 text-white font-semibold shadow-lg hover:bg-blue-700 active:bg-blue-800 transition-all duration-300"
+              className="w-full py-2 px-3 rounded-xl bg-blue-600 text-white font-semibold shadow-lg hover:bg-blue-700 active:bg-blue-800 transition-all text-sm"
             >
               Знайти
             </button>
