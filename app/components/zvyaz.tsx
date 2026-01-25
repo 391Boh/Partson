@@ -1,10 +1,15 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, PhoneCall, Send } from "lucide-react";
 import { getAuth } from "firebase/auth";
-import { getFirestore, collection, addDoc, Timestamp } from "firebase/firestore";
-import { app } from "firebase"; // твій firebase.ts файл
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  Timestamp,
+} from "firebase/firestore";
+import { app } from "../../firebase";
 
 interface ZvyazProps {
   onClose: () => void;
@@ -38,10 +43,10 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, userData }) => {
         createdAt: Timestamp.now(),
       });
 
-      alert("✅ Запит на дзвінок надіслано!");
+      alert("✅ Запит на дзвінок надіслано");
       onClose();
     } catch (error) {
-      console.error("❌ Помилка при надсиланні запиту:", error);
+      console.error("❌ Помилка:", error);
       alert("Сталася помилка. Спробуйте ще раз.");
     } finally {
       setLoading(false);
@@ -49,45 +54,80 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, userData }) => {
   };
 
   return (
-    <div className="absolute top-28 right-5 w-[90%] sm:w-[450px] max-w-[520px] bg-gradient-to-br from-gray-700 to-gray-900 
-                border-[3px] border-gray-600 rounded-2xl shadow-2xl p-6 z-50">
-      <div className="flex justify-between items-center border-b border-gray-600 pb-3 mb-4">
-        <h3 className="text-white text-lg sm:text-xl font-bold">Зворотній дзвінок</h3>
-        <button onClick={onClose} className="text-gray-400 hover:text-white transition">
-          <X size={26} />
+    <div
+      className="fixed top-24 right-3 left-3 sm:left-auto sm:right-6
+                 max-w-xs mx-auto z-50
+                 bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700
+                 border border-white/10 rounded-2xl shadow-2xl backdrop-blur-xl
+                 p-4"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <PhoneCall size={18} className="text-sky-300" />
+          <h3 className="font-semibold text-slate-100 text-base">
+            Зворотній дзвінок
+          </h3>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="p-1 rounded-full hover:bg-white/10 transition"
+        >
+          <X size={18} className="text-slate-200" />
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <input
           type="text"
-          placeholder="Ваше ім'я"
-          className="p-3 rounded-md bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          placeholder="Ваше імʼя"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
+          className="px-3 py-2 rounded-xl bg-white/10
+                     text-slate-100 placeholder-slate-300
+                     border border-white/10
+                     focus:outline-none focus:ring-2 focus:ring-sky-400"
         />
+
         <input
           type="tel"
           placeholder="Ваш телефон"
-          className="p-3 rounded-md bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           required
-        />
-        <textarea
-          placeholder="Повідомлення (необов'язково)"
-          className="p-3 rounded-md bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 min-h-[100px]"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          className="px-3 py-2 rounded-xl bg-white/10
+                     text-slate-100 placeholder-slate-300
+                     border border-white/10
+                     focus:outline-none focus:ring-2 focus:ring-sky-400"
         />
 
+        <textarea
+          placeholder="Коментар (необовʼязково)"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          className="px-3 py-2 rounded-xl bg-white/10
+                     text-slate-100 placeholder-slate-300
+                     border border-white/10 resize-none min-h-[80px]
+                     focus:outline-none focus:ring-2 focus:ring-sky-400"
+        />
+
+        {/* CTA */}
         <button
           type="submit"
           disabled={loading}
-          className="py-3 px-5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200 shadow-md disabled:opacity-50"
+          className="mt-2 flex items-center justify-center gap-2
+                     py-2.5 rounded-xl
+                     bg-gradient-to-r from-sky-600 to-cyan-500
+                     text-white font-semibold
+                     shadow hover:shadow-lg hover:brightness-110
+                     transition-all hover:scale-[1.02]
+                     disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {loading ? "Надсилається..." : "Відправити запит"}
+          <Send size={16} />
+          {loading ? "Надсилається..." : "Замовити дзвінок"}
         </button>
       </form>
     </div>
@@ -95,3 +135,4 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, userData }) => {
 };
 
 export default Zvyaz;
+

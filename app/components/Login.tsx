@@ -7,7 +7,7 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
 } from "firebase/auth";
-import { auth } from "firebase"; // ⚡️ твій конфіг
+import { auth } from "../../firebase"; // ⚡️ твій конфіг
 import { Eye, EyeOff, X, LogIn, UserPlus, User } from "lucide-react";
 import LoginTelegram from "./LoginTelegram";
 
@@ -129,13 +129,13 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
 
   return (
     <div
-      className={`fixed inset-0 bg-black/30 flex justify-center items-center backdrop-blur-sm transition-opacity duration-300 ${
+      className={`fixed inset-0 z-50 bg-transparent transition-opacity duration-300 ${
         isClosing ? "opacity-0" : "opacity-100"
       }`}
     >
       <div
         ref={modalRef}
-        className={`bg-gradient-to-br from-gray-700 via-gray-600 to-gray-700 p-8 rounded-3xl border border-gray-600 w-[95%] max-w-md relative transform transition-all duration-500 ease-in-out ${
+        className={`fixed top-20 right-3 left-auto w-[340px] max-w-[92vw] sm:right-6 sm:w-[360px] bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 border-1 border-gray-500 rounded-xl shadow-2xl p-5 z-[9999] flex flex-col gap-3 transform transition-all duration-500 ease-in-out ${
           isClosing
             ? "scale-95 opacity-0"
             : isVisible
@@ -146,18 +146,18 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
         {onClose && (
           <button
             onClick={closeModal}
-            className="absolute top-3 right-3 text-gray-200 hover:text-gray-400"
+            className="absolute top-2 right-2 text-gray-200 hover:text-gray-400"
           >
             <X size={22} />
           </button>
         )}
 
-        <h2 className="text-2xl font-bold text-center mb-6 bg-gradient-to-r from-gray-300 to-white bg-clip-text text-transparent flex items-center justify-center gap-2">
-          <User className="w-6 h-6 text-sky-400" />
+        <h2 className="text-xl font-bold text-center  bg-gradient-to-r from-gray-500 to-white bg-clip-text text-transparent flex items-center justify-center gap-2">
+          <User className="w-5 h-5 text-sky-400" />
           Авторизація
         </h2>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           {/* Email */}
           <input
             ref={emailInputRef}
@@ -166,7 +166,7 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
             value={formData.email}
             onChange={handleEmailChange}
             onFocus={() => savedUsers.length > 0 && setShowSavedUsersDropdown(true)}
-            className={`w-full px-4 py-3 rounded-lg text-white bg-white/10 border-2 placeholder-gray-400 transition ${
+            className={`w-full px-3 py-2 rounded-lg text-white bg-white/10 border-1 placeholder-gray-400 transition ${
               isEmailValid === null
                 ? "border-gray-500 focus:ring-blue-500"
                 : isEmailValid
@@ -183,7 +183,7 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
               placeholder="Пароль"
               value={formData.password}
               onChange={handlePasswordChange}
-              className={`w-full px-4 py-3 rounded-lg text-white bg-white/10 border-2 placeholder-gray-400 transition ${
+              className={`w-full px-3 py-2 rounded-lg text-white bg-white/10 border-1 placeholder-gray-400 transition ${
                 isPasswordValid === null
                   ? "border-gray-500 focus:ring-blue-500"
                   : isPasswordValid
@@ -202,7 +202,7 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
           </div>
 
           {/* Запам’ятати мене */}
-          <label className="flex items-center gap-2 text-gray-300 text-sm">
+          <label className="flex items-center gap-2 text-gray-300 text-xs">
             <input
               type="checkbox"
               checked={rememberMe}
@@ -213,10 +213,10 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
           </label>
 
           {/* Кнопки */}
-          <div className="flex flex-col gap-3 mt-2">
+          <div className="flex flex-col gap-2 mt-1">
             <button
               type="submit"
-              className="flex items-center justify-center gap-2 px-6 py-3 w-full text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:scale-105 transition"
+              className="flex items-center justify-center gap-2 px-4 py-2 w-full text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:scale-105 transition"
             >
               <LogIn size={20} />
               Увійти
@@ -229,7 +229,7 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
                   closeModal();
                   onShowRegister();
                 }}
-                className="flex items-center justify-center gap-2 px-4 py-2 text-sm text-blue-200 bg-white/10 rounded-xl hover:text-blue-400 hover:bg-white/20 transition"
+                className="flex items-center justify-center gap-2 px-3 py-1.5 text-xs text-blue-200 bg-white/10 rounded-xl hover:text-blue-400 hover:bg-white/20 transition"
               >
                 <UserPlus size={18} />
                 Реєстрація
@@ -239,12 +239,12 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
         </form>
 
         {/* Telegram login */}
-        <div className="mt-6">
+        <div className="mt-1">
           <LoginTelegram />
         </div>
 
         {error && (
-          <p className="text-red-400 text-sm mt-3 text-center">{error}</p>
+          <p className="text-red-400 text-sm mt-1 text-center">{error}</p>
         )}
       </div>
     </div>

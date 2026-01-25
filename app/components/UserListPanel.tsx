@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
-import { db } from "firebase"; // Перевір, чи в тебе правильно налаштований імпорт
+import { db } from "../../firebase"; // Перевір, чи в тебе правильно налаштований імпорт
 
 interface Props {
   onSelectUser: (userId: string) => void;

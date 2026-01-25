@@ -1,31 +1,476 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
-import Data from 'app/components/Data';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { getAuth, onAuthStateChanged, type User } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../../firebase';
+import type { PersistedCarSelection } from 'app/components/Auto';
 import FilterSidebar from 'app/components/filtrtion';
-import Order from 'app/components/Order';
 
-interface CartItem {
-  name: string;
-  code: string;
-  quantity: number;
-  price: number;
-}
+const Data = dynamic(() => import('app/components/Data'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full px-6 pb-8 pt-4 sm:px-4 lg:px-6">
+      <div className="flex flex-col items-center justify-center gap-2 pb-3">
+        <div className="loader" />
+        <p className="text-gray-400 text-xs">Завантаження товарів...</p>
+      </div>
+      <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-[320px] w-full rounded-xl border border-slate-200/70 bg-gradient-to-br from-slate-100 via-slate-200 to-slate-100 animate-pulse"
+          />
+        ))}
+      </div>
+    </div>
+  ),
+});
+
+const Order = dynamic(() => import('app/components/Order'), { ssr: false });
+
+const STORAGE_KEYS = {
+  cars: 'partson:selectedCars',
+  selection: 'partson:selectedCarSelection',
+};
+
+const SESSION_KEYS = {
+  skipRemoteLoad: 'partson:catalogSkipRemoteLoad',
+};
 
 const Katalog: React.FC = () => {
-  const searchParams = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState<string>('');
-
-  useEffect(() => {
-    const search = searchParams.get('search') || '';
-    setSearchQuery(search);
-  }, [searchParams]);
-
   const [selectedCars, setSelectedCars] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [isSidebarVisible, setIsSidebarVisible] = useState<boolean>(true);
   const [isOrderVisible, setIsOrderVisible] = useState<boolean>(false);
+  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  const [selectedCarSelection, setSelectedCarSelection] =
+    useState<PersistedCarSelection | null>(null);
+  const [selectedVin, setSelectedVin] = useState<string | null>(null);
+  const [pendingRequestMessage, setPendingRequestMessage] = useState<string | null>(
+    null
+  );
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [carsLoaded, setCarsLoaded] = useState(false);
+  const [localReady, setLocalReady] = useState(false);
+  const searchParams = useSearchParams();
+  const searchParamsKey = searchParams.toString();
+  const router = useRouter();
+  const pathname = usePathname();
+  const skipRemoteLoadRef = useRef(false);
+  const skipNextRemoteSaveRef = useRef(false);
+  const hasLoadedLocalRef = useRef(false);
+  const handledRequestRef = useRef<string | null>(null);
+
+  const groupParam = searchParams.get('group');
+  const subcategoryParam = searchParams.get('subcategory');
+  const categoryLabel =
+    subcategoryParam ||
+    groupParam ||
+    (selectedCategories.length > 0 ? selectedCategories.join(', ') : '');
+  const searchQuery = (searchParams.get('search') || '').trim();
+  const searchFilter = searchParams.get('filter') || 'all';
+  const searchFilterLabels: Record<string, string> = {
+    name: 'Назва',
+    code: 'Код',
+    article: 'Артикул',
+  };
+  const searchFilterLabel = searchFilterLabels[searchFilter] || '';
+  const searchLabel = searchFilterLabel
+    ? `${searchQuery} (${searchFilterLabel})`
+    : searchQuery;
+  const partLabel = [categoryLabel, searchLabel].filter(Boolean).join(' / ');
+  const hasPartSelection = Boolean(partLabel);
+  const hasCarSelection = Boolean(selectedVin || selectedCarSelection || selectedCars.length > 0);
+  const hasCompleteRequestContext = hasPartSelection && hasCarSelection;
+  const allowRequestActions = Boolean(firebaseUser);
+
+  const carSummary = useMemo(() => {
+    if (!selectedCarSelection) return '';
+    const baseLabel =
+      selectedCarSelection.label ||
+      [selectedCarSelection.brand, selectedCarSelection.model]
+        .filter(Boolean)
+        .join(' ');
+    const details = [
+      selectedCarSelection.year ? `рік ${selectedCarSelection.year}` : null,
+      selectedCarSelection.volume ? `об'єм ${selectedCarSelection.volume}` : null,
+      selectedCarSelection.power ? `потужність ${selectedCarSelection.power}` : null,
+      selectedCarSelection.gearbox ? `КПП ${selectedCarSelection.gearbox}` : null,
+      selectedCarSelection.drive ? `привід ${selectedCarSelection.drive}` : null,
+    ].filter(Boolean);
+    if (!baseLabel) return details.join(', ');
+    return details.length > 0 ? `${baseLabel} (${details.join(', ')})` : baseLabel;
+  }, [selectedCarSelection]);
+
+  const requestMessage = useMemo(() => {
+    if (!hasCompleteRequestContext) return null;
+    const priceLine =
+      sortOrder === 'none'
+        ? '💰 Ціна'
+        : `💰 Ціна: ${sortOrder === 'asc' ? 'низька' : 'висока'}`;
+    const lines = [`📩 Заявка`, `🔧 ${partLabel}`, priceLine];
+    if (selectedVin) {
+      lines.push(`🔢 VIN ${selectedVin}`);
+      return lines.join('\n');
+    }
+    const carLabel =
+      carSummary || (selectedCars.length > 0 ? selectedCars.join(', ') : '');
+    if (carLabel) {
+      lines.push(`🚗 ${carLabel}`);
+    }
+    return lines.join('\n');
+  }, [
+    carSummary,
+    hasCompleteRequestContext,
+    partLabel,
+    selectedCars,
+    selectedVin,
+    sortOrder,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const target = window.sessionStorage.getItem('catalogScrollTarget');
+    if (target !== 'results') return;
+    window.sessionStorage.removeItem('catalogScrollTarget');
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [searchParamsKey]);
+
+  useEffect(() => {
+    const reset = searchParams.get('reset');
+    if (reset !== '1') return;
+
+    skipRemoteLoadRef.current = true;
+    setSelectedCars([]);
+    setSelectedCategories([]);
+    setSelectedCarSelection(null);
+    setSortOrder('none');
+    setCarsLoaded(true);
+    setLocalReady(true);
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(STORAGE_KEYS.cars);
+      window.localStorage.removeItem(STORAGE_KEYS.selection);
+    }
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('reset');
+    nextParams.delete('group');
+    nextParams.delete('subcategory');
+    nextParams.delete('search');
+    nextParams.delete('filter');
+    const query = nextParams.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  }, [pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (hasLoadedLocalRef.current) return;
+    hasLoadedLocalRef.current = true;
+    if (typeof window === 'undefined') return;
+    const reset = searchParams.get('reset');
+    if (reset === '1') {
+      setLocalReady(true);
+      return;
+    }
+
+    try {
+      const rawCars = window.localStorage.getItem(STORAGE_KEYS.cars);
+      const rawSelection = window.localStorage.getItem(STORAGE_KEYS.selection);
+      const parsedCars = rawCars ? (JSON.parse(rawCars) as unknown) : [];
+      const nextCars = Array.isArray(parsedCars)
+        ? parsedCars.filter(
+            (car): car is string => typeof car === 'string' && car.trim() !== ''
+          )
+        : [];
+      const parsedSelection = rawSelection
+        ? (JSON.parse(rawSelection) as unknown)
+        : null;
+
+      if (parsedSelection && typeof parsedSelection === 'object') {
+        const record = parsedSelection as Record<string, unknown>;
+        const brand =
+          typeof record.brand === 'string' && record.brand.trim()
+            ? record.brand
+            : '';
+        const model =
+          typeof record.model === 'string' && record.model.trim()
+            ? record.model
+            : '';
+        const label =
+          typeof record.label === 'string' && record.label.trim()
+            ? record.label
+            : '';
+        const year =
+          typeof record.year === 'number' && Number.isFinite(record.year)
+            ? record.year
+            : null;
+        const volume =
+          typeof record.volume === 'string' && record.volume.trim()
+            ? record.volume
+            : null;
+        const power =
+          typeof record.power === 'string' && record.power.trim()
+            ? record.power
+            : null;
+        const gearbox =
+          typeof record.gearbox === 'string' && record.gearbox.trim()
+            ? record.gearbox
+            : null;
+        const drive =
+          typeof record.drive === 'string' && record.drive.trim()
+            ? record.drive
+            : null;
+
+        if (brand && model && label) {
+          const mergedCars = nextCars.includes(label)
+            ? nextCars
+            : [...nextCars, label];
+          setSelectedCars(mergedCars);
+          setSelectedCarSelection({
+            brand,
+            model,
+            year,
+            volume,
+            power,
+            gearbox,
+            drive,
+            label,
+          });
+          setLocalReady(true);
+          return;
+        }
+      }
+
+      if (nextCars.length > 0) {
+        setSelectedCars(nextCars);
+      }
+    } catch (error) {
+      console.error('Failed to load cars from local storage:', error);
+    } finally {
+      setLocalReady(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const skipRemoteLoad = window.sessionStorage.getItem(SESSION_KEYS.skipRemoteLoad);
+    if (!skipRemoteLoad) return;
+    window.sessionStorage.removeItem(SESSION_KEYS.skipRemoteLoad);
+    skipRemoteLoadRef.current = true;
+  }, []);
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+
+      if (!user) {
+        setCarsLoaded(true);
+        return;
+      }
+
+      setCarsLoaded(false);
+
+      if (skipRemoteLoadRef.current) {
+        skipRemoteLoadRef.current = false;
+        setCarsLoaded(true);
+        return;
+      }
+
+      const extractCars = (value: unknown) =>
+        Array.isArray(value)
+          ? (value as unknown[]).filter(
+              (car): car is string => typeof car === 'string' && car.trim() !== ''
+            )
+          : [];
+
+      const extractSelection = (value: unknown): PersistedCarSelection | null => {
+        if (!value || typeof value !== 'object') return null;
+        const record = value as Record<string, unknown>;
+        const brand =
+          typeof record.brand === 'string' && record.brand.trim() ? record.brand : '';
+        const model =
+          typeof record.model === 'string' && record.model.trim() ? record.model : '';
+        const label =
+          typeof record.label === 'string' && record.label.trim() ? record.label : '';
+        const year =
+          typeof record.year === 'number' && Number.isFinite(record.year)
+            ? record.year
+            : null;
+        const volume =
+          typeof record.volume === 'string' && record.volume.trim()
+            ? record.volume
+            : null;
+        const power =
+          typeof record.power === 'string' && record.power.trim() ? record.power : null;
+        const gearbox =
+          typeof record.gearbox === 'string' && record.gearbox.trim()
+            ? record.gearbox
+            : null;
+        const drive =
+          typeof record.drive === 'string' && record.drive.trim() ? record.drive : null;
+
+        if (!brand || !model || !label) return null;
+        return { brand, model, year, volume, power, gearbox, drive, label };
+      };
+
+        const loadCars = async () => {
+          try {
+            const docRef = doc(db, 'users', user.uid);
+            const snap = await getDoc(docRef);
+            if (!snap.exists()) return;
+            const data = snap.data() as {
+              avto?: { cars?: unknown; selection?: unknown };
+              selectedCars?: unknown;
+              selectedCarSelection?: unknown;
+            };
+            const avtoData = data.avto ?? null;
+
+            const avtoCars = extractCars(avtoData?.cars);
+            let storedCars = avtoCars.length
+              ? avtoCars
+              : extractCars(data.selectedCars);
+
+            const avtoSelection = extractSelection(avtoData?.selection);
+            const storedSelection =
+              avtoSelection ?? extractSelection(data.selectedCarSelection);
+
+          let didApplyRemote = false;
+          if (storedSelection) {
+            if (!storedCars.includes(storedSelection.label)) {
+              storedCars = [...storedCars, storedSelection.label];
+            }
+            setSelectedCars(storedCars);
+            setSelectedCarSelection(storedSelection);
+            didApplyRemote = true;
+          } else {
+            setSelectedCars(storedCars);
+            setSelectedCarSelection(null);
+            didApplyRemote = storedCars.length > 0;
+          }
+
+          if (didApplyRemote) {
+            skipNextRemoteSaveRef.current = true;
+          }
+        } catch (error) {
+          console.error('Failed to load saved cars from Firestore:', error);
+        } finally {
+          setCarsLoaded(true);
+        }
+      };
+
+      loadCars();
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!firebaseUser || !carsLoaded) return;
+    if (skipNextRemoteSaveRef.current) {
+      skipNextRemoteSaveRef.current = false;
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const docRef = doc(db, 'users', firebaseUser.uid);
+        const avtoPayload = { cars: selectedCars, selection: selectedCarSelection };
+        await setDoc(
+          docRef,
+          {
+            selectedCars,
+            selectedCarSelection,
+            avto: avtoPayload,
+          },
+          { merge: true }
+        );
+      } catch (error) {
+        console.error('Failed to save cars to Firestore:', error);
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [carsLoaded, firebaseUser, selectedCarSelection, selectedCars]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!localReady) return;
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEYS.cars,
+        JSON.stringify(selectedCars)
+      );
+      if (selectedCarSelection) {
+        window.localStorage.setItem(
+          STORAGE_KEYS.selection,
+          JSON.stringify(selectedCarSelection)
+        );
+      } else {
+        window.localStorage.removeItem(STORAGE_KEYS.selection);
+      }
+    } catch (error) {
+      console.error('Failed to save cars to local storage:', error);
+    }
+  }, [localReady, selectedCarSelection, selectedCars]);
+
+  useEffect(() => {
+    if (!selectedCarSelection) return;
+    if (selectedCars.includes(selectedCarSelection.label)) return;
+    setSelectedCarSelection(null);
+  }, [selectedCarSelection, selectedCars]);
+
+  useEffect(() => {
+    if (!requestMessage) {
+      handledRequestRef.current = null;
+      setPendingRequestMessage(null);
+      return;
+    }
+    if (!firebaseUser) {
+      handledRequestRef.current = null;
+      setPendingRequestMessage('Авторизуйтесь, щоб відправити заявку менеджеру.');
+      return;
+    }
+    if (handledRequestRef.current === requestMessage) return;
+    setPendingRequestMessage(requestMessage);
+  }, [firebaseUser, requestMessage]);
+
+  const handleConfirmRequest = () => {
+    if (!pendingRequestMessage || !firebaseUser) return;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('openChatWithMessage', {
+          detail: pendingRequestMessage,
+        })
+      );
+    }
+    handledRequestRef.current = pendingRequestMessage;
+    setPendingRequestMessage(null);
+    if (selectedCategories.length > 0) {
+      setSelectedCategories([]);
+    }
+    if (selectedCarSelection) {
+      setSelectedCarSelection(null);
+    }
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('group');
+    nextParams.delete('subcategory');
+    nextParams.delete('search');
+    nextParams.delete('filter');
+    nextParams.delete('reset');
+    const nextQuery = nextParams.toString();
+    if (nextQuery !== searchParams.toString()) {
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
+    }
+  };
+
+  const handleCancelRequest = () => {
+    if (!pendingRequestMessage) return;
+    handledRequestRef.current = pendingRequestMessage;
+    setPendingRequestMessage(null);
+  };
 
   const handleCarChange = (car: string) => {
     setSelectedCars((prev) =>
@@ -33,40 +478,68 @@ const Katalog: React.FC = () => {
     );
   };
 
-  const handleCategoryChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = event.target.value;
-    setSelectedCategories(value ? [value] : []);
-  };
-
-  const toggleSidebar = () => {
-    setIsSidebarVisible((prev) => !prev);
+  const handleCategoryToggle = (category: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
+    );
   };
 
   const toggleOrder = () => {
     setIsOrderVisible((prev) => !prev);
   };
 
-  const addToCart = (item: CartItem) => {
-    console.log('🛒 Додано в кошик:', item);
-    // логіка додавання в кошик
+  const toggleSortOrder = () => {
+    setSortOrder((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'asc'));
   };
 
   return (
-    <div className="fixed inset-0 mt-20 flex overflow-hidden">
-      <FilterSidebar
-        selectedCars={selectedCars}
-        handleCarChange={handleCarChange}
-        isSidebarVisible={isSidebarVisible}
-        toggleSidebar={toggleSidebar}
-      />
+    <div className="w-full pb-6">
+      <div className="sticky top-16 z-30 w-full bg-slate-50/70 backdrop-blur supports-[backdrop-filter]:bg-slate-50/50">
+        <div className="mx-auto w-full max-w-[1400px] px-4 pt-2 sm:px-4 lg:px-6">
+          <FilterSidebar
+            selectedCars={selectedCars}
+            handleCarChange={handleCarChange}
+            selectedCategories={selectedCategories}
+            handleCategoryToggle={handleCategoryToggle}
+            sortOrder={sortOrder}
+            toggleSortOrder={toggleSortOrder}
+            onResetSort={() => setSortOrder('none')}
+            selectedCarSelection={selectedCarSelection}
+            onSelectedCarSelectionChange={setSelectedCarSelection}
+            onVinSelect={setSelectedVin}
+            selectedVin={selectedVin}
+            requestMessage={pendingRequestMessage}
+            onConfirmRequest={allowRequestActions ? handleConfirmRequest : undefined}
+            onCancelRequest={allowRequestActions ? handleCancelRequest : undefined}
+          />
+        </div>
+      </div>
 
-      <div className="flex-1">
-        <Data
-          searchQuery={searchQuery}
-          searchFilter="all"
-          selectedCars={selectedCars}
-          selectedCategories={selectedCategories}
-        />
+      <div className="w-full">
+        <div className="mx-auto w-full max-w-[1400px]">
+          {localReady && carsLoaded ? (
+            <Data
+              selectedCars={selectedCars}
+              selectedCategories={selectedCategories}
+              sortOrder={sortOrder}
+            />
+          ) : (
+            <div className="w-full px-6 pb-8 pt-4 sm:px-4 lg:px-6">
+              <div className="flex flex-col items-center justify-center gap-2 pb-3">
+                <div className="loader" />
+                <p className="text-gray-400 text-xs">Завантаження товар?в...</p>
+              </div>
+              <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-[320px] w-full rounded-xl border border-slate-200/70 bg-gradient-to-br from-slate-100 via-slate-200 to-slate-100 animate-pulse"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {isOrderVisible && <Order onClose={toggleOrder} />}
@@ -75,3 +548,11 @@ const Katalog: React.FC = () => {
 };
 
 export default Katalog;
+
+
+
+
+
+
+
+

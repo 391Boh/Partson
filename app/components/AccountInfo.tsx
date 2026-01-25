@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState, useRef } from "react";
 import {
@@ -7,17 +7,17 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
 } from "firebase/auth";
-import { auth } from "firebase";
+import { auth, db } from "../../firebase";
 import {
   doc,
   getDoc,
+  onSnapshot,
   setDoc,
   query,
   collection,
   where,
   getDocs,
 } from "firebase/firestore";
-import { db } from "firebase";
 import {
   LogOut,
   Key,
@@ -35,9 +35,14 @@ interface User {
 interface AccountInfoProps {
   user: User | null;
   onClose: () => void;
+  initialTab?: "profile" | "vins" | "security" | null;
 }
 
-const AccountInfo: React.FC<AccountInfoProps> = ({ user, onClose }) => {
+const AccountInfo: React.FC<AccountInfoProps> = ({
+  user,
+  onClose,
+  initialTab = null,
+}) => {
   const [phone, setPhone] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
   const [vins, setVins] = useState<string[]>([]);
@@ -53,15 +58,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({ user, onClose }) => {
   const [tempName, setTempName] = useState<string | null>(null);
   const [tempPhone, setTempPhone] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [successField, setSuccessField] = useState<"name" | "phone" | null>(null);
+  const [activeTab, setActiveTab] = useState<"profile" | "vins" | "security">(
+    initialTab ?? "profile"
+  );
   const modalRef = useRef<HTMLDivElement>(null);
-
-  // Забороняємо скролл фону при відкритті модалки
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "auto";
-    };
-  }, []);
 
   useEffect(() => {
     if (!user || !user.uid) return;
@@ -93,7 +94,39 @@ const AccountInfo: React.FC<AccountInfoProps> = ({ user, onClose }) => {
   }, [user?.uid]);
 
   useEffect(() => {
+    if (!user || !user.uid) return;
+    const docRef = doc(db, "users", user.uid);
+    const unsubscribe = onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (!docSnap.exists()) {
+          setVins([]);
+          return;
+        }
+        const data = docSnap.data();
+        const cleanedVins = Array.isArray(data.vins)
+          ? data.vins
+              .filter((vin): vin is string => typeof vin === "string")
+              .map((vin) => vin.trim())
+              .filter(Boolean)
+          : [];
+        const uniqueVins = cleanedVins.filter(
+          (vin, index) => cleanedVins.indexOf(vin) === index
+        );
+        setVins(uniqueVins);
+      },
+      (error) => {
+        console.error("Помилка отримання VIN з Firestore:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('[data-overlay-toggle]')) return;
       if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
         onClose();
       }
@@ -104,6 +137,17 @@ const AccountInfo: React.FC<AccountInfoProps> = ({ user, onClose }) => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [onClose]);
+
+  useEffect(() => {
+    if (!successField) return;
+    const timer = setTimeout(() => setSuccessField(null), 1000);
+    return () => clearTimeout(timer);
+  }, [successField]);
+
+  useEffect(() => {
+    if (!initialTab) return;
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const handleSignOut = async () => {
     try {
@@ -208,12 +252,15 @@ const AccountInfo: React.FC<AccountInfoProps> = ({ user, onClose }) => {
       return;
     }
 
-    try {
+        if (!/^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ'’\-\s]+$/.test(tempName.trim())) {
+      alert("?м'я може м?стити лише л?тери, проб?ли, деф?си та апострофи.");
+      return;
+    }try {
       const docRef = doc(db, "users", user?.uid || "");
       await setDoc(docRef, { name: tempName }, { merge: true });
       setName(tempName);
       setIsEditingName(false);
-      alert("Ім'я успішно змінено!");
+      setSuccessField("name");
     } catch (error) {
       console.error("Помилка збереження імені:", error);
       alert("Не вдалося зберегти ім'я.");
@@ -226,7 +273,10 @@ const AccountInfo: React.FC<AccountInfoProps> = ({ user, onClose }) => {
       return;
     }
 
-    const formattedPhone = formatPhoneNumber(tempPhone);
+        if (!/^\+380\d{9}$/.test(tempPhone.trim())) {
+      setPhoneError("Номер телефону має бути у формат? +380XXXXXXXXX.");
+      return;
+    }const formattedPhone = formatPhoneNumber(tempPhone);
 
     try {
       const phoneQuery = query(collection(db, "users"), where("phone", "==", formattedPhone));
@@ -242,7 +292,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({ user, onClose }) => {
       setPhone(formattedPhone);
       setIsEditingPhone(false);
       setPhoneError(null);
-      alert("Номер телефону успішно змінено!");
+      setSuccessField("phone");
     } catch (error) {
       console.error("Помилка збереження телефону:", error);
       alert("Не вдалося зберегти номер телефону.");
@@ -250,283 +300,349 @@ const AccountInfo: React.FC<AccountInfoProps> = ({ user, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div
-        ref={modalRef}
-        className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl border border-gray-700 max-w-3xl w-full sm:max-h-[90vh] max-h-[65vh] overflow-y-auto p-6 relative
-        grid grid-cols-1 gap-6
-        md:grid-cols-[1fr_auto] md:max-w-4xl"
+    <div
+      ref={modalRef}
+      className="fixed top-20 right-3 left-auto w-[92%] sm:right-6 sm:w-[80%] max-w-[400px] bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 border border-gray-500 rounded-xl shadow-2xl p-8 z-40 flex flex-col gap-3 animate-fadeIn backdrop-blur-xl select-none"
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-1 right-1 text-slate-400 hover:text-gray-100 transition-colors cursor-pointer"
+        aria-label="Закрити"
+        title="Закрити"
       >
-        
-        {/* Закрити */}
+        <X size={28} />
+      </button>
+
+      <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-0.5">
         <button
-          onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white transition-colors"
-          aria-label="Закрити"
-          title="Закрити"
+          onClick={() => setActiveTab("profile")}
+          className={`flex-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
+            activeTab === "profile"
+              ? "bg-white/15 text-white shadow-sm"
+              : "text-slate-300 hover:text-white"
+          }`}
         >
-          <X size={28} />
+          Профіль
         </button>
+        <button
+          onClick={() => setActiveTab("vins")}
+          className={`flex-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
+            activeTab === "vins"
+              ? "bg-white/15 text-white shadow-sm"
+              : "text-slate-300 hover:text-white"
+          }`}
+        >
+          VIN
+        </button>
+        <button
+          onClick={() => setActiveTab("security")}
+          className={`flex-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
+            activeTab === "security"
+              ? "bg-white/15 text-white shadow-sm"
+              : "text-slate-300 hover:text-white"
+          }`}
+        >
+          Безпека
+        </button>
+      </div>
 
-        
-
-        {/* Заголовок */}
-        <h2 className="text-2xl font-extrabold text-white text-center md:col-span-full mb-2 tracking-wide">
-          Ваш профіль
-        </h2>
-
-           {/* Вийти з акаунту */}
-         <button
-  onClick={handleSignOut}
-  className="w-50 sm:w-70  bg-red-500 hover:bg-red-600 transition rounded-xl py-3 text-white font-semibold tracking-wide"
->
-
-            <div className="flex items-center justify-center gap-2">
-              <LogOut size={30} />
-              Вийти з акаунту
-            </div>
-          </button>
-
-        <div className="flex flex-col gap-4 md:col-span-full">
-          {/* Ім'я */}
-          <section className="bg-gray-800 rounded-xl p-4 shadow-inner border border-gray-700 flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-lg mb-1 text-white">Ім'я</h3>
-              {loading ? (
-                <p className="text-gray-400">Завантаження...</p>
-              ) : isEditingName ? (
-                <input
-                  type="text"
-                  value={tempName || ""}
-                  onChange={(e) => setTempName(e.target.value)}
-                  className={`w-full rounded-md bg-gray-900 p-2 placeholder-gray-500 border ${
-                    tempName?.trim() === ""
-                      ? "border-red-500"
-                      : tempName
-                      ? "border-green-500"
-                      : "border-gray-600"
-                  } text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition`}
-                  placeholder="Введіть ім'я"
-                  autoFocus
-                />
-              ) : (
-                <p className="text-gray-300 truncate">{name || "Не вказано"}</p>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:col-span-full">
+        <section
+          className={`bg-slate-800/70 rounded-xl p-1.5 shadow-inner border border-white/10 flex items-center justify-between gap-2 min-w-0 min-h-[72px] ${
+            activeTab !== "profile" ? "hidden" : ""
+          } ${
+            successField === "name"
+              ? "bg-emerald-500/20 border-emerald-400/60 animate-pulse"
+              : ""
+          }`}
+        >
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm mb-0.5 text-slate-100 flex items-center gap-2">
+              Ім'я
+              {successField === "name" && (
+                <span className="text-xs text-emerald-300">Успішно</span>
               )}
-            </div>
-            <div className="flex items-center gap-2">
-              {isEditingName ? (
-                <button
-                  onClick={handleSaveName}
-                  className="text-green-400 hover:text-green-600 transition"
-                  aria-label="Зберегти ім'я"
-                  title="Зберегти ім'я"
-                >
-                  <Save size={20} />
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    setTempName(name);
-                    setIsEditingName(true);
-                  }}
-                  className="text-blue-400 hover:text-blue-600 transition"
-                  aria-label="Редагувати ім'я"
-                  title="Редагувати ім'я"
-                >
-                  <Edit size={20} />
-                </button>
-              )}
-            </div>
-          </section>
-
-          {/* Email */}
-          <section className="bg-gray-800 rounded-xl p-4 shadow-inner border border-gray-700 flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-lg mb-1 text-white">Email</h3>
-              <p className="text-gray-300 truncate">{user?.email || "Не вказано"}</p>
-            </div>
-          </section>
-
-          {/* Телефон */}
-          <section className="bg-gray-800 rounded-xl p-4 shadow-inner border border-gray-700 flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-lg mb-1 text-white">Телефон</h3>
-              {loading ? (
-                <p className="text-gray-400">Завантаження...</p>
-              ) : isEditingPhone ? (
-                <input
-                  type="tel"
-                  value={tempPhone || ""}
-                  onChange={(e) => setTempPhone(e.target.value)}
-                  className={`w-full rounded-md bg-gray-900 p-2 placeholder-gray-500 border ${
-                    phoneError
-                      ? "border-red-500"
-                      : tempPhone && tempPhone.trim() !== ""
-                      ? "border-green-500"
-                      : "border-gray-600"
-                  } text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition`}
-                  placeholder="+380 ХХХ ХХХ ХХ ХХ"
-                  autoFocus
-                />
-              ) : (
-                <p className="text-gray-300 truncate">{phone || "Не вказано"}</p>
-              )}
-              {phoneError && (
-                <p className="text-red-500 text-sm mt-1">{phoneError}</p>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {isEditingPhone ? (
-                <button
-                  onClick={handleSavePhone}
-                  className="text-green-400 hover:text-green-600 transition"
-                  aria-label="Зберегти телефон"
-                  title="Зберегти телефон"
-                >
-                  <Save size={20} />
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    setTempPhone(phone);
-                    setPhoneError(null);
-                    setIsEditingPhone(true);
-                  }}
-                  className="text-blue-400 hover:text-blue-600 transition"
-                  aria-label="Редагувати телефон"
-                  title="Редагувати телефон"
-                >
-                  <Edit size={20} />
-                </button>
-              )}
-            </div>
-          </section>
-
-          {/* Список VIN */}
-          <section className="bg-gray-800 rounded-xl p-4 shadow-inner border border-gray-700">
-            <h3 className="font-semibold text-lg mb-3 text-white">VIN-коди</h3>
-            {vins.length === 0 ? (
-              <p className="text-gray-400 italic">Список порожній</p>
-            ) : (
-              <ul className="flex flex-col gap-2 max-h-40 overflow-y-auto">
-                {vins.map((vin, idx) => (
-                  <li
-                    key={vin + idx}
-                    className="flex items-center justify-between bg-gray-700 rounded-md px-3 py-2 text-gray-200 font-mono text-sm select-text"
-                  >
-                    <span className="truncate">{vin}</span>
-                    <button
-                      onClick={() => handleDeleteVin(idx)}
-                      aria-label={`Видалити VIN ${vin}`}
-                      title="Видалити VIN"
-                      className="text-red-400 hover:text-red-600 transition p-1 rounded"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {isVinFieldVisible ? (
-              <div className="mt-3 flex gap-2">
-                <input
-                  type="text"
-                  value={newVin}
-                  onChange={(e) => setNewVin(e.target.value.toUpperCase())}
-                  maxLength={17}
-                  placeholder="Введіть VIN (17 символів)"
-                  className={`flex-grow rounded-md bg-gray-900 p-2 placeholder-gray-500 border ${
-                    vinError ? "border-red-500" : "border-gray-600"
-                  } text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition font-mono`}
-                  autoFocus
-                />
-                <button
-                  onClick={handleAddVin}
-                  className="text-green-400 hover:text-green-600 transition p-2 rounded"
-                  aria-label="Додати VIN"
-                  title="Додати VIN"
-                >
-                  <Save size={20} />
-                </button>
-                <button
-                  onClick={() => {
-                    setIsVinFieldVisible(false);
-                    setNewVin("");
-                    setVinError(null);
-                  }}
-                  className="text-gray-400 hover:text-gray-200 transition p-2 rounded"
-                  aria-label="Скасувати додавання VIN"
-                  title="Скасувати"
-                >
-                  <X size={20} />
-                </button>
-              </div>
+            </h3>
+            {loading ? (
+              <p className="text-slate-400">Завантаження...</p>
+            ) : isEditingName ? (
+              <input
+                type="text"
+                value={tempName || ""}
+                onChange={(e) => setTempName(e.target.value)}
+                className={`w-full rounded-md bg-slate-900/60 p-1.5 placeholder-gray-400 border ${
+                  tempName?.trim() === ""
+                    ? "border-red-500"
+                    : tempName
+                    ? "border-green-500"
+                    : "border-white/10"
+                } text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400 transition`}
+                placeholder="Введіть ім'я"
+                autoFocus
+              />
             ) : (
               <button
-                onClick={() => setIsVinFieldVisible(true)}
-                className="mt-3 text-blue-400 hover:text-blue-600 transition font-semibold"
+                onClick={() => {
+                  setTempName(name);
+                  setIsEditingName(true);
+                }}
+                className="text-slate-300 text-sm truncate text-left hover:text-white transition"
+              >
+                {name || "Не вказано"}
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {isEditingName ? (
+              <button
+                onClick={handleSaveName}
+                className="text-green-300 hover:text-green-200 transition cursor-pointer text-xs font-semibold flex items-center gap-1"
+                aria-label="Зберегти ім'я"
+                title="Зберегти ім'я"
+              >
+                <Save size={18} />
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setTempName(name);
+                  setIsEditingName(true);
+                }}
+                className="text-sky-300 hover:text-sky-200 transition cursor-pointer text-xs font-semibold flex items-center gap-1"
+                aria-label="Редагувати ім'я"
+                title="Редагувати ім'я"
+              >
+                <Edit size={18} />
+              </button>
+            )}
+          </div>
+        </section>
+
+        <section
+          className={`bg-slate-800/70 rounded-xl p-1.5 shadow-inner border border-white/10 flex items-center justify-between gap-2 min-w-0 min-h-[72px] ${
+            activeTab !== "profile" ? "hidden" : ""
+          } ${successField === "phone" ? "bg-emerald-500/20 border-emerald-400/60 animate-pulse" : ""}`}
+        >
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm mb-0.5 text-slate-100 flex items-center gap-2">
+              Телефон
+              {successField === "phone" && (
+                <span className="text-xs text-emerald-300">Успішно</span>
+              )}
+            </h3>
+            {loading ? (
+              <p className="text-slate-400">Завантаження...</p>
+            ) : isEditingPhone ? (
+              <input
+                type="tel"
+                value={tempPhone || ""}
+                onChange={(e) => setTempPhone(e.target.value)}
+                className={`w-full rounded-md bg-slate-900/60 p-1.5 placeholder-gray-400 border ${
+                  phoneError
+                    ? "border-red-500"
+                    : tempPhone && tempPhone.trim() !== ""
+                    ? "border-green-500"
+                    : "border-white/10"
+                } text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400 transition`}
+                placeholder="+380 ХХХ ХХХ ХХ ХХ"
+                autoFocus
+              />
+            ) : (
+              <button
+                onClick={() => {
+                  setTempPhone(phone);
+                  setPhoneError(null);
+                  setIsEditingPhone(true);
+                }}
+                className="text-slate-300 text-sm truncate text-left hover:text-white transition"
+              >
+                {phone || "Не вказано"}
+              </button>
+            )}
+            {phoneError && (
+              <p className="text-red-500 text-sm mt-1">{phoneError}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {isEditingPhone ? (
+              <button
+                onClick={handleSavePhone}
+                className="text-green-300 hover:text-green-200 transition cursor-pointer text-xs font-semibold flex items-center gap-1"
+                aria-label="Зберегти телефон"
+                title="Зберегти телефон"
+              >
+                <Save size={18} />
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setTempPhone(phone);
+                  setPhoneError(null);
+                  setIsEditingPhone(true);
+                }}
+                className="text-sky-300 hover:text-sky-200 transition cursor-pointer text-xs font-semibold flex items-center gap-1"
+                aria-label="Редагувати телефон"
+                title="Редагувати телефон"
+              >
+                <Edit size={18} />
+              </button>
+            )}
+          </div>
+        </section>
+
+        <section
+          className={`bg-slate-800/70 rounded-xl p-1.5 shadow-inner border border-white/10 flex items-center justify-between gap-2 min-w-0 md:col-span-2 ${
+            activeTab !== "profile" ? "hidden" : ""
+          }`}
+        >
+          <div className="min-w-0 w-full text-center">
+            <h3 className="font-semibold text-sm mb-0.5 text-slate-100">Email</h3>
+            <p className="text-slate-200 text-sm truncate">{user?.email || "Не вказано"}</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleSignOut}
+              className="shrink-0 rounded-lg bg-red-500/90 hover:bg-red-600 transition text-white text-xs font-semibold px-2.5 py-1 flex items-center gap-1 cursor-pointer"
+              aria-label="Вийти з акаунту"
+              title="Вийти"
+            >
+              <LogOut size={16} />
+              Вийти
+            </button>
+          </div>
+        </section>
+
+        <section
+          className={`bg-slate-800/70 rounded-xl p-4.5 shadow-inner border border-white/10 md:col-span-2 ${
+            activeTab !== "vins" ? "hidden" : ""
+          }`}
+        >
+          <h3 className="font-semibold text-base mb-2 text-slate-100">VIN-коди</h3>
+          {vins.length === 0 ? (
+            <p className="text-slate-400 italic">Список порожній</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {vins.map((vin, idx) => (
+                <li
+                  key={vin + idx}
+                  className="flex items-center justify-between gap-2 min-w-0 bg-slate-700/70 rounded-md px-2.5 py-1.5 text-gray-200 font-mono text-sm"
+                >
+                  <span className="truncate">{vin}</span>
+                  <button
+                    onClick={() => handleDeleteVin(idx)}
+                    aria-label={`Видалити VIN ${vin}`}
+                    title="Видалити VIN"
+                    className="text-red-400 hover:text-red-600 transition p-1 rounded cursor-pointer"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {isVinFieldVisible ? (
+            <div className="mt-3 flex gap-2">
+              <input
+                type="text"
+                value={newVin}
+                onChange={(e) => setNewVin(e.target.value.toUpperCase())}
+                maxLength={17}
+                placeholder="Введіть VIN (17 символів)"
+                className={`flex-grow rounded-md bg-slate-900/60 p-1.5 placeholder-gray-400 border ${
+                  vinError ? "border-red-500" : "border-white/10"
+                } text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400 transition font-mono`}
+                autoFocus
+              />
+              <button
+                onClick={handleAddVin}
+                className="text-green-400 hover:text-green-600 transition p-2 rounded cursor-pointer"
                 aria-label="Додати VIN"
                 title="Додати VIN"
               >
-                + Додати VIN
+                <Save size={18} />
               </button>
-            )}
-            {vinError && <p className="text-red-500 text-sm mt-1">{vinError}</p>}
-          </section>
-
-          {/* Зміна паролю */}
-          <section className="bg-gray-800 rounded-xl p-4 shadow-inner border border-gray-700 flex items-center justify-between">
-            <h3 className="font-semibold text-lg text-white">Пароль</h3>
-            {showPasswordField ? (
-              <div className="flex gap-2 items-center w-full max-w-xs">
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Новий пароль"
-                  className={`w-full rounded-md bg-gray-900 p-2 placeholder-gray-500 border ${
-                    passwordError ? "border-red-500" : "border-gray-600"
-                  } text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition`}
-                  autoFocus
-                />
-                <button
-                  onClick={handleChangePassword}
-                  className="text-green-400 hover:text-green-600 transition p-2 rounded"
-                  aria-label="Змінити пароль"
-                  title="Змінити пароль"
-                >
-                  <Save size={20} />
-                </button>
-                <button
-                  onClick={() => {
-                    setShowPasswordField(false);
-                    setNewPassword("");
-                    setPasswordError(null);
-                  }}
-                  className="text-gray-400 hover:text-gray-200 transition p-2 rounded"
-                  aria-label="Скасувати зміну паролю"
-                  title="Скасувати"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            ) : (
               <button
-                onClick={() => setShowPasswordField(true)}
-                className="text-blue-400 hover:text-blue-600 transition"
+                onClick={() => {
+                  setIsVinFieldVisible(false);
+                  setNewVin("");
+                  setVinError(null);
+                }}
+                className="text-slate-400 hover:text-gray-200 transition p-2 rounded cursor-pointer"
+                aria-label="Скасувати додавання VIN"
+                title="Скасувати"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsVinFieldVisible(true)}
+              className="mt-3 text-sky-300 hover:text-sky-200 transition font-semibold cursor-pointer"
+              aria-label="Додати VIN"
+              title="Додати VIN"
+            >
+              + Додати VIN
+            </button>
+          )}
+          {vinError && <p className="text-red-500 text-sm mt-1">{vinError}</p>}
+        </section>
+
+        <section
+          className={`bg-slate-800/70 rounded-xl p-1.5 shadow-inner border border-white/10 flex items-center justify-between gap-2 min-w-0 md:col-span-2 ${
+            activeTab !== "security" ? "hidden" : ""
+          }`}
+        >
+          <h3 className="font-semibold text-lg text-slate-100">Пароль</h3>
+          {showPasswordField ? (
+            <div className="flex gap-2 items-center w-full max-w-xs">
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Новий пароль"
+                className={`w-full rounded-md bg-slate-900/60 p-1.5 placeholder-gray-400 border ${
+                  passwordError ? "border-red-500" : "border-white/10"
+                } text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400 transition`}
+                autoFocus
+              />
+              <button
+                onClick={handleChangePassword}
+                className="text-green-400 hover:text-green-600 transition p-2 rounded cursor-pointer"
                 aria-label="Змінити пароль"
                 title="Змінити пароль"
               >
-                <Key size={20} />
+                <Save size={18} />
               </button>
-            )}
-          </section>
-
-       
-        </div>
+              <button
+                onClick={() => {
+                  setShowPasswordField(false);
+                  setNewPassword("");
+                  setPasswordError(null);
+                }}
+                className="text-slate-400 hover:text-gray-200 transition p-2 rounded cursor-pointer"
+                aria-label="Скасувати зміну паролю"
+                title="Скасувати"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowPasswordField(true)}
+              className="text-sky-300 hover:text-sky-200 transition cursor-pointer"
+              aria-label="Змінити пароль"
+              title="Змінити пароль"
+            >
+              <Key size={20} />
+            </button>
+          )}
+        </section>
       </div>
     </div>
   );
 };
 
 export default AccountInfo;
+
+
+

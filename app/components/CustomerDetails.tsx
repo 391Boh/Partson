@@ -2,7 +2,7 @@
 
 import { User } from "firebase/auth";
 import { Check, Edit, ArrowLeft, X } from "lucide-react";
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 
 interface Props {
   name: string;
@@ -25,6 +25,10 @@ const CustomerDetails: React.FC<Props> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(!user);
   const phoneRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setIsEditing(!user);
+  }, [user]);
 
   const validatePhone = (val: string) => /^\+380\d{9}$/.test(val.trim());
 

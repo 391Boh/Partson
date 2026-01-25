@@ -60,7 +60,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
   const [selectedWarehouse, setSelectedWarehouse] = useState<CityOrWarehouse | null>(null);
   const [selectedLvivStreet, setSelectedLvivStreet] = useState<string | null>(null);
 
-  const [orderId] = useState(() => '' + Date.now());
+  const [orderId, setOrderId] = useState('');
   const [confirmedAmount, setConfirmedAmount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -83,12 +83,19 @@ const Zamovl: React.FC<ZamovlProps> = ({
         } catch (error) {
           console.error("Помилка при завантаженні даних користувача:", error);
         }
+      } else {
+        setName('');
+        setPhone('+380');
       }
 
       setIsLoading(false);
     });
 
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    setOrderId(() => '' + Date.now());
   }, []);
 
   const handleSubmitOrder = async () => {

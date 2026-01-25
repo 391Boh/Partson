@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, query, collection, where, getDocs } from "firebase/firestore";
-import { auth, db } from "firebase";
+import { auth, db } from "../../firebase";
 import { ArrowLeft, X } from "lucide-react";
 
 interface RegisterProps {
@@ -136,10 +136,10 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
   };
 
   return (
-    <div className={`fixed inset-0 bg-black/40 flex justify-center items-center backdrop-blur-md transition-opacity duration-300 z-50 ${isClosing ? "opacity-0" : "opacity-100"}`}>
+    <div className={`fixed inset-0 z-50 bg-transparent transition-opacity duration-300 ${isClosing ? "opacity-0" : "opacity-100"}`}>
       <div
         ref={modalRef}
-        className={`bg-gradient-to-br from-gray-800 to-gray-700 text-white p-10 rounded-3xl border border-gray-600 w-full max-w-xl transition-all duration-300 shadow-2xl ${
+        className={`fixed top-20 right-3 left-auto w-[360px] max-w-[92vw] sm:right-6 sm:w-[420px] bg-gradient-to-br from-gray-800 to-gray-700 text-white p-6 rounded-2xl border border-gray-600 shadow-2xl transition-all duration-300 transform ${
           isClosing ? "scale-95 opacity-0" : "scale-100 opacity-100"
         }`}
       >
