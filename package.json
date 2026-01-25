@@ -34,7 +34,7 @@
     "react-icons": "^5.5.0",
     "react-intersection-observer": "^9.16.0",
     "react-leaflet": "^5.0.0",
-    "react-virtuoso": "^4.17.0",
+    "react-virtuoso": "^4.18.1",
     "soap": "^1.1.10",
     "socket.io-client": "^4.8.1",
     "tailwind-merge": "^3.1.0",
