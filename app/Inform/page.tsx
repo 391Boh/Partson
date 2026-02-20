@@ -1,185 +1,260 @@
 'use client';
 
-import { useState, useEffect, useRef, memo, useCallback } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  MapPin,
-  CreditCard,
-  Truck,
-  Info,
-  Package,
-  Clock,
-  ShieldCheck,
-  Wallet,
-  RefreshCcw,
   Building2,
-  Phone,
+  Clock,
+  CreditCard,
+  Info,
+  MapPin,
   Navigation,
+  Package,
+  Phone,
+  RefreshCcw,
+  ShieldCheck,
+  Truck,
+  Wallet,
+  type LucideIcon,
 } from 'lucide-react';
-
-/* ================= MAP ================= */
 
 const MapComponent = dynamic(() => import('app/components/Map'), {
   ssr: false,
   loading: () => (
     <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">
-      Завантаження карти…
+      Завантаження карти...
     </div>
   ),
 });
 
-/* ================= CARD ================= */
+type TabKey = 'delivery' | 'payment' | 'about' | 'location';
 
-const Card = memo(
-  ({
-    title,
-    icon: Icon,
-    gradient,
-    children,
-  }: {
-    title: string;
-    icon: any;
-    gradient: string;
-    children: any;
-  }) => (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.35, ease: 'easeOut' }}
-      className={`
-        group relative overflow-hidden rounded-2xl
-        border border-white/60
-        bg-gradient-to-br ${gradient}
-        p-4 shadow-sm backdrop-blur
-        transition-all duration-300
-        hover:-translate-y-0.5 hover:shadow-md
-      `}
+type TabConfig = {
+  key: TabKey;
+  title: string;
+  subtitle: string;
+  icon: LucideIcon;
+};
+
+type InfoCardProps = {
+  title: string;
+  icon: LucideIcon;
+  tone?: string;
+  children: ReactNode;
+};
+
+const infoCardBase =
+  'group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br p-4 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_35px_rgba(56,189,248,0.22)]';
+const listItemClass = 'flex items-start gap-2.5 text-sm text-slate-700';
+
+const InfoCard = memo(function InfoCard({
+  title,
+  icon: Icon,
+  tone = 'from-sky-50/95 via-white to-slate-50',
+  children,
+}: InfoCardProps) {
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      className={`${infoCardBase} ${tone}`}
     >
-      <div className="mb-2 flex items-center gap-2">
-        <Icon size={18} className="text-slate-500 group-hover:text-sky-600 transition" />
-        <h4 className="text-sm font-semibold text-slate-700">{title}</h4>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_50%)]" />
+      <div className="relative">
+        <div className="mb-3 flex items-center gap-2.5">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-sky-100 bg-sky-50 text-sky-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+            <Icon size={16} />
+          </span>
+          <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+        </div>
+        <div className="text-[15px] leading-relaxed text-slate-700">{children}</div>
       </div>
-      <div className="text-[15px] text-slate-700 leading-relaxed">
-        {children}
-      </div>
-    </motion.div>
-  )
-);
-
-/* ================= TABS CONTENT ================= */
+    </motion.article>
+  );
+});
 
 const DeliveryTab = () => (
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-    <Card title="Доставка по Україні" icon={Truck} gradient="from-sky-50 to-white">
-      <ul className="space-y-2">
-        <li className="flex gap-2"><Package size={16} /> Нова Пошта, Укрпошта, Meest</li>
-        <li className="flex gap-2"><Clock size={16} /> Відправка 1–2 дні</li>
-        <li className="flex gap-2"><Navigation size={16} /> Відділення або адресно</li>
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <InfoCard title="Доставка по Україні" icon={Truck}>
+      <ul className="space-y-2.5">
+        <li className={listItemClass}>
+          <Package size={16} className="mt-0.5 shrink-0 text-sky-700" />
+          <span>Нова Пошта, Укрпошта, Meest.</span>
+        </li>
+        <li className={listItemClass}>
+          <Clock size={16} className="mt-0.5 shrink-0 text-sky-700" />
+          <span>Відправка зазвичай 1-2 дні.</span>
+        </li>
+        <li className={listItemClass}>
+          <Navigation size={16} className="mt-0.5 shrink-0 text-sky-700" />
+          <span>Доставка у відділення або адресно.</span>
+        </li>
       </ul>
-    </Card>
+    </InfoCard>
 
-    <Card title="Самовивіз та пакування" icon={Package} gradient="from-indigo-50 to-white">
-      <ul className="space-y-2">
-        <li className="flex gap-2"><Building2 size={16} /> Самовивіз за домовленістю</li>
-        <li className="flex gap-2"><ShieldCheck size={16} /> Посилене пакування</li>
+    <InfoCard
+      title="Самовивіз та пакування"
+      icon={Package}
+      tone="from-cyan-50/95 via-white to-emerald-50/70"
+    >
+      <ul className="space-y-2.5">
+        <li className={listItemClass}>
+          <Building2 size={16} className="mt-0.5 shrink-0 text-cyan-700" />
+          <span>Самовивіз за попередньою домовленістю.</span>
+        </li>
+        <li className={listItemClass}>
+          <ShieldCheck size={16} className="mt-0.5 shrink-0 text-cyan-700" />
+          <span>Посилене пакування для крихких позицій.</span>
+        </li>
       </ul>
-    </Card>
+    </InfoCard>
 
-    <Card title="Вартість доставки" icon={Wallet} gradient="from-teal-50 to-white">
-      За тарифами перевізника.
-    </Card>
+    <InfoCard
+      title="Вартість доставки"
+      icon={Wallet}
+      tone="from-teal-50/95 via-white to-cyan-50/80"
+    >
+      Вартість розраховується за тарифами перевізника та залежить від ваги й розмірів посилки.
+    </InfoCard>
 
-    <Card title="Перевірка товару" icon={ShieldCheck} gradient="from-emerald-50 to-white">
-      Перевіряйте посилку при отриманні.
-    </Card>
+    <InfoCard
+      title="Перевірка товару"
+      icon={ShieldCheck}
+      tone="from-emerald-50/95 via-white to-lime-50/70"
+    >
+      Рекомендуємо перевіряти комплектність та стан посилки безпосередньо під час отримання.
+    </InfoCard>
   </div>
 );
 
 const PaymentTab = () => (
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-    <Card title="Онлайн-оплата" icon={CreditCard} gradient="from-green-50 to-white">
-      Visa / MasterCard через захищений шлюз.
-    </Card>
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <InfoCard
+      title="Онлайн-оплата"
+      icon={CreditCard}
+      tone="from-green-50/95 via-white to-emerald-50/70"
+    >
+      Visa / MasterCard через захищений платіжний шлюз.
+    </InfoCard>
 
-    <Card title="Післяплата" icon={Wallet} gradient="from-amber-50 to-white">
-      Оплата у відділенні або курʼєру.
-    </Card>
+    <InfoCard
+      title="Післяплата"
+      icon={Wallet}
+      tone="from-amber-50/95 via-white to-orange-50/70"
+    >
+      Оплата у відділенні перевізника або курʼєру після огляду.
+    </InfoCard>
 
-    <Card title="Безготівковий рахунок" icon={Building2} gradient="from-cyan-50 to-white">
-      Для СТО та бізнесу.
-    </Card>
+    <InfoCard
+      title="Безготівковий рахунок"
+      icon={Building2}
+      tone="from-cyan-50/95 via-white to-sky-50/80"
+    >
+      Підготуємо документи для СТО, ФОП та компаній.
+    </InfoCard>
 
-    <Card title="Гарантія та повернення" icon={RefreshCcw} gradient="from-rose-50 to-white">
-      За погодженням з менеджером.
-    </Card>
+    <InfoCard
+      title="Гарантія та повернення"
+      icon={RefreshCcw}
+      tone="from-rose-50/95 via-white to-orange-50/60"
+    >
+      Умови повернення та обміну уточнюються з менеджером залежно від товарної групи.
+    </InfoCard>
   </div>
 );
 
 const AboutTab = () => (
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-    <Card title="Про PartsON" icon={Info} gradient="from-purple-50 to-white">
-      Професійний підбір автозапчастин.
-    </Card>
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <InfoCard title="Про PartsON" icon={Info}>
+      Професійний підбір автозапчастин з акцентом на сумісність і наявність.
+    </InfoCard>
 
-    <Card title="Наш підхід" icon={ShieldCheck} gradient="from-blue-50 to-white">
-      Чесні консультації та строки.
-    </Card>
+    <InfoCard
+      title="Наш підхід"
+      icon={ShieldCheck}
+      tone="from-blue-50/95 via-white to-cyan-50/70"
+    >
+      Прозора консультація, чіткі строки та підтримка на кожному етапі замовлення.
+    </InfoCard>
 
-    <Card title="Підбір по VIN" icon={Package} gradient="from-orange-50 to-white">
-      Надішліть VIN — підберемо швидко.
-    </Card>
+    <InfoCard
+      title="Підбір по VIN"
+      icon={Package}
+      tone="from-orange-50/95 via-white to-amber-50/70"
+    >
+      Надішліть VIN або параметри авто, і ми підготуємо релевантні позиції без зайвих ризиків.
+    </InfoCard>
 
-    <Card title="Підтримка" icon={Phone} gradient="from-slate-50 to-white">
-      Онлайн-чат у робочий час.
-    </Card>
+    <InfoCard
+      title="Підтримка"
+      icon={Phone}
+      tone="from-slate-100/95 via-white to-sky-50/70"
+    >
+      Оперативний звʼязок через чат у робочий час.
+    </InfoCard>
   </div>
 );
 
 const LocationTab = ({ active }: { active: boolean }) => (
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-    <div className="flex flex-col gap-4">
-      <Card title="Локація" icon={MapPin} gradient="from-slate-50 to-white">
-        Адреса — у менеджера.
-      </Card>
-      <Card title="Графік" icon={Clock} gradient="from-sky-50 to-white">
-        Будні + частина суботи.
-      </Card>
-      <Card title="Контакти" icon={Phone} gradient="from-emerald-50 to-white">
-        Звʼяжіться з нами у чаті.
-      </Card>
+  <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+    <div className="grid gap-4">
+      <InfoCard title="Локація" icon={MapPin}>
+        Львів, вул. Перфецького, 8.
+      </InfoCard>
+      <InfoCard title="Графік" icon={Clock} tone="from-sky-50/95 via-white to-cyan-50/70">
+        Пн-Пт: 09:00-18:00, Сб: за узгодженням.
+      </InfoCard>
+      <InfoCard title="Контакти" icon={Phone} tone="from-emerald-50/95 via-white to-cyan-50/70">
+        Напишіть нам у чат, і менеджер швидко зорієнтує щодо замовлення.
+      </InfoCard>
     </div>
 
-    <div className="h-[260px] md:h-[320px] lg:h-[360px] rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-      {active && <MapComponent />}
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-100 shadow-[0_12px_28px_rgba(15,23,42,0.14)]">
+      <div className="h-[280px] sm:h-[340px] lg:h-full lg:min-h-[438px]">
+        {active && <MapComponent />}
+      </div>
     </div>
   </div>
 );
 
-/* ================= PAGE ================= */
-
-const tabs = [
-  { key: 'delivery', title: 'Доставка', icon: Truck, content: <DeliveryTab /> },
-  { key: 'payment', title: 'Оплата', icon: CreditCard, content: <PaymentTab /> },
-  { key: 'about', title: 'Про нас', icon: Info, content: <AboutTab /> },
-  { key: 'location', title: 'Локація', icon: MapPin, content: <LocationTab active /> },
+const tabs: TabConfig[] = [
+  { key: 'delivery', title: 'Доставка', subtitle: 'У Львові та по Україні', icon: Truck },
+  { key: 'payment', title: 'Оплата', subtitle: 'Карта та готівка', icon: CreditCard },
+  { key: 'about', title: 'Про нас', subtitle: 'Детально', icon: Info },
+  { key: 'location', title: 'Локація', subtitle: 'Контакти', icon: MapPin },
 ];
+
+const renderTabContent = (key: TabKey) => {
+  switch (key) {
+    case 'delivery':
+      return <DeliveryTab />;
+    case 'payment':
+      return <PaymentTab />;
+    case 'about':
+      return <AboutTab />;
+    case 'location':
+      return <LocationTab active />;
+    default:
+      return <DeliveryTab />;
+  }
+};
 
 export default function InformationPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
+
   const [activeIdx, setActiveIdx] = useState(0);
-  const startX = useRef(0);
-  const minSwipe = 70;
+  const startTouch = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     if (!tabParam) return;
-    const idx = tabs.findIndex((t) => t.key === tabParam);
-    if (idx < 0) return;
-    setActiveIdx(idx);
+    const idx = tabs.findIndex((tab) => tab.key === tabParam);
+    if (idx >= 0) setActiveIdx(idx);
   }, [tabParam]);
 
   const handleTabChange = useCallback(
@@ -196,99 +271,80 @@ export default function InformationPage() {
     [pathname, router, searchParams]
   );
 
+  const activeTab = tabs[activeIdx];
+
   return (
     <div
-      className="
-        flex h-[calc(100vh-80px)] flex-col overflow-hidden
-        bg-[radial-gradient(800px_400px_at_10%_-10%,#e0f2fe,transparent),
-            radial-gradient(600px_300px_at_90%_10%,#ede9fe,transparent),
-            linear-gradient(to_bottom,#f8fafc,#ffffff)]
-      "
+      className="relative min-h-[calc(100vh-4rem)] overflow-hidden bg-sky-50 text-slate-100 select-none"
+      onCopy={(event) => event.preventDefault()}
+      onCut={(event) => event.preventDefault()}
     >
-   <nav
-  className="
-    relative
-    px-4 py-4
-    backdrop-blur-xl
-    bg-[linear-gradient(180deg,rgba(255,255,255,0.85),rgba(255,255,255,0.65))]
-    shadow-[0_8px_24px_rgba(15,23,42,0.04)]
-  "
->
-  {/* subtle background glow */}
-  <div
-    className="
-      pointer-events-none absolute inset-0
-      bg-[radial-gradient(600px_200px_at_50%_-50%,rgba(56,189,248,0.15),transparent)]
-    "
-  />
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_10%,rgba(56,189,248,0.24),transparent_42%),radial-gradient(circle_at_88%_10%,rgba(125,211,252,0.22),transparent_38%),linear-gradient(180deg,rgba(240,249,255,0.96)_0%,rgba(226,232,240,0.9)_45%,rgba(224,242,254,0.92)_100%)]" />
+        <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(148,163,184,0.18)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.18)_1px,transparent_1px)] [background-size:38px_38px]" />
+      </div>
 
-  <div className="relative grid grid-cols-2 md:grid-cols-4 gap-3 max-w-6xl mx-auto">
-    {tabs.map((t, i) => {
-      const active = i === activeIdx;
-      const Icon = t.icon;
+      <section className="relative mx-auto grid w-full max-w-[1400px] gap-4 px-4 py-4 sm:px-5 sm:py-6 lg:px-7">
+        <nav className="rounded-3xl border border-white/10 bg-slate-900/60 p-2 shadow-[0_12px_34px_rgba(2,6,23,0.32)] backdrop-blur-xl sm:p-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+            {tabs.map((tab, idx) => {
+              const isActive = idx === activeIdx;
+              const Icon = tab.icon;
 
-      return (
-        <button
-          key={t.key}
-          onClick={() => handleTabChange(i)}
-          className={`
-            group relative rounded-2xl px-4 py-3 text-xs font-medium
-            transition-all duration-300
-            ${
-              active
-                ? `
-                  bg-gradient-to-br from-sky-400 to-indigo-400
-                  text-white shadow-md
-                `
-                : `
-                  bg-white/70 text-slate-600
-                  hover:bg-white hover:text-sky-600
-                `
-            }
-          `}
-        >
-          {/* active glow */}
-          {active && (
-            <span className="absolute inset-0 -z-10 rounded-2xl bg-sky-400/25 blur-xl" />
-          )}
-
-          <div className="flex items-center justify-center gap-2">
-            <Icon
-              size={16}
-              className="transition-transform duration-300 group-hover:scale-110"
-            />
-            <span className="tracking-wide">{t.title}</span>
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => handleTabChange(idx)}
+                  className={`relative rounded-2xl border px-3 py-3 text-left transition duration-300 ${
+                    isActive
+                      ? 'border-sky-200/70 bg-gradient-to-br from-sky-300 to-cyan-400 text-slate-950 shadow-[0_10px_24px_rgba(56,189,248,0.45)]'
+                      : 'border-white/10 bg-white/10 text-slate-200 hover:border-sky-200/30 hover:bg-white/15'
+                  }`}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon size={16} className={isActive ? 'text-slate-900' : 'text-sky-200'} />
+                    <span className="text-sm font-semibold">{tab.title}</span>
+                  </div>
+                  <p className={`mt-1 text-[11px] ${isActive ? 'text-slate-800/80' : 'text-slate-300/80'}`}>
+                    {tab.subtitle}
+                  </p>
+                </button>
+              );
+            })}
           </div>
-        </button>
-      );
-    })}
-  </div>
-</nav>
+        </nav>
 
-
-      {/* CONTENT + SWIPE */}
-      <main
-        className="flex-1 p-4 overflow-hidden"
-        onTouchStart={(e) => (startX.current = e.touches[0].clientX)}
-        onTouchEnd={(e) => {
-          const diff = startX.current - e.changedTouches[0].clientX;
-          if (diff > minSwipe) handleTabChange((activeIdx + 1) % tabs.length);
-          if (diff < -minSwipe) handleTabChange((activeIdx - 1 + tabs.length) % tabs.length);
-        }}
-      >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={tabs[activeIdx].key}
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="h-full"
-          >
-            {tabs[activeIdx].content}
-          </motion.div>
-        </AnimatePresence>
-      </main>
+        <main
+          className="rounded-3xl border border-white/10 bg-slate-900/55 p-3 shadow-[0_18px_46px_rgba(2,6,23,0.34)] backdrop-blur-xl sm:p-4 lg:p-5"
+          onTouchStart={(event) => {
+            startTouch.current = {
+              x: event.touches[0].clientX,
+              y: event.touches[0].clientY,
+            };
+          }}
+          onTouchEnd={(event) => {
+            const diffX = startTouch.current.x - event.changedTouches[0].clientX;
+            const diffY = startTouch.current.y - event.changedTouches[0].clientY;
+            if (Math.abs(diffX) < 70 || Math.abs(diffY) > Math.abs(diffX)) return;
+            if (diffX > 0) handleTabChange((activeIdx + 1) % tabs.length);
+            if (diffX < 0) handleTabChange((activeIdx - 1 + tabs.length) % tabs.length);
+          }}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab.key}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.24, ease: 'easeOut' }}
+            >
+              {renderTabContent(activeTab.key)}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </section>
     </div>
   );
 }

@@ -1,18 +1,19 @@
 'use client';
 
-import { User } from "firebase/auth";
-import { Check, Edit, ArrowLeft, X } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { User } from 'firebase/auth';
 
 interface Props {
   name: string;
   phone: string;
-  setName: (val: string) => void;
-  setPhone: (val: string) => void;
+  setName: (value: string) => void;
+  setPhone: (value: string) => void;
   user: User | null;
   onNext: () => void;
   onBack: () => void;
 }
+
+const PHONE_PATTERN = /^\+380\d{9}$/;
 
 const CustomerDetails: React.FC<Props> = ({
   name,
@@ -23,78 +24,88 @@ const CustomerDetails: React.FC<Props> = ({
   onNext,
   onBack,
 }) => {
-  const [isEditing, setIsEditing] = useState(!user);
-  const phoneRef = useRef<HTMLInputElement>(null);
+  const isNameValid = name.trim().length >= 2;
+  const isPhoneValid = PHONE_PATTERN.test(phone.trim());
+  const canContinue = isNameValid && isPhoneValid;
 
-  useEffect(() => {
-    setIsEditing(!user);
-  }, [user]);
-
-  const validatePhone = (val: string) => /^\+380\d{9}$/.test(val.trim());
-
-  const handlePhoneChange = (val: string) => {
-    if (!val.startsWith('+380')) return;
-    const digitsOnly = val.replace(/[^\d]/g, '');
-    if (digitsOnly.length > 12) return;
-    setPhone('+380' + digitsOnly.slice(3));
-  };
-
-  const handleSubmit = () => {
-    if (!name.trim() || !validatePhone(phone)) {
-      alert("Перевірте ім’я та телефон.");
-      phoneRef.current?.focus();
+  const handleNext = () => {
+    if (!canContinue) {
+      alert('Please enter your name and phone in format +380XXXXXXXXX.');
       return;
     }
-    setIsEditing(false);
     onNext();
   };
 
   return (
-    <div className="mt-6 text-slate-200 space-y-5">
-      {!isEditing ? (
-        <>
-          <p>Перевірте ваші дані:</p>
-          <div className="bg-slate-800 p-4 rounded-lg space-y-3">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Ім’я:</span>
-              <span className="text-white font-medium">{name}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Телефон:</span>
-              <span className="text-white font-medium">{phone}</span>
-            </div>
-          </div>
+    <div className="mt-6 space-y-5 text-slate-700">
+      <p className="text-sm text-slate-600">
+        {user
+          ? 'Your profile details were prefilled. Check and update if needed.'
+          : 'Enter your contact details to continue with the order.'}
+      </p>
 
-          <div className="flex flex-wrap gap-3 mt-6">
-            <button onClick={handleSubmit} className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition">
-              <Check size={18} /> Далі
-            </button>
-            <button onClick={() => setIsEditing(true)} className="flex-1 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition">
-              <Edit size={18} /> Змінити
-            </button>
-            <button onClick={onBack} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition">
-              <ArrowLeft size={18} /> Назад
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          <p>Заповніть ваші дані:</p>
-          <div className="flex flex-col gap-4">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ваше ім’я" className="w-full px-4 py-2 rounded-lg bg-slate-600 text-white border border-slate-500" />
-            <input type="tel" ref={phoneRef} value={phone} onChange={(e) => handlePhoneChange(e.target.value)} placeholder="+380XXXXXXXXX" className="w-full px-4 py-2 rounded-lg bg-slate-600 text-white border border-slate-500" />
-          </div>
+      <div className="space-y-3">
+        <div>
+          <label htmlFor="customer-name" className="mb-1 block text-sm">
+            Name
+          </label>
+          <input
+            id="customer-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Your name"
+            autoComplete="name"
+            className="w-full rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 outline-none transition focus:ring-2 focus:ring-sky-300"
+          />
+          {!isNameValid && name.length > 0 && (
+            <p className="mt-1 text-xs text-rose-600">Enter at least 2 characters.</p>
+          )}
+        </div>
 
-          <div className="flex gap-3 mt-6 flex-wrap">
-            <button onClick={handleSubmit} className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition">
-              <Check size={18} /> Зберегти
-            </button>
-            <button onClick={() => setIsEditing(false)} className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition">
-              <X size={18} /> Скасувати
-            </button>
-          </div>
-        </>
-      )}
+        <div>
+          <label htmlFor="customer-phone" className="mb-1 block text-sm">
+            Phone
+          </label>
+          <input
+            id="customer-phone"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+380XXXXXXXXX"
+            autoComplete="tel"
+            className="w-full rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 outline-none transition focus:ring-2 focus:ring-sky-300"
+          />
+          {!isPhoneValid && phone.length > 0 && (
+            <p className="mt-1 text-xs text-rose-600">Use format +380XXXXXXXXX.</p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-6 flex justify-between">
+        <button
+          type="button"
+          onClick={onBack}
+          className="rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 transition hover:bg-sky-50"
+        >
+          <ArrowLeft className="mr-2 inline" size={16} />
+          Back
+        </button>
+
+        <button
+          type="button"
+          onClick={handleNext}
+          disabled={!canContinue}
+          className={`rounded-lg px-4 py-2 text-white transition ${
+            canContinue
+              ? 'bg-gradient-to-r from-blue-600 to-cyan-500 shadow-[0_10px_22px_rgba(59,130,246,0.3)] hover:brightness-110'
+              : 'cursor-not-allowed bg-slate-400'
+          }`}
+        >
+          Continue
+          <ChevronRight className="ml-2 inline" size={16} />
+        </button>
+      </div>
     </div>
   );
 };

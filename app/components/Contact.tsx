@@ -43,7 +43,6 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
   const touchStartX = useRef<number | null>(null);
 
   const [tab, setTab] = useState<"phones" | "address">("phones");
-  const [direction, setDirection] = useState<"left" | "right">("right");
   const [toast, setToast] = useState(false);
   const [showZvyaz, setShowZvyaz] = useState(false);
   const [userData, setUserData] = useState<{ name: string; phone: string } | null>(null);
@@ -136,11 +135,9 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
 
     if (Math.abs(diff) > 60) {
       if (diff < 0 && tab === "phones") {
-        setDirection("right");
         setTab("address");
       }
       if (diff > 0 && tab === "address") {
-        setDirection("left");
         setTab("phones");
       }
     }
@@ -164,21 +161,20 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
         className="fixed top-20 right-4 left-4 sm:left-auto sm:right-6 w-[90%] max-w-[420px] mx-auto rounded-2xl p-4 z-40
-                   bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700
-                   shadow-2xl border border-white/10 backdrop-blur-xl animate-fadeIn"
+                   bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_52%,rgba(224,242,254,0.94)_100%)]
+                   shadow-[0_24px_60px_rgba(30,64,175,0.22)] border border-sky-200/80 backdrop-blur-xl animate-fadeIn"
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
-          <div className="flex gap-1 bg-white/10 rounded-xl p-1">
+          <div className="flex gap-1 rounded-xl border border-sky-200/80 bg-white/80 p-1">
             <button
               onClick={() => {
-                setDirection("left");
                 setTab("phones");
               }}
               className={`p-2 rounded-xl transition ${
                 tab === "phones"
-                  ? "bg-sky-600 text-white shadow"
-                  : "text-slate-300 hover:bg-white/10"
+                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_8px_18px_rgba(59,130,246,0.3)]"
+                  : "text-slate-600 hover:bg-sky-50"
               }`}
             >
               <Phone size={16} />
@@ -186,21 +182,20 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
 
             <button
               onClick={() => {
-                setDirection("right");
                 setTab("address");
               }}
               className={`p-2 rounded-xl transition ${
                 tab === "address"
-                  ? "bg-sky-700 text-white shadow"
-                  : "text-slate-300 hover:bg-white/10"
+                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_8px_18px_rgba(59,130,246,0.3)]"
+                  : "text-slate-600 hover:bg-sky-50"
               }`}
             >
               <MapPin size={16} />
             </button>
           </div>
 
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-white/10">
-            <X size={18} className="text-slate-200" />
+          <button onClick={onClose} className="rounded-full border border-sky-200 bg-white p-1 transition hover:bg-sky-50">
+            <X size={18} className="text-slate-500" />
           </button>
         </div>
 
@@ -216,26 +211,26 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                 key={i}
                 onClick={() => handlePhoneAction(c.phone)}
                 className="w-full rounded-xl px-3 py-2 text-left
-                           bg-slate-800/70 hover:bg-slate-700/70 border border-white/5
-                           transition-all hover:scale-[1.02]"
+                           bg-white/92 border border-sky-200/70
+                           shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition-all hover:border-sky-300/80 hover:scale-[1.02]"
               >
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
-                    <User size={15} className="text-slate-200" />
-                    <span className="font-medium text-slate-100">{c.name}</span>
+                    <User size={15} className="text-slate-500" />
+                    <span className="font-medium text-slate-800">{c.name}</span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <OperatorIcon phone={c.phone} />
                     {isMobileDevice ? (
-                      <Phone size={14} className="text-sky-300" />
+                      <Phone size={14} className="text-blue-600" />
                     ) : (
-                      <Copy size={14} className="text-sky-300" />
+                      <Copy size={14} className="text-blue-600" />
                     )}
                   </div>
                 </div>
 
-                <div className="text-xs text-slate-300 mt-1">{c.phone}</div>
+                <div className="mt-1 text-xs text-slate-600">{c.phone}</div>
               </button>
             ))}
           </div>
@@ -243,12 +238,12 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
 
         {/* Address */}
         {tab === "address" && (
-          <div className="bg-slate-800/70 border border-white/5 rounded-xl p-3 text-slate-100">
+          <div className="rounded-xl border border-sky-200/70 bg-white/92 p-3 text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.08)]">
             <div className="flex gap-2">
-              <MapPin className="text-sky-300 mt-0.5" size={16} />
+              <MapPin className="mt-0.5 text-blue-600" size={16} />
               <div>
-                <p className="font-medium text-slate-100 text-sm">Наш магазин</p>
-                <p className="text-xs text-slate-300 leading-relaxed">
+                <p className="text-sm font-medium text-slate-800">Наш магазин</p>
+                <p className="text-xs leading-relaxed text-slate-600">
                   м. Львів, вул. Перфецького, 8<br />
                   Пн–Нд: 08:00–19:00
                 </p>

@@ -252,10 +252,12 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       return;
     }
 
-        if (!/^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ'’\-\s]+$/.test(tempName.trim())) {
-      alert("?м'я може м?стити лише л?тери, проб?ли, деф?си та апострофи.");
+    if (!/^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ'’\-\s]+$/.test(tempName.trim())) {
+      alert("Ім'я може містити лише літери, пробіли, дефіси та апострофи.");
       return;
-    }try {
+    }
+
+    try {
       const docRef = doc(db, "users", user?.uid || "");
       await setDoc(docRef, { name: tempName }, { merge: true });
       setName(tempName);
@@ -273,10 +275,12 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       return;
     }
 
-        if (!/^\+380\d{9}$/.test(tempPhone.trim())) {
-      setPhoneError("Номер телефону має бути у формат? +380XXXXXXXXX.");
+    if (!/^\+380\d{9}$/.test(tempPhone.trim())) {
+      setPhoneError("Номер телефону має бути у форматі +380XXXXXXXXX.");
       return;
-    }const formattedPhone = formatPhoneNumber(tempPhone);
+    }
+
+    const formattedPhone = formatPhoneNumber(tempPhone);
 
     try {
       const phoneQuery = query(collection(db, "users"), where("phone", "==", formattedPhone));
@@ -302,24 +306,24 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
   return (
     <div
       ref={modalRef}
-      className="fixed top-20 right-3 left-auto w-[92%] sm:right-6 sm:w-[80%] max-w-[400px] bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 border border-gray-500 rounded-xl shadow-2xl p-8 z-40 flex flex-col gap-3 animate-fadeIn backdrop-blur-xl select-none"
+      className="fixed left-auto right-3 top-20 z-40 flex w-[92%] max-w-[420px] flex-col gap-3 rounded-2xl border border-sky-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_52%,rgba(224,242,254,0.94)_100%)] p-5 shadow-[0_24px_60px_rgba(30,64,175,0.22)] backdrop-blur-xl select-none animate-fadeIn sm:right-6 sm:w-[80%] sm:p-6"
     >
       <button
         onClick={onClose}
-        className="absolute top-1 right-1 text-slate-400 hover:text-gray-100 transition-colors cursor-pointer"
+        className="absolute right-2 top-2 rounded-full border border-sky-200/80 bg-white/90 p-1 text-slate-500 transition-colors hover:bg-sky-50 hover:text-slate-700 cursor-pointer"
         aria-label="Закрити"
         title="Закрити"
       >
         <X size={28} />
       </button>
 
-      <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-0.5">
+      <div className="flex items-center gap-2 rounded-xl border border-sky-200/80 bg-white/80 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
         <button
           onClick={() => setActiveTab("profile")}
           className={`flex-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
             activeTab === "profile"
-              ? "bg-white/15 text-white shadow-sm"
-              : "text-slate-300 hover:text-white"
+              ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_8px_18px_rgba(59,130,246,0.3)]"
+              : "text-slate-600 hover:bg-sky-50 hover:text-slate-800"
           }`}
         >
           Профіль
@@ -328,8 +332,8 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           onClick={() => setActiveTab("vins")}
           className={`flex-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
             activeTab === "vins"
-              ? "bg-white/15 text-white shadow-sm"
-              : "text-slate-300 hover:text-white"
+              ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_8px_18px_rgba(59,130,246,0.3)]"
+              : "text-slate-600 hover:bg-sky-50 hover:text-slate-800"
           }`}
         >
           VIN
@@ -338,8 +342,8 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           onClick={() => setActiveTab("security")}
           className={`flex-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
             activeTab === "security"
-              ? "bg-white/15 text-white shadow-sm"
-              : "text-slate-300 hover:text-white"
+              ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_8px_18px_rgba(59,130,246,0.3)]"
+              : "text-slate-600 hover:bg-sky-50 hover:text-slate-800"
           }`}
         >
           Безпека
@@ -348,19 +352,19 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:col-span-full">
         <section
-          className={`bg-slate-800/70 rounded-xl p-1.5 shadow-inner border border-white/10 flex items-center justify-between gap-2 min-w-0 min-h-[72px] ${
+          className={`flex min-h-[72px] min-w-0 items-center justify-between gap-2 rounded-xl border border-sky-200/70 bg-white/88 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.08)] ${
             activeTab !== "profile" ? "hidden" : ""
           } ${
             successField === "name"
-              ? "bg-emerald-500/20 border-emerald-400/60 animate-pulse"
+              ? "border-emerald-300/70 bg-emerald-50/70"
               : ""
           }`}
         >
           <div className="min-w-0">
-            <h3 className="font-semibold text-sm mb-0.5 text-slate-100 flex items-center gap-2">
-              Ім'я
+            <h3 className="mb-0.5 flex items-center gap-2 text-sm font-semibold text-slate-700">
+              {"Ім'я"}
               {successField === "name" && (
-                <span className="text-xs text-emerald-300">Успішно</span>
+                <span className="text-xs text-emerald-600">Успішно</span>
               )}
             </h3>
             {loading ? (
@@ -370,13 +374,13 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                 type="text"
                 value={tempName || ""}
                 onChange={(e) => setTempName(e.target.value)}
-                className={`w-full rounded-md bg-slate-900/60 p-1.5 placeholder-gray-400 border ${
+                className={`w-full rounded-md border bg-white p-1.5 placeholder-slate-400 ${
                   tempName?.trim() === ""
                     ? "border-red-500"
                     : tempName
                     ? "border-green-500"
-                    : "border-white/10"
-                } text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400 transition`}
+                    : "border-sky-200"
+                } text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition`}
                 placeholder="Введіть ім'я"
                 autoFocus
               />
@@ -386,7 +390,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setTempName(name);
                   setIsEditingName(true);
                 }}
-                className="text-slate-300 text-sm truncate text-left hover:text-white transition"
+                className="truncate text-left text-sm text-slate-600 transition hover:text-slate-800"
               >
                 {name || "Не вказано"}
               </button>
@@ -396,7 +400,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             {isEditingName ? (
               <button
                 onClick={handleSaveName}
-                className="text-green-300 hover:text-green-200 transition cursor-pointer text-xs font-semibold flex items-center gap-1"
+                className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
                 aria-label="Зберегти ім'я"
                 title="Зберегти ім'я"
               >
@@ -408,7 +412,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setTempName(name);
                   setIsEditingName(true);
                 }}
-                className="text-sky-300 hover:text-sky-200 transition cursor-pointer text-xs font-semibold flex items-center gap-1"
+                className="flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
                 aria-label="Редагувати ім'я"
                 title="Редагувати ім'я"
               >
@@ -419,15 +423,15 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         </section>
 
         <section
-          className={`bg-slate-800/70 rounded-xl p-1.5 shadow-inner border border-white/10 flex items-center justify-between gap-2 min-w-0 min-h-[72px] ${
+          className={`flex min-h-[72px] min-w-0 items-center justify-between gap-2 rounded-xl border border-sky-200/70 bg-white/88 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.08)] ${
             activeTab !== "profile" ? "hidden" : ""
-          } ${successField === "phone" ? "bg-emerald-500/20 border-emerald-400/60 animate-pulse" : ""}`}
+          } ${successField === "phone" ? "border-emerald-300/70 bg-emerald-50/70" : ""}`}
         >
           <div className="min-w-0">
-            <h3 className="font-semibold text-sm mb-0.5 text-slate-100 flex items-center gap-2">
+            <h3 className="mb-0.5 flex items-center gap-2 text-sm font-semibold text-slate-700">
               Телефон
               {successField === "phone" && (
-                <span className="text-xs text-emerald-300">Успішно</span>
+                <span className="text-xs text-emerald-600">Успішно</span>
               )}
             </h3>
             {loading ? (
@@ -437,13 +441,13 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                 type="tel"
                 value={tempPhone || ""}
                 onChange={(e) => setTempPhone(e.target.value)}
-                className={`w-full rounded-md bg-slate-900/60 p-1.5 placeholder-gray-400 border ${
+                className={`w-full rounded-md border bg-white p-1.5 placeholder-slate-400 ${
                   phoneError
                     ? "border-red-500"
                     : tempPhone && tempPhone.trim() !== ""
                     ? "border-green-500"
-                    : "border-white/10"
-                } text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400 transition`}
+                    : "border-sky-200"
+                } text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition`}
                 placeholder="+380 ХХХ ХХХ ХХ ХХ"
                 autoFocus
               />
@@ -454,7 +458,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setPhoneError(null);
                   setIsEditingPhone(true);
                 }}
-                className="text-slate-300 text-sm truncate text-left hover:text-white transition"
+                className="truncate text-left text-sm text-slate-600 transition hover:text-slate-800"
               >
                 {phone || "Не вказано"}
               </button>
@@ -467,7 +471,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             {isEditingPhone ? (
               <button
                 onClick={handleSavePhone}
-                className="text-green-300 hover:text-green-200 transition cursor-pointer text-xs font-semibold flex items-center gap-1"
+                className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
                 aria-label="Зберегти телефон"
                 title="Зберегти телефон"
               >
@@ -480,7 +484,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setPhoneError(null);
                   setIsEditingPhone(true);
                 }}
-                className="text-sky-300 hover:text-sky-200 transition cursor-pointer text-xs font-semibold flex items-center gap-1"
+                className="flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
                 aria-label="Редагувати телефон"
                 title="Редагувати телефон"
               >
@@ -491,18 +495,18 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         </section>
 
         <section
-          className={`bg-slate-800/70 rounded-xl p-1.5 shadow-inner border border-white/10 flex items-center justify-between gap-2 min-w-0 md:col-span-2 ${
+          className={`flex min-w-0 items-center justify-between gap-2 rounded-xl border border-sky-200/70 bg-white/88 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.08)] md:col-span-2 ${
             activeTab !== "profile" ? "hidden" : ""
           }`}
         >
           <div className="min-w-0 w-full text-center">
-            <h3 className="font-semibold text-sm mb-0.5 text-slate-100">Email</h3>
-            <p className="text-slate-200 text-sm truncate">{user?.email || "Не вказано"}</p>
+            <h3 className="mb-0.5 text-sm font-semibold text-slate-700">Email</h3>
+            <p className="truncate text-sm text-slate-600">{user?.email || "Не вказано"}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={handleSignOut}
-              className="shrink-0 rounded-lg bg-red-500/90 hover:bg-red-600 transition text-white text-xs font-semibold px-2.5 py-1 flex items-center gap-1 cursor-pointer"
+              className="flex shrink-0 items-center gap-1 rounded-lg bg-gradient-to-r from-rose-500 to-red-500 px-2.5 py-1 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(239,68,68,0.28)] transition hover:brightness-110 cursor-pointer"
               aria-label="Вийти з акаунту"
               title="Вийти"
             >
@@ -513,26 +517,26 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         </section>
 
         <section
-          className={`bg-slate-800/70 rounded-xl p-4.5 shadow-inner border border-white/10 md:col-span-2 ${
+          className={`rounded-xl border border-sky-200/70 bg-white/88 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.08)] md:col-span-2 ${
             activeTab !== "vins" ? "hidden" : ""
           }`}
         >
-          <h3 className="font-semibold text-base mb-2 text-slate-100">VIN-коди</h3>
+          <h3 className="mb-2 text-base font-semibold text-slate-700">VIN-коди</h3>
           {vins.length === 0 ? (
-            <p className="text-slate-400 italic">Список порожній</p>
+            <p className="italic text-slate-400">Список порожній</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {vins.map((vin, idx) => (
                 <li
                   key={vin + idx}
-                  className="flex items-center justify-between gap-2 min-w-0 bg-slate-700/70 rounded-md px-2.5 py-1.5 text-gray-200 font-mono text-sm"
+                  className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-sky-200/70 bg-white px-2.5 py-1.5 font-mono text-sm text-slate-700"
                 >
                   <span className="truncate">{vin}</span>
                   <button
                     onClick={() => handleDeleteVin(idx)}
                     aria-label={`Видалити VIN ${vin}`}
                     title="Видалити VIN"
-                    className="text-red-400 hover:text-red-600 transition p-1 rounded cursor-pointer"
+                    className="rounded p-1 text-rose-500 transition hover:bg-rose-50 hover:text-rose-600 cursor-pointer"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -548,14 +552,14 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                 onChange={(e) => setNewVin(e.target.value.toUpperCase())}
                 maxLength={17}
                 placeholder="Введіть VIN (17 символів)"
-                className={`flex-grow rounded-md bg-slate-900/60 p-1.5 placeholder-gray-400 border ${
-                  vinError ? "border-red-500" : "border-white/10"
-                } text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400 transition font-mono`}
+                className={`flex-grow rounded-md border bg-white p-1.5 font-mono placeholder-slate-400 ${
+                  vinError ? "border-red-500" : "border-sky-200"
+                } text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition`}
                 autoFocus
               />
               <button
                 onClick={handleAddVin}
-                className="text-green-400 hover:text-green-600 transition p-2 rounded cursor-pointer"
+                className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
                 aria-label="Додати VIN"
                 title="Додати VIN"
               >
@@ -567,7 +571,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setNewVin("");
                   setVinError(null);
                 }}
-                className="text-slate-400 hover:text-gray-200 transition p-2 rounded cursor-pointer"
+                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 cursor-pointer"
                 aria-label="Скасувати додавання VIN"
                 title="Скасувати"
               >
@@ -577,7 +581,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           ) : (
             <button
               onClick={() => setIsVinFieldVisible(true)}
-              className="mt-3 text-sky-300 hover:text-sky-200 transition font-semibold cursor-pointer"
+              className="mt-3 inline-flex rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-sm font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
               aria-label="Додати VIN"
               title="Додати VIN"
             >
@@ -588,11 +592,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         </section>
 
         <section
-          className={`bg-slate-800/70 rounded-xl p-1.5 shadow-inner border border-white/10 flex items-center justify-between gap-2 min-w-0 md:col-span-2 ${
+          className={`flex min-w-0 items-center justify-between gap-2 rounded-xl border border-sky-200/70 bg-white/88 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.08)] md:col-span-2 ${
             activeTab !== "security" ? "hidden" : ""
           }`}
         >
-          <h3 className="font-semibold text-lg text-slate-100">Пароль</h3>
+          <h3 className="text-lg font-semibold text-slate-700">Пароль</h3>
           {showPasswordField ? (
             <div className="flex gap-2 items-center w-full max-w-xs">
               <input
@@ -600,14 +604,14 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Новий пароль"
-                className={`w-full rounded-md bg-slate-900/60 p-1.5 placeholder-gray-400 border ${
-                  passwordError ? "border-red-500" : "border-white/10"
-                } text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400 transition`}
+                className={`w-full rounded-md border bg-white p-1.5 placeholder-slate-400 ${
+                  passwordError ? "border-red-500" : "border-sky-200"
+                } text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition`}
                 autoFocus
               />
               <button
                 onClick={handleChangePassword}
-                className="text-green-400 hover:text-green-600 transition p-2 rounded cursor-pointer"
+                className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
                 aria-label="Змінити пароль"
                 title="Змінити пароль"
               >
@@ -619,7 +623,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setNewPassword("");
                   setPasswordError(null);
                 }}
-                className="text-slate-400 hover:text-gray-200 transition p-2 rounded cursor-pointer"
+                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 cursor-pointer"
                 aria-label="Скасувати зміну паролю"
                 title="Скасувати"
               >
@@ -629,7 +633,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           ) : (
             <button
               onClick={() => setShowPasswordField(true)}
-              className="text-sky-300 hover:text-sky-200 transition cursor-pointer"
+              className="rounded-lg border border-sky-200 bg-sky-50 p-2 text-sky-700 transition hover:bg-sky-100 cursor-pointer"
               aria-label="Змінити пароль"
               title="Змінити пароль"
             >

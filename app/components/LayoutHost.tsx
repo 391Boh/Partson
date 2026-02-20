@@ -13,13 +13,13 @@ import {
   getDoc,
 } from "firebase/firestore";
 import Header from "./Header";
-import ChatButton from "./ChatButton";
 import AdminChatPanel from "./AdminChatPanel";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronUpIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 
 const TelegramChat = dynamic(() => import("./TelegramChat"), { ssr: false });
+const ChatButton = dynamic(() => import("./ChatButton"), { ssr: false });
 
 interface LayoutHostProps {
   children: ReactNode;
@@ -36,8 +36,12 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const [prefillMessage, setPrefillMessage] = useState<string | null>(null);
 
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const warmupStartedRef = useRef(false);
   const auth = getAuth();
+  const isEmbeddedProductView =
+    pathname.startsWith("/product/") && searchParams.get("view") === "modal";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -137,21 +141,27 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           !hasFreshGetProdCache() && window.location?.pathname === "/";
 
         if (!shouldSkipGetProdWarmup && !hasFreshGetProdCache()) {
-        const res = await fetch("/api/proxy?endpoint=getprod", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-        });
+          const res = await fetch("/api/proxy?endpoint=getprod", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+          });
 
-        if (res.ok) {
-          const raw = await res.json();
-          try {
-            window.sessionStorage.setItem(
-              "partson:getprod",
-              JSON.stringify({ t: Date.now(), v: raw })
-            );
-          } catch {}
-        }
+          if (res.ok) {
+            const raw = await res.json();
+            try {
+              window.sessionStorage.setItem(
+                "partson:getprod",
+                JSON.stringify({ t: Date.now(), v: raw })
+              );
+            } catch {}
+            try {
+              window.localStorage.setItem(
+                "partson:getprod",
+                JSON.stringify({ t: Date.now(), v: raw })
+              );
+            } catch {}
+          }
         }
       } catch {}
 
@@ -204,14 +214,14 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         const warmPriceCodes = Array.from(
           new Set(
             result
-              .map((item: any) => {
+              .map((item: Record<string, unknown>) => {
                 const article =
                   item?.["\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443"];
                 const code =
                   item?.["\u041d\u043e\u043c\u0435\u043d\u043a\u043b\u0430\u0442\u0443\u0440\u0430\u041a\u043e\u0434"];
                 return typeof article === "string" ? article : code;
               })
-              .map((code: any) => (typeof code === "string" ? code.trim() : ""))
+              .map((code: unknown) => (typeof code === "string" ? code.trim() : ""))
               .filter(Boolean)
           )
         ).slice(0, 8);
@@ -376,47 +386,53 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   };
 
   return (
-    <>
-      <div className="fixed top-0 left-0 right-0 z-50">
-        <Header setIsChatOpen={setIsChatOpen} />
-      </div>
+    <div style={{ ['--header-height' as string]: '4rem' }}>
+      {!isEmbeddedProductView && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-16">
+          <Header setIsChatOpen={setIsChatOpen} />
+        </div>
+      )}
 
-      <main className="min-h-screen pt-16">{children}</main>
+      <main className={isEmbeddedProductView ? "min-h-screen" : "min-h-screen pt-[var(--header-height)]"}>
+        {children}
+      </main>
 
-      <div className="fixed bottom-4 left-4 z-50 flex flex-col space-y-4">
-        {!isChatOpen && (
-          <ChatButton
-            onClick={() => setIsChatOpen(true)}
-            unreadCount={userUnreadCount}
-          />
-        )}
+      {!isEmbeddedProductView && (
+        <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-4">
+          {!isChatOpen && (
+            <ChatButton
+              onClick={() => setIsChatOpen(true)}
+              unreadCount={userUnreadCount}
+            />
+          )}
 
-        {isAdmin && (
-          <AdminChatPanel
-            isOpen={isAdminPanelOpen}
-            onClose={() => setIsAdminPanelOpen(false)}
-            onNotificationCountChange={(count) => setTotalNotifications(count)}
-          />
-        )}
+          {isAdmin && (
+            <AdminChatPanel
+              isOpen={isAdminPanelOpen}
+              onClose={() => setIsAdminPanelOpen(false)}
+              onNotificationCountChange={(count) => setTotalNotifications(count)}
+            />
+          )}
 
-        {!loading && isAdmin && (
-          <button
-            onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
-            className="relative z-[60] bg-gradient-to-r ml-20 from-blue-700 to-teal-800 text-white p-4 rounded-full opacity-60 hover:opacity-100 transition-all duration-300 flex justify-center items-center shadow-xl ring-1 ring-white/20"
-          >
-            {isAdminPanelOpen ? (
-              <ChevronDownIcon className="h-6 w-6" />
-            ) : (
-              <>
-                <ChevronUpIcon className="h-6 w-6" />
-                {renderBadge(totalNotifications)}
-              </>
-            )}
-          </button>
-        )}
-      </div>
+          {!loading && isAdmin && (
+            <button
+              onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
+              className="relative z-[60] bg-gradient-to-r from-blue-700 to-teal-800 text-white p-4 rounded-full opacity-60 hover:opacity-100 transition-all duration-300 flex justify-center items-center shadow-xl ring-1 ring-white/20"
+            >
+              {isAdminPanelOpen ? (
+                <ChevronDownIcon className="h-6 w-6" />
+              ) : (
+                <>
+                  <ChevronUpIcon className="h-6 w-6" />
+                  {renderBadge(totalNotifications)}
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      )}
 
-      {isChatOpen && (
+      {!isEmbeddedProductView && isChatOpen && (
         <TelegramChat
           isOpen={isChatOpen}
           onClose={() => setIsChatOpen(false)}
@@ -424,6 +440,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           onPrefillSent={() => setPrefillMessage(null)}
         />
       )}
-    </>
+    </div>
   );
 }

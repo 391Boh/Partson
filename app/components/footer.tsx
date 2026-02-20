@@ -8,7 +8,11 @@ import {
 
 export default function Footer() {
   return (
-    <footer className="bg-blue-100 text-gray-900 py-10">
+    <footer
+      className="bg-blue-100 text-gray-900 py-10 select-none"
+      onCopy={(event) => event.preventDefault()}
+      onCut={(event) => event.preventDefault()}
+    >
       <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-4 lg:px-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Логотип і короткий опис */}

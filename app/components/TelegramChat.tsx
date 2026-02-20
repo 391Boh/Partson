@@ -25,7 +25,7 @@ interface Message {
   text: string;
   sender: 'user' | 'manager';
   userId: string;
-  createdAt: any;
+  createdAt: unknown;
   textRead?: boolean;
   type?: 'text' | 'product';
   product?: ProductCard;
@@ -75,8 +75,6 @@ export default function TelegramChat({
   prefillMessage,
   onPrefillSent,
 }: TelegramChatProps) {
-  if (!isOpen) return null;
-
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -283,6 +281,8 @@ const addToOrder = useCallback((product: ProductCard, qty: number) => {
    * CLOSE ON OUTSIDE CLICK
    */
   useEffect(() => {
+    if (!isOpen) return;
+
     const handler = (e: MouseEvent) => {
       if (chatRef.current && !chatRef.current.contains(e.target as Node)) {
         onClose();
@@ -290,11 +290,13 @@ const addToOrder = useCallback((product: ProductCard, qty: number) => {
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
+  }, [isOpen, onClose]);
 
   const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const updateLayout = () => {
       setIsDesktop(window.innerWidth >= 1024);
     };
@@ -304,17 +306,19 @@ const addToOrder = useCallback((product: ProductCard, qty: number) => {
     return () => window.removeEventListener('resize', updateLayout);
   }, []);
 
+  if (!isOpen) return null;
+
   return (
     <motion.div
       ref={chatRef}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="fixed z-50 flex flex-col overflow-hidden border border-gray-500 shadow-2xl backdrop-blur-xl bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700"
+      className="fixed z-50 flex flex-col overflow-hidden border border-sky-200/80 shadow-[0_24px_60px_rgba(30,64,175,0.22)] backdrop-blur-xl bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_52%,rgba(224,242,254,0.94)_100%)]"
       style={
         isDesktop
           ? {
               right: 32,
-              bottom: 32,
+              bottom: 44,
               width: 380,
               height: 460,
               borderRadius: 16,
@@ -322,29 +326,31 @@ const addToOrder = useCallback((product: ProductCard, qty: number) => {
           : {
               left: 12,
               right: 12,
-              top: 80,
+              top: 72,
               height: '70vh',
               borderRadius: 20,
             }
       }
     >
       {/* HEADER */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white/10 text-white border-b border-white/10">
+      <div className="flex items-center justify-between border-b border-sky-200/70 bg-gradient-to-r from-sky-100/90 via-white/90 to-cyan-100/80 px-4 py-3 text-slate-800">
         <div className="flex items-center gap-2">
-          <MessageCircle size={20} />
-          <span className="font-semibold">Чат підтримки</span>
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-white text-blue-600 shadow-[0_8px_18px_rgba(59,130,246,0.24)]">
+            <MessageCircle size={17} />
+          </span>
+          <span className="font-semibold tracking-tight">Чат підтримки</span>
         </div>
         <button
           onClick={onClose}
-          className="text-white/80 hover:text-white transition cursor-pointer"
+          className="rounded-full border border-sky-200/70 bg-white/90 p-1 text-slate-500 transition hover:bg-sky-50 hover:text-slate-700"
         >
-          <X size={22} />
+          <X size={18} />
         </button>
       </div>
 
       {/* MESSAGES */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 bg-slate-900/40">
-        <div className="max-w-[85%] bg-white/90 text-slate-900 px-4 py-2 rounded-2xl flex items-center gap-2 text-sm shadow">
+      <div className="flex-1 space-y-3 overflow-y-auto bg-[linear-gradient(180deg,rgba(248,250,252,0.78)_0%,rgba(241,245,249,0.65)_100%)] px-3 py-3">
+        <div className="flex max-w-[88%] items-center gap-2 rounded-2xl border border-sky-200/70 bg-white/95 px-4 py-2.5 text-sm text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.08)]">
           <Headphones size={16} />
           Вітаємо! Чим можемо допомогти?
         </div>
@@ -367,10 +373,10 @@ const addToOrder = useCallback((product: ProductCard, qty: number) => {
                   m.sender === 'user'
                     ? isProduct
                       ? ''
-                      : 'bg-white/95 text-slate-900 border border-white/40'
+                      : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-[0_8px_18px_rgba(59,130,246,0.34)]'
                     : isProduct
                     ? ''
-                    : 'bg-gradient-to-r from-blue-500 to-sky-500 text-white shadow'
+                    : 'border border-sky-200/70 bg-white/95 text-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.08)]'
                 }`}
               >
                 {isProduct ? (
@@ -383,67 +389,68 @@ const addToOrder = useCallback((product: ProductCard, qty: number) => {
           );
         })}
         <div ref={messagesEndRef} />
-      </div>      {orderItems.length > 0 && (
-        <div className="border-t border-white/10 bg-slate-900/70 px-3 py-3">
-          <div className="flex items-center gap-2 text-xs text-slate-200 mb-2">
+      </div>
+      {orderItems.length > 0 && (
+        <div className="border-t border-sky-200/70 bg-white/80 px-3 py-3">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700">
             <ClipboardList size={14} />
             Замовлення в чаті
           </div>
-          <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+          <div className="max-h-36 space-y-2 overflow-y-auto pr-1">
             {orderItems.map((item) => (
               <div
                 key={item.code}
-                className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-2"
+                className="flex items-center justify-between gap-2 rounded-lg border border-sky-200/70 bg-white/90 px-2 py-2"
               >
                 <div className="min-w-0">
-                  <div className="text-[11px] text-slate-100 truncate">
+                  <div className="truncate text-[11px] font-medium text-slate-700">
                     {item.name}
                   </div>
-                  <div className="text-[10px] text-slate-300">
+                  <div className="text-[10px] text-slate-500">
                     {item.article}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => updateOrderQty(item.code, item.quantity - 1)}
-                    className="w-6 h-6 rounded-full border border-white/15 text-slate-200 hover:bg-white/10"
+                    className="h-6 w-6 rounded-full border border-sky-200 bg-white text-slate-600 transition hover:bg-sky-50"
                   >
                     <Minus size={12} className="mx-auto" />
                   </button>
-                  <span className="w-6 text-center text-xs text-slate-100">
+                  <span className="w-6 text-center text-xs font-semibold text-slate-700">
                     {item.quantity}
                   </span>
                   <button
                     onClick={() => updateOrderQty(item.code, item.quantity + 1)}
-                    className="w-6 h-6 rounded-full border border-white/15 text-slate-200 hover:bg-white/10"
+                    className="h-6 w-6 rounded-full border border-sky-200 bg-white text-slate-600 transition hover:bg-sky-50"
                   >
                     <Plus size={12} className="mx-auto" />
                   </button>
                 </div>
-                <div className="text-[10px] text-slate-200">
+                <div className="text-[10px] font-semibold text-slate-700">
                   {Math.round(item.price * item.quantity).toLocaleString('uk-UA')} грн
                 </div>
                 <button
                   onClick={() => removeOrderItem(item.code)}
-                  className="text-slate-400 hover:text-rose-300"
+                  className="text-slate-400 transition hover:text-rose-500"
                 >
                   <Trash2 size={14} />
                 </button>
               </div>
             ))}
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-slate-200">
-            <span>Разом: {orderTotal.toLocaleString('uk-UA')} грн</span>
+          <div className="mt-3 flex items-center justify-between text-xs text-slate-700">
+            <span className="font-semibold">Разом: {orderTotal.toLocaleString('uk-UA')} грн</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={addOrderToCart}
-                className="rounded-full border border-white/15 px-3 py-1 text-xs text-slate-100 hover:bg-white/10"
+                className="rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-sky-50"
               >
                 В кошик
               </button>
               <button
                 onClick={checkoutOrder}
-                className="rounded-full bg-emerald-500/80 px-3 py-1 text-xs text-white hover:bg-emerald-500"
+                className="rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 px-3 py-1 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(59,130,246,0.3)] transition hover:brightness-110"
               >
                 Оформити
               </button>
@@ -452,17 +459,17 @@ const addToOrder = useCallback((product: ProductCard, qty: number) => {
         </div>
       )}
       {/* INPUT */}
-      <div className="flex items-center gap-2 px-3 py-3 border-t border-white/10 bg-slate-900/60">
+      <div className="flex items-center gap-2 border-t border-sky-200/70 bg-white/85 px-3 py-3">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-          className="flex-1 rounded-full px-4 py-2 bg-white/10 text-white placeholder-slate-300 outline-none"
+          className="flex-1 rounded-full border border-sky-200/70 bg-white px-4 py-2 text-slate-700 placeholder-slate-400 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-200"
           placeholder="Напишіть повідомлення..."
         />
         <button
           onClick={sendMessage}
-          className="p-2 rounded-full bg-sky-500 hover:bg-sky-600 active:scale-[0.97] transition cursor-pointer"
+          className="rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 p-2 shadow-[0_10px_22px_rgba(59,130,246,0.32)] transition hover:brightness-110 active:scale-[0.97] cursor-pointer"
         >
           <Send size={18} className="text-white" />
         </button>
@@ -492,19 +499,19 @@ function ChatProductCard({
     !!code && typeof product.price === 'number' && maxQty > 0;
 
   return (
-    <div className="min-w-[240px] max-w-[320px] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 p-3 text-slate-900 shadow-sm">
+    <div className="min-w-[240px] max-w-[320px] rounded-xl border border-sky-200/75 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.95)_48%,rgba(224,242,254,0.92)_100%)] p-3 text-slate-900 shadow-[0_12px_24px_rgba(15,23,42,0.1)]">
       <div className="flex gap-3">
-        <div className="w-[88px] h-[72px] shrink-0 rounded-lg overflow-hidden bg-white border border-gray-200">
+        <div className="h-[72px] w-[88px] shrink-0 overflow-hidden rounded-lg border border-sky-200/80 bg-white">
           <ProductCardImage productCode={code} className="w-full h-full" />
         </div>
         <div className="flex-1">
-          <div className="text-[10px] uppercase tracking-wide text-gray-500">
+          <div className="text-[10px] uppercase tracking-wide text-slate-500">
             Товар
           </div>
-          <div className="text-[13px] font-semibold text-gray-900 line-clamp-2">
+          <div className="line-clamp-2 text-[13px] font-normal text-slate-800">
             {name}
           </div>
-          <div className="mt-1 text-[11px] text-gray-600 space-y-0.5">
+          <div className="mt-1 space-y-0.5 text-[11px] text-slate-600">
             {article && <div>Артикул: {article}</div>}
             {product.code && <div>Код: {product.code}</div>}
             {product.producer && <div>Виробник: {product.producer}</div>}
@@ -516,7 +523,7 @@ function ChatProductCard({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setQty((q) => Math.max(1, q - 1))}
-            className="w-7 h-7 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100"
+            className="h-7 w-7 rounded-full border border-sky-200 bg-white text-slate-600 transition hover:bg-sky-50"
             disabled={qty <= 1}
           >
             <Minus size={14} className="mx-auto" />
@@ -524,7 +531,7 @@ function ChatProductCard({
           <span className="w-6 text-center text-sm font-semibold">{qty}</span>
           <button
             onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
-            className="w-7 h-7 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-40"
+            className="h-7 w-7 rounded-full border border-sky-200 bg-white text-slate-600 transition hover:bg-sky-50 disabled:opacity-40"
             disabled={isMax}
           >
             <Plus size={14} className="mx-auto" />
@@ -537,10 +544,10 @@ function ChatProductCard({
               {product.price.toLocaleString('uk-UA')} грн
             </div>
           ) : (
-            <div className="text-[11px] text-gray-500">Ціна уточнюється</div>
+            <div className="text-[11px] text-slate-500">Ціна уточнюється</div>
           )}
           {typeof product.quantity === 'number' && (
-            <div className="text-[10px] text-gray-500">
+            <div className="text-[10px] text-slate-500">
               В наявності: {product.quantity}
             </div>
           )}
@@ -551,20 +558,20 @@ function ChatProductCard({
         {product.link ? (
           <a
             href={product.link}
-            className="text-[11px] text-blue-700 hover:underline"
+            className="text-[11px] font-medium text-blue-700 hover:underline"
           >
             Відкрити в каталозі
           </a>
         ) : (
-          <span className="text-[11px] text-gray-400">Немає посилання</span>
+          <span className="text-[11px] text-slate-400">Немає посилання</span>
         )}
-                <button
+        <button
           onClick={() => onAddToOrder(product, qty)}
           disabled={!canAdd}
           className={`flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold transition ${
             canAdd
-              ? 'bg-red-500 text-white hover:bg-red-600'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_8px_18px_rgba(59,130,246,0.32)] hover:brightness-110'
+              : 'cursor-not-allowed bg-slate-200 text-slate-500'
           }`}
         >
           <ShoppingCart size={14} />

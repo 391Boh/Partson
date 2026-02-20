@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
 
 interface Props {
@@ -21,12 +21,22 @@ interface YearRange {
 }
 
 const AUTO_ENDPOINT = "/api/proxy?endpoint=getauto";
-const LABEL_SELECT_MODEL = "\u0412\u0438\u0431\u0456\u0440 \u043c\u043e\u0434\u0435\u043b\u0456";
 const LABEL_SEARCH_MODEL = "\u041f\u043e\u0448\u0443\u043a \u043c\u043e\u0434\u0435\u043b\u0456...";
 const LABEL_NO_MODELS = "\u041c\u043e\u0434\u0435\u043b\u0456 \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e.";
 const LABEL_SELECT_YEAR = "\u0420\u0456\u043a";
 const LABEL_YEAR_EMPTY = "\u0420\u043e\u043a\u0438 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0456.";
 const LABEL_SELECTED = "\u041e\u0431\u0440\u0430\u043d\u043e";
+const LABEL_BACK = "\u041d\u0430\u0437\u0430\u0434";
+const LABEL_PREV_PAGE = "\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430";
+const LABEL_NEXT_PAGE = "\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0430 \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430";
+const LABEL_SELECT_FROM = "\u0412\u0438\u0431\u0456\u0440 \u0456\u0437";
+const LABEL_MODELS_OF_CARS =
+  "\u043c\u043e\u0434\u0435\u043b\u0435\u0439 \u0430\u0432\u0442\u043e\u043c\u043e\u0431\u0456\u043b\u0456\u0432";
+const LABEL_PRODUCTION_YEAR = "\u0420\u0456\u043a \u0432\u0438\u043f\u0443\u0441\u043a\u0443";
+const LABEL_PREV_YEAR = "\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u0456\u0439 \u0440\u0456\u043a";
+const LABEL_NEXT_YEAR = "\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0438\u0439 \u0440\u0456\u043a";
+const LABEL_CLEAR_YEAR = "\u0421\u043a\u0438\u043d\u0443\u0442\u0438";
+const LABEL_AVAILABLE = "\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u043e";
 
 const normalizeModel = (item: unknown) => {
   if (!item || typeof item !== "object") return null;
@@ -42,6 +52,23 @@ const toNumber = (value: unknown) => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const extractErrorMessage = (text: string) => {
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === "object") {
+      return (
+        (parsed.error as string) ||
+        (parsed.details as string) ||
+        (parsed.message as string) ||
+        text
+      );
+    }
+  } catch {
+    // fallthrough
+  }
+  return text || "Помилка сервісу";
 };
 
   const CarModels: React.FC<Props> = ({
@@ -132,8 +159,13 @@ const toNumber = (value: unknown) => {
       body: JSON.stringify({ [AUTO_FIELDS.brand]: selectedBrand }),
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error("\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0435\u043b\u0456");
         const jsonText = await res.text();
+        if (!res.ok) {
+          throw new Error(
+            extractErrorMessage(jsonText) ||
+              "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0435\u043b\u0456"
+          );
+        }
         const data = JSON.parse(jsonText);
         if (!Array.isArray(data))
           throw new Error("\u041d\u0435\u043e\u0447\u0456\u043a\u0443\u0432\u0430\u043d\u0430 \u0432\u0456\u0434\u043f\u043e\u0432\u0456\u0434\u044c \u0434\u043b\u044f \u043c\u043e\u0434\u0435\u043b\u0435\u0439");
@@ -175,8 +207,13 @@ const toNumber = (value: unknown) => {
         }
       })
       .catch((err) => {
-        if (!cancelled)
-          setError(err?.message || "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0435\u043b\u0456");
+        if (!cancelled) {
+          const message =
+            (err?.message as string) ||
+            "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0435\u043b\u0456";
+          console.error("CarModels: models load error", message);
+          setError(message);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -210,11 +247,13 @@ const toNumber = (value: unknown) => {
       body: JSON.stringify({ brand: selectedBrand, models }),
     })
       .then(async (res) => {
+        const text = await res.text();
         if (!res.ok)
           throw new Error(
-            "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u0440\u043e\u043a\u0438"
+            extractErrorMessage(text) ||
+              "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u0440\u043e\u043a\u0438"
           );
-        const data = await res.json();
+        const data = JSON.parse(text);
         if (!data || typeof data !== "object")
           throw new Error(
             "\u041d\u0435\u043e\u0447\u0456\u043a\u0443\u0432\u0430\u043d\u0430 \u0432\u0456\u0434\u043f\u043e\u0432\u0456\u0434\u044c \u0434\u043b\u044f \u0440\u043e\u043a\u0456\u0432"
@@ -234,11 +273,13 @@ const toNumber = (value: unknown) => {
         }
       })
       .catch((err) => {
-        if (!cancelled)
-          setYearError(
-            err?.message ||
-              "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u0440\u043e\u043a\u0438"
-          );
+        if (!cancelled) {
+          const message =
+            (err?.message as string) ||
+            "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u0440\u043e\u043a\u0438";
+          console.error("CarModels: years load error", message);
+          setYearError(message);
+        }
       })
       .finally(() => {
         if (!cancelled) setYearLoading(false);
@@ -280,7 +321,11 @@ const toNumber = (value: unknown) => {
     return baseModels.filter((model) => model.toLowerCase().includes(term));
   }, [models, modelsForYear, searchTerm, selectedYear, modelYearMap]);
 
-  const modelsPerPage = isCompact ? (isSmUp ? 12 : 6) : 12;
+  const compactModelRows = 3;
+  const compactModelCols = isSmUp ? 4 : 2;
+  const modelsPerPage = isCompact
+    ? compactModelRows * compactModelCols
+    : 12;
   const totalModelPages = Math.max(
     1,
     Math.ceil(filteredModels.length / modelsPerPage)
@@ -298,64 +343,65 @@ const toNumber = (value: unknown) => {
     return pages.length > 0 ? pages : [[]];
   }, [filteredModels, modelsPerPage]);
   const modelPagesRef = useRef<HTMLDivElement | null>(null);
-  const modelScrollLockRef = useRef(false);
-  const modelScrollUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const getModelPageWidth = useCallback(() => {
+    const container = modelPagesRef.current;
+    if (!container) return 0;
+    const page = container.querySelector<HTMLElement>("[data-model-page]");
+    return page?.offsetWidth ?? container.clientWidth;
+  }, []);
+  const scrollToModelPage = useCallback(
+    (page: number, behavior: ScrollBehavior = "smooth") => {
+      const container = modelPagesRef.current;
+      if (!container) return;
+      const pageWidth = getModelPageWidth();
+      if (!pageWidth) return;
+      container.scrollTo({ left: page * pageWidth, behavior });
+    },
+    [getModelPageWidth]
+  );
 
   useEffect(() => {
     setModelPage(0);
+    const container = modelPagesRef.current;
+    if (!container) return;
+    container.scrollTo({ left: 0, behavior: "auto" });
   }, [searchTerm, selectedYear, filteredModels.length]);
 
   useEffect(() => {
     if (modelPage > totalModelPages - 1) {
-      setModelPage(Math.max(0, totalModelPages - 1));
+      const clamped = Math.max(0, totalModelPages - 1);
+      setModelPage(clamped);
+      scrollToModelPage(clamped, "auto");
     }
-  }, [modelPage, totalModelPages]);
-
-  useEffect(() => {
-    const container = modelPagesRef.current;
-    if (!container) return;
-    const pageWidth = container.clientWidth;
-    if (!pageWidth) return;
-    const targetLeft = safeModelPage * pageWidth;
-    if (Math.abs(container.scrollLeft - targetLeft) < 2) return;
-    modelScrollLockRef.current = true;
-    if (modelScrollUnlockTimerRef.current) clearTimeout(modelScrollUnlockTimerRef.current);
-    modelScrollUnlockTimerRef.current = setTimeout(() => {
-      modelScrollLockRef.current = false;
-    }, 350);
-    container.scrollTo({ left: targetLeft, behavior: "smooth" });
-  }, [safeModelPage]);
+  }, [modelPage, totalModelPages, scrollToModelPage]);
 
   const handleModelPagesScroll = useCallback(() => {
-    if (modelScrollLockRef.current) return;
     const container = modelPagesRef.current;
     if (!container) return;
-    const pageWidth = container.clientWidth;
+    const pageWidth = getModelPageWidth();
     if (!pageWidth) return;
     const nextPage = Math.max(
       0,
       Math.min(totalModelPages - 1, Math.round(container.scrollLeft / pageWidth))
     );
     setModelPage((prev) => (prev === nextPage ? prev : nextPage));
-  }, [totalModelPages]);
-
-  useEffect(() => {
-    return () => {
-      if (modelScrollUnlockTimerRef.current) clearTimeout(modelScrollUnlockTimerRef.current);
-    };
-  }, []);
+  }, [totalModelPages, getModelPageWidth]);
 
   const canGoPrev = safeModelPage > 0;
   const canGoNext = safeModelPage < totalModelPages - 1;
 
   const handlePrevPage = () => {
     if (!canGoPrev) return;
-    setModelPage((prev) => Math.max(0, prev - 1));
+    const nextPage = Math.max(0, safeModelPage - 1);
+    setModelPage(nextPage);
+    scrollToModelPage(nextPage);
   };
 
   const handleNextPage = () => {
     if (!canGoNext) return;
-    setModelPage((prev) => Math.min(totalModelPages - 1, prev + 1));
+    const nextPage = Math.min(totalModelPages - 1, safeModelPage + 1);
+    setModelPage(nextPage);
+    scrollToModelPage(nextPage);
   };
 
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -403,81 +449,170 @@ const toNumber = (value: unknown) => {
     }
   };
 
+  const handleYearInputChange = useCallback(
+    (value: string) => {
+      const next = value.replace(/[^\d]/g, "");
+      setYearInput(next);
+
+      if (next.length < 4) {
+        onYearSelect(null);
+        return;
+      }
+
+      const numeric = Number(next);
+      if (!Number.isFinite(numeric)) return;
+
+      if (yearBounds) {
+        const clamped = Math.min(
+          yearBounds.max,
+          Math.max(yearBounds.min, numeric)
+        );
+        onYearSelect(clamped);
+        setYearInput(String(clamped));
+        return;
+      }
+
+      onYearSelect(numeric);
+    },
+    [onYearSelect, yearBounds]
+  );
+
+  const canDecreaseYear = useMemo(() => {
+    if (!yearBounds || yearLoading) return false;
+    const base = typeof selectedYear === "number" ? selectedYear : yearBounds.max;
+    return base > yearBounds.min;
+  }, [selectedYear, yearBounds, yearLoading]);
+
+  const canIncreaseYear = useMemo(() => {
+    if (!yearBounds || yearLoading) return false;
+    const base = typeof selectedYear === "number" ? selectedYear : yearBounds.min;
+    return base < yearBounds.max;
+  }, [selectedYear, yearBounds, yearLoading]);
+
+  const handleDecreaseYear = useCallback(() => {
+    if (!yearBounds || yearLoading) return;
+    const base = typeof selectedYear === "number" ? selectedYear : yearBounds.max;
+    const next = Math.max(yearBounds.min, base - 1);
+    onYearSelect(next);
+    setYearInput(String(next));
+  }, [onYearSelect, selectedYear, yearBounds, yearLoading]);
+
+  const handleIncreaseYear = useCallback(() => {
+    if (!yearBounds || yearLoading) return;
+    const base = typeof selectedYear === "number" ? selectedYear : yearBounds.min;
+    const next = Math.min(yearBounds.max, base + 1);
+    onYearSelect(next);
+    setYearInput(String(next));
+  }, [onYearSelect, selectedYear, yearBounds, yearLoading]);
+
+  const clearYearSelection = useCallback(() => {
+    setYearInput("");
+    onYearSelect(null);
+  }, [onYearSelect]);
+
   if (isCompact) {
     const hasPagedModels = filteredModels.length > 0;
     const isBusy = loading || (yearLoading && selectedYear != null);
 
     return (
       <div className="w-full flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <input
-            type="text"
-            placeholder={LABEL_SEARCH_MODEL}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full sm:w-[240px] md:w-[280px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-200"
-            data-search="true"
-          />
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-1 sm:flex-nowrap">
-            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 shadow-sm">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                {LABEL_SELECT_YEAR}
-              </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={yearInput}
-                onChange={(e) => {
-                  const next = e.target.value.replace(/[^\d]/g, "");
-                  setYearInput(next);
-                  if (next.length < 4) {
-                    onYearSelect(null);
-                    return;
-                  }
-                  const numeric = Number(next);
-                  if (!Number.isFinite(numeric)) return;
-                  if (yearBounds) {
-                    const clamped = Math.min(
-                      yearBounds.max,
-                      Math.max(yearBounds.min, numeric)
-                    );
-                    onYearSelect(clamped);
-                    setYearInput(String(clamped));
-                    return;
-                  }
-                  onYearSelect(numeric);
-                }}
-                className="w-20 bg-transparent px-2 py-1 text-xs font-semibold text-slate-800 outline-none"
-                placeholder="----"
-              />
+        <div className="flex flex-col gap-3 group/models">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:flex-nowrap sm:items-center sm:justify-between">
+            <div className="order-1 w-full sm:w-auto flex items-center gap-3 sm:gap-4 group hover:[&_span[data-underline]]:scale-x-100">
+              <h3 className="text-lg font-semibold tracking-tight text-slate-700 relative inline-block drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)]">
+                <span className="relative inline-flex items-center">
+                  {LABEL_SELECT_FROM} {filteredModels.length} {LABEL_MODELS_OF_CARS}
+                  <span
+                    data-underline
+                    className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-400 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 shadow-[0_4px_12px_rgba(59,130,246,0.28)]"
+                  />
+                </span>
+              </h3>
             </div>
 
-            <div className="flex flex-1 items-center justify-between gap-2 px-1 text-[11px] font-semibold text-slate-500 sm:ml-auto sm:flex-none">
-              <span className="whitespace-nowrap">
-                <span className="hidden sm:inline">Сторінка </span>
-                {Math.min(safeModelPage + 1, totalModelPages)} / {totalModelPages}
-              </span>
-              <div className="flex items-center gap-1">
+            <input
+              type="text"
+              placeholder={LABEL_SEARCH_MODEL}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="order-2 relative min-w-0 flex-1 sm:w-[220px] sm:mx-auto sm:flex-none h-10 rounded-xl border border-sky-200/70 bg-white/95 px-3 text-xs font-semibold text-slate-800 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] outline-none transition placeholder:text-slate-400 focus:border-sky-300 focus:ring-2 focus:ring-sky-200/80"
+              data-search="true"
+            />
+
+            <div className="order-2 shrink-0 max-w-full overflow-x-auto no-scrollbar sm:mr-1">
+              <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
                 <button
                   type="button"
                   onClick={handlePrevPage}
                   disabled={!canGoPrev}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label="Попередня сторінка"
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                  aria-label={LABEL_PREV_PAGE}
                 >
-                  ‹
+                  <ChevronLeft size={12} />
                 </button>
+
+                <div className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-1.5 py-0 text-[9px] font-semibold text-slate-600 shadow-inner">
+                  <span>{Math.min(safeModelPage + 1, totalModelPages)}</span>
+                  <span className="text-slate-400">/</span>
+                  <span>{totalModelPages}</span>
+                </div>
+
                 <button
                   type="button"
                   onClick={handleNextPage}
                   disabled={!canGoNext}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label="Наступна сторінка"
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                  aria-label={LABEL_NEXT_PAGE}
                 >
-                  ›
+                  <ChevronRight size={12} />
                 </button>
               </div>
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/80 to-cyan-50/75 px-2.5 py-1.5 shadow-[0_8px_18px_rgba(14,116,144,0.12),0_3px_8px_rgba(30,64,175,0.07)]">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 whitespace-nowrap">
+              {LABEL_PRODUCTION_YEAR}
+            </span>
+            <button
+              type="button"
+              onClick={handleDecreaseYear}
+              disabled={!canDecreaseYear}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+              aria-label={LABEL_PREV_YEAR}
+            >
+              <ChevronLeft size={12} />
+            </button>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={yearInput}
+              onChange={(e) => handleYearInputChange(e.target.value)}
+              className="h-8 w-20 rounded-md border border-sky-200/80 bg-white/90 px-2 text-xs font-semibold text-slate-800 outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-200/80"
+              placeholder="----"
+            />
+            <button
+              type="button"
+              onClick={handleIncreaseYear}
+              disabled={!canIncreaseYear}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+              aria-label={LABEL_NEXT_YEAR}
+            >
+              <ChevronRight size={12} />
+            </button>
+            <button
+              type="button"
+              onClick={clearYearSelection}
+              disabled={selectedYear == null && yearInput.trim() === ""}
+              className="h-7 rounded-md border border-sky-200/80 bg-white/90 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600 transition hover:bg-sky-50 disabled:opacity-40"
+            >
+              {LABEL_CLEAR_YEAR}
+            </button>
+            {yearBounds && (
+              <span className="ml-auto text-[10px] font-semibold text-slate-500">
+                {LABEL_AVAILABLE}: {yearBounds.min}-{yearBounds.max}
+              </span>
+            )}
           </div>
         </div>
 
@@ -492,29 +627,30 @@ const toNumber = (value: unknown) => {
         <div
           ref={modelPagesRef}
           onScroll={handleModelPagesScroll}
-          className="h-[240px] overflow-x-auto overflow-y-hidden rounded-lg border border-slate-200 bg-slate-50 snap-x snap-mandatory"
+          className="overflow-x-auto overflow-y-hidden rounded-2xl border border-sky-100/80 bg-gradient-to-br from-white/92 via-sky-50/68 to-blue-50/60 shadow-[0_14px_32px_rgba(59,130,246,0.12)] snap-x snap-mandatory touch-pan-x overscroll-x-contain"
         >
           {isBusy ? (
-            <div className="flex h-full items-center justify-center">
+            <div className="flex min-h-[124px] items-center justify-center">
               <div className="loader" />
             </div>
           ) : error ? (
-            <div className="flex h-full items-center justify-center px-3 text-center text-xs font-semibold text-red-600">
+            <div className="flex min-h-[124px] items-center justify-center px-3 text-center text-xs font-semibold text-red-600">
               {error}
             </div>
           ) : (
-            <div className="flex h-full w-full">
+            <div className="flex">
               {modelPages.map((page, pageIndex) => (
                 <div
                   key={pageIndex}
-                  className="h-[240px] w-full shrink-0 snap-start p-2 sm:p-3"
+                  data-model-page
+                  className="min-w-full shrink-0 snap-start p-1 sm:p-1.5"
                 >
                   {!hasPagedModels ? (
-                    <div className="flex h-full items-center justify-center text-xs font-semibold text-slate-400">
+                    <div className="flex min-h-[124px] items-center justify-center text-xs font-semibold text-slate-400">
                       {LABEL_NO_MODELS}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-1 sm:grid-cols-4 sm:gap-1">
                       {page.map((model) => {
                         const isActive = selectedModel === model;
                         return (
@@ -523,17 +659,18 @@ const toNumber = (value: unknown) => {
                             type="button"
                             onClick={() => onModelSelect(model)}
                             title={model}
-                            className={`group relative flex h-16 items-center justify-center rounded-xl border px-2 text-center text-[11px] font-semibold transition-all duration-300 ${
+                            className={`group relative isolate flex h-9 sm:h-9 items-center justify-center overflow-hidden rounded-lg border px-1 text-center text-[9px] font-semibold uppercase tracking-[0.02em] leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                               isActive
-                                ? "border-blue-400 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_12px_30px_rgba(59,130,246,0.25)]"
-                                : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-gradient-to-br hover:from-white hover:via-blue-50 hover:to-sky-50 hover:shadow-[0_12px_26px_rgba(59,130,246,0.15)]"
+                                ? "border-sky-300 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_16px_36px_rgba(59,130,246,0.28)] ring-2 ring-sky-200/80"
+                                : "border-slate-100/90 bg-white/94 text-slate-800 shadow-[0_12px_30px_rgba(15,23,42,0.1)] hover:-translate-y-[4px] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 hover:shadow-[0_24px_52px_rgba(59,130,246,0.18)] hover:ring-1 hover:ring-sky-200/80"
                             }`}
                           >
-                            <div className="pointer-events-none absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-60">
-                              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-100/40 via-white/30 to-sky-100/40" />
-                              <div className="absolute -left-4 -top-4 h-14 w-14 rotate-12 rounded-full bg-white/30 blur-2xl" />
-                            </div>
-                            <span className="line-clamp-2">{model}</span>
+                            <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
+                            <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
+                            <span className="pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full bg-sky-200/25 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[5px] group-hover:-translate-y-[5px]" />
+                            <span className="pointer-events-none absolute -left-12 -bottom-12 h-28 w-28 rounded-full bg-cyan-200/20 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-x-[3px] group-hover:translate-y-[3px]" />
+                            <span className="pointer-events-none absolute inset-y-[-28%] left-[-24%] w-[52%] rotate-[16deg] bg-gradient-to-br from-white/0 via-white/28 to-white/0 opacity-0 blur-[2px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[18%] group-hover:opacity-80" />
+                            <span className="relative line-clamp-2">{model}</span>
                           </button>
                         );
                       })}
@@ -558,185 +695,117 @@ const toNumber = (value: unknown) => {
         isCompact ? "min-h-[280px]" : "min-h-[340px] sm:min-h-[360px]"
       }`}
     >
-      <div className="flex flex-col gap-1 sm:gap-2">
-        <div className="flex items-center gap-2 sm:gap-3">
-          {onBack && (
-            <button
-              type="button"
-              onClick={onBack}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-slate-600 shadow-[0_10px_26px_rgba(59,130,246,0.14)] transition hover:bg-white active:scale-[0.98]"
-              aria-label="Назад"
-            >
-              <ChevronLeft size={18} className="pointer-events-none" />
-            </button>
-          )}
-          <h3
-            className={`font-semibold text-slate-900 ${
-              isCompact ? "text-lg sm:text-xl" : "text-xl sm:text-2xl"
-            }`}
-          >
-            {LABEL_SELECT_MODEL}
-          </h3>
-        </div>
-
-        <div className="flex w-full flex-col gap-2 rounded-2xl bg-white/80 px-3 py-2 shadow-[0_16px_40px_rgba(59,130,246,0.12)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <div className="flex flex-1 items-center gap-2 sm:gap-3">
-            <input
-              type="text"
-              placeholder={LABEL_SEARCH_MODEL}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full h-11 rounded-xl border border-blue-100 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 shadow-inner shadow-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition disabled:opacity-60 disabled:cursor-not-allowed ${
-                isCompact ? "sm:w-56" : "sm:w-72"
-              }`}
-              data-search="true"
-            />
-            {totalModelPages > 1 && (
-              <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
-                <button
-                  type="button"
-                  onClick={handlePrevPage}
-                  disabled={!canGoPrev}
-                  className={`h-8 w-8 rounded-md border transition ${
-                    canGoPrev
-                      ? "border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:-translate-y-0.5 hover:shadow-sm"
-                      : "border-slate-200/60 bg-slate-100/60 text-slate-400 cursor-not-allowed"
-                  }`}
-                  aria-label="Previous page"
-                >
-                  <svg
-                    className="h-3.5 w-3.5 mx-auto"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="m15 18-6-6 6-6" />
-                  </svg>
-                </button>
-                <span className="rounded-md bg-gradient-to-r from-slate-50 to-blue-50 px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-inner shadow-white/40">
-                  {safeModelPage + 1}/{totalModelPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleNextPage}
-                  disabled={!canGoNext}
-                  className={`h-8 w-8 rounded-md border transition ${
-                    canGoNext
-                      ? "border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:-translate-y-0.5 hover:shadow-sm"
-                      : "border-slate-200/60 bg-slate-100/60 text-slate-400 cursor-not-allowed"
-                  }`}
-                  aria-label="Next page"
-                >
-                  <svg
-                    className="h-3.5 w-3.5 mx-auto"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="m9 6 6 6-6 6" />
-                  </svg>
-                </button>
-              </div>
+      <div className="flex flex-col gap-3 sm:gap-3.5 group/models">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:flex-nowrap sm:items-center sm:justify-between">
+          <div className="order-1 w-full sm:w-auto flex items-center gap-3 sm:gap-4 group hover:[&_span[data-underline]]:scale-x-100">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)]"
+                aria-label={LABEL_BACK}
+              >
+                <ChevronLeft size={15} className="pointer-events-none" />
+              </button>
             )}
-          </div>
-          <div className="flex flex-col gap-1 w-full sm:w-auto sm:min-w-[220px]">
-            <div className="flex items-center gap-3 rounded-xl bg-white px-3 py-2 shadow-inner shadow-blue-50">
-              <span className="text-[12px] font-semibold text-slate-500 whitespace-nowrap">
-                Рік випуску
+            <h3 className="text-xl font-semibold tracking-tight text-slate-700 relative inline-block drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)]">
+              <span className="relative inline-flex items-center">
+                {LABEL_SELECT_FROM} {filteredModels.length} {LABEL_MODELS_OF_CARS}
+                <span
+                  data-underline
+                  className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-400 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 shadow-[0_4px_12px_rgba(59,130,246,0.28)]"
+                />
               </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={yearInput}
-                onChange={(e) => {
-                  const next = e.target.value.replace(/[^\d]/g, "");
-                  setYearInput(next);
-                  if (next.length < 4) {
-                    onYearSelect(null);
-                    return;
-                  }
-                  const numeric = Number(next);
-                  if (!Number.isFinite(numeric)) return;
-                  if (yearBounds) {
-                    const clamped = Math.min(
-                      yearBounds.max,
-                      Math.max(yearBounds.min, numeric)
-                    );
-                    onYearSelect(clamped);
-                    setYearInput(String(clamped));
-                    return;
-                  }
-                  onYearSelect(numeric);
-                }}
-                className={`h-9 w-20 rounded-lg border border-slate-200 bg-white/90 px-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300 ${
-                  isCompact ? "text-[12px]" : "text-sm"
-                }`}
-                placeholder="----"
-              />
-              <div className="flex flex-col">
-                <button
-                  type="button"
-                  className="h-5 w-7 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-blue-50 hover:border-blue-300 transition"
-                  onClick={() => {
-                    const base =
-                      typeof selectedYear === "number"
-                        ? selectedYear
-                        : yearBounds?.min ?? new Date().getFullYear();
-                    const next = base + 1;
-                    if (yearBounds && next > yearBounds.max) return;
-                    onYearSelect(next);
-                    setYearInput(String(next));
-                  }}
-                  aria-label="Increase year"
-                >
-                  <svg
-                    className="h-3.5 w-3.5 mx-auto"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="m6 15 6-6 6 6" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className="mt-1 h-5 w-7 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-blue-50 hover:border-blue-300 transition"
-                  onClick={() => {
-                    const base =
-                      typeof selectedYear === "number"
-                        ? selectedYear
-                        : yearBounds?.max ?? new Date().getFullYear();
-                    const next = base - 1;
-                    if (yearBounds && next < yearBounds.min) return;
-                    onYearSelect(next);
-                    setYearInput(String(next));
-                  }}
-                  aria-label="Decrease year"
-                >
-                  <svg
-                    className="h-3.5 w-3.5 mx-auto"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
+            </h3>
+          </div>
+
+          <input
+            type="text"
+            placeholder={LABEL_SEARCH_MODEL}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="order-2 relative min-w-0 flex-1 sm:w-[220px] sm:mx-auto sm:flex-none h-10 rounded-xl border border-sky-200/70 bg-white/95 px-3 text-sm font-semibold text-slate-800 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] outline-none transition placeholder:text-slate-400 focus:border-sky-300 focus:ring-2 focus:ring-sky-200/80"
+            data-search="true"
+          />
+
+          <div className="order-2 shrink-0 max-w-full overflow-x-auto no-scrollbar sm:mr-1">
+            <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
+              <button
+                type="button"
+                onClick={handlePrevPage}
+                disabled={!canGoPrev}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                aria-label={LABEL_PREV_PAGE}
+              >
+                <ChevronLeft size={12} />
+              </button>
+
+              <div className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-1.5 py-0 text-[9px] font-semibold text-slate-600 shadow-inner">
+                <span>{safeModelPage + 1}</span>
+                <span className="text-slate-400">/</span>
+                <span>{totalModelPages}</span>
               </div>
+
+              <button
+                type="button"
+                onClick={handleNextPage}
+                disabled={!canGoNext}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                aria-label={LABEL_NEXT_PAGE}
+              >
+                <ChevronRight size={12} />
+              </button>
             </div>
           </div>
+        </div>
+
+        <div className="flex w-full flex-col gap-2 rounded-xl border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/80 to-cyan-50/75 px-3 py-2.5 shadow-[0_8px_18px_rgba(14,116,144,0.12),0_3px_8px_rgba(30,64,175,0.07)] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500 whitespace-nowrap">
+              {LABEL_PRODUCTION_YEAR}
+            </span>
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+              onClick={handleDecreaseYear}
+              disabled={!canDecreaseYear}
+              aria-label={LABEL_PREV_YEAR}
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={yearInput}
+              onChange={(e) => handleYearInputChange(e.target.value)}
+              className={`h-9 w-20 rounded-lg border border-sky-200/80 bg-white/90 px-2 text-slate-800 placeholder:text-slate-400 focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200/80 ${
+                isCompact ? "text-[12px]" : "text-sm"
+              }`}
+              placeholder="----"
+            />
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)]"
+              onClick={handleIncreaseYear}
+              disabled={!canIncreaseYear}
+              aria-label={LABEL_NEXT_YEAR}
+            >
+              <ChevronRight size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={clearYearSelection}
+              disabled={selectedYear == null && yearInput.trim() === ""}
+              className="h-8 rounded-md border border-sky-200/80 bg-white/90 px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600 transition hover:bg-sky-50 disabled:opacity-40"
+            >
+              {LABEL_CLEAR_YEAR}
+            </button>
+          </div>
+          {yearBounds && (
+            <span className="text-[11px] font-semibold text-slate-500">
+              {LABEL_AVAILABLE}: {yearBounds.min}-{yearBounds.max}
+            </span>
+          )}
         </div>
       </div>
 
@@ -775,13 +844,13 @@ const toNumber = (value: unknown) => {
             )}
 
             <div
-              className="mt-1.5 sm:mt-2.5"
+              className="group/logogrid mt-2 sm:mt-3"
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
               onWheel={handleWheel}
             >
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 place-items-stretch">
               {pagedModels.map((model, idx) => (
                 <motion.button
                   key={model}
@@ -793,22 +862,23 @@ const toNumber = (value: unknown) => {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.02 }}
-                  whileHover={{ scale: 1.03 }}
+                  whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.97 }}
-                  className={`group relative px-2.5 py-1 text-left rounded-xl border shadow-sm transition-all duration-300 ${
-                    isCompact ? "min-h-[44px]" : "min-h-[56px]"
+                  className={`group relative isolate overflow-hidden rounded-xl border px-2.5 py-2 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                    isCompact ? "min-h-[52px]" : "min-h-[64px]"
                   } ${
                     selectedModel === model
-                      ? "bg-gradient-to-br from-blue-600 to-sky-500 text-white border-blue-400 shadow-[0_12px_30px_rgba(59,130,246,0.25)]"
-                      : "bg-white text-slate-800 border-slate-200 hover:border-blue-200 hover:bg-gradient-to-br hover:from-white hover:via-blue-50 hover:to-sky-50 hover:shadow-[0_12px_26px_rgba(59,130,246,0.15)]"
+                      ? "border-sky-300 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_16px_36px_rgba(59,130,246,0.28)] ring-2 ring-sky-200/80"
+                      : "border-slate-100/90 bg-white/94 text-slate-800 shadow-[0_12px_30px_rgba(15,23,42,0.1)] hover:-translate-y-[4px] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 hover:shadow-[0_24px_52px_rgba(59,130,246,0.18)] hover:ring-1 hover:ring-sky-200/80"
                   }`}
                 >
-                  <div className="pointer-events-none absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-60">
-                    <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-100/40 via-white/30 to-sky-100/40" />
-                    <div className="absolute -left-4 -top-4 h-14 w-14 rotate-12 rounded-full bg-white/30 blur-2xl" />
-                  </div>
+                  <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
+                  <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
+                  <span className="pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full bg-sky-200/25 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[5px] group-hover:-translate-y-[5px]" />
+                  <span className="pointer-events-none absolute -left-12 -bottom-12 h-28 w-28 rounded-full bg-cyan-200/20 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-x-[3px] group-hover:translate-y-[3px]" />
+                  <span className="pointer-events-none absolute inset-y-[-28%] left-[-24%] w-[52%] rotate-[16deg] bg-gradient-to-br from-white/0 via-white/28 to-white/0 opacity-0 blur-[2px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[18%] group-hover:opacity-80" />
                   <div className="relative flex items-center justify-between gap-2">
-                    <div className="text-[13px] font-semibold truncate">{model}</div>
+                    <div className="text-[13px] font-semibold truncate uppercase tracking-[0.05em]">{model}</div>
                     {selectedModel === model && (
                       <span className="text-[10px] font-semibold uppercase tracking-wide bg-white/20 text-white px-2 py-1 rounded-full">
                         {LABEL_SELECTED}
@@ -817,7 +887,7 @@ const toNumber = (value: unknown) => {
                   </div>
                   {selectedModel === model && selectedYear && (
                     <div className="text-[11px] text-blue-100 mt-1">
-                      {`Рік: ${selectedYear}`}
+                      {`${LABEL_SELECT_YEAR}: ${selectedYear}`}
                     </div>
                   )}
                 </motion.button>

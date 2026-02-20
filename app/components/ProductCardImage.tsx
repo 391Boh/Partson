@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ImageOff } from "lucide-react";
 
@@ -16,6 +16,44 @@ interface Props {
 const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClick }) => {
     const [src, setSrc] = useState<string | null>(FALLBACK);
     const [loading, setLoading] = useState(true);
+    const [shouldLoad, setShouldLoad] = useState(false);
+    const containerRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            setShouldLoad(true);
+            return;
+        }
+
+        if (!productCode) {
+            setShouldLoad(false);
+            return;
+        }
+
+        if (typeof IntersectionObserver === "undefined") {
+            setShouldLoad(true);
+            return;
+        }
+
+        const node = containerRef.current;
+        if (!node) {
+            setShouldLoad(true);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) {
+                    setShouldLoad(true);
+                    observer.disconnect();
+                }
+            },
+            { rootMargin: "200px" }
+        );
+
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, [productCode]);
 
     useEffect(() => {
         if (!productCode) {
@@ -24,10 +62,27 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
             return;
         }
 
-        const cacheKey = `img_${productCode}`;
-        const cached = sessionStorage.getItem(cacheKey);
+        if (!shouldLoad) return;
 
-        // 🔥 Витягуємо кеш одразу — fallback НЕ моргає
+        setLoading(true);
+
+        const connection = (navigator as Navigator & {
+            connection?: { saveData?: boolean; effectiveType?: string };
+        }).connection;
+
+        if (connection?.saveData) {
+            setSrc(FALLBACK);
+            setLoading(false);
+            return;
+        }
+
+        const cacheKey = `img_${productCode}`;
+        let cached: string | null = null;
+        try {
+            cached = sessionStorage.getItem(cacheKey);
+        } catch {}
+
+        // Витягуємо кеш одразу — fallback НЕ моргає
         if (cached) {
             setSrc(cached);
             setLoading(false);
@@ -60,13 +115,32 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
             }
         };
 
-        fetchImage();
-    }, [productCode]);
+        let idleId: number | ReturnType<typeof setTimeout> | null = null;
+        if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+            idleId = (window as Window & {
+                requestIdleCallback: (cb: () => void) => number;
+            }).requestIdleCallback(() => fetchImage());
+        } else {
+            idleId = setTimeout(fetchImage, 80);
+        }
+
+        return () => {
+            if (idleId == null) return;
+            if (typeof window !== "undefined" && "cancelIdleCallback" in window) {
+                (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(
+                    idleId as number
+                );
+            } else {
+                clearTimeout(idleId as ReturnType<typeof setTimeout>);
+            }
+        };
+    }, [productCode, shouldLoad]);
 
     const noImage = src === FALLBACK;
 
     return (
         <div
+            ref={containerRef}
             onClick={onClick}
             className={`
                 relative w-full h-full rounded-md overflow-hidden
@@ -79,7 +153,7 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
                 <motion.div
                     initial={{ opacity: 1 }}
                     animate={{ opacity: loading ? 1 : 1 }}
-                    className="absolute inset-0 flex flex-col items-center justify-center text-center 
+                    className="absolute inset-0 flex flex-col items-center justify-center text-center
                                bg-gray-200 select-none"
                 >
                     <ImageOff size={22} className="text-gray-500 mb-1" />
@@ -103,7 +177,7 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
 
             {/* ---------------- SKELETON ---------------- */}
             {loading && (
-                <div className="absolute inset-0 animate-pulse bg-gradient-to-br 
+                <div className="absolute inset-0 animate-pulse bg-gradient-to-br
                                 from-gray-300 via-gray-200 to-gray-300" />
             )}
         </div>

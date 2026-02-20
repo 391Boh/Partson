@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, query, collection, where, getDocs } from "firebase/firestore";
-import { auth, db } from "../../firebase";
+import { collection, doc, getDocs, query, setDoc, where } from "firebase/firestore";
 import { ArrowLeft, X } from "lucide-react";
+import { auth, db } from "../../firebase";
 
 interface RegisterProps {
   onClose: () => void;
@@ -13,7 +13,12 @@ interface RegisterProps {
 }
 
 const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSuccess }) => {
-  const [formData, setFormData] = useState({ name: "", email: "", password: "", phone: "+380" });
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    phone: "+380",
+  });
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState({
     name: "",
@@ -23,6 +28,11 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
   });
   const [isClosing, setIsClosing] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  const closeModal = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => onClose(), 300);
+  }, [onClose]);
 
   const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const validatePassword = (password: string) => password.length >= 6;
@@ -34,9 +44,10 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
         closeModal();
       }
     };
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [closeModal]);
 
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
@@ -44,17 +55,14 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
         closeModal();
       }
     };
+
     document.addEventListener("keydown", handleEscapeKey);
     return () => document.removeEventListener("keydown", handleEscapeKey);
-  }, []);
-
-  const closeModal = () => {
-    setIsClosing(true);
-    setTimeout(() => onClose(), 300);
-  };
+  }, [closeModal]);
 
   const validateField = (field: keyof typeof formData, value: string) => {
     let errorMessage = "";
+
     switch (field) {
       case "name":
         errorMessage = value.trim() === "" ? "Ім'я не може бути порожнім." : "";
@@ -63,12 +71,17 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
         errorMessage = !validateEmail(value) ? "Некоректна електронна пошта." : "";
         break;
       case "password":
-        errorMessage = !validatePassword(value) ? "Пароль має містити щонайменше 6 символів." : "";
+        errorMessage = !validatePassword(value)
+          ? "Пароль має містити щонайменше 6 символів."
+          : "";
         break;
       case "phone":
         errorMessage = !validatePhone(value) ? "Некоректний номер телефону." : "";
         break;
+      default:
+        break;
     }
+
     setFieldErrors((prev) => ({ ...prev, [field]: errorMessage }));
   };
 
@@ -84,13 +97,15 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
     const errors = {
       name: formData.name.trim() === "" ? "Ім'я не може бути порожнім." : "",
       email: !validateEmail(formData.email) ? "Некоректна електронна пошта." : "",
-      password: !validatePassword(formData.password) ? "Пароль має містити щонайменше 6 символів." : "",
+      password: !validatePassword(formData.password)
+        ? "Пароль має містити щонайменше 6 символів."
+        : "",
       phone: !validatePhone(formData.phone) ? "Некоректний номер телефону." : "",
     };
 
     setFieldErrors(errors);
 
-    if (Object.values(errors).some((e) => e)) return;
+    if (Object.values(errors).some(Boolean)) return;
 
     try {
       const phoneQuery = query(collection(db, "users"), where("phone", "==", formData.phone));
@@ -103,6 +118,7 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
 
       await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = auth.currentUser;
+
       if (user) {
         await setDoc(doc(db, "users", user.uid), {
           name: formData.name,
@@ -110,11 +126,13 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
           phone: formData.phone,
           createdAt: new Date().toISOString(),
         });
+
         closeModal();
         onLoginSuccess?.();
       }
-    } catch (err: any) {
-      if (err.message.includes("auth/email-already-in-use")) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
+      if (message.includes("auth/email-already-in-use")) {
         setError("Ця електронна пошта вже зареєстрована.");
       } else {
         setError("Сталася помилка під час реєстрації. Спробуйте ще раз.");
@@ -124,59 +142,88 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
 
   const getBorderColor = (field: keyof typeof formData) => {
     if (fieldErrors[field]) return "border-red-500";
-    if (formData[field].trim() !== "" && (
-        (field === "email" && validateEmail(formData.email)) ||
+
+    if (
+      formData[field].trim() !== "" &&
+      ((field === "email" && validateEmail(formData.email)) ||
         (field === "password" && validatePassword(formData.password)) ||
         (field === "phone" && validatePhone(formData.phone)) ||
-        (field === "name")
-      )) {
-      return "border-green-500";
+        field === "name")
+    ) {
+      return "border-emerald-400";
     }
-    return "border-gray-700";
+
+    return "border-sky-200";
   };
 
   return (
-    <div className={`fixed inset-0 z-50 bg-transparent transition-opacity duration-300 ${isClosing ? "opacity-0" : "opacity-100"}`}>
+    <div
+      className={`fixed inset-0 z-50 bg-slate-900/10 transition-opacity duration-300 ${
+        isClosing ? "opacity-0" : "opacity-100"
+      }`}
+    >
       <div
         ref={modalRef}
-        className={`fixed top-20 right-3 left-auto w-[360px] max-w-[92vw] sm:right-6 sm:w-[420px] bg-gradient-to-br from-gray-800 to-gray-700 text-white p-6 rounded-2xl border border-gray-600 shadow-2xl transition-all duration-300 transform ${
+        className={`fixed left-auto right-3 top-20 w-[360px] max-w-[92vw] rounded-2xl border border-sky-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_52%,rgba(224,242,254,0.94)_100%)] p-5 text-slate-700 shadow-[0_24px_60px_rgba(30,64,175,0.22)] backdrop-blur-xl transition-all duration-300 sm:right-6 sm:w-[420px] ${
           isClosing ? "scale-95 opacity-0" : "scale-100 opacity-100"
         }`}
       >
-        <button onClick={closeModal} className="absolute top-5 right-6 text-gray-400 hover:text-white transition-colors duration-200">
-          <X size={26} />
-        </button>
-        <button onClick={() => { closeModal(); onShowLogin(); }} className="absolute top-5 left-6 text-gray-400 hover:text-white transition-colors duration-200">
-          <ArrowLeft size={26} />
+        <button
+          onClick={closeModal}
+          className="absolute right-3 top-3 rounded-full border border-sky-200 bg-white/90 p-1 text-slate-500 transition-colors hover:bg-sky-50 hover:text-slate-700"
+        >
+          <X size={18} />
         </button>
 
-        <h2 className="text-3xl font-bold text-center mb-8">Створити акаунт</h2>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          {["name", "email", "password", "phone"].map((field) => (
-            <div key={field}>
+        <button
+          onClick={() => {
+            closeModal();
+            onShowLogin();
+          }}
+          className="absolute left-3 top-3 rounded-full border border-sky-200 bg-white/90 p-1 text-slate-500 transition-colors hover:bg-sky-50 hover:text-slate-700"
+        >
+          <ArrowLeft size={18} />
+        </button>
+
+        <h2 className="mb-1 text-center text-2xl font-bold tracking-tight text-slate-800">Створити акаунт</h2>
+        <p className="mb-5 text-center text-sm text-slate-500">Швидка реєстрація для оформлення замовлень</p>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {[
+            { key: "name", type: "text", placeholder: "Ваше ім'я" },
+            { key: "email", type: "email", placeholder: "Email" },
+            { key: "password", type: "password", placeholder: "Пароль" },
+            { key: "phone", type: "text", placeholder: "Номер телефону" },
+          ].map((field) => (
+            <div key={field.key}>
               <input
-                type={field === "password" ? "password" : field === "email" ? "email" : "text"}
-                placeholder={
-                  field === "name" ? "Ваше ім'я" :
-                  field === "email" ? "Email" :
-                  field === "password" ? "Пароль" :
-                  "Номер телефону"
+                type={field.type}
+                placeholder={field.placeholder}
+                value={formData[field.key as keyof typeof formData]}
+                onChange={(e) =>
+                  handleInputChange(field.key as keyof typeof formData, e.target.value)
                 }
-                value={formData[field as keyof typeof formData]}
-                onChange={(e) => handleInputChange(field as keyof typeof formData, e.target.value)}
-                className={`px-5 py-4 text-base text-white border-2 rounded-xl bg-gray-800 w-full focus:outline-none focus:ring-2 ring-blue-500 transition-all ${getBorderColor(field as keyof typeof formData)}`}
+                className={`w-full rounded-xl border bg-white px-4 py-3 text-base text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] outline-none transition focus:ring-2 focus:ring-sky-300 ${getBorderColor(
+                  field.key as keyof typeof formData
+                )}`}
               />
-              {fieldErrors[field as keyof typeof formData] && (
-                <p className="text-red-400 text-sm mt-1">{fieldErrors[field as keyof typeof formData]}</p>
+              {fieldErrors[field.key as keyof typeof formData] && (
+                <p className="mt-1 text-sm text-rose-500">
+                  {fieldErrors[field.key as keyof typeof formData]}
+                </p>
               )}
             </div>
           ))}
 
-          <button type="submit" className="w-full px-4 py-4 text-lg text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-all font-semibold tracking-wide shadow-lg">
+          <button
+            type="submit"
+            className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-3 text-base font-semibold tracking-wide text-white shadow-[0_12px_26px_rgba(59,130,246,0.32)] transition hover:brightness-110"
+          >
             Зареєструватися
           </button>
         </form>
-        {error && <p className="text-red-400 text-center mt-4 text-sm">{error}</p>}
+
+        {error && <p className="mt-3 text-center text-sm text-rose-500">{error}</p>}
       </div>
     </div>
   );

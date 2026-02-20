@@ -5,8 +5,8 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Координати: Львів, вул. Перфецького, 8
-const storePosition: [number, number] = [49.813905, 23.989820];
+// Координати plus code: RX7Q+JM, Львів, Львівська область
+const storePosition: [number, number] = [49.8140625, 23.9891875];
 
 
 // Кастомна іконка з CDN
@@ -35,7 +35,7 @@ const MapComponent: FC = () => {
 />
 
       <Marker position={storePosition} icon={customIcon}>
-        <Popup>📍 Львів, вул. Перфецького, 8</Popup>
+        <Popup>📍 PartsON, RX7Q+JM, Львів</Popup>
       </Marker>
     </MapContainer>
   );

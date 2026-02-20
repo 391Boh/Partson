@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { useState } from "react";
+import type { ComponentType, SVGProps } from "react";
 import {
   TruckIcon,
   ShieldCheckIcon,
@@ -14,10 +14,9 @@ type Advantage = {
   title: string;
   short: string;
   detailed: string;
-  bgColor: string;
-  textColor: string;
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  delay: number;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  iconTone: string;
+  glowTone: string;
 };
 
 const advantages: Advantage[] = [
@@ -25,217 +24,144 @@ const advantages: Advantage[] = [
     title: "Швидка доставка",
     short: "1-3 дні по Україні",
     detailed:
-      "Ми доставляємо в найкоротші терміни без затримок і прихованих умов.",
-    bgColor: "bg-sky-500/15",
-    textColor: "text-sky-200",
-    delay: 0.1,
+      "Ми доставляємо товари у найкоротші терміни по всій країні, а також доступний самовивіз у місті Львів.",
     icon: TruckIcon,
+    iconTone: "bg-sky-100 text-sky-700 border-sky-200/90",
+    glowTone: "bg-sky-200/30",
   },
   {
     title: "Гарантія якості",
     short: "Ретельна перевірка",
     detailed: "Перед відправкою кожен товар проходить суворий контроль якості.",
-    bgColor: "bg-emerald-500/15",
-    textColor: "text-emerald-200",
-    delay: 0.2,
     icon: ShieldCheckIcon,
+    iconTone: "bg-emerald-100 text-emerald-700 border-emerald-200/90",
+    glowTone: "bg-emerald-200/30",
   },
   {
     title: "Гнучка оплата",
-    short: "Картка, готівка, розстрочка",
+    short: "Картка та готівка",
     detailed:
-      "Ви можете обрати зручний спосіб оплати — швидко та безпечно.",
-    bgColor: "bg-blue-400/15",
-    textColor: "text-violet-200",
-    delay: 0.3,
+      "Ви можете обрати зручний спосіб оплати: швидко, зручно та безпечно.",
     icon: CreditCardIcon,
+    iconTone: "bg-cyan-100 text-cyan-700 border-cyan-200/90",
+    glowTone: "bg-cyan-200/30",
   },
   {
     title: "Професійна підтримка",
-    short: "24/7 онлайн",
-    detailed:
-      "Наші консультанти завжди готові допомогти вам у будь-який час.",
-    bgColor: "bg-indigo-500/15",
-    textColor: "text-indigo-200",
-    delay: 0.4,
+    short: "Працюємо щодня",
+    detailed: "Наші консультанти завжди готові допомогти вам у будь-який час.",
     icon: ChatBubbleLeftRightIcon,
+    iconTone: "bg-teal-100 text-teal-700 border-teal-200/90",
+    glowTone: "bg-teal-200/30",
   },
   {
     title: "Найкращі ціни",
-    short: "-10–15% від ринку",
+    short: "Вигідні пропозиції",
     detailed:
-      "Ми напряму співпрацюємо з постачальниками — ви економите більше.",
-    bgColor: "bg-amber-500/15",
-    textColor: "text-amber-200",
-    delay: 0.5,
+      "Ми напряму співпрацюємо з постачальниками та пропонуємо вигідні умови, щоб ціни залишались доступними.",
     icon: TagIcon,
+    iconTone: "bg-amber-100 text-amber-700 border-amber-200/90",
+    glowTone: "bg-amber-200/30",
   },
 ];
 
-const sectionBackground = [
-  "radial-gradient(circle at 14% 20%, rgba(125,211,252,0.42), transparent 52%)",
-  "radial-gradient(circle at 86% 18%, rgba(56,189,248,0.34), transparent 50%)",
-  "radial-gradient(circle at 50% 88%, rgba(99,102,241,0.3), transparent 58%)",
-  "linear-gradient(160deg, rgba(67, 93, 136, 0.6) 0%, rgba(126, 148, 179, 0.5) 45%, rgba(130, 157, 188, 0.45) 100%)",
-].join(", ");
-
-type FlipCardProps = {
-  title: string;
-  short: string;
-  detailed: string;
-  bgColor: string;
-  textColor: string;
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  isFlipped: boolean;
-  onClick: () => void;
-  delay: number;
-  shouldReduceMotion: boolean;
-};
-
-const FlipCard: React.FC<FlipCardProps> = ({
-  title,
-  short,
-  detailed,
-  bgColor,
-  textColor,
-  icon: Icon,
-  isFlipped,
-  onClick,
-  delay,
-  shouldReduceMotion,
-}) => {
-  return (
-    <motion.div
-      className="relative aspect-[4/3] w-[220px] shrink-0 snap-start transform-gpu will-change-transform sm:w-[250px] lg:w-[270px]"
-      initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
-      whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
-      whileHover={
-        shouldReduceMotion
-          ? undefined
-          : {
-              scale: 1.02,
-              y: -4,
-              transition: { duration: 0.2, ease: "easeOut" },
-            }
-      }
-      transition={
-        shouldReduceMotion
-          ? { duration: 0 }
-          : { duration: 0.4, delay, ease: "easeOut" }
-      }
-      viewport={shouldReduceMotion ? undefined : { once: true, amount: 0.35 }}
-      style={{ perspective: "1200px" }}
-    >
-      <div
-        onClick={onClick}
-        className="group relative h-full w-full cursor-pointer select-none rounded-2xl transition-transform duration-700"
-        style={{
-          transformStyle: "preserve-3d",
-          transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
-        }}
-      >
-        <div
-          className="absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-800/35 via-slate-700/25 to-blue-700/20 p-4 shadow-[0_14px_34px_rgba(2,6,23,0.22)] transition-colors duration-300 group-hover:from-slate-200/28 group-hover:via-slate-100/20 group-hover:to-blue-200/18"
-          style={{ backfaceVisibility: "hidden" }}
-        >
-          <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-sky-300/28 via-transparent to-blue-400/28 opacity-0 transition duration-300 group-hover:opacity-100" />
-          <div className="relative z-10 flex h-full flex-col items-start justify-center">
-            <div
-              className={`flex h-11 w-11 items-center justify-center rounded-2xl ${bgColor} ring-1 ring-white/15 shadow-[0_12px_24px_rgba(2,6,23,0.2)] transition duration-300 group-hover:scale-110`}
-            >
-              <Icon className={`h-5 w-5 ${textColor}`} />
-            </div>
-            <h4 className="mt-4 text-base font-semibold text-slate-100 sm:text-lg">
-              {title}
-            </h4>
-            <p className="mt-2 text-sm text-slate-200/80">{short}</p>
-          </div>
-        </div>
-
-        <div
-          className="absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-800/35 via-slate-700/25 to-sky-700/18 p-4 text-sm text-slate-200/80 transition-colors duration-300 group-hover:from-slate-700/28 group-hover:via-slate-600/20 group-hover:to-sky-600/18"
-          style={{ transform: "rotateY(180deg)", backfaceVisibility: "hidden" }}
-        >
-          <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-sky-300/28 via-transparent to-blue-400/28 opacity-0 transition duration-300 group-hover:opacity-100" />
-          <p className="leading-relaxed">{detailed}</p>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
 const AdvantagesSection = () => {
-  const [flippedIndex, setFlippedIndex] = useState<number | null>(null);
   const shouldReduceMotion = useReducedMotion() ?? false;
-
-  const handleFlip = (idx: number) => {
-    setFlippedIndex((prev) => (prev === idx ? null : idx));
-  };
-
-  const sectionStyle = {
-    backgroundImage: sectionBackground,
-    contentVisibility: "auto",
-    containIntrinsicSize: "1px 520px",
-  } as React.CSSProperties;
 
   return (
     <section
-      className="group relative w-full overflow-hidden rounded-xl border border-white/10 px-4 py-8 text-slate-100 transition duration-300 sm:px-6 sm:py-10 lg:px-8 font-[Montserrat]"
-      style={sectionStyle}
+      className="group/advantages relative w-full select-none overflow-hidden bg-gradient-to-br from-sky-200/95 via-blue-300/86 to-indigo-300/88 py-5 sm:py-6 lg:py-7 font-[Montserrat] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),inset_0_-1px_0_rgba(30,64,175,0.22),0_18px_38px_rgba(30,64,175,0.2)] transition-[background-image,box-shadow,filter] duration-500 ease-out hover:from-sky-200/95 hover:via-blue-300/88 hover:to-indigo-300/90"
+      onCopy={(event) => event.preventDefault()}
+      onCut={(event) => event.preventDefault()}
+      style={{ contain: "layout paint" }}
     >
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-16 top-8 h-40 w-40 rounded-full bg-sky-400/20 blur-[90px]" />
-        <div className="absolute right-[-18%] bottom-[-28%] h-72 w-72 rounded-full bg-blue-500/20 blur-[120px]" />
-        <div className="absolute inset-0 bg-gradient-to-br from-white/18 via-white/10 to-white/28" />
-        <div className="absolute inset-0 bg-gradient-to-br from-white/28 via-white/16 to-white/38 opacity-0 transition duration-300 group-hover:opacity-100" />
-      </div>
+      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/advantages:opacity-100 bg-[radial-gradient(circle_at_12%_16%,rgba(56,189,248,0.24),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(59,130,246,0.2),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(99,102,241,0.18),transparent_36%)]" />
 
-      <div className="relative flex w-full flex-col gap-8 lg:flex-row lg:items-center">
-        {/* Ліва колонка — горизонтальний скрол */}
+      <div className="relative z-10 mx-auto w-full max-w-[1400px] px-4 sm:px-5 lg:px-7">
         <motion.div
-          className="relative transform-gpu lg:w-2/3"
-          initial={shouldReduceMotion ? false : { opacity: 0, x: 24 }}
-          whileInView={shouldReduceMotion ? undefined : { opacity: 1, x: 0 }}
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+          whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
           transition={
-            shouldReduceMotion ? { duration: 0 } : { duration: 0.5, ease: "easeOut" }
+            shouldReduceMotion
+              ? undefined
+              : { duration: 0.28, ease: "easeOut" }
           }
-          viewport={shouldReduceMotion ? undefined : { once: true, amount: 0.3 }}
+          viewport={
+            shouldReduceMotion
+              ? undefined
+              : { once: true, amount: 0.3, margin: "0px 0px -8% 0px" }
+          }
+          className="flex flex-col gap-4 sm:gap-5"
         >
-          <div className="pointer-events-none absolute left-0 top-0 h-full w-8 bg-gradient-to-r from-slate-950/80 via-slate-950/40 to-transparent" />
-          <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-slate-950/80 via-slate-950/40 to-transparent" />
-          <div className="brand-scroll flex gap-4 overflow-x-auto pb-4 pt-2 px-2 sm:gap-6 sm:pb-5 snap-x snap-mandatory">
-            {advantages.map((adv, idx) => (
-              <FlipCard
-                key={idx}
-                {...adv}
-                isFlipped={flippedIndex === idx}
-                onClick={() => handleFlip(idx)}
-                shouldReduceMotion={shouldReduceMotion}
-              />
-            ))}
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="group/title flex items-start gap-3 sm:gap-4">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shadow-inner sm:h-11 sm:w-11">
+                <ShieldCheckIcon className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+              </span>
+              <h3 className="relative inline-block text-lg font-semibold tracking-tight text-slate-700 drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)] sm:text-xl">
+                <span className="relative inline-flex items-center">
+                  Переваги PartsON
+                  <span
+                    data-underline
+                    className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-400 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover/title:scale-x-100 shadow-[0_4px_12px_rgba(59,130,246,0.28)]"
+                  />
+                </span>
+              </h3>
+            </div>
           </div>
-        </motion.div>
 
+          <div className="group/logogrid mt-1 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            {advantages.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <motion.article
+                  key={item.title}
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+                  whileInView={
+                    shouldReduceMotion ? undefined : { opacity: 1, y: 0 }
+                  }
+                  transition={
+                    shouldReduceMotion
+                      ? undefined
+                      : { duration: 0.24, ease: "easeOut", delay: 0.03 * index }
+                  }
+                  viewport={
+                    shouldReduceMotion ? undefined : { once: true, amount: 0.28 }
+                  }
+                  className="group/card relative isolate flex h-full min-h-[190px] flex-col overflow-hidden rounded-[20px] border border-white/80 bg-gradient-to-br from-white/98 via-slate-50/95 to-sky-50/78 p-3.5 text-left shadow-[0_12px_26px_rgba(15,23,42,0.1),inset_0_1px_0_rgba(255,255,255,0.92)] ring-1 ring-transparent transition-all duration-300 ease-out sm:min-h-[198px] sm:p-4 hover:-translate-y-1.5 hover:border-sky-200/80 hover:shadow-[0_24px_44px_rgba(37,99,235,0.2)]"
+                >
+                  <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(125,211,252,0.22),transparent_30%),radial-gradient(circle_at_82%_10%,rgba(59,130,246,0.16),transparent_34%)] opacity-70 transition-opacity duration-300 ease-out group-hover/card:opacity-100" />
+                  <span className="pointer-events-none absolute left-3 right-3 top-1 h-[2px] rounded-full bg-gradient-to-r from-sky-300/70 via-blue-400/65 to-cyan-300/70" />
+                  <span
+                    className={`pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full blur-3xl transition-transform duration-500 ease-out group-hover/card:translate-x-[4px] group-hover/card:-translate-y-[4px] ${item.glowTone}`}
+                  />
 
-        {/* Права колонка — заголовок та опис з паралаксом */}
-        <motion.div
-          className="flex transform-gpu flex-col gap-4 lg:w-1/3"
-          initial={shouldReduceMotion ? false : { opacity: 0, x: -24 }}
-          whileInView={shouldReduceMotion ? undefined : { opacity: 1, x: 0 }}
-          transition={
-            shouldReduceMotion ? { duration: 0 } : { duration: 0.5, ease: "easeOut" }
-          }
-          viewport={shouldReduceMotion ? undefined : { once: true, amount: 0.3 }}
-        >
-          <div className="h-1 w-24 rounded-full bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
-          <h2 className="text-2xl font-extrabold text-white sm:text-3xl lg:text-4xl">
-            Наші переваги
-          </h2>
-          <div className="h-1 w-24 rounded-full bg-gradient-to-r from-blue-300/80 via-blue-200/80 to-orange-500/80" />
-          <p className="mt-2 text-base sm:text-lg lg:text-xl text-center text-black-700 font-medium leading-snug">
-            Ми створили сервіс, який дійсно вирішує потреби клієнтів — швидко,
-            вигідно та якісно. Оберіть нас, і ви не пошкодуєте.
-          </p>
+                  <div className="relative flex items-start gap-2.5">
+                    <span
+                      className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_8px_16px_rgba(15,23,42,0.08)] sm:h-12 sm:w-12 ${item.iconTone}`}
+                    >
+                      <Icon className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <h4 className="break-words text-[15px] font-semibold leading-[1.25] text-slate-800">
+                        {item.title}
+                      </h4>
+                      <p className="mt-1 break-words text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600 sm:text-xs">
+                        {item.short}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="relative mt-3 flex-1 rounded-xl border border-slate-200/80 bg-white/82 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)]">
+                    <p className="text-[12px] leading-relaxed text-slate-600 sm:text-[13px]">
+                      {item.detailed}
+                    </p>
+                  </div>
+                </motion.article>
+              );
+            })}
+          </div>
         </motion.div>
       </div>
     </section>

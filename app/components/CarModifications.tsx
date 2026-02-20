@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
 
 interface ModDetails {
@@ -50,19 +51,38 @@ const LABEL_ALL = "\u0423\u0441\u0456";
 const LABEL_EMPTY_MODS = "\u041c\u043e\u0434\u0438\u0444\u0456\u043a\u0430\u0446\u0456\u0439 \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e.";
 const LABEL_SELECT_MODEL_FIRST = "\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u044c, \u0449\u043e\u0431 \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0438\u0444\u0456\u043a\u0430\u0446\u0456\u0457.";
 const LABEL_LOADING = "\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0443\u0454\u043c\u043e...";
-const LABEL_STEP = "\u041a\u0440\u043e\u043a 3";
 const LABEL_MODS = "\u041c\u043e\u0434\u0438\u0444\u0456\u043a\u0430\u0446\u0456\u0457";
 const LABEL_SELECT_YEAR_HELP = "\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u0440\u0456\u043a, \u0449\u043e\u0431 \u043f\u0435\u0440\u0435\u0433\u043b\u044f\u043d\u0443\u0442\u0438 \u043c\u043e\u0434\u0438\u0444\u0456\u043a\u0430\u0446\u0456\u0457.";
 const LABEL_SELECT_VOLUME = "\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u043e\u0431'\u0454\u043c";
 const LABEL_SELECT_POWER = "\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u043f\u043e\u0442\u0443\u0436\u043d\u0456\u0441\u0442\u044c";
-const LABEL_VOLUME = "\u041e\u0431'\u0454\u043c";
-const LABEL_POWER = "\u041f\u043e\u0442\u0443\u0436\u043d\u0456\u0441\u0442\u044c";
-const LABEL_RESULT = "\u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442";
+const LABEL_SELECT_FROM = "\u0412\u0438\u0431\u0456\u0440 \u0456\u0437";
+const LABEL_PREV_PAGE = "\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430";
+const LABEL_NEXT_PAGE = "\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0430 \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430";
+const LABEL_CONFIRM = "\u041f\u0456\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u0438";
+const UNIT_LITERS = "\u043b.";
+const UNIT_HP = "\u043a\u0441";
 
 const toNumber = (value: unknown) => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const extractErrorMessage = (text: string) => {
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === "object") {
+      return (
+        (parsed.error as string) ||
+        (parsed.details as string) ||
+        (parsed.message as string) ||
+        text
+      );
+    }
+  } catch {
+    // ignore
+  }
+  return text || "Помилка сервісу";
 };
 
 const toStringValue = (value: unknown) => {
@@ -74,19 +94,6 @@ const toStringValue = (value: unknown) => {
 const normalizePower = (value: number | null) => {
   if (value == null || !Number.isFinite(value) || value <= 0) return null;
   return Math.round(value);
-};
-
-const formatPowerLabel = (value: number | null) => {
-  const normalized = normalizePower(value);
-  return normalized == null ? null : String(normalized);
-};
-
-const formatYearRange = (start: number | null, end: number | null) => {
-  if (start == null && end == null) return "";
-  const startText = start != null ? String(start) : "";
-  const endText = end == null || end === 0 ? "\u0434\u043e\u0442\u0435\u043f\u0435\u0440" : String(end);
-  if (!startText) return endText;
-  return `${startText}-${endText}`;
 };
 
 const yearCache = new Map<string, number[]>();
@@ -121,7 +128,6 @@ const CarModifications: React.FC<Props> = ({
   selectedModel,
   initialYear = null,
   onYearChange,
-  selectedCars,
   onSelectCar,
   onSelectDetails,
   onConfirmSelection,
@@ -140,6 +146,7 @@ const CarModifications: React.FC<Props> = ({
   const [loadingYears, setLoadingYears] = useState(false);
   const [loadingMods, setLoadingMods] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [optionPage, setOptionPage] = useState(0);
 
   useEffect(() => {
     if (initialYear == null) {
@@ -191,8 +198,13 @@ const CarModifications: React.FC<Props> = ({
       }),
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error("\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u0440\u043e\u043a\u0438");
         const jsonText = await res.text();
+        if (!res.ok) {
+          throw new Error(
+            extractErrorMessage(jsonText) ||
+              "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u0440\u043e\u043a\u0438"
+          );
+        }
         const data = JSON.parse(jsonText);
         if (!Array.isArray(data))
           throw new Error("\u041d\u0435\u043e\u0447\u0456\u043a\u0443\u0432\u0430\u043d\u0430 \u0432\u0456\u0434\u043f\u043e\u0432\u0456\u0434\u044c \u0434\u043b\u044f \u0440\u043e\u043a\u0456\u0432");
@@ -218,7 +230,13 @@ const CarModifications: React.FC<Props> = ({
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err?.message || "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u0440\u043e\u043a\u0438");
+        if (!cancelled) {
+          const message =
+            (err?.message as string) ||
+            "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u0440\u043e\u043a\u0438";
+          console.error("CarModifications: years load error", message);
+          setError(message);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingYears(false);
@@ -241,18 +259,30 @@ const CarModifications: React.FC<Props> = ({
     setError(null);
     setModifications([]);
 
+    const body: Record<string, unknown> = {
+      [AUTO_FIELDS.brand]: selectedBrand,
+      [AUTO_FIELDS.model]: selectedModel,
+      [AUTO_FIELDS.year]: selectedYear,
+    };
+
+    Object.keys(body).forEach((key) => {
+      const v = body[key];
+      if (v === "" || v === undefined || v === null) delete body[key];
+    });
+
     fetch(AUTO_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        [AUTO_FIELDS.brand]: selectedBrand,
-        [AUTO_FIELDS.model]: selectedModel,
-        [AUTO_FIELDS.year]: selectedYear,
-      }),
+      body: JSON.stringify(body),
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error("\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0438\u0444\u0456\u043a\u0430\u0446\u0456\u0457");
         const jsonText = await res.text();
+        if (!res.ok) {
+          throw new Error(
+            extractErrorMessage(jsonText) ||
+              "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0438\u0444\u0456\u043a\u0430\u0446\u0456\u0457"
+          );
+        }
         const data = JSON.parse(jsonText);
         if (!Array.isArray(data))
           throw new Error("\u041d\u0435\u043e\u0447\u0456\u043a\u0443\u0432\u0430\u043d\u0430 \u0432\u0456\u0434\u043f\u043e\u0432\u0456\u0434\u044c \u0434\u043b\u044f \u043c\u043e\u0434\u0438\u0444\u0456\u043a\u0430\u0446\u0456\u0439");
@@ -275,8 +305,13 @@ const CarModifications: React.FC<Props> = ({
         if (!cancelled) setModifications(Array.from(uniqueMap.values()));
       })
       .catch((err) => {
-        if (!cancelled)
-        if (!cancelled) setError(err?.message || "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0438\u0444\u0456\u043a\u0430\u0446\u0456\u0457");
+        if (!cancelled) {
+          const message =
+            (err?.message as string) ||
+            "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0438\u0444\u0456\u043a\u0430\u0446\u0456\u0457";
+          console.error("CarModifications: mods load error", message);
+          setError(message);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingMods(false);
@@ -379,6 +414,50 @@ const CarModifications: React.FC<Props> = ({
         : !filters.gearbox
           ? "gearbox"
           : "drive";
+  const currentOptionValues = isSelectingVolume
+    ? volumeOptions
+    : isSelectingPower
+      ? powerOptions
+      : isSelectingGearbox
+        ? gearboxOptions
+        : isSelectingDrive
+          ? driveOptions
+          : [];
+  const currentOptionLabel = isSelectingVolume
+    ? LABEL_SELECT_VOLUME
+    : isSelectingPower
+      ? LABEL_SELECT_POWER
+      : isSelectingGearbox
+        ? AUTO_FIELDS.gearbox
+        : isSelectingDrive
+          ? AUTO_FIELDS.drive
+          : "";
+  const optionsPerPage = isCompact ? 8 : 10;
+  const totalOptionPages = Math.max(
+    1,
+    Math.ceil(currentOptionValues.length / optionsPerPage)
+  );
+  const safeOptionPage = Math.min(optionPage, totalOptionPages - 1);
+  const pagedOptionValues = currentOptionValues.slice(
+    safeOptionPage * optionsPerPage,
+    safeOptionPage * optionsPerPage + optionsPerPage
+  );
+  const canGoPrevOptionPage = safeOptionPage > 0;
+  const canGoNextOptionPage = safeOptionPage < totalOptionPages - 1;
+  const showOptionSelection = !showResults && currentOptionValues.length > 0;
+  const optionTitleCount = showResults ? 1 : currentOptionValues.length;
+  const modsHeaderCount = selectedYear ? optionTitleCount : yearOptions.length;
+
+  useEffect(() => {
+    setOptionPage(0);
+  }, [
+    selectedYear,
+    isSelectingVolume,
+    isSelectingPower,
+    isSelectingGearbox,
+    isSelectingDrive,
+    currentOptionValues.length,
+  ]);
   const fieldClasses = (
     key: "year" | "volume" | "power" | "gearbox" | "drive",
     isSelected: boolean
@@ -429,6 +508,40 @@ const CarModifications: React.FC<Props> = ({
     setFilters((prev) => ({ ...prev, drive: value }));
   };
 
+  const formatOptionValue = (value: string) => {
+    if (isSelectingVolume) return `${value} ${UNIT_LITERS}`;
+    if (isSelectingPower) return `${value} ${UNIT_HP}`;
+    return value;
+  };
+
+  const handleOptionSelect = (value: string) => {
+    if (isSelectingVolume) {
+      handleSelectVolume(value);
+      return;
+    }
+    if (isSelectingPower) {
+      handleSelectPower(value);
+      return;
+    }
+    if (isSelectingGearbox) {
+      handleSelectGearbox(value);
+      return;
+    }
+    if (isSelectingDrive) {
+      handleSelectDrive(value);
+    }
+  };
+
+  const handlePrevOptionPage = () => {
+    if (!canGoPrevOptionPage) return;
+    setOptionPage((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleNextOptionPage = () => {
+    if (!canGoNextOptionPage) return;
+    setOptionPage((prev) => Math.min(totalOptionPages - 1, prev + 1));
+  };
+
 
   useEffect(() => {
     setFilters((prev) => {
@@ -453,31 +566,6 @@ const CarModifications: React.FC<Props> = ({
       return changed ? next : prev;
     });
   }, [volumeOptions, powerOptions, gearboxOptions, driveOptions]);
-
-  const buildCarLabel = (mod: Modification) => {
-    const powerLabel = formatPowerLabel(mod.power);
-    const parts = [
-      selectedBrand ?? "",
-      selectedModel ?? "",
-      selectedYear ? String(selectedYear) : "",
-      mod.volume ?? "",
-      powerLabel ?? "",
-      mod.gearbox ?? "",
-      mod.drive ?? "",
-    ].filter(Boolean);
-    return parts.join(" ");
-  };
-
-  const buildResultLabel = (mod: Modification) => {
-    const parts = [
-      selectedBrand ?? "",
-      selectedModel ?? "",
-      selectedYear ? String(selectedYear) : "",
-      mod.gearbox ?? "",
-      mod.drive ?? "",
-    ].filter(Boolean);
-    return parts.join(" ");
-  };
 
   if (!selectedBrand || !selectedModel) {
     return (
@@ -505,7 +593,53 @@ const CarModifications: React.FC<Props> = ({
         isCompact ? "gap-3 sm:gap-4 py-1 sm:py-2" : "gap-4 sm:gap-5 py-1 sm:py-3"
       }`}
     >
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 group/mods">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:flex-nowrap sm:items-center sm:justify-between">
+          <div className="order-1 w-full sm:w-auto flex items-center gap-3 sm:gap-4 group hover:[&_span[data-underline]]:scale-x-100">
+            <h3 className="text-xl font-semibold tracking-tight text-slate-700 relative inline-block drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)]">
+              <span className="relative inline-flex items-center">
+                {LABEL_SELECT_FROM} {modsHeaderCount} {LABEL_MODS}
+                <span
+                  data-underline
+                  className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-400 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 shadow-[0_4px_12px_rgba(59,130,246,0.28)]"
+                />
+              </span>
+            </h3>
+          </div>
+
+          {selectedYear && currentOptionValues.length > 0 && (
+            <div className="order-2 shrink-0 max-w-full overflow-x-auto no-scrollbar sm:mr-1">
+              <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
+                <button
+                  type="button"
+                  onClick={handlePrevOptionPage}
+                  disabled={!canGoPrevOptionPage}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                  aria-label={LABEL_PREV_PAGE}
+                >
+                  <ChevronLeft size={12} />
+                </button>
+
+                <div className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-1.5 py-0 text-[9px] font-semibold text-slate-600 shadow-inner">
+                  <span>{safeOptionPage + 1}</span>
+                  <span className="text-slate-400">/</span>
+                  <span>{totalOptionPages}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleNextOptionPage}
+                  disabled={!canGoNextOptionPage}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                  aria-label={LABEL_NEXT_PAGE}
+                >
+                  <ChevronRight size={12} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div
           className={`rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden ${
             isCompact ? "px-3 py-2.5" : "px-4 py-3.5"
@@ -706,80 +840,27 @@ const CarModifications: React.FC<Props> = ({
 
           {uniqueMods.length > 0 && (
             <>
-              {isSelectingVolume && (
+              {showOptionSelection && (
                 <div>
                   <p className="text-xs uppercase tracking-widest text-slate-500 font-semibold">
-                    {LABEL_SELECT_VOLUME}
+                    {currentOptionLabel}
                   </p>
-                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                    {volumeOptions.map((value) => (
+                  <div className="group/logogrid mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-3.5 place-items-stretch">
+                    {pagedOptionValues.map((value) => (
                       <button
                         key={value}
                         type="button"
-                        onClick={() => handleSelectVolume(value)}
-                        className="rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-blue-300 hover:bg-blue-100/70"
+                        onClick={() => handleOptionSelect(value)}
+                        className="group relative isolate overflow-hidden rounded-xl border border-slate-100/90 bg-white/94 px-3 py-2 text-sm font-semibold text-slate-800 shadow-[0_12px_30px_rgba(15,23,42,0.1)] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[4px] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 hover:shadow-[0_24px_52px_rgba(59,130,246,0.18)] hover:ring-1 hover:ring-sky-200/80"
                       >
-                        {`${value} \u043b.`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {isSelectingPower && (
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-slate-500 font-semibold">
-                    {LABEL_SELECT_POWER}
-                  </p>
-                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                    {powerOptions.map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => handleSelectPower(value)}
-                        className="rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-blue-300 hover:bg-blue-100/70"
-                      >
-                        {`${value} \u043a\u0441`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {isSelectingGearbox && (
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-slate-500 font-semibold">
-                    {AUTO_FIELDS.gearbox}
-                  </p>
-                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                    {gearboxOptions.map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => handleSelectGearbox(value)}
-                        className="rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-blue-300 hover:bg-blue-100/70"
-                      >
-                        {value}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {isSelectingDrive && (
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-slate-500 font-semibold">
-                    {AUTO_FIELDS.drive}
-                  </p>
-                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                    {driveOptions.map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => handleSelectDrive(value)}
-                        className="rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-blue-300 hover:bg-blue-100/70"
-                      >
-                        {value}
+                        <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
+                        <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
+                        <span className="pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full bg-sky-200/25 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[5px] group-hover:-translate-y-[5px]" />
+                        <span className="pointer-events-none absolute -left-12 -bottom-12 h-28 w-28 rounded-full bg-cyan-200/20 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-x-[3px] group-hover:translate-y-[3px]" />
+                        <span className="pointer-events-none absolute inset-y-[-28%] left-[-24%] w-[52%] rotate-[16deg] bg-gradient-to-br from-white/0 via-white/28 to-white/0 opacity-0 blur-[2px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[18%] group-hover:opacity-80" />
+                        <span className="relative block truncate uppercase tracking-[0.05em]">
+                          {formatOptionValue(value)}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -804,8 +885,8 @@ const CarModifications: React.FC<Props> = ({
                       ].filter(Boolean);
                       const label = labelParts.join(" ");
                       const details: ModDetails = {
-                        volume: filters.volume ? `${filters.volume} л.` : null,
-                        power: filters.power ? `${filters.power} кс` : null,
+                        volume: filters.volume ? `${filters.volume} ${UNIT_LITERS}` : null,
+                        power: filters.power ? `${filters.power} ${UNIT_HP}` : null,
                         gearbox: filters.gearbox || null,
                         drive: filters.drive || null,
                       };
@@ -821,7 +902,7 @@ const CarModifications: React.FC<Props> = ({
                     disabled={uniqueMods.length === 0}
                     className="inline-flex w-full items-center justify-center rounded-lg border border-blue-200 bg-blue-600 px-3 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {"Підтвердити"}
+                    {LABEL_CONFIRM}
                   </button>
                 </div>
               )}

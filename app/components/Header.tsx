@@ -260,7 +260,10 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
     'flex items-center gap-3 px-4 py-2 text-sm rounded-xl hover:bg-gray-600 cursor-pointer transition-transform active:scale-[0.98] select-none';
 
   return (
-    <header className="bg-gradient-to-b from-gray-600 to-gray-800 h-16 text-white px-4 flex items-center justify-center relative z-50">
+    <header
+      suppressHydrationWarning
+      className="bg-gradient-to-b from-gray-600 to-gray-800 h-16 text-white px-4 flex items-center justify-center relative z-50"
+    >
 
       <div className="w-full max-w-[1400px] flex items-center justify-between gap-6">
 
@@ -370,12 +373,14 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
 
           <button
             className={`lg:hidden ${buttonBaseClass} ${
-              showSearchModal ? 'border-sky-400/80 bg-sky-500/20' : 'border-white/15'
+              showSearchModal
+                ? 'border-rose-300/70 bg-rose-500/15 text-rose-100'
+                : 'border-white/10 bg-gray-700/60 text-slate-100'
             }`}
             onClick={toggleSearchModal}
             ref={searchButtonRef}
           >
-            <Search size={18} />
+            <Search size={18} className="text-current" />
           </button>
         </div>
 

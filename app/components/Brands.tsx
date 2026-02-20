@@ -1,39 +1,26 @@
-﻿"use client";
+"use client";
 
-import { memo, useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { Factory, Search } from "lucide-react";
+import Image from "next/image";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { ChevronLeft, ChevronRight, Factory, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { brands } from "app/components/brandsData";
 
-const viewportConfig = { once: true, amount: 0.35 };
-const backgroundBase = [
-  "radial-gradient(circle at 18% 18%, rgba(129,186,255,0.28), transparent 40%)",
-  "radial-gradient(circle at 82% 14%, rgba(175,215,255,0.24), transparent 46%)",
-  "radial-gradient(circle at 50% 82%, rgba(152,193,255,0.2), transparent 34%)",
-  "linear-gradient(180deg, #f9fbff 0%, #e7f0ff 42%, #c6dafe 100%)",
-].join(", ");
-const backgroundHover = [
-  "radial-gradient(circle at 22% 16%, rgba(124,175,255,0.38), transparent 38%)",
-  "radial-gradient(circle at 80% 14%, rgba(135,200,255,0.34), transparent 44%)",
-  "radial-gradient(circle at 54% 84%, rgba(120,176,255,0.32), transparent 34%)",
-  "linear-gradient(180deg, #f6f9ff 0%, #dbe8ff 38%, #b2ccfd 100%)",
-].join(", ");
-const cardBackdrop = (
-  <div className="pointer-events-none absolute inset-0">
-    <div className="absolute -left-14 top-4 h-64 w-64 rounded-full bg-white/40 blur-[120px]" />
-    <div className="absolute right-[-12%] bottom-[-18%] h-80 w-80 rounded-full bg-blue-200/30 blur-[150px]" />
-    <div className="absolute inset-0 bg-gradient-to-b from-white/55 via-white/30 to-white/10" />
-  </div>
-);
+const MOBILE_ITEMS_PER_PAGE = 6;
+const DESKTOP_ITEMS_PER_PAGE = 8;
+
+type BrandItem = (typeof brands)[number];
 
 type BrandSearchInputProps = {
   value: string;
   onChange: (value: string) => void;
   brandNames: string[];
+  className?: string;
 };
 
 const BrandSearchInput = memo(
-  ({ value, onChange, brandNames }: BrandSearchInputProps) => {
+  ({ value, onChange, brandNames, className }: BrandSearchInputProps) => {
     const [isInputFocused, setIsInputFocused] = useState(false);
     const [animatedPlaceholder, setAnimatedPlaceholder] = useState("");
 
@@ -42,6 +29,7 @@ const BrandSearchInput = memo(
         setAnimatedPlaceholder("");
         return;
       }
+
       let active = true;
       let wordIndex = 0;
       let charIndex = 0;
@@ -54,18 +42,18 @@ const BrandSearchInput = memo(
 
         if (direction === "forward") {
           charIndex = Math.min(word.length, charIndex + 1);
-          setAnimatedPlaceholder(word.slice(0, charIndex) || "");
+          setAnimatedPlaceholder(word.slice(0, charIndex).toUpperCase());
           if (charIndex === word.length) {
             direction = "back";
             timeoutId = setTimeout(tick, 900);
             return;
           }
-          timeoutId = setTimeout(tick, 80);
+          timeoutId = setTimeout(tick, 85);
           return;
         }
 
         charIndex = Math.max(0, charIndex - 1);
-        setAnimatedPlaceholder(word.slice(0, charIndex) || "");
+        setAnimatedPlaceholder(word.slice(0, charIndex).toUpperCase());
         if (charIndex === 0) {
           direction = "forward";
           wordIndex = (wordIndex + 1) % brandNames.length;
@@ -83,24 +71,33 @@ const BrandSearchInput = memo(
     }, [brandNames, isInputFocused, value]);
 
     return (
-      <label className="relative block">
+      <label className={`relative block ${className ?? ""}`}>
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-400" />
         <input
           type="text"
           placeholder=""
-          aria-label="Пошук бренду"
+          aria-label="Пошук виробника"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => setIsInputFocused(true)}
           onBlur={() => setIsInputFocused(false)}
-          className="w-full rounded-2xl border border-blue-100/80 bg-white/90 px-4 pr-11 py-3 text-sm font-medium text-slate-800 shadow-inner shadow-blue-100/50 transition focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          data-search="true"
+          className="w-full rounded-xl border border-blue-200 bg-white/90 px-9 py-2 text-xs sm:text-sm font-semibold text-gray-700 placeholder:text-transparent shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition select-text"
         />
         {!value && !isInputFocused && (
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-blue-400">
-            {animatedPlaceholder}
+          <span className="pointer-events-none absolute left-9 top-1/2 -translate-y-1/2 text-xs sm:text-sm text-blue-400 uppercase tracking-[0.14em] truncate">
+            {animatedPlaceholder || "ВИРОБНИК"}
           </span>
         )}
-        <Search className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-400" />
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            aria-label="Очистити пошук"
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-white text-blue-500 border border-blue-100 shadow-sm hover:bg-blue-50 transition"
+          >
+            <X className="h-3.5 w-3.5 mx-auto" />
+          </button>
+        )}
       </label>
     );
   }
@@ -108,9 +105,72 @@ const BrandSearchInput = memo(
 
 BrandSearchInput.displayName = "BrandSearchInput";
 
+function BrandCard({
+  brand,
+  onOpen,
+}: {
+  brand: BrandItem;
+  onOpen: (brandName: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(brand.name)}
+      className="group relative isolate flex w-full min-h-[182px] flex-col items-start justify-start overflow-hidden rounded-2xl border border-slate-100/85 bg-white/94 px-3 py-4 text-left shadow-[0_12px_28px_rgba(15,23,42,0.12)] ring-1 ring-transparent transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[4px] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/75 hover:to-blue-50 hover:shadow-[0_24px_60px_rgba(59,130,246,0.2),0_10px_26px_rgba(14,165,233,0.16)] hover:ring-2 hover:ring-sky-200/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 sm:min-h-[178px]"
+      aria-label={`Обрати ${brand.name}`}
+    >
+      <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
+      <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
+      <span className="pointer-events-none absolute -right-12 -top-16 h-28 w-28 rounded-full bg-sky-200/26 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[6px] group-hover:-translate-y-[6px]" />
+      <span className="pointer-events-none absolute -left-14 -bottom-16 h-32 w-32 rounded-full bg-cyan-200/22 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-x-[4px] group-hover:translate-y-[4px]" />
+      <span className="pointer-events-none absolute inset-y-[-30%] left-[-28%] w-[58%] rotate-[16deg] bg-gradient-to-br from-white/0 via-white/28 to-white/0 opacity-0 blur-[2px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[18%] group-hover:opacity-80" />
+
+      <div className="relative flex w-full items-center gap-2.5 rounded-xl border border-sky-100/80 bg-white/82 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),inset_0_-1px_0_rgba(148,163,184,0.2),0_8px_18px_rgba(15,23,42,0.08)] sm:gap-3 sm:px-3 sm:py-2.5">
+        <div className="relative flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-xl border border-sky-100/70 bg-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(15,23,42,0.08)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04] group-active:scale-[0.99] sm:h-[72px] sm:w-[72px]">
+          <Image
+            src={brand.logo}
+            alt={`${brand.name} logo`}
+            width={320}
+            height={200}
+            quality={100}
+            draggable={false}
+            className="h-[40px] w-auto object-contain drop-shadow-[0_8px_14px_rgba(15,23,42,0.14)] sm:h-[50px]"
+            style={{ imageRendering: "auto" }}
+            sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 240px"
+          />
+        </div>
+        <p className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-slate-800 drop-shadow-[0_2px_6px_rgba(15,23,42,0.16)] transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[14px] sm:leading-[1.2] sm:tracking-[0.06em] sm:whitespace-normal sm:line-clamp-2">
+          {brand.name}
+        </p>
+      </div>
+      <p className="relative mt-2 w-full break-words rounded-xl border border-sky-100/75 bg-white/82 px-3 py-2 text-left text-[11px] leading-relaxed text-slate-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)] line-clamp-3 sm:mt-1.5 sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:text-[12px] sm:shadow-none sm:line-clamp-none">
+        {brand.description}
+      </p>
+    </button>
+  );
+}
+
 export default function BrandCarousel() {
+  const router = useRouter();
+  const shouldReduceMotion = useReducedMotion() ?? false;
   const [search, setSearch] = useState("");
-  const [hovered, setHovered] = useState(false);
+  const [page, setPage] = useState(0);
+  const [isSmUp, setIsSmUp] = useState(true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(min-width: 640px)");
+    const handleChange = () => setIsSmUp(media.matches);
+    handleChange();
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", handleChange);
+      return () => media.removeEventListener("change", handleChange);
+    }
+    media.addListener(handleChange);
+    return () => media.removeListener(handleChange);
+  }, []);
+
+  const itemsPerPage = isSmUp ? DESKTOP_ITEMS_PER_PAGE : MOBILE_ITEMS_PER_PAGE;
   const brandNames = useMemo(
     () => brands.map((item) => item?.name ?? "").filter(Boolean),
     []
@@ -118,178 +178,140 @@ export default function BrandCarousel() {
   const filteredBrands = useMemo(
     () =>
       brands.filter((brand) =>
-        brand.name.toLowerCase().includes(search.toLowerCase())
+        brand.name.toLowerCase().includes(search.trim().toLowerCase())
       ),
     [search]
   );
 
+  const totalPages = Math.max(1, Math.ceil(filteredBrands.length / itemsPerPage));
+  const safePage = Math.min(page, totalPages - 1);
+  const pagedBrands = filteredBrands.slice(
+    safePage * itemsPerPage,
+    safePage * itemsPerPage + itemsPerPage
+  );
+  const canGoPrev = safePage > 0;
+  const canGoNext = safePage < totalPages - 1;
+
+  useEffect(() => {
+    setPage(0);
+  }, [search, itemsPerPage]);
+
+  useEffect(() => {
+    if (page > totalPages - 1) {
+      setPage(Math.max(0, totalPages - 1));
+    }
+  }, [page, totalPages]);
+
+  const handlePrevPage = useCallback(() => {
+    if (!canGoPrev) return;
+    setPage((prev) => Math.max(0, prev - 1));
+  }, [canGoPrev]);
+
+  const handleNextPage = useCallback(() => {
+    if (!canGoNext) return;
+    setPage((prev) => Math.min(totalPages - 1, prev + 1));
+  }, [canGoNext, totalPages]);
+
+  const openCatalog = useCallback(
+    (brandName: string) => {
+      router.push(`/katalog?producer=${encodeURIComponent(brandName)}`);
+    },
+    [router]
+  );
+
   return (
-    <motion.section
-      className="relative isolate w-full overflow-hidden px-4 py-10 sm:px-4 sm:py-12 lg:px-6 font-[Montserrat]"
-      style={{ backgroundImage: backgroundBase }}
-      animate={{
-        backgroundImage: hovered ? backgroundHover : backgroundBase,
-        backgroundSize: hovered ? "240% 240%" : "220% 220%",
-        backgroundPosition: hovered ? "48% 38%" : "50% 42%",
-        boxShadow: hovered
-          ? "0 32px 96px rgba(59,130,246,0.24), 0 18px 48px rgba(15,23,42,0.14)"
-          : "0 24px 72px rgba(59,130,246,0.18), 0 14px 38px rgba(15,23,42,0.12)",
-      }}
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      onHoverStart={() => setHovered(true)}
-      onHoverEnd={() => setHovered(false)}
-      viewport={viewportConfig}
-      transition={{ duration: 0.55, ease: "easeOut" }}
+    <section
+      className="group/brandcars relative w-full select-none overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-5 pt-5 font-[Montserrat] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)]"
+      onCopy={(event) => event.preventDefault()}
+      onCut={(event) => event.preventDefault()}
+      style={{ contain: "layout paint" }}
     >
-      {cardBackdrop}
-
-      <div className="relative mx-auto w-full max-w-[1400px] space-y-6 sm:space-y-8">
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px] md:items-center">
-          <div className="flex items-start gap-3 sm:items-center">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-50 via-blue-200 to-indigo-100 text-slate-900 shadow-[0_12px_26px_rgba(59,130,246,0.25)] ring-1 ring-blue-100">
-              <Factory className="h-5 w-5" strokeWidth={2.2} />
-            </span>
-            <div className="flex flex-col">
-              <h2 className="text-xl font-extrabold italic tracking-tight text-slate-900 sm:text-2xl">
-                Відомі виробники автозапчастин
-              </h2>
-              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">
-                Підіберіть бренд за своїм смаком, відкрийте картку та дізнайтесь
-                ключові особливості.
-              </p>
+      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/brandcars:opacity-100 bg-[radial-gradient(circle_at_12%_16%,rgba(125,211,252,0.26),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.22),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(147,197,253,0.2),transparent_36%)]" />
+      <motion.div
+        className="relative z-10 mx-auto w-full max-w-[1400px] px-4 sm:px-5 lg:px-7"
+        initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
+        whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+        transition={shouldReduceMotion ? undefined : { duration: 0.32, ease: "easeOut" }}
+        viewport={shouldReduceMotion ? undefined : { once: false, amount: 0.22, margin: "0px 0px -8% 0px" }}
+      >
+        <div className="flex flex-col gap-3 group/brands">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:flex-nowrap sm:items-center sm:justify-between">
+            <div className="order-1 w-full sm:w-auto flex items-center gap-3 sm:gap-4 group hover:[&_span[data-underline]]:scale-x-100 group-hover/brands:[&_span[data-underline]]:scale-x-100">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shadow-inner">
+                <Factory size={18} />
+              </span>
+              <h3 className="text-xl font-semibold tracking-tight text-slate-700 relative inline-block drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)]">
+                <span className="relative inline-flex items-center">
+                  {"Вибір із"} {filteredBrands.length} {"виробників авто"}
+                  <span
+                    data-underline
+                    className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-400 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 group-hover/brands:scale-x-100 shadow-[0_4px_12px_rgba(59,130,246,0.28)]"
+                  />
+                </span>
+              </h3>
             </div>
-          </div>
 
-          <div className="w-full">
             <BrandSearchInput
+              className="order-2 relative min-w-0 flex-1 sm:w-[240px] sm:mx-auto sm:flex-none"
               value={search}
               onChange={setSearch}
               brandNames={brandNames}
             />
-          </div>
-        </div>
 
-        <div className="relative overflow-hidden rounded-3xl border border-blue-100/70 bg-white/80 shadow-[0_18px_46px_rgba(59,130,246,0.14)] backdrop-blur">
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-400/35 to-transparent" />
-            <div className="absolute -left-10 top-3 h-24 w-24 rounded-full bg-blue-200/35 blur-2xl" />
-            <div className="absolute right-[-6%] bottom-[-10%] h-28 w-28 rounded-full bg-cyan-200/40 blur-2xl" />
-          </div>
+            <div className="order-2 shrink-0 max-w-full overflow-x-auto no-scrollbar sm:mr-1">
+              <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
+                <button
+                  type="button"
+                  onClick={handlePrevPage}
+                  disabled={!canGoPrev}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                  aria-label="Попередня сторінка"
+                >
+                  <ChevronLeft size={12} />
+                </button>
 
-          <div className="brand-scroll relative flex w-full gap-4 overflow-x-auto overflow-y-visible px-2 py-3 sm:gap-5 sm:px-3 sm:py-4 md:gap-6 snap-x snap-mandatory">
-            <div className="pointer-events-none absolute left-0 top-0 h-full w-12 bg-gradient-to-r from-white via-white/70 to-transparent" />
-            <div className="pointer-events-none absolute right-0 top-0 h-full w-12 bg-gradient-to-l from-white via-white/70 to-transparent" />
+                <div className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-1.5 py-0 text-[9px] font-semibold text-slate-600 shadow-inner">
+                  <span>{safePage + 1}</span>
+                  <span className="text-slate-400">/</span>
+                  <span>{totalPages}</span>
+                </div>
 
-            {filteredBrands.map((brand, idx) => (
-              <div
-                key={`${brand.name}-${idx}`}
-                className="w-[190px] flex-shrink-0 snap-start sm:w-[210px] md:w-[230px] lg:w-[240px]"
-              >
-                <FlipCard brand={brand} />
+                <button
+                  type="button"
+                  onClick={handleNextPage}
+                  disabled={!canGoNext}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                  aria-label="Наступна сторінка"
+                >
+                  <ChevronRight size={12} />
+                </button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {filteredBrands.length === 0 ? (
+          <div className="mt-8 text-center text-sm text-slate-600">
+            {"За цим запитом виробників не знайдено."}
+          </div>
+        ) : (
+          <motion.div
+            key={`${safePage}-${filteredBrands.length}`}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+            transition={shouldReduceMotion ? undefined : { duration: 0.22, ease: "easeOut" }}
+            className="group/logogrid mt-5 grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5 place-items-stretch"
+          >
+            {pagedBrands.map((brand, idx) => (
+              <BrandCard
+                key={`${brand.name}-${safePage}-${idx}`}
+                brand={brand}
+                onOpen={openCatalog}
+              />
             ))}
-          </div>
-        </div>
-      </div>
-    </motion.section>
+          </motion.div>
+        )}
+      </motion.div>
+    </section>
   );
 }
-
-function FlipCard({ brand }: { brand: typeof brands[number] }) {
-  const [flipped, setFlipped] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const faceBaseStyle = {
-    backfaceVisibility: "hidden" as const,
-    WebkitBackfaceVisibility: "hidden" as const,
-    transformStyle: "preserve-3d" as const,
-  };
-
-  useEffect(() => {
-    function updateIsMobile() {
-      setIsMobile(window.innerWidth < 768);
-    }
-    updateIsMobile();
-    window.addEventListener("resize", updateIsMobile);
-    return () => window.removeEventListener("resize", updateIsMobile);
-  }, []);
-
-  return (
-    <motion.div
-      className="relative h-full w-full perspective group"
-      style={{ perspective: 1200, transformStyle: "preserve-3d" }}
-      whileHover={
-        isMobile
-          ? undefined
-          : {
-              scale: 1.06,
-              boxShadow:
-                "0px 20px 50px rgba(59, 130, 246, 0.28), 0 12px 26px rgba(15, 23, 42, 0.16)",
-            }
-      }
-      transition={{ duration: 0.35 }}
-      onHoverStart={() => !isMobile && setFlipped(true)}
-      onHoverEnd={() => !isMobile && setFlipped(false)}
-      onClick={() => isMobile && setFlipped((prev) => !prev)}
-    >
-      <div
-        className="relative aspect-square h-full w-full cursor-pointer select-none overflow-hidden rounded-3xl border border-blue-100/80 bg-gradient-to-br from-white via-blue-50/75 to-cyan-50/75 shadow-[0_16px_44px_rgba(59,130,246,0.18)] ring-1 ring-white/70"
-        style={{ transformStyle: "preserve-3d" }}
-      >
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-white/60 via-white/20 to-transparent" />
-          <div className="absolute -left-6 bottom-6 h-20 w-20 rounded-full bg-blue-200/35 blur-2xl" />
-          <div className="absolute right-[-12%] top-[-8%] h-24 w-24 rounded-full bg-cyan-200/35 blur-2xl" />
-        </div>
-
-        <motion.div
-          className="absolute inset-0 flex items-center justify-center rounded-3xl bg-white/88 p-6 transition-colors duration-300"
-          style={{ ...faceBaseStyle, transform: "rotateY(0deg) translateZ(1px)" }}
-          animate={{ rotateY: flipped ? 180 : 0, scale: flipped ? 1.02 : 1 }}
-          transition={{
-            duration: 0.8,
-            ease: "easeInOut",
-            type: "spring",
-            stiffness: 110,
-            damping: 16,
-          }}
-        >
-          <div className="flex h-full w-full items-center justify-center rounded-2xl border border-blue-100/80 bg-gradient-to-br from-slate-50 via-white to-blue-50 p-4 shadow-[0_12px_32px_rgba(59,130,246,0.12)]">
-            <img
-              src={brand.logo}
-              alt={brand.name}
-              className="max-h-24 w-full object-contain drop-shadow-[0_8px_18px_rgba(15,23,42,0.1)]"
-              draggable={false}
-              loading="lazy"
-            />
-          </div>
-        </motion.div>
-
-        <motion.div
-          className="absolute inset-0 flex items-center justify-center rounded-3xl bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-6 text-center text-sm font-semibold leading-snug text-slate-700 sm:text-base"
-          style={{
-            ...faceBaseStyle,
-            transform: "rotateY(180deg) translateZ(1px)",
-            overflowY: "auto",
-          }}
-          animate={{ rotateY: flipped ? 0 : -180, scale: flipped ? 1.02 : 1 }}
-          transition={{
-            duration: 0.8,
-            ease: "easeInOut",
-            type: "spring",
-            stiffness: 110,
-            damping: 16,
-          }}
-        >
-          <p>{brand.description}</p>
-        </motion.div>
-
-        <div
-          className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-sky-100/45 via-transparent to-cyan-200/38 opacity-0 transition duration-300 group-hover:opacity-100"
-          style={faceBaseStyle}
-        />
-      </div>
-    </motion.div>
-  );
-}
-

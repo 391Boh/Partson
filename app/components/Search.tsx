@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { Search, Clock, XCircle } from "lucide-react";
 
 interface SearchBarProps {
-  onSearch: (searchQuery: string, filterBy: "all" | "article" | "name" | "code") => void;
+  onSearch: (
+    searchQuery: string,
+    filterBy: "all" | "article" | "name" | "code" | "producer"
+  ) => void;
 }
 
 const MAX_HISTORY = 8;
@@ -13,7 +16,7 @@ const MAX_HISTORY = 8;
 const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterBy, setFilterBy] =
-    useState<"all" | "article" | "name" | "code">("all");
+    useState<"all" | "article" | "name" | "code" | "producer">("all");
 
   const [history, setHistory] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -48,7 +51,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   };
 
   // --- 4. Пошук ---
-  const sanitizeQuery = (value: string, filter: "all" | "article" | "name" | "code") => {
+  const sanitizeQuery = (
+    value: string,
+    filter: "all" | "article" | "name" | "code" | "producer"
+  ) => {
     const trimmed = value.trim();
     if (filter !== "article") return trimmed;
     return trimmed.replace(/\s+/g, "").replace(/\./g, "").replace(/-/g, "");
@@ -77,7 +83,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   };
 
   return (
-    <div ref={wrapperRef} className="relative w-full max-w-full">
+    <div
+      ref={wrapperRef}
+      className="relative w-full max-w-full"
+      suppressHydrationWarning
+    >
 
       {/* --- SEARCH BAR --- */}
       <div className="flex items-center border border-gray-500 rounded-xl overflow-hidden w-full shadow-md transition-all hover:shadow-xl focus-within:ring-1 focus-within:ring-blue-500 bg-gray-800">
@@ -111,20 +121,23 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           className="bg-gray-700 text-white h-9 border-l border-gray-600 outline-none text-base sm:text-sm px-2 py-2"
           value={filterBy}
           onChange={(e) =>
-            setFilterBy(e.target.value as "all" | "article" | "name" | "code")
+            setFilterBy(
+              e.target.value as "all" | "article" | "name" | "code" | "producer"
+            )
           }
         >
           <option value="all">Всі</option>
           <option value="article">Артикул</option>
           <option value="name">Назва</option>
           <option value="code">Код</option>
+          <option value="producer">Виробник</option>
         </select>
 
         <button
-          className="bg-red-600 px-3 py-2 hover:bg-red-700 active:scale-[0.96] transition flex items-center justify-center cursor-pointer"
+          className="px-3 py-2 bg-gradient-to-r from-rose-600 via-rose-500 to-red-500 text-white shadow-[0_10px_18px_rgba(244,63,94,0.32)] hover:from-rose-500 hover:via-rose-400 hover:to-red-400 hover:shadow-[0_12px_22px_rgba(244,63,94,0.34)] active:scale-[0.96] transition-all duration-200 ease-out flex items-center justify-center cursor-pointer"
           onClick={() => handleSearch()}
         >
-          <Search size={20} className="text-white" />
+          <Search size={20} className="text-white drop-shadow-[0_0_6px_rgba(0,0,0,0.35)]" />
         </button>
       </div>
 

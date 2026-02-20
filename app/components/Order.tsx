@@ -29,12 +29,31 @@ interface OrderProps {
   onClose: () => void;
 }
 
+interface PastOrderItem {
+  name?: string;
+  quantity?: number;
+}
+
+interface PastOrder {
+  id: string;
+  orderId?: string;
+  createdAt?: {
+    seconds?: number;
+  };
+  cartItems?: PastOrderItem[];
+  totalAmount?: number;
+  total?: number;
+  deliveryMethod?: string;
+  warehouse?: string;
+  paymentMethod?: string;
+}
+
 const Order: React.FC<OrderProps> = ({ onClose }) => {
   const { cartItems, removeFromCart, clearCart } = useCart();
   const hasItems = cartItems.length > 0;
   const [isOrdering, setIsOrdering] = useState(false);
   const [showPastOrders, setShowPastOrders] = useState(false);
-  const [pastOrders, setPastOrders] = useState<any[]>([]);
+  const [pastOrders, setPastOrders] = useState<PastOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -87,9 +106,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
           orderBy('createdAt', 'desc')
         );
         const querySnapshot = await getDocs(q);
-        const orders = querySnapshot.docs.map((doc) => ({
+        const orders: PastOrder[] = querySnapshot.docs.map((doc) => ({
           id: doc.id,
-          ...doc.data(),
+          ...(doc.data() as Omit<PastOrder, "id">),
         }));
         setPastOrders(orders);
       } catch (error) {
@@ -128,30 +147,30 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     return (
       <div
         ref={orderRef}
-        className="fixed top-20 right-4 left-4 sm:left-auto sm:right-6 w-[92%] max-w-[460px] max-h-[70vh] bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 border border-gray-500 rounded-xl shadow-2xl p-4 z-40 flex flex-col gap-4 animate-fadeIn backdrop-blur-xl"
+        className="fixed left-4 right-4 top-20 z-40 flex max-h-[70vh] w-[92%] max-w-[460px] flex-col gap-4 rounded-2xl border border-sky-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_52%,rgba(224,242,254,0.94)_100%)] p-4 shadow-[0_24px_60px_rgba(30,64,175,0.22)] backdrop-blur-xl animate-fadeIn sm:left-auto sm:right-6"
       >
-        <div className="flex justify-between items-center pb-3 border-b border-white/10">
+        <div className="flex items-center justify-between border-b border-sky-200/70 pb-3">
           <button
             onClick={() => setShowPastOrders(false)}
-            className="text-slate-300 hover:text-white transition text-sm"
+            className="text-sm font-medium text-slate-600 transition hover:text-slate-800"
           >
             Назад
           </button>
-          <h3 className="text-slate-100 text-xl font-bold">Попередні замовлення</h3>
+          <h3 className="text-xl font-bold tracking-tight text-slate-800">Попередні замовлення</h3>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition cursor-pointer"
+            className="rounded-full border border-sky-200 bg-white p-1 text-slate-500 transition hover:bg-sky-50 hover:text-slate-700 cursor-pointer"
           >
-            <X size={22} />
+            <X size={18} />
           </button>
         </div>
 
         {!user ? (
-          <div className="text-center text-white">
+          <div className="text-center text-slate-700">
             <p>Будь ласка, увійдіть у свій акаунт, щоб переглянути замовлення.</p>
             <Link
               href="/login"
-              className="mt-4 inline-block px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+              className="mt-4 inline-block rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-2 text-white shadow-[0_10px_22px_rgba(59,130,246,0.3)] transition hover:brightness-110"
             >
               Увійти
             </Link>
@@ -165,16 +184,16 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               return (
                 <div
                   key={order.id}
-                  className="bg-slate-800/70 p-3 rounded-lg text-white shadow transition hover:brightness-110 cursor-pointer"
+                  className="cursor-pointer rounded-lg border border-sky-200/70 bg-white/92 p-3 text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:border-sky-300/80"
                   onClick={() => toggleExpandOrder(order.id)}
                 >
                   <div className="flex justify-between items-center">
-                    <h4 className="font-bold text-sm">
+                    <h4 className="text-sm font-bold text-slate-800">
                       Замовлення #{order.orderId || order.id}
                     </h4>
                     {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                   </div>
-                  <p className="text-slate-300 text-xs">
+                  <p className="text-xs text-slate-500">
                     {order.createdAt?.seconds
                       ? dateFormatter.format(
                           new Date(order.createdAt.seconds * 1000)
@@ -184,20 +203,20 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
 
                   {isExpanded && (
                     <div className="space-y-3 mt-2">
-                      <ul className="list-disc list-inside text-slate-300 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800 text-xs">
-                        {order.cartItems?.map((item: any, idx: number) => (
+                      <ul className="max-h-40 list-inside list-disc overflow-y-auto text-xs text-slate-600 scrollbar-thin scrollbar-thumb-slate-400 scrollbar-track-transparent">
+                        {order.cartItems?.map((item: PastOrderItem, idx: number) => (
                           <li key={idx}>
                             {item.name} — {item.quantity} шт.
                           </li>
                         ))}
                       </ul>
 
-                      <div className="flex flex-wrap gap-3 text-xs text-slate-300">
+                      <div className="flex flex-wrap gap-3 text-xs text-slate-600">
                         <div className="flex items-center gap-1">
                           <ClipboardList size={16} />
                           <span>
                             Сума:{' '}
-                            <span className="text-emerald-400 font-semibold">
+                            <span className="font-semibold text-emerald-600">
                               {order.totalAmount || order.total} грн
                             </span>
                           </span>
@@ -228,7 +247,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
             })}
           </div>
         ) : (
-          <div className="text-center text-white">
+          <div className="text-center text-slate-600">
             <p>У вас ще немає замовлень.</p>
           </div>
         )}
@@ -241,19 +260,19 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
       ref={orderRef}
       className={`fixed top-20 right-4 left-4 sm:left-auto sm:right-6 w-[92%] max-w-[460px] ${
         hasItems ? 'max-h-[80vh] p-4 gap-4' : 'max-h-[55vh] p-3 gap-3'
-      } bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 border border-gray-500 rounded-xl shadow-2xl z-40 flex flex-col animate-fadeIn backdrop-blur-xl`}
+      } z-40 flex flex-col rounded-2xl border border-sky-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_52%,rgba(224,242,254,0.94)_100%)] shadow-[0_24px_60px_rgba(30,64,175,0.22)] animate-fadeIn backdrop-blur-xl`}
     >
-      <div className="flex justify-between items-center pb-3 border-b border-white/10">
-        <h3 className="text-slate-100 text-xl font-bold">Ваше замовлення</h3>
-        <button onClick={onClose} className="text-slate-400 hover:text-white transition">
-          <X size={22} />
+      <div className="flex items-center justify-between border-b border-sky-200/70 pb-3">
+        <h3 className="text-xl font-bold tracking-tight text-slate-800">Ваше замовлення</h3>
+        <button onClick={onClose} className="rounded-full border border-sky-200 bg-white p-1 text-slate-500 transition hover:bg-sky-50 hover:text-slate-700">
+          <X size={18} />
         </button>
       </div>
 
       <div className="flex justify-between gap-3">
         <button
           onClick={() => setShowPastOrders(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 text-white text-sm shadow hover:bg-gray-600 transition"
+          className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition hover:bg-sky-50"
         >
           <ClipboardList size={18} />
           Попередні замовлення
@@ -262,7 +281,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
         {hasItems && (
           <button
             onClick={() => setIsOrdering(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm shadow-md transition-all duration-200"
+            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-2 text-sm text-white shadow-[0_10px_22px_rgba(59,130,246,0.3)] transition-all duration-200 hover:brightness-110"
           >
             <ShoppingCart size={18} />
             <span className="font-medium">Оформити</span>
@@ -276,25 +295,25 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
             {cartItems.map((item, index) => (
               <div
                 key={item.code || index}
-                className="flex justify-between items-center p-3 bg-slate-800/70 rounded-lg hover:brightness-110 transition shadow"
+                className="flex items-center justify-between rounded-lg border border-sky-200/70 bg-white/92 p-3 shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition hover:border-sky-300/80"
               >
                 <div className="flex flex-col gap-1">
                   <Link
                     href={`/katalog?search=${encodeURIComponent(
                       item.name?.replace(/\s*\(.*?\)/g, '') || ''
                     )}&filter=all`}
-                    className="text-white font-medium hover:underline hover:text-blue-400 transition"
+                    className="font-medium text-slate-800 transition hover:text-blue-700 hover:underline"
                   >
                     {item.name?.replace(/\s*\(.*?\)/g, '')}
                   </Link>
-                  <p className="text-slate-300 text-xs sm:text-sm">
+                  <p className="text-xs text-slate-600 sm:text-sm">
                     {item.price} грн{' '}
-                    <span className="text-slate-400">x {item.quantity} шт.</span>
+                    <span className="text-slate-500">x {item.quantity} шт.</span>
                   </p>
                 </div>
                 <button
                   onClick={() => removeFromCart(item.code)}
-                  className="text-red-400 hover:text-red-300 transition cursor-pointer"
+                  className="text-rose-500 transition hover:text-rose-600 cursor-pointer"
                 >
                   <X size={18} />
                 </button>
@@ -302,17 +321,17 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
             ))}
           </div>
 
-          <div className="space-y-2 border-t border-white/10 pt-3">
-            <div className="grid grid-cols-2 gap-3 bg-slate-800/60 p-3 rounded-lg">
+          <div className="space-y-2 border-t border-sky-200/70 pt-3">
+            <div className="grid grid-cols-2 gap-3 rounded-lg border border-sky-200/70 bg-white/90 p-3">
               <div className="flex flex-col">
-                <span className="text-slate-400 text-xs">Кількість товарів</span>
-                <span className="text-white font-semibold text-base">
+                <span className="text-xs text-slate-500">Кількість товарів</span>
+                <span className="text-base font-semibold text-slate-700">
                   {cartItems.length} шт.
                 </span>
               </div>
               <div className="flex flex-col items-end">
-                <span className="text-slate-400 text-xs">Сума до оплати</span>
-                <span className="text-emerald-400 font-semibold text-base">
+                <span className="text-xs text-slate-500">Сума до оплати</span>
+                <span className="text-base font-semibold text-emerald-600">
                   {totalAmount} грн
                 </span>
               </div>
@@ -320,18 +339,18 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
           </div>
         </>
       ) : (
-        <div className="text-center text-slate-300 flex flex-col items-center gap-3 mt-1.5 p-4 bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 rounded-2xl shadow-2xl border border-gray-500">
-          <div className="flex items-center gap-2 text-white text-base font-bold tracking-wide">
-            <ShoppingCart size={20} className="text-slate-200" />
+        <div className="mt-1.5 flex flex-col items-center gap-3 rounded-2xl border border-sky-200/70 bg-white/92 p-4 text-center text-slate-600 shadow-[0_12px_28px_rgba(15,23,42,0.1)]">
+          <div className="flex items-center gap-2 text-base font-bold tracking-wide text-slate-800">
+            <ShoppingCart size={20} className="text-slate-500" />
             <span>Кошик порожній</span>
           </div>
-          <p className="max-w-xs text-slate-200 text-sm leading-relaxed">
+          <p className="max-w-xs text-sm leading-relaxed text-slate-600">
             Додайте товари з каталогу, щоб оформити замовлення.
           </p>
           <div className="flex justify-center w-full">
             <Link
               href="/katalog"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-white bg-gradient-to-r from-blue-600 to-blue-800 shadow-lg hover:brightness-110 transition"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-2 text-white shadow-[0_10px_22px_rgba(59,130,246,0.3)] transition hover:brightness-110"
             >
               Додати товари
               <Plus size={18} />

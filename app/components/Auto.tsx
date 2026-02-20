@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
-import { Car, Plus, RefreshCw } from "lucide-react";
+import { Car, ChevronLeft, ChevronRight, Plus, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
@@ -28,6 +28,7 @@ interface AutoProps {
   initialSelection?: PersistedCarSelection | null;
   onSelectionChange?: (selection: PersistedCarSelection | null) => void;
   onVinSelect?: (vin: string | null) => void;
+  selectedVin?: string | null;
   compact?: boolean;
   variant?: "default" | "filter";
   showSummary?: boolean;
@@ -40,24 +41,24 @@ interface ModDetails {
   drive: string | null;
 }
 
-type Debounced<T extends (...args: any[]) => void> = ((
-  ...args: Parameters<T>
-) => void) & { cancel: () => void };
+type Debounced<TArgs extends unknown[]> = ((...args: TArgs) => void) & {
+  cancel: () => void;
+};
 
-const debounce = <T extends (...args: any[]) => void>(
-  fn: T,
+const debounce = <TArgs extends unknown[]>(
+  fn: (...args: TArgs) => void,
   wait: number
-): Debounced<T> => {
+): Debounced<TArgs> => {
   let timer: ReturnType<typeof setTimeout> | null = null;
 
-  const debounced = ((...args: Parameters<T>) => {
+  const debounced = ((...args: TArgs) => {
     if (timer !== null) {
       clearTimeout(timer);
     }
     timer = setTimeout(() => {
       fn(...args);
     }, wait);
-  }) as Debounced<T>;
+  }) as Debounced<TArgs>;
 
   debounced.cancel = () => {
     if (timer !== null) {
@@ -78,7 +79,10 @@ const AutoBrandSearchInput = React.memo(
   ({ onChange, className }: AutoBrandSearchInputProps) => {
     const [animatedPlaceholder, setAnimatedPlaceholder] = useState("");
     const [isVisible, setIsVisible] = useState(true);
-    const rootRef = useRef<HTMLDivElement | null>(null);
+    const [value, setValue] = useState("");
+    const [demoWordIndex, setDemoWordIndex] = useState(0);
+    const [typingPaused, setTypingPaused] = useState(false);
+    const rootRef = useRef<HTMLLabelElement | null>(null);
 
     useEffect(() => {
       const node = rootRef.current;
@@ -95,83 +99,111 @@ const AutoBrandSearchInput = React.memo(
     }, []);
 
     useEffect(() => {
-      if (!isVisible) return;
-      const words = ["FORD", "AUDI", "BMW"];
+      if (!isVisible || typingPaused || value) return;
+      const words = ["Ford", "Audi", "BMW", "Chery"];
       let active = true;
-      let wordIndex = 0;
-      let charIndex = 0;
-      let direction: "forward" | "back" = "forward";
       let timeoutId: number;
+      let charIndex = 0;
+      const currentWord = words[demoWordIndex];
 
-      const tick = () => {
+      const typeNext = () => {
         if (!active) return;
-        const word = words[wordIndex];
-        if (direction === "forward") {
-          charIndex = Math.min(word.length, charIndex + 1);
-          setAnimatedPlaceholder(word.slice(0, charIndex));
-          if (charIndex === word.length) {
-            direction = "back";
-            timeoutId = window.setTimeout(tick, 900);
-            return;
-          }
-          timeoutId = window.setTimeout(tick, 120);
-          return;
+        if (charIndex <= currentWord.length) {
+          setAnimatedPlaceholder(currentWord.slice(0, charIndex).toUpperCase());
+          charIndex += 1;
+          timeoutId = window.setTimeout(typeNext, 90);
+        } else {
+          timeoutId = window.setTimeout(() => {
+            if (!active) return;
+            setDemoWordIndex((prev) => (prev + 1) % words.length);
+          }, 1100);
         }
-
-        charIndex = Math.max(0, charIndex - 1);
-        setAnimatedPlaceholder(word.slice(0, charIndex));
-        if (charIndex === 0) {
-          direction = "forward";
-          wordIndex = (wordIndex + 1) % words.length;
-          timeoutId = window.setTimeout(tick, 250);
-          return;
-        }
-        timeoutId = window.setTimeout(tick, 80);
       };
 
-      tick();
+      typeNext();
       return () => {
         active = false;
         window.clearTimeout(timeoutId);
       };
-    }, [isVisible]);
+    }, [demoWordIndex, isVisible, typingPaused, value]);
 
     return (
-      <div ref={rootRef} className={className}>
+      <label ref={rootRef} className={`relative block ${className ?? ""}`}>
+        <svg
+          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-400"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-5-5" />
+        </svg>
+
+        {!value && !typingPaused && (
+          <div className="pointer-events-none absolute left-9 top-1/2 -translate-y-1/2 text-xs sm:text-sm text-blue-400 flex items-center gap-1">
+            <span className="max-w-[220px] truncate uppercase tracking-[0.2em]">
+              {animatedPlaceholder || "АВТО"}
+            </span>
+            <span className="h-4 w-[2px] bg-blue-400 animate-pulse" />
+          </div>
+        )}
+
         <input
           type="text"
-          placeholder={animatedPlaceholder}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full pl-3 pr-9 py-1.5 sm:py-2 rounded-lg border border-slate-200 bg-slate-100/80 text-xs sm:text-sm text-slate-800 font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 focus:outline-none transition"
+          value={value}
+          onChange={(e) => {
+            const next = e.target.value;
+            setValue(next);
+            onChange(next);
+          }}
+          onFocus={() => {
+            setTypingPaused(true);
+            setAnimatedPlaceholder("");
+            setValue("");
+            onChange("");
+          }}
+          onBlur={() => setTypingPaused(false)}
+          placeholder=" "
           autoComplete="off"
           spellCheck={false}
+          className="w-full rounded-xl border border-blue-200 bg-white/90 px-9 py-2 text-xs sm:text-sm font-semibold text-gray-700 placeholder:text-transparent shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition select-text"
+          aria-label="\u041f\u043e\u0448\u0443\u043a \u043c\u0430\u0440\u043a\u0438"
         />
-        <button
-          type="button"
-          className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors duration-300"
-          aria-label="\u041f\u043e\u0448\u0443\u043a"
-        >
-          <svg
-            className="w-3.5 h-3.5 mx-auto"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2.2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            viewBox="0 0 24 24"
+
+        {value && (
+          <button
+            type="button"
+            onClick={() => {
+              setValue("");
+              onChange("");
+            }}
+            aria-label="\u041e\u0447\u0438\u0441\u0442\u0438\u0442\u0438 \u043f\u043e\u0448\u0443\u043a"
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-white text-blue-500 border border-blue-100 shadow-sm hover:bg-blue-50 transition"
           >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-5-5" />
-          </svg>
-        </button>
-      </div>
+            <svg
+              className="h-3.5 w-3.5 mx-auto"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        )}
+      </label>
     );
   }
 );
 
 AutoBrandSearchInput.displayName = "AutoBrandSearchInput";
-
-const MotionSection = motion.section;
 
 const AutoSection: React.FC<AutoProps> = ({
   selectedCars = [],
@@ -179,13 +211,14 @@ const AutoSection: React.FC<AutoProps> = ({
   initialSelection = null,
   onSelectionChange,
   onVinSelect,
+  selectedVin: selectedVinProp = null,
   compact = false,
   variant = "default",
   showSummary = true,
 }) => {
+  const shouldReduceMotion = useReducedMotion() ?? false;
   const isCompact = Boolean(compact);
   const isFilterVariant = variant === "filter";
-  const shouldReduceMotion = useReducedMotion() ?? false;
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBrand, setSelectedBrand] = useState<CarBrand | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -195,7 +228,9 @@ const AutoSection: React.FC<AutoProps> = ({
   const [selectedCarLabel, setSelectedCarLabel] = useState<string | null>(null);
   const [profileVins, setProfileVins] = useState<string[]>([]);
   const [vinLoading, setVinLoading] = useState(false);
-  const [selectedVin, setSelectedVin] = useState<string>("");
+  const [selectedVin, setSelectedVin] = useState<string>(() =>
+    typeof selectedVinProp === "string" ? selectedVinProp.trim() : ""
+  );
   const [activeTab, setActiveTab] = useState<"brand" | "model" | "engine">(
     "brand"
   );
@@ -209,7 +244,7 @@ const AutoSection: React.FC<AutoProps> = ({
 
   const debouncedSetSearchTerm = useMemo(
     () => debounce((value: string) => setSearchTerm(value), 250),
-    []
+    [setSearchTerm]
   );
 
   const handleSearchChange = useCallback(
@@ -255,6 +290,13 @@ const AutoSection: React.FC<AutoProps> = ({
     setActiveTab("engine");
     selectionHydratedRef.current = incomingLabel ?? "__loaded__";
   }, [initialSelection]);
+
+  useEffect(() => {
+    if (selectedVinProp === undefined) return;
+    const nextVin =
+      typeof selectedVinProp === "string" ? selectedVinProp.trim() : "";
+    setSelectedVin((prev) => (prev === nextVin ? prev : nextVin));
+  }, [selectedVinProp]);
 
   useEffect(() => {
     const auth = getAuth();
@@ -319,7 +361,7 @@ const AutoSection: React.FC<AutoProps> = ({
     );
   }, [searchTerm]);
 
-  const brandsPerPage = 9;
+  const brandsPerPage = 8;
   const [brandPage, setBrandPage] = useState(0);
   const totalBrandPages = Math.max(
     1,
@@ -365,42 +407,6 @@ const AutoSection: React.FC<AutoProps> = ({
     },
     [selectedModel]
   );
-
-  const motionDuration = shouldReduceMotion ? 0 : 0.18;
-  const brandPageVariants = shouldReduceMotion
-    ? {
-        hidden: { opacity: 1, y: 0 },
-        visible: { opacity: 1, y: 0 },
-        exit: { opacity: 1, y: 0 },
-      }
-    : {
-        hidden: { opacity: 0, y: 8 },
-        visible: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: motionDuration, ease: "easeOut" },
-        },
-        exit: {
-          opacity: 0,
-          y: -8,
-          transition: { duration: 0.15, ease: "easeInOut" },
-        },
-      };
-
-  const brandItemVariants = shouldReduceMotion
-    ? {
-        hidden: { opacity: 1, y: 0, scale: 1 },
-        visible: { opacity: 1, y: 0, scale: 1 },
-      }
-    : {
-        hidden: { opacity: 0, y: 6, scale: 0.99 },
-        visible: {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          transition: { duration: motionDuration, ease: "easeOut" },
-        },
-      };
 
   const canGoPrev = safeBrandPage > 0;
   const canGoNext = safeBrandPage < totalBrandPages - 1;
@@ -538,10 +544,7 @@ const AutoSection: React.FC<AutoProps> = ({
   const showLeftPanel = !showSummaryTable;
 
   useEffect(() => {
-    if (vinRows.length === 0) {
-      setSelectedVin("");
-      return;
-    }
+    if (vinRows.length === 0) return;
     setSelectedVin((prev) => (prev && vinRows.includes(prev) ? prev : ""));
   }, [vinRows]);
 
@@ -551,12 +554,19 @@ const AutoSection: React.FC<AutoProps> = ({
 
   const handleSelectCar = useCallback(
     (carLabel: string) => {
-      lastSelectedLabelRef.current = carLabel;
-      setSelectedCarLabel(carLabel);
+      const normalized = carLabel.trim();
+      if (!normalized) return;
+      lastSelectedLabelRef.current = normalized;
+      setSelectedCarLabel(normalized);
       setSelectedVin("");
-      handleCarChange(carLabel);
+      const alreadySelected = selectedCars
+        .filter((item): item is string => typeof item === "string")
+        .some((item) => item.trim() === normalized);
+      if (!alreadySelected) {
+        handleCarChange(normalized);
+      }
     },
-    [handleCarChange]
+    [handleCarChange, selectedCars]
   );
 
   const handleSelectDetails = useCallback(
@@ -662,208 +672,203 @@ const AutoSection: React.FC<AutoProps> = ({
     resetToBrandIfEmpty();
   }, [resetToBrandIfEmpty, selectedCarRows, vinRows]);
 
+  const AUTO_BG_DARK = [
+    "radial-gradient(at 16% 18%, rgba(59,130,246,0.34), transparent 36%)",
+    "radial-gradient(at 84% 14%, rgba(37,99,235,0.28), transparent 34%)",
+    "radial-gradient(at 50% 84%, rgba(30,64,175,0.26), transparent 32%)",
+    "linear-gradient(135deg, rgba(224,236,255,0.97) 0%, rgba(198,219,248,0.95) 48%, rgba(174,202,240,0.96) 100%)",
+  ].join(", ");
+
+  const AUTO_BG_HOVER = [
+    "radial-gradient(at 18% 16%, rgba(37,99,235,0.44), transparent 34%)",
+    "radial-gradient(at 85% 14%, rgba(59,130,246,0.36), transparent 32%)",
+    "radial-gradient(at 52% 84%, rgba(30,64,175,0.34), transparent 30%)",
+    "linear-gradient(135deg, rgba(213,229,252,0.98) 0%, rgba(185,210,245,0.97) 46%, rgba(160,192,236,0.98) 100%)",
+  ].join(", ");
+
   return (
-    <MotionSection
-      initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
-      animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
-      transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3, ease: "easeOut" }}
-      style={{
-        backgroundImage: [
-          "radial-gradient(circle at 22% 24%, rgba(124,175,255,0.35), transparent 44%)",
-          "radial-gradient(circle at 78% 16%, rgba(167,210,255,0.32), transparent 48%)",
-          "radial-gradient(circle at 54% 78%, rgba(198,229,255,0.36), transparent 40%)",
-          "linear-gradient(0deg, rgba(244,249,255,0.96) 0%, rgba(226,240,255,0.9) 40%, rgba(207,232,255,0.78) 100%)",
-          "linear-gradient(120deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.18) 46%)",
-        ].join(", "),
-        backgroundSize: "210% 210%",
-        backgroundPosition: "50% 48%",
-        boxShadow: "0 18px 64px rgba(59,130,246,0.12), 0 14px 48px rgba(17,37,73,0.12)",
-        width: "100%",
-        marginLeft: 0,
-        marginRight: 0,
-        transformStyle: "preserve-3d",
-        transform: "translateZ(0)",
-        willChange: shouldReduceMotion ? "auto" : "transform, opacity",
-        contentVisibility: "auto",
-        containIntrinsicSize: "1px 940px",
-        contain: "paint",
-      } as React.CSSProperties}
-      className="group relative w-full px-4 pb-2 pt-4 sm:px-4 lg:px-6 font-[Montserrat] overflow-hidden rounded-none
-                 transform-gpu bg-gradient-to-br from-white/95 via-blue-50/70 to-blue-100/60 backdrop-blur-sm
-                 shadow-[0_18px_64px_rgba(59,130,246,0.14)]
-                 transition-shadow duration-500 hover:shadow-[0_26px_84px_rgba(59,130,246,0.2)] hover:saturate-[1.03] select-none [&_input]:select-text [&_textarea]:select-text"
-    >
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-16 -top-10 h-64 w-64 rounded-full bg-white/35 blur-[80px]" />
-        <div className="absolute right-[-20%] bottom-[-22%] h-96 w-96 rounded-full bg-blue-200/40 blur-[110px]" />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/18 via-white/6 to-white/14" />
+    <div className="group/auto relative w-full select-none">
+      <div className="relative isolate overflow-hidden rounded-none border border-white/10 shadow-[0_22px_70px_rgba(15,23,42,0.35)] transition duration-700 ease-out group-hover/auto:shadow-[0_30px_96px_rgba(30,64,175,0.34)]">
         <div
-          className="absolute inset-0 opacity-0 transition-opacity duration-700 group-hover:opacity-70"
+          aria-hidden
+          className="pointer-events-none absolute inset-0 transition-opacity duration-700 ease-out"
           style={{
-            background: [
-              "radial-gradient(circle at 28% 28%, rgba(88,163,255,0.22), transparent 38%)",
-              "radial-gradient(circle at 76% 68%, rgba(0,207,255,0.18), transparent 40%)",
-            ].join(", "),
+            backgroundImage: AUTO_BG_DARK,
+            backgroundSize: "220% 220%",
+            backgroundPosition: "50% 50%",
           }}
         />
-        <div className="absolute -inset-x-6 top-8 h-40 rotate-2 bg-gradient-to-r from-blue-500/12 via-cyan-400/10 to-sky-500/10 blur-2xl transition duration-700 group-hover:opacity-90 group-hover:saturate-125" />
-      </div>
-      <div
-        className={`relative z-10 mx-auto w-full max-w-[1400px] grid ${
-          showLeftPanel && !(isFilterVariant && isCompact)
-            ? "grid-cols-1 lg:grid-cols-[1.45fr_0.95fr]"
-            : "grid-cols-1"
-        } items-stretch gap-0`}
-      >
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute inset-0 ${
+            shouldReduceMotion
+              ? "opacity-0"
+              : "opacity-0 transition-opacity duration-500 ease-out group-hover/auto:opacity-100"
+          }`}
+          style={{
+            backgroundImage: AUTO_BG_HOVER,
+            backgroundSize: "220% 220%",
+            backgroundPosition: "52% 48%",
+          }}
+        />
+        {!shouldReduceMotion && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -left-[8%] -top-[12%] hidden h-[300px] w-[300px] rounded-full bg-[radial-gradient(circle,rgba(30,64,175,0.3)_0%,rgba(30,64,175,0)_70%)] blur-[60px] opacity-55 transition-transform duration-500 ease-out group-hover/auto:-translate-y-1 group-hover/auto:translate-x-1 group-hover/auto:scale-105 md:block"
+          />
+        )}
+        {!shouldReduceMotion && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-[10%] -bottom-[20%] hidden h-[320px] w-[320px] rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.26)_0%,rgba(59,130,246,0)_72%)] blur-[70px] opacity-50 transition-transform duration-500 ease-out group-hover/auto:translate-y-1 group-hover/auto:-translate-x-1 group-hover/auto:scale-105 md:block"
+          />
+        )}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(112deg,rgba(255,255,255,0.18)_0%,rgba(255,255,255,0.03)_38%,rgba(30,64,175,0.14)_100%)] opacity-85 transition-all duration-700 ease-out group-hover/auto:opacity-100"
+        />
+        {!shouldReduceMotion && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-[-34%] left-[-24%] w-[52%] rotate-[15deg] bg-gradient-to-br from-white/0 via-white/22 to-white/0 opacity-0 blur-[2px] transition-all duration-500 ease-out group-hover/auto:translate-x-[16%] group-hover/auto:opacity-75"
+          />
+        )}
+        <div
+          className={`relative mx-auto grid w-full max-w-[1400px] ${
+            showLeftPanel && !(isFilterVariant && isCompact)
+              ? "grid-cols-1 lg:grid-cols-[1.45fr_0.95fr]"
+              : "grid-cols-1"
+          } items-stretch gap-6 px-4 pb-4 pt-4 sm:px-5 lg:px-7 font-[Montserrat]`}
+        >
         {showLeftPanel && (
           <div className="min-w-0">
             <AnimatePresence mode="wait">
               {!selectedBrand ? (
-                <motion.div
-                  key="brands"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="relative h-full"
-                >
-                  <div className="flex flex-col gap-3 px-1">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div className="flex items-center gap-2 rounded-2xl border border-blue-100 bg-white/80 px-3 py-2 shadow-[0_10px_30px_rgba(59,130,246,0.12)]">
-                        <span className="rounded-full border border-blue-200 bg-blue-50/80 px-3 py-1 text-[11px] font-semibold text-blue-700">
-                          {filteredBrands.length} {"\u043c\u0430\u0440\u043e\u043a"}
-                        </span>
-                        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
+                <div className="relative h-full">
+                  <div className="flex flex-col gap-3 group/brands">
+                    <div className="flex flex-wrap items-center gap-3 w-full sm:flex-nowrap sm:items-center sm:justify-between group/brands">
+                      <div className="order-1 w-full sm:w-auto flex items-center gap-3 sm:gap-4 group hover:[&_span[data-underline]]:scale-x-100 group-hover/brands:[&_span[data-underline]]:scale-x-100 group-hover/logogrid:[&_span[data-underline]]:scale-x-100">
+                        <h3 className="text-xl font-semibold tracking-tight text-slate-700 relative inline-block drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)]">
+                          <span className="relative inline-flex items-center">
+                            {"\u0412\u0438\u0431\u0456\u0440 \u0456\u0437"} {filteredBrands.length} {"\u043c\u0430\u0440\u043e\u043a \u0430\u0432\u0442\u043e\u043c\u043e\u0431\u0456\u043b\u0456\u0432"}
+                              <span
+                                data-underline
+                              className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-400 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 group-hover/brands:scale-x-100 hover:scale-x-100 shadow-[0_4px_12px_rgba(59,130,246,0.28)]"
+                            />
+                          </span>
+                        </h3>
+                      </div>
+
+                      <AutoBrandSearchInput
+                        className="order-2 relative min-w-0 flex-1 sm:w-[200px] sm:mx-auto sm:flex-none"
+                        onChange={handleSearchChange}
+                      />
+
+                      <div className="order-2 shrink-0 max-w-full overflow-x-auto no-scrollbar sm:mr-3">
+                        <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
                           <button
                             type="button"
                             onClick={handlePrevPage}
                             disabled={!canGoPrev}
-                            className={`h-7 w-7 rounded-md border transition-transform duration-300 ${
-                              canGoPrev
-                                ? "border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:-translate-y-0.5 hover:shadow-sm"
-                                : "border-slate-200/60 bg-slate-100/60 text-slate-400 cursor-not-allowed"
-                            }`}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
                             aria-label="\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
                           >
-                            <svg
-                              className="h-3.5 w-3.5 mx-auto"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="m15 18-6-6 6-6" />
-                            </svg>
+                            <ChevronLeft size={12} />
                           </button>
-                          <span className="rounded-md bg-gradient-to-r from-slate-50 to-blue-50 px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-inner shadow-white/40">
-                            {safeBrandPage + 1}/{totalBrandPages}
-                          </span>
+
+                          <div className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-1.5 py-0 text-[9px] font-semibold text-slate-600 shadow-inner">
+                            <span>{safeBrandPage + 1}</span>
+                            <span className="text-slate-400">/</span>
+                            <span>{totalBrandPages}</span>
+                          </div>
+
                           <button
                             type="button"
                             onClick={handleNextPage}
                             disabled={!canGoNext}
-                            className={`h-7 w-7 rounded-md border transition-transform duration-300 ${
-                              canGoNext
-                                ? "border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:-translate-y-0.5 hover:shadow-sm"
-                                : "border-slate-200/60 bg-slate-100/60 text-slate-400 cursor-not-allowed"
-                            }`}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
                             aria-label="\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0430 \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
                           >
-                            <svg
-                              className="h-3.5 w-3.5 mx-auto"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="m9 6 6 6-6 6" />
-                            </svg>
+                            <ChevronRight size={12} />
                           </button>
                         </div>
                       </div>
-
-                      <AutoBrandSearchInput
-                        className="relative w-full sm:w-auto sm:min-w-[220px]"
-                        onChange={handleSearchChange}
-                      />
                     </div>
                   </div>
 
-                    {filteredBrands.length === 0 ? (
-                      <div className="mt-8 text-center text-sm text-slate-600">
-                        {"\u0417\u0430 \u0446\u0438\u043c \u0437\u0430\u043f\u0438\u0442\u043e\u043c \u043c\u0430\u0440\u043e\u043a \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e."}
-                      </div>
+                  {filteredBrands.length === 0 ? (
+                    <div className="mt-8 text-center text-sm text-slate-600">
+                      {"\u0417\u0430 \u0446\u0438\u043c \u0437\u0430\u043f\u0438\u0442\u043e\u043c \u043c\u0430\u0440\u043e\u043a \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e."}
+                    </div>
                     ) : (
-                      <div className="mt-3 flex flex-col gap-2 pb-6">
-                        <div className="mt-1">
-                          <AnimatePresence mode="wait" initial={false}>
-                            <motion.div
-                              key={`${safeBrandPage}-${filteredBrands.length}`}
-                              variants={brandPageVariants}
-                              initial="hidden"
-                              animate="visible"
-                              exit="exit"
-                              className="grid grid-cols-3 grid-rows-3 gap-2 sm:gap-3"
-                            >
-                              {pagedBrands.map((brand) => (
-                                <motion.button
-                                  key={brand.id}
-                                  onClick={() => {
-                                    if (isSwiping.current) return;
-                                    setSelectedBrand(brand);
-                                    setSelectedModel(null);
-                                    setSelectedYear(null);
-                                    setSelectedModDetails(null);
-                                    setSelectedCarLabel(null);
-                                    lastSelectedLabelRef.current = null;
-                                    setActiveTab("model");
-                                  }}
-                                  className={`group relative border border-slate-200 bg-slate-50/90 px-2.5 flex flex-col items-center justify-center gap-2 overflow-hidden transition-all duration-400 ease-out hover:border-blue-300 hover:bg-gradient-to-br hover:from-white hover:via-blue-50 hover:to-sky-50 hover:shadow-2xl hover:shadow-blue-200/70 ${
-                                    isCompact
-                                      ? "rounded-lg py-2.5 min-h-[86px]"
-                                      : "rounded-xl py-3.5 min-h-[104px]"
-                                  }`}
-                                  variants={brandItemVariants}
-                                  whileHover={shouldReduceMotion ? { scale: 1.01 } : { scale: 1.02 }}
-                                  whileTap={{ scale: 0.98 }}
-                                  aria-label={`\u041e\u0431\u0440\u0430\u0442\u0438 ${brand.name}`}
-                                >
-                                  <div className="flex w-full items-center justify-center">
-                                    <Image
-                                      src={brand.logo}
-                                      alt={`${brand.name} logo`}
-                                      width={120}
-                                      height={60}
-                                      quality={100}
-                                      draggable={false}
-                                      className="h-10 w-auto object-contain drop-shadow-sm"
-                                      style={{ imageRendering: "auto" }}
-                                      sizes="(max-width: 640px) 88px, (max-width: 1024px) 96px, 120px"
-                                    />
-                                  </div>
-                                  <span className="text-[11px] font-semibold text-slate-700 text-center uppercase tracking-wide">
-                                    {brand.name}
-                                  </span>
-                                </motion.button>
-                              ))}
-                            </motion.div>
-                          </AnimatePresence>
-                        </div>
+                    <div
+                      key={`${safeBrandPage}-${filteredBrands.length}`}
+                      className="group/logogrid mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 place-items-stretch group-hover/brands:[&_span[data-underline]]:scale-x-100 group-hover/logogrid:[&_span[data-underline]]:scale-x-100"
+                      onTouchStart={handleTouchStart}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                      onWheel={handleWheel}
+                    >
+                        {pagedBrands.map((brand) => (
+                          <button
+                            key={brand.id}
+                            type="button"
+                            onClick={() => {
+                              if (isSwiping.current) return;
+                              setSelectedBrand(brand);
+                              setSelectedModel(null);
+                              setSelectedYear(null);
+                              setSelectedModDetails(null);
+                              setSelectedCarLabel(null);
+                              lastSelectedLabelRef.current = null;
+                              setActiveTab("model");
+                            }}
+                            className={`group relative isolate flex w-full flex-col items-center justify-center gap-3 overflow-hidden bg-white/94 px-3 sm:px-3.5 shadow-[0_14px_34px_rgba(15,23,42,0.12)] border border-slate-100/80 ring-1 ring-transparent transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[6px] hover:shadow-[0_28px_70px_rgba(59,130,246,0.22),0_12px_32px_rgba(14,165,233,0.18)] hover:ring-2 hover:ring-sky-200/90 hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-0 ${
+                              isCompact
+                                ? "rounded-[16px] py-2.5 min-h-[94px]"
+                                : "rounded-xl py-3.5 min-h-[108px]"
+                            }`}
+                            aria-label={`\u041e\u0431\u0440\u0430\u0442\u0438 ${brand.name}`}
+                          >
+                            <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
+                            <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
+                            <span className="pointer-events-none absolute -right-12 -top-16 h-28 w-28 rounded-full bg-sky-200/26 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[6px] group-hover:-translate-y-[6px]" />
+                            <span className="pointer-events-none absolute -left-14 -bottom-16 h-32 w-32 rounded-full bg-cyan-200/22 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-x-[4px] group-hover:translate-y-[4px]" />
+                            <span className="pointer-events-none absolute inset-y-[-30%] left-[-28%] w-[58%] rotate-[16deg] bg-gradient-to-br from-white/0 via-white/28 to-white/0 opacity-0 blur-[2px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[18%] group-hover:opacity-80" />
 
+                          <div className="relative flex h-[82px] w-[82px] items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.07] group-active:scale-[0.99]">
+                              <Image
+                                src={brand.logo}
+                                alt={`${brand.name} logo`}
+                                width={320}
+                                height={200}
+                                quality={100}
+                                draggable={false}
+                              className="h-[66px] w-auto object-contain drop-shadow-[0_14px_22px_rgba(15,23,42,0.2)]"
+                                style={{ imageRendering: "auto" }}
+                                sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 240px"
+                              />
+                            </div>
+
+                          <span className="relative block w-full max-w-full truncate whitespace-nowrap text-[10px] sm:text-[11px] font-bold italic text-slate-800 text-center uppercase tracking-[0.08em] drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)] transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800">
+                            {brand.name}
+                          </span>
+                          </button>
+                        ))}
                       </div>
-                    )}
-                </motion.div>
+                  )}
+                </div>
               ) : activeTab === "engine" ? (
                 <motion.div
                   key="engines"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.3 }}
+                  initial={shouldReduceMotion ? false : { opacity: 0, x: 14 }}
+                  animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
+                  exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -14 }}
+                  transition={
+                    shouldReduceMotion
+                      ? { duration: 0 }
+                      : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
+                  }
                 >
                   <CarModifications
                     selectedBrand={selectedBrand.name}
@@ -879,10 +884,14 @@ const AutoSection: React.FC<AutoProps> = ({
               ) : (
                 <motion.div
                   key="models"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.3 }}
+                  initial={shouldReduceMotion ? false : { opacity: 0, x: 14 }}
+                  animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
+                  exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -14 }}
+                  transition={
+                    shouldReduceMotion
+                      ? { duration: 0 }
+                      : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
+                  }
                 >
                   <CarModels
                     selectedBrand={selectedBrand.name}
@@ -908,26 +917,53 @@ const AutoSection: React.FC<AutoProps> = ({
         )}
 
           <div
-            className={`w-full h-full flex flex-col gap-4 ${
-              isCompact ? "px-3 sm:px-4 py-4" : "px-4 sm:px-5 py-5"
+            className={`group/right-panel relative w-full h-full overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-[0_18px_46px_rgba(59,130,246,0.12),0_6px_18px_rgba(14,165,233,0.08)] backdrop-blur-md ${
+              isCompact ? "px-0 sm:px-0 py-0" : "px-0 sm:px-0 py-0"
             }`}
           >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/92 via-sky-50/78 to-blue-50/70"
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-white/80 to-transparent"
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -left-14 top-6 h-28 w-28 rounded-full bg-sky-200/28 blur-3xl"
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute right-[-18%] bottom-[-8%] h-36 w-36 rounded-full bg-blue-200/24 blur-[80px]"
+            />
+
+            <div
+              className={`relative flex flex-col gap-4 ${
+                isCompact ? "px-3 sm:px-4 py-4" : "px-4 sm:px-5 py-5"
+              }`}
+            >
           {showSummaryTable ? (
-            <div className="flex flex-col gap-3">
-              <div className="px-1 text-sm italic font-semibold text-slate-600 sm:text-base">
-                {"Автомобілі"}
+            <>
+              <div className="flex items-center gap-3 px-1">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shadow-inner">
+                  <Car size={16} strokeWidth={2.1} aria-hidden />
+                </div>
+                <div className="text-sm italic font-semibold text-slate-600 sm:text-base">
+                  {"Автомобілі"}
+                </div>
               </div>
               {showVinTable ? (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1 rounded-md bg-white/60 p-2">
-                    <div className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-widest text-slate-600 font-semibold">
-                      <span className="flex items-center gap-2">
+                  <div className="min-w-0 flex flex-col gap-1 rounded-md p-2">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-slate-600">
+                      <span className="min-w-0 flex items-center gap-2">
                         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700">
                           <Car className="h-3.5 w-3.5" strokeWidth={2} />
                         </span>
                         {"Обрані авто"}
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
                         {selectedCarRows.length > 0 && (
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                             {selectedCarRows.length}
@@ -936,7 +972,7 @@ const AutoSection: React.FC<AutoProps> = ({
                         <button
                           type="button"
                           onClick={handleAddAnotherCar}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-100/70 px-3 py-1.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-200/80 transition"
+                          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-blue-200 bg-blue-100/70 px-2.5 py-1 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-200/80 sm:px-3 sm:py-1.5 sm:text-[11px]"
                         >
                           <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
                           {"Додати авто"}
@@ -966,7 +1002,7 @@ const AutoSection: React.FC<AutoProps> = ({
                                 lastSelectedLabelRef.current = car;
                                 setSelectedVin("");
                               }}
-                              className={`flex cursor-pointer items-center justify-between gap-2 px-2.5 py-2 text-left transition ${
+                              className={`flex min-w-0 cursor-pointer items-center justify-between gap-2 px-2.5 py-2 text-left transition ${
                                 isActive
                                   ? "bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]"
                                   : "hover:bg-gradient-to-r hover:from-blue-50 hover:via-sky-50 hover:to-white"
@@ -975,8 +1011,8 @@ const AutoSection: React.FC<AutoProps> = ({
                               role="button"
                               tabIndex={0}
                             >
-                              <span className="truncate font-semibold">{car}</span>
-                              <div className="flex items-center gap-2">
+                              <span className="min-w-0 flex-1 truncate font-semibold">{car}</span>
+                              <div className="shrink-0 flex items-center gap-2">
                                 {isActive && (
                                   <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                                     {"Обрано"}
@@ -1019,9 +1055,9 @@ const AutoSection: React.FC<AutoProps> = ({
                     )}
                   </div>
 
-                  <div className="flex flex-col gap-1 rounded-md bg-white/60 p-2">
-                    <div className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-widest text-slate-600 font-semibold">
-                      <span className="flex items-center gap-2">
+                  <div className="min-w-0 flex flex-col gap-1 rounded-md p-2">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-slate-600">
+                      <span className="min-w-0 flex items-center gap-2">
                         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
                           <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M4 5v14" />
@@ -1033,7 +1069,7 @@ const AutoSection: React.FC<AutoProps> = ({
                         </span>
                         {"Додані VIN"}
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
                         {vinLoading ? (
                           <span className="text-[9px] normal-case text-slate-500">
                             {"Завантаження..."}
@@ -1048,7 +1084,7 @@ const AutoSection: React.FC<AutoProps> = ({
                         <button
                           type="button"
                           onClick={handleOpenVinTab}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-100/70 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-200/80"
+                          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-emerald-200 bg-emerald-100/70 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-200/80 sm:px-3 sm:py-1.5 sm:text-[11px]"
                         >
                           <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
                           {"Додати VIN"}
@@ -1072,7 +1108,7 @@ const AutoSection: React.FC<AutoProps> = ({
                                 event.preventDefault();
                                 handleSelectVin(vin);
                               }}
-                              className={`flex w-full cursor-pointer items-center justify-between gap-2 px-2.5 py-2 text-left font-semibold transition ${
+                              className={`flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 px-2.5 py-2 text-left font-semibold transition ${
                                 isActive
                                   ? "bg-gradient-to-r from-emerald-500 via-emerald-400 to-sky-400 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]"
                                   : "hover:bg-gradient-to-r hover:from-emerald-50 hover:via-sky-50 hover:to-white"
@@ -1081,8 +1117,8 @@ const AutoSection: React.FC<AutoProps> = ({
                               role="button"
                               tabIndex={0}
                             >
-                              <span className="truncate">{vin}</span>
-                              <div className="flex items-center gap-2">
+                              <span className="min-w-0 flex-1 truncate">{vin}</span>
+                              <div className="shrink-0 flex items-center gap-2">
                                 {isActive ? (
                                   <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                                     {"Обрано"}
@@ -1130,163 +1166,149 @@ const AutoSection: React.FC<AutoProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="rounded-md bg-white/60 px-3 py-3 text-[12px] text-slate-400">
+                <div className="rounded-md px-3 py-3 text-[12px] text-slate-400">
                   {"Немає вибраних авто чи VIN"}
                 </div>
               )}
-            </div>
+            </>
           ) : (
             <>
-              <div className="relative overflow-hidden rounded-xl border border-blue-100/70 bg-gradient-to-r from-white via-blue-50/50 to-cyan-50/50 px-3 py-3 sm:px-4 sm:py-4 shadow-[0_16px_44px_rgba(59,130,246,0.12)]">
-                <div className="pointer-events-none absolute inset-0">
-                  <div className="absolute -left-8 -top-10 h-24 w-24 rounded-full bg-blue-200/26 blur-3xl" />
-                  <div className="absolute right-0 bottom-0 h-28 w-28 rounded-full bg-cyan-200/22 blur-3xl" />
-                  <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
+              <header className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 flex flex-1 items-center gap-3">
+                  <span className="h-9 w-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shadow-inner">
+                    <Car size={16} strokeWidth={2.1} aria-hidden />
+                  </span>
+                  <h3 className="min-w-0 flex-1 text-xl font-semibold tracking-tight text-slate-700 drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)]">
+                    <span className="relative inline-block max-w-full break-words">
+                      {"Оберіть ваше авто"}
+                      <span
+                        data-underline
+                        className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover/right-panel:scale-x-100"
+                      />
+                    </span>
+                  </h3>
                 </div>
-                <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3 sm:gap-4">
-                    <div className="relative">
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-200/12 via-sky-200/10 to-cyan-200/8 blur-lg" />
-                      <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-400 via-sky-200 to-cyan-100 text-white shadow-[0_8px_18px_rgba(59,130,246,0.14)] ring-1 ring-white/70 ring-offset-1 ring-offset-white">
-                        <Car className="h-4 w-4 drop-shadow-sm" strokeWidth={2} />
+
+                {selectedBrand && modelBrandLogo && (
+                  <div
+                    className={`relative flex items-center gap-2 overflow-hidden rounded-lg border border-blue-100/80 bg-gradient-to-r from-white/95 via-blue-50/50 to-white/92 backdrop-blur-sm shadow-[0_8px_18px_rgba(59,130,246,0.12)] ring-1 ring-white/70 sm:ml-auto ${
+                      isCompact ? "px-2 py-1.5" : "px-2.5 py-1.5"
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-y-1 left-1 w-1 rounded-full bg-gradient-to-b from-blue-500/35 via-sky-400/25 to-cyan-300/25 blur-[2px]"
+                    />
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-0 bg-gradient-to-r from-blue-50/60 via-white/65 to-sky-50/55"
+                    />
+                    <span
+                      className={`relative inline-flex items-center justify-center rounded-md border border-slate-200 bg-white/95 shadow-[0_8px_16px_rgba(15,23,42,0.12)] ring-1 ring-blue-100/60 ${
+                        isCompact ? "h-8 w-8" : "h-9 w-9"
+                      }`}
+                    >
+                      <Image
+                        src={modelBrandLogo}
+                        alt={modelBrandName ?? ""}
+                        width={36}
+                        height={36}
+                        className="h-6 w-6 object-contain"
+                        priority={false}
+                      />
+                    </span>
+                    <span className="relative inline-flex min-w-0 flex-col">
+                      <span className="text-[9px] uppercase tracking-[0.14em] text-slate-500">
+                        {"\u041c\u0430\u0440\u043a\u0430"}
                       </span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <h2
-                        className={`bg-gradient-to-r from-slate-900 via-blue-700 to-cyan-500 bg-clip-text text-transparent font-extrabold leading-tight drop-shadow-[0_2px_10px_rgba(59,130,246,0.18)] ${
-                          isCompact ? "text-base sm:text-lg" : "text-lg sm:text-xl"
-                        }`}
-                      >
-                        {"Вибір автомобіля"}
-                      </h2>
-                    </div>
+                      <span className="truncate text-[11px] font-semibold text-slate-800">
+                        {modelBrandName}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleStepClick("brand")}
+                      className={`relative ml-auto inline-flex items-center gap-1 rounded-md border border-blue-200/80 bg-gradient-to-r from-blue-500 via-sky-400 to-cyan-400 px-2 py-0.5 text-[9px] font-semibold text-white shadow-[0_5px_14px_rgba(59,130,246,0.26)] transition hover:brightness-110 hover:shadow-[0_8px_20px_rgba(59,130,246,0.34)] active:translate-y-[1px] ${
+                        isCompact ? "text-[8px]" : ""
+                      }`}
+                    >
+                      <RefreshCw className="h-3 w-3" strokeWidth={1.8} aria-hidden />
+                      {"\u0417\u043c\u0456\u043d\u0438\u0442\u0438"}
+                    </button>
                   </div>
+                )}
+              </header>
 
-                  <div className="flex flex-col items-start sm:items-end gap-2">
-                    {selectedBrand && modelBrandLogo && (
-                      <div
-                        className={`relative flex items-center gap-3 overflow-hidden rounded-xl border border-blue-100/80 bg-gradient-to-r from-white/95 via-blue-50/50 to-white/92 backdrop-blur-sm shadow-[0_12px_30px_rgba(59,130,246,0.12)] ring-1 ring-white/70 ${
-                          isCompact ? "px-3 py-2" : "px-4 py-2.5"
-                        }`}
-                      >
-                        <div className="pointer-events-none absolute inset-0">
-                          <div className="absolute inset-y-1 left-1 w-1 rounded-full bg-gradient-to-b from-blue-500/35 via-sky-400/25 to-cyan-300/25 blur-[2px]" />
-                          <div className="absolute inset-0 bg-gradient-to-r from-blue-50/60 via-white/65 to-sky-50/55" />
-                        </div>
-                        <span
-                          className={`relative inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white/95 shadow-[0_10px_24px_rgba(15,23,42,0.12)] ring-1 ring-blue-100/60 ${
-                            isCompact ? "h-10 w-10" : "h-11 w-11"
-                          }`}
-                        >
-                          <img
-                            src={modelBrandLogo}
-                            alt={modelBrandName ?? ""}
-                            className="h-8 w-8 object-contain"
-                            loading="lazy"
-                          />
-                        </span>
-                        <div className="relative flex flex-col">
-                          <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                            {"\u041c\u0430\u0440\u043a\u0430"}
-                          </span>
-                          <span className="text-xs font-semibold text-slate-800">
-                            {modelBrandName}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleStepClick("brand")}
-                          className={`relative ml-auto inline-flex items-center gap-1.5 rounded-md border border-blue-200/80 bg-gradient-to-r from-blue-500 via-sky-400 to-cyan-400 px-2.5 py-1 text-[10px] font-semibold text-white shadow-[0_6px_18px_rgba(59,130,246,0.28)] transition hover:brightness-110 hover:shadow-[0_10px_26px_rgba(59,130,246,0.38)] active:translate-y-[1px] ${
-                            isCompact ? "text-[9px]" : ""
-                          }`}
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden />
-                          {"\u0417\u043c\u0456\u043d\u0438\u0442\u0438"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+              <p
+                className={`max-w-2xl text-slate-600 leading-snug ${
+                  isCompact ? "text-[11px] sm:text-xs" : "text-xs sm:text-sm"
+                }`}
+              >
+                {activeStepInfo.description}
+              </p>
 
+              <nav aria-label="Кроки підбору авто" className="grid gap-2 sm:grid-cols-3">
+                {steps.map((step, index) => {
+                  const isActive = activeTab === step.id;
+                  const isEnabled = step.enabled;
+                  const value = stepValues[step.id];
+                  return (
+                    <button
+                      key={step.id}
+                      type="button"
+                      onClick={() => handleStepClick(step.id)}
+                      disabled={!isEnabled}
+                      className={`group/step flex min-w-0 items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all ${
+                        isActive
+                          ? "border-cyan-300/90 bg-[linear-gradient(115deg,rgba(207,250,254,0.97)_0%,rgba(224,242,254,0.95)_52%,rgba(209,250,229,0.92)_100%)] text-cyan-800 shadow-[0_14px_30px_rgba(6,182,212,0.28)] ring-1 ring-cyan-200/80"
+                          : "border-sky-100/95 bg-[linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] text-slate-600 shadow-[0_8px_18px_rgba(8,145,178,0.12)] hover:border-cyan-300/80 hover:shadow-[0_14px_28px_rgba(6,182,212,0.2)] hover:ring-1 hover:ring-cyan-200/80"
+                      } ${!isEnabled ? "cursor-not-allowed opacity-40 hover:border-sky-100/95 hover:shadow-[0_8px_18px_rgba(8,145,178,0.12)] hover:ring-0" : ""}`}
+                    >
+                      <span className="flex h-5 w-5 items-center justify-center rounded-md border border-current text-[10px]">
+                        {index + 1}
+                      </span>
+                      <span className="flex min-w-0 flex-col items-start leading-tight">
+                        <span>{step.label}</span>
+                        {value ? (
+                          <span
+                            className={`break-words text-[10px] font-medium ${
+                              isActive ? "text-cyan-700" : "text-slate-500"
+                            }`}
+                          >
+                            {value}
+                          </span>
+                        ) : null}
+                      </span>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              <div
+                className={`rounded-2xl border border-sky-100/90 bg-[linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] shadow-[0_8px_18px_rgba(8,145,178,0.14)] ${
+                  isCompact ? "px-3 py-2.5" : "px-5 py-4"
+                }`}
+              >
                 <p
-                  className={`relative mt-3 max-w-2xl text-slate-600 leading-snug ${
-                    isCompact ? "text-[11px] sm:text-xs" : "text-xs sm:text-sm"
+                  className={`font-semibold text-slate-700 ${
+                    isCompact ? "text-xs" : "text-sm"
                   }`}
                 >
-                  {activeStepInfo.description}
+                  {"\u041d\u0435 \u0437\u043d\u0430\u0439\u0448\u043b\u0438 \u0430\u0432\u0442\u043e \u0443 \u0441\u043f\u0438\u0441\u043a\u0443?"}
                 </p>
-              </div>
-
-              <div
-                className={`rounded-2xl border border-blue-100 bg-white/80 backdrop-blur-sm flex flex-col gap-3 shadow-[0_16px_48px_rgba(59,130,246,0.12)] ${
-                  isCompact ? "px-3 py-2.5" : "px-5 py-4"
-                }`}
-              >
-                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
-                  {steps.map((step, index) => {
-                    const isActive = activeTab === step.id;
-                    const isEnabled = step.enabled;
-                    const value = stepValues[step.id];
-                    return (
-                      <button
-                        key={step.id}
-                        type="button"
-                        onClick={() => handleStepClick(step.id)}
-                        disabled={!isEnabled}
-                        className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all ${
-                          isActive
-                            ? "border-blue-300 bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-500 text-white shadow-[0_12px_28px_rgba(59,130,246,0.22)]"
-                            : "border-blue-100 bg-white/80 text-slate-600 hover:border-blue-200 hover:bg-blue-50/60 hover:text-blue-700"
-                        } ${!isEnabled ? "opacity-40 cursor-not-allowed hover:text-slate-600 hover:bg-white/80" : ""}`}
-                      >
-                        <span className="h-5 w-5 rounded-md border border-current flex items-center justify-center text-[10px]">
-                          {index + 1}
-                        </span>
-                        <span className="flex min-w-0 flex-col items-start leading-tight">
-                          <span>{step.label}</span>
-                          {value ? (
-                            <span
-                              className={`break-words text-[10px] font-medium ${
-                                isActive ? "text-blue-100" : "text-slate-500"
-                              }`}
-                            >
-                              {value}
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-              </div>
-              <div
-                className={`rounded-2xl border border-blue-100 bg-white/85 backdrop-blur-sm shadow-[0_14px_44px_rgba(59,130,246,0.12)] ${
-                  isCompact ? "px-3 py-2.5" : "px-5 py-4"
-                }`}
-              >
-                <div className="flex flex-col gap-1">
-                  <p
-                    className={`font-semibold text-slate-700 ${
-                      isCompact ? "text-xs" : "text-sm"
-                    }`}
-                  >
-                    {"\u041d\u0435 \u0437\u043d\u0430\u0439\u0448\u043b\u0438 \u0430\u0432\u0442\u043e \u0443 \u0441\u043f\u0438\u0441\u043a\u0443?"}
-                  </p>
-                  <p
-                    className={`text-slate-500 ${
-                      isCompact ? "text-[11px]" : "text-xs"
-                    }`}
-                  >
-                    {"\u0414\u043e\u0434\u0430\u0439\u0442\u0435 VIN \u0430\u0431\u043e \u043d\u0430\u043f\u0438\u0448\u0456\u0442\u044c \u043d\u0430\u043c, \u0456 \u043c\u0438 \u0434\u043e\u043f\u043e\u043c\u043e\u0436\u0435\u043c\u043e."}
-                  </p>
-                </div>
+                <p
+                  className={`mt-1 text-slate-500 ${
+                    isCompact ? "text-[11px]" : "text-xs"
+                  }`}
+                >
+                  {"\u0414\u043e\u0434\u0430\u0439\u0442\u0435 VIN \u0430\u0431\u043e \u043d\u0430\u043f\u0438\u0448\u0456\u0442\u044c \u043d\u0430\u043c, \u0456 \u043c\u0438 \u0434\u043e\u043f\u043e\u043c\u043e\u0436\u0435\u043c\u043e."}
+                </p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <button
                     type="button"
                     onClick={handleOpenVinTab}
-                    className={`w-full rounded-lg border border-emerald-200 bg-emerald-100/70 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-200/80 ${
-                      isCompact ? "text-[11px] py-2" : ""
+                    className={`w-full rounded-lg border border-emerald-300/80 bg-[linear-gradient(120deg,rgba(209,250,229,0.95)_0%,rgba(220,252,231,0.92)_48%,rgba(187,247,208,0.9)_100%)] px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-[0_10px_20px_rgba(16,185,129,0.16)] transition hover:brightness-105 hover:shadow-[0_14px_26px_rgba(16,185,129,0.24)] ${
+                      isCompact ? "py-2 text-[11px]" : ""
                     }`}
                   >
                     {"\u0414\u043e\u0434\u0430\u0442\u0438 VIN \u0443 \u043f\u0440\u043e\u0444\u0456\u043b\u044c"}
@@ -1294,8 +1316,8 @@ const AutoSection: React.FC<AutoProps> = ({
                   <button
                     type="button"
                     onClick={handleMissingCar}
-                    className={`w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 ${
-                      isCompact ? "text-[11px] py-2" : ""
+                    className={`w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-[0_8px_16px_rgba(15,23,42,0.08)] transition hover:bg-slate-100 hover:shadow-[0_10px_20px_rgba(15,23,42,0.12)] ${
+                      isCompact ? "py-2 text-[11px]" : ""
                     }`}
                   >
                     {"\u041d\u0435\u043c\u0430\u0454 \u043c\u043e\u0433\u043e \u0430\u0432\u0442\u043e\u043c\u043e\u0431\u0456\u043b\u044f"}
@@ -1305,8 +1327,10 @@ const AutoSection: React.FC<AutoProps> = ({
             </>
           )}
           </div>
+        </div>
       </div>
-    </MotionSection>
+    </div>
+  </div>
   );
 };
 

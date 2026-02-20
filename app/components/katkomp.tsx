@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ProductNode } from "app/components/FlipCard";
@@ -10,6 +10,7 @@ interface CategoryProps {
   handleCategoryChange: (category: string) => void;
   searchTerm?: string;
   onSearchTermChange?: (value: string) => void;
+  resetViewSignal?: number;
 }
 
 interface SubgroupItem {
@@ -28,6 +29,54 @@ interface SearchResult {
 }
 
 let cachedProducts: ProductNode[] | null = null;
+const CACHE_KEY = "partson:getprod";
+const CACHE_TTL_MS = 1000 * 60 * 60 * 24;
+const STALE_CACHE_TTL_MS = 1000 * 60 * 60 * 72;
+
+type CachedProducts = { nodes: ProductNode[]; fresh: boolean; usable: boolean };
+
+const readCachedProducts = (): CachedProducts => {
+  if (typeof window === "undefined") return { nodes: [], fresh: false, usable: false };
+
+  const storages: (Storage | undefined)[] = [window.localStorage, window.sessionStorage];
+  for (const storage of storages) {
+    if (!storage) continue;
+    try {
+      const raw = storage.getItem(CACHE_KEY);
+      if (!raw) continue;
+      const parsed: unknown = JSON.parse(raw);
+      const record =
+        parsed && typeof parsed === "object" && "v" in (parsed as Record<string, unknown>)
+          ? (parsed as { t?: unknown; v?: unknown })
+          : { v: parsed, t: 0 };
+
+      const ts = typeof record.t === "number" ? record.t : 0;
+      const age = Date.now() - ts;
+      const nodes = toProductNodes(record.v ?? null);
+      if (nodes.length === 0) continue;
+
+      const fresh = age <= CACHE_TTL_MS;
+      const usable = age <= STALE_CACHE_TTL_MS;
+      if (!usable) continue;
+      return { nodes, fresh, usable };
+    } catch {
+      continue;
+    }
+  }
+
+  return { nodes: [], fresh: false, usable: false };
+};
+
+const writeCachedProducts = (value: unknown) => {
+  if (typeof window === "undefined") return;
+  const payload = JSON.stringify({ t: Date.now(), v: value });
+  try {
+    window.sessionStorage.setItem(CACHE_KEY, payload);
+  } catch {}
+  try {
+    window.localStorage.setItem(CACHE_KEY, payload);
+  } catch {}
+};
 
 const NAME_KEYS = [
   "\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435",
@@ -40,20 +89,28 @@ const CHILD_KEYS = [
   "children",
 ] as const;
 const normalizeLabel = (value: string) => value.trim();
+const normalizeCategoryKey = (value: string) =>
+  normalizeLabel(value).toLowerCase().replace(/\s+/g, " ");
 const normalizeNodeName = (node?: ProductNode | null) => {
   const rawName = typeof node?.name === "string" ? node.name : "";
   return normalizeLabel(rawName) || "\u0411\u0435\u0437 \u0433\u0440\u0443\u043f\u0438";
 };
 const categoryIconMap = new Map<string, string>();
 const addCategoryIcon = (label: string, icon: string) => {
-  categoryIconMap.set(label, icon);
-  categoryIconMap.set(
-    label.replace(/[\u0456\u0457\u0454\u0491\u0406\u0407\u0404\u0490]/g, "?"),
-    icon
+  const safeLabel = label.replace(
+    /[\u0456\u0457\u0454\u0491\u0406\u0407\u0404\u0490]/g,
+    "?"
   );
+  categoryIconMap.set(label, icon);
+  categoryIconMap.set(safeLabel, icon);
+  categoryIconMap.set(normalizeCategoryKey(label), icon);
+  categoryIconMap.set(normalizeCategoryKey(safeLabel), icon);
 };
-const getCategoryIcon = (label: string) =>
-  `/Katlogo/${categoryIconMap.get(label) || "rul.png"}`;
+const getCategoryIcon = (label: string) => {
+  const resolved =
+    categoryIconMap.get(label) ?? categoryIconMap.get(normalizeCategoryKey(label));
+  return `/Katlogo/${resolved || "rul.png"}`;
+};
 
 addCategoryIcon("\u041f\u0430\u043b\u0438\u0432\u043d\u0430 \u0441\u0438\u0441\u0442\u0435\u043c\u0430", "palivna_systema.png");
 addCategoryIcon("\u0413\u0430\u043b\u044c\u043c\u0456\u0432\u043d\u0430 \u0441\u0438\u0441\u0442\u0435\u043c\u0430", "halmivna_systema.png");
@@ -202,6 +259,7 @@ const Category: React.FC<CategoryProps> = ({
   handleCategoryChange,
   searchTerm: controlledSearchTerm,
   onSearchTermChange,
+  resetViewSignal,
 }) => {
   const [localSearchTerm, setLocalSearchTerm] = useState("");
   const searchTerm = controlledSearchTerm ?? localSearchTerm;
@@ -211,6 +269,9 @@ const Category: React.FC<CategoryProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const lastResetSignalRef = useRef<number | null>(null);
+  const [isGroupLoading, setIsGroupLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -220,10 +281,20 @@ const Category: React.FC<CategoryProps> = ({
       return;
     }
 
+    const cache = readCachedProducts();
+    if (cache.usable && cache.nodes.length > 0) {
+      cachedProducts = cache.nodes;
+      setTreeData(cache.nodes);
+      setLoading(false);
+      if (cache.fresh) {
+        return;
+      }
+    }
+
     let cancelled = false;
 
     const fetchData = async () => {
-      setLoading(true);
+      setLoading(!(cache.usable && cache.nodes.length > 0));
       setError(null);
 
       try {
@@ -236,6 +307,7 @@ const Category: React.FC<CategoryProps> = ({
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const raw = await response.json();
+        writeCachedProducts(raw);
         const transformed = transformData(raw);
         cachedProducts = transformed;
 
@@ -412,6 +484,34 @@ const Category: React.FC<CategoryProps> = ({
   }, [isSearchMode, searchQuery, treeData]);
 
   const step = activeGroup ? "subgroup" : activeCategory ? "group" : "category";
+
+  // Ensure list starts at top whenever user opens a new level.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step, activeCategory, activeGroup, isSearchMode]);
+
+  // Lightweight loader while switching category/group/subgroup to mask heavy filtering.
+  useEffect(() => {
+    setIsGroupLoading(true);
+    const id = window.setTimeout(() => setIsGroupLoading(false), 220);
+    return () => window.clearTimeout(id);
+  }, [step, activeCategory, activeGroup, isSearchMode]);
+
+  useEffect(() => {
+    if (resetViewSignal == null) return;
+    if (lastResetSignalRef.current == null) {
+      lastResetSignalRef.current = resetViewSignal;
+      return;
+    }
+    if (lastResetSignalRef.current === resetViewSignal) return;
+
+    lastResetSignalRef.current = resetViewSignal;
+    setActiveCategory(null);
+    setActiveGroup(null);
+    setSearchTerm("");
+  }, [resetViewSignal, setSearchTerm]);
 
   useEffect(() => {
     if (selectedCategories.length === 0) {
@@ -608,7 +708,10 @@ const Category: React.FC<CategoryProps> = ({
         </label>
       </div>
 
-      <div className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white">
+      <div
+        ref={listRef}
+        className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white"
+      >
         {loading && (
           <div className="py-6 text-center text-[11px] text-slate-400">
             <div className="loader mx-auto mb-2" />
@@ -622,7 +725,14 @@ const Category: React.FC<CategoryProps> = ({
           </div>
         )}
 
-        {!loading && !error && (
+        {!loading && !error && isGroupLoading && (
+          <div className="py-6 text-center text-[11px] text-slate-400">
+            <div className="loader mx-auto mb-2" />
+            {"Завантаження..."}
+          </div>
+        )}
+
+        {!loading && !error && !isGroupLoading && (
           <div className="p-2">
             {isSearchMode && (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">

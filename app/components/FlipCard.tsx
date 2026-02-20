@@ -13,24 +13,73 @@ export type ProductNode = {
 //
 // ICON MAP
 //
-const categoryIconMap: Record<string, string> = {
-  "Паливна система": "palivna_systema.png",
-  "Гальмівна система": "halmivna_systema.png",
-  "Деталі двигуна": "detali_dvyhuna.png",
-  "Деталі підвіски": "detali_pidvisky.png",
-  Амортизація: "amort.png",
-  "Деталі для ТО": "detali_dlia_to.png",
-  "Привід та коробка передач": "pryvid_ta_korobka_peredach.png",
-  "Система охолодження": "systema_okholodzhennia.png",
-  Освітлення: "osvitlennia.png",
-  Інше: "inshe.png",
-  Електроніка: "elektronika.png",
-  "Кузовні елементи": "kuzovni_elementy.png",
-  "Датчики та електроніка": "datchyky_ta_elektronika.png",
-  "Рідини та мастила": "ridyny_ta_mastyla.png",
+const normalizeLabel = (value: string) => value.trim();
+const LATIN_TO_CYR: Record<string, string> = {
+  A: "А",
+  a: "а",
+  B: "В",
+  b: "в",
+  C: "С",
+  c: "с",
+  E: "Е",
+  e: "е",
+  H: "Н",
+  h: "н",
+  I: "І",
+  i: "і",
+  K: "К",
+  k: "к",
+  M: "М",
+  m: "м",
+  O: "О",
+  o: "о",
+  P: "Р",
+  p: "р",
+  T: "Т",
+  t: "т",
+  X: "Х",
+  x: "х",
+  Y: "У",
+  y: "у",
+};
+const normalizeCategoryKey = (value: string) => {
+  const converted = normalizeLabel(value).replace(
+    /[ABCEHIKMOPTXYabcehikmoptxy]/g,
+    (char) => LATIN_TO_CYR[char] || char
+  );
+  return converted.toLowerCase().replace(/\s+/g, " ");
+};
+const categoryIconMap = new Map<string, string>();
+const addCategoryIcon = (label: string, icon: string) => {
+  const safeLabel = label.replace(
+    /[\u0456\u0457\u0454\u0491\u0406\u0407\u0404\u0490]/g,
+    "?"
+  );
+  categoryIconMap.set(label, icon);
+  categoryIconMap.set(safeLabel, icon);
+  categoryIconMap.set(normalizeCategoryKey(label), icon);
+  categoryIconMap.set(normalizeCategoryKey(safeLabel), icon);
+};
+const getIcon = (label: string) => {
+  const resolved =
+    categoryIconMap.get(label) ?? categoryIconMap.get(normalizeCategoryKey(label));
+  return `/Katlogo/${resolved || "rul.png"}`;
 };
 
-const getIcon = (n: string) => `/Katlogo/${categoryIconMap[n] || "rul.png"}`;
+addCategoryIcon("Паливна система", "palivna_systema.png");
+addCategoryIcon("Гальмівна система", "halmivna_systema.png");
+addCategoryIcon("Деталі двигуна", "detali_dvyhuna.png");
+addCategoryIcon("Деталі підвіски", "detali_pidvisky.png");
+addCategoryIcon("Амортизація", "amort.png");
+addCategoryIcon("Деталі для ТО", "detali_dlia_to.png");
+addCategoryIcon("Привід та коробка передач", "pryvid_ta_korobka_peredach.png");
+addCategoryIcon("Система охолодження", "systema_okholodzhennia.png");
+addCategoryIcon("Освітлення", "osvitlennia.png");
+addCategoryIcon("Інше", "inshe.png");
+addCategoryIcon("Електроніка", "elektronika.png");
+addCategoryIcon("Кузовні елементи", "kuzovni_elementy.png");
+addCategoryIcon("Датчики та електроніка", "datchyky_ta_elektronika.png");
+addCategoryIcon("Рідини та мастила", "ridyny_ta_mastyla.png");
 
 //
 // FIX: SAFARI / MACOS SAFE 3D BACKFACE SETTINGS
@@ -150,6 +199,15 @@ function FlipCardComponent({
       animate="visible"
       className="relative w-full h-[180px] sm:h-[215px]"
       style={{ perspective: 1200 }} // fixed
+      whileHover={
+        reduceMotion
+          ? undefined
+          : {
+              boxShadow: "0 18px 40px rgba(6,182,212,0.22)",
+              filter: "saturate(1.05)",
+              transition: { type: "spring", stiffness: 220, damping: 20, mass: 0.9 },
+            }
+      }
     >
       <motion.div
         animate={{ rotateY: isFlipped ? 180 : 0 }}
@@ -162,15 +220,15 @@ function FlipCardComponent({
       >
         {/* FRONT */}
         <div
-          className="
+        className="
             group/card absolute inset-0 rounded-xl border border-slate-300/30
             bg-gradient-to-br from-sky-50 via-white to-indigo-50
-            shadow-[0_6px_16px_rgba(0,0,0,0.06)]
+            shadow-[0_6px_16px_rgba(0,0,0,0.08)]
             flex flex-col items-center justify-center text-center px-4
             transition-all duration-500
-            hover:bg-gradient-to-br hover:from-sky-200 hover:via-white hover:to-indigo-100
+            hover:bg-gradient-to-br hover:from-sky-100 hover:via-white hover:to-indigo-100
             hover:border-blue-400/70
-            hover:shadow-[0_12px_32px_rgba(59,130,246,0.20)]
+            hover:shadow-[0_16px_36px_rgba(59,130,246,0.22),0_10px_24px_rgba(0,0,0,0.08)]
           "
           style={{
             ...safBackface,
@@ -182,6 +240,12 @@ function FlipCardComponent({
             alt={product.name}
             width={60}
             height={60}
+            unoptimized
+            onError={(event) => {
+              const target = event.currentTarget;
+              if (target.src.includes("/Katlogo/rul.png")) return;
+              target.src = "/Katlogo/rul.png";
+            }}
             className="
               mb-3 transition-transform duration-500
               group-hover/card:scale-[1.18]
@@ -288,7 +352,8 @@ function FlipCardComponent({
                 className="
                   w-full px-2 py-[7px] rounded-md text-[12px] text-slate-700 
                   bg-white/80 border border-slate-200
-                  hover:bg-blue-50 hover:border-blue-400
+                  hover:bg-gradient-to-r hover:from-sky-50 hover:via-white hover:to-indigo-50
+                  hover:border-blue-400 hover:shadow-[0_10px_24px_rgba(59,130,246,0.12)]
                   text-left truncate transition-all
                 "
               >

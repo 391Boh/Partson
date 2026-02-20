@@ -13,7 +13,7 @@ const Data = dynamic(() => import('app/components/Data'), {
   ssr: false,
   loading: () => (
     <div className="w-full px-6 pb-8 pt-4 sm:px-4 lg:px-6">
-      <div className="flex flex-col items-center justify-center gap-2 pb-3">
+      <div className="flex min-h-[140px] flex-col items-center justify-center gap-2 pb-3">
         <div className="loader" />
         <p className="text-gray-400 text-xs">Завантаження товарів...</p>
       </div>
@@ -62,6 +62,10 @@ const Katalog: React.FC = () => {
   const skipNextRemoteSaveRef = useRef(false);
   const hasLoadedLocalRef = useRef(false);
   const handledRequestRef = useRef<string | null>(null);
+  const filterShellRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollYRef = useRef(0);
+  const [filterShellHeight, setFilterShellHeight] = useState(0);
+  const [collapseOnScrollSignal, setCollapseOnScrollSignal] = useState(0);
 
   const groupParam = searchParams.get('group');
   const subcategoryParam = searchParams.get('subcategory');
@@ -436,6 +440,58 @@ const Katalog: React.FC = () => {
     setPendingRequestMessage(requestMessage);
   }, [firebaseUser, requestMessage]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const shell = filterShellRef.current;
+    if (!shell) return;
+
+    const updateHeight = () => {
+      setFilterShellHeight(shell.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    const Observer = window.ResizeObserver;
+    const observer = Observer ? new Observer(() => updateHeight()) : null;
+    observer?.observe(shell);
+    window.addEventListener('resize', updateHeight);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    lastScrollYRef.current = window.scrollY;
+    const SCROLL_DELTA = 12;
+    const TOP_IGNORE_THRESHOLD = 24;
+
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      const previousY = lastScrollYRef.current;
+      const delta = currentY - previousY;
+
+      if (currentY <= TOP_IGNORE_THRESHOLD) {
+        lastScrollYRef.current = currentY;
+        return;
+      }
+
+      if (delta <= SCROLL_DELTA) {
+        lastScrollYRef.current = currentY;
+        return;
+      }
+
+      setCollapseOnScrollSignal((prev) => prev + 1);
+      lastScrollYRef.current = currentY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const handleConfirmRequest = () => {
     if (!pendingRequestMessage || !firebaseUser) return;
     if (typeof window !== 'undefined') {
@@ -494,8 +550,15 @@ const Katalog: React.FC = () => {
 
   return (
     <div className="w-full pb-6">
-      <div className="sticky top-16 z-30 w-full bg-slate-50/70 backdrop-blur supports-[backdrop-filter]:bg-slate-50/50">
-        <div className="mx-auto w-full max-w-[1400px] px-4 pt-2 sm:px-4 lg:px-6">
+      <div
+        className="fixed left-0 right-0 z-30 w-full bg-slate-50/70 backdrop-blur supports-[backdrop-filter]:bg-slate-50/50"
+        style={{ top: 'var(--header-height, 4rem)' }}
+      >
+        <div
+          ref={filterShellRef}
+          className="mx-auto w-full max-w-[1400px] overflow-y-auto px-4 pt-2 sm:px-4 lg:px-6"
+          style={{ maxHeight: 'calc(100dvh - var(--header-height, 4rem))' }}
+        >
           <FilterSidebar
             selectedCars={selectedCars}
             handleCarChange={handleCarChange}
@@ -511,34 +574,18 @@ const Katalog: React.FC = () => {
             requestMessage={pendingRequestMessage}
             onConfirmRequest={allowRequestActions ? handleConfirmRequest : undefined}
             onCancelRequest={allowRequestActions ? handleCancelRequest : undefined}
+            collapseOnScrollSignal={collapseOnScrollSignal}
           />
         </div>
       </div>
-
+      <div aria-hidden style={{ height: filterShellHeight }} />
       <div className="w-full">
         <div className="mx-auto w-full max-w-[1400px]">
-          {localReady && carsLoaded ? (
-            <Data
-              selectedCars={selectedCars}
-              selectedCategories={selectedCategories}
-              sortOrder={sortOrder}
-            />
-          ) : (
-            <div className="w-full px-6 pb-8 pt-4 sm:px-4 lg:px-6">
-              <div className="flex flex-col items-center justify-center gap-2 pb-3">
-                <div className="loader" />
-                <p className="text-gray-400 text-xs">Завантаження товар?в...</p>
-              </div>
-              <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-[320px] w-full rounded-xl border border-slate-200/70 bg-gradient-to-br from-slate-100 via-slate-200 to-slate-100 animate-pulse"
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          <Data
+            selectedCars={selectedCars}
+            selectedCategories={selectedCategories}
+            sortOrder={sortOrder}
+          />
         </div>
       </div>
 

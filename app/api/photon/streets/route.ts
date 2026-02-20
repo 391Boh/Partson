@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await fetch(
-      `https://photon.komoot.io/api/?q=${encodeURIComponent(street + ' Львів')}&limit=10`, // <— без lang=uk
+      `https://photon.komoot.io/api/?q=${encodeURIComponent(street + ' Львів')}`, // limit прибрано, щоб не обрізати результати
       {
         headers: {
           'User-Agent': 'lviv-map-app/1.0 (lviv@example.com)',

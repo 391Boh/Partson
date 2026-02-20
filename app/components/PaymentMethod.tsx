@@ -2,7 +2,23 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+
+type OrderPayload = Record<string, unknown>;
+type LiqPayInitParams = {
+  data: string;
+  signature: string;
+  embedTo: string;
+  mode: string;
+};
+type LiqPayCallbackData = {
+  status?: string;
+};
+type LiqPayInstance = {
+  on: (
+    event: 'liqpay.callback' | 'liqpay.close',
+    callback: (data?: LiqPayCallbackData) => void,
+  ) => LiqPayInstance;
+};
 
 interface Props {
   paymentMethod: 'Картка' | 'Готівка' | '';
@@ -13,14 +29,14 @@ interface Props {
   name: string;
   phone: string;
   deliveryMethod: string;
-  onPaymentConfirmed: (orderData: any) => Promise<void> | void;
+  onPaymentConfirmed: (orderData: OrderPayload) => Promise<void> | void;
   onConfirm: () => void;
 }
 
 declare global {
   interface Window {
     LiqPayCheckout?: {
-      init: (params: any) => any;
+      init: (params: LiqPayInitParams) => LiqPayInstance;
     };
   }
 }
@@ -37,7 +53,6 @@ const PaymentMethod: React.FC<Props> = ({
   onPaymentConfirmed,
   onConfirm,
 }) => {
-  const router = useRouter();
   const alreadyInitiated = useRef(false);
   const [isPaid, setIsPaid] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -80,25 +95,40 @@ const PaymentMethod: React.FC<Props> = ({
 
     const initLiqPay = async () => {
       try {
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+        const resultUrl =
+          process.env.NEXT_PUBLIC_LIQPAY_RESULT_URL || `${origin}/success`;
+        const callbackUrl =
+          process.env.NEXT_PUBLIC_LIQPAY_SERVER_URL || `${origin}/api/liqpay/callback`;
+
         const res = await fetch('/api/liqpay', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             version: '3',
-            public_key: 'sandbox_i70369644191',
             action: 'pay',
             amount,
             currency: 'UAH',
             description: `Оплата замовлення №${orderId}`,
             order_id: orderId,
             language: 'uk',
-            result_url: 'https://19314d414d1a.ngrok-free.app/success',
-            server_url: 'https://19314d414d1a.ngrok-free.app/api/liqpay/callback',
+            result_url: resultUrl,
+            server_url: callbackUrl,
             info: JSON.stringify({ name, phone }),
           }),
         });
 
-        const json = await res.json();
+        const json = (await res.json()) as {
+          data?: string;
+          signature?: string;
+          error?: string;
+        };
+
+        if (!res.ok || !json.data || !json.signature) {
+          console.error('LiqPay payload error:', json.error || 'Invalid payload');
+          alert('Помилка ініціалізації оплати. Перевірте налаштування ключів.');
+          return;
+        }
 
         if (!window.LiqPayCheckout) {
           console.error('LiqPayCheckout не завантажений');
@@ -111,8 +141,8 @@ const PaymentMethod: React.FC<Props> = ({
           embedTo: '#liqpay_checkout',
           mode: 'popup',
         })
-          .on('liqpay.callback', async (liqpayData: any) => {
-            if (liqpayData.status === 'success') {
+          .on('liqpay.callback', async (liqpayData) => {
+            if (liqpayData?.status === 'success') {
               setIsPaid(true);
               // Автоматично підтверджуємо оплату після успіху
               try {
@@ -121,7 +151,7 @@ const PaymentMethod: React.FC<Props> = ({
                 console.error('Помилка підтвердження після успішної оплати:', error);
               }
             }
-            if (liqpayData.status === 'failure') {
+            if (liqpayData?.status === 'failure') {
               alert('Оплата не пройшла');
             }
           })
@@ -138,21 +168,22 @@ const PaymentMethod: React.FC<Props> = ({
     if (!alreadyInitiated.current) {
       initLiqPay();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentMethod, amount, orderId, name, phone]);
 
   const isConfirmationEnabled =
     paymentMethod === 'Готівка' || (paymentMethod === 'Картка' && isPaid);
 
   return (
-    <div className="mt-6 text-slate-200 space-y-5">
+    <div className="mt-6 space-y-5 text-slate-700">
       <p>Оберіть спосіб оплати:</p>
 
       <div className="flex flex-col gap-3">
         <label
-          className={`cursor-pointer px-4 py-3 rounded-lg border ${
+          className={`cursor-pointer rounded-lg border px-4 py-3 transition ${
             paymentMethod === 'Картка'
-              ? 'bg-emerald-700 border-emerald-500'
-              : 'bg-slate-700 border-slate-600'
+              ? 'border-sky-400/80 bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_10px_22px_rgba(59,130,246,0.3)]'
+              : 'border-sky-200 bg-white text-slate-700 hover:bg-sky-50'
           }`}
         >
           <input
@@ -166,10 +197,10 @@ const PaymentMethod: React.FC<Props> = ({
         </label>
 
         <label
-          className={`cursor-pointer px-4 py-3 rounded-lg border ${
+          className={`cursor-pointer rounded-lg border px-4 py-3 transition ${
             paymentMethod === 'Готівка'
-              ? 'bg-emerald-700 border-emerald-500'
-              : 'bg-slate-700 border-slate-600'
+              ? 'border-sky-400/80 bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_10px_22px_rgba(59,130,246,0.3)]'
+              : 'border-sky-200 bg-white text-slate-700 hover:bg-sky-50'
           }`}
         >
           <input
@@ -187,7 +218,7 @@ const PaymentMethod: React.FC<Props> = ({
         <button
           onClick={handleConfirm}
           disabled={!isConfirmationEnabled || isConfirming}
-          className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition"
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 py-2 text-sm font-medium text-white shadow-[0_10px_22px_rgba(59,130,246,0.3)] transition hover:brightness-110 disabled:opacity-50"
         >
           <Check size={18} />
           {isConfirming ? 'Підтвердження...' : 'Підтвердити оплату'}
@@ -195,13 +226,13 @@ const PaymentMethod: React.FC<Props> = ({
 
         <button
           onClick={onBack}
-          className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition"
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white py-2 text-sm font-medium text-slate-700 transition hover:bg-sky-50"
         >
           <ArrowLeft size={18} /> Назад
         </button>
       </div>
 
-      <div id="liqpay_checkout" className="max-w-sm md:max-w-[700px] mx-auto" />
+      <div id="liqpay_checkout" className="mx-auto max-w-sm rounded-xl border border-sky-100/80 bg-white/70 p-2 md:max-w-[700px]" />
     </div>
   );
 };

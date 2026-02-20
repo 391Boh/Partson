@@ -1,6 +1,4 @@
 ﻿
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap');
-
 @import "tailwindcss";
 
 
@@ -10,15 +8,21 @@
 
 @layer base {
   html {
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
     overflow-x: hidden;
     width: 100%;
+    min-height: 100%;
+    height: auto;
+    overflow-y: auto;
   }
 
   body {
-    font-family: 'Manrope', sans-serif;
+    font-family: var(--font-geist-sans), 'Manrope', sans-serif;
     overflow-x: hidden;
     width: 100%;
+    min-height: 100%;
+    height: auto;
+    overflow-y: hidden;
   }
 
   button:not(:disabled),
@@ -44,13 +48,32 @@
   }
 }
 
+.section-reveal {
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .section-reveal {
+    will-change: auto;
+    transform: none;
+  }
+}
+
 /* Глобальні стилі */
 body {
     @apply bg-gray-100 text-gray-900;
 }
 
-h1, h2, h3 {
-    @apply font-bold;
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-geist-sans), 'Manrope', sans-serif;
+    font-style: italic;
+    font-weight: 800;
 }
 
 /* Власні компоненти */
@@ -414,29 +437,29 @@ h1, h2, h3 {
 }
 
 .brand-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(59, 130, 246, 0.85) rgba(226, 238, 255, 0.5);
+  scrollbar-width: auto;
+  scrollbar-color: rgba(56, 189, 248, 0.95) rgba(226, 238, 252, 0.65);
 }
 
 .brand-scroll::-webkit-scrollbar {
-  height: 12px;
+  height: 16px;
 }
 
 .brand-scroll::-webkit-scrollbar-track {
-  background: linear-gradient(90deg, rgba(226, 238, 255, 0.8), rgba(255, 255, 255, 0.95));
+  background: linear-gradient(90deg, rgba(226, 238, 252, 0.9), rgba(255, 255, 255, 0.95));
   border-radius: 999px;
-  box-shadow: inset 0 1px 4px rgba(59, 130, 246, 0.08), inset 0 -1px 6px rgba(15, 23, 42, 0.04);
+  box-shadow: inset 0 1px 6px rgba(56, 189, 248, 0.12), inset 0 -1px 8px rgba(15, 23, 42, 0.05);
 }
 
 .brand-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(120deg, rgba(59, 130, 246, 0.95), rgba(34, 211, 238, 0.95), rgba(59, 130, 246, 0.9));
+  background: linear-gradient(120deg, rgba(59, 130, 246, 0.95), rgba(56, 189, 248, 0.95), rgba(94, 234, 212, 0.9));
   border-radius: 999px;
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  box-shadow: 0 8px 22px rgba(59, 130, 246, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  border: 3px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 10px 24px rgba(56, 189, 248, 0.3), inset 0 0 0 1px rgba(255, 255, 255, 0.6);
 }
 
 .brand-scroll::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(120deg, rgba(37, 99, 235, 0.98), rgba(6, 182, 212, 0.98), rgba(37, 99, 235, 0.95));
+  background: linear-gradient(120deg, rgba(37, 99, 235, 1), rgba(14, 165, 233, 0.98), rgba(6, 182, 212, 0.98));
 }
 
 
@@ -499,6 +522,30 @@ h1, h2, h3 {
   filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.45));
   z-index: 1;
   animation: loaderOrbit 1.1s ease-in-out infinite;
+}
+
+.skeleton-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #e2e8f0 0%, #f8fafc 45%, #e2e8f0 100%);
+}
+
+.skeleton-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  transform: translateX(-100%);
+  animation: skeletonShimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 

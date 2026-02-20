@@ -62,16 +62,21 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
   const selectionHydratedRef = useRef<string | null>(null);
   const lastSelectedLabelRef = useRef<string | null>(null);
   const pickerInteractedRef = useRef(false);
+  const externalSelectionLabel = (initialSelection?.label ?? '').trim();
 
   const selectedCarRows = useMemo(() => {
     const rows = normalizeRows(selectedCars);
+    if (externalSelectionLabel && !rows.includes(externalSelectionLabel)) {
+      rows.push(externalSelectionLabel);
+    }
     const label = selectedCarLabel?.trim() ?? '';
     if (label && !rows.includes(label)) rows.push(label);
     return rows;
-  }, [selectedCars, selectedCarLabel]);
+  }, [externalSelectionLabel, selectedCars, selectedCarLabel]);
   const vinRows = useMemo(() => normalizeRows(profileVins), [profileVins]);
   const hasSelection = selectedCarRows.length > 0 || Boolean(selectedVin);
-  const listHasSelection = normalizeRows(selectedCars).length > 0 || Boolean(selectedVin);
+  const hasTableData = hasSelection || vinRows.length > 0;
+  const listHasSelection = hasTableData;
   const [isPickerOpen, setIsPickerOpen] = useState(() => {
     const hasInitialCars = normalizeRows(selectedCars).length > 0;
     const hasInitialSelection = Boolean(initialSelection?.label);
@@ -493,7 +498,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
   return (
     <div className="w-full max-w-none select-none">
       <div className="flex flex-col gap-4">
-        {!isPickerOpen && (hasSelection || vinRows.length > 0) && (
+        {hasTableData && (
           <div className="flex flex-col gap-3">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="min-w-0">
@@ -565,14 +570,28 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
                                   handleRemoveCar(car);
                                 }}
                                 aria-label={`Видалити ${car}`}
-                                className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition ${
-                                  isActive
-                                    ? 'border-white/40 bg-white/10 text-white hover:bg-white/20'
-                                    : 'border-slate-200 bg-white text-slate-500 hover:text-slate-700'
-                                }`}
-                              >
-                                <X size={12} className="pointer-events-none" />
-                              </button>
+                               className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition ${
+                                 isActive
+                                   ? 'border-white/40 bg-white/10 text-white hover:bg-white/20'
+                                   : 'border-slate-200 bg-white text-slate-500 hover:text-slate-700'
+                               }`}
+                             >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 24 24"
+                                  className="h-3.5 w-3.5 pointer-events-none"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.6"
+                                  strokeLinecap="round"
+                                >
+                                  <path d="M3 6h18" />
+                                  <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
+                                  <path d="M6 6v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6" />
+                                  <path d="M10 11v6" />
+                                  <path d="M14 11v6" />
+                                </svg>
+                             </button>
                             </div>
                           </div>
                         );
@@ -641,14 +660,28 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
                                   handleRemoveVin(vin);
                                 }}
                                 aria-label={`Видалити VIN ${vin}`}
-                                className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition ${
-                                  isActive
-                                    ? 'border-white/40 bg-white/10 text-white hover:bg-white/20'
-                                    : 'border-emerald-200 bg-white text-emerald-700 hover:text-emerald-900'
-                                }`}
-                              >
-                                <X size={12} className="pointer-events-none" />
-                              </button>
+                               className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition ${
+                                 isActive
+                                   ? 'border-white/40 bg-white/10 text-white hover:bg-white/20'
+                                   : 'border-emerald-200 bg-white text-emerald-700 hover:text-emerald-900'
+                               }`}
+                             >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 24 24"
+                                  className="h-3.5 w-3.5 pointer-events-none"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.6"
+                                  strokeLinecap="round"
+                                >
+                                  <path d="M3 6h18" />
+                                  <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
+                                  <path d="M6 6v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6" />
+                                  <path d="M10 11v6" />
+                                  <path d="M14 11v6" />
+                                </svg>
+                             </button>
                             </div>
                           </div>
                         );
@@ -749,7 +782,21 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
                       className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-100 active:scale-[0.98]"
                       title="Очистити"
                     >
-                      <X size={14} className="pointer-events-none" />
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        className="h-4 w-4 pointer-events-none"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
+                        <path d="M6 6v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                      </svg>
                     </button>
                   )}
                 </div>

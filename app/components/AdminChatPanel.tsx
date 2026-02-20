@@ -198,39 +198,116 @@ export default function AdminChatPanel({
     const trimmed = article.trim();
     if (!trimmed) return null;
 
-        const PAGE_FIELD = "НомерСтраницы";
-    const ARTICLE_FIELD = "НомерПоКаталогу";
+    const PAGE_FIELD = "НомерСтраницы";
+    const NAME_FIELDS = ["Наименование", "НоменклатураНаименование"];
+    const CODE_FIELDS = ["Код", "НоменклатураКод", "ID"];
+    const ARTICLE_FIELDS = ["НомерПоКаталогу", "Артикул"];
+    const PRODUCER_FIELDS = ["ПроизводительНаименование", "Виробник"];
+    const QTY_FIELDS = ["Количество", "Кількість"];
+    const LIMIT_FIELD = "Лимит";
+    const PAGE_ALIAS = "page";
     const PRICE_CODE_FIELD = "Код";
-    const PRICE_VALUE_FIELD = "ЦінаПрод";
+    const PRICE_VALUE_FIELDS = ["ЦінаПрод", "ЦенаПрод", "Цена", "Ціна"];
 
-    const FIELD_QTY = "Количество";
-    const FIELD_CODE = "НоменклатураКод";
-    const FIELD_NAME = "НоменклатураНаименование";
-    const FIELD_ARTICLE = "НомерПоКаталогу";
-    const FIELD_PRODUCER = "ПроизводительНаименование";
+    const readString = (
+      source: Record<string, unknown>,
+      keys: readonly string[],
+      fallback = ""
+    ) => {
+      for (const key of keys) {
+        const value = source?.[key];
+        if (typeof value === "string") {
+          const trimmedValue = value.trim();
+          if (trimmedValue) return trimmedValue;
+        }
+      }
+      return fallback;
+    };
 
-    const res = await fetch('/api/proxy?endpoint=getdata', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        selectedCars: [],
-        selectedCategories: [],
-        [PAGE_FIELD]: 1,
-        [ARTICLE_FIELD]: trimmed,
-      }),
-    });
+    const readNumber = (source: Record<string, unknown>, keys: readonly string[]) => {
+      for (const key of keys) {
+        const value = source?.[key];
+        const num =
+          typeof value === "number" && Number.isFinite(value) ? value : Number(value);
+        if (Number.isFinite(num)) return num;
+      }
+      return undefined;
+    };
 
-    if (!res.ok) return null;
+    const extractArray = (raw: unknown): Record<string, unknown>[] | null => {
+      if (Array.isArray(raw)) return raw as Record<string, unknown>[];
+      if (raw && typeof raw === "object" && Array.isArray((raw as any).items)) {
+        return (raw as any).items as Record<string, unknown>[];
+      }
+      return null;
+    };
 
-    const list = await res.json();
-    const item = Array.isArray(list) ? list[0] : null;
-    if (!item) return null;
+    const tryFetch = async (payload: Record<string, unknown>) => {
+      const res = await fetch('/api/proxy?endpoint=getdata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selectedCars: [],
+          selectedCategories: [],
+          [PAGE_FIELD]: 1,
+          [LIMIT_FIELD]: 10,
+          [PAGE_ALIAS]: 1,
+          ...payload,
+        }),
+      });
+      if (!res.ok) return null;
+      const raw = await res.json();
+      const list = extractArray(raw);
+      if (!list || list.length === 0) return null;
+      return list;
+    };
 
-    const nameRaw = item?.[FIELD_NAME] ?? '';
-    const codeRaw = item?.[FIELD_CODE] ?? trimmed;
-    const articleRaw = item?.[FIELD_ARTICLE] ?? '';
-    const producerRaw = item?.[FIELD_PRODUCER] ?? '';
-    const qtyRaw = item?.[FIELD_QTY];
+    const candidates: Record<string, unknown>[] = [
+      {
+        [ARTICLE_FIELDS[0]]: trimmed,
+        [ARTICLE_FIELDS[1]]: trimmed,
+        [CODE_FIELDS[0]]: trimmed,
+        [CODE_FIELDS[1]]: trimmed,
+        [CODE_FIELDS[2]]: trimmed,
+        [NAME_FIELDS[0]]: trimmed,
+        [NAME_FIELDS[1]]: trimmed,
+      },
+      { [CODE_FIELDS[0]]: trimmed, [CODE_FIELDS[1]]: trimmed, [CODE_FIELDS[2]]: trimmed },
+      { [NAME_FIELDS[0]]: trimmed, [NAME_FIELDS[1]]: trimmed },
+    ];
+
+    let list: Record<string, unknown>[] | null = null;
+    for (const payload of candidates) {
+      list = await tryFetch(payload);
+      if (list && list.length > 0) break;
+    }
+    if (!list || list.length === 0) return null;
+
+    const normalize = (v: unknown) =>
+      typeof v === "string" ? v.replace(/\s+/g, " ").trim().toLowerCase() : "";
+
+    const needle = normalize(trimmed);
+    const item =
+      list.find((it) => {
+        const rec = it as Record<string, unknown>;
+        const art =
+          normalize(rec[ARTICLE_FIELDS[0]]) || normalize(rec[ARTICLE_FIELDS[1]]);
+        const code =
+          normalize(rec[CODE_FIELDS[0]]) ||
+          normalize(rec[CODE_FIELDS[1]]) ||
+          normalize(rec[CODE_FIELDS[2]]);
+        const name =
+          normalize(rec[NAME_FIELDS[0]]) || normalize(rec[NAME_FIELDS[1]]);
+        return art === needle || code === needle || name === needle;
+      }) || list[0];
+    if (!item || typeof item !== 'object') return null;
+
+    const record = item as Record<string, unknown>;
+    const nameRaw = readString(record, NAME_FIELDS, trimmed);
+    const codeRaw = readString(record, CODE_FIELDS, trimmed);
+    const articleRaw = readString(record, ARTICLE_FIELDS, trimmed);
+    const producerRaw = readString(record, PRODUCER_FIELDS, '');
+    const qtyRaw = readNumber(record, QTY_FIELDS);
 
     let priceUAH: number | undefined;
     const priceKey = (articleRaw || codeRaw || trimmed).toString().trim();
@@ -245,14 +322,8 @@ export default function AdminChatPanel({
       if (priceRes.ok) {
         const text = await priceRes.text();
         try {
-          const json = JSON.parse(text);
-          const euroRaw = json?.[PRICE_VALUE_FIELD] ?? null;
-          const euro =
-            typeof euroRaw === 'number'
-              ? euroRaw
-              : Number.isFinite(Number(euroRaw))
-              ? Number(euroRaw)
-              : null;
+          const json = JSON.parse(text) as Record<string, unknown>;
+          const euro = readNumber(json, PRICE_VALUE_FIELDS);
           if (typeof euro === 'number') {
             const rateRes = await fetch('/api/proxy?endpoint=euro', {
               cache: 'no-store',
@@ -265,19 +336,9 @@ export default function AdminChatPanel({
       }
     }
 
-    const name =
-      typeof nameRaw === 'string'
-        ? nameRaw.replace(/\s*\(.*?\)/g, '')
-        : String(nameRaw || trimmed);
-
-    const quantity =
-      typeof qtyRaw === 'number'
-        ? qtyRaw
-        : Number.isFinite(Number(qtyRaw))
-        ? Number(qtyRaw)
-        : undefined;
-
-    const codeValue = typeof codeRaw === 'string' ? codeRaw : String(codeRaw);
+    const name = (nameRaw || trimmed).replace(/\s*\(.*?\)/g, '');
+    const quantity = qtyRaw;
+    const codeValue = codeRaw;
 
     return {
       name: name || trimmed,

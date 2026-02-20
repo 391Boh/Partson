@@ -1,5 +1,5 @@
 const DEFAULT_BASE_URL =
-  "http://192.168.0.103:8080/RetailShopAuto1/hs/serv";
+  "http://localhost:8080/RetailShopAuto1/hs/serv";
 
 const BASE_URL = process.env.ONEC_BASE_URL || DEFAULT_BASE_URL;
 const AUTH_HEADER =
@@ -84,6 +84,7 @@ export async function oneCRequest(endpoint, options = {}) {
     retryDelayMs = 200,
     cacheTtlMs = 0,
     cacheKey,
+    retryOn5xx = true,
   } = options;
 
   pruneCache();
@@ -127,6 +128,19 @@ export async function oneCRequest(endpoint, options = {}) {
         contentType: res.headers.get("content-type") || "",
       };
 
+      const shouldRetryStatus =
+        retryOn5xx &&
+        res.status >= 500 &&
+        res.status < 600 &&
+        attempt < retries;
+
+      if (shouldRetryStatus) {
+        attempt += 1;
+        const delay = Math.min(1000, retryDelayMs * Math.pow(2, attempt - 1));
+        await sleep(delay);
+        continue;
+      }
+
       if (cacheTtlMs > 0 && res.ok) {
         setCached(resolvedCacheKey, result, cacheTtlMs);
       }
@@ -153,4 +167,3 @@ export async function oneCRequest(endpoint, options = {}) {
     }
   }
 }
-

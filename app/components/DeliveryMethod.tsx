@@ -1,10 +1,10 @@
 'use client';
 
 import { ArrowLeft, Check } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 // Debounce function
-function debounce<T extends (...args: any[]) => void>(func: T, delay: number) {
+function debounce<T extends (...args: unknown[]) => void>(func: T, delay: number) {
   let timer: NodeJS.Timeout;
   return (...args: Parameters<T>) => {
     clearTimeout(timer);
@@ -145,7 +145,13 @@ const DeliveryMethod: React.FC<Props> = ({
     }
   };
 
-  const debouncedFetchLvivStreets = useCallback(debounce(fetchLvivStreets, 400), []);
+  const debouncedFetchLvivStreets = useMemo(
+    () =>
+      debounce((value: string) => {
+        void fetchLvivStreets(value);
+      }, 400),
+    []
+  );
 
   const handleLvivStreetInput = (value: string) => {
     setLvivStreet(value);
@@ -172,15 +178,17 @@ const DeliveryMethod: React.FC<Props> = ({
   };
 
   return (
-    <div className="mt-6 text-slate-200 space-y-5">
+    <div className="mt-6 space-y-5 text-slate-700">
       <p>Оберіть спосіб доставки:</p>
 
       <div className="flex flex-col gap-3">
         {options.map(option => (
           <label
             key={option.value}
-            className={`cursor-pointer px-4 py-3 rounded-lg border ${
-              deliveryMethod === option.value ? 'bg-emerald-700 border-emerald-500' : 'bg-slate-700 border-slate-600'
+            className={`cursor-pointer rounded-lg border px-4 py-3 transition ${
+              deliveryMethod === option.value
+                ? 'border-sky-400/80 bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_10px_22px_rgba(59,130,246,0.3)]'
+                : 'border-sky-200 bg-white text-slate-700 hover:bg-sky-50'
             }`}
           >
             <input
@@ -199,7 +207,7 @@ const DeliveryMethod: React.FC<Props> = ({
         <div className="space-y-3 mt-4 relative">
           <div className="relative">
             {cityInput && filteredCities.length > 0 && (
-              <ul className="absolute z-10 bg-slate-700 w-full max-h-48 overflow-y-auto rounded-lg mb-1 border border-slate-600 top-auto bottom-full">
+              <ul className="absolute z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-lg border border-sky-200 bg-white top-auto bottom-full shadow-[0_12px_26px_rgba(15,23,42,0.12)]">
                 {filteredCities.map(city => (
                   <li
                     key={city.Ref}
@@ -208,7 +216,7 @@ const DeliveryMethod: React.FC<Props> = ({
                       setCityInput(city.Description);
                       setCities([]);
                     }}
-                    className="px-4 py-2 cursor-pointer hover:bg-slate-600"
+                    className="cursor-pointer px-4 py-2 text-slate-700 hover:bg-sky-50"
                   >
                     {city.Description}
                   </li>
@@ -224,14 +232,14 @@ const DeliveryMethod: React.FC<Props> = ({
                 setSelectedCity(null);
               }}
               placeholder="Введіть назву міста"
-              className="w-full px-4 py-2 rounded-lg bg-slate-600 text-white border border-slate-500"
+              className="w-full rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 outline-none transition focus:ring-2 focus:ring-sky-300"
               autoComplete="off"
             />
           </div>
 
           <div className="relative">
             {warehouseInput && filteredWarehouses.length > 0 && (
-              <ul className="absolute z-10 bg-slate-700 w-full max-h-48 overflow-y-auto rounded-lg mb-1 border border-slate-600 top-auto bottom-full">
+              <ul className="absolute z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-lg border border-sky-200 bg-white top-auto bottom-full shadow-[0_12px_26px_rgba(15,23,42,0.12)]">
                 {filteredWarehouses.map(wh => (
                   <li
                     key={wh.Ref}
@@ -240,7 +248,7 @@ const DeliveryMethod: React.FC<Props> = ({
                       setWarehouseInput(wh.Description);
                       setWarehouses([]);
                     }}
-                    className="px-4 py-2 cursor-pointer hover:bg-slate-600"
+                    className="cursor-pointer px-4 py-2 text-slate-700 hover:bg-sky-50"
                   >
                     {wh.Description}
                   </li>
@@ -256,7 +264,7 @@ const DeliveryMethod: React.FC<Props> = ({
                 setSelectedWarehouse(null);
               }}
               placeholder="Введіть номер відділення"
-              className="w-full px-4 py-2 rounded-lg bg-slate-600 text-white border border-slate-500"
+              className="w-full rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 outline-none transition focus:ring-2 focus:ring-sky-300 disabled:bg-slate-100 disabled:text-slate-400"
               autoComplete="off"
               disabled={!selectedCity}
             />
@@ -265,7 +273,7 @@ const DeliveryMethod: React.FC<Props> = ({
       )}
 
       {deliveryMethod === 'Самовивіз' && (
-        <div className="mt-4 text-sm text-slate-300">
+        <div className="mt-4 rounded-lg border border-sky-200/70 bg-white/90 p-3 text-sm text-slate-600">
           <p><strong>Адреса самовивозу:</strong></p>
           <p>м. Львів, вул. Перфецького 10, офіс 307</p>
         </div>
@@ -279,11 +287,11 @@ const DeliveryMethod: React.FC<Props> = ({
             value={lvivStreet}
             onChange={(e) => handleLvivStreetInput(e.target.value)}
             placeholder="Введіть назву вулиці"
-            className="w-full px-4 py-2 rounded-lg bg-slate-600 text-white border border-slate-500"
+            className="w-full rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 outline-none transition focus:ring-2 focus:ring-sky-300"
             autoComplete="off"
           />
           {lvivStreets.length > 0 && (
-            <ul className="absolute z-10 bg-slate-700 w-full max-h-48 overflow-y-auto rounded-lg mb-1 border border-slate-600 top-auto bottom-full">
+            <ul className="absolute z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-lg border border-sky-200 bg-white top-auto bottom-full shadow-[0_12px_26px_rgba(15,23,42,0.12)]">
               {lvivStreets.map((street, index) => (
                 <li
                   key={index}
@@ -292,7 +300,7 @@ const DeliveryMethod: React.FC<Props> = ({
                     setLvivStreet(street);
                     setLvivStreets([]);
                   }}
-                  className="px-4 py-2 cursor-pointer hover:bg-slate-600"
+                  className="cursor-pointer px-4 py-2 text-slate-700 hover:bg-sky-50"
                 >
                   {street}
                 </li>
@@ -306,7 +314,7 @@ const DeliveryMethod: React.FC<Props> = ({
         <button
           type="button"
           onClick={onBack}
-          className="px-4 py-2 bg-slate-700 rounded-lg hover:bg-slate-600"
+          className="rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 transition hover:bg-sky-50"
         >
           <ArrowLeft className="inline mr-2" size={16} />
           Назад
@@ -320,10 +328,10 @@ const DeliveryMethod: React.FC<Props> = ({
             (deliveryMethod === 'Доставка у Львові' && !selectedLvivStreet) ||
             deliveryMethod === ''
           }
-          className={`px-4 py-2 rounded-lg ${
+          className={`rounded-lg px-4 py-2 text-white transition ${
             ((deliveryMethod === 'Нова Пошта' && (!selectedCity || !selectedWarehouse)) ||
             (deliveryMethod === 'Доставка у Львові' && !selectedLvivStreet) ||
-            deliveryMethod === '') ? 'bg-slate-700 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'
+            deliveryMethod === '') ? 'cursor-not-allowed bg-slate-400' : 'bg-gradient-to-r from-blue-600 to-cyan-500 shadow-[0_10px_22px_rgba(59,130,246,0.3)] hover:brightness-110'
           }`}
         >
           Підтвердити

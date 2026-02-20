@@ -10,6 +10,7 @@ interface HeroProps {
   isAuthenticated: boolean;
   onLogin: () => void;
   onRegister: () => void;
+  onAddVin?: () => void;
 }
 
 const benefitItems = [
@@ -29,7 +30,7 @@ const cardGradientBase =
 const cardGradientHover =
   "hover:from-slate-950/40 hover:via-slate-900/25 hover:to-sky-200/30";
 const heroHeadingText =
-  "font-extrabold leading-tight tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-sky-100 via-white to-sky-200";
+  "font-black italic leading-[1.05] tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-sky-100 via-white to-sky-200";
 
 const actionButtonBase = [
   "inline-flex",
@@ -58,9 +59,9 @@ const primaryButton = `${actionButtonBase} border border-white/30 bg-gradient-to
 const secondaryButton = `${actionButtonBase} border border-white/30 bg-white/15 text-white shadow-[0_10px_20px_rgba(2,6,23,0.35)] hover:border-white/50 hover:bg-white/25`;
 
 const columnTransition = { duration: 0.55, ease: "easeOut" };
-const viewportConfig = { once: false, amount: 0.2 };
+const viewportConfig = { once: false, amount: 0.25, margin: "0px 0px -12% 0px" };
 
-const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister }) => {
+const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin }) => {
   const router = useRouter();
   const handleLogoClick = () => {
     if (typeof window !== "undefined") {
@@ -72,12 +73,12 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister }) => {
 
   return (
     <section
-      className="w-full select-none py-4 sm:py-5 font-[Montserrat] transition-[background-position,background-size,filter] duration-200 ease-out [background-size:160%_170%] [background-position:80%_50%] hover:[background-size:200%_200%] hover:[background-position:50%_25%] hover:brightness-110"
+      className="w-full select-none py-6 sm:py-8 font-[Montserrat] transition-[background-position,background-size,filter] duration-200 ease-out [background-size:160%_170%] [background-position:80%_50%] hover:[background-size:200%_200%] hover:[background-position:50%_25%] hover:brightness-110"
       style={{
         backgroundImage: depthBackground,
       }}
     >
-      <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-2 lg:px-6">
+      <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-5 lg:px-7">
         <motion.div
           className="relative grid gap-4 text-slate-100 md:grid-cols-2 lg:grid-cols-3 lg:items-stretch"
           initial={{ opacity: 0, y: 20 }}
@@ -96,8 +97,8 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister }) => {
               className={`relative flex min-h-[180px] h-full flex-col justify-start gap-1.5 overflow-hidden rounded-2xl border border-white/10 p-3 shadow-[0_10px_26px_rgba(2,6,23,0.28)] transition ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/12 sm:min-h-0 sm:justify-center transform-gpu hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(56,189,248,0.28)]`}
             >
               <div className="pointer-events-none absolute inset-0 opacity-35 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.2),transparent_45%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,0.16),transparent_50%)]" />
-              <div className="relative z-10 flex items-center gap-3">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-sky-200/30 text-sky-200/90 shadow-[0_0_18px_rgba(56,189,248,0.35)]">
+              <div className="relative z-10 flex items-center gap-3 pb-1">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-sky-200/30 text-sky-200/90 shadow-[0_0_18px_rgba(56,189,248,0.35)]">
                   <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M3 9l2-5h14l2 5" />
                     <path d="M3 9h18" />
@@ -107,18 +108,25 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister }) => {
                 </span>
                 <div className="flex min-w-0 flex-col">
                   <p
-                    className={`break-words ${heroHeadingText} text-lg italic sm:text-xl`}
+                    className={`break-words ${heroHeadingText} text-base sm:text-lg md:text-xl uppercase tracking-[0.12em] -mt-1`}
                   >
                     Магазин автозапчастин
                   </p>
-                  <span className="h-0.5 w-28 bg-gradient-to-r from-sky-300/80 via-white/30 to-transparent" />
+                  <span className="mt-1 h-0.5 w-32 bg-gradient-to-r from-sky-300/80 via-white/30 to-transparent" />
                 </div>
               </div>
-              <div className="relative z-10 space-y-1.5">
-                <p className={`${heroHeadingText} text-2xl sm:text-3xl`}>
-                  PartsON — знайдеться все!
+              <div className="relative z-10 space-y-2.5 pt-1">
+                <p
+                  className={`${heroHeadingText} flex items-baseline gap-1 flex-wrap md:flex-nowrap text-[18px] sm:text-[20px] md:text-[22px] lg:text-[24px] mt-1 mb-4 sm:mb-3 md:mb-2`}
+                >
+                  <span className="text-[20px] sm:text-[23px] md:text-[25px] lg:text-[27px]">
+                    PartsON
+                  </span>
+                  <span className="text-[17px] sm:text-[19px] md:text-[21px] lg:text-[23px]">
+                    — знайдеться все!
+                  </span>
                 </p>
-                <p className="relative text-sm font-semibold italic tracking-[0.12em] text-sky-100/80 sm:text-base after:mt-1 after:block after:h-0.5 after:w-16 after:bg-gradient-to-r after:from-sky-300/80 after:via-white/30 after:to-transparent">
+                <p className="relative mt-2 text-sm font-semibold italic tracking-[0.12em] text-sky-100/85 sm:text-base md:text-[17px] leading-relaxed text-right pr-3 sm:pr-4 after:mt-2 after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-sky-300/80 after:via-white/30 after:to-transparent after:ml-auto">
                   Кожна деталь важлива...
                 </p>
               </div>
@@ -154,30 +162,37 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister }) => {
                 </span>
               </motion.button>
               <div className="flex flex-wrap justify-center gap-2">
-                <motion.button
-                  type="button"
-                  onClick={onLogin}
-                  disabled={isAuthenticated}
-                  className={`${primaryButton} ${isAuthenticated ? "cursor-not-allowed" : ""}`}
-                >
-                  <LogIn className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
-                  Увійти
-                </motion.button>
-                <motion.button
-                  type="button"
-                  onClick={onRegister}
-                  disabled={isAuthenticated}
-                  className={`${secondaryButton} ${isAuthenticated ? "cursor-not-allowed" : ""}`}
-                >
-                  <UserPlus className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
-                  Реєстрація
-                </motion.button>
+                {!isAuthenticated ? (
+                  <>
+                    <motion.button
+                      type="button"
+                      onClick={onLogin}
+                      className={primaryButton}
+                    >
+                      <LogIn className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                      Увійти
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={onRegister}
+                      className={secondaryButton}
+                    >
+                      <UserPlus className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                      Реєстрація
+                    </motion.button>
+                  </>
+                ) : (
+                  <motion.button
+                    type="button"
+                    onClick={onAddVin}
+                    className={`${primaryButton} bg-gradient-to-b from-emerald-200 via-emerald-300 to-emerald-500 text-slate-900 shadow-[0_12px_24px_rgba(52,211,153,0.35)] hover:brightness-110 hover:shadow-[0_16px_32px_rgba(52,211,153,0.45)]`}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    Додати VIN номер
+                  </motion.button>
+                )}
               </div>
-              {isAuthenticated && (
-                <p className="text-sm text-emerald-300">
-                  Ви вже авторизовані.
-                </p>
-              )}
             </div>
           </motion.div>
 
