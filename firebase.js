@@ -3,42 +3,64 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-const defaultFirebaseConfig = {
-  apiKey: "AIzaSyBaJJ4J4DcgQ8kLSP2_BY0FFjpGTDk91l0",
-  authDomain: "partson-585c2.firebaseapp.com",
-  projectId: "partson-585c2",
-  storageBucket: "partson-585c2.firebasestorage.app",
-  messagingSenderId: "90082894857",
-  appId: "1:90082894857:web:c4927d112ec7ee635244d8",
-  measurementId: "G-B56XGEPJPT",
-};
-
 const projectId =
   process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
   process.env.FIREBASE_PROJECT_ID ||
-  defaultFirebaseConfig.projectId;
+  "";
 
 const firebaseConfig = {
   apiKey:
     process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||
     process.env.NEXT_PUBLIC_FIREBASE_KEY ||
-    defaultFirebaseConfig.apiKey,
+    "",
   authDomain:
     process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ||
-    `${projectId}.firebaseapp.com`,
+    "",
   projectId,
   storageBucket:
     process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-    `${projectId}.firebasestorage.app`,
+    "",
   messagingSenderId:
     process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ||
-    defaultFirebaseConfig.messagingSenderId,
+    "",
   appId:
-    process.env.NEXT_PUBLIC_FIREBASE_APP_ID || defaultFirebaseConfig.appId,
+    process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "",
   measurementId:
     process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID ||
-    defaultFirebaseConfig.measurementId,
+    "",
 };
+
+const missingFirebaseVars = [
+  "NEXT_PUBLIC_FIREBASE_API_KEY",
+  "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+  "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+  "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+  "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+  "NEXT_PUBLIC_FIREBASE_APP_ID",
+].filter((key) => {
+  switch (key) {
+    case "NEXT_PUBLIC_FIREBASE_API_KEY":
+      return !firebaseConfig.apiKey;
+    case "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN":
+      return !firebaseConfig.authDomain;
+    case "NEXT_PUBLIC_FIREBASE_PROJECT_ID":
+      return !firebaseConfig.projectId;
+    case "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET":
+      return !firebaseConfig.storageBucket;
+    case "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID":
+      return !firebaseConfig.messagingSenderId;
+    case "NEXT_PUBLIC_FIREBASE_APP_ID":
+      return !firebaseConfig.appId;
+    default:
+      return false;
+  }
+});
+
+if (missingFirebaseVars.length > 0) {
+  throw new Error(
+    `Firebase env is not configured. Missing: ${missingFirebaseVars.join(", ")}`
+  );
+}
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);

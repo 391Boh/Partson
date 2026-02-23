@@ -1,10 +1,5 @@
-const DEFAULT_BASE_URL =
-  "http://localhost:8080/RetailShopAuto1/hs/serv";
-
-const BASE_URL = process.env.ONEC_BASE_URL || DEFAULT_BASE_URL;
-const AUTH_HEADER =
-  process.env.ONEC_AUTH_HEADER ||
-  "Basic " + Buffer.from("admin:").toString("base64");
+const BASE_URL = process.env.ONEC_BASE_URL || "";
+const AUTH_HEADER = process.env.ONEC_AUTH_HEADER || "";
 
 const responseCache = new Map();
 
@@ -88,6 +83,20 @@ export async function oneCRequest(endpoint, options = {}) {
   } = options;
 
   pruneCache();
+
+  if (!BASE_URL || !AUTH_HEADER) {
+    return {
+      status: 500,
+      text: JSON.stringify({
+        error: "1C env is not configured",
+        missing: [
+          !BASE_URL ? "ONEC_BASE_URL" : null,
+          !AUTH_HEADER ? "ONEC_AUTH_HEADER" : null,
+        ].filter(Boolean),
+      }),
+      contentType: "application/json",
+    };
+  }
 
   const resolvedCacheKey =
     cacheKey ?? `${method}:${endpoint}:${stableStringify(body)}`;
