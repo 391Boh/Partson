@@ -8,7 +8,7 @@ type LiqPayInitParams = {
   data: string;
   signature: string;
   embedTo: string;
-  mode: string;
+  mode: 'embed' | 'popup';
 };
 type LiqPayCallbackData = {
   status?: string;
@@ -139,7 +139,7 @@ const PaymentMethod: React.FC<Props> = ({
           data: json.data,
           signature: json.signature,
           embedTo: '#liqpay_checkout',
-          mode: 'popup',
+          mode: 'embed',
         })
           .on('liqpay.callback', async (liqpayData) => {
             if (liqpayData?.status === 'success') {
@@ -232,7 +232,10 @@ const PaymentMethod: React.FC<Props> = ({
         </button>
       </div>
 
-      <div id="liqpay_checkout" className="mx-auto max-w-sm rounded-xl border border-sky-100/80 bg-white/70 p-2 md:max-w-[700px]" />
+      <div
+        id="liqpay_checkout"
+        className="mx-auto w-full max-w-[980px] overflow-hidden rounded-xl border border-sky-100/80 bg-white/70 p-2 shadow-sm"
+      />
     </div>
   );
 };

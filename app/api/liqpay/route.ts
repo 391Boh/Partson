@@ -4,6 +4,9 @@ import crypto from "crypto";
 const PUBLIC_KEY =
   process.env.LIQPAY_PUBLIC_KEY || process.env.NEXT_PUBLIC_LIQPAY_PUBLIC_KEY || "";
 const PRIVATE_KEY = process.env.LIQPAY_PRIVATE_KEY || "";
+const IS_SANDBOX =
+  /^(1|true|yes)$/i.test(process.env.LIQPAY_SANDBOX || "") ||
+  /^(1|true|yes)$/i.test(process.env.NEXT_PUBLIC_LIQPAY_SANDBOX || "");
 
 function base64(str: string) {
   return Buffer.from(str).toString("base64");
@@ -41,6 +44,7 @@ export async function POST(req: NextRequest) {
   const payload = {
     ...body,
     public_key: PUBLIC_KEY,
+    ...(IS_SANDBOX ? { sandbox: 1 } : {}),
   };
 
   const data = base64(JSON.stringify(payload));
