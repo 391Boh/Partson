@@ -25,8 +25,32 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const stored = localStorage.getItem('cart');
-    if (stored) {
-      setCartItems(JSON.parse(stored));
+    if (!stored) return;
+
+    try {
+      const parsed = JSON.parse(stored) as unknown;
+      if (!Array.isArray(parsed)) {
+        localStorage.removeItem('cart');
+        return;
+      }
+
+      const normalized = parsed
+        .filter((item): item is Partial<CartItem> => !!item && typeof item === 'object')
+        .map((item) => ({
+          code: typeof item.code === 'string' ? item.code : '',
+          article: typeof item.article === 'string' ? item.article : '',
+          name: typeof item.name === 'string' ? item.name : 'Товар',
+          price: typeof item.price === 'number' && Number.isFinite(item.price) ? item.price : 0,
+          quantity:
+            typeof item.quantity === 'number' && Number.isFinite(item.quantity)
+              ? Math.max(1, Math.trunc(item.quantity))
+              : 1,
+        }))
+        .filter((item) => item.code);
+
+      setCartItems(normalized);
+    } catch {
+      localStorage.removeItem('cart');
     }
   }, []);
 

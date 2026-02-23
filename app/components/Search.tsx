@@ -27,7 +27,22 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   // --- 1. Завантаження історії з localStorage ---
   useEffect(() => {
     const saved = localStorage.getItem("searchHistory");
-    if (saved) setHistory(JSON.parse(saved));
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved) as unknown;
+      if (!Array.isArray(parsed)) {
+        localStorage.removeItem("searchHistory");
+        return;
+      }
+      const normalized = parsed
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, MAX_HISTORY);
+      setHistory(normalized);
+    } catch {
+      localStorage.removeItem("searchHistory");
+    }
   }, []);
 
   // --- 2. Закриття випадаючого при кліку поза полем ---
