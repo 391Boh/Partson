@@ -13,7 +13,7 @@ import {
 } from "app/lib/catalog-server";
 import { getSiteUrl } from "app/lib/site-url";
 
-export const revalidate = 60 * 15;
+export const revalidate = 900;
 
 interface ProductPageParams {
   code: string;

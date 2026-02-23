@@ -4,28 +4,31 @@ import React, { useState } from 'react';
 import PaymentMethod from './PaymentMethod';
 import OrderConfirmation from './OrderConfirmation';
 
+type PaymentMethodValue = React.ComponentProps<typeof PaymentMethod>['paymentMethod'];
+
+interface CheckoutOrderData {
+  name: string;
+  phone: string;
+  amount: number;
+  orderId: string;
+  paymentMethod: PaymentMethodValue;
+  deliveryMethod: string;
+}
+
 const Checkout: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<'payment' | 'confirmation'>('payment');
-
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash' | ''>('');
-  const [orderData, setOrderData] = useState<{
-    name: string;
-    phone: string;
-    amount: number;
-    orderId: string;
-    paymentMethod: 'card' | 'cash' | '';
-    deliveryMethod: string;
-  }>({
-    name: 'Ім\'я Користувача',
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodValue>('');
+  const [orderData, setOrderData] = useState<CheckoutOrderData>({
+    name: 'User',
     phone: '0991234567',
     amount: 200,
     orderId: 'ORDER123',
     paymentMethod: '',
-    deliveryMethod: 'доставка',
+    deliveryMethod: 'delivery',
   });
 
-  const handlePaymentConfirmed = (data: typeof orderData) => {
-    setOrderData(data);
+  const handlePaymentConfirmed = () => {
+    setOrderData((prev) => ({ ...prev, paymentMethod }));
     setCurrentStep('confirmation');
   };
 
@@ -45,14 +48,18 @@ const Checkout: React.FC = () => {
           setPaymentMethod={setPaymentMethod}
           deliveryMethod={orderData.deliveryMethod}
           onPaymentConfirmed={handlePaymentConfirmed}
+          onConfirm={() => {}}
           onBack={() => {}}
         />
       )}
 
       {currentStep === 'confirmation' && (
         <OrderConfirmation
-          orderData={orderData}
-          onBack={handleBackToPayment}
+          name={orderData.name}
+          phone={orderData.phone}
+          orderId={orderData.orderId}
+          totalAmount={orderData.amount}
+          onClose={handleBackToPayment}
         />
       )}
     </div>

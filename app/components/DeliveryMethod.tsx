@@ -4,9 +4,9 @@ import { ArrowLeft, Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 // Debounce function
-function debounce<T extends (...args: unknown[]) => void>(func: T, delay: number) {
+function debounce<TArgs extends unknown[]>(func: (...args: TArgs) => void, delay: number) {
   let timer: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
+  return (...args: TArgs) => {
     clearTimeout(timer);
     timer = setTimeout(() => func(...args), delay);
   };

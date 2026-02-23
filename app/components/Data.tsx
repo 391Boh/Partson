@@ -25,7 +25,7 @@ interface DataProps {
 }
 
 export interface Product {
-  raw: Record<string, unknown>;
+  raw?: Record<string, unknown>;
   code: string;
   article: string;
   name: string;

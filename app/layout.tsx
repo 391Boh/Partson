@@ -1,6 +1,6 @@
 import { Geist_Mono, Montserrat } from "next/font/google";
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import Script from "next/script";
 import ClientWrapper from "./client-wrapper";
 import LayoutHost from "./components/LayoutHost";
@@ -163,7 +163,9 @@ export default function RootLayout({
       </head>
       <body className={`${montserrat.className} ${montserrat.variable} ${geistMono.variable}`}>
         <ClientWrapper>
-          <LayoutHost>{children}</LayoutHost>
+          <Suspense fallback={<main className="min-h-screen">{children}</main>}>
+            <LayoutHost>{children}</LayoutHost>
+          </Suspense>
         </ClientWrapper>
       </body>
     </html>

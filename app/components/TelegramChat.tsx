@@ -214,6 +214,7 @@ const addToOrder = useCallback((product: ProductCard, qty: number) => {
     const code = product.code ?? product.article ?? '';
     const article = product.article ?? product.code ?? '';
     if (!code || typeof product.price !== 'number') return;
+    const price = product.price;
 
     setOrderItems((prev) => {
       const existing = prev.find((p) => p.code === code);
@@ -235,7 +236,7 @@ const addToOrder = useCallback((product: ProductCard, qty: number) => {
           code,
           article: article || code,
           name: product.name || 'Товар',
-          price: product.price,
+          price,
           quantity: Math.min(qty, maxQty),
           maxQty,
           link: product.link,
@@ -356,7 +357,8 @@ const addToOrder = useCallback((product: ProductCard, qty: number) => {
         </div>
 
         {messages.map((m) => {
-          const isProduct = m.type === 'product' && m.product;
+          const product = m.type === 'product' ? m.product : undefined;
+          const isProduct = Boolean(product);
           return (
             <div
               key={m.id}
@@ -379,8 +381,8 @@ const addToOrder = useCallback((product: ProductCard, qty: number) => {
                     : 'border border-sky-200/70 bg-white/95 text-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.08)]'
                 }`}
               >
-                {isProduct ? (
-                  <ChatProductCard product={m.product} onAddToOrder={addToOrder} />
+                {product ? (
+                  <ChatProductCard product={product} onAddToOrder={addToOrder} />
                 ) : (
                   m.text
                 )}

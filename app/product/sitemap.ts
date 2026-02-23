@@ -7,7 +7,7 @@ import {
 } from "app/lib/product-sitemap";
 import { getSiteUrl } from "app/lib/site-url";
 
-export const revalidate = 60 * 60;
+export const revalidate = 3600;
 
 export async function generateSitemaps() {
   return getProductSitemapIds();
