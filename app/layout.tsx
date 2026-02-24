@@ -57,6 +57,15 @@ export const metadata: Metadata = {
     google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
   },
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon-48x48.png", type: "image/png", sizes: "48x48" },
+      { url: "/favicon-192x192.png", type: "image/png", sizes: "192x192" },
+      { url: "/favicon-512x512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
+    shortcut: ["/favicon-48x48.png"],
+  },
   openGraph: {
     type: "website",
     locale: "uk_UA",
@@ -95,11 +104,19 @@ const websiteJsonLd = {
 
 const organizationJsonLd = {
   "@context": "https://schema.org",
-  "@type": "AutoPartsStore",
+  "@type": "Organization",
+  additionalType: "https://schema.org/AutoPartsStore",
   name: "PartsON",
   url: siteUrl,
-  logo: `${siteUrl}/Car-parts-fullwidth.png`,
-  image: `${siteUrl}/Car-parts-fullwidth.png`,
+  logo: {
+    "@type": "ImageObject",
+    url: `${siteUrl}/favicon-512x512.png`,
+    width: 512,
+    height: 512,
+  },
+  image: [`${siteUrl}/favicon-512x512.png`],
+  description:
+    "Інтернет-магазин автозапчастин PartsON з каталогом, підбором деталей та доставкою по Україні.",
   email: "romaniukbboogg@gmail.com",
   telephone: "+380634211851",
   address: {
@@ -125,7 +142,6 @@ const organizationJsonLd = {
       availableLanguage: ["uk", "ru"],
     },
   ],
-  sameAs: [],
 };
 
 export default function RootLayout({
@@ -136,8 +152,6 @@ export default function RootLayout({
   return (
     <html lang="uk">
       <head>
-        <link rel="shortcut icon" href="/Car-parts-fullwidth.png" />
-        <link rel="manifest" href="/manifest.webmanifest" />
         <Script
           id="strip-fdprocessedid"
           strategy="beforeInteractive"
