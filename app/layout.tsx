@@ -29,6 +29,9 @@ const siteUrlObject = (() => {
   }
 })();
 
+const organizationId = `${siteUrl}#organization`;
+const organizationLogoUrl = `${siteUrl}/Car-parts-fullwidth.png`;
+
 export const metadata: Metadata = {
   metadataBase: siteUrlObject,
   title: {
@@ -95,6 +98,7 @@ const websiteJsonLd = {
   "@type": "WebSite",
   name: "PartsON",
   url: siteUrl,
+  publisher: { "@id": organizationId },
   potentialAction: {
     "@type": "SearchAction",
     target: `${siteUrl}/katalog?search={search_term_string}`,
@@ -105,16 +109,17 @@ const websiteJsonLd = {
 const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
+  "@id": organizationId,
   additionalType: "https://schema.org/AutoPartsStore",
   name: "PartsON",
   url: siteUrl,
   logo: {
     "@type": "ImageObject",
-    url: `${siteUrl}/favicon-512x512.png`,
+    url: `${organizationLogoUrl}`,
     width: 512,
     height: 512,
   },
-  image: [`${siteUrl}/favicon-512x512.png`],
+  image: [`${organizationLogoUrl}`],
   description:
     "Інтернет-магазин автозапчастин PartsON з каталогом, підбором деталей та доставкою по Україні.",
   email: "romaniukbboogg@gmail.com",
@@ -152,6 +157,9 @@ export default function RootLayout({
   return (
     <html lang="uk">
       <head>
+        <link rel="icon" href="/favicon-48x48.png" sizes="48x48" type="image/png" />
+        <link rel="icon" href="/favicon-192x192.png" sizes="192x192" type="image/png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
         <Script
           id="strip-fdprocessedid"
           strategy="beforeInteractive"
@@ -233,3 +241,5 @@ export default function RootLayout({
     </html>
   );
 }
+
+
