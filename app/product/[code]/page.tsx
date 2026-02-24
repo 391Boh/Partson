@@ -11,6 +11,7 @@ import {
   findCatalogProductByCode,
   toPriceUah,
 } from "app/lib/catalog-server";
+import { getProductImagePath } from "app/lib/product-image";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 900;
@@ -57,8 +58,9 @@ const buildProductJsonLd = (options: {
   quantity: number;
   priceUah: number | null;
   canonicalUrl: string;
+  imageUrl: string;
 }) => {
-  const { name, description, code, article, producer, quantity, priceUah, canonicalUrl } = options;
+  const { name, description, code, article, producer, quantity, priceUah, canonicalUrl, imageUrl } = options;
 
   const offers =
     priceUah != null
@@ -79,6 +81,7 @@ const buildProductJsonLd = (options: {
     "@type": "Product",
     name,
     description,
+    image: [imageUrl],
     sku: article || undefined,
     mpn: code || undefined,
     brand: producer ? { "@type": "Brand", name: producer } : undefined,
@@ -137,6 +140,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
 
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
   const canonicalPath = `/product/${canonicalCode}`;
+  const productImagePath = getProductImagePath(product.code || resolvedCode);
   const description = buildProductMetaDescription({
     name: product.name,
     article: product.article,
@@ -155,7 +159,16 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       url: canonicalPath,
       title: product.name,
       description,
-      images: [{ url: "/Car-parts-fullwidth.png" }],
+      images: [
+        { url: productImagePath, alt: `Фото товару ${product.name}` },
+        { url: "/Car-parts-fullwidth.png", alt: "PartsON - автозапчастини" },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: product.name,
+      description,
+      images: [productImagePath],
     },
     robots: {
       index: true,
@@ -196,6 +209,8 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const siteUrl = getSiteUrl({ headers: requestHeaders });
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
   const canonicalUrl = `${siteUrl}/product/${canonicalCode}`;
+  const productImagePath = getProductImagePath(product.code || resolvedCode);
+  const productImageUrl = `${siteUrl}${productImagePath}`;
   const jsonLd = buildProductJsonLd({
     name: product.name,
     description,
@@ -205,6 +220,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     quantity: product.quantity,
     priceUah,
     canonicalUrl,
+    imageUrl: productImageUrl,
   });
 
   return (
@@ -230,6 +246,18 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
           <div className="grid gap-6 px-5 py-6 sm:px-8 lg:grid-cols-[1fr_290px]">
             <section className="space-y-5">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-3">
+                <img
+                  src={productImagePath}
+                  alt={`Фото товару ${product.name}`}
+                  width={640}
+                  height={640}
+                  loading="eager"
+                  decoding="async"
+                  className="mx-auto h-[300px] w-full rounded-xl bg-slate-50 object-contain sm:h-[340px]"
+                />
+              </div>
+
               <div className="grid gap-2.5 text-sm sm:grid-cols-2">
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2.5">
                   <p className="text-[11px] uppercase tracking-wide text-slate-500">Код</p>
