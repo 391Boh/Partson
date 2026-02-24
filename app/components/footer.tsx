@@ -1,3 +1,4 @@
+﻿import Link from "next/link";
 import {
   FaFacebookF,
   FaInstagram,
@@ -14,35 +15,36 @@ export default function Footer() {
       onCut={(event) => event.preventDefault()}
     >
       <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-4 lg:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {/* Логотип і короткий опис */}
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
           <div>
             <div className="flex items-baseline gap-3">
-              <h2 className="text-2xl font-bold shrink-0">PartsON</h2>
-              <p className="text-sm text-gray-400 truncate flex-1 min-w-0">
-              Найкращий інтернет-магазин з автозапчастинами
+              <h2 className="shrink-0 text-2xl font-bold">PartsON</h2>
+              <p className="min-w-0 flex-1 truncate text-sm text-gray-500">
+                Найкращий інтернет-магазин з автозапчастинами
               </p>
             </div>
           </div>
 
-          {/* Посилання */}
           <div>
-            <h3 className="text-lg font-semibold mb-3 text-gray-700">
-              Інформація
-            </h3>
+            <h3 className="mb-3 text-lg font-semibold text-gray-700">Інформація</h3>
             <ul className="space-y-2 text-sm">
-              <li><a href="/about">Про нас</a></li>
-              <li><a href="/delivery">Доставка</a></li>
-              <li><a href="/returns">Повернення</a></li>
-              <li><a href="/contacts">Контакти</a></li>
+              <li>
+                <Link href="/Inform?tab=about">Про нас</Link>
+              </li>
+              <li>
+                <Link href="/Inform?tab=delivery">Доставка</Link>
+              </li>
+              <li>
+                <Link href="/groups">Групи товарів</Link>
+              </li>
+              <li>
+                <Link href="/manufacturers">Виробники</Link>
+              </li>
             </ul>
           </div>
 
-          {/* Контакти */}
           <div>
-            <h3 className="text-lg font-semibold mb-3 text-gray-700">
-              Контакти
-            </h3>
+            <h3 className="mb-3 text-lg font-semibold text-gray-700">Контакти</h3>
             <ul className="space-y-2 text-sm">
               <li className="flex items-center gap-2">
                 <FaPhoneAlt />
@@ -50,18 +52,13 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-2">
                 <FaEnvelope />
-                <a href="mailto:romaniukbboogg@gmail.com">
-                  romaniukbboogg@gmail.com
-                </a>
+                <a href="mailto:romaniukbboogg@gmail.com">romaniukbboogg@gmail.com</a>
               </li>
             </ul>
           </div>
 
-          {/* Соцмережі */}
           <div>
-            <h3 className="text-lg font-semibold mb-3 text-gray-700">
-              Ми в соцмережах
-            </h3>
+            <h3 className="mb-3 text-lg font-semibold text-gray-700">Ми в соцмережах</h3>
             <div className="flex space-x-4">
               <FaFacebookF />
               <FaInstagram />
@@ -70,8 +67,7 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* ⬇️ ОСЬ ЦЕЙ DIV БУВ ВІДСУТНІЙ */}
-        <div className="border-t border-gray-300 mt-10 pt-5 text-center text-sm text-gray-500">
+        <div className="mt-10 border-t border-gray-300 pt-5 text-center text-sm text-gray-500">
           © {new Date().getFullYear()} PartsON. Всі права захищені.
         </div>
       </div>

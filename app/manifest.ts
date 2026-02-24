@@ -1,10 +1,11 @@
-import type { MetadataRoute } from "next";
+﻿import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "PartsON - Магазин автозапчастин",
     short_name: "PartsON",
-    description: "Каталог автозапчастин, підбір товарів та швидкі замовлення онлайн.",
+    description:
+      "Каталог автозапчастин, підбір товарів і швидке замовлення онлайн.",
     start_url: "/",
     scope: "/",
     display: "standalone",

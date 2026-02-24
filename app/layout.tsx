@@ -1,4 +1,4 @@
-import { Geist_Mono, Montserrat } from "next/font/google";
+﻿import { Geist_Mono, Montserrat } from "next/font/google";
 import type { Metadata } from "next";
 import { Suspense, type ReactNode } from "react";
 import Script from "next/script";
@@ -36,7 +36,16 @@ export const metadata: Metadata = {
     template: "%s | PartsON",
   },
   description:
-    "Каталог автозапчастин з актуальною наявністю, цінами та швидким підбором деталей.",
+    "Каталог автозапчастин з актуальною наявністю, цінами та швидким підбором деталей за кодом, артикулом і виробником.",
+  applicationName: "PartsON",
+  category: "auto parts",
+  keywords: [
+    "автозапчастини",
+    "каталог автозапчастин",
+    "купити запчастини",
+    "виробники автозапчастин",
+    "PartsON",
+  ],
   alternates: {
     canonical: "/",
   },
@@ -56,9 +65,22 @@ export const metadata: Metadata = {
     title: "PartsON - Магазин автозапчастин",
     description:
       "Каталог автозапчастин з актуальною наявністю, цінами та швидким підбором деталей.",
-    images: [{ url: "/Car-parts-fullwidth.png" }],
+    images: [
+      {
+        url: "/Car-parts-fullwidth.png",
+        alt: "PartsON - автозапчастини",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PartsON - Магазин автозапчастин",
+    description:
+      "Каталог автозапчастин з актуальною наявністю, цінами та підбором за кодом і виробником.",
+    images: ["/Car-parts-fullwidth.png"],
   },
 };
+
 const websiteJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
@@ -73,10 +95,36 @@ const websiteJsonLd = {
 
 const organizationJsonLd = {
   "@context": "https://schema.org",
-  "@type": "Organization",
+  "@type": "AutoPartsStore",
   name: "PartsON",
   url: siteUrl,
   logo: `${siteUrl}/Car-parts-fullwidth.png`,
+  image: `${siteUrl}/Car-parts-fullwidth.png`,
+  email: "romaniukbboogg@gmail.com",
+  telephone: "+380634211851",
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "вул. Перфецького, 8",
+    addressLocality: "Львів",
+    addressCountry: "UA",
+  },
+  openingHoursSpecification: [
+    {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      opens: "09:00",
+      closes: "18:00",
+    },
+  ],
+  contactPoint: [
+    {
+      "@type": "ContactPoint",
+      contactType: "customer support",
+      telephone: "+380634211851",
+      email: "romaniukbboogg@gmail.com",
+      availableLanguage: ["uk", "ru"],
+    },
+  ],
   sameAs: [],
 };
 
