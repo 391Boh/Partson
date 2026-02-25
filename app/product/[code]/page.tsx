@@ -1,4 +1,4 @@
-import { cache, type CSSProperties } from "react";
+﻿import { cache, type CSSProperties } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
@@ -35,13 +35,13 @@ const pageBackground: CSSProperties = {
 };
 
 const formatQuantity = (quantity: number) => {
-  if (!Number.isFinite(quantity) || quantity <= 0) return "Під замовлення";
-  return `${quantity} шт.`;
+  if (!Number.isFinite(quantity) || quantity <= 0) return "РџС–Рґ Р·Р°РјРѕРІР»РµРЅРЅСЏ";
+  return `${quantity} С€С‚.`;
 };
 
 const formatPriceUah = (priceUah: number | null) => {
-  if (priceUah == null) return "За запитом";
-  return `${priceUah.toLocaleString("uk-UA")} грн`;
+  if (priceUah == null) return "Р—Р° Р·Р°РїРёС‚РѕРј";
+  return `${priceUah.toLocaleString("uk-UA")} РіСЂРЅ`;
 };
 
 const normalizeView = (view: string | string[] | undefined) => {
@@ -72,6 +72,14 @@ const buildProductJsonLd = (options: {
             quantity > 0
               ? "https://schema.org/InStock"
               : "https://schema.org/PreOrder",
+          itemCondition: "https://schema.org/NewCondition",
+          seller: {
+            "@type": "Organization",
+            name: "PartsON",
+          },
+          priceValidUntil: new Date(
+            Date.now() + 1000 * 60 * 60 * 24 * 14
+          ).toISOString(),
           url: canonicalUrl,
         }
       : undefined;
@@ -86,6 +94,39 @@ const buildProductJsonLd = (options: {
     mpn: code || undefined,
     brand: producer ? { "@type": "Brand", name: producer } : undefined,
     offers,
+  };
+};
+
+const buildProductBreadcrumbJsonLd = (options: {
+  siteUrl: string;
+  canonicalUrl: string;
+  name: string;
+}) => {
+  const { siteUrl, canonicalUrl, name } = options;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: siteUrl,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Catalog",
+        item: `${siteUrl}/katalog`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name,
+        item: canonicalUrl,
+      },
+    ],
   };
 };
 
@@ -110,14 +151,14 @@ const buildProductMetaDescription = (options: {
 }) => {
   const { name, article, producer, quantity } = options;
   const details = [
-    article ? `артикул ${article}` : null,
-    producer ? `виробник ${producer}` : null,
-    quantity > 0 ? `в наявності ${quantity} шт.` : "під замовлення",
+    article ? `Р°СЂС‚РёРєСѓР» ${article}` : null,
+    producer ? `РІРёСЂРѕР±РЅРёРє ${producer}` : null,
+    quantity > 0 ? `РІ РЅР°СЏРІРЅРѕСЃС‚С– ${quantity} С€С‚.` : "РїС–Рґ Р·Р°РјРѕРІР»РµРЅРЅСЏ",
   ]
     .filter(Boolean)
     .join(", ");
 
-  return `Купити ${name}. ${details}. Каталог автозапчастин PartsON.`;
+  return `РљСѓРїРёС‚Рё ${name}. ${details}. РљР°С‚Р°Р»РѕРі Р°РІС‚РѕР·Р°РїС‡Р°СЃС‚РёРЅ PartsON.`;
 };
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
@@ -125,7 +166,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const resolvedCode = decodeURIComponent(rawCode || "").trim();
   if (!resolvedCode) {
     return {
-      title: "Товар не знайдено",
+      title: "РўРѕРІР°СЂ РЅРµ Р·РЅР°Р№РґРµРЅРѕ",
       robots: { index: false, follow: false },
     };
   }
@@ -133,7 +174,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const product = await getCatalogProduct(resolvedCode);
   if (!product) {
     return {
-      title: "Товар не знайдено",
+      title: "РўРѕРІР°СЂ РЅРµ Р·РЅР°Р№РґРµРЅРѕ",
       robots: { index: false, follow: false },
     };
   }
@@ -147,21 +188,37 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     producer: product.producer,
     quantity: product.quantity,
   });
+  const keywords = Array.from(new Set([
+    product.name,
+    product.code,
+    product.article,
+    product.producer,
+    "auto parts",
+    "parts catalog",
+  ].map((entry) => (entry || "").trim()).filter(Boolean)));
+  const otherMeta: Record<string, string> = {
+    "product:availability": product.quantity > 0 ? "in stock" : "out of stock",
+    "product:condition": "new",
+  };
+  if (product.producer) otherMeta["product:brand"] = product.producer;
+  if (product.article) otherMeta["product:mpn"] = product.article;
+  if (product.code) otherMeta["product:retailer_item_id"] = product.code;
 
   return {
     title: product.name,
     description,
+    keywords,
     alternates: {
       canonical: canonicalPath,
     },
     openGraph: {
-      type: "website",
+      type: "article",
       url: canonicalPath,
       title: product.name,
       description,
       images: [
-        { url: productImagePath, alt: `Фото товару ${product.name}` },
-        { url: "/Car-parts-fullwidth.png", alt: "PartsON - автозапчастини" },
+        { url: productImagePath, alt: `Р¤РѕС‚Рѕ С‚РѕРІР°СЂСѓ ${product.name}` },
+        { url: "/Car-parts-fullwidth.png", alt: "PartsON - Р°РІС‚РѕР·Р°РїС‡Р°СЃС‚РёРЅРё" },
       ],
     },
     twitter: {
@@ -174,6 +231,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       index: true,
       follow: true,
     },
+    other: otherMeta,
   };
 }
 
@@ -203,7 +261,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const hasPrice = priceUah != null;
   const description =
     (descriptionFromApi || "").trim() ||
-    "Опис тимчасово відсутній. Надішліть запит у чат, і менеджер підбере товар та уточнить характеристики.";
+    "РћРїРёСЃ С‚РёРјС‡Р°СЃРѕРІРѕ РІС–РґСЃСѓС‚РЅС–Р№. РќР°РґС–С€Р»С–С‚СЊ Р·Р°РїРёС‚ Сѓ С‡Р°С‚, С– РјРµРЅРµРґР¶РµСЂ РїС–РґР±РµСЂРµ С‚РѕРІР°СЂ С‚Р° СѓС‚РѕС‡РЅРёС‚СЊ С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРєРё.";
 
   const requestHeaders = await headers();
   const siteUrl = getSiteUrl({ headers: requestHeaders });
@@ -222,6 +280,11 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     canonicalUrl,
     imageUrl: productImageUrl,
   });
+  const breadcrumbJsonLd = buildProductBreadcrumbJsonLd({
+    siteUrl,
+    canonicalUrl,
+    name: product.name,
+  });
 
   return (
     <div
@@ -234,13 +297,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             href="/katalog"
             className="mb-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-800"
           >
-            ← Повернутися в каталог
+            в†ђ РџРѕРІРµСЂРЅСѓС‚РёСЃСЏ РІ РєР°С‚Р°Р»РѕРі
           </Link>
         )}
 
         <article className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-[0_20px_50px_rgba(15,23,42,0.12)] backdrop-blur-sm">
           <div className="border-b border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-5 py-6 text-white sm:px-8">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-300">Картка товару</p>
+            <p className="text-xs uppercase tracking-[0.16em] text-slate-300">РљР°СЂС‚РєР° С‚РѕРІР°СЂСѓ</p>
             <h1 className="mt-2 text-xl font-semibold leading-tight sm:text-2xl">{product.name}</h1>
           </div>
 
@@ -249,7 +312,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-3">
                 <img
                   src={productImagePath}
-                  alt={`Фото товару ${product.name}`}
+                  alt={`Р¤РѕС‚Рѕ С‚РѕРІР°СЂСѓ ${product.name}`}
                   width={640}
                   height={640}
                   loading="eager"
@@ -260,52 +323,67 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
               <div className="grid gap-2.5 text-sm sm:grid-cols-2">
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2.5">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Код</p>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">РљРѕРґ</p>
                   <p className="mt-1 font-semibold text-slate-800">{product.code || "-"}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2.5">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Артикул</p>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">РђСЂС‚РёРєСѓР»</p>
                   <p className="mt-1 font-semibold text-slate-800">{product.article || "-"}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2.5">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Виробник</p>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Р’РёСЂРѕР±РЅРёРє</p>
                   <p className="mt-1 font-semibold text-slate-800">{product.producer || "-"}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2.5">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Наявність</p>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">РќР°СЏРІРЅС–СЃС‚СЊ</p>
                   <p className="mt-1 font-semibold text-slate-800">{formatQuantity(product.quantity)}</p>
                 </div>
               </div>
 
               <section className="rounded-2xl border border-slate-200 bg-white p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Опис</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">РћРїРёСЃ</h2>
                 <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">{description}</p>
               </section>
             </section>
 
             <aside className="h-fit rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50 p-4">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-sky-700">Ціна</p>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-sky-700">Р¦С–РЅР°</p>
               <p className={`mt-2 text-2xl font-bold ${hasPrice ? "text-sky-700" : "text-slate-600"}`}>
                 {formatPriceUah(priceUah)}
               </p>
               <p className="mt-2 text-xs text-slate-500">
                 {hasPrice
-                  ? "Остаточна вартість може змінюватись залежно від постачальника."
-                  : "Для цього товару ціна доступна за запитом у чаті."}
+                  ? "РћСЃС‚Р°С‚РѕС‡РЅР° РІР°СЂС‚С–СЃС‚СЊ РјРѕР¶Рµ Р·РјС–РЅСЋРІР°С‚РёСЃСЊ Р·Р°Р»РµР¶РЅРѕ РІС–Рґ РїРѕСЃС‚Р°С‡Р°Р»СЊРЅРёРєР°."
+                  : "Р”Р»СЏ С†СЊРѕРіРѕ С‚РѕРІР°СЂСѓ С†С–РЅР° РґРѕСЃС‚СѓРїРЅР° Р·Р° Р·Р°РїРёС‚РѕРј Сѓ С‡Р°С‚С–."}
               </p>
 
               <a
                 href="/katalog"
                 className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
               >
-                До каталогу
+                Р”Рѕ РєР°С‚Р°Р»РѕРіСѓ
               </a>
             </aside>
           </div>
         </article>
       </div>
 
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
     </div>
   );
 }
+
+
+
+
+
+
+
+
