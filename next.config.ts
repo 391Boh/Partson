@@ -12,9 +12,6 @@ const securityHeaders = [
 const nextConfig = {
   poweredByHeader: false,
   transpilePackages: ["leaflet", "react-leaflet"],
-  turbopack: {
-    root: __dirname,
-  },
   async headers() {
     return [
       {

@@ -78,6 +78,23 @@ let cachedEuroRate = 50;
 let lastEuroFetchAt = 0;
 const EURO_RATE_TTL_MS = 1000 * 60 * 30;
 
+const maybeFixMojibake = (input: string) => {
+  const value = input.trim();
+  if (!value || !/(?:Р.|С.){2,}/.test(value)) return value;
+
+  try {
+    const decoded = Buffer.from(value, "latin1").toString("utf8").trim();
+    if (!decoded) return value;
+
+    const score = (sample: string) =>
+      (sample.match(/[A-Za-zА-Яа-яІіЇїЄєҐґ0-9]/g) || []).length;
+
+    return score(decoded) >= score(value) ? decoded : value;
+  } catch {
+    return value;
+  }
+};
+
 const readFirstString = (
   source: Record<string, unknown>,
   keys: readonly string[],
@@ -87,7 +104,7 @@ const readFirstString = (
     const value = source?.[key];
     if (typeof value !== "string") continue;
     const trimmed = value.trim();
-    if (trimmed) return trimmed;
+    if (trimmed) return maybeFixMojibake(trimmed);
   }
   return fallback;
 };

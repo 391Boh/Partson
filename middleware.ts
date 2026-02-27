@@ -31,10 +31,14 @@ export function middleware(request: NextRequest) {
   }
 
   const canonical = new URL(CANONICAL_ORIGIN);
-  if (url.host !== canonical.host || url.protocol !== canonical.protocol) {
-    url.protocol = canonical.protocol;
-    url.host = canonical.host;
-    return NextResponse.redirect(url, 308);
+  const sameOrigin =
+    url.protocol === canonical.protocol &&
+    url.hostname === canonical.hostname;
+
+  if (!sameOrigin) {
+    // Build redirect URL from canonical origin to avoid leaking internal app port.
+    const redirectUrl = new URL(`${url.pathname}${url.search}`, CANONICAL_ORIGIN);
+    return NextResponse.redirect(redirectUrl, 308);
   }
 
   return NextResponse.next();

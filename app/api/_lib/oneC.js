@@ -1,5 +1,45 @@
-const BASE_URL = process.env.ONEC_BASE_URL || "";
-const AUTH_HEADER = process.env.ONEC_AUTH_HEADER || "";
+function normalizeBaseUrl(url) {
+  return String(url || "").trim().replace(/\/+$/, "");
+}
+
+function isValidHttpUrl(url) {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function getOneCConfig() {
+  const baseUrlRaw = normalizeBaseUrl(
+    process.env.ONEC_BASE_URL || process.env.ONEC_URL
+  );
+  const baseUrl = isValidHttpUrl(baseUrlRaw) ? baseUrlRaw : "";
+
+  const authHeaderFromEnv = String(process.env.ONEC_AUTH_HEADER || "").trim();
+  const apiUser = String(process.env.API_USER || "").trim();
+  const apiPass = String(process.env.API_PASS || "");
+  const authHeaderFromUserPass = apiUser
+    ? `Basic ${Buffer.from(`${apiUser}:${apiPass}`, "utf8").toString("base64")}`
+    : "";
+  const authHeader = authHeaderFromEnv || authHeaderFromUserPass;
+
+  return { baseUrl, baseUrlRaw, authHeader };
+}
+
+export function getOneCConfigError() {
+  const { baseUrl, baseUrlRaw, authHeader } = getOneCConfig();
+  const missing = [];
+  if (!baseUrlRaw) {
+    missing.push("ONEC_BASE_URL");
+  } else if (!baseUrl) {
+    missing.push("ONEC_BASE_URL (invalid URL)");
+  }
+  if (!authHeader) missing.push("ONEC_AUTH_HEADER");
+  return missing.length ? `Missing required server env: ${missing.join(", ")}` : "";
+}
 
 const responseCache = new Map();
 
@@ -44,11 +84,13 @@ function setCached(key, value, ttlMs) {
 }
 
 export function getOneCUrl(endpoint) {
-  return `${BASE_URL}/${endpoint}`;
+  const { baseUrl } = getOneCConfig();
+  return `${baseUrl}/${endpoint}`;
 }
 
 export function getOneCAuthHeader() {
-  return AUTH_HEADER;
+  const { authHeader } = getOneCConfig();
+  return authHeader;
 }
 
 export function getOneCTimeoutMs(endpoint) {
@@ -56,17 +98,19 @@ export function getOneCTimeoutMs(endpoint) {
   // so give "catalog" endpoints more time to avoid unnecessary retries.
   switch (endpoint) {
     case "getdata":
-      return 20000;
+      return 25000;
     case "prices":
     case "getimages":
-      return 15000;
+      return 18000;
     case "getprod":
     case "getauto":
-      return 12000;
+      return 30000;
+    case "getinfo":
+      return 20000;
     case "pricespost":
-      return 25000;
+      return 30000;
     default:
-      return 7000;
+      return 12000;
   }
 }
 
@@ -84,15 +128,13 @@ export async function oneCRequest(endpoint, options = {}) {
 
   pruneCache();
 
-  if (!BASE_URL || !AUTH_HEADER) {
+  const configError = getOneCConfigError();
+  if (configError) {
     return {
       status: 500,
       text: JSON.stringify({
-        error: "1C env is not configured",
-        missing: [
-          !BASE_URL ? "ONEC_BASE_URL" : null,
-          !AUTH_HEADER ? "ONEC_AUTH_HEADER" : null,
-        ].filter(Boolean),
+        error: "1C service misconfigured",
+        details: configError,
       }),
       contentType: "application/json",
     };
@@ -107,7 +149,7 @@ export async function oneCRequest(endpoint, options = {}) {
 
   const url = getOneCUrl(endpoint);
   const headers = {
-    Authorization: AUTH_HEADER,
+    Authorization: getOneCAuthHeader(),
   };
 
   let payload;
@@ -157,13 +199,18 @@ export async function oneCRequest(endpoint, options = {}) {
       return result;
     } catch (err) {
       attempt += 1;
+      const details =
+        err?.name === "AbortError"
+          ? `Request timeout after ${timeoutMs}ms`
+          : err?.message || String(err);
       if (attempt > retries) {
         return {
           status: 500,
           text: JSON.stringify({
             error: "1C Service unreachable",
-            details: err?.message || String(err),
+            details,
             endpoint,
+            url,
           }),
           contentType: "application/json",
         };
