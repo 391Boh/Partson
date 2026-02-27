@@ -29,10 +29,10 @@ export default function Footer() {
             <h3 className="mb-3 text-lg font-semibold text-gray-700">Інформація</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/Inform?tab=about">Про нас</Link>
+                <Link href="/inform?tab=about">Про нас</Link>
               </li>
               <li>
-                <Link href="/Inform?tab=delivery">Доставка</Link>
+                <Link href="/inform?tab=delivery">Доставка</Link>
               </li>
               <li>
                 <Link href="/groups">Групи товарів</Link>
@@ -74,3 +74,4 @@ export default function Footer() {
     </footer>
   );
 }
+

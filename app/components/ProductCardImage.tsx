@@ -19,30 +19,30 @@ const buildImagePath = (productCode: string) =>
 
 const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClick }) => {
   const [src, setSrc] = useState<string | null>(FALLBACK);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [shouldLoad, setShouldLoad] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
-      setShouldLoad(true);
+      queueMicrotask(() => setShouldLoad(true));
       return;
     }
 
     const normalizedCode = (productCode || "").trim();
     if (!normalizedCode) {
-      setShouldLoad(false);
+      queueMicrotask(() => setShouldLoad(false));
       return;
     }
 
     if (typeof IntersectionObserver === "undefined") {
-      setShouldLoad(true);
+      queueMicrotask(() => setShouldLoad(true));
       return;
     }
 
     const node = containerRef.current;
     if (!node) {
-      setShouldLoad(true);
+      queueMicrotask(() => setShouldLoad(true));
       return;
     }
 
@@ -61,10 +61,16 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
   }, [productCode]);
 
   useEffect(() => {
+    const applyState = (nextSrc: string, nextLoading: boolean) => {
+      queueMicrotask(() => {
+        setSrc(nextSrc);
+        setLoading(nextLoading);
+      });
+    };
+
     const normalizedCode = (productCode || "").trim();
     if (!normalizedCode) {
-      setSrc(FALLBACK);
-      setLoading(false);
+      applyState(FALLBACK, false);
       return;
     }
 
@@ -75,8 +81,7 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
     }).connection;
 
     if (connection?.saveData) {
-      setSrc(FALLBACK);
-      setLoading(false);
+      applyState(FALLBACK, false);
       return;
     }
 
@@ -85,16 +90,14 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
     try {
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
-        setSrc(cached);
-        setLoading(cached !== FALLBACK);
+        applyState(cached, cached !== FALLBACK);
         return;
       }
     } catch {
       // Ignore sessionStorage errors.
     }
 
-    setSrc(buildImagePath(normalizedCode));
-    setLoading(true);
+    applyState(buildImagePath(normalizedCode), true);
   }, [productCode, shouldLoad]);
 
   const cacheValue = (value: string) => {
@@ -131,14 +134,21 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
   };
 
   const noImage = src === FALLBACK;
+  const canOpen = Boolean(onClick) && !noImage && !loading;
 
   return (
     <div
       ref={containerRef}
-      onClick={onClick}
+      onClick={(event) => {
+        if (!canOpen || !onClick) return;
+        event.stopPropagation();
+        onClick();
+      }}
+      title={canOpen ? "Відкрити фото товару" : "Фото відсутнє"}
       className={`
         relative h-full w-full overflow-hidden rounded-md
         bg-gray-200 flex items-center justify-center
+        ${canOpen ? "cursor-zoom-in" : "cursor-default"}
         ${className}
       `}
     >

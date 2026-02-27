@@ -52,6 +52,49 @@ function normalizeGetAutoResponse(endpoint, status, text) {
   }
 }
 
+function normalizeGetDataResponse(endpoint, status, text) {
+  if (endpoint !== "getdata") return null;
+
+  const trimmed = (text ?? "").trim();
+
+  // Keep catalog list available even when upstream has temporary failures.
+  if (status >= 500) {
+    return new NextResponse("[]", {
+      status: 200,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "x-getdata-fallback": "upstream-error",
+        "x-upstream-status": String(status),
+      },
+    });
+  }
+
+  if (!trimmed) {
+    return NextResponse.json([], { status: 200 });
+  }
+
+  try {
+    JSON.parse(trimmed);
+    return null;
+  } catch {
+    const fixed = tryFix1CJson(trimmed) || extractJsonBlock(trimmed);
+    if (fixed) {
+      return new NextResponse(fixed, {
+        status: status >= 200 && status < 300 ? status : 200,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      });
+    }
+
+    return new NextResponse("[]", {
+      status: 200,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "x-getdata-error": "invalid-json",
+      },
+    });
+  }
+}
+
 function tryFix1CJson(raw) {
   let candidate = raw;
 
@@ -159,6 +202,27 @@ async function getEuroRate() {
   }
 }
 
+async function readJsonBodySafe(req) {
+  try {
+    const contentType = (req.headers.get("content-type") || "").toLowerCase();
+    if (contentType.includes("application/json")) {
+      return await req.json();
+    }
+
+    const raw = await req.text();
+    const trimmed = (raw || "").trim();
+    if (!trimmed) return {};
+
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return {};
+    }
+  } catch {
+    return {};
+  }
+}
+
 export async function GET(req) {
   try {
     const url = new URL(req.url);
@@ -178,6 +242,9 @@ export async function GET(req) {
       retries: 1,
       cacheTtlMs: getCacheTtlMs(endpoint, "GET"),
     });
+
+    const normalizedGetData = normalizeGetDataResponse(endpoint, status, text);
+    if (normalizedGetData) return normalizedGetData;
 
     const normalized = normalizeGetAutoResponse(endpoint, status, text);
     if (normalized) return normalized;
@@ -203,7 +270,7 @@ export async function POST(req) {
       return NextResponse.json({ error: "Missing endpoint" }, { status: 400 });
     }
 
-    const body = await req.json();
+    const body = await readJsonBodySafe(req);
     const retryCount = endpoint === "getdata" ? 2 : 1;
     const { status, text, contentType } = await oneCRequest(endpoint, {
       method: "POST",
@@ -212,6 +279,9 @@ export async function POST(req) {
       retryDelayMs: 250,
       cacheTtlMs: getCacheTtlMs(endpoint, "POST", body),
     });
+
+    const normalizedGetData = normalizeGetDataResponse(endpoint, status, text);
+    if (normalizedGetData) return normalizedGetData;
 
     const normalized = normalizeGetAutoResponse(endpoint, status, text);
     if (normalized) return normalized;
@@ -227,4 +297,7 @@ export async function POST(req) {
     );
   }
 }
+
+
+
 

@@ -43,6 +43,7 @@ const PROXY_ROUTE = "/api/proxy";
 const PRICE_CACHE_PREFIX = "partson:price:";
 const IMAGE_CACHE_PREFIX = "img_";
 const IMAGE_CACHE_FALLBACK = "__NO_IMAGE__";
+const IMAGE_MODAL_FALLBACK_PATH = "/Car-parts-fullwidth.png";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 30;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 20;
@@ -1052,7 +1053,7 @@ function useCatalogData(params: {
 
   const handleImageOpen = useCallback(async (code: string) => {
     const src = await fetchImageBase64(code);
-    if (src) setSelectedImage(src);
+    setSelectedImage(src || IMAGE_MODAL_FALLBACK_PATH);
   }, []);
 
   const handleImageClose = useCallback(() => setSelectedImage(null), []);
@@ -1536,10 +1537,4 @@ const Data: React.FC<DataProps> = ({
 
 export default Data;
                                                           
-
-
-
-
-
-
 

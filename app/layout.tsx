@@ -113,6 +113,33 @@ const websiteJsonLd = {
   },
 };
 
+const siteNavigationJsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "SiteNavigationElement",
+    name: "Каталог",
+    url: `${siteUrl}/katalog`,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SiteNavigationElement",
+    name: "Групи товарів",
+    url: `${siteUrl}/groups`,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SiteNavigationElement",
+    name: "Виробники",
+    url: `${siteUrl}/manufacturers`,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SiteNavigationElement",
+    name: "Інформація",
+    url: `${siteUrl}/inform`,
+  },
+];
+
 const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
@@ -235,6 +262,10 @@ export default function RootLayout({
         />
         <script
           type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteNavigationJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
         />
       </head>
@@ -248,5 +279,4 @@ export default function RootLayout({
     </html>
   );
 }
-
 

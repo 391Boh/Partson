@@ -60,7 +60,7 @@ const addCategoryIcon = (label: string, icon: string) => {
   categoryIconMap.set(normalizeCategoryKey(label), icon);
   categoryIconMap.set(normalizeCategoryKey(safeLabel), icon);
 };
-const getIcon = (label: string) => {
+export const getCategoryIconPath = (label: string) => {
   const resolved =
     categoryIconMap.get(label) ?? categoryIconMap.get(normalizeCategoryKey(label));
   return `/Katlogo/${resolved || "rul.png"}`;
@@ -236,7 +236,7 @@ function FlipCardComponent({
           }}
         >
           <Image
-            src={getIcon(product.name)}
+            src={getCategoryIconPath(product.name)}
             alt={product.name}
             width={60}
             height={60}

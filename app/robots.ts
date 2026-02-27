@@ -10,6 +10,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   const productSitemapIds = await getProductSitemapIds();
   const sitemap = [
     `${siteUrl}/sitemap.xml`,
+    `${siteUrl}/product/sitemap.xml`,
     ...productSitemapIds.map(({ id }) => `${siteUrl}/product/sitemap/${id}.xml`),
   ];
 
@@ -18,7 +19,14 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/api/", "/_next/", "/server.js", "/tmp/", "/admin/"],
+        disallow: [
+          "/api/",
+          "/_next/",
+          "/server.js",
+          "/tmp/",
+          "/admin/",
+          "/*?*",
+        ],
       },
     ],
     sitemap,

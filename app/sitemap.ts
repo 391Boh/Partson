@@ -9,8 +9,7 @@ export const revalidate = 3600;
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const requestHeaders = await headers();
   const siteUrl = getSiteUrl({ headers: requestHeaders });
-  const seoFacets = await getCatalogSeoFacets();
-  const now = new Date(seoFacets.generatedAt);
+  const now = new Date();
 
   const staticPages: MetadataRoute.Sitemap = [
     {
@@ -26,7 +25,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
-      url: `${siteUrl}/Inform`,
+      url: `${siteUrl}/inform`,
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.7,
@@ -45,19 +44,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  const groupPages: MetadataRoute.Sitemap = seoFacets.groups.map((group) => ({
-    url: `${siteUrl}/groups/${group.slug}`,
-    lastModified: now,
-    changeFrequency: "weekly",
-    priority: 0.7,
-  }));
+  let groupPages: MetadataRoute.Sitemap = [];
+  let manufacturerPages: MetadataRoute.Sitemap = [];
 
-  const producerPages: MetadataRoute.Sitemap = seoFacets.producers.map((producer) => ({
-    url: `${siteUrl}/manufacturers/${producer.slug}`,
-    lastModified: now,
-    changeFrequency: "weekly",
-    priority: 0.7,
-  }));
+  try {
+    const facets = await getCatalogSeoFacets();
 
-  return [...staticPages, ...groupPages, ...producerPages];
+    groupPages = facets.groups.map((group) => ({
+      url: `${siteUrl}/groups/${group.slug}`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.75,
+    }));
+
+    manufacturerPages = facets.producers.map((producer) => ({
+      url: `${siteUrl}/manufacturers/${producer.slug}`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.75,
+    }));
+  } catch {
+    // Keep static pages in sitemap if facet data is temporarily unavailable.
+  }
+
+  return [...staticPages, ...groupPages, ...manufacturerPages];
 }

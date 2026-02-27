@@ -91,10 +91,10 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
     const prefetch = () => {
       router.prefetch('/katalog?tab=auto');
       router.prefetch('/katalog?tab=category');
-      router.prefetch('/Inform?tab=delivery');
-      router.prefetch('/Inform?tab=payment');
-      router.prefetch('/Inform?tab=about');
-      router.prefetch('/Inform?tab=location');
+      router.prefetch('/inform?tab=delivery');
+      router.prefetch('/inform?tab=payment');
+      router.prefetch('/inform?tab=about');
+      router.prefetch('/inform?tab=location');
     };
 
     const schedulePrefetch = () => {
@@ -353,10 +353,10 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
                       ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
                       : "opacity-0 scale-95 -translate-y-1 pointer-events-none"
                   }`}>
-                    <li><Link href="/Inform?tab=delivery" onClick={() => setActiveMenu('')} className={dropdownItemClass}><Truck size={18} /> Доставка</Link></li>
-                    <li><Link href="/Inform?tab=payment" onClick={() => setActiveMenu('')} className={dropdownItemClass}><CreditCard size={18} /> Оплата</Link></li>
-                    <li><Link href="/Inform?tab=about" onClick={() => setActiveMenu('')} className={dropdownItemClass}><Users size={18} /> Про нас</Link></li>
-                    <li><Link href="/Inform?tab=location" onClick={() => setActiveMenu('')} className={dropdownItemClass}><MapPin size={18} /> Локація</Link></li>
+                    <li><Link href="/inform?tab=delivery" onClick={() => setActiveMenu('')} className={dropdownItemClass}><Truck size={18} /> Доставка</Link></li>
+                    <li><Link href="/inform?tab=payment" onClick={() => setActiveMenu('')} className={dropdownItemClass}><CreditCard size={18} /> Оплата</Link></li>
+                    <li><Link href="/inform?tab=about" onClick={() => setActiveMenu('')} className={dropdownItemClass}><Users size={18} /> Про нас</Link></li>
+                    <li><Link href="/inform?tab=location" onClick={() => setActiveMenu('')} className={dropdownItemClass}><MapPin size={18} /> Локація</Link></li>
                   </ul>
               </li>
 
@@ -484,3 +484,4 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
 };
 
 export default Header;
+

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -80,7 +80,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     const preloadCriticalChunks = () => {
       try {
-        void import("app/Inform/page");
+        void import("app/inform/page");
       } catch {}
     };
 
@@ -120,7 +120,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         }
       };
 
-      await warm("/Inform?tab=about");
+      await warm("/inform?tab=about");
       void warm("/katalog");
     };
 
@@ -230,7 +230,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           void fetch("/api/proxy?endpoint=prices", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ Код: code }),
+            body: JSON.stringify({ РљРѕРґ: code }),
           }).catch(() => {});
         });
       } catch {}
@@ -246,7 +246,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       if (isSlowConnection) return;
 
       router.prefetch("/katalog");
-      router.prefetch("/Inform");
+      router.prefetch("/inform");
       preloadCriticalChunks();
 
       warmRoutesTimer = window.setTimeout(() => void warmRoutes(), 400);
@@ -443,3 +443,4 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     </div>
   );
 }
+

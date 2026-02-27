@@ -1,39 +1,38 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 
 import HomePageClient from "./home-page-client";
 
 export const metadata: Metadata = {
-  title: "PartsON - Auto Parts Store",
+  title: "PartsON - Магазин автозапчастин",
   description:
-    "Online auto parts catalog with stock status, code search, and fast ordering.",
+    "Онлайн-каталог автозапчастин з актуальною наявністю, пошуком за кодом, артикулом і виробником.",
   alternates: {
     canonical: "/",
   },
   keywords: [
-    "auto parts",
-    "auto parts catalog",
-    "buy auto parts",
-    "parts by code",
+    "автозапчастини",
+    "каталог автозапчастин",
+    "купити запчастини",
+    "пошук запчастин за кодом",
     "PartsON",
   ],
   openGraph: {
     type: "website",
     url: "/",
-    title: "PartsON - Auto Parts Store",
+    title: "PartsON - Магазин автозапчастин",
     description:
-      "Current auto parts catalog with search by code, article, and manufacturer.",
+      "Каталог автозапчастин з актуальною наявністю, цінами та швидким пошуком деталей.",
     images: [
       {
         url: "/Car-parts-fullwidth.png",
-        alt: "PartsON auto parts",
+        alt: "PartsON автозапчастини",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "PartsON - Auto Parts Store",
-    description:
-      "Auto parts catalog with availability and fast part lookup.",
+    title: "PartsON - Магазин автозапчастин",
+    description: "Каталог автозапчастин з наявністю та швидким підбором деталей.",
     images: ["/Car-parts-fullwidth.png"],
   },
 };

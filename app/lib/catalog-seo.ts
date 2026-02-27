@@ -1,55 +1,24 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 
 import { type CatalogProduct, fetchCatalogProductsPage } from "app/lib/catalog-server";
 import { buildSeoSlug } from "app/lib/seo-slug";
 
-const FACET_PAGE_SIZE = 80;
-const FACET_MAX_PAGES = 350;
-const FACET_MAX_ITEMS = 50000;
+const FACET_PAGE_SIZE = 120;
+const FACET_MAX_PAGES = 220;
+const FACET_MAX_ITEMS = 30000;
 
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
+const normalizeToken = (value: string | null | undefined) =>
+  normalizeValue(value).toLowerCase();
 
-const sortByPopularityThenLabel = (a: SeoFacetItem, b: SeoFacetItem) => {
-  if (b.productCount !== a.productCount) return b.productCount - a.productCount;
-  return a.label.localeCompare(b.label, "uk");
-};
+interface FacetCounterEntry {
+  label: string;
+  productKeys: Set<string>;
+}
 
-const increaseCounter = (map: Map<string, number>, value: string) => {
-  map.set(value, (map.get(value) || 0) + 1);
-};
-
-const increaseNestedCounter = (
-  map: Map<string, Map<string, number>>,
-  parent: string,
-  child: string
-) => {
-  const nested = map.get(parent) || new Map<string, number>();
-  nested.set(child, (nested.get(child) || 0) + 1);
-  map.set(parent, nested);
-};
-
-const toFacetList = (source: Map<string, number>) =>
-  Array.from(source.entries())
-    .map(([label, productCount]) => ({
-      label,
-      slug: buildSeoSlug(label),
-      productCount,
-    }))
-    .sort(sortByPopularityThenLabel);
-
-const resolveGroupLabel = (product: CatalogProduct) =>
-  normalizeValue(product.group) ||
-  normalizeValue(product.category) ||
-  normalizeValue(product.subGroup);
-
-const resolveSubgroupLabel = (product: CatalogProduct) => {
-  const subgroup = normalizeValue(product.subGroup);
-  const group = resolveGroupLabel(product);
-  if (!subgroup || !group) return subgroup;
-  if (subgroup.toLowerCase() === group.toLowerCase()) return "";
-  return subgroup;
-};
+type FacetCounterMap = Map<string, FacetCounterEntry>;
 
 export interface SeoFacetItem {
   label: string;
@@ -71,11 +40,108 @@ interface CatalogSeoFacets {
   generatedAt: string;
 }
 
-const collectSeoFacets = cache(async (): Promise<CatalogSeoFacets> => {
-  const groupCounts = new Map<string, number>();
-  const producerCounts = new Map<string, number>();
-  const groupSubgroupCounts = new Map<string, Map<string, number>>();
-  const producerGroupCounts = new Map<string, Map<string, number>>();
+const sortByPopularityThenLabel = (a: SeoFacetItem, b: SeoFacetItem) => {
+  if (b.productCount !== a.productCount) return b.productCount - a.productCount;
+  return a.label.localeCompare(b.label, "uk");
+};
+
+const pickPreferredLabel = (current: string, candidate: string) => {
+  if (!current) return candidate;
+  if (!candidate) return current;
+
+  if (current.toLowerCase() === candidate.toLowerCase()) {
+    const currentLooksUpper = current === current.toUpperCase();
+    const candidateLooksUpper = candidate === candidate.toUpperCase();
+    if (currentLooksUpper && !candidateLooksUpper) return candidate;
+    if (candidate.length > current.length) return candidate;
+  }
+
+  return current;
+};
+
+const registerFacetProduct = (
+  map: FacetCounterMap,
+  label: string,
+  productKey: string
+) => {
+  const normalizedLabel = normalizeValue(label);
+  if (!normalizedLabel || !productKey) return null;
+
+  const facetKey = buildSeoSlug(normalizedLabel);
+  if (!facetKey) return null;
+
+  const existing = map.get(facetKey);
+  if (!existing) {
+    map.set(facetKey, {
+      label: normalizedLabel,
+      productKeys: new Set([productKey]),
+    });
+    return facetKey;
+  }
+
+  existing.label = pickPreferredLabel(existing.label, normalizedLabel);
+  existing.productKeys.add(productKey);
+  return facetKey;
+};
+
+const registerNestedFacetProduct = (
+  map: Map<string, FacetCounterMap>,
+  parentLabel: string,
+  childLabel: string,
+  productKey: string
+) => {
+  const parentKey = buildSeoSlug(normalizeValue(parentLabel));
+  if (!parentKey) return;
+
+  const nested = map.get(parentKey) || new Map<string, FacetCounterEntry>();
+  registerFacetProduct(nested, childLabel, productKey);
+  map.set(parentKey, nested);
+};
+
+const toFacetList = (source: FacetCounterMap): SeoFacetItem[] =>
+  Array.from(source.entries())
+    .map(([slug, entry]) => ({
+      label: entry.label,
+      slug,
+      productCount: entry.productKeys.size,
+    }))
+    .filter((item) => item.label && item.slug && item.productCount > 0)
+    .sort(sortByPopularityThenLabel);
+
+const resolveGroupLabel = (product: CatalogProduct) =>
+  normalizeValue(product.group) || normalizeValue(product.category);
+
+const resolveSubgroupLabel = (product: CatalogProduct) => {
+  const subgroup = normalizeValue(product.subGroup);
+  const category = normalizeValue(product.category);
+  const group = resolveGroupLabel(product);
+
+  if (!group) return "";
+  if (subgroup && subgroup.toLowerCase() !== group.toLowerCase()) return subgroup;
+  if (category && category.toLowerCase() !== group.toLowerCase()) return category;
+  if (!subgroup) return "";
+  if (subgroup.toLowerCase() === group.toLowerCase()) return "";
+  return subgroup;
+};
+
+const resolveProductKey = (product: CatalogProduct) => {
+  const code = normalizeToken(product.code);
+  const article = normalizeToken(product.article);
+  const name = normalizeToken(product.name);
+  const producer = normalizeToken(product.producer);
+  if (code) return producer ? `code:${code}|producer:${producer}` : `code:${code}`;
+  if (article) return producer ? `article:${article}|producer:${producer}` : `article:${article}`;
+
+  if (!name) return "";
+
+  return producer ? `name:${name}|producer:${producer}` : `name:${name}`;
+};
+
+const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
+  const groupCounts = new Map<string, FacetCounterEntry>();
+  const producerCounts = new Map<string, FacetCounterEntry>();
+  const groupSubgroupCounts = new Map<string, FacetCounterMap>();
+  const producerGroupCounts = new Map<string, FacetCounterMap>();
 
   let totalItems = 0;
 
@@ -88,24 +154,28 @@ const collectSeoFacets = cache(async (): Promise<CatalogSeoFacets> => {
     if (batch.length === 0) break;
 
     for (const product of batch) {
+      const productKey = resolveProductKey(product);
+      if (!productKey) continue;
+
       const group = resolveGroupLabel(product);
       const subgroup = resolveSubgroupLabel(product);
       const producer = normalizeValue(product.producer);
 
+
       if (group) {
-        increaseCounter(groupCounts, group);
+        registerFacetProduct(groupCounts, group, productKey);
       }
 
       if (group && subgroup) {
-        increaseNestedCounter(groupSubgroupCounts, group, subgroup);
+        registerNestedFacetProduct(groupSubgroupCounts, group, subgroup, productKey);
       }
 
       if (producer) {
-        increaseCounter(producerCounts, producer);
+        registerFacetProduct(producerCounts, producer, productKey);
       }
 
       if (producer && group) {
-        increaseNestedCounter(producerGroupCounts, producer, group);
+        registerNestedFacetProduct(producerGroupCounts, producer, group, productKey);
       }
 
       totalItems += 1;
@@ -113,16 +183,19 @@ const collectSeoFacets = cache(async (): Promise<CatalogSeoFacets> => {
     }
 
     if (totalItems >= FACET_MAX_ITEMS) break;
+    if (batch.length < FACET_PAGE_SIZE) break;
   }
 
   const groups = toFacetList(groupCounts).map((groupFacet) => {
-    const subgroupMap = groupSubgroupCounts.get(groupFacet.label) || new Map<string, number>();
+    const subgroupMap =
+      groupSubgroupCounts.get(groupFacet.slug) || new Map<string, FacetCounterEntry>();
     const subgroups = toFacetList(subgroupMap).slice(0, 50);
     return { ...groupFacet, subgroups };
   });
 
   const producers = toFacetList(producerCounts).map((producerFacet) => {
-    const groupMap = producerGroupCounts.get(producerFacet.label) || new Map<string, number>();
+    const groupMap =
+      producerGroupCounts.get(producerFacet.slug) || new Map<string, FacetCounterEntry>();
     const topGroups = toFacetList(groupMap).slice(0, 25);
     return { ...producerFacet, topGroups };
   });
@@ -132,21 +205,46 @@ const collectSeoFacets = cache(async (): Promise<CatalogSeoFacets> => {
     producers,
     generatedAt: new Date().toISOString(),
   };
-});
+};
+
+const collectSeoFacetsWithRevalidate = unstable_cache(
+  buildCatalogSeoFacets,
+  ["catalog-seo-facets-v5"],
+  {
+    revalidate: 60 * 60 * 6,
+    tags: ["catalog-seo-facets"],
+  }
+);
+
+const collectSeoFacets = cache(async (): Promise<CatalogSeoFacets> =>
+  collectSeoFacetsWithRevalidate()
+);
 
 export const getCatalogSeoFacets = async () => collectSeoFacets();
 
-export const findSeoGroupBySlug = async (slug: string) => {
-  const normalizedSlug = normalizeValue(slug).toLowerCase();
+const normalizeSlug = (slug: string) => buildSeoSlug(normalizeValue(slug));
+
+export const findSeoGroupBySlug = cache(async (slug: string) => {
+  const normalizedSlug = normalizeSlug(slug);
   if (!normalizedSlug) return null;
   const data = await getCatalogSeoFacets();
   return data.groups.find((group) => group.slug === normalizedSlug) || null;
-};
+});
 
-export const findSeoProducerBySlug = async (slug: string) => {
-  const normalizedSlug = normalizeValue(slug).toLowerCase();
+export const findSeoProducerBySlug = cache(async (slug: string) => {
+  const normalizedSlug = normalizeSlug(slug);
   if (!normalizedSlug) return null;
   const data = await getCatalogSeoFacets();
   return data.producers.find((producer) => producer.slug === normalizedSlug) || null;
-};
+});
+
+
+
+
+
+
+
+
+
+
 

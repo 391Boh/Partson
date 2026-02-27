@@ -282,20 +282,13 @@ useEffect(() => {
                             shadow-sm hover:shadow-md
                         "
                     >
-                        <button
-                            type="button"
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                onImageOpen(code);
-                            }}
-                            className="w-2/5 h-full flex items-center justify-center overflow-hidden rounded-lg bg-white mr-2 transition-all duration-200 group-hover:scale-105"
-                            title="Відкрити фото товару"
-                        >
+                        <div className="w-2/5 h-full flex items-center justify-center overflow-hidden rounded-lg bg-white mr-2">
                             <ProductCardImage
                                 productCode={code}
-                                className="w-full h-full object-contain"
+                                className="w-full h-full transition-transform duration-200 group-hover:scale-[1.02]"
+                                onClick={() => onImageOpen(code)}
                             />
-                        </button>
+                        </div>
 
                         <div className="w-3/5 h-full flex items-center">
                             <button

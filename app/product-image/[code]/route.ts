@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { fetchProductImageBase64, PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image";
 
@@ -18,6 +18,13 @@ const safeDecode = (value: string) => {
 
 const fallbackRedirect = (request: Request) =>
   NextResponse.redirect(new URL(PRODUCT_IMAGE_FALLBACK_PATH, request.url), 307);
+const fallbackNotFound = () =>
+  new NextResponse(null, {
+    status: 404,
+    headers: {
+      "cache-control": "public, max-age=600, s-maxage=600",
+    },
+  });
 
 const detectContentType = (buffer: Buffer) => {
   if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
@@ -50,23 +57,32 @@ const detectContentType = (buffer: Buffer) => {
 };
 
 export async function GET(request: Request, context: ProductImageRouteContext) {
+  const requestUrl = new URL(request.url);
+  const strictMode = requestUrl.searchParams.get("strict") === "1";
+
   const resolvedParams = await Promise.resolve(context.params);
   const rawCode = resolvedParams?.code || "";
   const normalizedCode = safeDecode(rawCode).trim();
 
   if (!normalizedCode) {
-    return fallbackRedirect(request);
+    return strictMode ? fallbackNotFound() : fallbackRedirect(request);
   }
 
-  const imageBase64 = await fetchProductImageBase64(normalizedCode);
+  let imageBase64: string | null = null;
+  try {
+    imageBase64 = await fetchProductImageBase64(normalizedCode);
+  } catch {
+    return strictMode ? fallbackNotFound() : fallbackRedirect(request);
+  }
+
   if (!imageBase64) {
-    return fallbackRedirect(request);
+    return strictMode ? fallbackNotFound() : fallbackRedirect(request);
   }
 
   try {
     const imageBuffer = Buffer.from(imageBase64, "base64");
     if (!imageBuffer.length) {
-      return fallbackRedirect(request);
+      return strictMode ? fallbackNotFound() : fallbackRedirect(request);
     }
 
     return new NextResponse(imageBuffer, {
@@ -77,6 +93,6 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       },
     });
   } catch {
-    return fallbackRedirect(request);
+    return strictMode ? fallbackNotFound() : fallbackRedirect(request);
   }
 }

@@ -241,16 +241,27 @@ export const findCatalogProductByCode = async (inputCode: string) => {
   return null;
 };
 
-export const fetchPriceEuro = async (codeOrArticle: string) => {
+interface OneCLookupOptions {
+  timeoutMs?: number;
+  retries?: number;
+  retryDelayMs?: number;
+  cacheTtlMs?: number;
+}
+
+export const fetchPriceEuro = async (
+  codeOrArticle: string,
+  options?: OneCLookupOptions
+) => {
   const normalized = (codeOrArticle || "").trim();
   if (!normalized) return null;
 
   const response = await oneCRequest("prices", {
     method: "POST",
     body: { [PRICE_CODE_FIELD]: normalized },
-    retries: 1,
-    retryDelayMs: 200,
-    cacheTtlMs: 1000 * 60 * 3,
+    timeoutMs: options?.timeoutMs,
+    retries: options?.retries ?? 1,
+    retryDelayMs: options?.retryDelayMs ?? 200,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 3,
   });
 
   if (response.status < 200 || response.status >= 300) return null;
@@ -290,16 +301,20 @@ export const fetchEuroRate = async () => {
   return cachedEuroRate;
 };
 
-export const fetchProductDescription = async (articleOrCode: string) => {
+export const fetchProductDescription = async (
+  articleOrCode: string,
+  options?: OneCLookupOptions
+) => {
   const normalized = (articleOrCode || "").trim();
   if (!normalized) return null;
 
   const response = await oneCRequest("getinfo", {
     method: "POST",
     body: { [INFO_ARTICLE_FIELD]: normalized },
-    retries: 1,
-    retryDelayMs: 200,
-    cacheTtlMs: 1000 * 60 * 30,
+    timeoutMs: options?.timeoutMs,
+    retries: options?.retries ?? 1,
+    retryDelayMs: options?.retryDelayMs ?? 200,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 30,
   });
 
   if (response.status < 200 || response.status >= 300) return null;
