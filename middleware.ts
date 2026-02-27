@@ -7,7 +7,8 @@ const normalizeOrigin = (raw: string | undefined) => {
 
   try {
     const parsed = new URL(withProtocol);
-    return `${parsed.protocol}//${parsed.host}`;
+    // Keep canonical origin host-only; reverse proxies usually terminate on 80/443.
+    return `${parsed.protocol}//${parsed.hostname}`;
   } catch {
     return null;
   }
@@ -15,8 +16,7 @@ const normalizeOrigin = (raw: string | undefined) => {
 
 const CANONICAL_ORIGIN =
   normalizeOrigin(process.env.NEXT_PUBLIC_SITE_URL) ||
-  normalizeOrigin(process.env.SITE_URL) ||
-  normalizeOrigin(process.env.URL);
+  normalizeOrigin(process.env.SITE_URL);
 
 export function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
@@ -45,4 +45,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
-
