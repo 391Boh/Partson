@@ -5,7 +5,7 @@ import { fetchProductImageBase64, PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/pr
 export const runtime = "nodejs";
 
 interface ProductImageRouteContext {
-  params: Promise<{ code: string }> | { code: string };
+  params: Promise<{ code: string }>;
 }
 
 const safeDecode = (value: string) => {
@@ -60,7 +60,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   const requestUrl = new URL(request.url);
   const strictMode = requestUrl.searchParams.get("strict") === "1";
 
-  const resolvedParams = await Promise.resolve(context.params);
+  const resolvedParams = await context.params;
   const rawCode = resolvedParams?.code || "";
   const normalizedCode = safeDecode(rawCode).trim();
 
