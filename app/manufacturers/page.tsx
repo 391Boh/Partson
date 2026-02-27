@@ -8,7 +8,7 @@ import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import { getBrandLogoMap, getProducerInitials, resolveProducerLogo } from "app/lib/brand-logo";
 import { buildSeoSlug } from "app/lib/seo-slug";
 
-export const revalidate = 60 * 60 * 6;
+export const revalidate = 21600;
 
 const pageDescription =
   "Каталог брендів і виробників автозапчастин PartsON. Обирайте бренд та переходьте до каталогу товарів із фільтром за виробником.";

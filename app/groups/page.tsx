@@ -4,7 +4,7 @@ import Link from "next/link";
 import GroupsCatalogClient, { type GroupListItem } from "app/groups/GroupsCatalogClient";
 import { buildSeoSlug } from "app/lib/seo-slug";
 
-export const revalidate = 60 * 60 * 6;
+export const revalidate = 21600;
 
 const groupsDescription =
   "Підбір автозапчастин за категоріями, групами та підгрупами в каталозі PartsON. Оберіть розділ і переходьте до відфільтрованих товарів.";
