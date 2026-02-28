@@ -208,8 +208,10 @@ export async function generateMetadata({
 
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
   const canonicalPath = `/product/${canonicalCode}`;
-  const productImagePath = getProductImagePath(product.code || resolvedCode);
-  const fallbackImagePath = PRODUCT_IMAGE_FALLBACK_PATH;
+  const productImagePath = getProductImagePath(
+    product.code || resolvedCode,
+    product.article
+  );
   const description = buildProductMetaDescription({
     name: product.name,
     article: product.article,
@@ -247,16 +249,13 @@ export async function generateMetadata({
       url: canonicalPath,
       title: product.name,
       description,
-      images: [
-        { url: productImagePath, alt: `Фото товару ${product.name}` },
-        { url: fallbackImagePath, alt: "PartsON - автозапчастини" },
-      ],
+      images: [{ url: productImagePath, alt: `Фото товару ${product.name}` }],
     },
     twitter: {
       card: "summary_large_image",
       title: product.name,
       description,
-      images: [productImagePath, fallbackImagePath],
+      images: [productImagePath],
     },
     robots: {
       index: !isModalView,
@@ -277,45 +276,62 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const normalizedSearchParams = (await searchParams) || {};
   const isModalView = normalizeView(normalizedSearchParams.view) === "modal";
 
-  const lookupKeys = Array.from(
-    new Set([product.article.trim(), product.code.trim(), resolvedCode].filter(Boolean))
-  );
+  const primaryLookupKey =
+    product.article.trim() || product.code.trim() || resolvedCode;
+  const lookupKeys = isModalView
+    ? [primaryLookupKey]
+    : Array.from(
+        new Set([product.article.trim(), product.code.trim(), resolvedCode].filter(Boolean))
+      );
+  const descriptionLookupOptions = isModalView
+    ? { timeoutMs: 1100, retries: 0 }
+    : { timeoutMs: 1600, retries: 0 };
+  const descriptionPromise = primaryLookupKey
+    ? fetchProductDescription(primaryLookupKey, descriptionLookupOptions).catch(() => null)
+    : Promise.resolve(null);
 
   const euroRatePromise = fetchEuroRate();
   const [priceEuro, descriptionFromApi, euroRate] = await Promise.all([
     getFirstResolvedValue(lookupKeys, (key) =>
       fetchPriceEuro(key, FAST_PRODUCT_LOOKUP_OPTIONS)
     ),
-    getFirstResolvedValue(lookupKeys, (key) =>
-      fetchProductDescription(key, FAST_PRODUCT_LOOKUP_OPTIONS)
-    ),
+    descriptionPromise,
     euroRatePromise,
   ]);
 
   const priceUah = toPriceUah(priceEuro, euroRate);
   const hasPrice = priceUah != null;
-  const description =
-    (descriptionFromApi || "").trim() ||
-    "Опис тимчасово відсутній. Надішліть запит у чат, і менеджер підбере товар та уточнить характеристики.";
+  const description = (descriptionFromApi || "").trim();
+  const hasDescription = Boolean(description);
+  const descriptionDisplayText = hasDescription ? description : "Опис відсутній";
+  const schemaDescription = hasDescription
+    ? description
+    : buildProductMetaDescription({
+        name: product.name,
+        article: product.article,
+        producer: product.producer,
+        quantity: product.quantity,
+      });
 
   const siteUrl = getSiteUrl();
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
   const canonicalUrl = `${siteUrl}/product/${canonicalCode}`;
-  const productImagePath = getProductImagePath(product.code || resolvedCode);
-  const strictProductImagePath = `${productImagePath}?strict=1`;
+  const productImagePath = getProductImagePath(
+    product.code || resolvedCode,
+    product.article
+  );
   const fallbackImagePath = PRODUCT_IMAGE_FALLBACK_PATH;
   const productImageUrl = `${siteUrl}${productImagePath}`;
-  const fallbackImageUrl = `${siteUrl}${fallbackImagePath}`;
   const jsonLd = buildProductJsonLd({
     name: product.name,
-    description,
+    description: schemaDescription,
     code: product.code,
     article: product.article,
     producer: product.producer,
     quantity: product.quantity,
     priceUah,
     canonicalUrl,
-    imageUrls: [productImageUrl, fallbackImageUrl],
+    imageUrls: [productImageUrl],
   });
   const breadcrumbJsonLd = buildProductBreadcrumbJsonLd({
     siteUrl,
@@ -324,11 +340,14 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   });
   const isInStock = Number.isFinite(product.quantity) && product.quantity > 0;
   const contentGridClass = isModalView
-    ? "grid gap-3 p-3 sm:p-3.5 md:grid-cols-[300px_minmax(0,1fr)]"
+    ? "grid gap-3 p-3 sm:p-4 lg:grid-cols-[320px_minmax(0,1fr)]"
     : "grid gap-4 p-3.5 sm:p-4 lg:grid-cols-[360px_minmax(0,1fr)]";
   const productImageClass = isModalView
-    ? "mx-auto h-[220px] w-full rounded-xl bg-slate-50 object-contain sm:h-[260px]"
-    : "mx-auto h-[260px] w-full rounded-xl bg-slate-50 object-contain sm:h-[300px]";
+    ? "mx-auto h-[220px] w-full rounded-xl border border-slate-200 bg-slate-50 sm:h-[250px] md:h-[280px]"
+    : "mx-auto h-[260px] w-full rounded-xl border border-slate-200 bg-slate-50 sm:h-[300px]";
+  const descriptionTextClass = isModalView
+    ? "mt-1.5 max-h-[180px] overflow-y-auto whitespace-pre-line break-words pr-1 text-sm leading-relaxed text-slate-700"
+    : "mt-1.5 max-h-[260px] overflow-y-auto whitespace-pre-line break-words pr-1 text-sm leading-relaxed text-slate-700";
   const chatPrefillMessage = [
     "Потрібна консультація по товару:",
     product.name,
@@ -340,13 +359,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
   return (
     <div
-      className={isModalView ? "min-h-screen bg-white text-slate-900" : "min-h-screen text-slate-900"}
+      className={isModalView ? "min-h-screen select-none bg-white text-slate-900" : "min-h-screen select-none text-slate-900"}
       style={isModalView ? undefined : pageBackground}
     >
       <div
         className={
           isModalView
-            ? "mx-auto w-full max-w-[980px] px-4 py-4"
+            ? "mx-auto w-full max-w-[1080px] px-2 py-2 sm:px-3 sm:py-3"
             : "mx-auto w-full max-w-[1120px] px-4 py-6 sm:py-8"
         }
       >
@@ -355,11 +374,15 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             href="/katalog"
             className="mb-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-800"
           >
-            ← Повернутися в каталог
+            &larr; Повернутися в каталог
           </Link>
         )}
 
-        <article className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-white/95 shadow-[0_22px_52px_rgba(15,23,42,0.12)] backdrop-blur-sm">
+        <article
+          className={`overflow-hidden border border-slate-200/80 bg-white/95 shadow-[0_22px_52px_rgba(15,23,42,0.12)] backdrop-blur-sm ${
+            isModalView ? "rounded-2xl" : "rounded-[26px]"
+          }`}
+        >
           <header className="relative border-b border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-4 py-5 text-white sm:px-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(56,189,248,0.24),transparent_45%),radial-gradient(circle_at_86%_18%,rgba(34,211,238,0.2),transparent_40%)]" />
             <div className="relative">
@@ -372,13 +395,15 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <section className="space-y-3">
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-2.5">
                 <ProductImageWithFallback
-                  src={strictProductImagePath}
+                  src={productImagePath}
                   fallbackSrc={fallbackImagePath}
                   alt={`Фото товару ${product.name}`}
                   width={640}
                   height={640}
                   loading="eager"
-                  decoding="async"
+                  decoding="sync"
+                  fetchPriority="high"
+                  zoomEnabled={false}
                   className={productImageClass}
                 />
               </div>
@@ -422,29 +447,27 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 </div>
               </div>
 
-              <section className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50 p-3.5">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-sky-700">Ціна</p>
-                <p className={`mt-1 text-[26px] font-bold leading-tight ${hasPrice ? "text-sky-700" : "text-slate-600"}`}>
-                  {formatPriceUah(priceUah)}
-                </p>
-                <p className="mt-1.5 text-xs text-slate-500">
-                  {hasPrice
-                    ? "Остаточна вартість може змінюватись залежно від постачальника."
-                    : "Для цього товару ціна доступна за запитом у чаті."}
-                </p>
-                <div
-                  className={`mt-2.5 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
-                    isInStock
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-amber-200 bg-amber-50 text-amber-700"
-                  }`}
-                >
-                  {isInStock ? "В наявності" : "Під замовлення"}
+              <section className="rounded-xl border border-sky-200/80 bg-[linear-gradient(130deg,rgba(240,249,255,0.96),rgba(236,253,245,0.88))] p-2.5 shadow-sm shadow-sky-100/70">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.12em] text-sky-700/90">Ціна</p>
+                    <p className={`mt-0.5 text-[21px] font-bold leading-tight ${hasPrice ? "text-sky-700" : "text-slate-600"}`}>
+                      {formatPriceUah(priceUah)}
+                    </p>
+                  </div>
+                  <div
+                    className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                      isInStock
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-amber-200 bg-amber-50 text-amber-700"
+                    }`}
+                  >
+                    {isInStock ? "В наявності" : "Під замовлення"}
+                  </div>
                 </div>
-
                 <Link
                   href="/katalog"
-                  className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+                  className="mt-2 inline-flex items-center justify-center rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
                 >
                   До каталогу
                 </Link>
@@ -452,7 +475,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
               <section className="rounded-2xl border border-slate-200 bg-white p-3.5">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Опис</h2>
-                <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-slate-700">{description}</p>
+                <p className={descriptionTextClass}>{descriptionDisplayText}</p>
               </section>
             </section>
           </div>
@@ -470,4 +493,5 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     </div>
   );
 }
+
 

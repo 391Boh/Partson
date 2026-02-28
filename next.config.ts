@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const path = require("path");
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
@@ -12,6 +14,10 @@ const securityHeaders = [
 const nextConfig = {
   poweredByHeader: false,
   transpilePackages: ["leaflet", "react-leaflet"],
+  turbopack: {
+    // Keep Turbopack scoped to this project; avoids scanning parent workspace on Windows.
+    root: path.resolve(__dirname),
+  },
   async headers() {
     return [
       {

@@ -1,27 +1,29 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import { getSiteUrl } from "app/lib/site-url";
 
+const infoDescription =
+  "Доставка, оплата, контакти та інформація про магазин автозапчастин PartsON.";
+
 export const metadata: Metadata = {
-  title: "Інформація про магазин",
-  description:
-    "Інформація про магазин автозапчастин PartsON: доставка, оплата, контакти та локація.",
+  title: "Інформація для клієнтів",
+  description: infoDescription,
   alternates: {
     canonical: "/inform",
   },
   openGraph: {
     type: "website",
+    locale: "uk_UA",
     url: "/inform",
-    title: "Інформація про магазин | PartsON",
-    description: "Доставка, оплата, контакти і локація PartsON.",
-    images: [{ url: "/Car-parts-fullwidth.png", alt: "PartsON - інформація про магазин" }],
+    title: "Інформація для клієнтів | PartsON",
+    description: infoDescription,
+    images: [{ url: "/Car-parts-fullwidth.png", alt: "Інформація PartsON" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Інформація про магазин | PartsON",
-    description: "Доставка, оплата, контакти і локація PartsON.",
+    title: "Інформація для клієнтів | PartsON",
+    description: infoDescription,
     images: ["/Car-parts-fullwidth.png"],
   },
   robots: {
@@ -30,17 +32,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function InformLayout({ children }: { children: ReactNode }) {
-  const requestHeaders = await headers();
-  const siteUrl = getSiteUrl({ headers: requestHeaders });
-
+export default function InformLayout({ children }: { children: ReactNode }) {
+  const siteUrl = getSiteUrl();
   const infoPageJsonLd = {
     "@context": "https://schema.org",
     "@type": "AboutPage",
     name: "Інформація про магазин PartsON",
     url: `${siteUrl}/inform`,
-    description:
-      "Доставка, оплата, контакти та локація магазину автозапчастин PartsON.",
+    description: infoDescription,
     isPartOf: {
       "@type": "WebSite",
       name: "PartsON",

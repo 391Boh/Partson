@@ -1487,14 +1487,14 @@ const Data: React.FC<DataProps> = ({
             onClick={handleCloseProduct}
           >
             <motion.div
-              className="absolute left-1/2 top-1/2 w-[min(100%-1rem,980px)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_28px_70px_rgba(15,23,42,0.35)]"
+              className="absolute inset-2 flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_28px_70px_rgba(15,23,42,0.35)] sm:inset-auto sm:left-1/2 sm:top-1/2 sm:h-[min(92dvh,920px)] sm:w-[min(100%-1rem,1060px)] sm:-translate-x-1/2 sm:-translate-y-1/2"
               initial={{ opacity: 0, y: 16, scale: 0.985 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.985 }}
               transition={{ duration: 0.2, ease: [0.22, 0.61, 0.36, 1] }}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-3 py-2.5 sm:px-4 sm:py-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Сторінка товару
@@ -1523,7 +1523,7 @@ const Data: React.FC<DataProps> = ({
               </div>
               <iframe
                 src={`/product/${encodeURIComponent(openedProductCode)}?view=modal`}
-                className="h-[82dvh] min-h-[420px] w-full border-0 bg-white"
+                className="h-full min-h-0 w-full flex-1 border-0 bg-white"
                 title={`Товар ${openedProductCode}`}
                 loading="lazy"
               />

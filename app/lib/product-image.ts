@@ -36,7 +36,7 @@ const IMAGE_URL_FIELDS = [
 ];
 
 const DATA_URI_REGEX =
-  /^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=\r\n\s]+)$/i;
+  /^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/_=\r\n\s-]+)$/i;
 const URL_LIKE_REGEX = /^(https?:)?\/\/|^\//i;
 const FILE_NAME_LIKE_REGEX =
   /^[A-Za-z0-9._~!$&'()*+,;=:@%/-]+\.(?:png|jpe?g|webp|gif|bmp|svg)(?:\?.*)?$/i;
@@ -51,7 +51,16 @@ const safeDecode = (value: string) => {
 
 const safeTrim = (value: string) => value.replace(/[\u0000-\u001f]+/g, "").trim();
 
-const normalizeBase64 = (value: string) => value.replace(/[\r\n\s]+/g, "").trim();
+const normalizeBase64 = (value: string) => {
+  const cleaned = value.replace(/[\r\n\s]+/g, "").trim();
+  if (!cleaned) return "";
+
+  // Some 1C integrations return URL-safe base64 (-, _) without padding.
+  const standard = cleaned.replace(/-/g, "+").replace(/_/g, "/");
+  const remainder = standard.length % 4;
+  if (remainder === 0) return standard;
+  return `${standard}${"=".repeat(4 - remainder)}`;
+};
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -60,7 +69,7 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
 
 const isLikelyBase64 = (value: string) => {
   const normalized = normalizeBase64(value);
-  if (normalized.length < 64) return false;
+  if (normalized.length < 24) return false;
   if (normalized.length % 4 !== 0) return false;
   if (!/^[A-Za-z0-9+/=]+$/.test(normalized)) return false;
   return true;
@@ -232,44 +241,70 @@ export const fetchProductImageBase64 = async (codeOrArticle: string) => {
   const normalized = safeDecode(codeOrArticle || "").trim();
   if (!normalized) return null;
 
-  const response = await oneCRequest("getimages", {
-    method: "POST",
-    body: { code: normalized },
-    retries: 1,
-    retryDelayMs: 250,
-    cacheTtlMs: 1000 * 60 * 60,
-  });
+  const queryBodies: Array<Record<string, string>> = [
+    { code: normalized },
+    { "\u041a\u043e\u0434": normalized }, // Код
+    { article: normalized },
+    { "\u0410\u0440\u0442\u0438\u043a\u0443\u043b": normalized }, // Артикул
+    { "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443": normalized }, // НомерПоКаталогу
+  ];
 
-  if (response.status < 200 || response.status >= 300) return null;
+  const seenBodies = new Set<string>();
+  for (const body of queryBodies) {
+    const cacheKey = JSON.stringify(body);
+    if (seenBodies.has(cacheKey)) continue;
+    seenBodies.add(cacheKey);
 
-  const text = safeTrim(response.text || "");
-  if (!text) return null;
+    const response = await oneCRequest("getimages", {
+      method: "POST",
+      body,
+      timeoutMs: 9000,
+      retries: 0,
+      retryDelayMs: 250,
+      cacheTtlMs: 1000 * 60 * 60,
+    });
+    if (response.status < 200 || response.status >= 300) continue;
 
-  const dataUriBase64 = extractDataUriBase64(text);
-  if (dataUriBase64 && hasBinaryContent(dataUriBase64)) return dataUriBase64;
+    const text = safeTrim(response.text || "");
+    if (!text) continue;
 
-  if (isLikelyBase64(text) && hasBinaryContent(text)) {
-    return normalizeBase64(text);
+    const dataUriBase64 = extractDataUriBase64(text);
+    if (dataUriBase64 && hasBinaryContent(dataUriBase64)) return dataUriBase64;
+
+    if (isLikelyBase64(text) && hasBinaryContent(text)) {
+      return normalizeBase64(text);
+    }
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(text) as unknown;
+    } catch {
+      continue;
+    }
+
+    const record = asRecord(payload);
+    if (record?.success === false) continue;
+
+    const imageBase64 = readImageBase64(payload);
+    if (imageBase64) return imageBase64;
+
+    const imageUrl = readImageUrl(payload);
+    if (!imageUrl) continue;
+
+    const downloaded = await fetchImageUrlAsBase64(imageUrl);
+    if (downloaded) return downloaded;
   }
 
-  let payload: unknown;
-  try {
-    payload = JSON.parse(text) as unknown;
-  } catch {
-    return null;
-  }
-
-  const record = asRecord(payload);
-  if (record?.success === false) return null;
-
-  const imageBase64 = readImageBase64(payload);
-  if (imageBase64) return imageBase64;
-
-  const imageUrl = readImageUrl(payload);
-  if (!imageUrl) return null;
-
-  return fetchImageUrlAsBase64(imageUrl);
+  return null;
 };
 
-export const getProductImagePath = (code: string) =>
-  `/product-image/${encodeURIComponent((code || "").trim())}`;
+export const getProductImagePath = (code: string, articleHint?: string) => {
+  const normalizedCode = (code || "").trim();
+  const basePath = `/product-image/${encodeURIComponent(normalizedCode)}`;
+
+  const normalizedArticle = (articleHint || "").trim();
+  if (!normalizedArticle) return basePath;
+  if (normalizedArticle.toLowerCase() === normalizedCode.toLowerCase()) return basePath;
+
+  return `${basePath}?article=${encodeURIComponent(normalizedArticle)}`;
+};

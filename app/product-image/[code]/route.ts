@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { fetchProductImageBase64, PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image";
+import { findCatalogProductByCode } from "app/lib/catalog-server";
 
 export const runtime = "nodejs";
 
@@ -59,6 +60,7 @@ const detectContentType = (buffer: Buffer) => {
 export async function GET(request: Request, context: ProductImageRouteContext) {
   const requestUrl = new URL(request.url);
   const strictMode = requestUrl.searchParams.get("strict") === "1";
+  const articleHint = safeDecode(requestUrl.searchParams.get("article") || "").trim();
 
   const resolvedParams = await context.params;
   const rawCode = resolvedParams?.code || "";
@@ -68,11 +70,37 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     return strictMode ? fallbackNotFound() : fallbackRedirect(request);
   }
 
+  const lookupKeys: string[] = [];
+  const addLookupKey = (value: string) => {
+    const trimmed = (value || "").trim();
+    if (!trimmed) return;
+    if (lookupKeys.some((item) => item.toLowerCase() === trimmed.toLowerCase())) return;
+    lookupKeys.push(trimmed);
+  };
+
+  addLookupKey(normalizedCode);
+  addLookupKey(articleHint);
+
   let imageBase64: string | null = null;
-  try {
-    imageBase64 = await fetchProductImageBase64(normalizedCode);
-  } catch {
-    return strictMode ? fallbackNotFound() : fallbackRedirect(request);
+  for (const key of lookupKeys) {
+    try {
+      imageBase64 = await fetchProductImageBase64(key);
+    } catch {
+      imageBase64 = null;
+    }
+    if (imageBase64) break;
+  }
+
+  if (!imageBase64 && !articleHint) {
+    try {
+      const product = await findCatalogProductByCode(normalizedCode);
+      const article = (product?.article || "").trim();
+      if (article) {
+        imageBase64 = await fetchProductImageBase64(article);
+      }
+    } catch {
+      imageBase64 = null;
+    }
   }
 
   if (!imageBase64) {

@@ -64,10 +64,10 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
       images: ["/Car-parts-fullwidth.png"],
     },
     robots: {
-      index: true,
+      index: false,
       follow: true,
       googleBot: {
-        index: true,
+        index: false,
         follow: true,
       },
     },

@@ -1,10 +1,17 @@
 import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
 
-import { getCatalogSeoFacets } from "app/lib/catalog-seo";
+import { collectCatalogProductCodes } from "app/lib/catalog-server";
+import { getProductImagePath } from "app/lib/product-image";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
+
+const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackValue;
+  return Math.floor(numeric);
+};
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const requestHeaders = await headers();
@@ -44,28 +51,43 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  let groupPages: MetadataRoute.Sitemap = [];
-  let manufacturerPages: MetadataRoute.Sitemap = [];
+  const maxProducts = parsePositiveInt(process.env.SITEMAP_MAX_PRODUCTS, 6000);
+  const maxPages = parsePositiveInt(process.env.SITEMAP_MAX_PAGES, 120);
+  const pageSize = parsePositiveInt(process.env.SITEMAP_PAGE_SIZE, 80);
 
+  let productCodes: string[] = [];
   try {
-    const facets = await getCatalogSeoFacets();
-
-    groupPages = facets.groups.map((group) => ({
-      url: `${siteUrl}/groups/${group.slug}`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.75,
-    }));
-
-    manufacturerPages = facets.producers.map((producer) => ({
-      url: `${siteUrl}/manufacturers/${producer.slug}`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.75,
-    }));
+    productCodes = await collectCatalogProductCodes({
+      maxPages,
+      maxItems: maxProducts,
+      pageSize,
+    });
   } catch {
-    // Keep static pages in sitemap if facet data is temporarily unavailable.
+    productCodes = [];
   }
 
-  return [...staticPages, ...groupPages, ...manufacturerPages];
+  const seenProductCodes = new Set<string>();
+  const productPages: MetadataRoute.Sitemap = [];
+
+  for (const rawCode of productCodes) {
+    const normalizedCode = (rawCode || "").trim();
+    if (!normalizedCode) continue;
+
+    const dedupeKey = normalizedCode.toLowerCase();
+    if (seenProductCodes.has(dedupeKey)) continue;
+    seenProductCodes.add(dedupeKey);
+
+    const encodedCode = encodeURIComponent(normalizedCode);
+    const imagePath = getProductImagePath(normalizedCode);
+
+    productPages.push({
+      url: `${siteUrl}/product/${encodedCode}`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.7,
+      images: [`${siteUrl}${imagePath}`],
+    });
+  }
+
+  return [...staticPages, ...productPages];
 }

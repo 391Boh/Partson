@@ -6,7 +6,6 @@ import { ImageOff } from "lucide-react";
 
 const FALLBACK = "__NO_IMAGE__";
 const IMAGE_CACHE_PREFIX = "img_";
-const PRODUCT_IMAGE_FALLBACK_PATH = "/Car-parts-fullwidth.png";
 
 interface Props {
   productCode: string;
@@ -15,12 +14,13 @@ interface Props {
 }
 
 const buildImagePath = (productCode: string) =>
-  `/product-image/${encodeURIComponent((productCode || "").trim())}`;
+  `/product-image/${encodeURIComponent((productCode || "").trim())}?strict=1`;
 
 const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClick }) => {
-  const [src, setSrc] = useState<string | null>(FALLBACK);
+  const [src, setSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [shouldLoad, setShouldLoad] = useState(false);
+  const [attemptedLoad, setAttemptedLoad] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -61,27 +61,35 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
   }, [productCode]);
 
   useEffect(() => {
-    const applyState = (nextSrc: string, nextLoading: boolean) => {
+    const applyState = (
+      nextSrc: string | null,
+      nextLoading: boolean,
+      nextAttempted: boolean
+    ) => {
       queueMicrotask(() => {
         setSrc(nextSrc);
         setLoading(nextLoading);
+        setAttemptedLoad(nextAttempted);
       });
     };
 
     const normalizedCode = (productCode || "").trim();
     if (!normalizedCode) {
-      applyState(FALLBACK, false);
+      applyState(FALLBACK, false, true);
       return;
     }
 
-    if (!shouldLoad) return;
+    if (!shouldLoad) {
+      applyState(null, false, false);
+      return;
+    }
 
     const connection = (navigator as Navigator & {
       connection?: { saveData?: boolean };
     }).connection;
 
     if (connection?.saveData) {
-      applyState(FALLBACK, false);
+      applyState(FALLBACK, false, true);
       return;
     }
 
@@ -90,14 +98,14 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
     try {
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
-        applyState(cached, cached !== FALLBACK);
+        applyState(cached, cached !== FALLBACK, true);
         return;
       }
     } catch {
       // Ignore sessionStorage errors.
     }
 
-    applyState(buildImagePath(normalizedCode), true);
+    applyState(buildImagePath(normalizedCode), true, true);
   }, [productCode, shouldLoad]);
 
   const cacheValue = (value: string) => {
@@ -111,30 +119,26 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
     }
   };
 
-  const handleImageLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
-    const loadedSrc = (event.currentTarget.currentSrc || event.currentTarget.src || "").trim();
-    if (loadedSrc.includes(PRODUCT_IMAGE_FALLBACK_PATH)) {
-      setSrc(FALLBACK);
-      setLoading(false);
-      cacheValue(FALLBACK);
-      return;
-    }
-
+  const handleImageLoad = () => {
     const normalizedCode = (productCode || "").trim();
     const imagePath = buildImagePath(normalizedCode);
     setSrc(imagePath);
     setLoading(false);
+    setAttemptedLoad(true);
     cacheValue(imagePath);
   };
 
   const handleImageError = () => {
     setSrc(FALLBACK);
     setLoading(false);
+    setAttemptedLoad(true);
     cacheValue(FALLBACK);
   };
 
   const noImage = src === FALLBACK;
-  const canOpen = Boolean(onClick) && !noImage && !loading;
+  const hasImage = Boolean(src) && !noImage;
+  const canOpen = Boolean(onClick) && hasImage && !loading;
+  const showSkeleton = loading || (!attemptedLoad && !noImage);
 
   return (
     <div
@@ -144,11 +148,17 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
         event.stopPropagation();
         onClick();
       }}
-      title={canOpen ? "Відкрити фото товару" : "Фото відсутнє"}
+      title={
+        loading
+          ? "Завантаження фото..."
+          : canOpen
+          ? "Відкрити фото товару"
+          : "Фото відсутнє"
+      }
       className={`
         relative h-full w-full overflow-hidden rounded-md
         bg-gray-200 flex items-center justify-center
-        ${canOpen ? "cursor-zoom-in" : "cursor-default"}
+        ${canOpen ? "cursor-pointer" : "cursor-default"}
         ${className}
       `}
     >
@@ -159,11 +169,11 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
           className="absolute inset-0 flex select-none flex-col items-center justify-center bg-gray-200 text-center"
         >
           <ImageOff size={22} className="mb-1 text-gray-500" />
-          <span className="text-[11px] font-medium text-gray-600">Зображення відсутнє</span>
+          <span className="text-[11px] font-medium text-gray-600">Відсутнє зображення</span>
         </motion.div>
       )}
 
-      {!noImage && (
+      {hasImage && (
         <motion.img
           src={src ?? undefined}
           alt="product"
@@ -176,7 +186,7 @@ const ProductCardImage: React.FC<Props> = ({ productCode, className = "", onClic
         />
       )}
 
-      {loading && (
+      {showSkeleton && (
         <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-gray-300 via-gray-200 to-gray-300" />
       )}
     </div>

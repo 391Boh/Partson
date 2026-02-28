@@ -30,7 +30,25 @@ const siteUrlObject = (() => {
 })();
 
 const organizationId = `${siteUrl}#organization`;
+const localBusinessId = `${siteUrl}#local-business`;
 const organizationLogoUrl = `${siteUrl}/Car-parts-fullwidth.png`;
+
+const parseNumericEnv = (value: string | undefined) => {
+  if (!value) return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const storeLatitude = parseNumericEnv(process.env.NEXT_PUBLIC_STORE_LAT);
+const storeLongitude = parseNumericEnv(process.env.NEXT_PUBLIC_STORE_LNG);
+const googleBusinessProfileUrl = (process.env.NEXT_PUBLIC_GBP_URL || "").trim();
+const socialLinks = (process.env.NEXT_PUBLIC_SOCIAL_LINKS || "")
+  .split(",")
+  .map((item) => item.trim())
+  .filter(Boolean);
+const sameAsLinks = Array.from(
+  new Set([googleBusinessProfileUrl, ...socialLinks].filter(Boolean))
+);
 
 export const metadata: Metadata = {
   metadataBase: siteUrlObject,
@@ -154,6 +172,7 @@ const organizationJsonLd = {
     height: 512,
   },
   image: [`${organizationLogoUrl}`],
+  sameAs: sameAsLinks.length > 0 ? sameAsLinks : undefined,
   description:
     "Інтернет-магазин автозапчастин PartsON з каталогом, підбором деталей та доставкою по Україні.",
   email: "romaniukbboogg@gmail.com",
@@ -179,6 +198,45 @@ const organizationJsonLd = {
       telephone: "+380634211851",
       email: "romaniukbboogg@gmail.com",
       availableLanguage: ["uk", "ru"],
+    },
+  ],
+};
+
+const localBusinessJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "AutoPartsStore",
+  "@id": localBusinessId,
+  name: "PartsON",
+  url: siteUrl,
+  image: [`${organizationLogoUrl}`],
+  logo: `${organizationLogoUrl}`,
+  description:
+    "Магазин автозапчастин PartsON: підбір деталей, консультація та доставка по Україні.",
+  priceRange: "$$",
+  telephone: "+380634211851",
+  email: "romaniukbboogg@gmail.com",
+  parentOrganization: { "@id": organizationId },
+  sameAs: sameAsLinks.length > 0 ? sameAsLinks : undefined,
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "вул. Перфецького, 8",
+    addressLocality: "Львів",
+    addressCountry: "UA",
+  },
+  geo:
+    storeLatitude != null && storeLongitude != null
+      ? {
+          "@type": "GeoCoordinates",
+          latitude: storeLatitude,
+          longitude: storeLongitude,
+        }
+      : undefined,
+  openingHoursSpecification: [
+    {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      opens: "09:00",
+      closes: "18:00",
     },
   ],
 };
@@ -267,6 +325,10 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
         />
       </head>
       <body className={`${montserrat.className} ${montserrat.variable} ${geistMono.variable}`}>
