@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type SyntheticEvent } from "react";
 import { ChevronRight, Search, X } from "lucide-react";
 
 interface ProducerTopGroupItem {
@@ -24,6 +24,15 @@ interface ManufacturersCatalogClientProps {
   producers: ManufacturerListItem[];
   initialQuery?: string;
 }
+
+const MANUFACTURER_LOGO_FALLBACK_PATH = "/favicon-48x48.png";
+
+const handleManufacturerLogoError = (event: SyntheticEvent<HTMLImageElement>) => {
+  const image = event.currentTarget;
+  if (image.dataset.fallbackApplied === "1") return;
+  image.dataset.fallbackApplied = "1";
+  image.src = MANUFACTURER_LOGO_FALLBACK_PATH;
+};
 
 export default function ManufacturersCatalogClient({
   producers,
@@ -108,6 +117,7 @@ export default function ManufacturersCatalogClient({
                           height={20}
                           sizes="20px"
                           className="h-5 w-5 object-contain"
+                          onError={handleManufacturerLogoError}
                         />
                       ) : (
                         <span className="text-[10px] font-semibold text-slate-600">

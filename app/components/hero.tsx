@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import type { FC } from "react";
+import type { FC, SyntheticEvent } from "react";
 import { LogIn, UserPlus } from "lucide-react";
 
 interface HeroProps {
@@ -63,12 +63,20 @@ const viewportConfig = { once: false, amount: 0.25, margin: "0px 0px -12% 0px" }
 
 const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin }) => {
   const router = useRouter();
+  const logoFallbackPath = "/favicon-192x192.png";
   const handleLogoClick = () => {
     if (typeof window !== "undefined") {
       window.location.reload();
       return;
     }
     router.refresh();
+  };
+
+  const handleLogoLoadError = (event: SyntheticEvent<HTMLImageElement>) => {
+    const image = event.currentTarget;
+    if (image.dataset.fallbackApplied === "1") return;
+    image.dataset.fallbackApplied = "1";
+    image.src = logoFallbackPath;
   };
 
   return (
@@ -156,6 +164,7 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
                   height={49}
                   className="h-auto w-[72px] md:w-[108px] object-contain"
                   priority
+                  onError={handleLogoLoadError}
                 />
                 <span className="pointer-events-none absolute left-1/2 bottom-full z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-sky-200/50 bg-slate-900/90 px-3 py-1 text-[11px] font-semibold text-sky-100 opacity-0 shadow-[0_12px_28px_rgba(2,6,23,0.45)] backdrop-blur-md transition duration-150 ease-out group-hover:-translate-y-0.5 group-hover:opacity-100">
                   Оновити сторінку

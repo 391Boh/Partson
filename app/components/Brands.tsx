@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Factory, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -11,6 +11,14 @@ const MOBILE_ITEMS_PER_PAGE = 6;
 const DESKTOP_ITEMS_PER_PAGE = 8;
 
 type BrandItem = (typeof brands)[number];
+const BRAND_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
+
+const handleBrandLogoLoadError = (event: SyntheticEvent<HTMLImageElement>) => {
+  const image = event.currentTarget;
+  if (image.dataset.fallbackApplied === "1") return;
+  image.dataset.fallbackApplied = "1";
+  image.src = BRAND_LOGO_FALLBACK_PATH;
+};
 
 type BrandSearchInputProps = {
   value: string;
@@ -137,6 +145,7 @@ function BrandCard({
             className="h-[40px] w-auto object-contain drop-shadow-[0_8px_14px_rgba(15,23,42,0.14)] sm:h-[50px]"
             style={{ imageRendering: "auto" }}
             sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 240px"
+            onError={handleBrandLogoLoadError}
           />
         </div>
         <p className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-slate-800 drop-shadow-[0_2px_6px_rgba(15,23,42,0.16)] transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[14px] sm:leading-[1.2] sm:tracking-[0.06em] sm:whitespace-normal sm:line-clamp-2">

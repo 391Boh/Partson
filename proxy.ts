@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+﻿import { NextResponse, type NextRequest } from "next/server";
 
 const normalizeOrigin = (raw: string | undefined) => {
   const value = (raw || "").trim();
@@ -45,7 +45,7 @@ const withNoindexHeader = (response: NextResponse, enabled: boolean) => {
   return response;
 };
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const url = request.nextUrl.clone();
   const shouldNoindex = shouldNoindexQueryPage(request, url.pathname, url.search);
 
@@ -84,3 +84,4 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
+

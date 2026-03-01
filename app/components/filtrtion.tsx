@@ -853,6 +853,12 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                                 alt={b.name}
                                 className="max-h-12 max-w-full object-contain"
                                 loading="lazy"
+                                onError={(event) => {
+                                  const image = event.currentTarget;
+                                  if (image.dataset.fallbackApplied === '1') return;
+                                  image.dataset.fallbackApplied = '1';
+                                  image.src = '/favicon-48x48.png';
+                                }}
                               />
                             ) : (
                               <span className="text-[11px] font-semibold text-slate-600 truncate">

@@ -25,6 +25,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
   const { cartItems } = useCart();
+  const logoFallbackPath = '/favicon-192x192.png';
 
   const [user, setUser] = useState<any | null>(null);
   const [activeMenu, setActiveMenu] = useState<string>('');
@@ -234,6 +235,13 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
     }
   };
 
+  const handleLogoLoadError = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const image = event.currentTarget;
+    if (image.dataset.fallbackApplied === '1') return;
+    image.dataset.fallbackApplied = '1';
+    image.src = logoFallbackPath;
+  };
+
   useEffect(() => {
     const handleOpenAccountVin = () => {
       if (typeof window !== 'undefined') {
@@ -282,6 +290,7 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
               width={70}
               height={40}
               className="w-[65px] md:w-[85px] h-auto object-contain"
+              onError={handleLogoLoadError}
             />
             <span className="pointer-events-none absolute left-4 sm:left-1/2 top-full z-50 mt-2.5 sm:-translate-x-1/2 translate-y-1 whitespace-nowrap rounded-xl border border-slate-200/70 bg-gradient-to-r from-white/95 via-sky-50/95 to-indigo-50/90 pl-3.5 pr-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-slate-900 opacity-0 shadow-[0_10px_22px_rgba(15,23,42,0.16)] backdrop-blur-md ring-1 ring-white/60 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
               Головна сторінка

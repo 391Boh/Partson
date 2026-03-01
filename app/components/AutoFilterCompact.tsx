@@ -37,6 +37,15 @@ const normalizeRows = (rows: string[]) => {
   return cleaned.filter((item, index) => cleaned.indexOf(item) === index);
 };
 
+const BRAND_LOGO_FALLBACK_PATH = '/favicon-48x48.png';
+
+const handleBrandLogoLoadError = (event: React.SyntheticEvent<HTMLImageElement>) => {
+  const image = event.currentTarget;
+  if (image.dataset.fallbackApplied === '1') return;
+  image.dataset.fallbackApplied = '1';
+  image.src = BRAND_LOGO_FALLBACK_PATH;
+};
+
 const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
   selectedCars = [],
   handleCarChange = () => {},
@@ -872,6 +881,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
                                     alt={brand.name}
                                     className="h-6 w-6 object-contain"
                                     loading="lazy"
+                                    onError={handleBrandLogoLoadError}
                                   />
                                 ) : (
                                   <span className="text-[10px] font-bold">{brand.name.slice(0, 2)}</span>

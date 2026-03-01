@@ -45,6 +45,15 @@ type Debounced<TArgs extends unknown[]> = ((...args: TArgs) => void) & {
   cancel: () => void;
 };
 
+const BRAND_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
+
+const handleBrandLogoLoadError = (event: React.SyntheticEvent<HTMLImageElement>) => {
+  const image = event.currentTarget;
+  if (image.dataset.fallbackApplied === "1") return;
+  image.dataset.fallbackApplied = "1";
+  image.src = BRAND_LOGO_FALLBACK_PATH;
+};
+
 const debounce = <TArgs extends unknown[]>(
   fn: (...args: TArgs) => void,
   wait: number
@@ -844,9 +853,10 @@ const AutoSection: React.FC<AutoProps> = ({
                                 height={200}
                                 quality={100}
                                 draggable={false}
-                              className="h-[66px] w-auto object-contain drop-shadow-[0_14px_22px_rgba(15,23,42,0.2)]"
+                                className="h-[66px] w-auto object-contain drop-shadow-[0_14px_22px_rgba(15,23,42,0.2)]"
                                 style={{ imageRendering: "auto" }}
                                 sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 240px"
+                                onError={handleBrandLogoLoadError}
                               />
                             </div>
 
@@ -1215,6 +1225,7 @@ const AutoSection: React.FC<AutoProps> = ({
                         height={36}
                         className="h-6 w-6 object-contain"
                         priority={false}
+                        onError={handleBrandLogoLoadError}
                       />
                     </span>
                     <span className="relative inline-flex min-w-0 flex-col">
