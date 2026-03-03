@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useState, type SyntheticEvent } 
 import { motion, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Factory, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { brands } from "app/components/brandsData";
+import { brands } from "./brandsData";
 
 const MOBILE_ITEMS_PER_PAGE = 6;
 const DESKTOP_ITEMS_PER_PAGE = 8;
@@ -124,7 +124,7 @@ function BrandCard({
     <button
       type="button"
       onClick={() => onOpen(brand.name)}
-      className="group relative isolate flex w-full min-h-[182px] flex-col items-start justify-start overflow-hidden rounded-2xl border border-slate-100/85 bg-white/94 px-3 py-4 text-left shadow-[0_12px_28px_rgba(15,23,42,0.12)] ring-1 ring-transparent transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[4px] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/75 hover:to-blue-50 hover:shadow-[0_24px_60px_rgba(59,130,246,0.2),0_10px_26px_rgba(14,165,233,0.16)] hover:ring-2 hover:ring-sky-200/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 sm:min-h-[178px]"
+      className="group relative isolate flex w-full min-h-[148px] items-center gap-3.5 overflow-hidden rounded-2xl border border-slate-100/85 bg-white/94 px-3 py-3 text-left shadow-[0_12px_28px_rgba(15,23,42,0.12)] ring-1 ring-transparent transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[4px] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/75 hover:to-blue-50 hover:shadow-[0_24px_60px_rgba(59,130,246,0.2),0_10px_26px_rgba(14,165,233,0.16)] hover:ring-2 hover:ring-sky-200/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 sm:min-h-[146px] sm:gap-4"
       aria-label={`Обрати ${brand.name}`}
     >
       <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
@@ -133,35 +133,37 @@ function BrandCard({
       <span className="pointer-events-none absolute -left-14 -bottom-16 h-32 w-32 rounded-full bg-cyan-200/22 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-x-[4px] group-hover:translate-y-[4px]" />
       <span className="pointer-events-none absolute inset-y-[-30%] left-[-28%] w-[58%] rotate-[16deg] bg-gradient-to-br from-white/0 via-white/28 to-white/0 opacity-0 blur-[2px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[18%] group-hover:opacity-80" />
 
-      <div className="relative flex w-full items-center gap-2.5 rounded-xl border border-sky-100/80 bg-white/82 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),inset_0_-1px_0_rgba(148,163,184,0.2),0_8px_18px_rgba(15,23,42,0.08)] sm:gap-3 sm:px-3 sm:py-2.5">
-        <div className="relative flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-xl border border-sky-100/70 bg-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(15,23,42,0.08)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04] group-active:scale-[0.99] sm:h-[72px] sm:w-[72px]">
-          <Image
-            src={brand.logo}
-            alt={`${brand.name} logo`}
-            width={320}
-            height={200}
-            quality={100}
-            draggable={false}
-            className="h-[40px] w-auto object-contain drop-shadow-[0_8px_14px_rgba(15,23,42,0.14)] sm:h-[50px]"
-            style={{ imageRendering: "auto" }}
-            sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 240px"
-            onError={handleBrandLogoLoadError}
-          />
-        </div>
-        <p className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-slate-800 drop-shadow-[0_2px_6px_rgba(15,23,42,0.16)] transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[14px] sm:leading-[1.2] sm:tracking-[0.06em] sm:whitespace-normal sm:line-clamp-2">
-          {brand.name}
-        </p>
-      </div>
-      <p className="relative mt-2 w-full break-words rounded-xl border border-sky-100/75 bg-white/82 px-3 py-2 text-left text-[11px] leading-relaxed text-slate-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)] line-clamp-3 sm:mt-1.5 sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:text-[12px] sm:shadow-none sm:line-clamp-none">
+      <span className="relative flex h-[68px] w-[68px] shrink-0 items-center justify-center rounded-xl border border-sky-100/70 bg-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(15,23,42,0.08)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04] group-active:scale-[0.99] sm:h-[82px] sm:w-[82px]">
+        <Image
+          src={brand.logo}
+          alt={`${brand.name} logo`}
+          width={320}
+          height={200}
+          quality={100}
+          draggable={false}
+          className="h-[42px] w-auto object-contain drop-shadow-[0_8px_14px_rgba(15,23,42,0.14)] sm:h-[56px]"
+          style={{ imageRendering: "auto" }}
+          sizes="(max-width: 640px) 120px, (max-width: 1024px) 160px, 200px"
+          onError={handleBrandLogoLoadError}
+        />
+      </span>
+      <p className="relative min-w-0 flex-1 break-words text-left text-[11px] leading-relaxed text-slate-600 transition-colors duration-300 group-hover:text-slate-700 line-clamp-4 sm:text-[12px] sm:line-clamp-4">
         {brand.description}
       </p>
     </button>
   );
 }
 
-export default function BrandCarousel() {
+type BrandCarouselProps = {
+  playEntranceAnimations?: boolean;
+};
+
+export default function BrandCarousel({
+  playEntranceAnimations = true,
+}: BrandCarouselProps) {
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion() ?? false;
+  const shouldAnimate = !shouldReduceMotion && playEntranceAnimations;
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [isSmUp, setIsSmUp] = useState(true);
@@ -230,18 +232,16 @@ export default function BrandCarousel() {
 
   return (
     <section
-      className="group/brandcars relative w-full select-none overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-5 pt-5 font-[Montserrat] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)]"
+      className="group/brandcars relative min-h-[320px] w-full select-none overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-5 pt-5 font-[Montserrat] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)]"
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
-      style={{ contain: "layout paint" }}
     >
       <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/brandcars:opacity-100 bg-[radial-gradient(circle_at_12%_16%,rgba(125,211,252,0.26),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.22),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(147,197,253,0.2),transparent_36%)]" />
       <motion.div
         className="relative z-10 mx-auto w-full max-w-[1400px] px-4 sm:px-5 lg:px-7"
-        initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
-        whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
-        transition={shouldReduceMotion ? undefined : { duration: 0.32, ease: "easeOut" }}
-        viewport={shouldReduceMotion ? undefined : { once: false, amount: 0.22, margin: "0px 0px -8% 0px" }}
+        initial={shouldAnimate ? { opacity: 0, y: 14 } : false}
+        animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
+        transition={shouldAnimate ? { duration: 0.32, ease: "easeOut" } : undefined}
       >
         <div className="flex flex-col gap-3 group/brands">
           <div className="flex flex-wrap items-center gap-3 w-full sm:flex-nowrap sm:items-center sm:justify-between">
@@ -306,9 +306,9 @@ export default function BrandCarousel() {
         ) : (
           <motion.div
             key={`${safePage}-${filteredBrands.length}`}
-            initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-            animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
-            transition={shouldReduceMotion ? undefined : { duration: 0.22, ease: "easeOut" }}
+            initial={shouldAnimate ? { opacity: 0, y: 8 } : false}
+            animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
+            transition={shouldAnimate ? { duration: 0.22, ease: "easeOut" } : undefined}
             className="group/logogrid mt-5 grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5 place-items-stretch"
           >
             {pagedBrands.map((brand, idx) => (

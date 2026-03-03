@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
-import { Car, ChevronLeft, ChevronRight, Plus, RefreshCw } from "lucide-react";
+import { Car, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
@@ -29,6 +29,7 @@ interface AutoProps {
   onSelectionChange?: (selection: PersistedCarSelection | null) => void;
   onVinSelect?: (vin: string | null) => void;
   selectedVin?: string | null;
+  playEntranceAnimations?: boolean;
   compact?: boolean;
   variant?: "default" | "filter";
   showSummary?: boolean;
@@ -224,8 +225,10 @@ const AutoSection: React.FC<AutoProps> = ({
   compact = false,
   variant = "default",
   showSummary = true,
+  playEntranceAnimations = true,
 }) => {
   const shouldReduceMotion = useReducedMotion() ?? false;
+  const shouldAnimate = !shouldReduceMotion && playEntranceAnimations;
   const isCompact = Boolean(compact);
   const isFilterVariant = variant === "filter";
   const [searchTerm, setSearchTerm] = useState("");
@@ -463,7 +466,10 @@ const AutoSection: React.FC<AutoProps> = ({
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     const absX = Math.abs(event.deltaX);
     const absY = Math.abs(event.deltaY);
-    if (absX <= absY || absX < 35) return;
+    const isHorizontalIntent = absX >= 60 && absX > absY * 1.8;
+    if (!isHorizontalIntent) return;
+    const canPaginate = event.deltaX > 0 ? canGoNext : canGoPrev;
+    if (!canPaginate) return;
     event.preventDefault();
     const now = Date.now();
     if (now - lastWheelTime.current < 400) return;
@@ -871,13 +877,13 @@ const AutoSection: React.FC<AutoProps> = ({
               ) : activeTab === "engine" ? (
                 <motion.div
                   key="engines"
-                  initial={shouldReduceMotion ? false : { opacity: 0, x: 14 }}
-                  animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
-                  exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -14 }}
+                  initial={shouldAnimate ? { opacity: 0, x: 14 } : false}
+                  animate={shouldAnimate ? { opacity: 1, x: 0 } : undefined}
+                  exit={shouldAnimate ? { opacity: 0, x: -14 } : undefined}
                   transition={
-                    shouldReduceMotion
-                      ? { duration: 0 }
-                      : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
+                    shouldAnimate
+                      ? { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
+                      : undefined
                   }
                 >
                   <CarModifications
@@ -894,13 +900,13 @@ const AutoSection: React.FC<AutoProps> = ({
               ) : (
                 <motion.div
                   key="models"
-                  initial={shouldReduceMotion ? false : { opacity: 0, x: 14 }}
-                  animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
-                  exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -14 }}
+                  initial={shouldAnimate ? { opacity: 0, x: 14 } : false}
+                  animate={shouldAnimate ? { opacity: 1, x: 0 } : undefined}
+                  exit={shouldAnimate ? { opacity: 0, x: -14 } : undefined}
                   transition={
-                    shouldReduceMotion
-                      ? { duration: 0 }
-                      : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
+                    shouldAnimate
+                      ? { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
+                      : undefined
                   }
                 >
                   <CarModels
@@ -1183,80 +1189,89 @@ const AutoSection: React.FC<AutoProps> = ({
             </>
           ) : (
             <>
-              <header className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0 flex flex-1 items-center gap-3">
-                  <span className="h-9 w-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shadow-inner">
-                    <Car size={16} strokeWidth={2.1} aria-hidden />
-                  </span>
-                  <h3 className="min-w-0 flex-1 text-xl font-semibold tracking-tight text-slate-700 drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)]">
-                    <span className="relative inline-block max-w-full break-words">
-                      {"Оберіть ваше авто"}
-                      <span
-                        data-underline
-                        className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover/right-panel:scale-x-100"
-                      />
-                    </span>
-                  </h3>
-                </div>
-
-                {selectedBrand && modelBrandLogo && (
-                  <div
-                    className={`relative flex items-center gap-2 overflow-hidden rounded-lg border border-blue-100/80 bg-gradient-to-r from-white/95 via-blue-50/50 to-white/92 backdrop-blur-sm shadow-[0_8px_18px_rgba(59,130,246,0.12)] ring-1 ring-white/70 sm:ml-auto ${
-                      isCompact ? "px-2 py-1.5" : "px-2.5 py-1.5"
-                    }`}
-                  >
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute inset-y-1 left-1 w-1 rounded-full bg-gradient-to-b from-blue-500/35 via-sky-400/25 to-cyan-300/25 blur-[2px]"
-                    />
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute inset-0 bg-gradient-to-r from-blue-50/60 via-white/65 to-sky-50/55"
-                    />
-                    <span
-                      className={`relative inline-flex items-center justify-center rounded-md border border-slate-200 bg-white/95 shadow-[0_8px_16px_rgba(15,23,42,0.12)] ring-1 ring-blue-100/60 ${
-                        isCompact ? "h-8 w-8" : "h-9 w-9"
-                      }`}
-                    >
-                      <Image
-                        src={modelBrandLogo}
-                        alt={modelBrandName ?? ""}
-                        width={36}
-                        height={36}
-                        className="h-6 w-6 object-contain"
-                        priority={false}
-                        onError={handleBrandLogoLoadError}
-                      />
-                    </span>
-                    <span className="relative inline-flex min-w-0 flex-col">
-                      <span className="text-[9px] uppercase tracking-[0.14em] text-slate-500">
-                        {"\u041c\u0430\u0440\u043a\u0430"}
-                      </span>
-                      <span className="truncate text-[11px] font-semibold text-slate-800">
-                        {modelBrandName}
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleStepClick("brand")}
-                      className={`relative ml-auto inline-flex items-center gap-1 rounded-md border border-blue-200/80 bg-gradient-to-r from-blue-500 via-sky-400 to-cyan-400 px-2 py-0.5 text-[9px] font-semibold text-white shadow-[0_5px_14px_rgba(59,130,246,0.26)] transition hover:brightness-110 hover:shadow-[0_8px_20px_rgba(59,130,246,0.34)] active:translate-y-[1px] ${
-                        isCompact ? "text-[8px]" : ""
-                      }`}
-                    >
-                      <RefreshCw className="h-3 w-3" strokeWidth={1.8} aria-hidden />
-                      {"\u0417\u043c\u0456\u043d\u0438\u0442\u0438"}
-                    </button>
-                  </div>
-                )}
-              </header>
-
-              <p
-                className={`max-w-2xl text-slate-600 leading-snug ${
-                  isCompact ? "text-[11px] sm:text-xs" : "text-xs sm:text-sm"
+              <header
+                className={`mb-1 rounded-2xl border border-sky-100/80 bg-[linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] shadow-[0_12px_28px_rgba(8,145,178,0.12)] ${
+                  isCompact ? "p-2.5" : "p-3"
                 }`}
               >
-                {activeStepInfo.description}
-              </p>
+                <div className="w-full">
+                  <div className="grid w-full items-center gap-2 sm:grid-cols-[minmax(0,1fr)_44px]">
+                    <div className="min-w-0 flex w-full flex-col items-start justify-center">
+                      <div className="flex items-center justify-start gap-2.5">
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shadow-inner">
+                          <Car size={16} strokeWidth={2.1} aria-hidden />
+                        </span>
+                        <h3
+                          className={`min-w-0 whitespace-nowrap text-left font-semibold tracking-tight text-slate-700 drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)] ${
+                            isCompact ? "text-lg" : "text-xl"
+                          }`}
+                        >
+                          <span className="relative inline-block max-w-full whitespace-nowrap">
+                            {"Оберіть ваше авто"}
+                            <span
+                              data-underline
+                              className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover/right-panel:scale-x-100"
+                            />
+                          </span>
+                        </h3>
+                      </div>
+                      <p
+                        className={`mt-1 w-full max-w-[560px] truncate whitespace-nowrap text-left text-slate-600 ${
+                          isCompact ? "text-[11px] sm:text-xs" : "text-xs sm:text-sm"
+                        }`}
+                      >
+                        {activeStepInfo.description}
+                      </p>
+                    </div>
+
+                    {selectedBrand && modelBrandLogo ? (
+                      <div
+                        className={`hidden self-center sm:inline-flex items-center justify-center rounded-lg border border-blue-100/80 bg-white/95 shadow-[0_8px_16px_rgba(59,130,246,0.12)] ring-1 ring-white/70 ${
+                          isCompact ? "h-10 w-10" : "h-11 w-11"
+                        }`}
+                      >
+                        <Image
+                          src={modelBrandLogo}
+                          alt={modelBrandName ?? ""}
+                          width={80}
+                          height={80}
+                          sizes={isCompact ? "40px" : "44px"}
+                          quality={100}
+                          unoptimized
+                          className={isCompact ? "h-5 w-auto max-w-[24px] object-contain" : "h-6 w-auto max-w-[28px] object-contain"}
+                          style={{ imageRendering: "auto" }}
+                          priority={false}
+                          onError={handleBrandLogoLoadError}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {selectedBrand && modelBrandLogo && (
+                    <div className="mt-2 flex justify-start sm:hidden">
+                      <span
+                        className={`inline-flex items-center justify-center rounded-lg border border-blue-100/80 bg-white/95 shadow-[0_8px_16px_rgba(59,130,246,0.12)] ring-1 ring-white/70 ${
+                          isCompact ? "h-10 w-10" : "h-11 w-11"
+                        }`}
+                      >
+                        <Image
+                          src={modelBrandLogo}
+                          alt={modelBrandName ?? ""}
+                          width={80}
+                          height={80}
+                          sizes={isCompact ? "40px" : "44px"}
+                          quality={100}
+                          unoptimized
+                          className={isCompact ? "h-5 w-auto max-w-[24px] object-contain" : "h-6 w-auto max-w-[28px] object-contain"}
+                          style={{ imageRendering: "auto" }}
+                          priority={false}
+                          onError={handleBrandLogoLoadError}
+                        />
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </header>
 
               <nav aria-label="Кроки підбору авто" className="grid gap-2 sm:grid-cols-3">
                 {steps.map((step, index) => {
@@ -1278,17 +1293,15 @@ const AutoSection: React.FC<AutoProps> = ({
                       <span className="flex h-5 w-5 items-center justify-center rounded-md border border-current text-[10px]">
                         {index + 1}
                       </span>
-                      <span className="flex min-w-0 flex-col items-start leading-tight">
+                      <span className="flex min-w-0 flex-1 flex-col items-start leading-tight">
                         <span>{step.label}</span>
-                        {value ? (
-                          <span
-                            className={`break-words text-[10px] font-medium ${
-                              isActive ? "text-cyan-700" : "text-slate-500"
-                            }`}
-                          >
-                            {value}
-                          </span>
-                        ) : null}
+                        <span
+                          className={`mt-0.5 w-full truncate text-[10px] font-medium ${
+                            isActive ? "text-cyan-700" : "text-slate-500"
+                          } ${value ? "" : "opacity-0"}`}
+                        >
+                          {value || "—"}
+                        </span>
                       </span>
                     </button>
                   );

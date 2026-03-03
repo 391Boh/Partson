@@ -65,31 +65,30 @@ const advantages: Advantage[] = [
   },
 ];
 
-const AdvantagesSection = () => {
+type AdvantagesSectionProps = {
+  playEntranceAnimations?: boolean;
+};
+
+const AdvantagesSection = ({
+  playEntranceAnimations = true,
+}: AdvantagesSectionProps) => {
   const shouldReduceMotion = useReducedMotion() ?? false;
+  const shouldAnimate = !shouldReduceMotion && playEntranceAnimations;
 
   return (
     <section
-      className="group/advantages relative w-full select-none overflow-hidden bg-gradient-to-br from-sky-200/95 via-blue-300/86 to-indigo-300/88 py-5 sm:py-6 lg:py-7 font-[Montserrat] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),inset_0_-1px_0_rgba(30,64,175,0.22),0_18px_38px_rgba(30,64,175,0.2)] transition-[background-image,box-shadow,filter] duration-500 ease-out hover:from-sky-200/95 hover:via-blue-300/88 hover:to-indigo-300/90"
+      className="group/advantages relative min-h-[280px] w-full select-none overflow-hidden bg-gradient-to-br from-sky-200/95 via-blue-300/86 to-indigo-300/88 pt-5 pb-3 sm:pt-6 sm:pb-4 lg:pt-7 lg:pb-5 font-[Montserrat] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),inset_0_-1px_0_rgba(30,64,175,0.22),0_18px_38px_rgba(30,64,175,0.2)] transition-[background-image,box-shadow,filter] duration-500 ease-out hover:from-sky-200/95 hover:via-blue-300/86 hover:to-indigo-300/90"
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
-      style={{ contain: "layout paint" }}
     >
       <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/advantages:opacity-100 bg-[radial-gradient(circle_at_12%_16%,rgba(56,189,248,0.24),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(59,130,246,0.2),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(99,102,241,0.18),transparent_36%)]" />
 
       <div className="relative z-10 mx-auto w-full max-w-[1400px] px-4 sm:px-5 lg:px-7">
         <motion.div
-          initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-          whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+          initial={shouldAnimate ? { opacity: 0, y: 8 } : false}
+          animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
           transition={
-            shouldReduceMotion
-              ? undefined
-              : { duration: 0.28, ease: "easeOut" }
-          }
-          viewport={
-            shouldReduceMotion
-              ? undefined
-              : { once: true, amount: 0.3, margin: "0px 0px -8% 0px" }
+            shouldAnimate ? { duration: 0.28, ease: "easeOut" } : undefined
           }
           className="flex flex-col gap-4 sm:gap-5"
         >
@@ -116,17 +115,12 @@ const AdvantagesSection = () => {
               return (
                 <motion.article
                   key={item.title}
-                  initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
-                  whileInView={
-                    shouldReduceMotion ? undefined : { opacity: 1, y: 0 }
-                  }
+                  initial={shouldAnimate ? { opacity: 0, y: 10 } : false}
+                  animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
                   transition={
-                    shouldReduceMotion
-                      ? undefined
-                      : { duration: 0.24, ease: "easeOut", delay: 0.03 * index }
-                  }
-                  viewport={
-                    shouldReduceMotion ? undefined : { once: true, amount: 0.28 }
+                    shouldAnimate
+                      ? { duration: 0.24, ease: "easeOut", delay: 0.03 * index }
+                      : undefined
                   }
                   className="group/card relative isolate flex h-full min-h-[190px] flex-col overflow-hidden rounded-[20px] border border-white/80 bg-gradient-to-br from-white/98 via-slate-50/95 to-sky-50/78 p-3.5 text-left shadow-[0_12px_26px_rgba(15,23,42,0.1),inset_0_1px_0_rgba(255,255,255,0.92)] ring-1 ring-transparent transition-all duration-300 ease-out sm:min-h-[198px] sm:p-4 hover:-translate-y-1.5 hover:border-sky-200/80 hover:shadow-[0_24px_44px_rgba(37,99,235,0.2)]"
                 >

@@ -242,6 +242,15 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
     image.src = logoFallbackPath;
   };
 
+  const handleBrandClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (pathname !== '/') return;
+
+    if (window.scrollY > 0) {
+      event.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   useEffect(() => {
     const handleOpenAccountVin = () => {
       if (typeof window !== 'undefined') {
@@ -283,6 +292,7 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
             href="/"
             aria-label="Головна сторінка"
             className="group relative flex items-center"
+            onClick={handleBrandClick}
           >
             <Image
               src="/Car-parts.png"

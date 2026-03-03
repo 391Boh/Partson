@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState, type SyntheticEvent } from "react";
-import { ChevronRight, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 
 interface ProducerTopGroupItem {
   label: string;
@@ -106,9 +106,9 @@ export default function ManufacturersCatalogClient({
                     key={producer.slug}
                     href={href}
                     prefetch={false}
-                    className="group/item relative flex items-center gap-2 rounded-xl border border-cyan-100/90 bg-[linear-gradient(120deg,rgba(255,255,255,0.95)_0%,rgba(236,254,255,0.92)_56%,rgba(224,242,254,0.9)_100%)] px-2.5 py-1.5 text-left shadow-[0_8px_16px_rgba(8,145,178,0.12)] transition hover:border-cyan-300 hover:shadow-[0_14px_28px_rgba(6,182,212,0.18)]"
+                    className="group/item relative flex items-center gap-2.5 rounded-xl border border-cyan-100/90 bg-white/95 px-2.5 py-2 text-left shadow-[0_6px_14px_rgba(8,145,178,0.1)] transition-all duration-200 ease-out hover:-translate-y-[1px] hover:border-cyan-300 hover:shadow-[0_12px_24px_rgba(6,182,212,0.14)]"
                   >
-                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-cyan-200 bg-white text-cyan-700">
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-cyan-200 bg-white text-cyan-700 shadow-[0_3px_8px_rgba(14,116,144,0.12)]">
                       {producer.logoPath ? (
                         <Image
                           src={producer.logoPath}
@@ -135,9 +135,6 @@ export default function ManufacturersCatalogClient({
                       </span>
                     </span>
 
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-sky-200/70 bg-white/80 text-sky-500 transition group-hover/item:border-cyan-200 group-hover/item:bg-cyan-50/90 group-hover/item:text-cyan-700">
-                      <ChevronRight size={14} />
-                    </span>
                   </Link>
                 );
               })}

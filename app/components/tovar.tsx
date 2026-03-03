@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { FlipCard, type ProductNode } from "app/components/FlipCard";
+import { motion, useReducedMotion } from "framer-motion";
+import { FlipCard, type ProductNode } from "./FlipCard";
 import { useRouter } from "next/navigation";
 import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -15,6 +15,7 @@ interface CategoryRow {
 
 interface Props {
   products?: unknown;
+  playEntranceAnimations?: boolean;
 }
 
 let cachedProducts: ProductNode[] | null = null;
@@ -26,7 +27,71 @@ const CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24h fresh cache
 const STALE_CACHE_TTL_MS = 1000 * 60 * 60 * 72; // serve stale up to 3 days while refreshing
 const RETRYABLE_HTTP_STATUSES = new Set([500, 502, 503, 504]);
 const MAX_FETCH_ATTEMPTS = 3;
+const MAX_TREE_DEPTH = 8;
+const MAX_CHILDREN_PER_NODE = 250;
+const MAX_GROUPS_FOR_RENDER = 240;
+const MAX_CATEGORY_ROWS = 1800;
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+type ProductArrayResult = {
+  nodes: unknown[];
+  extracted: boolean;
+};
+
+const PRODUCT_ARRAY_KEYS = [
+  "data",
+  "items",
+  "products",
+  "categories",
+  "result",
+  "rows",
+  "response",
+  "payload",
+  "groups",
+  "records",
+] as const;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const extractProductArray = (
+  value: unknown,
+  depth = 0
+): ProductArrayResult => {
+  if (Array.isArray(value)) {
+    return { nodes: value, extracted: true };
+  }
+
+  if (!isRecord(value) || depth > 5) {
+    return { nodes: [], extracted: false };
+  }
+
+  for (const key of PRODUCT_ARRAY_KEYS) {
+    const candidate = value[key];
+    const extracted = extractProductArray(candidate, depth + 1);
+    if (extracted.extracted) {
+      return extracted;
+    }
+  }
+
+  for (const candidate of Object.values(value)) {
+    if (Array.isArray(candidate)) {
+      return { nodes: candidate, extracted: true };
+    }
+
+    const extracted = extractProductArray(candidate, depth + 1);
+    if (extracted.extracted) {
+      return extracted;
+    }
+  }
+
+  return { nodes: [], extracted: false };
+};
+
+const normalizeProductNodes = (nodes: unknown[]): ProductNode[] => {
+  if (nodes.length === 0) return [];
+  return nodes.slice(0, MAX_GROUPS_FOR_RENDER).map((node) => transformNode(node, 0));
+};
 
 const gridVariants = {
   hidden: {},
@@ -98,7 +163,7 @@ type LoadOptions = { forceRefresh?: boolean };
 const loadProducts = async (options: LoadOptions = {}): Promise<ProductNode[]> => {
   const { forceRefresh = false } = options;
 
-  if (!forceRefresh && cachedProducts && (cachedProducts.length > 0 || !cachedProductsLoadError)) {
+  if (!forceRefresh && cachedProducts && cachedProducts.length > 0) {
     return cachedProducts;
   }
 
@@ -118,11 +183,20 @@ const loadProducts = async (options: LoadOptions = {}): Promise<ProductNode[]> =
 
     for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
       try {
-        const response = await fetch("/api/proxy?endpoint=getprod", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+        let response: Response;
+        try {
+          response = await fetch("/api/proxy?endpoint=getprod", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
         if (!response.ok) {
           lastError = `HTTP ${response.status}`;
@@ -134,9 +208,16 @@ const loadProducts = async (options: LoadOptions = {}): Promise<ProductNode[]> =
         }
 
         const raw = (await response.json()) as unknown;
+        const extracted = extractProductArray(raw);
         writeBrowserCache(raw);
 
-        const transformed = transformData(raw);
+        if (!extracted.extracted) {
+          lastError = "Отримано некоректний формат відповіді каталогу товарів";
+          cachedProductsLoadError = lastError;
+          return [];
+        }
+
+        const transformed = normalizeProductNodes(extracted.nodes);
         cachedProducts = transformed;
         cachedProductsLoadError = null;
         return transformed;
@@ -193,56 +274,56 @@ const readFirstArray = (
   return [];
 };
 
-const transformNode = (node: unknown): ProductNode => {
+const transformNode = (node: unknown, depth = 0): ProductNode => {
   const record =
     node && typeof node === "object"
       ? (node as Record<string, unknown>)
       : {};
-  const children = readFirstArray(record, CHILD_KEYS);
+  const children =
+    depth < MAX_TREE_DEPTH
+      ? readFirstArray(record, CHILD_KEYS).slice(0, MAX_CHILDREN_PER_NODE)
+      : [];
   return {
     name: readFirstString(record, NAME_KEYS),
-    children: children.map(transformNode),
+    children: children.map((child) => transformNode(child, depth + 1)),
   };
 };
 
 const transformData = (raw: unknown): ProductNode[] => {
-  if (!Array.isArray(raw)) return [];
-  return raw.map(transformNode);
+  const extracted = extractProductArray(raw);
+  if (!extracted.extracted) return [];
+  return normalizeProductNodes(extracted.nodes);
 };
 
 const toProductNodes = (value: unknown): ProductNode[] => {
-  if (!Array.isArray(value)) return [];
-  if (value.length === 0) return [];
-
-  const first = value[0] as { name?: unknown; children?: unknown };
-  if (typeof first?.name === "string" || Array.isArray(first?.children)) {
-    return value as ProductNode[];
-  }
-
   return transformData(value);
 };
 
 const ITEMS_PER_PAGE = 6;
+const QUICK_SEARCH_MAX_ROWS = 5;
 
 const collectLeafPaths = (
   nodes?: ProductNode[],
-  parents: string[] = []
+  parents: string[] = [],
+  depth = 0
 ): string[][] => {
   if (!Array.isArray(nodes) || nodes.length === 0) return [];
 
   const result: string[][] = [];
 
-  for (const node of nodes) {
+  for (const node of nodes.slice(0, MAX_CHILDREN_PER_NODE)) {
     const rawName = typeof node?.name === "string" ? node.name : "Без назви";
     const name = normalizeLabel(rawName) || "Без назви";
     const children = Array.isArray(node?.children) ? node.children : [];
     const path = [...parents, name];
 
-    if (children.length > 0) {
-      result.push(...collectLeafPaths(children, path));
+    if (children.length > 0 && depth < MAX_TREE_DEPTH) {
+      result.push(...collectLeafPaths(children, path, depth + 1));
     } else {
       result.push(path);
     }
+
+    if (result.length >= MAX_CATEGORY_ROWS) break;
   }
 
   return result;
@@ -373,6 +454,7 @@ const LoadingNotice = ({ shouldAnimate, title, subtitle }: LoadingNoticeProps) =
   <motion.div
     initial={shouldAnimate ? { opacity: 0, y: 8 } : false}
     animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
+    transition={shouldAnimate ? { duration: 0.35, ease: "easeOut" } : undefined}
     className="relative overflow-hidden rounded-xl border border-cyan-200/80 bg-[linear-gradient(120deg,rgba(236,254,255,0.96)_0%,rgba(224,242,254,0.94)_55%,rgba(209,250,229,0.9)_100%)] px-3 py-3 shadow-[0_10px_24px_rgba(6,182,212,0.16)]"
   >
     <div className="pointer-events-none absolute inset-0 opacity-80 bg-[radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.22),transparent_44%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.2),transparent_40%)]" />
@@ -383,7 +465,7 @@ const LoadingNotice = ({ shouldAnimate, title, subtitle }: LoadingNoticeProps) =
         animate={shouldAnimate ? { rotate: 360 } : undefined}
         transition={
           shouldAnimate
-            ? { duration: 1.1, repeat: Infinity, ease: "linear" }
+            ? { duration: 1.35, repeat: Infinity, ease: "easeInOut" }
             : undefined
         }
       >
@@ -392,12 +474,17 @@ const LoadingNotice = ({ shouldAnimate, title, subtitle }: LoadingNoticeProps) =
           className="absolute inset-[11px] rounded-full bg-cyan-400/90"
           animate={
             shouldAnimate
-              ? { scale: [0.9, 1.15, 0.9], opacity: [0.65, 1, 0.65] }
+              ? { scale: [0.88, 1.06, 0.88], opacity: [0.7, 1, 0.7] }
               : undefined
           }
           transition={
             shouldAnimate
-              ? { duration: 1.3, repeat: Infinity, ease: "easeInOut" }
+              ? {
+                  duration: 1.35,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  repeatType: "mirror",
+                }
               : undefined
           }
         />
@@ -413,12 +500,18 @@ const LoadingNotice = ({ shouldAnimate, title, subtitle }: LoadingNoticeProps) =
               className="h-1.5 w-1.5 rounded-full bg-cyan-500"
               animate={
                 shouldAnimate
-                  ? { opacity: [0.25, 1, 0.25], y: [0, -2, 0] }
+                  ? { opacity: [0.22, 1, 0.22], y: [0, -2, 0] }
                   : undefined
               }
               transition={
                 shouldAnimate
-                  ? { duration: 0.9, repeat: Infinity, ease: "easeInOut", delay: index * 0.12 }
+                  ? {
+                      duration: 1.1,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                      delay: index * 0.12,
+                      repeatDelay: 0.02,
+                    }
                   : undefined
               }
             />
@@ -429,7 +522,10 @@ const LoadingNotice = ({ shouldAnimate, title, subtitle }: LoadingNoticeProps) =
   </motion.div>
 );
 
-const ProductFetcher: React.FC<Props> = ({ products }) => {
+const ProductFetcher: React.FC<Props> = ({
+  products,
+  playEntranceAnimations = true,
+}) => {
   const hasExternalProducts = Array.isArray(products);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isLoading, setIsLoading] = useState(!hasExternalProducts);
@@ -444,44 +540,71 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [flippedId, setFlippedId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const [canHover, setCanHover] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion() ?? false;
-  const shouldAnimate = !shouldReduceMotion;
+  const shouldAnimate = !shouldReduceMotion && playEntranceAnimations;
   const isBooting = !hasExternalProducts && !isHydrated;
   const showSkeleton = !hasLoadedOnce && (isBooting || isLoading);
-  const entryMotion = shouldReduceMotion
-    ? { initial: false }
-    : {
+  const entryMotion = shouldAnimate
+    ? {
         initial: { opacity: 0, y: 10 },
         animate: { opacity: 1, y: 0 },
         transition: { duration: 0.25, ease: "easeOut" },
-      };
+      }
+    : {};
+
+  const normalizedProducts = useMemo(
+    () =>
+      Array.isArray(productNodes)
+        ? productNodes.slice(0, MAX_GROUPS_FOR_RENDER)
+        : [],
+    [productNodes]
+  );
 
   const rows = useMemo<CategoryRow[]>(() => {
-    const normalizedProducts = toProductNodes(productNodes);
     if (normalizedProducts.length === 0) return [];
 
-    const allRows = normalizedProducts.flatMap((group) => {
+    const allRows: CategoryRow[] = [];
+    for (const group of normalizedProducts) {
+      if (allRows.length >= MAX_CATEGORY_ROWS) break;
       const { groupName, categoryPaths } = getGroupCategories(group);
-      return categoryPaths.map((path) => ({
-        group: groupName,
-        path,
-        leaf: path[path.length - 1] ?? groupName,
-        id: path.join(" / "),
-      }));
-    });
+      for (const path of categoryPaths) {
+        allRows.push({
+          group: groupName,
+          path,
+          leaf: path[path.length - 1] ?? groupName,
+          id: path.join(" / "),
+        });
+        if (allRows.length >= MAX_CATEGORY_ROWS) break;
+      }
+    }
 
     const unique = new Map<string, CategoryRow>();
     for (const row of allRows) {
-      if (!unique.has(row.id)) {
-        unique.set(row.id, row);
+      const normalizedRow = {
+        ...row,
+        id: row.id.trim().toLowerCase(),
+        path: row.path.map((segment) => segment.trim()),
+        leaf: row.leaf.trim(),
+        group: row.group.trim(),
+      };
+
+      if (!unique.has(normalizedRow.id)) {
+        unique.set(normalizedRow.id, normalizedRow);
       }
     }
-    return Array.from(unique.values());
-  }, [productNodes]);
+
+    return Array.from(unique.values()).sort((a, b) => {
+      const groupCompare = a.group.localeCompare(b.group, "uk", {
+        sensitivity: "base",
+      });
+      if (groupCompare !== 0) return groupCompare;
+      return a.leaf.localeCompare(b.leaf, "uk", { sensitivity: "base" });
+    });
+  }, [normalizedProducts]);
 
   const filteredRows = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -492,12 +615,48 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
     );
   }, [rows, searchTerm]);
 
-  const displayedRows = useMemo(() => filteredRows.slice(0, 5), [filteredRows]);
+  const displayedRows = useMemo(
+    () => filteredRows.slice(0, QUICK_SEARCH_MAX_ROWS),
+    [filteredRows]
+  );
+  useEffect(() => {
+    setSelectedCategories((current) =>
+      current.filter((selected) => filteredRows.some((row) => row.id === selected))
+    );
+  }, [filteredRows]);
 
-  const filteredGroups = useMemo(() => {
-    const normalizedProducts = toProductNodes(productNodes);
-    return normalizedProducts.length === 0 ? [] : normalizedProducts;
-  }, [productNodes]);
+  const filteredGroups = useMemo(
+    () =>
+      normalizedProducts.length === 0
+        ? []
+        : normalizedProducts.slice(0, MAX_GROUPS_FOR_RENDER),
+    [normalizedProducts]
+  );
+
+  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / ITEMS_PER_PAGE));
+
+  const safePage = (value: number) => {
+    if (!Number.isFinite(value)) return 1;
+    return Math.max(1, Math.min(value, totalPages));
+  };
+
+  const goToPage = (value: number) => {
+    setPage((prev) => {
+      const next = safePage(value);
+      return prev === next ? prev : next;
+    });
+  };
+
+  const nextPage = () => {
+    setPage((prev) => safePage(prev + 1));
+  };
+  const prevPage = () => {
+    setPage((prev) => safePage(prev - 1));
+  };
+
+  useEffect(() => {
+    setPage((currentPage) => Math.max(1, Math.min(currentPage, totalPages)));
+  }, [totalPages]);
 
   useEffect(() => {
     setIsHydrated(true);
@@ -565,10 +724,6 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
     return () => media.removeListener(update);
   }, []);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredGroups.length / ITEMS_PER_PAGE)
-  );
   const pagedGroups = useMemo(() => {
     const start = (page - 1) * ITEMS_PER_PAGE;
     return filteredGroups.slice(start, start + ITEMS_PER_PAGE);
@@ -596,12 +751,11 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
   return (
     <section
       ref={sectionRef}
-      className={`group/tovar relative tovar-touch w-full overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-4 pt-4 font-[Montserrat] select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)] ${
+      className={`group/tovar relative tovar-touch min-h-[420px] w-full overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-4 pt-4 font-[Montserrat] select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)] ${
         canHover
           ? "transition-[box-shadow,background-image,filter] duration-300 ease-out hover:from-cyan-50/95 hover:via-sky-100/80 hover:to-blue-100/85 hover:brightness-[1.015] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(30,64,175,0.18),0_18px_38px_rgba(37,99,235,0.18)]"
           : ""
       } sm:pb-0`}
-      style={{ contain: "layout paint" }}
     >
       <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/tovar:opacity-100 bg-[radial-gradient(circle_at_12%_16%,rgba(125,211,252,0.26),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.22),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(147,197,253,0.2),transparent_36%)]" />
       <div className="relative z-10 mx-auto grid w-full max-w-[1400px] grid-cols-1 items-start gap-6 px-4 sm:px-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:px-7">
@@ -635,12 +789,11 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
               </div>
 
               <div className="pr-1 pb-4">
-                <AnimatePresence initial={false}>
                 {showSkeleton ? (
                   <motion.div
                     key="loading"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                    initial={shouldAnimate ? { opacity: 0 } : false}
+                    animate={shouldAnimate ? { opacity: 1 } : undefined}
                     className="rounded-xl border border-cyan-100/80 bg-white/80 px-3 py-4 text-sm text-slate-600"
                   >
                     <LoadingNotice
@@ -652,26 +805,22 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
                       {Array.from({ length: 5 }).map((_, index) => (
                         <div
                           key={`cat-skeleton-${index}`}
-                          className="h-10 w-full rounded-xl border border-cyan-100/60 bg-gradient-to-r from-cyan-50 via-white to-teal-50 animate-pulse"
+                          className="skeleton-card h-10 w-full rounded-xl border border-cyan-100/70 bg-gradient-to-r from-cyan-50 via-white to-teal-50"
                         />
                       ))}
                     </div>
                   </motion.div>
                 ) : displayedRows.length > 0 ? (
                   <div className="grid grid-cols-1 gap-2.5">
-                    {displayedRows.map((row, index) => {
+                    {displayedRows.map((row) => {
                       const isActive = selectedCategories.includes(row.id);
                       const trailLabel =
                         row.path.slice(0, -1).join(" / ") || row.group;
                       return (
-                        <motion.button
-                          key={`${row.group}-${row.id}-list-${index}`}
+                        <button
+                          key={row.id}
                           type="button"
                           onClick={() => handleRowSelect(row)}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          transition={{ duration: 0.2 }}
                           className={`group/row relative w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-all duration-300 ${
                             isActive
                               ? "border-cyan-300/90 bg-[linear-gradient(115deg,rgba(207,250,254,0.97)_0%,rgba(224,242,254,0.95)_52%,rgba(209,250,229,0.92)_100%)] shadow-[0_14px_30px_rgba(6,182,212,0.28)] ring-1 ring-cyan-200/80"
@@ -688,10 +837,10 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
                           <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover/row:opacity-100 bg-[radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.22),transparent_42%),radial-gradient(circle_at_86%_16%,rgba(56,189,248,0.2),transparent_38%),radial-gradient(circle_at_52%_100%,rgba(45,212,191,0.16),transparent_38%)]" />
                           <div className="relative flex items-center gap-2.5">
                             <div className="min-w-0 flex-1 space-y-0.5">
-                              <div className="text-sm font-semibold text-slate-800 line-clamp-1">
+                              <div className="truncate text-sm font-semibold text-slate-800">
                                 {row.leaf}
                               </div>
-                              <div className="text-xs text-slate-500/90 line-clamp-1">
+                              <div className="truncate text-xs text-slate-500/90">
                                 {trailLabel}
                               </div>
                             </div>
@@ -708,15 +857,15 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
                               />
                             </span>
                           </div>
-                        </motion.button>
+                        </button>
                       );
                     })}
                   </div>
                 ) : productLoadError ? (
                   <motion.div
                     key="error"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                    initial={shouldAnimate ? { opacity: 0 } : false}
+                    animate={shouldAnimate ? { opacity: 1 } : undefined}
                     className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-700"
                   >
                     Помилка завантаження категорій: {productLoadError}
@@ -724,8 +873,8 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
                 ) : (
                   <motion.div
                     key="empty"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                    initial={shouldAnimate ? { opacity: 0 } : false}
+                    animate={shouldAnimate ? { opacity: 1 } : undefined}
                     className="rounded-xl border border-dashed border-cyan-100 bg-cyan-50 px-4 py-6 text-center text-sm text-gray-500"
                   >
                     <div className="font-semibold text-gray-700">
@@ -736,7 +885,7 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
                     </div>
                   </motion.div>
                 )}
-              </AnimatePresence>
+              
             </div>
             </div>
         </motion.aside>
@@ -744,17 +893,32 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
         <motion.div {...entryMotion} className="relative z-10 min-w-0">
         <motion.div
           className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5"
-          onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+          onTouchStart={(e) => {
+            const touch = e.touches[0];
+            if (!touch) return;
+            touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+          }}
           onTouchEnd={(e) => {
-            if (touchStartX === null) return;
-            const diff = e.changedTouches[0].clientX - touchStartX;
+            const start = touchStartRef.current;
+            const end = e.changedTouches[0];
+            if (!start || !end) return;
+
+            const diffX = end.clientX - start.x;
+            const diffY = end.clientY - start.y;
             const threshold = 30;
-            if (diff > threshold) {
-              setPage((prev) => Math.max(1, prev - 1));
-            } else if (diff < -threshold) {
-              setPage((prev) => Math.min(totalPages, prev + 1));
+            const horizontalSwipe = Math.abs(diffX) > threshold && Math.abs(diffX) > Math.abs(diffY) * 1.25;
+
+            if (horizontalSwipe) {
+              if (diffX > 0) {
+                prevPage();
+              } else {
+                nextPage();
+              }
             }
-            setTouchStartX(null);
+            touchStartRef.current = null;
+          }}
+          onTouchCancel={() => {
+            touchStartRef.current = null;
           }}
           variants={shouldAnimate ? gridVariants : undefined}
           initial={shouldAnimate ? "hidden" : false}
@@ -789,7 +953,7 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
                   {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
                     <div
                       key={`card-skeleton-${index}`}
-                      className="relative overflow-hidden rounded-xl border border-cyan-100/80 bg-[linear-gradient(120deg,rgba(255,255,255,0.94)_0%,rgba(240,249,255,0.9)_52%,rgba(224,242,254,0.88)_100%)] px-4 py-5 shadow-[0_8px_18px_rgba(8,145,178,0.14)] animate-pulse"
+                      className="skeleton-card relative overflow-hidden rounded-xl border border-cyan-100/80 bg-[linear-gradient(120deg,rgba(255,255,255,0.94)_0%,rgba(240,249,255,0.9)_52%,rgba(224,242,254,0.88)_100%)] px-4 py-5 shadow-[0_8px_18px_rgba(8,145,178,0.14)]"
                       aria-hidden="true"
                     >
                       <div className="pointer-events-none absolute inset-0 opacity-70 bg-[radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.2),transparent_42%),radial-gradient(circle_at_85%_18%,rgba(56,189,248,0.16),transparent_40%)]" />
@@ -807,8 +971,8 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
               ) : (
                 <motion.div
                   key="empty"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+                  initial={shouldAnimate ? { opacity: 0 } : false}
+                  animate={shouldAnimate ? { opacity: 1 } : undefined}
                   className="col-span-full rounded-2xl border border-dashed border-cyan-100 bg-cyan-50 px-4 py-6 text-center text-sm text-gray-500"
                 >
                   <div className="font-semibold text-gray-700">
@@ -826,7 +990,7 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
             <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
             <button
               type="button"
-              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              onClick={prevPage}
               disabled={page <= 1}
               className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
               aria-label="\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
@@ -842,7 +1006,7 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
                   <button
                     key={`page-dot-${dotPage}`}
                     type="button"
-                    onClick={() => setPage(dotPage)}
+                    onClick={() => goToPage(dotPage)}
                     aria-label={`\u0421\u0442\u043e\u0440\u0456\u043d\u043a\u0430 ${dotPage}`}
                     className={`h-1.5 rounded-full transition-all duration-200 ${
                       isActive
@@ -856,7 +1020,7 @@ const ProductFetcher: React.FC<Props> = ({ products }) => {
 
             <button
               type="button"
-              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              onClick={nextPage}
               disabled={page >= totalPages}
               className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
               aria-label="\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0430 \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"

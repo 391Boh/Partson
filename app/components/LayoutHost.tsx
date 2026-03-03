@@ -45,6 +45,22 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    const body = document.body;
+    const root = document.documentElement;
+
+    body.style.overflow = "auto";
+    body.style.overflowY = "auto";
+    root.style.overflow = "auto";
+    root.style.overflowY = "auto";
+
+    if (pathname === "/") {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     if (warmupStartedRef.current) return;
     warmupStartedRef.current = true;
 

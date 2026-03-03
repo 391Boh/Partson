@@ -437,7 +437,10 @@ const extractErrorMessage = (text: string) => {
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     const absX = Math.abs(event.deltaX);
     const absY = Math.abs(event.deltaY);
-    if (absX <= absY || absX < 35) return;
+    const isHorizontalIntent = absX >= 60 && absX > absY * 1.8;
+    if (!isHorizontalIntent) return;
+    const canPaginate = event.deltaX > 0 ? canGoNext : canGoPrev;
+    if (!canPaginate) return;
     event.preventDefault();
     const now = Date.now();
     if (now - lastWheelTime.current < 400) return;
@@ -659,7 +662,7 @@ const extractErrorMessage = (text: string) => {
                             type="button"
                             onClick={() => onModelSelect(model)}
                             title={model}
-                            className={`group relative isolate flex h-9 sm:h-9 items-center justify-center overflow-hidden rounded-lg border px-1 text-center text-[9px] font-semibold uppercase tracking-[0.02em] leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                            className={`group relative isolate flex h-8 sm:h-8 items-center justify-center overflow-hidden rounded-lg border px-1 text-center text-[9px] font-semibold uppercase tracking-[0.02em] leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                               isActive
                                 ? "border-sky-300 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_16px_36px_rgba(59,130,246,0.28)] ring-2 ring-sky-200/80"
                                 : "border-slate-100/90 bg-white/94 text-slate-800 shadow-[0_12px_30px_rgba(15,23,42,0.1)] hover:-translate-y-[4px] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 hover:shadow-[0_24px_52px_rgba(59,130,246,0.18)] hover:ring-1 hover:ring-sky-200/80"
@@ -691,11 +694,11 @@ const extractErrorMessage = (text: string) => {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.25 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className={`w-full mx-auto flex flex-col gap-3 sm:gap-4 ${
+      className={`w-full mx-auto flex flex-col gap-2 sm:gap-2.5 ${
         isCompact ? "min-h-[280px]" : "min-h-[340px] sm:min-h-[360px]"
       }`}
     >
-      <div className="flex flex-col gap-3 sm:gap-3.5 group/models">
+      <div className="flex flex-col gap-2 sm:gap-2.5 group/models">
         <div className="flex flex-wrap items-center gap-3 w-full sm:flex-nowrap sm:items-center sm:justify-between">
           <div className="order-1 w-full sm:w-auto flex items-center gap-3 sm:gap-4 group hover:[&_span[data-underline]]:scale-x-100">
             {onBack && (
@@ -809,17 +812,19 @@ const extractErrorMessage = (text: string) => {
         </div>
       </div>
 
-      <div className="mt-1 text-xs text-blue-600/80 flex flex-col gap-1 px-1">
-        {yearError && (
-          <span className="text-red-500 font-semibold">{yearError}</span>
-        )}
-        {!yearError && !yearLoading && yearOptions.length === 0 && (
-          <span>{LABEL_YEAR_EMPTY}</span>
-        )}
-      </div>
+      {(yearError || (!yearLoading && yearOptions.length === 0)) && (
+        <div className="mt-0 text-xs text-blue-600/80 flex flex-col gap-0.5 px-1">
+          {yearError && (
+            <span className="text-red-500 font-semibold">{yearError}</span>
+          )}
+          {!yearError && !yearLoading && yearOptions.length === 0 && (
+            <span>{LABEL_YEAR_EMPTY}</span>
+          )}
+        </div>
+      )}
 
       <div
-        className={`flex-1 overflow-hidden mt-1 ${
+        className={`flex-1 overflow-hidden mt-0 ${
           isCompact ? "min-h-[160px] px-1" : "min-h-[200px] sm:min-h-[220px] px-1.5"
         }`}
       >
@@ -844,7 +849,7 @@ const extractErrorMessage = (text: string) => {
             )}
 
             <div
-              className="group/logogrid mt-2 sm:mt-3"
+              className="group/logogrid mt-0 sm:mt-0"
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
@@ -865,7 +870,7 @@ const extractErrorMessage = (text: string) => {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.97 }}
                   className={`group relative isolate overflow-hidden rounded-xl border px-2.5 py-2 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                    isCompact ? "min-h-[52px]" : "min-h-[64px]"
+                    isCompact ? "min-h-[48px]" : "min-h-[60px]"
                   } ${
                     selectedModel === model
                       ? "border-sky-300 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_16px_36px_rgba(59,130,246,0.28)] ring-2 ring-sky-200/80"

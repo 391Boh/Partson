@@ -333,7 +333,7 @@ export default function RootLayout({
       </head>
       <body className={`${montserrat.className} ${montserrat.variable} ${geistMono.variable}`}>
         <ClientWrapper>
-          <Suspense fallback={<main className="min-h-screen">{children}</main>}>
+          <Suspense fallback={<main className="min-h-screen" />}>
             <LayoutHost>{children}</LayoutHost>
           </Suspense>
         </ClientWrapper>

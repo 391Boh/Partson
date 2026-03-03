@@ -1,91 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import dynamic from "next/dynamic";
+import { MotionConfig } from "framer-motion";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import ProductFetcher from "./components/tovar";
 
 import Hero from "./components/hero";
-import type { PersistedCarSelection } from "./components/Auto";
-import DeferredSection from "./components/DeferredSection";
+import Auto, { type PersistedCarSelection } from "./components/Auto";
+import BrandCarousel from "./components/Brands";
+import AdvantagesSection from "./components/AdvantagesSection";
+import Footer from "./components/footer";
+import AuthModal from "./components/AuthModal";
+import SectionBoundary from "./components/SectionBoundary";
 import { db } from "../firebase";
-
-const ProductFetcher = dynamic(() => import("./components/tovar"), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full px-4 pb-8 pt-5">
-      <div className="flex flex-col items-center gap-2 text-white/90">
-        <div className="loader" />
-        <p className="text-xs sm:text-sm text-white/80">Завантаження...</p>
-      </div>
-      <div className="mt-3 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-24 rounded-2xl border border-white/10 bg-white/10 backdrop-blur-md animate-pulse"
-          />
-        ))}
-      </div>
-    </div>
-  ),
-});
-
-const Auto = dynamic(() => import("./components/Auto"), {
-  ssr: false,
-  loading: () => <div className="min-h-[420px] w-full" />,
-});
-
-const BrandCarousel = dynamic(() => import("./components/Brands"), {
-  ssr: false,
-  loading: () => <div className="min-h-[360px] w-full" />,
-});
-
-const AdvantagesSection = dynamic(() => import("./components/AdvantagesSection"), {
-  ssr: false,
-  loading: () => <div className="min-h-[420px] w-full" />,
-});
-
-const Footer = dynamic(() => import("./components/footer"), {
-  ssr: false,
-  loading: () => <div className="min-h-[240px] w-full" />,
-});
-
-const AuthModal = dynamic(() => import("./components/AuthModal"), {
-  ssr: false,
-});
 
 const STORAGE_KEYS = {
   cars: "partson:selectedCars",
   selection: "partson:selectedCarSelection",
   vin: "partson:selectedVin",
 };
-
-const SECTION_VIEWPORT = {
-  once: false,
-  amount: 0.24,
-  margin: "0px 0px -10% 0px",
-} as const;
-const SECTION_VIEWPORT_REPEAT = {
-  ...SECTION_VIEWPORT,
-  once: false,
-} as const;
-
-const SECTION_VIEWPORT_REDUCED = {
-  once: false,
-  amount: 0,
-} as const;
-
-const SECTION_INITIAL = { opacity: 0, y: 24 };
-const SECTION_IN_VIEW = { opacity: 1, y: 0 };
-const sectionTransition = (reduceMotion = false) => {
-  if (reduceMotion) return { duration: 0 };
-  return {
-    duration: 0.42,
-    ease: [0.22, 1, 0.36, 1],
-  } as const;
-};
-const SECTION_STYLE = { contain: "layout paint" } as const;
+const HOME_ANIMATION_KEY = "partson:home-page-animations-played";
 
 type StoredCarState = {
   cars: string[];
@@ -157,14 +92,11 @@ const readStoredCarState = (storage: Storage): StoredCarState => {
 };
 
 const Page = () => {
-  const shouldReduceMotion = useReducedMotion() ?? false;
-  const sectionInitial = shouldReduceMotion ? false : SECTION_INITIAL;
-  const sectionInView = shouldReduceMotion ? undefined : SECTION_IN_VIEW;
-  const repeatViewport = shouldReduceMotion
-    ? SECTION_VIEWPORT_REDUCED
-    : SECTION_VIEWPORT_REPEAT;
-
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [playHomeAnimations] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem(HOME_ANIMATION_KEY) !== "1";
+  });
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authInitialMode, setAuthInitialMode] = useState<"login" | "register">(
     "login"
@@ -180,6 +112,17 @@ const Page = () => {
   const [localReady, setLocalReady] = useState(false);
   const [carsLoaded, setCarsLoaded] = useState(false);
   const skipNextRemoteSaveRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!playHomeAnimations) return;
+    window.sessionStorage.setItem(HOME_ANIMATION_KEY, "1");
+  }, [playHomeAnimations]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
 
   useEffect(() => {
     const auth = getAuth();
@@ -459,117 +402,71 @@ const Page = () => {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-blue-100 text-white">
-      <motion.div
-        initial={sectionInitial}
-        whileInView={sectionInView}
-        viewport={repeatViewport}
-        transition={sectionTransition(shouldReduceMotion)}
-        className="section-reveal"
-        style={{ contain: "paint" }}
-      >
-        <Hero
-          isAuthenticated={isAuthenticated}
-          onLogin={openLoginModal}
-          onRegister={openRegisterModal}
-          onAddVin={openVinModal}
-        />
-      </motion.div>
-
-      <motion.section
-        initial={sectionInitial}
-        whileInView={sectionInView}
-        viewport={repeatViewport}
-        transition={sectionTransition(shouldReduceMotion)}
-        className="section-reveal relative w-full py-1"
-        style={SECTION_STYLE}
-      >
-        <ProductFetcher />
-      </motion.section>
-
-      <motion.section
-        initial={sectionInitial}
-        whileInView={sectionInView}
-        viewport={repeatViewport}
-        transition={sectionTransition(shouldReduceMotion)}
-        className="section-reveal relative w-full overflow-hidden py-1"
-        style={SECTION_STYLE}
-      >
-        <Auto
-          selectedCars={selectedCars}
-          handleCarChange={handleCarChange}
-          initialSelection={selectedCarSelection}
-          onSelectionChange={setSelectedCarSelection}
-          selectedVin={selectedVin}
-          onVinSelect={setSelectedVin}
-          showSummary
-        />
-      </motion.section>
-
-      <motion.section
-        initial={sectionInitial}
-        whileInView={sectionInView}
-        viewport={repeatViewport}
-        transition={sectionTransition(shouldReduceMotion)}
-        className="section-reveal relative w-full py-1"
-        style={SECTION_STYLE}
-      >
-        <DeferredSection
-          rootMargin="320px"
-          minHeight="360px"
-          fallback={<div className="min-h-[360px] w-full" />}
-        >
-          <BrandCarousel />
-        </DeferredSection>
-      </motion.section>
-
-      <motion.section
-        initial={sectionInitial}
-        whileInView={sectionInView}
-        viewport={repeatViewport}
-        transition={sectionTransition(shouldReduceMotion)}
-        className="section-reveal relative w-full py-1"
-        style={SECTION_STYLE}
-      >
-        <div className="mx-auto grid w-full max-w-screen">
-          <DeferredSection
-            rootMargin="360px"
-            minHeight="420px"
-            fallback={<div className="min-h-[420px] w-full" />}
-          >
-            <AdvantagesSection />
-          </DeferredSection>
+    <MotionConfig reducedMotion="user">
+      <div className="home-static relative min-h-screen bg-blue-100 text-white">
+        <div className="section-reveal">
+          <Hero
+            isAuthenticated={isAuthenticated}
+            onLogin={openLoginModal}
+            onRegister={openRegisterModal}
+            onAddVin={openVinModal}
+          />
         </div>
-      </motion.section>
 
-      <motion.div
-        initial={sectionInitial}
-        whileInView={sectionInView}
-        viewport={repeatViewport}
-        transition={sectionTransition(shouldReduceMotion)}
-        className="section-reveal relative w-full pt-1"
-        style={SECTION_STYLE}
-      >
-        <DeferredSection
-          rootMargin="420px"
-          minHeight="240px"
-          fallback={<div className="min-h-[240px] w-full" />}
-        >
-          <Footer />
-        </DeferredSection>
-      </motion.div>
+        <section className="section-reveal relative w-full py-1">
+          <SectionBoundary title="Модуль товарів тимчасово недоступний">
+            <ProductFetcher playEntranceAnimations={playHomeAnimations} />
+          </SectionBoundary>
+        </section>
 
-      {authModalOpen && (
-        <AuthModal
-          isOpen={authModalOpen}
-          user={user}
-          initialMode={authInitialMode}
-          initialAccountTab={authInitialTab}
-          onClose={closeAuthModal}
-        />
-      )}
-    </div>
+        <section className="section-reveal relative w-full overflow-hidden py-1">
+          <SectionBoundary title="Модуль підбору авто тимчасово недоступний">
+            <Auto
+              playEntranceAnimations={playHomeAnimations}
+              selectedCars={selectedCars}
+              handleCarChange={handleCarChange}
+              initialSelection={selectedCarSelection}
+              onSelectionChange={setSelectedCarSelection}
+              selectedVin={selectedVin}
+              onVinSelect={setSelectedVin}
+              showSummary
+            />
+          </SectionBoundary>
+        </section>
+
+        <section className="section-reveal relative w-full py-1">
+          <SectionBoundary title="Модуль брендів тимчасово недоступний">
+            <BrandCarousel playEntranceAnimations={playHomeAnimations} />
+          </SectionBoundary>
+        </section>
+
+        <section className="section-reveal relative w-full py-1">
+          <div className="mx-auto grid w-full max-w-screen">
+            <SectionBoundary title="Інформаційний блок тимчасово недоступний">
+              <AdvantagesSection playEntranceAnimations={playHomeAnimations} />
+            </SectionBoundary>
+          </div>
+        </section>
+
+        <div className="section-reveal relative w-full pt-1">
+          <SectionBoundary title="Нижній блок тимчасово недоступний">
+            <Footer />
+          </SectionBoundary>
+        </div>
+
+        {authModalOpen && (
+          <AuthModal
+            isOpen={authModalOpen}
+            user={user}
+            initialMode={authInitialMode}
+            initialAccountTab={authInitialTab}
+            onClose={closeAuthModal}
+          />
+        )}
+      </div>
+    </MotionConfig>
   );
 };
 
 export default Page;
+
