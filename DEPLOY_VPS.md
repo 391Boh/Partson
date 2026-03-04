@@ -50,3 +50,19 @@ sudo certbot renew --dry-run
 3. Ensure `CORS_ORIGINS` contains only trusted domains.
 4. Confirm no secrets remain in git history.
 5. Rotate all keys that were ever committed in `.env.local` before going live.
+
+## 6. Google Search Console checklist
+1. Add property for your production domain (`Domain` property preferred).
+2. Verify ownership:
+   - Domain property: DNS TXT record at registrar/DNS provider.
+   - URL-prefix property: either
+     - HTML file in `public/google*.html`, or
+     - meta tag via `GOOGLE_SITE_VERIFICATION` env var.
+3. After deploy, check:
+   - `https://example.com/robots.txt`
+   - `https://example.com/sitemap.xml`
+   - `https://example.com/product/sitemap.xml`
+4. Submit sitemaps in Search Console:
+   - `https://example.com/sitemap.xml`
+   - `https://example.com/product/sitemap.xml`
+5. Run URL Inspection for homepage and one product URL, then request indexing if needed.
