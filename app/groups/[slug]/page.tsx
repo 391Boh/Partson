@@ -130,7 +130,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 py-8">
       <Link href="/groups" className="text-sm font-medium text-sky-700 hover:text-sky-900">
-        <- All groups
+        &larr; All groups
       </Link>
 
       <h1 className="mt-3 text-3xl font-semibold text-slate-900">{group.label}</h1>

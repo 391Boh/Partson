@@ -1,17 +1,25 @@
-import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
+import { NextResponse } from "next/server";
 
-import {
-  buildCatalogCategoryPath,
-  buildCatalogProducerPath,
-  toAbsoluteSitePath,
-} from "app/lib/catalog-links";
+import { buildCatalogCategoryPath, buildCatalogProducerPath, toAbsoluteSitePath } from "app/lib/catalog-links";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
 
-type SitemapEntry = MetadataRoute.Sitemap[number];
+type SitemapEntry = {
+  url: string;
+  lastModified?: Date;
+  changeFrequency?:
+    | "always"
+    | "hourly"
+    | "daily"
+    | "weekly"
+    | "monthly"
+    | "yearly"
+    | "never";
+  priority?: number;
+};
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
@@ -25,7 +33,29 @@ const parseSitemapDate = (value: string | null | undefined, fallbackValue: Date)
   return Number.isNaN(parsed.getTime()) ? fallbackValue : parsed;
 };
 
-const buildStaticPages = (siteUrl: string, lastModified: Date): MetadataRoute.Sitemap => [
+const escapeXml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+
+const toIsoDate = (value: Date | undefined) => (value ? value.toISOString() : undefined);
+
+const entryToXml = (entry: SitemapEntry) => {
+  const lines = ["  <url>", `    <loc>${escapeXml(entry.url)}</loc>`];
+
+  const lastModified = toIsoDate(entry.lastModified);
+  if (lastModified) lines.push(`    <lastmod>${lastModified}</lastmod>`);
+  if (entry.changeFrequency) lines.push(`    <changefreq>${entry.changeFrequency}</changefreq>`);
+  if (typeof entry.priority === "number") lines.push(`    <priority>${entry.priority.toFixed(2)}</priority>`);
+
+  lines.push("  </url>");
+  return lines.join("\n");
+};
+
+const buildStaticPages = (siteUrl: string, lastModified: Date): SitemapEntry[] => [
   {
     url: toAbsoluteSitePath(siteUrl, "/"),
     lastModified,
@@ -70,18 +100,14 @@ const buildStaticPages = (siteUrl: string, lastModified: Date): MetadataRoute.Si
   },
 ];
 
-const addUniqueSitemapEntry = (
-  target: SitemapEntry[],
-  seenUrls: Set<string>,
-  entry: SitemapEntry
-) => {
-  if (seenUrls.has(entry.url)) return false;
-  seenUrls.add(entry.url);
+const pushUniqueEntry = (target: SitemapEntry[], seen: Set<string>, entry: SitemapEntry) => {
+  if (seen.has(entry.url)) return false;
+  seen.add(entry.url);
   target.push(entry);
   return true;
 };
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+export async function GET() {
   const requestHeaders = await headers();
   const siteUrl = getSiteUrl({ headers: requestHeaders });
   const now = new Date();
@@ -93,24 +119,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     6000
   );
 
-  let dynamicPages: MetadataRoute.Sitemap = [];
+  const entries: SitemapEntry[] = [...buildStaticPages(siteUrl, now)];
+  const seenUrls = new Set(entries.map((item) => item.url));
 
   try {
     const facets = await getCatalogSeoFacets();
     const facetLastModified = parseSitemapDate(facets.generatedAt, now);
-    const seenUrls = new Set<string>();
 
-    const groupPages = facets.groups
-      .slice(0, maxGroupPages)
-      .map((group) => ({
+    for (const group of facets.groups.slice(0, maxGroupPages)) {
+      pushUniqueEntry(entries, seenUrls, {
         url: toAbsoluteSitePath(siteUrl, buildCatalogCategoryPath(group.label)),
         lastModified: facetLastModified,
-        changeFrequency: "weekly" as const,
+        changeFrequency: "weekly",
         priority: 0.82,
-      }));
-
-    for (const page of groupPages) {
-      addUniqueSitemapEntry(dynamicPages, seenUrls, page);
+      });
     }
 
     let subgroupCount = 0;
@@ -120,11 +142,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       for (const subgroup of group.subgroups) {
         if (subgroupCount >= maxSubgroupPages) break;
 
-        const added = addUniqueSitemapEntry(dynamicPages, seenUrls, {
-          url: toAbsoluteSitePath(
-            siteUrl,
-            buildCatalogCategoryPath(group.label, subgroup.label)
-          ),
+        const added = pushUniqueEntry(entries, seenUrls, {
+          url: toAbsoluteSitePath(siteUrl, buildCatalogCategoryPath(group.label, subgroup.label)),
           lastModified: facetLastModified,
           changeFrequency: "weekly",
           priority: 0.78,
@@ -134,21 +153,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
     }
 
-    const manufacturerPages = facets.producers
-      .slice(0, maxManufacturerPages)
-      .map((producer) => ({
+    for (const producer of facets.producers.slice(0, maxManufacturerPages)) {
+      pushUniqueEntry(entries, seenUrls, {
         url: toAbsoluteSitePath(siteUrl, buildCatalogProducerPath(producer.label)),
         lastModified: facetLastModified,
-        changeFrequency: "weekly" as const,
+        changeFrequency: "weekly",
         priority: 0.8,
-      }));
-
-    for (const page of manufacturerPages) {
-      addUniqueSitemapEntry(dynamicPages, seenUrls, page);
+      });
     }
   } catch {
-    dynamicPages = [];
+    // keep static entries only
   }
 
-  return [...buildStaticPages(siteUrl, now), ...dynamicPages];
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...entries.map(entryToXml),
+    "</urlset>",
+  ].join("\n");
+
+  return new NextResponse(xml, {
+    headers: {
+      "content-type": "application/xml; charset=utf-8",
+      "cache-control": "public, s-maxage=3600, stale-while-revalidate=86400",
+    },
+  });
 }

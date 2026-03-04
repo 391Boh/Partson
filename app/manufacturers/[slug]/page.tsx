@@ -147,7 +147,7 @@ export default async function ProducerDetailPage({ params }: ProducerPageProps) 
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 py-8">
       <Link href="/manufacturers" className="text-sm font-medium text-sky-700 hover:text-sky-900">
-        <- All manufacturers
+        &larr; All manufacturers
       </Link>
 
       <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
