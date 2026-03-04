@@ -4,6 +4,7 @@ import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { useState, memo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { buildCatalogCategoryPath } from "app/lib/catalog-links";
 
 export type ProductNode = {
   name: string;
@@ -344,9 +345,7 @@ function FlipCardComponent({
                     setActiveGroup(item);
                     setSub(0);
                   } else {
-                    router.push(
-                      `/katalog?group=${activeGroup?.name || product.name}&subcategory=${item.name}`
-                    );
+                    router.push(buildCatalogCategoryPath(activeGroup?.name || product.name, item.name));
                   }
                 }}
                 className="

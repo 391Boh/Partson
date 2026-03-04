@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { getCategoryIconPath } from "app/components/FlipCard";
+import { buildCatalogCategoryPath } from "app/lib/catalog-links";
 
 type Node = { name: string; children: Node[] };
 type Subgroup = { id: string; label: string; trail: string; path: string[] };
@@ -252,10 +253,8 @@ export default function GroupsCatalogClient({ initialGroups, initialQuery = "" }
 
   const pushCatalog = (group: string, subcategory?: string) => {
     if (!group) return;
-    const p = new URLSearchParams({ group });
-    if (subcategory && subcategory.toLowerCase() !== group.toLowerCase()) p.set("subcategory", subcategory);
     if (typeof window !== "undefined") window.sessionStorage.setItem("catalogScrollTarget", "results");
-    router.push(`/katalog?${p.toString()}`);
+    router.push(buildCatalogCategoryPath(group, subcategory));
   };
 
   const onSearchRow = (row: SearchRow) => {

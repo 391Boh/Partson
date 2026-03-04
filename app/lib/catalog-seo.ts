@@ -189,7 +189,7 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
   const groups = toFacetList(groupCounts).map((groupFacet) => {
     const subgroupMap =
       groupSubgroupCounts.get(groupFacet.slug) || new Map<string, FacetCounterEntry>();
-    const subgroups = toFacetList(subgroupMap).slice(0, 50);
+    const subgroups = toFacetList(subgroupMap);
     return { ...groupFacet, subgroups };
   });
 
