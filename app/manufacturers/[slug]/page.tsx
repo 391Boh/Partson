@@ -65,10 +65,10 @@ export async function generateMetadata({ params }: ProducerPageProps): Promise<M
       images: ["/Car-parts-fullwidth.png"],
     },
     robots: {
-      index: false,
+      index: true,
       follow: true,
       googleBot: {
-        index: false,
+        index: true,
         follow: true,
       },
     },

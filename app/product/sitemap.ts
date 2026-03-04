@@ -1,11 +1,38 @@
 import type { MetadataRoute } from "next";
+import { headers } from "next/headers";
+
+import { getProductImagePath } from "app/lib/product-image";
+import {
+  getProductCodesBySitemapId,
+  getProductSitemapIds,
+} from "app/lib/product-sitemap";
+import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
 
 export async function generateSitemaps() {
-  return [];
+  return getProductSitemapIds();
 }
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  return [];
+export default async function sitemap(props: {
+  id: Promise<string | number>;
+}): Promise<MetadataRoute.Sitemap> {
+  const requestHeaders = await headers();
+  const siteUrl = getSiteUrl({ headers: requestHeaders });
+  const id = String(await props.id);
+  const codes = await getProductCodesBySitemapId(id);
+  const lastModified = new Date();
+
+  return codes.map((code) => {
+    const normalizedCode = code.trim();
+    const encodedCode = encodeURIComponent(normalizedCode);
+
+    return {
+      url: `${siteUrl}/product/${encodedCode}`,
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.65,
+      images: [`${siteUrl}${getProductImagePath(normalizedCode)}`],
+    };
+  });
 }

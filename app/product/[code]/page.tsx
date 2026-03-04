@@ -183,8 +183,13 @@ const buildProductMetaDescription = (options: {
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: ProductPageProps): Promise<Metadata> {
   const { code: rawCode } = await params;
+  const resolvedSearchParams = await (
+    searchParams ?? Promise.resolve({} as ProductPageSearchParams)
+  );
+  const isModalView = normalizeView(resolvedSearchParams.view) === "modal";
   const resolvedCode = decodeURIComponent(rawCode || "").trim();
   if (!resolvedCode) {
     return {
@@ -253,10 +258,10 @@ export async function generateMetadata({
       images: [productImagePath],
     },
     robots: {
-      index: false,
+      index: !isModalView,
       follow: true,
       googleBot: {
-        index: false,
+        index: !isModalView,
         follow: true,
       },
     },
