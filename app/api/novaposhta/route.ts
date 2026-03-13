@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
 
     return NextResponse.json(data);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Помилка в API Нової Пошти:', error);
     return NextResponse.json({ error: 'Помилка при обробці запиту' }, { status: 500 });
   }

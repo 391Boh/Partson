@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { User as FirebaseUser } from "firebase/auth";
 import AuthForm from "app/components/AuthForm";
 import AccountInfo from "app/components/AccountInfo";
 
@@ -8,7 +9,7 @@ type AuthMode = "login" | "register" | "account";
 
 interface AuthModalProps {
   isOpen: boolean;
-  user: any | null;
+  user: FirebaseUser | null;
   onClose: () => void;
   initialMode?: "login" | "register";
   initialAccountTab?: "profile" | "vins" | "security" | null;

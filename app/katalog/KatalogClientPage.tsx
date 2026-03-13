@@ -533,8 +533,8 @@ const Katalog: React.FC = () => {
 
   return (
     <section className="w-full pb-6">
-      {shouldRenderFixedFilter &&
-        createPortal(
+      {portalRoot
+        ? createPortal(
           <div
             className="pointer-events-none fixed inset-x-0 z-40"
             style={{ top: 'var(--header-height, 4rem)' }}
@@ -547,7 +547,8 @@ const Katalog: React.FC = () => {
           </div>
           ,
           portalRoot
-        )}
+        )
+        : null}
       <div
         className="mx-auto w-full max-w-[1400px] transition-[padding-top] duration-200 ease-out motion-reduce:transition-none"
         style={{

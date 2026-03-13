@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
-import { db } from "../../firebase"; // Перевір, чи в тебе правильно налаштований імпорт
+import { db } from "../../firebase";
 
 interface Props {
   onSelectUser: (userId: string) => void;
@@ -11,8 +11,8 @@ interface Props {
 interface Message {
   userId: string;
   text: string;
-  createdAt: any;
-  sender: string; // ← додано
+  createdAt: Date | null;
+  sender: string;
 }
 
 export default function UserListPanel({ onSelectUser }: Props) {
@@ -25,15 +25,25 @@ export default function UserListPanel({ onSelectUser }: Props) {
       const tempMap: Record<string, Message> = {};
 
       snapshot.forEach((doc) => {
-        const data = doc.data() as Message;
+        const data = doc.data() as Record<string, unknown>;
+        const createdAtValue = data.createdAt;
+        const createdAt =
+          createdAtValue &&
+          typeof createdAtValue === "object" &&
+          "toDate" in createdAtValue &&
+          typeof createdAtValue.toDate === "function"
+            ? createdAtValue.toDate()
+            : null;
+        const userId = typeof data.userId === "string" ? data.userId : "";
+        const sender = typeof data.sender === "string" ? data.sender : "";
+        const text = typeof data.text === "string" ? data.text : "";
 
-        // Показуємо лише останнє повідомлення від користувача
-        if (!tempMap[data.userId] && data.sender === "user") {
-          tempMap[data.userId] = {
-            userId: data.userId,
-            text: data.text,
-            createdAt: data.createdAt?.toDate(),
-            sender: data.sender, // ← не забуваємо зберегти
+        if (userId && !tempMap[userId] && sender === "user") {
+          tempMap[userId] = {
+            userId,
+            text,
+            createdAt,
+            sender,
           };
         }
       });
@@ -45,16 +55,16 @@ export default function UserListPanel({ onSelectUser }: Props) {
   }, []);
 
   return (
-    <div className="p-4 space-y-2 overflow-y-auto h-screen">
-      <h2 className="text-xl font-semibold mb-4">Користувачі</h2>
+    <div className="h-screen overflow-y-auto p-4 space-y-2">
+      <h2 className="mb-4 text-xl font-semibold">РљРѕСЂРёСЃС‚СѓРІР°С‡С–</h2>
       {Object.values(userMessages).map((msg) => (
         <button
           key={msg.userId}
           onClick={() => onSelectUser(msg.userId)}
-          className="w-full text-left p-3 rounded-lg bg-gray-100 hover:bg-gray-200 shadow"
+          className="w-full rounded-lg bg-gray-100 p-3 text-left shadow hover:bg-gray-200"
         >
-          <div className="text-sm font-bold truncate">{msg.userId}</div>
-          <div className="text-xs text-gray-600 truncate">{msg.text}</div>
+          <div className="truncate text-sm font-bold">{msg.userId}</div>
+          <div className="truncate text-xs text-gray-600">{msg.text}</div>
         </button>
       ))}
     </div>

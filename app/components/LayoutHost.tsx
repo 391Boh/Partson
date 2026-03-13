@@ -181,22 +181,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     const preloadCriticalChunks = () => {
       try {
-        void import("../inform/page");
-      } catch {}
-      try {
-        void import("../katalog/page");
-      } catch {}
-      try {
         void import("./Data");
       } catch {}
       try {
         void import("./filtrtion");
-      } catch {}
-      try {
-        void import("../groups/page");
-      } catch {}
-      try {
-        void import("../manufacturers/page");
       } catch {}
     };
 

@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+type PhotonFeature = {
+  properties?: {
+    street?: unknown;
+  };
+};
+
+type PhotonResponse = {
+  features?: PhotonFeature[];
+};
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const street = searchParams.get('street');
@@ -22,13 +32,13 @@ export async function GET(req: NextRequest) {
       throw new Error(`Photon API error: ${res.status}`);
     }
 
-    const data = await res.json();
+    const data = (await res.json()) as PhotonResponse;
 
     const streets = Array.from(
       new Set(
-        data.features
-          .map((feature: any) => feature.properties?.street)
-          .filter((s: string | undefined): s is string => typeof s === 'string')
+        (data.features || [])
+          .map((feature) => feature.properties?.street)
+          .filter((street): street is string => typeof street === 'string')
       )
     );
 

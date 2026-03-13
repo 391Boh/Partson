@@ -34,7 +34,7 @@ interface Message {
   userId: string;
   text: string;
   sender: 'user' | 'manager';
-  createdAt: any;
+  createdAt: unknown;
   readByAdmin?: boolean;
   readByUser?: boolean;
   type?: 'text' | 'product' | 'image';
@@ -74,7 +74,7 @@ interface Order {
   city?: string | null;
   warehouse?: string | null;
   lvivStreet?: string | null;
-  createdAt: any;
+  createdAt: unknown;
   read?: boolean;
   completed?: boolean;
 }
@@ -84,7 +84,7 @@ interface CallRequest {
   name: string;
   phone: string;
   message: string;
-  createdAt: any;
+  createdAt: unknown;
   read?: boolean;
   processed?: boolean;
 }
@@ -142,7 +142,7 @@ export default function AdminChatPanel({
       query(collection(db, 'messages'), orderBy('createdAt', 'asc')),
       (snap) =>
         setMessages(
-          snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
+          snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Message, "id">) }))
         )
     );
   }, []);
@@ -152,7 +152,7 @@ export default function AdminChatPanel({
       query(collection(db, 'orders'), orderBy('createdAt', 'desc')),
       (snap) =>
         setOrders(
-          snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
+          snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Order, "id">) }))
         )
     );
   }, []);
@@ -162,7 +162,7 @@ export default function AdminChatPanel({
       query(collection(db, 'zvyaz'), orderBy('createdAt', 'desc')),
       (snap) =>
         setCalls(
-          snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
+          snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<CallRequest, "id">) }))
         )
     );
   }, []);
@@ -172,8 +172,8 @@ export default function AdminChatPanel({
       const nextMap: Record<string, string> = {};
       const nextUsers: UserRecord[] = [];
       snap.docs.forEach((d) => {
-        const data = d.data() as any;
-        if (data?.phone) {
+        const data = d.data() as Record<string, unknown>;
+        if (typeof data.phone === "string" && data.phone.trim()) {
           nextMap[d.id] = data.phone;
         }
         const codeCandidate =
@@ -476,8 +476,9 @@ export default function AdminChatPanel({
 
     const extractArray = (raw: unknown): Record<string, unknown>[] | null => {
       if (Array.isArray(raw)) return raw as Record<string, unknown>[];
-      if (raw && typeof raw === "object" && Array.isArray((raw as any).items)) {
-        return (raw as any).items as Record<string, unknown>[];
+      if (raw && typeof raw === "object") {
+        const items = (raw as { items?: unknown }).items;
+        if (Array.isArray(items)) return items as Record<string, unknown>[];
       }
       return null;
     };

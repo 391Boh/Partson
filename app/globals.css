@@ -12,6 +12,8 @@
     --soft-radius-surface: 16px;
     --soft-radius-control: 16px;
     --desktop-page-zoom: 0.75;
+    --font-geist-sans: "Segoe UI", "Montserrat", "Manrope", sans-serif;
+    --font-geist-mono: "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
   }
 
   html {

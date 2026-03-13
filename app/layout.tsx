@@ -8,18 +8,9 @@ import PageLoadingShell from "./components/PageLoadingShell";
 import { getSiteUrl } from "./lib/site-url";
 import "./globals.css";
 
-const montserrat = Montserrat({
-  variable: "--font-geist-sans",
-  subsets: ["latin", "cyrillic"],
-  weight: ["400", "500", "600", "700", "800"],
-  style: ["normal", "italic"],
-  display: "swap",
-});
+const montserrat = { className: "", variable: "" };
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const geistMono = { variable: "" };
 
 const siteUrl = getSiteUrl();
 const siteUrlObject = (() => {

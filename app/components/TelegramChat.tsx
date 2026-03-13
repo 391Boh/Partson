@@ -701,7 +701,7 @@ export default function TelegramChat({
                   Чат підтримки
                 </div>
                 <div className="inline-flex max-w-full shrink-0 items-center rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-0.5 text-[8px] font-medium text-emerald-50/90 backdrop-blur sm:text-[9px]">
-                  Завжди на зв'язку
+                  Завжди на зв&apos;язку
                 </div>
               </div>
             </div>

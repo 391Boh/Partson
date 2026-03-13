@@ -108,13 +108,13 @@ const entrance = {
 //
 // ARROW ICONS
 //
-const ArrowLeft = ({ className }: any) => (
+const ArrowLeft = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path d="m15 18-6-6 6-6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
-const ArrowRight = ({ className }: any) => (
+const ArrowRight = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path d="m9 18 6-6-6-6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
@@ -162,8 +162,10 @@ function FlipCardComponent({
   const tStart = useRef(0);
   const tEnd = useRef(0);
 
-  const onTouchStart = (e: any) => (tStart.current = e.touches[0].clientX);
-  const onTouchEnd = (e: any) => {
+  const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    tStart.current = e.touches[0]?.clientX ?? 0;
+  };
+  const onTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
     tEnd.current = e.changedTouches[0].clientX;
     const diff = tStart.current - tEnd.current;
 

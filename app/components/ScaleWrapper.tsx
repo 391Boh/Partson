@@ -16,9 +16,7 @@ export default function ScaleWrapper({
   useEffect(() => {
     function updateScale() {
       const screenWidth = window.innerWidth;
-      const screenHeight = window.innerHeight;
-
-      let scaleRatio = screenWidth / baseWidth;
+      const scaleRatio = screenWidth / baseWidth;
 
       // Якщо хочеш врахувати висоту, розкоментуй нижче
       /*

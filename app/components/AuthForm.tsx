@@ -233,8 +233,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
         onRegisterSuccess();
         closeModal();
       }
-    } catch (err: any) {
-      if (err.message?.includes("auth/email-already-in-use")) {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes("auth/email-already-in-use")) {
         setRegisterError("Цей email вже використовується.");
       } else {
         setRegisterError("Не вдалося створити акаунт. Спробуйте ще раз.");

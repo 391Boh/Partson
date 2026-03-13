@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   signInWithEmailAndPassword,
   setPersistence,
@@ -37,6 +37,13 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
 
+  const closeModal = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose?.();
+    }, 300);
+  }, [onClose]);
+
   // Завантажуємо збережених користувачів
   useEffect(() => {
     const saved = localStorage.getItem("savedUsers");
@@ -62,7 +69,7 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onClose]);
+  }, [closeModal, onClose]);
 
   // Закриття по Escape
   useEffect(() => {
@@ -71,18 +78,11 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
     };
     document.addEventListener("keydown", handleEscapeKey);
     return () => document.removeEventListener("keydown", handleEscapeKey);
-  }, [onClose]);
+  }, [closeModal, onClose]);
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
-
-  const closeModal = () => {
-    setIsClosing(true);
-    setTimeout(() => {
-      onClose?.();
-    }, 300);
-  };
 
   const validateEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -113,7 +113,7 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
       if (rememberMe) {
         setSavedUsers((prev) => {
           const existingIndex = prev.findIndex((u) => u.email === formData.email);
-          let newUsers = [...prev];
+          const newUsers = [...prev];
           if (existingIndex !== -1) newUsers[existingIndex] = formData;
           else newUsers.push(formData);
           localStorage.setItem("savedUsers", JSON.stringify(newUsers));

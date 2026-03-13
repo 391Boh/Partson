@@ -1,5 +1,5 @@
-/** @type {import('next').NextConfig} */
-const path = require("path");
+import path from "node:path";
+import type { NextConfig } from "next";
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -19,7 +19,7 @@ const allowedDevOrigins = Array.from(
   )
 );
 
-const nextConfig = {
+const nextConfig: NextConfig = {
   poweredByHeader: false,
   transpilePackages: ["leaflet", "react-leaflet"],
   allowedDevOrigins,
@@ -32,7 +32,7 @@ const nextConfig = {
   },
   turbopack: {
     // Keep Turbopack scoped to this project; avoids scanning parent workspace on Windows.
-    root: path.resolve(__dirname),
+    root: path.resolve(process.cwd()),
   },
   async headers() {
     return [
@@ -44,4 +44,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;

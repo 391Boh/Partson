@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import {
   getFirestore,
@@ -17,12 +17,8 @@ import DeliveryMethod from "./DeliveryMethod";
 import PaymentMethod from "./PaymentMethod";
 import OrderConfirmation from "./OrderConfirmation";
 
-type DeliveryMethodType =
-  | "Доставка Новою"
-  | "Самовивіз"
-  | "Доставка по місту"
-  | "";
-type PaymentMethodType = "Карта" | "Готівка" | "";
+type DeliveryMethodType = ComponentProps<typeof DeliveryMethod>["deliveryMethod"];
+type PaymentMethodType = ComponentProps<typeof PaymentMethod>["paymentMethod"];
 
 interface CityOrWarehouse {
   Description: string;
@@ -87,7 +83,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
             setPhone(data.phone || "+380");
           }
         } catch (error) {
-          console.error("Помилка при отриманні даних профілю:", error);
+          console.error("РџРѕРјРёР»РєР° РїСЂРё РѕС‚СЂРёРјР°РЅРЅС– РґР°РЅРёС… РїСЂРѕС„С–Р»СЋ:", error);
         }
       } else {
         setName("");
@@ -133,14 +129,14 @@ const Zamovl: React.FC<ZamovlProps> = ({
       onClearCart();
       setCurrentStep(3);
     } catch (error) {
-      console.error("Помилка при оформленні замовлення:", error);
-      alert("Не вдалося зберегти замовлення.");
+      console.error("РџРѕРјРёР»РєР° РїСЂРё РѕС„РѕСЂРјР»РµРЅРЅС– Р·Р°РјРѕРІР»РµРЅРЅСЏ:", error);
+      alert("РќРµ РІРґР°Р»РѕСЃСЏ Р·Р±РµСЂРµРіС‚Рё Р·Р°РјРѕРІР»РµРЅРЅСЏ.");
     }
   };
 
   if (isLoading) return null;
 
-  const steps = ["Дані", "Доставка", "Оплата", "Готово"];
+  const steps = ["Р”Р°РЅС–", "Р”РѕСЃС‚Р°РІРєР°", "РћРїР»Р°С‚Р°", "Р“РѕС‚РѕРІРѕ"];
 
   const renderStep = () => {
     switch (currentStep) {
@@ -206,12 +202,12 @@ const Zamovl: React.FC<ZamovlProps> = ({
       <div className="mb-4 h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
       <div className="soft-panel-content flex items-center justify-between gap-3 border-b border-slate-200/70 pb-3.5">
         <h3 className="soft-panel-title">
-          Оформлення замовлення
+          РћС„РѕСЂРјР»РµРЅРЅСЏ Р·Р°РјРѕРІР»РµРЅРЅСЏ
         </h3>
         <button
           onClick={onCloseAll}
           className="soft-icon-button h-10 w-10 shrink-0 p-1 text-slate-500"
-          aria-label="Закрити форму замовлення"
+          aria-label="Р—Р°РєСЂРёС‚Рё С„РѕСЂРјСѓ Р·Р°РјРѕРІР»РµРЅРЅСЏ"
         >
           <X size={20} />
         </button>
@@ -233,7 +229,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
               }`}
             >
               <span className="block text-[10px] uppercase tracking-[0.14em] opacity-70">
-                Крок {Math.min(index + 1, 4)}
+                РљСЂРѕРє {Math.min(index + 1, 4)}
               </span>
               <span className="mt-1 block text-sm">{step}</span>
             </div>
