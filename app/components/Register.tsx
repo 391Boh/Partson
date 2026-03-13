@@ -164,13 +164,13 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
     >
       <div
         ref={modalRef}
-        className={`fixed left-auto right-3 top-20 w-[360px] max-w-[92vw] rounded-2xl border border-sky-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_52%,rgba(224,242,254,0.94)_100%)] p-5 text-slate-700 shadow-[0_24px_60px_rgba(30,64,175,0.22)] backdrop-blur-xl transition-all duration-300 sm:right-6 sm:w-[420px] ${
+        className={`soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto p-5 text-slate-700 transition-all duration-300 ${
           isClosing ? "scale-95 opacity-0" : "scale-100 opacity-100"
         }`}
       >
         <button
           onClick={closeModal}
-          className="absolute right-3 top-3 rounded-full border border-sky-200 bg-white/90 p-1 text-slate-500 transition-colors hover:bg-sky-50 hover:text-slate-700"
+          className="soft-icon-button absolute right-3 top-3 h-9 w-9 p-1"
         >
           <X size={18} />
         </button>
@@ -180,13 +180,14 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
             closeModal();
             onShowLogin();
           }}
-          className="absolute left-3 top-3 rounded-full border border-sky-200 bg-white/90 p-1 text-slate-500 transition-colors hover:bg-sky-50 hover:text-slate-700"
+          className="soft-icon-button absolute left-3 top-3 h-9 w-9 p-1"
         >
           <ArrowLeft size={18} />
         </button>
 
-        <h2 className="mb-1 text-center text-2xl font-bold tracking-tight text-slate-800">Створити акаунт</h2>
-        <p className="mb-5 text-center text-sm text-slate-500">Швидка реєстрація для оформлення замовлень</p>
+        <div className="soft-panel-content">
+          <h2 className="mb-1 text-center text-2xl font-bold tracking-tight text-slate-800">Створити акаунт</h2>
+          <p className="mb-5 text-center text-sm text-slate-500">Швидка реєстрація для оформлення замовлень</p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {[
@@ -203,7 +204,7 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
                 onChange={(e) =>
                   handleInputChange(field.key as keyof typeof formData, e.target.value)
                 }
-                className={`w-full rounded-xl border bg-white px-4 py-3 text-base text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] outline-none transition focus:ring-2 focus:ring-sky-300 ${getBorderColor(
+                className={`soft-field w-full px-4 py-3 text-base text-slate-700 ${getBorderColor(
                   field.key as keyof typeof formData
                 )}`}
               />
@@ -217,13 +218,14 @@ const Register: React.FC<RegisterProps> = ({ onClose, onShowLogin, onLoginSucces
 
           <button
             type="submit"
-            className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-3 text-base font-semibold tracking-wide text-white shadow-[0_12px_26px_rgba(59,130,246,0.32)] transition hover:brightness-110"
+            className="soft-primary-button w-full px-4 py-3 text-base font-semibold tracking-wide"
           >
             Зареєструватися
           </button>
         </form>
 
         {error && <p className="mt-3 text-center text-sm text-rose-500">{error}</p>}
+        </div>
       </div>
     </div>
   );

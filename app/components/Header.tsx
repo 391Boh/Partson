@@ -9,27 +9,61 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import SearchBar from 'app/components/Search';
 import { useCart } from 'app/context/CartContext';
 import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { createPortal } from 'react-dom';
 
-const Contact = dynamic(() => import('app/components/Contact'), { ssr: false });
-const Order = dynamic(() => import('app/components/Order'), { ssr: false });
-const AuthModal = dynamic(() => import('app/components/AuthModal'), { ssr: false });
+const Contact = dynamic(() => import('./Contact'), { ssr: false });
+const Order = dynamic(() => import('./Order'), { ssr: false });
+const AuthModal = dynamic(() => import('./AuthModal'), { ssr: false });
+
+type AppRouterInstance = ReturnType<typeof useRouter>;
+
+const CATALOG_PREFETCH_ROUTES = [
+  '/katalog',
+  '/katalog?tab=auto',
+  '/katalog?tab=category',
+] as const;
+
+const INFO_PREFETCH_ROUTES = [
+  '/inform',
+  '/inform?tab=delivery',
+  '/inform?tab=payment',
+  '/inform?tab=about',
+  '/inform?tab=location',
+] as const;
+
+const INITIAL_PREFETCH_ROUTES = [...CATALOG_PREFETCH_ROUTES, ...INFO_PREFETCH_ROUTES] as const;
+
+const prefetchRouteList = (
+  router: AppRouterInstance,
+  prefetchedRoutes: Set<string>,
+  routes: readonly string[]
+) => {
+  for (const route of routes) {
+    if (prefetchedRoutes.has(route)) continue;
+    prefetchedRoutes.add(route);
+    router.prefetch(route);
+  }
+};
 
 interface HeaderProps {
   setIsChatOpen: (open: boolean) => void;
-  isAdmin?: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
+const Header: React.FC<HeaderProps> = () => {
   const { cartItems } = useCart();
   const logoFallbackPath = '/favicon-192x192.png';
+  const [hasMounted, setHasMounted] = useState(false);
 
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<FirebaseUser | null>(() => getAuth().currentUser);
   const [activeMenu, setActiveMenu] = useState<string>('');
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
+  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register' | undefined>(
+    undefined
+  );
   const [authInitialTab, setAuthInitialTab] = useState<
     'profile' | 'vins' | 'security' | null
   >(null);
@@ -38,6 +72,9 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
     order: false,
     auth: false,
   });
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
+  const prefetchedRoutesRef = useRef<Set<string>>(new Set());
+  const skipManualPrefetchRef = useRef(false);
 
   const navRef = useRef<HTMLDivElement>(null);
   const searchModalRef = useRef<HTMLDivElement>(null);
@@ -45,6 +82,16 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
   const auth = getAuth();
   const pathname = usePathname();
   const router = useRouter();
+
+  const prefetchCatalogRoutes = () => {
+    if (skipManualPrefetchRef.current) return;
+    prefetchRouteList(router, prefetchedRoutesRef.current, CATALOG_PREFETCH_ROUTES);
+  };
+
+  const prefetchInfoRoutes = () => {
+    if (skipManualPrefetchRef.current) return;
+    prefetchRouteList(router, prefetchedRoutesRef.current, INFO_PREFETCH_ROUTES);
+  };
 
   // AUTH LISTENER
   useEffect(() => {
@@ -66,9 +113,13 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
   }, []);
 
   useEffect(() => {
-    setActiveMenu('');
-    setShowSearchModal(false);
-    setModals({ contact: false, order: false, auth: false });
+    const frameId = window.requestAnimationFrame(() => {
+      setActiveMenu('');
+      setShowSearchModal(false);
+      setModals({ contact: false, order: false, auth: false });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
   }, [pathname]);
 
   useEffect(() => {
@@ -80,51 +131,14 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
       Boolean(connection?.saveData) ||
       (typeof connection?.effectiveType === 'string' &&
         connection.effectiveType.includes('2g'));
+    skipManualPrefetchRef.current = isSlowConnection;
     if (isSlowConnection) return;
 
-    type RequestIdleCallback = (cb: () => void, opts?: { timeout: number }) => number;
-    const idle = (window as Window & { requestIdleCallback?: RequestIdleCallback })
-      .requestIdleCallback;
-    let idleId: number | null = null;
-    let timerId: number | null = null;
-    let loadListener: (() => void) | null = null;
+    const frameId = window.requestAnimationFrame(() => {
+      prefetchRouteList(router, prefetchedRoutesRef.current, INITIAL_PREFETCH_ROUTES);
+    });
 
-    const prefetch = () => {
-      router.prefetch('/katalog?tab=auto');
-      router.prefetch('/katalog?tab=category');
-      router.prefetch('/inform?tab=delivery');
-      router.prefetch('/inform?tab=payment');
-      router.prefetch('/inform?tab=about');
-      router.prefetch('/inform?tab=location');
-    };
-
-    const schedulePrefetch = () => {
-      if (typeof idle === 'function') {
-        idleId = idle(prefetch, { timeout: 2000 });
-      } else {
-        timerId = window.setTimeout(prefetch, 1500);
-      }
-    };
-
-    if (document.readyState === 'complete') {
-      schedulePrefetch();
-    } else {
-      const handleLoad = () => schedulePrefetch();
-      window.addEventListener('load', handleLoad, { once: true });
-      loadListener = handleLoad;
-    }
-
-    return () => {
-      if (loadListener) {
-        window.removeEventListener('load', loadListener);
-      }
-      if (timerId != null) window.clearTimeout(timerId);
-      if (idleId != null && 'cancelIdleCallback' in window) {
-        (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(
-          idleId
-        );
-      }
-    };
+    return () => window.cancelAnimationFrame(frameId);
   }, [router]);
 
   useEffect(() => {
@@ -171,6 +185,7 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
   const resetOverlays = () => {
     setActiveMenu('');
     setModals({ contact: false, order: false, auth: false });
+    setAuthInitialMode(undefined);
     setAuthInitialTab(null);
   };
 
@@ -185,25 +200,19 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
     setShowSearchModal(false);
     setModals({ contact: false, order: false, auth: false });
     setAuthInitialTab(null);
+    if (menu === 'menu') prefetchCatalogRoutes();
+    if (menu === 'info') prefetchInfoRoutes();
     setActiveMenu(prev => (prev === menu ? '' : menu));
   };
 
   const openCatalogTab = (tab: 'auto' | 'category') => {
+    prefetchCatalogRoutes();
     closeExternalOverlays();
     setShowSearchModal(false);
     setModals({ contact: false, order: false, auth: false });
     setAuthInitialTab(null);
     setActiveMenu('');
     router.push(`/katalog?tab=${tab}&reset=1`);
-  };
-
-  const openModal = (name: keyof typeof modals) => {
-    closeExternalOverlays();
-    setShowSearchModal(false);
-    setModals({ contact: false, order: false, auth: false, [name]: true });
-    if (name === 'auth') {
-      setAuthInitialTab(null);
-    }
   };
 
   const toggleModal = (name: keyof typeof modals) => {
@@ -214,6 +223,7 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
       return prev[name] ? next : { ...next, [name]: true };
     });
     if (name === 'auth') {
+      setAuthInitialMode(undefined);
       setAuthInitialTab(null);
     }
   };
@@ -231,6 +241,7 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
   const closeModal = (name: keyof typeof modals) => {
     setModals(prev => ({ ...prev, [name]: false }));
     if (name === 'auth') {
+      setAuthInitialMode(undefined);
       setAuthInitialTab(null);
     }
   };
@@ -266,6 +277,46 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
     return () => window.removeEventListener('openAccountVin', handleOpenAccountVin);
   }, []);
 
+  useEffect(() => {
+    const handleOpenAuthModal = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          initialMode?: 'login' | 'register';
+          initialAccountTab?: 'profile' | 'vins' | 'security' | null;
+        }>
+      ).detail;
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('closeExternalOverlays'));
+      }
+
+      setActiveMenu('');
+      setShowSearchModal(false);
+      setAuthInitialMode(detail?.initialMode ?? 'login');
+      setAuthInitialTab(detail?.initialAccountTab ?? null);
+      setModals({ contact: false, order: false, auth: true });
+    };
+
+    window.addEventListener('openAuthModal', handleOpenAuthModal);
+    return () => window.removeEventListener('openAuthModal', handleOpenAuthModal);
+  }, []);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      setHasMounted(true);
+      if (typeof document !== 'undefined') {
+        setPortalRoot(document.body);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
+
+  const renderPortal = (node: React.ReactNode) =>
+    portalRoot ? createPortal(node, portalRoot) : null;
+  const hasOverlayPortalOpen =
+    showSearchModal || modals.contact || modals.order || modals.auth;
+
   const buttonBaseClass =
     'flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-sm font-medium rounded-lg border border-white/15 transition-all whitespace-nowrap bg-gray-700 hover:bg-gray-600 hover:border-white/35 cursor-pointer touch-manipulation active:scale-[0.98] select-none';
 
@@ -276,13 +327,20 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
   const dropdownItemClass =
     'flex items-center gap-3 px-4 py-2 text-sm rounded-xl hover:bg-gray-600 cursor-pointer transition-transform active:scale-[0.98] select-none';
 
+  const closeAllOverlays = () => {
+    setActiveMenu('');
+    setShowSearchModal(false);
+    setModals({ contact: false, order: false, auth: false });
+    setAuthInitialTab(null);
+  };
+
   return (
     <header
       suppressHydrationWarning
-      className="bg-gradient-to-b from-gray-600 to-gray-800 h-16 text-white px-4 flex items-center justify-center relative z-50"
+      className="bg-gradient-to-b from-gray-600 to-gray-800 relative z-50 flex h-16 items-center justify-center text-white"
     >
 
-      <div className="w-full max-w-[1400px] flex items-center justify-between gap-6">
+      <div className="flex w-full max-w-[1400px] items-center justify-between gap-6 px-4 sm:px-5 lg:px-7">
 
         {/* LEFT SECTION */}
         <div className="flex items-center gap-4 flex-shrink-0">
@@ -316,6 +374,9 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
                 <button
                   data-overlay-toggle="menu"
                   onClick={() => toggleMenu("menu")}
+                  onPointerEnter={prefetchCatalogRoutes}
+                  onFocus={prefetchCatalogRoutes}
+                  onTouchStart={prefetchCatalogRoutes}
                   className={`${buttonBaseClass} ${
                     activeMenu === "menu"
                       ? 'border-sky-400/80 bg-sky-500/20'
@@ -357,6 +418,9 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
                 <button
                   data-overlay-toggle="info"
                   onClick={() => toggleMenu("info")}
+                  onPointerEnter={prefetchInfoRoutes}
+                  onFocus={prefetchInfoRoutes}
+                  onTouchStart={prefetchInfoRoutes}
                   className={`${buttonBaseClass} ${
                     activeMenu === "info"
                       ? 'border-sky-400/80 bg-sky-500/20'
@@ -439,7 +503,7 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
             <ShoppingCart size={16} className="sm:size-4" />
             <span className="hidden sm:inline cursor-pointer select-none">Замовлення</span>
 
-            {cartItems.length > 0 && (
+            {hasMounted && cartItems.length > 0 && (
               <span className="absolute top-0 right-0 w-4 h-4 text-xs bg-orange-500 text-white rounded-full flex justify-center items-center font-bold">
                 {cartItems.length}
               </span>
@@ -464,39 +528,51 @@ const Header: React.FC<HeaderProps> = ({ setIsChatOpen: _setIsChatOpen }) => {
         </div>
       </div>
 
-      {/* SEARCH MODAL */}
-      {showSearchModal && (
-        <div
-          ref={searchModalRef}
-          className="fixed top-20 left-2 right-2 sm:left-auto sm:right-6 w-auto sm:w-[80%] max-w-[420px] z-[70] rounded-2xl sm:rounded-3xl p-4 sm:p-5 bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 shadow-2xl border border-gray-500 animate-fadeIn"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <MagnifyingGlassIcon className="w-5 h-5 text-blue-400" />
-              Пошук
-            </h2>
-            <button onClick={() => setShowSearchModal(false)} className="text-gray-400 hover:text-white">
-              <XMarkIcon className="w-6 h-6" />
-            </button>
-          </div>
+      {hasOverlayPortalOpen &&
+        renderPortal(
+          <div
+            className="fixed inset-x-0 bottom-0 top-[var(--header-height,4rem)] z-[80] bg-slate-950/12"
+            onClick={closeAllOverlays}
+            aria-hidden="true"
+          />
+        )}
 
-          <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700">
-            <SearchBar onSearch={() => setShowSearchModal(false)} />
+      {/* SEARCH MODAL */}
+      {showSearchModal &&
+        renderPortal(
+          <div
+            ref={searchModalRef}
+            className="fixed top-[calc(var(--header-height,4rem)+0.5rem)] left-2 right-2 sm:left-auto sm:right-6 w-auto sm:w-[80%] max-w-[420px] z-[95] rounded-2xl sm:rounded-3xl p-4 sm:p-5 bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 shadow-2xl border border-gray-500 animate-fadeIn"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <MagnifyingGlassIcon className="w-5 h-5 text-blue-400" />
+                Пошук
+              </h2>
+              <button onClick={() => setShowSearchModal(false)} className="text-gray-400 hover:text-white">
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700">
+              <SearchBar onSearch={() => setShowSearchModal(false)} />
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* MODALS */}
-      {modals.contact && <Contact onClose={() => closeModal('contact')} />}
-      {modals.order && <Order onClose={() => closeModal('order')} />}
-      {modals.auth && (
-        <AuthModal
-          isOpen={modals.auth}
-          user={user}
-          initialAccountTab={authInitialTab}
-          onClose={() => closeModal('auth')}
-        />
-      )}
+      {modals.contact && renderPortal(<Contact onClose={() => closeModal('contact')} />)}
+      {modals.order && renderPortal(<Order onClose={() => closeModal('order')} />)}
+      {modals.auth &&
+        renderPortal(
+          <AuthModal
+            isOpen={modals.auth}
+            user={user}
+            initialMode={authInitialMode}
+            initialAccountTab={authInitialTab}
+            onClose={() => closeModal('auth')}
+          />
+        )}
 
     </header>
   );

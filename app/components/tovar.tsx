@@ -356,75 +356,22 @@ type ProductSearchInputProps = {
 
 const ProductSearchInput = React.memo(
   ({ searchTerm, onSearchChange }: ProductSearchInputProps) => {
-    const [demoWordIndex, setDemoWordIndex] = useState(0);
-    const [demoText, setDemoText] = useState("");
-    const [typingPaused, setTypingPaused] = useState(false);
-
-    useEffect(() => {
-      if (searchTerm || typingPaused) {
-        setDemoText("");
-        return;
-      }
-
-      let active = true;
-      let timeoutId: ReturnType<typeof setTimeout>;
-      const words = ["Амортизатор", "Гальмівні колодки", "Мастило", "Аксесуари"];
-      const currentWord = words[demoWordIndex];
-      let charIndex = 0;
-
-      const typeNext = () => {
-        if (!active) return;
-
-        if (charIndex <= currentWord.length) {
-          setDemoText(currentWord.slice(0, charIndex));
-          charIndex += 1;
-          timeoutId = setTimeout(typeNext, 90);
-        } else {
-          timeoutId = setTimeout(() => {
-            if (!active) return;
-            setDemoWordIndex((prev) => (prev + 1) % words.length);
-          }, 1100);
-        }
-      };
-
-      typeNext();
-
-      return () => {
-        active = false;
-        clearTimeout(timeoutId);
-      };
-    }, [searchTerm, demoWordIndex, typingPaused]);
-
     return (
       <label className="relative block mb-2">
         <Search
           size={16}
           className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400"
         />
-        {!searchTerm && !typingPaused && (
-          <div className="pointer-events-none absolute left-9 top-1/2 -translate-y-1/2 text-sm text-blue-400 flex items-center gap-1">
-            <span className="max-w-[220px] truncate">
-              {demoText || "амортизатор"}
-            </span>
-            <span className="h-4 w-[2px] bg-blue-400 animate-pulse" />
-          </div>
-        )}
         <input
           type="text"
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
-          onFocus={() => {
-            setTypingPaused(true);
-            if (searchTerm) onSearchChange("");
-            setDemoText("");
-          }}
-          onBlur={() => setTypingPaused(false)}
           onTouchStart={(e) => {
             e.currentTarget.focus();
           }}
-          placeholder=" "
+          placeholder="Група або категорія"
           aria-label="\u0412\u0432\u0435\u0434\u0456\u0442\u044c \u043d\u0430\u0437\u0432\u0443 \u0433\u0440\u0443\u043f\u0438 \u0430\u0431\u043e \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u0457"
-          className="w-full rounded-xl border border-blue-200 bg-white/90 px-9 py-2 text-[16px] sm:text-sm text-gray-700 placeholder:text-transparent shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition select-text"
+          className="w-full rounded-xl border border-blue-200 bg-white/90 px-9 py-2 text-[16px] sm:text-sm text-gray-700 placeholder:text-blue-300/95 shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition select-text"
           data-search="true"
         />
         {searchTerm && (
@@ -458,62 +405,21 @@ const LoadingNotice = ({ shouldAnimate, title, subtitle }: LoadingNoticeProps) =
     className="relative overflow-hidden rounded-xl border border-cyan-200/80 bg-[linear-gradient(120deg,rgba(236,254,255,0.96)_0%,rgba(224,242,254,0.94)_55%,rgba(209,250,229,0.9)_100%)] px-3 py-3 shadow-[0_10px_24px_rgba(6,182,212,0.16)]"
   >
     <div className="pointer-events-none absolute inset-0 opacity-80 bg-[radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.22),transparent_44%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.2),transparent_40%)]" />
+    <div className="pointer-events-none absolute right-0 top-1/2 h-20 w-20 -translate-y-1/2 rounded-full bg-emerald-300/25 blur-3xl" />
     <div className="relative flex items-center gap-3">
-      <motion.div
-        aria-hidden="true"
-        className="relative h-10 w-10 shrink-0 rounded-full border border-cyan-300/80 bg-white/80 shadow-[0_4px_12px_rgba(6,182,212,0.22)]"
-        animate={shouldAnimate ? { rotate: 360 } : undefined}
-        transition={
-          shouldAnimate
-            ? { duration: 1.35, repeat: Infinity, ease: "easeInOut" }
-            : undefined
-        }
-      >
-        <span className="absolute inset-[4px] rounded-full border-2 border-cyan-200/90 border-r-cyan-400 border-t-cyan-500" />
-        <motion.span
-          className="absolute inset-[11px] rounded-full bg-cyan-400/90"
-          animate={
-            shouldAnimate
-              ? { scale: [0.88, 1.06, 0.88], opacity: [0.7, 1, 0.7] }
-              : undefined
-          }
-          transition={
-            shouldAnimate
-              ? {
-                  duration: 1.35,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                  repeatType: "mirror",
-                }
-              : undefined
-          }
-        />
-      </motion.div>
+      <div className="shrink-0">
+        <div className="loader loader-brand scale-[0.95]" aria-hidden="true" />
+      </div>
 
       <div className="min-w-0">
         <p className="text-sm font-semibold text-cyan-900">{title}</p>
         <p className="text-xs text-cyan-800/90">{subtitle}</p>
-        <div className="mt-1.5 flex items-center gap-1">
+        <div className="loader-dots mt-2" aria-hidden="true">
           {Array.from({ length: 3 }).map((_, index) => (
-            <motion.span
+            <span
               key={`loading-dot-${index}`}
-              className="h-1.5 w-1.5 rounded-full bg-cyan-500"
-              animate={
-                shouldAnimate
-                  ? { opacity: [0.22, 1, 0.22], y: [0, -2, 0] }
-                  : undefined
-              }
-              transition={
-                shouldAnimate
-                  ? {
-                      duration: 1.1,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                      delay: index * 0.12,
-                      repeatDelay: 0.02,
-                    }
-                  : undefined
-              }
+              className="loader-dot"
+              style={{ animationDelay: `${index * 0.16}s` }}
             />
           ))}
         </div>

@@ -11,13 +11,14 @@ import {
   onSnapshot,
   doc,
   getDoc,
+  setDoc,
 } from "firebase/firestore";
 import Header from "./Header";
-import AdminChatPanel from "./AdminChatPanel";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronUpIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
+import { Shield } from "lucide-react";
 
+const AdminChatPanel = dynamic(() => import("./AdminChatPanel"), { ssr: false });
 const TelegramChat = dynamic(() => import("./TelegramChat"), { ssr: false });
 const ChatButton = dynamic(() => import("./ChatButton"), { ssr: false });
 
@@ -25,10 +26,96 @@ interface LayoutHostProps {
   children: ReactNode;
 }
 
+const normalizeStoredId = (value: unknown) =>
+  typeof value === "string" && value.trim() ? value.trim() : null;
+
+const createGuestChatId = () => {
+  const cryptoObj = globalThis.crypto as Crypto | undefined;
+  if (cryptoObj && typeof cryptoObj.randomUUID === "function") {
+    return `user_${cryptoObj.randomUUID()}`;
+  }
+
+  return `user_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+};
+
+const readUserChatId = (data?: Record<string, unknown>) =>
+  normalizeStoredId(data?.chatUserId) ??
+  normalizeStoredId(data?.chat_user_id) ??
+  normalizeStoredId(data?.chatId);
+
+const isPermissionDeniedError = (error: unknown) => {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: unknown }).code;
+  return code === "permission-denied";
+};
+
+const ADMIN_ROLE_VALUES = new Set(["admin", "manager", "superadmin"]);
+
+const normalizeAdminValue = (value: unknown) =>
+  typeof value === "string" ? value.trim().toLowerCase() : "";
+
+const isTruthyAdminFlag = (value: unknown) => {
+  if (value === true || value === 1) return true;
+  const normalized = normalizeAdminValue(value);
+  return ["1", "true", "yes", "admin", "manager", "superadmin"].includes(
+    normalized
+  );
+};
+
+const hasAdminRole = (value: unknown): boolean => {
+  if (!value) return false;
+  if (typeof value === "string") {
+    return ADMIN_ROLE_VALUES.has(value.trim().toLowerCase());
+  }
+  if (Array.isArray(value)) {
+    return value.some((entry) => hasAdminRole(entry));
+  }
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).some((entry) =>
+      hasAdminRole(entry)
+    );
+  }
+  return false;
+};
+
+const hasAdminAccess = (source?: Record<string, unknown>) => {
+  if (!source) return false;
+
+  return (
+    hasAdminRole(source.role) ||
+    hasAdminRole(source.roles) ||
+    hasAdminRole(source.userRole) ||
+    hasAdminRole(source.user_role) ||
+    isTruthyAdminFlag(source.isAdmin) ||
+    isTruthyAdminFlag(source.admin) ||
+    isTruthyAdminFlag(source.is_admin) ||
+    isTruthyAdminFlag(source.isManager) ||
+    isTruthyAdminFlag(source.manager) ||
+    isTruthyAdminFlag(source.is_manager) ||
+    isTruthyAdminFlag(source.isSuperAdmin) ||
+    isTruthyAdminFlag(source.superadmin) ||
+    isTruthyAdminFlag(source.is_superadmin)
+  );
+};
+
+const PRIMARY_WARMUP_ROUTES = [
+  "/katalog",
+  "/katalog?tab=auto",
+  "/katalog?tab=category",
+  "/inform",
+  "/inform?tab=about",
+  "/inform?tab=delivery",
+  "/inform?tab=payment",
+  "/inform?tab=location",
+  "/groups",
+  "/manufacturers",
+] as const;
+
 export default function LayoutHost({ children }: LayoutHostProps) {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [authUserUid, setAuthUserUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [userUnreadCount, setUserUnreadCount] = useState(0);
@@ -40,27 +127,25 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const searchParams = useSearchParams();
   const warmupStartedRef = useRef(false);
   const auth = getAuth();
+  const isDevelopment = process.env.NODE_ENV !== "production";
   const isEmbeddedProductView =
     pathname.startsWith("/product/") && searchParams.get("view") === "modal";
+  const routeTransitionKey = `${pathname}?${searchParams.toString()}`;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
-    const body = document.body;
-    const root = document.documentElement;
-
-    body.style.overflow = "auto";
-    body.style.overflowY = "auto";
-    root.style.overflow = "auto";
-    root.style.overflowY = "auto";
-
     if (pathname === "/") {
-      window.scrollTo({ top: 0, behavior: "auto" });
+      const frameId = window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: "auto" });
+      });
+
+      return () => window.cancelAnimationFrame(frameId);
     }
   }, [pathname]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isDevelopment) return;
     if (warmupStartedRef.current) return;
     warmupStartedRef.current = true;
 
@@ -96,26 +181,32 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     const preloadCriticalChunks = () => {
       try {
-        void import("app/inform/page");
+        void import("../inform/page");
+      } catch {}
+      try {
+        void import("../katalog/page");
+      } catch {}
+      try {
+        void import("./Data");
+      } catch {}
+      try {
+        void import("./filtrtion");
+      } catch {}
+      try {
+        void import("../groups/page");
+      } catch {}
+      try {
+        void import("../manufacturers/page");
       } catch {}
     };
 
     const preloadAllChunks = () => {
       preloadCriticalChunks();
       try {
-        void import("app/katalog/page");
+        void import("./Order");
       } catch {}
       try {
-        void import("app/components/Data");
-      } catch {}
-      try {
-        void import("app/components/filtrtion");
-      } catch {}
-      try {
-        void import("app/components/Order");
-      } catch {}
-      try {
-        void import("app/components/tovar");
+        void import("./tovar");
       } catch {}
     };
 
@@ -254,18 +345,22 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     let timerId: number | null = null;
     let idleId: number | null = null;
+    let initialWarmupFrameId: number | null = null;
     let warmRoutesTimer: number | null = null;
     let preloadAllTimer: number | null = null;
     let loadListener: (() => void) | null = null;
 
+    if (!isSlowConnection) {
+      initialWarmupFrameId = window.requestAnimationFrame(() => {
+        PRIMARY_WARMUP_ROUTES.forEach((route) => router.prefetch(route));
+        preloadCriticalChunks();
+        warmRoutesTimer = window.setTimeout(() => void warmRoutes(), 160);
+      });
+    }
+
     const scheduleWarmup = () => {
       if (isSlowConnection) return;
 
-      router.prefetch("/katalog");
-      router.prefetch("/inform");
-      preloadCriticalChunks();
-
-      warmRoutesTimer = window.setTimeout(() => void warmRoutes(), 400);
       preloadAllTimer = window.setTimeout(preloadAllChunks, 2500);
 
       if (typeof idle === "function") {
@@ -287,6 +382,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       if (loadListener) {
         window.removeEventListener("load", loadListener);
       }
+      if (initialWarmupFrameId != null) window.cancelAnimationFrame(initialWarmupFrameId);
       if (warmRoutesTimer != null) window.clearTimeout(warmRoutesTimer);
       if (preloadAllTimer != null) window.clearTimeout(preloadAllTimer);
       if (timerId != null) window.clearTimeout(timerId);
@@ -296,30 +392,18 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         );
       }
     };
-  }, [router]);
+  }, [isDevelopment, router]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const legacyUserId = localStorage.getItem("user_id");
-    const storedChatId = localStorage.getItem("chat_user_id");
-    const resolvedId = storedChatId || legacyUserId;
+    const storedChatId = normalizeStoredId(localStorage.getItem("chat_user_id"));
 
-    if (resolvedId) {
-      if (!storedChatId) {
-        localStorage.setItem("chat_user_id", resolvedId);
-      }
-      setUserId(resolvedId);
+    if (storedChatId) {
+      setUserId(storedChatId);
       setLoading(false);
     } else {
-      const generatedId = (() => {
-        const cryptoObj = globalThis.crypto as Crypto | undefined;
-        if (cryptoObj && typeof cryptoObj.randomUUID === "function") {
-          return `user_${cryptoObj.randomUUID()}`;
-        }
-        return `user_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-      })();
-
+      const generatedId = createGuestChatId();
       localStorage.setItem("chat_user_id", generatedId);
       setUserId(generatedId);
       setLoading(false);
@@ -327,22 +411,76 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        setAuthUserUid(user.uid);
         const userRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userRef);
-        const isAdminRole = userSnap.exists() && userSnap.data().role === "admin";
+        let userData: Record<string, unknown> | undefined;
+        try {
+          const userSnap = await getDoc(userRef);
+          userData = userSnap.exists()
+            ? (userSnap.data() as Record<string, unknown>)
+            : undefined;
+        } catch (error) {
+          if (!isPermissionDeniedError(error)) {
+            console.error("Failed to load user profile for role detection:", error);
+          }
+          userData = undefined;
+        }
+        let claims: Record<string, unknown> = {};
+        try {
+          const token = await user.getIdTokenResult();
+          claims = (token?.claims ?? {}) as Record<string, unknown>;
+        } catch {
+          claims = {};
+        }
+        const isAdminRole =
+          hasAdminAccess(userData) ||
+          hasAdminAccess(claims) ||
+          (claims.permissions &&
+          typeof claims.permissions === "object"
+            ? hasAdminAccess(claims.permissions as Record<string, unknown>)
+            : false) ||
+          hasAdminRole(claims.permissions);
+        const lastAuthenticatedUid = normalizeStoredId(
+          localStorage.getItem("user_id")
+        );
+        const storedChatId = normalizeStoredId(
+          localStorage.getItem("chat_user_id")
+        );
+        const persistedChatId = readUserChatId(userData);
+        const resolvedChatId =
+          lastAuthenticatedUid === user.uid
+            ? storedChatId || persistedChatId || user.uid
+            : persistedChatId || user.uid;
 
-        setIsAdmin(isAdminRole);
+        const adminStorageKey = `partson:isAdmin:${user.uid}`;
+        const rememberedIsAdmin = localStorage.getItem(adminStorageKey) === "1";
+        const resolvedIsAdmin = isAdminRole || rememberedIsAdmin;
+        setIsAdmin(resolvedIsAdmin);
+        if (isAdminRole) {
+          localStorage.setItem(adminStorageKey, "1");
+        }
         localStorage.setItem("user_id", user.uid);
-        const storedChatId = localStorage.getItem("chat_user_id");
-        const resolvedChatId = storedChatId || user.uid;
-        if (!storedChatId) {
+
+        if (storedChatId !== resolvedChatId) {
           localStorage.setItem("chat_user_id", resolvedChatId);
         }
+
+        if (normalizeStoredId(userData?.chatUserId) !== resolvedChatId) {
+          try {
+            await setDoc(userRef, { chatUserId: resolvedChatId }, { merge: true });
+          } catch (error) {
+            console.error("Failed to sync user chat id:", error);
+          }
+        }
+
         setUserId(resolvedChatId);
       } else {
+        setAuthUserUid(null);
         setIsAdmin(false);
         const fallbackId =
-          typeof window !== "undefined" ? localStorage.getItem("chat_user_id") : null;
+          typeof window !== "undefined"
+            ? normalizeStoredId(localStorage.getItem("chat_user_id"))
+            : null;
         setUserId(fallbackId);
       }
 
@@ -351,6 +489,62 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     return () => unsubscribe();
   }, [auth]);
+
+  useEffect(() => {
+    if (!authUserUid || typeof window === "undefined") return;
+
+    const userRef = doc(db, "users", authUserUid);
+    let presenceSyncAllowed = true;
+    const syncPresence = async (isOnline: boolean) => {
+      if (!presenceSyncAllowed) return;
+      try {
+        await setDoc(
+          userRef,
+          {
+            isOnline,
+            lastSeenAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (error) {
+        if (isPermissionDeniedError(error)) {
+          presenceSyncAllowed = false;
+          return;
+        }
+        console.error("Failed to sync user presence:", error);
+      }
+    };
+
+    const markVisible = () => {
+      void syncPresence(document.visibilityState === "visible");
+    };
+
+    const markHidden = () => {
+      void syncPresence(false);
+    };
+
+    void syncPresence(document.visibilityState === "visible");
+
+    const heartbeatId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void syncPresence(true);
+      }
+    }, 30000);
+
+    document.addEventListener("visibilitychange", markVisible);
+    window.addEventListener("focus", markVisible);
+    window.addEventListener("blur", markHidden);
+    window.addEventListener("pagehide", markHidden);
+
+    return () => {
+      window.clearInterval(heartbeatId);
+      document.removeEventListener("visibilitychange", markVisible);
+      window.removeEventListener("focus", markVisible);
+      window.removeEventListener("blur", markHidden);
+      window.removeEventListener("pagehide", markHidden);
+      void syncPresence(false);
+    };
+  }, [authUserUid]);
 
   useEffect(() => {
     if (loading || !userId) return;
@@ -410,11 +604,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       )}
 
       <main className={isEmbeddedProductView ? "min-h-screen" : "min-h-screen pt-[var(--header-height)]"}>
-        {children}
+        <div key={routeTransitionKey} className="route-transition-shell">
+          {children}
+        </div>
       </main>
 
       {!isEmbeddedProductView && (
-        <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-4">
+        <div className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] z-50 flex flex-col-reverse items-end gap-3 sm:bottom-6 sm:right-6 sm:flex-col sm:gap-4 lg:right-7">
           {!isChatOpen && (
             <ChatButton
               onClick={() => setIsChatOpen(true)}
@@ -433,16 +629,17 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           {!loading && isAdmin && (
             <button
               onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
-              className="relative z-[60] bg-gradient-to-r from-blue-700 to-teal-800 text-white p-4 rounded-full opacity-60 hover:opacity-100 transition-all duration-300 flex justify-center items-center shadow-xl ring-1 ring-white/20"
+              className={`relative z-[60] inline-flex min-h-[3.25rem] items-center justify-center gap-2 rounded-2xl px-3 py-3 text-white shadow-xl ring-1 ring-white/20 transition-all duration-300 sm:rounded-full sm:p-4 ${
+                isAdminPanelOpen
+                  ? "bg-gradient-to-r from-emerald-700 to-teal-700 opacity-100"
+                  : "bg-gradient-to-r from-blue-700 to-teal-800 opacity-60 hover:opacity-100"
+              }`}
+              aria-label="Адмін панель"
+              title="Адмін панель"
             >
-              {isAdminPanelOpen ? (
-                <ChevronDownIcon className="h-6 w-6" />
-              ) : (
-                <>
-                  <ChevronUpIcon className="h-6 w-6" />
-                  {renderBadge(totalNotifications)}
-                </>
-              )}
+              <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
+              <span className="text-xs font-semibold sm:hidden">Адмін</span>
+              {!isAdminPanelOpen && renderBadge(totalNotifications)}
             </button>
           )}
         </div>

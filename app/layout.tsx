@@ -4,6 +4,7 @@ import { Suspense, type ReactNode } from "react";
 import Script from "next/script";
 import ClientWrapper from "./client-wrapper";
 import LayoutHost from "./components/LayoutHost";
+import PageLoadingShell from "./components/PageLoadingShell";
 import { getSiteUrl } from "./lib/site-url";
 import "./globals.css";
 
@@ -241,6 +242,8 @@ const localBusinessJsonLd = {
   ],
 };
 
+const layoutFallback = <PageLoadingShell label="Завантаження сторінки..." cardsCount={4} />;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -332,11 +335,13 @@ export default function RootLayout({
         />
       </head>
       <body className={`${montserrat.className} ${montserrat.variable} ${geistMono.variable}`}>
-        <ClientWrapper>
-          <Suspense fallback={<main className="min-h-screen" />}>
-            <LayoutHost>{children}</LayoutHost>
-          </Suspense>
-        </ClientWrapper>
+        <div className="page-scale-root">
+          <ClientWrapper>
+            <Suspense fallback={layoutFallback}>
+              <LayoutHost>{children}</LayoutHost>
+            </Suspense>
+          </ClientWrapper>
+        </div>
       </body>
     </html>
   );

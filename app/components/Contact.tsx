@@ -69,11 +69,15 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
       let phone = user.phoneNumber || "";
 
       if (!name || !phone) {
-        const snap = await getDoc(doc(db, "users", user.uid));
-        if (snap.exists()) {
-          const d = snap.data();
-          name ||= d.name;
-          phone ||= d.phone;
+        try {
+          const snap = await getDoc(doc(db, "users", user.uid));
+          if (snap.exists()) {
+            const d = snap.data() as Record<string, unknown>;
+            name ||= typeof d.name === "string" ? d.name : "";
+            phone ||= typeof d.phone === "string" ? d.phone : "";
+          }
+        } catch {
+          // ignore Firestore permission issues and keep auth fallback values
         }
       }
 
@@ -151,7 +155,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
   return (
     <>
       {toast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[999] bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg">
+        <div className="fixed left-1/2 top-[calc(var(--header-height,4rem)+0.65rem)] z-[95] flex -translate-x-1/2 items-center gap-2 rounded-[16px] border border-emerald-300/50 bg-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-[0_16px_34px_rgba(16,185,129,0.32)]">
           <Check size={16} /> Номер скопійовано
         </div>
       )}
@@ -160,48 +164,69 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
         ref={ref}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        className="fixed top-20 right-4 left-4 sm:left-auto sm:right-6 w-[90%] max-w-[420px] mx-auto rounded-2xl p-4 z-40
-                   bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_52%,rgba(224,242,254,0.94)_100%)]
-                   shadow-[0_24px_60px_rgba(30,64,175,0.22)] border border-sky-200/80 backdrop-blur-xl animate-fadeIn"
+        className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter overflow-hidden"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex gap-1 rounded-xl border border-sky-200/80 bg-white/80 p-1">
+        <div className="soft-panel-content flex flex-col gap-3 p-4 sm:p-4">
+        <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
+
+        <div className="soft-panel-header">
+          <div className="min-w-0">
+            <span className="soft-panel-eyebrow">
+              <Phone size={14} />
+              Контакти
+            </span>
+            <h2 className="soft-panel-title mt-3">Зв&apos;язок і підтримка</h2>
+            <p className="soft-panel-subtitle">
+              Оберіть зручний спосіб: швидкий дзвінок, адреса магазину або зворотний зв&apos;язок.
+            </p>
+          </div>
+
+          <button onClick={onClose} className="soft-icon-button h-10 w-10 shrink-0 p-1">
+            <X size={18} className="text-slate-500" />
+          </button>
+        </div>
+
+        <div className="soft-panel-tabs">
+          <div className="grid w-full grid-cols-2 gap-2">
             <button
               onClick={() => {
                 setTab("phones");
               }}
-              className={`p-2 rounded-xl transition ${
+              className={`flex items-center justify-center gap-2 rounded-[16px] px-3 py-2.5 text-sm font-semibold transition ${
                 tab === "phones"
-                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_8px_18px_rgba(59,130,246,0.3)]"
-                  : "text-slate-600 hover:bg-sky-50"
+                  ? "soft-segment soft-segment--active"
+                  : "soft-segment hover:bg-white/70 hover:text-slate-800"
               }`}
             >
               <Phone size={16} />
+              Дзвінок
             </button>
 
             <button
               onClick={() => {
                 setTab("address");
               }}
-              className={`p-2 rounded-xl transition ${
+              className={`flex items-center justify-center gap-2 rounded-[16px] px-3 py-2.5 text-sm font-semibold transition ${
                 tab === "address"
-                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_8px_18px_rgba(59,130,246,0.3)]"
-                  : "text-slate-600 hover:bg-sky-50"
+                  ? "soft-segment soft-segment--active"
+                  : "soft-segment hover:bg-white/70 hover:text-slate-800"
               }`}
             >
               <MapPin size={16} />
+              Адреса
             </button>
           </div>
-
-          <button onClick={onClose} className="rounded-full border border-sky-200 bg-white p-1 transition hover:bg-sky-50">
-            <X size={18} className="text-slate-500" />
-          </button>
         </div>
 
-        {/* Phones */}
         {tab === "phones" && (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="soft-note rounded-[16px] px-4 py-2.5 text-sm">
+              {isMobileDevice
+                ? "Натисніть на номер, щоб одразу зателефонувати."
+                : "Натисніть на номер, щоб швидко скопіювати його."}
+            </div>
+
+            <div className="app-panel-scroll max-h-[36vh] space-y-2 overflow-y-auto pr-1">
             {[
               { name: "Богдан", phone: "+38 (063) 421-18-51" },
               { name: "Роман", phone: "+38 (067) 739-00-73" },
@@ -210,14 +235,19 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
               <button
                 key={i}
                 onClick={() => handlePhoneAction(c.phone)}
-                className="w-full rounded-xl px-3 py-2 text-left
-                           bg-white/92 border border-sky-200/70
-                           shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition-all hover:border-sky-300/80 hover:scale-[1.02]"
+                className="soft-surface-card app-panel-card-hover w-full rounded-[16px] px-4 py-3 text-left"
               >
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
-                    <User size={15} className="text-slate-500" />
-                    <span className="font-medium text-slate-800">{c.name}</span>
+                    <span className="flex h-10 w-10 items-center justify-center rounded-[16px] border border-sky-200/70 bg-white/80 text-sky-600 shadow-[0_10px_22px_rgba(56,189,248,0.12)]">
+                      <User size={16} />
+                    </span>
+                    <div>
+                      <p className="font-semibold text-slate-800">{c.name}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {isMobileDevice ? "Торкніться для дзвінка" : "Клікніть для копіювання"}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -230,37 +260,39 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                   </div>
                 </div>
 
-                <div className="mt-1 text-xs text-slate-600">{c.phone}</div>
+                <div className="mt-2 text-sm font-medium text-slate-700">{c.phone}</div>
               </button>
             ))}
+            </div>
           </div>
         )}
 
-        {/* Address */}
         {tab === "address" && (
-          <div className="rounded-xl border border-sky-200/70 bg-white/92 p-3 text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.08)]">
-            <div className="flex gap-2">
-              <MapPin className="mt-0.5 text-blue-600" size={16} />
+          <div className="space-y-3">
+            <div className="soft-surface-card rounded-[16px] p-3.5 text-slate-700">
+            <div className="flex gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-sky-200/70 bg-white/80 text-sky-600 shadow-[0_10px_22px_rgba(56,189,248,0.12)]">
+                <MapPin size={18} />
+              </span>
               <div>
-                <p className="text-sm font-medium text-slate-800">Наш магазин</p>
-                <p className="text-xs leading-relaxed text-slate-600">
+                <p className="text-sm font-semibold text-slate-800">Наш магазин</p>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600">
                   м. Львів, вул. Перфецького, 8<br />
                   Пн–Нд: 08:00–19:00
                 </p>
               </div>
             </div>
           </div>
+            <div className="soft-note rounded-[16px] px-4 py-2.5 text-sm">
+              Підходить для самовивозу, консультації та швидкого підбору деталей на місці.
+            </div>
+          </div>
         )}
 
-        {/* CTA */}
         {tab === "phones" ? (
           <button
             onClick={() => setShowZvyaz(true)}
-            className="mt-4 w-full py-2.5 rounded-xl
-                       bg-gradient-to-r from-sky-600 to-cyan-500
-                       text-white font-semibold
-                       shadow hover:shadow-lg hover:brightness-110
-                       transition-all hover:scale-[1.02]"
+            className="soft-primary-button mt-1 w-full py-3 text-sm font-semibold"
           >
             Замовити дзвінок
           </button>
@@ -269,17 +301,13 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
             href="https://maps.google.com/?q=Львів,+вул.+Перфецького,+8"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 w-full py-2.5 rounded-xl
-                       flex items-center justify-center gap-2
-                       bg-gradient-to-r from-emerald-600 to-teal-500
-                       text-white font-semibold
-                       shadow hover:shadow-lg hover:brightness-110
-                       transition-all hover:scale-[1.02]"
+            className="soft-primary-button mt-1 flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold"
           >
             <ExternalLink size={16} />
             Переглянути на мапі
           </a>
         )}
+        </div>
       </div>
     </>
   );

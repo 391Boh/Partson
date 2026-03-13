@@ -1,6 +1,7 @@
 ﻿'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { getAuth, onAuthStateChanged, type User } from 'firebase/auth';
@@ -17,7 +18,7 @@ const Data = dynamic(() => import('app/components/Data'), {
         <div className="loader" />
         <p className="text-gray-400 text-xs">Завантаження товарів...</p>
       </div>
-      <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
         {Array.from({ length: 10 }).map((_, i) => (
           <div
             key={i}
@@ -62,10 +63,12 @@ const Katalog: React.FC = () => {
   const skipNextRemoteSaveRef = useRef(false);
   const hasLoadedLocalRef = useRef(false);
   const handledRequestRef = useRef<string | null>(null);
-  const filterShellRef = useRef<HTMLDivElement | null>(null);
-  const lastScrollYRef = useRef(0);
-  const [filterShellHeight, setFilterShellHeight] = useState(0);
-  const [collapseOnScrollSignal, setCollapseOnScrollSignal] = useState(0);
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
+  const [filterHeight, setFilterHeight] = useState(0);
+  const measureFilterShell = useCallback((nextHeight?: number) => {
+    if (typeof nextHeight !== 'number' || !Number.isFinite(nextHeight)) return;
+    setFilterHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+  }, []);
 
   const groupParam = searchParams.get('group');
   const subcategoryParam = searchParams.get('subcategory');
@@ -441,55 +444,8 @@ const Katalog: React.FC = () => {
   }, [firebaseUser, requestMessage]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const shell = filterShellRef.current;
-    if (!shell) return;
-
-    const updateHeight = () => {
-      setFilterShellHeight(shell.getBoundingClientRect().height);
-    };
-
-    updateHeight();
-
-    const Observer = window.ResizeObserver;
-    const observer = Observer ? new Observer(() => updateHeight()) : null;
-    observer?.observe(shell);
-    window.addEventListener('resize', updateHeight);
-
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener('resize', updateHeight);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    lastScrollYRef.current = window.scrollY;
-    const SCROLL_DELTA = 12;
-    const TOP_IGNORE_THRESHOLD = 24;
-
-    const handleScroll = () => {
-      const currentY = window.scrollY;
-      const previousY = lastScrollYRef.current;
-      const delta = currentY - previousY;
-
-      if (currentY <= TOP_IGNORE_THRESHOLD) {
-        lastScrollYRef.current = currentY;
-        return;
-      }
-
-      if (delta <= SCROLL_DELTA) {
-        lastScrollYRef.current = currentY;
-        return;
-      }
-
-      setCollapseOnScrollSignal((prev) => prev + 1);
-      lastScrollYRef.current = currentY;
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    if (typeof document === 'undefined') return;
+    setPortalRoot(document.body);
   }, []);
 
   const handleConfirmRequest = () => {
@@ -548,49 +504,65 @@ const Katalog: React.FC = () => {
     setSortOrder((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'asc'));
   };
 
+  const filterSidebar = (
+    <FilterSidebar
+      selectedCars={selectedCars}
+      handleCarChange={handleCarChange}
+      selectedCategories={selectedCategories}
+      handleCategoryToggle={handleCategoryToggle}
+      sortOrder={sortOrder}
+      toggleSortOrder={toggleSortOrder}
+      onResetSort={() => setSortOrder('none')}
+      selectedCarSelection={selectedCarSelection}
+      onSelectedCarSelectionChange={setSelectedCarSelection}
+      onVinSelect={setSelectedVin}
+      selectedVin={selectedVin}
+      requestMessage={pendingRequestMessage}
+      onConfirmRequest={allowRequestActions ? handleConfirmRequest : undefined}
+      onCancelRequest={allowRequestActions ? handleCancelRequest : undefined}
+      onLayoutChange={measureFilterShell}
+    />
+  );
+
+  const shouldRenderFixedFilter = Boolean(portalRoot);
+  const catalogTopOffset = shouldRenderFixedFilter
+    ? filterHeight > 0
+      ? filterHeight + 12
+      : 84
+    : 0;
+
   return (
-    <div className="w-full pb-6">
+    <section className="w-full pb-6">
+      {shouldRenderFixedFilter &&
+        createPortal(
+          <div
+            className="pointer-events-none fixed inset-x-0 z-40"
+            style={{ top: 'var(--header-height, 4rem)' }}
+          >
+            <div
+              className="pointer-events-auto mx-auto w-full max-w-[1400px] px-6 sm:px-4 lg:px-6 -mt-px"
+            >
+              {filterSidebar}
+            </div>
+          </div>
+          ,
+          portalRoot
+        )}
       <div
-        className="fixed left-0 right-0 z-30 w-full bg-slate-50/70 backdrop-blur supports-[backdrop-filter]:bg-slate-50/50"
-        style={{ top: 'var(--header-height, 4rem)' }}
+        className="mx-auto w-full max-w-[1400px] transition-[padding-top] duration-200 ease-out motion-reduce:transition-none"
+        style={{
+          paddingTop: catalogTopOffset,
+        }}
       >
-        <div
-          ref={filterShellRef}
-          className="mx-auto w-full max-w-[1400px] overflow-y-auto px-4 pt-2 sm:px-4 lg:px-6"
-          style={{ maxHeight: 'calc(100dvh - var(--header-height, 4rem))' }}
-        >
-          <FilterSidebar
-            selectedCars={selectedCars}
-            handleCarChange={handleCarChange}
-            selectedCategories={selectedCategories}
-            handleCategoryToggle={handleCategoryToggle}
-            sortOrder={sortOrder}
-            toggleSortOrder={toggleSortOrder}
-            onResetSort={() => setSortOrder('none')}
-            selectedCarSelection={selectedCarSelection}
-            onSelectedCarSelectionChange={setSelectedCarSelection}
-            onVinSelect={setSelectedVin}
-            selectedVin={selectedVin}
-            requestMessage={pendingRequestMessage}
-            onConfirmRequest={allowRequestActions ? handleConfirmRequest : undefined}
-            onCancelRequest={allowRequestActions ? handleCancelRequest : undefined}
-            collapseOnScrollSignal={collapseOnScrollSignal}
-          />
-        </div>
-      </div>
-      <div aria-hidden style={{ height: filterShellHeight }} />
-      <div className="w-full">
-        <div className="mx-auto w-full max-w-[1400px]">
-          <Data
-            selectedCars={selectedCars}
-            selectedCategories={selectedCategories}
-            sortOrder={sortOrder}
-          />
-        </div>
+        <Data
+          selectedCars={selectedCars}
+          selectedCategories={selectedCategories}
+          sortOrder={sortOrder}
+        />
       </div>
 
       {isOrderVisible && <Order onClose={toggleOrder} />}
-    </div>
+    </section>
   );
 };
 

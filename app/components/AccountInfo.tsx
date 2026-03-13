@@ -63,20 +63,58 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
     initialTab ?? "profile"
   );
   const modalRef = useRef<HTMLDivElement>(null);
+  const userId = user?.uid ?? null;
+
+  const normalizeVins = (raw: unknown): string[] => {
+    if (!raw) return [];
+
+    if (typeof raw === "string") {
+      return raw
+        .split(/[,;\n]/)
+        .map((vin) => vin.trim())
+        .filter(Boolean);
+    }
+
+    if (Array.isArray(raw)) {
+      return raw
+        .filter((vin): vin is string => typeof vin === "string")
+        .map((vin) => vin.trim())
+        .filter(Boolean);
+    }
+
+    if (typeof raw === "object") {
+      return Object.values(raw as Record<string, unknown>)
+        .map((vin) => {
+          if (typeof vin === "string") return vin.trim();
+          if (typeof vin === "number" && Number.isFinite(vin)) return String(vin);
+          return "";
+        })
+        .filter(Boolean);
+    }
+
+    return [];
+  };
 
   useEffect(() => {
-    if (!user || !user.uid) return;
+    if (!userId) return;
 
     const fetchUserData = async () => {
       try {
-        const docRef = doc(db, "users", user.uid);
+        const docRef = doc(db, "users", userId);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
           const data = docSnap.data();
           setPhone(data.phone || "Номер телефону не вказаний");
           setName(data.name || "Ім'я не вказане");
-          setVins(data.vins || []);
+          const userVins = normalizeVins(
+            (data as Record<string, unknown>).vins ??
+              (data as Record<string, unknown>).VIN ??
+              (data as Record<string, unknown>).vin
+          );
+          setVins(
+            userVins.filter((vin, index) => userVins.indexOf(vin) === index)
+          );
         } else {
           setPhone("Номер телефону не знайдено");
           setName("Ім'я не знайдено");
@@ -91,11 +129,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
     };
 
     fetchUserData();
-  }, [user?.uid]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!user || !user.uid) return;
-    const docRef = doc(db, "users", user.uid);
+    if (!userId) return;
+    const docRef = doc(db, "users", userId);
     const unsubscribe = onSnapshot(
       docRef,
       (docSnap) => {
@@ -104,12 +142,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           return;
         }
         const data = docSnap.data();
-        const cleanedVins = Array.isArray(data.vins)
-          ? data.vins
-              .filter((vin): vin is string => typeof vin === "string")
-              .map((vin) => vin.trim())
-              .filter(Boolean)
-          : [];
+        const cleanedVins = normalizeVins(
+          (data as Record<string, unknown>).vins ??
+            (data as Record<string, unknown>).VIN ??
+            (data as Record<string, unknown>).vin
+        );
         const uniqueVins = cleanedVins.filter(
           (vin, index) => cleanedVins.indexOf(vin) === index
         );
@@ -121,7 +158,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
     );
 
     return () => unsubscribe();
-  }, [user?.uid]);
+  }, [userId]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -306,44 +343,55 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
   return (
     <div
       ref={modalRef}
-      className="fixed left-auto right-3 top-20 z-40 flex w-[92%] max-w-[420px] flex-col gap-3 rounded-2xl border border-sky-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_52%,rgba(224,242,254,0.94)_100%)] p-5 shadow-[0_24px_60px_rgba(30,64,175,0.22)] backdrop-blur-xl select-none animate-fadeIn sm:right-6 sm:w-[80%] sm:p-6"
+      className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter flex flex-col gap-3 overflow-y-auto p-4 select-none sm:p-5"
     >
-      <button
-        onClick={onClose}
-        className="absolute right-2 top-2 rounded-full border border-sky-200/80 bg-white/90 p-1 text-slate-500 transition-colors hover:bg-sky-50 hover:text-slate-700 cursor-pointer"
-        aria-label="Закрити"
-        title="Закрити"
-      >
-        <X size={28} />
-      </button>
+      <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
 
-      <div className="flex items-center gap-2 rounded-xl border border-sky-200/80 bg-white/80 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
+      <div className="soft-panel-header soft-panel-content">
+        <div className="min-w-0">
+          <span className="soft-panel-eyebrow">Профіль</span>
+          <h2 className="soft-panel-title mt-3">Особистий кабінет</h2>
+          <p className="soft-panel-subtitle">
+            Керуйте даними профілю, VIN-кодами та налаштуваннями безпеки в одному інтерфейсі.
+          </p>
+        </div>
+        <button
+          onClick={onClose}
+          className="soft-icon-button h-10 w-10 shrink-0 p-1"
+          aria-label="Закрити"
+          title="Закрити"
+        >
+          <X size={22} />
+        </button>
+      </div>
+
+      <div className="soft-panel-tabs soft-panel-content">
         <button
           onClick={() => setActiveTab("profile")}
-          className={`flex-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
+          className={`flex-1 rounded-[16px] px-3 py-2.5 text-sm font-semibold transition ${
             activeTab === "profile"
-              ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_8px_18px_rgba(59,130,246,0.3)]"
-              : "text-slate-600 hover:bg-sky-50 hover:text-slate-800"
+              ? "soft-segment soft-segment--active"
+              : "soft-segment hover:bg-white/70 hover:text-slate-700"
           }`}
         >
           Профіль
         </button>
         <button
           onClick={() => setActiveTab("vins")}
-          className={`flex-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
+          className={`flex-1 rounded-[16px] px-3 py-2.5 text-sm font-semibold transition ${
             activeTab === "vins"
-              ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_8px_18px_rgba(59,130,246,0.3)]"
-              : "text-slate-600 hover:bg-sky-50 hover:text-slate-800"
+              ? "soft-segment soft-segment--active"
+              : "soft-segment hover:bg-white/70 hover:text-slate-700"
           }`}
         >
           VIN
         </button>
         <button
           onClick={() => setActiveTab("security")}
-          className={`flex-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
+          className={`flex-1 rounded-[16px] px-3 py-2.5 text-sm font-semibold transition ${
             activeTab === "security"
-              ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_8px_18px_rgba(59,130,246,0.3)]"
-              : "text-slate-600 hover:bg-sky-50 hover:text-slate-800"
+              ? "soft-segment soft-segment--active"
+              : "soft-segment hover:bg-white/70 hover:text-slate-700"
           }`}
         >
           Безпека
@@ -352,7 +400,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:col-span-full">
         <section
-          className={`flex min-h-[72px] min-w-0 items-center justify-between gap-2 rounded-xl border border-sky-200/70 bg-white/88 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.08)] ${
+          className={`soft-surface-card flex min-h-[68px] min-w-0 items-center justify-between gap-2 rounded-[16px] p-3 ${
             activeTab !== "profile" ? "hidden" : ""
           } ${
             successField === "name"
@@ -374,7 +422,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                 type="text"
                 value={tempName || ""}
                 onChange={(e) => setTempName(e.target.value)}
-                className={`w-full rounded-md border bg-white p-1.5 placeholder-slate-400 ${
+                className={`w-full rounded-[16px] border bg-white px-3 py-2 placeholder-slate-400 ${
                   tempName?.trim() === ""
                     ? "border-red-500"
                     : tempName
@@ -400,7 +448,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             {isEditingName ? (
               <button
                 onClick={handleSaveName}
-                className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
+                className="flex items-center gap-1 rounded-[16px] border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
                 aria-label="Зберегти ім'я"
                 title="Зберегти ім'я"
               >
@@ -412,7 +460,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setTempName(name);
                   setIsEditingName(true);
                 }}
-                className="flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
+                className="flex items-center gap-1 rounded-[16px] border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
                 aria-label="Редагувати ім'я"
                 title="Редагувати ім'я"
               >
@@ -423,7 +471,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         </section>
 
         <section
-          className={`flex min-h-[72px] min-w-0 items-center justify-between gap-2 rounded-xl border border-sky-200/70 bg-white/88 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.08)] ${
+          className={`soft-surface-card flex min-h-[68px] min-w-0 items-center justify-between gap-2 rounded-[16px] p-3 ${
             activeTab !== "profile" ? "hidden" : ""
           } ${successField === "phone" ? "border-emerald-300/70 bg-emerald-50/70" : ""}`}
         >
@@ -441,7 +489,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                 type="tel"
                 value={tempPhone || ""}
                 onChange={(e) => setTempPhone(e.target.value)}
-                className={`w-full rounded-md border bg-white p-1.5 placeholder-slate-400 ${
+                className={`w-full rounded-[16px] border bg-white px-3 py-2 placeholder-slate-400 ${
                   phoneError
                     ? "border-red-500"
                     : tempPhone && tempPhone.trim() !== ""
@@ -471,7 +519,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             {isEditingPhone ? (
               <button
                 onClick={handleSavePhone}
-                className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
+                className="flex items-center gap-1 rounded-[16px] border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
                 aria-label="Зберегти телефон"
                 title="Зберегти телефон"
               >
@@ -484,7 +532,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setPhoneError(null);
                   setIsEditingPhone(true);
                 }}
-                className="flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
+                className="flex items-center gap-1 rounded-[16px] border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
                 aria-label="Редагувати телефон"
                 title="Редагувати телефон"
               >
@@ -495,7 +543,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         </section>
 
         <section
-          className={`flex min-w-0 items-center justify-between gap-2 rounded-xl border border-sky-200/70 bg-white/88 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.08)] md:col-span-2 ${
+          className={`soft-surface-card flex min-w-0 items-center justify-between gap-2 rounded-[16px] p-3 md:col-span-2 ${
             activeTab !== "profile" ? "hidden" : ""
           }`}
         >
@@ -506,7 +554,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={handleSignOut}
-              className="flex shrink-0 items-center gap-1 rounded-lg bg-gradient-to-r from-rose-500 to-red-500 px-2.5 py-1 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(239,68,68,0.28)] transition hover:brightness-110 cursor-pointer"
+              className="flex shrink-0 items-center gap-1 rounded-[16px] bg-gradient-to-r from-rose-500 to-red-500 px-3 py-1.5 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(239,68,68,0.28)] transition hover:brightness-110 cursor-pointer"
               aria-label="Вийти з акаунту"
               title="Вийти"
             >
@@ -517,7 +565,49 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         </section>
 
         <section
-          className={`rounded-xl border border-sky-200/70 bg-white/88 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.08)] md:col-span-2 ${
+          className={`soft-surface-card rounded-[16px] p-3.5 md:col-span-2 ${
+            activeTab !== "profile" ? "hidden" : ""
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700">VIN у профілі</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                {vins.length > 0
+                  ? `Збережено VIN-кодів: ${vins.length}`
+                  : "VIN-код ще не додано"}
+              </p>
+            </div>
+            <button
+              onClick={() => setActiveTab("vins")}
+              className="rounded-[16px] border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
+            >
+              Керувати
+            </button>
+          </div>
+
+          {loading ? (
+            <p className="mt-3 text-sm text-slate-400">Завантаження...</p>
+          ) : vins.length === 0 ? (
+            <div className="mt-3 rounded-[16px] border border-dashed border-sky-200 bg-sky-50/70 px-3 py-2.5 text-sm text-slate-500">
+              Додайте VIN у вкладці VIN, і він буде відображатися тут.
+            </div>
+          ) : (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {vins.map((vin, idx) => (
+                <span
+                  key={vin + idx}
+                  className="rounded-[16px] border border-sky-200/80 bg-white px-3 py-1.5 font-mono text-xs text-slate-700"
+                >
+                  {vin}
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section
+          className={`soft-surface-card rounded-[16px] p-3.5 md:col-span-2 ${
             activeTab !== "vins" ? "hidden" : ""
           }`}
         >
@@ -529,14 +619,14 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
               {vins.map((vin, idx) => (
                 <li
                   key={vin + idx}
-                  className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-sky-200/70 bg-white px-2.5 py-1.5 font-mono text-sm text-slate-700"
+                  className="flex min-w-0 items-center justify-between gap-2 rounded-[16px] border border-sky-200/70 bg-white px-3 py-2 font-mono text-sm text-slate-700"
                 >
                   <span className="truncate">{vin}</span>
                   <button
                     onClick={() => handleDeleteVin(idx)}
                     aria-label={`Видалити VIN ${vin}`}
                     title="Видалити VIN"
-                    className="rounded p-1 text-rose-500 transition hover:bg-rose-50 hover:text-rose-600 cursor-pointer"
+                    className="rounded-[16px] p-1.5 text-rose-500 transition hover:bg-rose-50 hover:text-rose-600 cursor-pointer"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -552,14 +642,14 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                 onChange={(e) => setNewVin(e.target.value.toUpperCase())}
                 maxLength={17}
                 placeholder="Введіть VIN (17 символів)"
-                className={`flex-grow rounded-md border bg-white p-1.5 font-mono placeholder-slate-400 ${
+                className={`flex-grow rounded-[16px] border bg-white px-3 py-2 font-mono placeholder-slate-400 ${
                   vinError ? "border-red-500" : "border-sky-200"
                 } text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition`}
                 autoFocus
               />
               <button
                 onClick={handleAddVin}
-                className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
+                className="rounded-[16px] border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
                 aria-label="Додати VIN"
                 title="Додати VIN"
               >
@@ -571,7 +661,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setNewVin("");
                   setVinError(null);
                 }}
-                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 cursor-pointer"
+                className="rounded-[16px] border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 cursor-pointer"
                 aria-label="Скасувати додавання VIN"
                 title="Скасувати"
               >
@@ -581,7 +671,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           ) : (
             <button
               onClick={() => setIsVinFieldVisible(true)}
-              className="mt-3 inline-flex rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-sm font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
+              className="mt-3 inline-flex rounded-[16px] border border-sky-200 bg-sky-50 px-3 py-1.5 text-sm font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
               aria-label="Додати VIN"
               title="Додати VIN"
             >
@@ -592,7 +682,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         </section>
 
         <section
-          className={`flex min-w-0 items-center justify-between gap-2 rounded-xl border border-sky-200/70 bg-white/88 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.08)] md:col-span-2 ${
+          className={`soft-surface-card flex min-w-0 items-center justify-between gap-2 rounded-[16px] p-3 md:col-span-2 ${
             activeTab !== "security" ? "hidden" : ""
           }`}
         >
@@ -604,14 +694,14 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Новий пароль"
-                className={`w-full rounded-md border bg-white p-1.5 placeholder-slate-400 ${
+                className={`w-full rounded-[16px] border bg-white px-3 py-2 placeholder-slate-400 ${
                   passwordError ? "border-red-500" : "border-sky-200"
                 } text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition`}
                 autoFocus
               />
               <button
                 onClick={handleChangePassword}
-                className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
+                className="rounded-[16px] border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
                 aria-label="Змінити пароль"
                 title="Змінити пароль"
               >
@@ -623,7 +713,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setNewPassword("");
                   setPasswordError(null);
                 }}
-                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 cursor-pointer"
+                className="rounded-[16px] border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 cursor-pointer"
                 aria-label="Скасувати зміну паролю"
                 title="Скасувати"
               >
@@ -633,7 +723,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           ) : (
             <button
               onClick={() => setShowPasswordField(true)}
-              className="rounded-lg border border-sky-200 bg-sky-50 p-2 text-sky-700 transition hover:bg-sky-100 cursor-pointer"
+              className="rounded-[16px] border border-sky-200 bg-sky-50 p-2 text-sky-700 transition hover:bg-sky-100 cursor-pointer"
               aria-label="Змінити пароль"
               title="Змінити пароль"
             >

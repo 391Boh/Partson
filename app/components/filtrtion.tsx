@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
@@ -11,6 +12,7 @@ import {
   Filter,
   Hash,
   Layers,
+  LogIn,
   MessageCircle,
   Package,
   Search,
@@ -34,7 +36,7 @@ interface FilterSidebarProps {
   requestMessage?: string | null;
   onConfirmRequest?: () => void;
   onCancelRequest?: () => void;
-  collapseOnScrollSignal?: number;
+  onLayoutChange?: (height?: number) => void;
 }
 
 interface AutoProps {
@@ -104,11 +106,18 @@ const FilterAutoPanel: FC<FilterAutoPanelProps> = ({
 
   const hasSelection = tableCars.length > 0 || Boolean(selectedVin);
   const [isPickerOpen, setIsPickerOpen] = useState(() => !hasSelection);
+  const previousHasSelectionRef = useRef(hasSelection);
 
   useEffect(() => {
-    if (!hasSelection) {
+    const hadSelection = previousHasSelectionRef.current;
+    previousHasSelectionRef.current = hasSelection;
+    if (hasSelection || !hadSelection || typeof window === 'undefined') return;
+
+    const frameId = window.requestAnimationFrame(() => {
       setIsPickerOpen(true);
-    }
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
   }, [hasSelection]);
 
   const toggleLabel = isPickerOpen
@@ -234,8 +243,12 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   requestMessage,
   onConfirmRequest,
   onCancelRequest,
-  collapseOnScrollSignal,
+  onLayoutChange,
 }) => {
+  const rootRef = useRef<HTMLElement | null>(null);
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const panelContentRef = useRef<HTMLDivElement | null>(null);
+  const requestBannerRef = useRef<HTMLDivElement | null>(null);
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
   const router = useRouter();
@@ -243,46 +256,21 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const [activeComponent, setActiveComponent] = useState<'auto' | 'category' | 'producer'>('auto');
   const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>(selectedCars);
   const [localSortOrder, setLocalSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
-  const [collapsed, setCollapsed] = useState(true);
-  const [hasExpandedOnce, setHasExpandedOnce] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
   const [categoryResetSignal, setCategoryResetSignal] = useState(0);
   const [producerSearchTerm, setProducerSearchTerm] = useState('');
-  const lastCategoryKeyRef = useRef<string | null>(null);
-  const lastCollapseSignalRef = useRef<number>(collapseOnScrollSignal ?? 0);
-  const ignoreCollapseUntilRef = useRef<number>(0);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  const markManualExpand = useCallback(() => {
-    ignoreCollapseUntilRef.current = Date.now() + 500;
-  }, []);
-
-  const openPanel = useCallback(
-    (tab?: 'auto' | 'category' | 'producer') => {
-      if (tab) setActiveComponent(tab);
-      markManualExpand();
-      setCollapsed(false);
-    },
-    [markManualExpand]
-  );
 
   useEffect(() => {
     if (tabParam === 'category' || tabParam === 'auto' || tabParam === 'producer') {
-      openPanel(tabParam);
+      setActiveComponent(tabParam);
+      setCollapsed(false);
     }
-  }, [openPanel, tabParam]);
+  }, [tabParam]);
 
   useEffect(() => {
     setInternalSelectedCars(selectedCars);
   }, [selectedCars]);
-
-  useEffect(() => {
-    if (collapseOnScrollSignal == null) return;
-    if (collapseOnScrollSignal === lastCollapseSignalRef.current) return;
-    lastCollapseSignalRef.current = collapseOnScrollSignal;
-    if (Date.now() < ignoreCollapseUntilRef.current) return;
-    setCollapsed(true);
-  }, [collapseOnScrollSignal]);
 
   const handleInternalCarChange = useCallback(
     (car: string) => {
@@ -308,7 +296,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const groupParam = searchParams.get('group');
   const subcategoryParam = searchParams.get('subcategory');
   const producerParam = (searchParams.get('producer') || '').trim();
-  const categoryKey = `${groupParam || ''}|${subcategoryParam || ''}`;
   const categoryLabel =
     subcategoryParam ||
     groupParam ||
@@ -324,7 +311,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     hasCategorySelection || Boolean(searchQuery) || Boolean(producerParam);
   // Заявка доступна лише коли є і авто, і вибрана категорія/підкатегорія (а не просто пошук)
   const hasStrictPartSelection = hasCategorySelection;
-  const isSearchOnly = Boolean(searchQuery) && !hasCategorySelection;
   const isCategorySelected = hasCategorySelection;
   const isProducerSelected = Boolean(producerParam);
   const isAutoSelected = carCount > 0 || Boolean(selectedVin) || Boolean(selectedCarSelection?.label);
@@ -361,76 +347,80 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     if (selectedCars.length > 0) return selectedCars.join(', ');
     return '';
   }, [selectedCarSelection, selectedCars, selectedVin]);
-  const showRequestBanner = Boolean(requestMessage) && collapsed && isAutoSelected && hasStrictPartSelection;
+  const showRequestBanner =
+    Boolean(requestMessage) && isAutoSelected && hasStrictPartSelection;
+  const canSubmitRequest = Boolean(onConfirmRequest);
+
+  const emitLayoutHeight = useCallback(() => {
+    if (!onLayoutChange) return;
+
+    const headerHeight = Math.ceil(headerRef.current?.getBoundingClientRect().height ?? 0);
+    const panelHeight = collapsed
+      ? 0
+      : Math.ceil(panelContentRef.current?.scrollHeight ?? 0);
+    const requestHeight = Math.ceil(
+      requestBannerRef.current?.getBoundingClientRect().height ?? 0
+    );
+
+    onLayoutChange(headerHeight + panelHeight + requestHeight);
+  }, [collapsed, onLayoutChange]);
+
+  useEffect(() => {
+    if (!onLayoutChange || typeof window === 'undefined') return;
+
+    const timers = [
+      window.setTimeout(emitLayoutHeight, 0),
+      window.setTimeout(emitLayoutHeight, 120),
+      window.setTimeout(emitLayoutHeight, 240),
+    ];
+    const rafOne = window.requestAnimationFrame(emitLayoutHeight);
+    const rafTwo = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(emitLayoutHeight);
+    });
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.cancelAnimationFrame(rafOne);
+      window.cancelAnimationFrame(rafTwo);
+    };
+  }, [
+    activeComponent,
+    carLabel,
+    collapsed,
+    emitLayoutHeight,
+    onLayoutChange,
+    partLabel,
+    requestMessage,
+    selectedVin,
+    showRequestBanner,
+  ]);
+
+  useEffect(() => {
+    if (!onLayoutChange || typeof window === 'undefined') return;
+    const node = rootRef.current;
+    if (!node) return;
+
+    emitLayoutHeight();
+
+    const resizeObserver = new ResizeObserver(() => {
+      emitLayoutHeight();
+    });
+
+    resizeObserver.observe(node);
+    window.addEventListener('resize', emitLayoutHeight);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', emitLayoutHeight);
+    };
+  }, [emitLayoutHeight, onLayoutChange]);
 
   const handleAutoPicked = useCallback(() => {
-    if (hasPartSelection) {
-      setCollapsed(true);
-      return;
+    if (!hasPartSelection) {
+      setActiveComponent('category');
+      setCollapsed(false);
     }
-    setActiveComponent('category');
   }, [hasPartSelection]);
-
-  const selectionState = isAutoSelected
-    ? hasPartSelection
-      ? 'both'
-      : 'auto'
-    : isSearchOnly
-      ? 'search'
-      : hasPartSelection
-        ? 'part'
-        : 'none';
-  const lastSelectionStateRef = useRef(selectionState);
-
-  useEffect(() => {
-    const previous = lastSelectionStateRef.current;
-    if (previous === selectionState) return;
-    lastSelectionStateRef.current = selectionState;
-
-    if (selectionState === 'none' || selectionState === 'search') {
-      setCollapsed(true);
-      return;
-    }
-
-    if (selectionState === 'both') {
-      setCollapsed(true);
-    }
-  }, [selectionState]);
-
-  useEffect(() => {
-    if (collapsed) return;
-    if (typeof document === 'undefined') return;
-
-    const handleOutsideClick = (event: { target: EventTarget | null }) => {
-      const target = event.target as Node | null;
-      const container = containerRef.current;
-      if (!target || !container) return;
-      if (container.contains(target)) return;
-      setCollapsed(true);
-    };
-
-    const onClick = (event: MouseEvent) => handleOutsideClick(event);
-    document.addEventListener('click', onClick, true);
-    return () => document.removeEventListener('click', onClick, true);
-  }, [collapsed]);
-
-  useEffect(() => {
-    if (!collapsed) setHasExpandedOnce(true);
-  }, [collapsed]);
-
-  useEffect(() => {
-    if (!groupParam && !subcategoryParam) {
-      lastCategoryKeyRef.current = null;
-      return;
-    }
-
-    if (lastCategoryKeyRef.current === categoryKey) return;
-    lastCategoryKeyRef.current = categoryKey;
-
-    if (isAutoSelected) {
-      setCollapsed(true);
-    }
-  }, [categoryKey, groupParam, subcategoryParam, isAutoSelected]);
 
   const handleClearFilters = useCallback((options?: { clearCars?: boolean }) => {
     const shouldClearCars = options?.clearCars ?? true;
@@ -467,8 +457,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     if (nextQuery !== searchParams.toString()) {
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
     }
-
-    setCollapsed(true);
   }, [
     handleCarChange,
     handleCategoryToggle,
@@ -486,21 +474,31 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const handleOpenCategoryTab = useCallback(() => {
     setCategoryResetSignal((prev) => prev + 1);
     setCategorySearchTerm('');
-    openPanel('category');
-  }, [openPanel]);
+    setActiveComponent('category');
+    setCollapsed(false);
+  }, []);
 
   const handleOpenProducerTab = useCallback(() => {
-    openPanel('producer');
-  }, [openPanel]);
+    setActiveComponent('producer');
+    setCollapsed(false);
+  }, []);
 
   const handleOpenAutoTab = useCallback(() => {
-    openPanel('auto');
-  }, [openPanel]);
+    setActiveComponent('auto');
+    setCollapsed(false);
+  }, []);
 
-  const handleHeaderClick = useCallback(() => {
-    if (!collapsed) return;
-    openPanel();
-  }, [collapsed, openPanel]);
+  const handleGoToLogin = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(
+      new CustomEvent('openAuthModal', {
+        detail: {
+          initialMode: 'login',
+          initialAccountTab: 'profile',
+        },
+      })
+    );
+  }, []);
 
   const autoButtonClass = isAutoSelected
     ? 'flex items-center gap-1 rounded-lg px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] transition-all duration-200 border border-blue-300 bg-blue-100 text-blue-700 ring-1 ring-blue-200 hover:bg-blue-200/70 hover:shadow-sm active:scale-95 cursor-pointer touch-manipulation'
@@ -535,26 +533,122 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     : isSortAsc
       ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-sky-500 text-[10px] font-extrabold text-white shadow-sm shadow-blue-300/40 ring-1 ring-blue-200/80 transition-all duration-200 ease-out'
       : 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-teal-500 text-[10px] font-extrabold text-white shadow-sm shadow-emerald-300/40 ring-1 ring-emerald-200/80 transition-all duration-200 ease-out';
+  const overlayPanelHeight = 'min(72vh, calc(100dvh - var(--header-height, 4rem) - 6rem))';
+
+  const renderActivePanel = () => {
+    switch (activeComponent) {
+      case 'auto':
+        return (
+          <Auto
+            selectedCars={internalSelectedCars}
+            handleCarChange={handleInternalCarChange}
+            initialSelection={selectedVin ? null : selectedCarSelection}
+            onSelectionChange={onSelectedCarSelectionChange}
+            onVinSelect={onVinSelect}
+            selectedVin={selectedVin ?? null}
+            onAutoPicked={handleAutoPicked}
+          />
+        );
+      case 'category':
+        return (
+          <Category
+            selectedCategories={selectedCategories}
+            handleCategoryChange={handleCategoryToggle}
+            searchTerm={categorySearchTerm}
+            onSearchTermChange={setCategorySearchTerm}
+            resetViewSignal={categoryResetSignal}
+          />
+        );
+      case 'producer':
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Search size={14} className="text-slate-400" />
+              <input
+                type="text"
+                value={producerSearchTerm}
+                onChange={(e) => setProducerSearchTerm(e.target.value)}
+                placeholder="Пошук виробника..."
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 shadow-sm outline-none transition focus:border-purple-300 focus:ring-2 focus:ring-purple-200"
+              />
+            </div>
+            <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-slate-200 bg-white px-3 py-2">
+              <div className="flex min-w-max gap-3">
+                {brands
+                  .filter((b) =>
+                    b.name.toLowerCase().includes(producerSearchTerm.toLowerCase())
+                  )
+                  .map((b) => (
+                    <button
+                      key={b.name}
+                      type="button"
+                      onClick={() => {
+                        const nextParams = new URLSearchParams(searchParams.toString());
+                        nextParams.set('producer', b.name);
+                        nextParams.set('tab', 'producer');
+                        router.replace(
+                          nextParams.toString()
+                            ? `${pathname}?${nextParams.toString()}`
+                            : pathname
+                        );
+                      }}
+                      className={`flex h-16 w-24 items-center justify-center rounded-lg border transition ${
+                        producerParam === b.name
+                          ? 'border-purple-300 bg-purple-50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-purple-200 hover:bg-purple-50/60'
+                      }`}
+                    >
+                      {b.logo ? (
+                        <Image
+                          src={b.logo}
+                          alt={b.name}
+                          width={96}
+                          height={48}
+                          className="max-h-12 max-w-full object-contain"
+                          loading="lazy"
+                          unoptimized
+                          onError={(event) => {
+                            const image = event.currentTarget;
+                            if (image.dataset.fallbackApplied === '1') return;
+                            image.dataset.fallbackApplied = '1';
+                            image.src = '/favicon-48x48.png';
+                          }}
+                        />
+                      ) : (
+                        <span className="truncate text-[11px] font-semibold text-slate-600">
+                          {b.name}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full px-2 sm:px-0 text-slate-800 select-none"
+    <section
+      ref={rootRef}
+      className="w-full select-none overflow-hidden rounded-t-none rounded-b-[18px] border-x border-b border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.975)_0%,rgba(248,250,252,0.95)_100%)] text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.06)] ring-1 ring-sky-200/85 backdrop-blur-xl"
     >
       <div
-        onClick={handleHeaderClick}
-        className={`flex items-center justify-between gap-1.5 sm:gap-3 bg-transparent transition-[padding] duration-200 ${
-          collapsed ? 'px-2.5 py-2' : 'px-2.5 py-2.5 sm:px-4 sm:py-3 border-b border-slate-100'
-        } ${collapsed ? 'cursor-pointer' : ''}`}
+        ref={headerRef}
+        className={`flex items-center justify-between gap-1.5 bg-transparent px-2.5 py-2.5 sm:gap-3 sm:px-4 sm:py-3 ${
+          collapsed ? '' : 'border-b border-slate-100/90'
+        }`}
       >
-        <div className="flex items-center gap-2 text-[11px] sm:text-xs font-semibold tracking-wide text-slate-700 shrink-0">
-          <Filter size={16} className="text-slate-600" />
-          <span className="hidden sm:inline">Фільтрація</span>
-        </div>
-          <div className="flex items-center justify-center gap-1 sm:gap-1.5 flex-1 min-w-0">
+          <div className="flex shrink-0 items-center gap-2 text-[11px] font-semibold tracking-wide text-slate-700 sm:text-xs">
+            <Filter size={16} className="text-slate-600" />
+            <span className="hidden sm:inline">Фільтрація</span>
+          </div>
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">
             {showSearchInfo && (
               <div
-                className="hidden sm:flex items-center gap-1 text-[11px] text-slate-500"
+                className="hidden items-center gap-1 text-[11px] text-slate-500 sm:flex"
                 title={searchLabel}
               >
                 <Search size={12} className="text-slate-400" />
@@ -576,7 +670,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               </span>
               <span className="hidden sm:inline">Авто</span>
               {carCount > 0 && (
-                <span className="ml-1 inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] sm:px-2 sm:text-[10px] font-semibold text-blue-700">
+                <span className="ml-1 inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 sm:px-2 sm:text-[10px]">
                   {carCount}
                 </span>
               )}
@@ -594,7 +688,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               {hasCategoryLabel ? (
                 <>
                   <span className="hidden sm:inline">Категорія:</span>
-                  <span className="hidden sm:inline max-w-[220px] truncate font-medium text-slate-700">
+                  <span className="hidden max-w-[220px] truncate font-medium text-slate-700 sm:inline">
                     {categoryLabel}
                   </span>
                 </>
@@ -602,7 +696,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 <span className="hidden sm:inline">Категорія</span>
               )}
               {categoryCount > 0 && (
-                <span className="ml-1 inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] sm:px-2 sm:text-[10px] font-semibold text-emerald-700">
+                <span className="ml-1 inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 sm:px-2 sm:text-[10px]">
                   {categoryCount}
                 </span>
               )}
@@ -623,7 +717,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               </span>
               <span className="hidden sm:inline">Виробник</span>
               {producerParam && (
-                <span className="ml-1 inline-flex items-center rounded-full bg-purple-50 px-1.5 py-0.5 text-[9px] sm:px-2 sm:text-[10px] font-semibold text-purple-700">
+                <span className="ml-1 inline-flex items-center rounded-full bg-purple-50 px-1.5 py-0.5 text-[9px] font-semibold text-purple-700 sm:px-2 sm:text-[10px]">
                   1
                 </span>
               )}
@@ -637,7 +731,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               className={sortButtonClass}
               aria-label="Сортування за ціною"
             >
-              <span className="sm:hidden flex items-center gap-1 whitespace-nowrap">
+              <span className="flex items-center gap-1 whitespace-nowrap sm:hidden">
                 <span
                   className={priceIconWrapClass}
                   aria-hidden="true"
@@ -650,7 +744,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                   </span>
                 )}
               </span>
-              <span className="hidden sm:flex items-center gap-1 whitespace-nowrap">
+              <span className="hidden items-center gap-1 whitespace-nowrap sm:flex">
                 <span
                   className={priceIconWrapClass}
                   aria-hidden="true"
@@ -663,7 +757,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               </span>
             </button>
           </div>
-          <div className="flex items-center justify-end gap-2 shrink-0">
+          <div className="flex shrink-0 items-center justify-end gap-2">
             {hasActiveFilters && (
               <button
                 type="button"
@@ -671,7 +765,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                   event.stopPropagation();
                   handleClearFilters();
                 }}
-                className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-100 hover:shadow active:scale-95 cursor-pointer touch-manipulation"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-100 hover:shadow active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8"
                 aria-label="Очистити фільтри"
               >
                 <X size={14} className="pointer-events-none sm:size-4" />
@@ -679,17 +773,10 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             )}
             <button
               type="button"
-              onClick={() =>
-                setCollapsed((prev) => {
-                  const next = !prev;
-                  if (!next) {
-                    ignoreCollapseUntilRef.current = Date.now() + 500;
-                  }
-                  return next;
-                })
-              }
-              className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full border border-slate-200 bg-white shadow-sm hover:bg-slate-100 hover:shadow active:scale-95 transition cursor-pointer pointer-events-auto touch-manipulation"
-              aria-label={collapsed ? 'Розгорнути' : 'Згорнути'}
+              onClick={() => setCollapsed((prev) => !prev)}
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-100 hover:shadow active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8"
+              aria-label={collapsed ? 'Розгорнути фільтрацію' : 'Згорнути фільтрацію'}
+              aria-expanded={!collapsed}
             >
               {collapsed ? (
                 <ChevronDown size={14} className="pointer-events-none sm:size-4" />
@@ -700,184 +787,111 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
           </div>
       </div>
 
-      {showRequestBanner && (
-        <div className="mx-1.5 mb-1 rounded-xl border border-sky-200/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.95)_52%,rgba(224,242,254,0.92)_100%)] px-2.5 py-2 sm:mx-2 sm:px-4 sm:py-3 shadow-[0_12px_26px_rgba(56,189,248,0.14)] ring-1 ring-white/70">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] sm:text-xs font-semibold text-slate-700">
-            <span className="inline-flex items-center gap-2 text-sky-700">
-              <CheckCircle size={13} className="text-sky-500 sm:size-4" />
-              <span>Заявка готова</span>
-            </span>
-
-            {selectedVin ? (
-              <span className="inline-flex min-w-0 items-center gap-2 rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1">
-                <Hash size={13} className="shrink-0 text-slate-400 sm:size-4" />
-                <span className="truncate">VIN {selectedVin}</span>
-              </span>
-            ) : (
-              carLabel && (
-                <span className="inline-flex min-w-0 items-center gap-2 rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1">
-                  <Car size={13} className="shrink-0 text-slate-400 sm:size-4" />
-                  <span className="truncate">{carLabel}</span>
-                </span>
-              )
-            )}
-
-            {partLabel && (
-              <span className="inline-flex min-w-0 items-center gap-2 rounded-lg border border-sky-100 bg-sky-50/70 px-2 py-1">
-                <Package size={13} className="shrink-0 text-slate-400 sm:size-4" />
-                <span className="truncate">{partLabel}</span>
-              </span>
-            )}
-          </div>
-          {onConfirmRequest && (
-            <div className="mt-1.5 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onConfirmRequest}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-500 px-2.5 py-0.5 text-[10px] sm:px-3 sm:py-1 sm:text-[11px] font-semibold text-white shadow-sm shadow-sky-200/70 transition hover:bg-sky-600 active:scale-[0.98]"
-              >
-                <MessageCircle size={11} className="sm:size-3" />
-                <span className="hidden sm:inline">Надіслати заявку</span>
-                <span className="sm:hidden">Заявка</span>
-              </button>
-              <button
-                type="button"
-                onClick={onCancelRequest}
-                className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] sm:px-3 sm:py-1 sm:text-[11px] font-semibold text-slate-600 shadow-sm transition hover:bg-slate-100 active:scale-[0.98]"
-              >
-                <X size={11} className="sm:size-3" />
-                <span className="hidden sm:inline">Скасувати</span>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       <div
-        className={`overflow-hidden origin-top transition-[max-height,opacity,transform] duration-[240ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] motion-reduce:transition-none ${
-          collapsed
-            ? 'max-h-0 opacity-0 -translate-y-2 scale-[0.98] pointer-events-none'
-            : 'max-h-[9999px] opacity-100 translate-y-0 scale-100'
+        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
+          collapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'
         }`}
-        style={{ willChange: collapsed ? "auto" : "opacity, transform" }}
+        onTransitionEnd={emitLayoutHeight}
       >
-        <div className="p-2 pt-2 sm:p-3 flex flex-col gap-2">
-          <div className="flex-1 overflow-visible rounded-lg border border-slate-200 bg-slate-50 p-2 sm:p-3">
+        <div className="min-h-0 overflow-hidden">
+          <div ref={panelContentRef} className="p-2 sm:p-3">
             <div
-              className={`transition-[max-height,opacity,transform] duration-[180ms] ease-out motion-reduce:transition-none origin-top overflow-hidden ${
-                collapsed || activeComponent !== 'auto'
-                  ? 'max-h-0 opacity-0 -translate-y-1 scale-[0.99] pointer-events-none'
-                  : 'max-h-[2000px] opacity-100 translate-y-0 scale-100'
-              }`}
+              className="overflow-y-auto rounded-t-none rounded-b-[14px] border border-slate-200/90 bg-slate-50/95 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] sm:p-3"
+              style={{ maxHeight: overlayPanelHeight }}
             >
-              {hasExpandedOnce && (
-                <Auto
-                  selectedCars={internalSelectedCars}
-                  handleCarChange={handleInternalCarChange}
-                  initialSelection={selectedVin ? null : selectedCarSelection}
-                  onSelectionChange={onSelectedCarSelectionChange}
-                  onVinSelect={onVinSelect}
-                  selectedVin={selectedVin ?? null}
-                  onAutoPicked={handleAutoPicked}
-                />
-              )}
-            </div>
-
-            <div
-              className={`transition-[max-height,opacity,transform] duration-[180ms] ease-out motion-reduce:transition-none origin-top overflow-hidden ${
-                collapsed || activeComponent !== 'category'
-                  ? 'max-h-0 opacity-0 -translate-y-1 scale-[0.99] pointer-events-none'
-                  : 'max-h-[2000px] opacity-100 translate-y-0 scale-100'
-              }`}
-            >
-              {hasExpandedOnce && (
-                <Category
-                  selectedCategories={selectedCategories}
-                  handleCategoryChange={handleCategoryToggle}
-                  searchTerm={categorySearchTerm}
-                  onSearchTermChange={setCategorySearchTerm}
-                  resetViewSignal={categoryResetSignal}
-                />
-              )}
-            </div>
-
-            <div
-              className={`transition-[max-height,opacity,transform] duration-[180ms] ease-out motion-reduce:transition-none origin-top overflow-hidden ${
-                collapsed || activeComponent !== 'producer'
-                  ? 'max-h-0 opacity-0 -translate-y-1 scale-[0.99] pointer-events-none'
-                  : 'max-h-[2000px] opacity-100 translate-y-0 scale-100'
-              }`}
-            >
-              {hasExpandedOnce && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Search size={14} className="text-slate-400" />
-                    <input
-                      type="text"
-                      value={producerSearchTerm}
-                      onChange={(e) => setProducerSearchTerm(e.target.value)}
-                      placeholder="Пошук виробника..."
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 shadow-sm outline-none transition focus:border-purple-300 focus:ring-2 focus:ring-purple-200"
-                    />
-                  </div>
-                  <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-slate-200 bg-white px-3 py-2">
-                    <div className="flex gap-3 min-w-max">
-                      {brands
-                        .filter((b) =>
-                          b.name.toLowerCase().includes(producerSearchTerm.toLowerCase())
-                        )
-                        .map((b) => (
-                          <button
-                            key={b.name}
-                            type="button"
-                            onClick={() => {
-                              const nextParams = new URLSearchParams(searchParams.toString());
-                              nextParams.set('producer', b.name);
-                              nextParams.set('tab', 'producer');
-                              router.replace(
-                                nextParams.toString()
-                                  ? `${pathname}?${nextParams.toString()}`
-                                  : pathname
-                              );
-                              setCollapsed(true);
-                            }}
-                            className={`flex h-16 w-24 items-center justify-center rounded-lg border transition ${
-                              producerParam === b.name
-                                ? 'border-purple-300 bg-purple-50 shadow-sm'
-                                : 'border-slate-200 bg-white hover:border-purple-200 hover:bg-purple-50/60'
-                            }`}
-                          >
-                            {b.logo ? (
-                              <img
-                                src={b.logo}
-                                alt={b.name}
-                                className="max-h-12 max-w-full object-contain"
-                                loading="lazy"
-                                onError={(event) => {
-                                  const image = event.currentTarget;
-                                  if (image.dataset.fallbackApplied === '1') return;
-                                  image.dataset.fallbackApplied = '1';
-                                  image.src = '/favicon-48x48.png';
-                                }}
-                              />
-                            ) : (
-                              <span className="text-[11px] font-semibold text-slate-600 truncate">
-                                {b.name}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                    </div>
-                  </div>
-                </div>
-              )}
+              {renderActivePanel()}
             </div>
           </div>
-
-          <div className="mt-1 sm:mt-2" />
         </div>
       </div>
-    </div>
+
+      {showRequestBanner && (
+        <div
+          ref={requestBannerRef}
+          className="mx-2 mb-2 mt-1 overflow-hidden rounded-[16px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(14,165,233,0.10)_0%,rgba(255,255,255,0.98)_22%,rgba(240,249,255,0.97)_60%,rgba(224,242,254,0.94)_100%)] shadow-[0_10px_24px_rgba(14,165,233,0.10)] ring-1 ring-white/80 sm:mx-3 sm:mb-3"
+        >
+          <div className="grid gap-3 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4 sm:py-3.5">
+            <div className="min-w-0 space-y-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200/80 bg-white/92 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-sky-800 shadow-sm sm:text-[11px]">
+                  <CheckCircle size={13} className="text-sky-600 sm:size-4" />
+                  Заявка готова
+                </span>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-semibold sm:text-[11px] ${
+                    canSubmitRequest
+                      ? 'bg-sky-100/80 text-sky-700'
+                      : 'bg-amber-100/90 text-amber-800'
+                  }`}
+                >
+                  {canSubmitRequest
+                    ? 'До відправки менеджеру'
+                    : 'Вам потрібно авторизуватись щоб відправити заявку'}
+                </span>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="min-w-0 rounded-[14px] border border-white/80 bg-white/78 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                    {selectedVin ? (
+                      <Hash size={11} className="text-slate-400" />
+                    ) : (
+                      <Car size={11} className="text-slate-400" />
+                    )}
+                    Авто
+                  </div>
+                  <div className="truncate text-[11px] font-semibold text-slate-800 sm:text-[12px]">
+                    {selectedVin ? `VIN ${selectedVin}` : carLabel}
+                  </div>
+                </div>
+
+                <div className="min-w-0 rounded-[14px] border border-sky-200/80 bg-sky-50/80 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-sky-700">
+                    <Package size={11} className="text-sky-600" />
+                    Деталь
+                  </div>
+                  <div className="truncate text-[11px] font-semibold text-slate-800 sm:text-[12px]">
+                    {partLabel}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {canSubmitRequest ? (
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <button
+                  type="button"
+                  onClick={onConfirmRequest}
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#0ea5e9_0%,#0284c7_100%)] px-3.5 py-1.5 text-[11px] font-bold text-white shadow-[0_10px_22px_rgba(14,165,233,0.18)] transition hover:brightness-105 active:scale-[0.98]"
+                >
+                  <MessageCircle size={13} />
+                  <span>Надіслати</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onCancelRequest}
+                  className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white/92 px-3.5 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm transition hover:bg-slate-100 active:scale-[0.98]"
+                >
+                  <X size={12} />
+                  <span>Скасувати</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <button
+                  type="button"
+                  onClick={handleGoToLogin}
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-amber-200 bg-white/92 px-3.5 py-1.5 text-[11px] font-semibold text-amber-800 shadow-sm transition hover:bg-amber-50 active:scale-[0.98]"
+                >
+                  <LogIn size={13} />
+                  <span>Увійти</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 };
 

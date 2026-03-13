@@ -87,58 +87,9 @@ type AutoBrandSearchInputProps = {
 
 const AutoBrandSearchInput = React.memo(
   ({ onChange, className }: AutoBrandSearchInputProps) => {
-    const [animatedPlaceholder, setAnimatedPlaceholder] = useState("");
-    const [isVisible, setIsVisible] = useState(true);
     const [value, setValue] = useState("");
-    const [demoWordIndex, setDemoWordIndex] = useState(0);
-    const [typingPaused, setTypingPaused] = useState(false);
-    const rootRef = useRef<HTMLLabelElement | null>(null);
-
-    useEffect(() => {
-      const node = rootRef.current;
-      if (!node || typeof IntersectionObserver === "undefined") return;
-      const observer = new IntersectionObserver(
-        (entries) => {
-          const entry = entries[0];
-          setIsVisible(entry?.isIntersecting ?? true);
-        },
-        { threshold: 0.1 }
-      );
-      observer.observe(node);
-      return () => observer.disconnect();
-    }, []);
-
-    useEffect(() => {
-      if (!isVisible || typingPaused || value) return;
-      const words = ["Ford", "Audi", "BMW", "Chery"];
-      let active = true;
-      let timeoutId: number;
-      let charIndex = 0;
-      const currentWord = words[demoWordIndex];
-
-      const typeNext = () => {
-        if (!active) return;
-        if (charIndex <= currentWord.length) {
-          setAnimatedPlaceholder(currentWord.slice(0, charIndex).toUpperCase());
-          charIndex += 1;
-          timeoutId = window.setTimeout(typeNext, 90);
-        } else {
-          timeoutId = window.setTimeout(() => {
-            if (!active) return;
-            setDemoWordIndex((prev) => (prev + 1) % words.length);
-          }, 1100);
-        }
-      };
-
-      typeNext();
-      return () => {
-        active = false;
-        window.clearTimeout(timeoutId);
-      };
-    }, [demoWordIndex, isVisible, typingPaused, value]);
-
     return (
-      <label ref={rootRef} className={`relative block ${className ?? ""}`}>
+      <label className={`relative block ${className ?? ""}`}>
         <svg
           className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-400"
           viewBox="0 0 24 24"
@@ -153,15 +104,6 @@ const AutoBrandSearchInput = React.memo(
           <path d="m21 21-5-5" />
         </svg>
 
-        {!value && !typingPaused && (
-          <div className="pointer-events-none absolute left-9 top-1/2 -translate-y-1/2 text-xs sm:text-sm text-blue-400 flex items-center gap-1">
-            <span className="max-w-[220px] truncate uppercase tracking-[0.2em]">
-              {animatedPlaceholder || "АВТО"}
-            </span>
-            <span className="h-4 w-[2px] bg-blue-400 animate-pulse" />
-          </div>
-        )}
-
         <input
           type="text"
           value={value}
@@ -170,17 +112,10 @@ const AutoBrandSearchInput = React.memo(
             setValue(next);
             onChange(next);
           }}
-          onFocus={() => {
-            setTypingPaused(true);
-            setAnimatedPlaceholder("");
-            setValue("");
-            onChange("");
-          }}
-          onBlur={() => setTypingPaused(false)}
-          placeholder=" "
+          placeholder="Марка авто"
           autoComplete="off"
           spellCheck={false}
-          className="w-full rounded-xl border border-blue-200 bg-white/90 px-9 py-2 text-xs sm:text-sm font-semibold text-gray-700 placeholder:text-transparent shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition select-text"
+          className="w-full rounded-xl border border-blue-200 bg-white/90 px-9 py-2 text-xs sm:text-sm font-semibold text-gray-700 placeholder:text-blue-300/95 shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition select-text"
           aria-label="\u041f\u043e\u0448\u0443\u043a \u043c\u0430\u0440\u043a\u0438"
         />
 
@@ -249,7 +184,6 @@ const AutoSection: React.FC<AutoProps> = ({
 
   const touchStartX = useRef<number | null>(null);
   const touchDeltaX = useRef(0);
-  const lastWheelTime = useRef(0);
   const isSwiping = useRef(false);
   const selectionHydratedRef = useRef<string | null>(null);
   const lastSelectedLabelRef = useRef<string | null>(null);
@@ -461,24 +395,6 @@ const AutoSection: React.FC<AutoProps> = ({
     }
     touchStartX.current = null;
     touchDeltaX.current = 0;
-  };
-
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    const absX = Math.abs(event.deltaX);
-    const absY = Math.abs(event.deltaY);
-    const isHorizontalIntent = absX >= 60 && absX > absY * 1.8;
-    if (!isHorizontalIntent) return;
-    const canPaginate = event.deltaX > 0 ? canGoNext : canGoPrev;
-    if (!canPaginate) return;
-    event.preventDefault();
-    const now = Date.now();
-    if (now - lastWheelTime.current < 400) return;
-    lastWheelTime.current = now;
-    if (event.deltaX > 0) {
-      handleNextPage();
-    } else {
-      handlePrevPage();
-    }
   };
 
   const canChooseModel = Boolean(selectedBrand);
@@ -729,13 +645,13 @@ const AutoSection: React.FC<AutoProps> = ({
         {!shouldReduceMotion && (
           <div
             aria-hidden
-            className="pointer-events-none absolute -left-[8%] -top-[12%] hidden h-[300px] w-[300px] rounded-full bg-[radial-gradient(circle,rgba(30,64,175,0.3)_0%,rgba(30,64,175,0)_70%)] blur-[60px] opacity-55 transition-transform duration-500 ease-out group-hover/auto:-translate-y-1 group-hover/auto:translate-x-1 group-hover/auto:scale-105 md:block"
+            className="pointer-events-none absolute -left-[8%] -top-[12%] hidden h-[260px] w-[260px] rounded-full bg-[radial-gradient(circle,rgba(30,64,175,0.24)_0%,rgba(30,64,175,0)_70%)] blur-[38px] opacity-45 transition-opacity duration-300 ease-out group-hover/auto:opacity-60 md:block"
           />
         )}
         {!shouldReduceMotion && (
           <div
             aria-hidden
-            className="pointer-events-none absolute -right-[10%] -bottom-[20%] hidden h-[320px] w-[320px] rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.26)_0%,rgba(59,130,246,0)_72%)] blur-[70px] opacity-50 transition-transform duration-500 ease-out group-hover/auto:translate-y-1 group-hover/auto:-translate-x-1 group-hover/auto:scale-105 md:block"
+            className="pointer-events-none absolute -right-[10%] -bottom-[20%] hidden h-[280px] w-[280px] rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.22)_0%,rgba(59,130,246,0)_72%)] blur-[42px] opacity-42 transition-opacity duration-300 ease-out group-hover/auto:opacity-58 md:block"
           />
         )}
         <div
@@ -822,7 +738,6 @@ const AutoSection: React.FC<AutoProps> = ({
                       onTouchStart={handleTouchStart}
                       onTouchMove={handleTouchMove}
                       onTouchEnd={handleTouchEnd}
-                      onWheel={handleWheel}
                     >
                         {pagedBrands.map((brand) => (
                           <button
@@ -838,7 +753,7 @@ const AutoSection: React.FC<AutoProps> = ({
                               lastSelectedLabelRef.current = null;
                               setActiveTab("model");
                             }}
-                            className={`group relative isolate flex w-full flex-col items-center justify-center gap-3 overflow-hidden bg-white/94 px-3 sm:px-3.5 shadow-[0_14px_34px_rgba(15,23,42,0.12)] border border-slate-100/80 ring-1 ring-transparent transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[6px] hover:shadow-[0_28px_70px_rgba(59,130,246,0.22),0_12px_32px_rgba(14,165,233,0.18)] hover:ring-2 hover:ring-sky-200/90 hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-0 ${
+                            className={`group relative isolate flex w-full flex-col items-center justify-center gap-3 overflow-hidden bg-white/94 px-3 sm:px-3.5 shadow-[0_14px_34px_rgba(15,23,42,0.12)] border border-slate-100/80 ring-1 ring-transparent transition-[border-color,background-color,box-shadow,ring-color] duration-300 ease-out hover:shadow-[0_20px_48px_rgba(59,130,246,0.16),0_8px_24px_rgba(14,165,233,0.12)] hover:ring-2 hover:ring-sky-200/90 hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-0 ${
                               isCompact
                                 ? "rounded-[16px] py-2.5 min-h-[94px]"
                                 : "rounded-xl py-3.5 min-h-[108px]"
@@ -933,7 +848,7 @@ const AutoSection: React.FC<AutoProps> = ({
         )}
 
           <div
-            className={`group/right-panel relative w-full h-full overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-[0_18px_46px_rgba(59,130,246,0.12),0_6px_18px_rgba(14,165,233,0.08)] backdrop-blur-md ${
+            className={`group/right-panel relative w-full h-full overflow-hidden rounded-2xl border border-slate-200/70 bg-white/84 shadow-[0_14px_30px_rgba(59,130,246,0.1),0_4px_14px_rgba(14,165,233,0.06)] ${
               isCompact ? "px-0 sm:px-0 py-0" : "px-0 sm:px-0 py-0"
             }`}
           >
@@ -947,11 +862,11 @@ const AutoSection: React.FC<AutoProps> = ({
             />
             <span
               aria-hidden
-              className="pointer-events-none absolute -left-14 top-6 h-28 w-28 rounded-full bg-sky-200/28 blur-3xl"
+              className="pointer-events-none absolute -left-14 top-6 h-24 w-24 rounded-full bg-sky-200/22 blur-2xl"
             />
             <span
               aria-hidden
-              className="pointer-events-none absolute right-[-18%] bottom-[-8%] h-36 w-36 rounded-full bg-blue-200/24 blur-[80px]"
+              className="pointer-events-none absolute right-[-18%] bottom-[-8%] h-28 w-28 rounded-full bg-blue-200/18 blur-[38px]"
             />
 
             <div

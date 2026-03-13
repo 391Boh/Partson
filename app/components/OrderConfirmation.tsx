@@ -16,7 +16,7 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
   onClose,
 }) => {
   return (
-    <div className="mx-auto mt-6 max-w-sm space-y-4 rounded-2xl border border-sky-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_52%,rgba(224,242,254,0.94)_100%)] px-6 py-8 text-slate-700 shadow-[0_18px_42px_rgba(15,23,42,0.14)]">
+    <div className="soft-surface-card mx-auto mt-5 max-w-sm space-y-3.5 rounded-[16px] px-5 py-6 text-slate-700">
       <div className="flex justify-center">
         <CheckCircle size={48} className="animate-pulse text-emerald-500 drop-shadow-[0_8px_16px_rgba(16,185,129,0.32)]" />
       </div>
@@ -43,7 +43,7 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
       <div className="flex justify-center">
         <button
           onClick={onClose}
-          className="mt-2 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-1.5 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(59,130,246,0.3)] transition hover:brightness-110"
+          className="soft-primary-button mt-1 px-5 py-2.5 text-sm font-semibold"
         >
           Закрити
         </button>

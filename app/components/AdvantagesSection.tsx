@@ -110,7 +110,7 @@ const AdvantagesSection = ({
           </div>
 
           <div className="group/logogrid mt-1 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {advantages.map((item, index) => {
+            {advantages.map((item) => {
               const Icon = item.icon;
               return (
                 <motion.article
@@ -119,15 +119,15 @@ const AdvantagesSection = ({
                   animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
                   transition={
                     shouldAnimate
-                      ? { duration: 0.24, ease: "easeOut", delay: 0.03 * index }
+                      ? { duration: 0.18, ease: "easeOut" }
                       : undefined
                   }
-                  className="group/card relative isolate flex h-full min-h-[190px] flex-col overflow-hidden rounded-[20px] border border-white/80 bg-gradient-to-br from-white/98 via-slate-50/95 to-sky-50/78 p-3.5 text-left shadow-[0_12px_26px_rgba(15,23,42,0.1),inset_0_1px_0_rgba(255,255,255,0.92)] ring-1 ring-transparent transition-all duration-300 ease-out sm:min-h-[198px] sm:p-4 hover:-translate-y-1.5 hover:border-sky-200/80 hover:shadow-[0_24px_44px_rgba(37,99,235,0.2)]"
+                  className="group/card relative isolate flex h-full min-h-[190px] flex-col overflow-hidden rounded-[20px] border border-white/80 bg-gradient-to-br from-white/98 via-slate-50/95 to-sky-50/78 p-3.5 text-left shadow-[0_12px_26px_rgba(15,23,42,0.1),inset_0_1px_0_rgba(255,255,255,0.92)] ring-1 ring-transparent transition-[border-color,box-shadow,background-color] duration-250 ease-out sm:min-h-[198px] sm:p-4 hover:border-sky-200/80 hover:shadow-[0_18px_34px_rgba(37,99,235,0.16)]"
                 >
                   <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(125,211,252,0.22),transparent_30%),radial-gradient(circle_at_82%_10%,rgba(59,130,246,0.16),transparent_34%)] opacity-70 transition-opacity duration-300 ease-out group-hover/card:opacity-100" />
                   <span className="pointer-events-none absolute left-3 right-3 top-1 h-[2px] rounded-full bg-gradient-to-r from-sky-300/70 via-blue-400/65 to-cyan-300/70" />
                   <span
-                    className={`pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full blur-3xl transition-transform duration-500 ease-out group-hover/card:translate-x-[4px] group-hover/card:-translate-y-[4px] ${item.glowTone}`}
+                    className={`pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full blur-3xl transition-opacity duration-300 ease-out group-hover/card:opacity-90 ${item.glowTone}`}
                   />
 
                   <div className="relative flex items-start gap-2.5">

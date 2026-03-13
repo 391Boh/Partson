@@ -27,9 +27,9 @@ const depthBackground = [
 const cardGradientBase =
   "bg-gradient-to-b from-slate-950/50 via-slate-900/30 to-sky-200/18";
 const cardGradientHover =
-  "hover:from-slate-950/40 hover:via-slate-900/25 hover:to-sky-200/30";
+  "motion-safe:hover:from-slate-950/42 motion-safe:hover:via-slate-900/24 motion-safe:hover:to-sky-200/28";
 const cardInteractionStatic =
-  "transition-[box-shadow,background-color,border-color] duration-300";
+  "transition-[box-shadow,background-color,border-color] duration-300 ease-out";
 const heroHeadingText =
   "font-black italic leading-[1.05] tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-sky-100 via-white to-sky-200";
 
@@ -38,15 +38,16 @@ const actionButtonBase = [
   "items-center",
   "gap-2",
   "justify-center",
-  "rounded-lg",
+  "rounded-[12px]",
   "px-5",
   "py-2.5",
   "text-[10px]",
   "font-semibold",
   "tracking-[0.28em]",
   "uppercase",
-  "transition-all",
-  "duration-300",
+  "transition-[box-shadow,filter,background-color,border-color]",
+  "duration-400",
+  "ease-out",
   "focus-visible:outline",
   "focus-visible:outline-2",
   "focus-visible:outline-offset-2",
@@ -56,8 +57,10 @@ const actionButtonBase = [
   "disabled:cursor-not-allowed",
 ].join(" ");
 
-const primaryButton = `${actionButtonBase} border border-white/30 bg-gradient-to-b from-sky-200 via-sky-300 to-blue-500 text-slate-900 shadow-[0_12px_24px_rgba(56,189,248,0.4)] hover:brightness-110 hover:shadow-[0_16px_32px_rgba(56,189,248,0.5)]`;
-const secondaryButton = `${actionButtonBase} border border-white/30 bg-white/15 text-white shadow-[0_10px_20px_rgba(2,6,23,0.35)] hover:border-white/50 hover:bg-white/25`;
+const primaryButton = `${actionButtonBase} border border-sky-100/35 bg-[linear-gradient(135deg,rgba(239,246,255,0.98)_0%,rgba(191,219,254,0.94)_34%,rgba(125,211,252,0.92)_68%,rgba(59,130,246,0.9)_100%)] text-slate-900 shadow-[0_10px_22px_rgba(56,189,248,0.24)] motion-safe:hover:border-sky-50/55 motion-safe:hover:brightness-[1.02] motion-safe:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.16),0_14px_30px_rgba(56,189,248,0.28)]`;
+const loginButton = `${primaryButton} bg-no-repeat [background-size:185%_185%] [background-position:0%_50%] transition-[box-shadow,filter,background-color,border-color,background-position] motion-safe:hover:[background-position:100%_50%]`;
+const vinButton = `${actionButtonBase} border border-emerald-100/45 bg-[linear-gradient(135deg,rgba(236,253,245,0.98)_0%,rgba(167,243,208,0.95)_32%,rgba(110,231,183,0.92)_68%,rgba(16,185,129,0.9)_100%)] bg-no-repeat [background-size:185%_185%] [background-position:0%_50%] text-slate-900 shadow-[0_12px_24px_rgba(52,211,153,0.28)] transition-[box-shadow,filter,background-color,border-color,background-position] motion-safe:hover:[background-position:100%_50%] motion-safe:hover:border-emerald-50/60 motion-safe:hover:brightness-[1.02] motion-safe:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.16),0_16px_32px_rgba(52,211,153,0.3)]`;
+const secondaryButton = `${actionButtonBase} border border-white/24 bg-[linear-gradient(135deg,rgba(255,255,255,0.18)_0%,rgba(226,232,240,0.12)_50%,rgba(125,211,252,0.16)_100%)] text-white shadow-[0_10px_20px_rgba(2,6,23,0.24)] motion-safe:hover:border-sky-100/34 motion-safe:hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.22)_0%,rgba(226,232,240,0.14)_48%,rgba(125,211,252,0.2)_100%)] motion-safe:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_14px_28px_rgba(56,189,248,0.16)]`;
 
 const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin }) => {
   const router = useRouter();
@@ -79,24 +82,25 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
 
   return (
     <section
-      className="group/hero relative isolate w-full select-none overflow-hidden py-6 sm:py-8 font-[Montserrat] [background-size:160%_170%] [background-position:80%_50%] transition-all duration-700"
+      className="group/hero relative isolate w-full select-none overflow-hidden py-6 font-[Montserrat] [background-size:162%_172%] [background-position:78%_48%] transition-[filter,background-position,background-size] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:hover:[background-position:72%_46%] motion-safe:hover:[background-size:170%_178%] sm:py-8"
       style={{
         backgroundImage: depthBackground,
       }}
       >
-      <span className="pointer-events-none absolute -inset-32 rounded-[36px] bg-[radial-gradient(circle_at_20%_5%,rgba(56,189,248,0.38),transparent_48%),radial-gradient(circle_at_88%_10%,rgba(37,99,235,0.25),transparent_50%),radial-gradient(circle_at_60%_80%,rgba(14,165,233,0.18),transparent_62%)] opacity-0 blur-2xl transition duration-700 group-hover/hero:opacity-100" />
-      <span className="pointer-events-none absolute inset-0 rounded-[28px] bg-[linear-gradient(132deg,rgba(15,23,42,0.25)_0%,rgba(14,165,233,0.20)_28%,rgba(56,189,248,0.24)_58%,rgba(2,6,23,0.18)_100%)] opacity-0 mix-blend-screen transition duration-700 group-hover/hero:opacity-100" />
-      <span className="pointer-events-none absolute left-1/2 top-1/2 h-40 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-300/30 blur-[86px] opacity-0 transition duration-700 group-hover/hero:opacity-95" />
+      <span className="pointer-events-none absolute -inset-24 rounded-[36px] bg-[radial-gradient(circle_at_20%_5%,rgba(56,189,248,0.28),transparent_44%),radial-gradient(circle_at_88%_10%,rgba(37,99,235,0.18),transparent_48%),radial-gradient(circle_at_60%_80%,rgba(14,165,233,0.12),transparent_58%)] opacity-52 blur-[42px] transition-[opacity,transform] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover/hero:translate-y-[-6px] motion-safe:group-hover/hero:scale-[1.03] motion-safe:group-hover/hero:opacity-74" />
+      <span className="pointer-events-none absolute inset-0 rounded-[28px] bg-[linear-gradient(132deg,rgba(15,23,42,0.22)_0%,rgba(14,165,233,0.16)_28%,rgba(56,189,248,0.18)_58%,rgba(2,6,23,0.14)_100%)] opacity-50 mix-blend-screen transition-opacity duration-700 ease-out motion-safe:group-hover/hero:opacity-82" />
+      <span className="pointer-events-none absolute inset-0 rounded-[28px] bg-[radial-gradient(circle_at_24%_16%,rgba(186,230,253,0.14),transparent_34%),radial-gradient(circle_at_76%_28%,rgba(56,189,248,0.16),transparent_38%),linear-gradient(118deg,rgba(125,211,252,0.08),transparent_36%,rgba(59,130,246,0.12)_72%,transparent)] opacity-0 transition-[opacity,transform] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover/hero:scale-[1.02] motion-safe:group-hover/hero:opacity-100" />
+      <span className="pointer-events-none absolute left-1/2 top-1/2 h-32 w-52 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-300/20 blur-[44px] opacity-0 transition-[opacity,transform] duration-700 ease-out motion-safe:group-hover/hero:scale-[1.08] motion-safe:group-hover/hero:opacity-75" />
       <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-5 lg:px-7">
         <div className="relative grid gap-4 text-slate-100 md:grid-cols-2 lg:grid-cols-3 lg:items-stretch">
           <div className="h-full min-w-0">
             <div
               className={`group/card relative flex min-h-[180px] h-full flex-col justify-start gap-1.5 overflow-hidden rounded-2xl border border-white/10 p-3 shadow-[0_10px_26px_rgba(2,6,23,0.28)] ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/12 hover:shadow-[0_16px_34px_rgba(2,6,23,0.34)] sm:min-h-0 sm:justify-center`}
             >
-              <span className="pointer-events-none absolute -inset-3 rounded-2xl bg-[radial-gradient(circle_at_24%_12%,rgba(56,189,248,0.45),transparent_44%),radial-gradient(circle_at_78%_88%,rgba(14,165,233,0.25),transparent_55%)] opacity-0 blur-2xl transition duration-500 group-hover/card:opacity-100" />
-              <span className="pointer-events-none absolute inset-0 rounded-2xl border border-sky-200/0 transition-colors duration-500 group-hover/card:border-sky-200/45" />
-              <span className="pointer-events-none absolute inset-0 rounded-2xl shadow-[inset_0_10px_30px_rgba(255,255,255,0.24)] opacity-0 transition duration-500 group-hover/card:opacity-100" />
-              <span className="pointer-events-none absolute right-1/2 top-10 h-16 w-28 -translate-x-1/2 rounded-full bg-sky-300/30 blur-[64px] opacity-0 transition duration-700 group-hover/card:opacity-95" />
+              <span className="pointer-events-none absolute -inset-3 rounded-2xl bg-[radial-gradient(circle_at_24%_12%,rgba(56,189,248,0.32),transparent_42%),radial-gradient(circle_at_78%_88%,rgba(14,165,233,0.18),transparent_52%)] opacity-0 blur-[28px] transition-opacity duration-300 ease-out motion-safe:group-hover/card:opacity-100" />
+              <span className="pointer-events-none absolute inset-0 rounded-2xl border border-sky-200/10 transition-colors duration-300 ease-out motion-safe:group-hover/card:border-sky-200/45" />
+              <span className="pointer-events-none absolute inset-0 rounded-2xl shadow-[inset_0_10px_30px_rgba(255,255,255,0.2)] opacity-0 transition-opacity duration-300 ease-out motion-safe:group-hover/card:opacity-100" />
+              <span className="pointer-events-none absolute right-1/2 top-10 h-14 w-24 -translate-x-1/2 rounded-full bg-sky-300/18 blur-[28px] opacity-0 transition-opacity duration-300 ease-out motion-safe:group-hover/card:opacity-75" />
               <div className="pointer-events-none absolute inset-0 opacity-35 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.2),transparent_45%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,0.16),transparent_50%)]" />
               <div className="relative z-10 flex items-center gap-3 pb-1">
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-sky-200/30 text-sky-200/90 shadow-[0_0_18px_rgba(56,189,248,0.35)]">
@@ -140,18 +144,18 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
                 type="button"
                 aria-label="Оновити сторінку"
                 onClick={handleLogoClick}
-                className="group/logo hidden items-center justify-center overflow-visible px-2 py-1 transition sm:flex relative"
+                className="group/logo relative hidden items-center justify-center overflow-visible px-2 py-1 transition-transform duration-500 ease-out motion-safe:transform-gpu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80 sm:flex"
               >
                 <Image
                   src="/Car-parts.png"
                   alt="PartsOn Logo"
                   width={98}
                   height={49}
-                  className="h-auto w-[72px] object-contain transition duration-300 ease-out md:w-[108px] group-hover/logo:scale-110 group-hover/logo:rotate-[-4deg] group-hover/logo:brightness-110"
+                  className="relative z-[2] h-auto w-[72px] object-contain drop-shadow-[0_10px_20px_rgba(15,23,42,0.18)] transition-transform duration-500 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:transform-gpu md:w-[108px] motion-safe:group-hover/logo:-translate-y-0.5 motion-safe:group-hover/logo:scale-[1.04]"
                   priority
                   onError={handleLogoLoadError}
                 />
-                <span className="pointer-events-none absolute left-1/2 bottom-full z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-sky-200/55 bg-slate-900/85 px-3 py-1.5 text-[11px] font-semibold tracking-[0.09em] text-sky-100 opacity-0 shadow-[0_12px_28px_rgba(2,6,23,0.45)] backdrop-blur-lg transition duration-300 ease-out group-hover/logo:-translate-y-1 group-hover/logo:opacity-100 group-hover/logo:rotate-[-2deg]">
+                <span className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-3 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-[14px] border border-sky-200/35 bg-[linear-gradient(135deg,rgba(30,41,59,0.96),rgba(51,65,85,0.94))] px-4 py-2 text-center text-[12px] font-semibold tracking-[0.08em] text-slate-50 opacity-0 shadow-[0_18px_40px_rgba(15,23,42,0.34)] ring-1 ring-sky-100/10 backdrop-blur-xl transition-[opacity,transform] duration-300 ease-out after:absolute after:left-1/2 after:top-full after:h-2.5 after:w-2.5 after:-translate-x-1/2 after:-translate-y-1/2 after:rotate-45 after:border-b after:border-r after:border-sky-200/30 after:bg-slate-700 motion-safe:group-hover/logo:-translate-y-1 motion-safe:group-hover/logo:opacity-100">
                   Оновити сторінку
                 </span>
               </button>
@@ -161,7 +165,7 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
                     <button
                       type="button"
                       onClick={onLogin}
-                      className={primaryButton}
+                      className={loginButton}
                     >
                       <LogIn className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
                       Увійти
@@ -179,7 +183,7 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
                   <button
                     type="button"
                     onClick={onAddVin}
-                    className={`${primaryButton} bg-gradient-to-b from-emerald-200 via-emerald-300 to-emerald-500 text-slate-900 shadow-[0_12px_24px_rgba(52,211,153,0.35)] hover:brightness-110 hover:shadow-[0_16px_32px_rgba(52,211,153,0.45)]`}
+                    className={vinButton}
                   >
                     Додати VIN номер
                   </button>
@@ -189,7 +193,7 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
           </div>
 
           <div
-            className={` flex min-h-[180px] h-full min-w-0 flex-col space-y-2 rounded-2xl border border-white/10 p-3 shadow-[0_10px_26px_rgba(2,6,23,0.28)] transition-colors md:col-span-2 lg:col-span-1 ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/12 sm:min-h-0`}
+            className={`flex min-h-[180px] h-full min-w-0 flex-col space-y-2 rounded-2xl border border-white/10 p-3 shadow-[0_10px_26px_rgba(2,6,23,0.28)] ${cardInteractionStatic} md:col-span-2 lg:col-span-1 ${cardGradientBase} ${cardGradientHover} bg-white/10 motion-safe:hover:bg-white/12 sm:min-h-0`}
           >
             <div className="flex items-center gap-3">
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-sky-200/30 text-sky-200/90 shadow-[0_0_16px_rgba(56,189,248,0.3)]">
@@ -212,7 +216,7 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
               {benefitItems.map((benefit) => (
                 <li
                   key={benefit}
-                  className="flex items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 transition hover:border-white/30 hover:bg-white/15"
+                  className="flex items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-white/30 motion-safe:hover:bg-white/15"
                 >
                   <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm border border-emerald-400/70 text-emerald-300/90">
                     <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

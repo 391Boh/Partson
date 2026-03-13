@@ -12,37 +12,45 @@ interface DeferredSectionProps {
   fallbackDelayMs?: number;
 }
 
+const parseRootMarginBuffer = (value: string) => {
+  const match = value.trim().match(/-?\d+/);
+  const numeric = match ? Number(match[0]) : 200;
+  if (!Number.isFinite(numeric)) return 200;
+  return Math.min(320, Math.max(120, Math.abs(numeric)));
+};
+
 const DeferredSection = ({
   children,
   fallback = null,
   rootMargin = "200px",
   minHeight = "1px",
   className,
-  fallbackDelayMs = 1400,
+  fallbackDelayMs = 10000,
 }: DeferredSectionProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     if (isVisible) return;
-    if (typeof window === "undefined") {
-      setIsVisible(true);
-      return;
-    }
 
     const node = containerRef.current;
     if (!node) return;
 
     const rect = node.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
-    if (rect.top <= viewportHeight + 1100 && rect.bottom >= -1100) {
-      setIsVisible(true);
-      return;
+    const eagerBufferPx = parseRootMarginBuffer(rootMargin);
+    if (rect.top <= viewportHeight + eagerBufferPx && rect.bottom >= -eagerBufferPx) {
+      const frameId = window.requestAnimationFrame(() => {
+        setIsVisible(true);
+      });
+      return () => window.cancelAnimationFrame(frameId);
     }
 
     if (typeof IntersectionObserver === "undefined") {
-      setIsVisible(true);
-      return;
+      const frameId = window.requestAnimationFrame(() => {
+        setIsVisible(true);
+      });
+      return () => window.cancelAnimationFrame(frameId);
     }
 
     const timeoutId = window.setTimeout(() => {
@@ -73,7 +81,11 @@ const DeferredSection = ({
       className={className}
       style={{ minHeight: isVisible ? undefined : minHeight }}
     >
-      {isVisible ? children : fallback}
+      {isVisible ? (
+        <div className="deferred-section-content">{children}</div>
+      ) : (
+        <div className="deferred-section-fallback">{fallback}</div>
+      )}
     </div>
   );
 };

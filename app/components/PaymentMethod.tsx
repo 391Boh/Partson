@@ -175,15 +175,15 @@ const PaymentMethod: React.FC<Props> = ({
     paymentMethod === 'Готівка' || (paymentMethod === 'Картка' && isPaid);
 
   return (
-    <div className="mt-6 space-y-5 text-slate-700">
+    <div className="mt-5 space-y-4 text-slate-700">
       <p>Оберіть спосіб оплати:</p>
 
       <div className="flex flex-col gap-3">
         <label
-          className={`cursor-pointer rounded-lg border px-4 py-3 transition ${
+          className={`cursor-pointer rounded-[16px] border px-3.5 py-2.5 transition ${
             paymentMethod === 'Картка'
-              ? 'border-sky-400/80 bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_10px_22px_rgba(59,130,246,0.3)]'
-              : 'border-sky-200 bg-white text-slate-700 hover:bg-sky-50'
+              ? 'soft-segment soft-segment--active'
+              : 'soft-surface-card text-slate-700 hover:bg-white/70'
           }`}
         >
           <input
@@ -197,10 +197,10 @@ const PaymentMethod: React.FC<Props> = ({
         </label>
 
         <label
-          className={`cursor-pointer rounded-lg border px-4 py-3 transition ${
+          className={`cursor-pointer rounded-[16px] border px-3.5 py-2.5 transition ${
             paymentMethod === 'Готівка'
-              ? 'border-sky-400/80 bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_10px_22px_rgba(59,130,246,0.3)]'
-              : 'border-sky-200 bg-white text-slate-700 hover:bg-sky-50'
+              ? 'soft-segment soft-segment--active'
+              : 'soft-surface-card text-slate-700 hover:bg-white/70'
           }`}
         >
           <input
@@ -214,11 +214,11 @@ const PaymentMethod: React.FC<Props> = ({
         </label>
       </div>
 
-      <div className="flex gap-3 mt-6">
+      <div className="mt-5 flex gap-3">
         <button
           onClick={handleConfirm}
           disabled={!isConfirmationEnabled || isConfirming}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 py-2 text-sm font-medium text-white shadow-[0_10px_22px_rgba(59,130,246,0.3)] transition hover:brightness-110 disabled:opacity-50"
+          className="soft-primary-button flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-medium disabled:opacity-50"
         >
           <Check size={18} />
           {isConfirming ? 'Підтвердження...' : 'Підтвердити оплату'}
@@ -226,7 +226,7 @@ const PaymentMethod: React.FC<Props> = ({
 
         <button
           onClick={onBack}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white py-2 text-sm font-medium text-slate-700 transition hover:bg-sky-50"
+          className="soft-secondary-button flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-medium"
         >
           <ArrowLeft size={18} /> Назад
         </button>
@@ -234,7 +234,7 @@ const PaymentMethod: React.FC<Props> = ({
 
       <div
         id="liqpay_checkout"
-        className="mx-auto w-full max-w-[980px] overflow-hidden rounded-xl border border-sky-100/80 bg-white/70 p-2 shadow-sm"
+        className="soft-surface-card mx-auto w-full max-w-[980px] overflow-hidden rounded-[16px] p-2"
       />
     </div>
   );

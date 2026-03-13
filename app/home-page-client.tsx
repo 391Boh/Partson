@@ -1,26 +1,45 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { MotionConfig } from "framer-motion";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import ProductFetcher from "./components/tovar";
-
 import Hero from "./components/hero";
-import Auto, { type PersistedCarSelection } from "./components/Auto";
-import BrandCarousel from "./components/Brands";
-import AdvantagesSection from "./components/AdvantagesSection";
-import Footer from "./components/footer";
-import AuthModal from "./components/AuthModal";
 import SectionBoundary from "./components/SectionBoundary";
+import DeferredSection from "./components/DeferredSection";
+import type { PersistedCarSelection } from "./components/Auto";
 import { db } from "../firebase";
+
+const ProductFetcher = dynamic(() => import("./components/tovar"), {
+  ssr: false,
+  loading: () => <HomeSectionFallback minHeight="520px" />,
+});
+const Auto = dynamic(() => import("./components/Auto"), {
+  ssr: false,
+  loading: () => <HomeSectionFallback minHeight="560px" />,
+});
+const BrandCarousel = dynamic(() => import("./components/Brands"), {
+  ssr: false,
+  loading: () => <HomeSectionFallback minHeight="380px" />,
+});
+const AdvantagesSection = dynamic(() => import("./components/AdvantagesSection"), {
+  ssr: false,
+  loading: () => <HomeSectionFallback minHeight="340px" />,
+});
+const Footer = dynamic(() => import("./components/footer"), {
+  ssr: false,
+  loading: () => <HomeSectionFallback minHeight="220px" />,
+});
+const AuthModal = dynamic(() => import("./components/AuthModal"), {
+  ssr: false,
+});
 
 const STORAGE_KEYS = {
   cars: "partson:selectedCars",
   selection: "partson:selectedCarSelection",
   vin: "partson:selectedVin",
 };
-const HOME_ANIMATION_KEY = "partson:home-page-animations-played";
 
 type StoredCarState = {
   cars: string[];
@@ -91,12 +110,25 @@ const readStoredCarState = (storage: Storage): StoredCarState => {
   return { cars, selection, vin };
 };
 
+const HomeSectionFallback = ({
+  minHeight,
+}: {
+  minHeight: string;
+}) => (
+  <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-5 lg:px-7">
+    <div className="animate-pulse rounded-[28px] border border-sky-100/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.88))] p-5 shadow-[0_18px_36px_rgba(15,23,42,0.06)]">
+      <div className="h-5 w-36 rounded-full bg-slate-200/80" />
+      <div
+        className="mt-4 rounded-[22px] bg-[linear-gradient(135deg,rgba(226,232,240,0.8),rgba(255,255,255,0.92),rgba(224,242,254,0.76))]"
+        style={{ minHeight }}
+      />
+    </div>
+  </div>
+);
+
 const Page = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [playHomeAnimations] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.sessionStorage.getItem(HOME_ANIMATION_KEY) !== "1";
-  });
+  const playHomeAnimations = false;
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authInitialMode, setAuthInitialMode] = useState<"login" | "register">(
     "login"
@@ -112,12 +144,6 @@ const Page = () => {
   const [localReady, setLocalReady] = useState(false);
   const [carsLoaded, setCarsLoaded] = useState(false);
   const skipNextRemoteSaveRef = useRef(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!playHomeAnimations) return;
-    window.sessionStorage.setItem(HOME_ANIMATION_KEY, "1");
-  }, [playHomeAnimations]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -413,13 +439,28 @@ const Page = () => {
           />
         </div>
 
-        <section className="section-reveal relative w-full py-1">
+        <DeferredSection
+          className="section-reveal relative w-full py-1"
+          minHeight="560px"
+          rootMargin="220px"
+          fallbackDelayMs={10000}
+          fallback={<HomeSectionFallback minHeight="520px" />}
+        >
+          <section className="relative w-full py-1">
           <SectionBoundary title="Модуль товарів тимчасово недоступний">
             <ProductFetcher playEntranceAnimations={playHomeAnimations} />
           </SectionBoundary>
-        </section>
+          </section>
+        </DeferredSection>
 
-        <section className="section-reveal relative w-full overflow-hidden py-1">
+        <DeferredSection
+          className="section-reveal relative w-full py-1"
+          minHeight="600px"
+          rootMargin="180px"
+          fallbackDelayMs={12000}
+          fallback={<HomeSectionFallback minHeight="560px" />}
+        >
+          <section className="relative w-full py-1">
           <SectionBoundary title="Модуль підбору авто тимчасово недоступний">
             <Auto
               playEntranceAnimations={playHomeAnimations}
@@ -432,27 +473,52 @@ const Page = () => {
               showSummary
             />
           </SectionBoundary>
-        </section>
+          </section>
+        </DeferredSection>
 
-        <section className="section-reveal relative w-full py-1">
+        <DeferredSection
+          className="section-reveal relative w-full py-1"
+          minHeight="420px"
+          rootMargin="140px"
+          fallbackDelayMs={14000}
+          fallback={<HomeSectionFallback minHeight="380px" />}
+        >
+          <section className="relative w-full py-1">
           <SectionBoundary title="Модуль брендів тимчасово недоступний">
             <BrandCarousel playEntranceAnimations={playHomeAnimations} />
           </SectionBoundary>
-        </section>
+          </section>
+        </DeferredSection>
 
-        <section className="section-reveal relative w-full py-1">
+        <DeferredSection
+          className="section-reveal relative w-full py-1"
+          minHeight="380px"
+          rootMargin="120px"
+          fallbackDelayMs={16000}
+          fallback={<HomeSectionFallback minHeight="340px" />}
+        >
+          <section className="relative w-full py-1">
           <div className="mx-auto grid w-full max-w-screen">
             <SectionBoundary title="Інформаційний блок тимчасово недоступний">
               <AdvantagesSection playEntranceAnimations={playHomeAnimations} />
             </SectionBoundary>
           </div>
-        </section>
+          </section>
+        </DeferredSection>
 
-        <div className="section-reveal relative w-full pt-1">
+        <DeferredSection
+          className="section-reveal relative w-full pt-1"
+          minHeight="260px"
+          rootMargin="80px"
+          fallbackDelayMs={18000}
+          fallback={<HomeSectionFallback minHeight="220px" />}
+        >
+          <div className="relative w-full pt-1">
           <SectionBoundary title="Нижній блок тимчасово недоступний">
-            <Footer />
-          </SectionBoundary>
-        </div>
+              <Footer />
+            </SectionBoundary>
+          </div>
+        </DeferredSection>
 
         {authModalOpen && (
           <AuthModal

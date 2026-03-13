@@ -37,8 +37,8 @@ const CustomerDetails: React.FC<Props> = ({
   };
 
   return (
-    <div className="mt-6 space-y-5 text-slate-700">
-      <p className="text-sm text-slate-600">
+    <div className="mt-5 space-y-4 text-slate-700">
+      <p className="soft-note rounded-[16px] px-3.5 py-2.5 text-sm">
         {user
           ? 'Your profile details were prefilled. Check and update if needed.'
           : 'Enter your contact details to continue with the order.'}
@@ -56,7 +56,7 @@ const CustomerDetails: React.FC<Props> = ({
             onChange={(e) => setName(e.target.value)}
             placeholder="Your name"
             autoComplete="name"
-            className="w-full rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 outline-none transition focus:ring-2 focus:ring-sky-300"
+            className="soft-field px-4 py-2.5"
           />
           {!isNameValid && name.length > 0 && (
             <p className="mt-1 text-xs text-rose-600">Enter at least 2 characters.</p>
@@ -74,7 +74,7 @@ const CustomerDetails: React.FC<Props> = ({
             onChange={(e) => setPhone(e.target.value)}
             placeholder="+380XXXXXXXXX"
             autoComplete="tel"
-            className="w-full rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 outline-none transition focus:ring-2 focus:ring-sky-300"
+            className="soft-field px-4 py-2.5"
           />
           {!isPhoneValid && phone.length > 0 && (
             <p className="mt-1 text-xs text-rose-600">Use format +380XXXXXXXXX.</p>
@@ -82,11 +82,11 @@ const CustomerDetails: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="mt-6 flex justify-between">
+      <div className="mt-5 flex justify-between gap-3">
         <button
           type="button"
           onClick={onBack}
-          className="rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 transition hover:bg-sky-50"
+          className="soft-secondary-button px-4 py-2.5 text-sm font-medium"
         >
           <ArrowLeft className="mr-2 inline" size={16} />
           Back
@@ -96,10 +96,10 @@ const CustomerDetails: React.FC<Props> = ({
           type="button"
           onClick={handleNext}
           disabled={!canContinue}
-          className={`rounded-lg px-4 py-2 text-white transition ${
+          className={`px-4 py-2.5 text-sm font-medium ${
             canContinue
-              ? 'bg-gradient-to-r from-blue-600 to-cyan-500 shadow-[0_10px_22px_rgba(59,130,246,0.3)] hover:brightness-110'
-              : 'cursor-not-allowed bg-slate-400'
+              ? 'soft-primary-button'
+              : 'soft-primary-button cursor-not-allowed opacity-60'
           }`}
         >
           Continue

@@ -10,8 +10,9 @@ import {
   PaperAirplaneIcon,
   CheckCircleIcon,
   EyeIcon,
+  UsersIcon,
 } from '@heroicons/react/24/outline';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Copy, MessageCircle, ShoppingBag } from 'lucide-react';
 import {
   collection,
   onSnapshot,
@@ -21,6 +22,10 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  setDoc,
+  serverTimestamp,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 
@@ -32,8 +37,10 @@ interface Message {
   createdAt: any;
   readByAdmin?: boolean;
   readByUser?: boolean;
-  type?: 'text' | 'product';
+  type?: 'text' | 'product' | 'image';
   product?: ProductCard;
+  imageUrl?: string;
+  imageName?: string;
 }
 
 interface ProductCard {
@@ -57,6 +64,7 @@ interface CartItem {
 
 interface Order {
   id: string;
+  uid?: string;
   name: string;
   phone: string;
   deliveryMethod?: string;
@@ -81,6 +89,18 @@ interface CallRequest {
   processed?: boolean;
 }
 
+interface UserRecord {
+  id: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+  code?: string;
+  chatUserId?: string;
+  vins: string[];
+  isOnline?: boolean;
+  lastSeenAt?: unknown;
+}
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -92,10 +112,13 @@ export default function AdminChatPanel({
   onClose,
   onNotificationCountChange,
 }: Props) {
-  const [tab, setTab] = useState<'messages' | 'orders' | 'calls'>('messages');
+  const [tab, setTab] = useState<'messages' | 'orders' | 'calls' | 'users'>(
+    'messages'
+  );
   const [messages, setMessages] = useState<Message[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [calls, setCalls] = useState<CallRequest[]>([]);
+  const [users, setUsers] = useState<UserRecord[]>([]);
   const [userPhoneMap, setUserPhoneMap] = useState<Record<string, string>>({});
   const [orderSearch, setOrderSearch] = useState('');
 
@@ -106,7 +129,13 @@ export default function AdminChatPanel({
   const [productError, setProductError] = useState<string | null>(null);
   const [productLoading, setProductLoading] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [orderUserFilterId, setOrderUserFilterId] = useState<string | null>(null);
+  const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
+  const [userSearch, setUserSearch] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const managerPresenceSessionRef = useRef(
+    `admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  );
 
   useEffect(() => {
     return onSnapshot(
@@ -141,13 +170,39 @@ export default function AdminChatPanel({
   useEffect(() => {
     return onSnapshot(collection(db, 'users'), (snap) => {
       const nextMap: Record<string, string> = {};
+      const nextUsers: UserRecord[] = [];
       snap.docs.forEach((d) => {
         const data = d.data() as any;
         if (data?.phone) {
           nextMap[d.id] = data.phone;
         }
+        const codeCandidate =
+          normalizeCode(data?.code) ||
+          normalizeCode(data?.userCode) ||
+          normalizeCode(data?.customerCode) ||
+          normalizeCode(data?.clientCode) ||
+          normalizeCode(data?.profileCode);
+        const chatUserId =
+          normalizeCode(data?.chatUserId) ||
+          normalizeCode(data?.chat_user_id) ||
+          normalizeCode(data?.chatId);
+        const vins = normalizeVins(data?.vins ?? data?.VIN ?? data?.vin).filter(
+          (vin, index, arr) => arr.indexOf(vin) === index
+        );
+        nextUsers.push({
+          id: d.id,
+          name: typeof data?.name === 'string' ? data.name : undefined,
+          phone: typeof data?.phone === 'string' ? data.phone : undefined,
+          email: typeof data?.email === 'string' ? data.email : undefined,
+          code: codeCandidate,
+          chatUserId,
+          vins,
+          isOnline: data?.isOnline === true,
+          lastSeenAt: data?.lastSeenAt,
+        });
       });
       setUserPhoneMap(nextMap);
+      setUsers(nextUsers);
     });
   }, []);
 
@@ -163,18 +218,203 @@ export default function AdminChatPanel({
     );
   }, [unreadMessages, unreadOrders, unreadCalls, onNotificationCountChange]);
 
+  useEffect(() => {
+    if (!selectedUserId) return;
+
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, selectedUserId]);
+
+  useEffect(() => {
+    if (!isOpen || tab !== 'messages' || !selectedUserId) return;
+
+    const presenceRef = doc(db, 'chatPresence', selectedUserId);
+    const sessionId = managerPresenceSessionRef.current;
+
+    const publishPresence = async () => {
+      try {
+        await setDoc(
+          presenceRef,
+          {
+            managerSessionIds: arrayUnion(sessionId),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch {
+        console.error('Не вдалося оновити присутність менеджера в чаті.');
+      }
+    };
+
+    void publishPresence();
+
+    const heartbeatId =
+      typeof window === 'undefined'
+        ? null
+        : window.setInterval(() => {
+            void publishPresence();
+          }, 20_000);
+
+    return () => {
+      if (heartbeatId !== null && typeof window !== 'undefined') {
+        window.clearInterval(heartbeatId);
+      }
+
+      void setDoc(
+        presenceRef,
+        {
+          managerSessionIds: arrayRemove(sessionId),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      ).catch(() => {
+        console.error('Не вдалося очистити присутність менеджера в чаті.');
+      });
+    };
+  }, [isOpen, selectedUserId, tab]);
+
   const openChat = async (uid: string) => {
     setSelectedUserId(uid);
+    setReplyText('');
+    setShowProductForm(false);
+    setProductArticle('');
+    setProductError(null);
     const unread = messages.filter(
       (m) => m.userId === uid && m.sender === 'user' && !m.readByAdmin
     );
-    for (const m of unread) {
-      await updateDoc(doc(db, 'messages', m.id), { readByAdmin: true });
+    if (unread.length > 0) {
+      try {
+        await Promise.all(
+          unread.map((m) =>
+            updateDoc(doc(db, 'messages', m.id), { readByAdmin: true })
+          )
+        );
+      } catch {
+        console.error('Не вдалося відзначити прочитання повідомлень.');
+      }
     }
     setTimeout(
       () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }),
       100
     );
+  };
+
+  const normalizeCode = (raw: unknown): string | undefined => {
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      return trimmed || undefined;
+    }
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      return String(raw).trim();
+    }
+    return undefined;
+  };
+
+  const normalizePhoneDigits = (raw?: string) => (raw || '').replace(/\D/g, '');
+
+  const normalizeVins = (raw: unknown): string[] => {
+    if (!raw) return [];
+
+    if (typeof raw === 'string') {
+      return raw
+        .split(/[,;\n]/)
+        .map((vin) => vin.trim())
+        .filter(Boolean);
+    }
+
+    if (Array.isArray(raw)) {
+      return raw
+        .filter((vin): vin is string => typeof vin === 'string')
+        .map((vin) => vin.trim())
+        .filter(Boolean);
+    }
+
+    if (typeof raw === 'object') {
+      return Object.values(raw as Record<string, unknown>)
+        .map((vin) => normalizeCode(vin))
+        .filter((vin): vin is string => Boolean(vin));
+    }
+
+    return [];
+  };
+
+  const getTimestampMs = (raw: unknown) => {
+    if (!raw) return null;
+    if (typeof raw === 'string' || raw instanceof Date || typeof raw === 'number') {
+      const value = new Date(raw).getTime();
+      return Number.isFinite(value) ? value : null;
+    }
+    if (
+      typeof raw === 'object' &&
+      raw !== null &&
+      'toDate' in (raw as { toDate?: unknown }) &&
+      typeof (raw as { toDate?: () => Date }).toDate === 'function'
+    ) {
+      const value = (raw as { toDate: () => Date }).toDate().getTime();
+      return Number.isFinite(value) ? value : null;
+    }
+    return null;
+  };
+
+  const getUserByChatId = (uid: string) =>
+    users.find((u) => u.chatUserId === uid || u.id === uid);
+
+  const getUserChatId = (user: UserRecord) => user.chatUserId || user.id;
+
+  const isUserOnline = (user: UserRecord) => {
+    if (user.isOnline !== true) return false;
+    const lastSeenMs = getTimestampMs(user.lastSeenAt);
+    if (!lastSeenMs) return true;
+    return Date.now() - lastSeenMs <= 1000 * 90;
+  };
+
+  const getUserLabel = (uid: string) => {
+    const matchedUser = getUserByChatId(uid);
+    return (
+      matchedUser?.name ||
+      matchedUser?.code ||
+      matchedUser?.phone ||
+      (matchedUser ? userPhoneMap[matchedUser.id] : undefined) ||
+      userPhoneMap[uid] ||
+      uid
+    );
+  };
+
+  const copyUserCode = async (uid: string, code: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = code;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedUserId(uid);
+      setTimeout(() => setCopiedUserId(null), 1200);
+    } catch {
+      console.error('Не вдалося скопіювати код користувача.');
+    }
+  };
+
+  const openUserOrders = (uid: string) => {
+    setOrderUserFilterId(uid);
+    setTab('orders');
+  };
+
+  const openUserChat = (uid: string) => {
+    const userRecord = users.find((user) => user.id === uid);
+    const targetChatId = userRecord ? getUserChatId(userRecord) : uid;
+    setTab('messages');
+    void openChat(targetChatId);
+  };
+
+  const clearOrderUserFilter = () => {
+    setOrderUserFilterId(null);
   };
 
   const sendReply = async () => {
@@ -423,13 +663,74 @@ export default function AdminChatPanel({
   };
 
   const normalizedOrderSearch = orderSearch.trim().toLowerCase();
+  const normalizedOrderSearchDigits = orderSearch.replace(/\D/g, '');
   const filteredOrders = orders.filter((o) => {
-    if (!normalizedOrderSearch) return true;
-    return (o.phone ?? '').toLowerCase().includes(normalizedOrderSearch);
+    const phone = o.phone ?? '';
+    const phoneDigits = normalizePhoneDigits(phone);
+    const uid = o.uid;
+    const matchesSearch = normalizedOrderSearch
+      ? phone.toLowerCase().includes(normalizedOrderSearch) ||
+        (normalizedOrderSearchDigits && phoneDigits.includes(normalizedOrderSearchDigits))
+      : true;
+
+    if (!matchesSearch) return false;
+    if (!orderUserFilterId) return true;
+
+    const userPhone = normalizePhoneDigits(userPhoneMap[orderUserFilterId]);
+    if (uid && uid === orderUserFilterId) return true;
+    if (!userPhone) return false;
+    return phoneDigits.includes(userPhone);
   });
   const selectedDisplayName = selectedUserId
-    ? userPhoneMap[selectedUserId] ?? selectedUserId
+    ? getUserLabel(selectedUserId)
     : null;
+  const selectedMessages = selectedUserId
+    ? messages.filter((m) => m.userId === selectedUserId)
+    : [];
+  const filteredOrderUserName = orderUserFilterId
+    ? getUserLabel(orderUserFilterId)
+    : null;
+  const filteredOrderUserPhone =
+    orderUserFilterId && userPhoneMap[orderUserFilterId]
+      ? normalizePhoneDigits(userPhoneMap[orderUserFilterId])
+      : '';
+  const normalizedUserSearch = userSearch.trim().toLowerCase();
+  const normalizedUserSearchDigits = normalizePhoneDigits(userSearch);
+  const filteredUsers = users.filter((u) => {
+    if (!normalizedUserSearch) return true;
+
+    const searchable =
+      `${u.name || ''} ${u.phone || ''} ${u.email || ''} ${u.code || ''} ${u.chatUserId || ''} ${u.id} ${u.vins.join(' ')}`.toLowerCase();
+    if (searchable.includes(normalizedUserSearch)) return true;
+    if (!normalizedUserSearchDigits) return false;
+
+    return (
+      normalizePhoneDigits(u.phone).includes(normalizedUserSearchDigits) ||
+      normalizePhoneDigits(u.code).includes(normalizedUserSearchDigits) ||
+      normalizePhoneDigits(u.chatUserId).includes(normalizedUserSearchDigits) ||
+      normalizePhoneDigits(u.id).includes(normalizedUserSearchDigits)
+    );
+  });
+  const sortedUsers = [...filteredUsers].sort((left, right) => {
+    const leftOnline = isUserOnline(left);
+    const rightOnline = isUserOnline(right);
+    if (leftOnline !== rightOnline) {
+      return Number(rightOnline) - Number(leftOnline);
+    }
+
+    const leftSeen = getTimestampMs(left.lastSeenAt) ?? 0;
+    const rightSeen = getTimestampMs(right.lastSeenAt) ?? 0;
+    if (leftSeen !== rightSeen) {
+      return rightSeen - leftSeen;
+    }
+
+    return (left.name || left.phone || left.email || left.id).localeCompare(
+      right.name || right.phone || right.email || right.id,
+      'uk'
+    );
+  });
+  const onlineUsersCount = sortedUsers.filter(isUserOnline).length;
+  const userCode = (item: UserRecord) => item.code || item.id;
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -448,7 +749,7 @@ export default function AdminChatPanel({
 
   return (
     <div
-      className="fixed z-50 left-3 right-3 top-24 bottom-auto h-[70vh] rounded-2xl shadow-2xl border border-slate-600/60 flex flex-col bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 backdrop-blur-xl md:left-6 md:right-auto md:top-20 md:bottom-6 md:w-[520px] md:h-[70vh] md:rounded-3xl"
+      className="fixed z-50 left-3 right-3 top-24 bottom-auto h-[70vh] max-h-[calc(100vh-5.5rem)] rounded-2xl shadow-2xl border border-slate-600/60 flex flex-col bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 backdrop-blur-xl md:left-6 md:right-auto md:top-20 md:w-[520px] md:rounded-3xl"
       style={{
         backgroundSize: '200% 200%',
         animation: 'adminGradient 12s ease infinite',
@@ -468,13 +769,20 @@ export default function AdminChatPanel({
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-1 p-2 bg-white/5 border-b border-white/10 sticky top-0 z-10">
+      <div className="grid grid-cols-4 gap-1 p-2 bg-white/5 border-b border-white/10 sticky top-0 z-10">
         <Tab
           icon={<ChatBubbleBottomCenterTextIcon className="w-5 h-5" />}
           label="Повідомлення"
           count={unreadMessages}
           active={tab === 'messages'}
           onClick={() => setTab('messages')}
+        />
+        <Tab
+          icon={<UsersIcon className="w-5 h-5" />}
+          label="Користувачі"
+          count={users.length}
+          active={tab === 'users'}
+          onClick={() => setTab('users')}
         />
         <Tab
           icon={<ShoppingBagIcon className="w-5 h-5" />}
@@ -511,8 +819,12 @@ export default function AdminChatPanel({
                         last?.product?.article ??
                         last?.product?.code ??
                         last?.text
+                      : last?.type === 'image'
+                      ? last?.imageName
+                        ? `Фото: ${last.imageName}`
+                        : 'Фото'
                       : last?.text;
-                  const displayName = userPhoneMap[uid] ?? uid;
+                  const displayName = getUserLabel(uid);
                   const hasReply = messages.some(
                     (m) => m.userId === uid && m.sender === 'manager'
                   );
@@ -559,11 +871,11 @@ export default function AdminChatPanel({
                 })}
               </div>
             ) : (
-              <div className="flex flex-col h-full">
-                <div className="flex items-center gap-2 mb-2">
-                  <button onClick={() => setSelectedUserId(null)}>
-                    <ChevronLeftIcon className="w-5 h-5" />
-                  </button>
+                <div className="flex flex-col h-full">
+                  <div className="flex items-center gap-2 mb-2">
+                    <button onClick={() => setSelectedUserId(null)}>
+                      <ChevronLeftIcon className="w-5 h-5" />
+                    </button>
                   <span className="font-medium text-sm truncate">
                     {selectedDisplayName}
                   </span>
@@ -571,9 +883,17 @@ export default function AdminChatPanel({
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-2">
-                  {messages
-                    .filter((m) => m.userId === selectedUserId)
-                    .map((m) => (
+                  {selectedMessages.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 px-4 py-6 text-center text-sm text-slate-300">
+                      У цього користувача ще немає повідомлень. Ви можете написати першим.
+                    </div>
+                  )}
+                  {selectedMessages.map((m) => {
+                    const isRichCard =
+                      (m.type === 'product' && Boolean(m.product)) ||
+                      (m.type === 'image' && Boolean(m.imageUrl));
+
+                    return (
                       <div
                         key={m.id}
                         className={`flex ${
@@ -583,14 +903,24 @@ export default function AdminChatPanel({
                         }`}
                       >
                         <div
-                          className={`px-3 py-2 rounded-2xl text-sm max-w-[80%] ${
-                            m.sender === 'user'
-                              ? 'bg-white/10 text-slate-100 border border-white/10'
-                              : 'bg-sky-600 text-white'
+                          className={`max-w-[80%] ${
+                            isRichCard
+                              ? 'bg-transparent p-0 shadow-none'
+                              : `rounded-2xl px-3 py-2 text-sm ${
+                                  m.sender === 'user'
+                                    ? 'border border-white/10 bg-white/10 text-slate-100'
+                                    : 'bg-sky-600 text-white'
+                                }`
                           }`}
                         >
                           {m.type === 'product' && m.product ? (
                             <ChatProductCard product={m.product} />
+                          ) : m.type === 'image' && m.imageUrl ? (
+                            <ChatImageCard
+                              imageUrl={m.imageUrl}
+                              imageName={m.imageName ?? m.text}
+                              sender={m.sender}
+                            />
                           ) : (
                             m.text
                           )}
@@ -603,7 +933,8 @@ export default function AdminChatPanel({
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
-                    ))}
+                    );
+                  })}
                   <div ref={messagesEndRef} />
                 </div>
 
@@ -681,8 +1012,153 @@ export default function AdminChatPanel({
           </>
         )}
 
+        {tab === 'users' && (
+          <div className="space-y-2">
+            <input
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              className="w-full rounded-xl px-3 py-2 text-[16px] sm:text-sm bg-white/10 border border-white/10 text-white placeholder-slate-300 focus:border-sky-400 focus:outline-none"
+              placeholder="Пошук по імені, телефону, email, коду або VIN"
+            />
+
+            {sortedUsers.length === 0 && (
+              <div className="text-sm text-slate-300 bg-slate-800/70 border border-white/5 rounded-xl p-3">
+                Користувачів не знайдено
+              </div>
+            )}
+            {sortedUsers.length > 0 && (
+              <div className="rounded-xl border border-sky-200/20 bg-white/5 p-2 text-[11px] text-slate-300 flex items-center justify-between gap-2">
+                <span>Знайдено користувачів: {sortedUsers.length}</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-200">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]" />
+                  Онлайн: {onlineUsersCount}
+                </span>
+              </div>
+            )}
+            {sortedUsers.map((userItem) => {
+              const userChatId = getUserChatId(userItem);
+              const unreadFromUser = messages.filter(
+                (m) =>
+                  m.userId === userChatId &&
+                  m.sender === 'user' &&
+                  !m.readByAdmin
+              ).length;
+              const online = isUserOnline(userItem);
+              return (
+                <div
+                  key={userItem.id}
+                  className="bg-slate-800/70 border border-white/5 p-3 rounded-xl mb-2 w-full text-left flex flex-col gap-2 text-slate-100 transition-all hover:border-sky-300/40 hover:bg-slate-700/80 sm:flex-row sm:items-center sm:justify-between sm:gap-2"
+                >
+                  <div className="truncate">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                          online
+                            ? 'bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]'
+                            : 'bg-slate-500/70'
+                        }`}
+                      />
+                      <p className="font-semibold text-sm truncate">
+                        {userItem.name || userItem.phone || 'Користувач'}
+                      </p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] ${
+                          online
+                            ? 'bg-emerald-500/15 text-emerald-200'
+                            : 'bg-white/10 text-slate-300'
+                        }`}
+                      >
+                        {online ? 'Онлайн' : 'Офлайн'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-200">
+                      Код: {userCode(userItem)}
+                    </p>
+                    {userItem.phone && (
+                      <p className="text-xs text-slate-300 truncate">
+                        Телефон: {userItem.phone}
+                      </p>
+                    )}
+                    {userItem.email && (
+                      <p className="text-[11px] text-slate-400 truncate">
+                        {userItem.email}
+                      </p>
+                    )}
+                    {userItem.vins.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {userItem.vins.slice(0, 2).map((vin) => (
+                          <span
+                            key={vin}
+                            className="rounded-full border border-sky-300/20 bg-sky-400/10 px-2 py-0.5 font-mono text-[10px] text-sky-100"
+                          >
+                            VIN {vin}
+                          </span>
+                        ))}
+                        {userItem.vins.length > 2 && (
+                          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-slate-300">
+                            +{userItem.vins.length - 2}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 self-start sm:self-center">
+                    {unreadFromUser > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-5 h-5 bg-emerald-500 text-white text-[10px] px-1.5 rounded-full leading-none">
+                        {unreadFromUser}
+                      </span>
+                    )}
+
+                    {copiedUserId === userItem.id && (
+                      <span className="text-[10px] rounded-full bg-emerald-500/90 px-2 py-0.5 text-white">
+                        Скопійовано
+                      </span>
+                    )}
+
+                    <button
+                      onClick={() => copyUserCode(userItem.id, userCode(userItem))}
+                      className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:bg-white/15"
+                      title="Копіювати код користувача"
+                    >
+                      <Copy size={16} />
+                    </button>
+
+                    <button
+                      onClick={() => openUserOrders(userItem.id)}
+                      className="rounded-lg border border-white/10 bg-white/5 p-2 text-sky-200 transition hover:bg-white/15"
+                      title="Відкрити замовлення користувача"
+                    >
+                      <ShoppingBag size={16} />
+                    </button>
+
+                    <button
+                      onClick={() => openUserChat(userItem.id)}
+                      className="rounded-lg border border-white/10 bg-white/5 p-2 text-sky-300 transition hover:bg-white/15"
+                      title="Відкрити чат з користувачем"
+                    >
+                      <MessageCircle size={16} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {tab === 'orders' && (
           <>
+            {filteredOrderUserName && (
+              <div className="mb-3 rounded-xl border border-sky-200/30 bg-white/5 px-2.5 py-1.5 text-xs text-slate-100 flex items-center justify-between gap-2">
+                <span>Показано замовлення: {filteredOrderUserName}</span>
+                <button
+                  onClick={clearOrderUserFilter}
+                  className="text-[11px] rounded-lg border border-white/15 px-2 py-1 text-white/90 hover:bg-white/10"
+                >
+                  Показати всі
+                </button>
+              </div>
+            )}
             <div className="mb-3">
               <input
                 value={orderSearch}
@@ -694,7 +1170,11 @@ export default function AdminChatPanel({
             </div>
             {filteredOrders.length === 0 && (
               <div className="text-sm text-slate-300 bg-slate-800/70 border border-white/5 rounded-xl p-3">
-                Замовлень не знайдено
+                {orderUserFilterId &&
+                !filteredOrderUserPhone &&
+                !orders.some((o) => o.uid === orderUserFilterId)
+                  ? 'У цього користувача не збережений номер телефону'
+                  : 'Замовлень не знайдено'}
               </div>
             )}
             {filteredOrders.map((o) => {
@@ -909,5 +1389,43 @@ function ChatProductCard({ product }: { product: ProductCard }) {
         </a>
       )}
     </div>
+  );
+}
+
+function ChatImageCard({
+  imageUrl,
+  imageName,
+  sender,
+}: {
+  imageUrl: string;
+  imageName?: string;
+  sender: 'user' | 'manager';
+}) {
+  const isUser = sender === 'user';
+
+  return (
+    <a
+      href={imageUrl}
+      target="_blank"
+      rel="noreferrer"
+      className={`group block min-w-[220px] max-w-[320px] overflow-hidden rounded-xl border ${
+        isUser
+          ? 'border-white/10 bg-white/5'
+          : 'border-sky-300/25 bg-sky-950/40'
+      } shadow-[0_16px_30px_rgba(2,6,23,0.22)]`}
+    >
+      <div className="overflow-hidden bg-slate-950/40">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imageUrl}
+          alt={imageName || 'Фото'}
+          loading="lazy"
+          className="max-h-[240px] w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+        />
+      </div>
+      <div className="px-3 py-2 text-[11px] text-slate-100">
+        <span className="block truncate">{imageName || 'Фото'}</span>
+      </div>
+    </a>
   );
 }

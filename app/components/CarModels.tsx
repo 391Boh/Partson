@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
 
@@ -100,7 +99,6 @@ const extractErrorMessage = (text: string) => {
   const [yearInput, setYearInput] = useState("");
   const touchStartX = useRef<number | null>(null);
   const touchDeltaX = useRef(0);
-  const lastWheelTime = useRef(0);
   const isSwiping = useRef(false);
 
   useEffect(() => {
@@ -434,24 +432,6 @@ const extractErrorMessage = (text: string) => {
     touchDeltaX.current = 0;
   };
 
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    const absX = Math.abs(event.deltaX);
-    const absY = Math.abs(event.deltaY);
-    const isHorizontalIntent = absX >= 60 && absX > absY * 1.8;
-    if (!isHorizontalIntent) return;
-    const canPaginate = event.deltaX > 0 ? canGoNext : canGoPrev;
-    if (!canPaginate) return;
-    event.preventDefault();
-    const now = Date.now();
-    if (now - lastWheelTime.current < 400) return;
-    lastWheelTime.current = now;
-    if (event.deltaX > 0) {
-      handleNextPage();
-    } else {
-      handlePrevPage();
-    }
-  };
-
   const handleYearInputChange = useCallback(
     (value: string) => {
       const next = value.replace(/[^\d]/g, "");
@@ -630,7 +610,7 @@ const extractErrorMessage = (text: string) => {
         <div
           ref={modelPagesRef}
           onScroll={handleModelPagesScroll}
-          className="overflow-x-auto overflow-y-hidden rounded-2xl border border-sky-100/80 bg-gradient-to-br from-white/92 via-sky-50/68 to-blue-50/60 shadow-[0_14px_32px_rgba(59,130,246,0.12)] snap-x snap-mandatory touch-pan-x overscroll-x-contain"
+          className="overflow-hidden rounded-2xl border border-sky-100/80 bg-gradient-to-br from-white/92 via-sky-50/68 to-blue-50/60 shadow-[0_14px_32px_rgba(59,130,246,0.12)]"
         >
           {isBusy ? (
             <div className="flex min-h-[124px] items-center justify-center">
@@ -665,13 +645,13 @@ const extractErrorMessage = (text: string) => {
                             className={`group relative isolate flex h-8 sm:h-8 items-center justify-center overflow-hidden rounded-lg border px-1 text-center text-[9px] font-semibold uppercase tracking-[0.02em] leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                               isActive
                                 ? "border-sky-300 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_16px_36px_rgba(59,130,246,0.28)] ring-2 ring-sky-200/80"
-                                : "border-slate-100/90 bg-white/94 text-slate-800 shadow-[0_12px_30px_rgba(15,23,42,0.1)] hover:-translate-y-[4px] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 hover:shadow-[0_24px_52px_rgba(59,130,246,0.18)] hover:ring-1 hover:ring-sky-200/80"
+                                : "border-slate-100/90 bg-white/94 text-slate-800 shadow-[0_12px_30px_rgba(15,23,42,0.1)] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 hover:shadow-[0_18px_38px_rgba(59,130,246,0.14)] hover:ring-1 hover:ring-sky-200/80"
                             }`}
                           >
                             <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
                             <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
-                            <span className="pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full bg-sky-200/25 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[5px] group-hover:-translate-y-[5px]" />
-                            <span className="pointer-events-none absolute -left-12 -bottom-12 h-28 w-28 rounded-full bg-cyan-200/20 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-x-[3px] group-hover:translate-y-[3px]" />
+                            <span className="pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full bg-sky-200/25 blur-3xl transition-opacity duration-300 ease-out group-hover:opacity-90" />
+                            <span className="pointer-events-none absolute -left-12 -bottom-12 h-28 w-28 rounded-full bg-cyan-200/20 blur-3xl transition-opacity duration-300 ease-out group-hover:opacity-90" />
                             <span className="pointer-events-none absolute inset-y-[-28%] left-[-24%] w-[52%] rotate-[16deg] bg-gradient-to-br from-white/0 via-white/28 to-white/0 opacity-0 blur-[2px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[18%] group-hover:opacity-80" />
                             <span className="relative line-clamp-2">{model}</span>
                           </button>
@@ -689,11 +669,7 @@ const extractErrorMessage = (text: string) => {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.25 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
+    <div
       className={`w-full mx-auto flex flex-col gap-2 sm:gap-2.5 ${
         isCompact ? "min-h-[280px]" : "min-h-[340px] sm:min-h-[360px]"
       }`}
@@ -829,13 +805,11 @@ const extractErrorMessage = (text: string) => {
         }`}
       >
         {(loading || (yearLoading && selectedYear != null)) && (
-          <motion.div
+          <div
             className="flex justify-center items-center py-6"
-            animate={{ opacity: [0, 1, 0] }}
-            transition={{ duration: 1, repeat: Infinity }}
           >
             <div className="loader" />
-          </motion.div>
+          </div>
         )}
 
         {error && <p className="text-red-600 font-semibold">{error}</p>}
@@ -853,34 +827,28 @@ const extractErrorMessage = (text: string) => {
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
-              onWheel={handleWheel}
             >
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 place-items-stretch">
-              {pagedModels.map((model, idx) => (
-                <motion.button
+              {pagedModels.map((model) => (
+                <button
                   key={model}
                   onClick={() => {
                     if (isSwiping.current) return;
                     onModelSelect(model);
                   }}
                   title={model}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.02 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  className={`group relative isolate overflow-hidden rounded-xl border px-2.5 py-2 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  className={`group relative isolate overflow-hidden rounded-xl border px-2.5 py-2 transition-[border-color,background-color,box-shadow,ring-color] duration-250 ease-out ${
                     isCompact ? "min-h-[48px]" : "min-h-[60px]"
                   } ${
                     selectedModel === model
                       ? "border-sky-300 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_16px_36px_rgba(59,130,246,0.28)] ring-2 ring-sky-200/80"
-                      : "border-slate-100/90 bg-white/94 text-slate-800 shadow-[0_12px_30px_rgba(15,23,42,0.1)] hover:-translate-y-[4px] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 hover:shadow-[0_24px_52px_rgba(59,130,246,0.18)] hover:ring-1 hover:ring-sky-200/80"
+                      : "border-slate-100/90 bg-white/94 text-slate-800 shadow-[0_12px_30px_rgba(15,23,42,0.1)] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 hover:shadow-[0_18px_38px_rgba(59,130,246,0.14)] hover:ring-1 hover:ring-sky-200/80"
                   }`}
                 >
                   <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
                   <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
-                  <span className="pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full bg-sky-200/25 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[5px] group-hover:-translate-y-[5px]" />
-                  <span className="pointer-events-none absolute -left-12 -bottom-12 h-28 w-28 rounded-full bg-cyan-200/20 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-x-[3px] group-hover:translate-y-[3px]" />
+                  <span className="pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full bg-sky-200/25 blur-3xl transition-opacity duration-300 ease-out group-hover:opacity-90" />
+                  <span className="pointer-events-none absolute -left-12 -bottom-12 h-28 w-28 rounded-full bg-cyan-200/20 blur-3xl transition-opacity duration-300 ease-out group-hover:opacity-90" />
                   <span className="pointer-events-none absolute inset-y-[-28%] left-[-24%] w-[52%] rotate-[16deg] bg-gradient-to-br from-white/0 via-white/28 to-white/0 opacity-0 blur-[2px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[18%] group-hover:opacity-80" />
                   <div className="relative flex items-center justify-between gap-2">
                     <div className="text-[13px] font-semibold truncate uppercase tracking-[0.05em]">{model}</div>
@@ -895,7 +863,7 @@ const extractErrorMessage = (text: string) => {
                       {`${LABEL_SELECT_YEAR}: ${selectedYear}`}
                     </div>
                   )}
-                </motion.button>
+                </button>
               ))}
               </div>
             </div>
@@ -903,7 +871,7 @@ const extractErrorMessage = (text: string) => {
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 };
 

@@ -55,41 +55,41 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, userData }) => {
 
   return (
     <div
-      className="fixed top-24 right-3 left-3 sm:left-auto sm:right-6
-                 max-w-xs mx-auto z-50
-                 bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700
-                 border border-white/10 rounded-2xl shadow-2xl backdrop-blur-xl
-                 p-4"
+      className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter overflow-hidden"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <PhoneCall size={18} className="text-sky-300" />
-          <h3 className="font-semibold text-slate-100 text-base">
-            Зворотній дзвінок
+      <div className="soft-panel-content flex flex-col gap-3 p-4 sm:p-4">
+      <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
+
+      <div className="soft-panel-header">
+        <div className="min-w-0">
+          <span className="soft-panel-eyebrow">
+            <PhoneCall size={14} />
+            Зв&apos;язок
+          </span>
+          <h3 className="soft-panel-title mt-3">
+            Зворотний дзвінок
           </h3>
+          <p className="soft-panel-subtitle">
+            Залиште номер і короткий коментар. Ми передзвонимо найближчим часом.
+          </p>
         </div>
 
         <button
           onClick={onClose}
-          className="p-1 rounded-full hover:bg-white/10 transition"
+          className="soft-icon-button h-10 w-10 shrink-0 p-1"
         >
-          <X size={18} className="text-slate-200" />
+          <X size={18} className="text-slate-500" />
         </button>
       </div>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
         <input
           type="text"
           placeholder="Ваше імʼя"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
-          className="px-3 py-2 rounded-xl bg-white/10
-                     text-slate-100 placeholder-slate-300
-                     border border-white/10
-                     focus:outline-none focus:ring-2 focus:ring-sky-400"
+          className="soft-field px-4 py-2.5"
         />
 
         <input
@@ -98,38 +98,26 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, userData }) => {
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           required
-          className="px-3 py-2 rounded-xl bg-white/10
-                     text-slate-100 placeholder-slate-300
-                     border border-white/10
-                     focus:outline-none focus:ring-2 focus:ring-sky-400"
+          className="soft-field px-4 py-2.5"
         />
 
         <textarea
           placeholder="Коментар (необовʼязково)"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          className="px-3 py-2 rounded-xl bg-white/10
-                     text-slate-100 placeholder-slate-300
-                     border border-white/10 resize-none min-h-[80px]
-                     focus:outline-none focus:ring-2 focus:ring-sky-400"
+          className="soft-field min-h-[90px] resize-none px-4 py-2.5"
         />
 
-        {/* CTA */}
         <button
           type="submit"
           disabled={loading}
-          className="mt-2 flex items-center justify-center gap-2
-                     py-2.5 rounded-xl
-                     bg-gradient-to-r from-sky-600 to-cyan-500
-                     text-white font-semibold
-                     shadow hover:shadow-lg hover:brightness-110
-                     transition-all hover:scale-[1.02]
-                     disabled:opacity-60 disabled:cursor-not-allowed"
+          className="soft-primary-button mt-1 py-3 font-semibold disabled:cursor-not-allowed"
         >
           <Send size={16} />
           {loading ? "Надсилається..." : "Замовити дзвінок"}
         </button>
       </form>
+      </div>
     </div>
   );
 };

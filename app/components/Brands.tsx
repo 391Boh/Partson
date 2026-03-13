@@ -29,74 +29,19 @@ type BrandSearchInputProps = {
 };
 
 const BrandSearchInput = memo(
-  ({ value, onChange, brandNames, className }: BrandSearchInputProps) => {
-    const [isInputFocused, setIsInputFocused] = useState(false);
-    const [animatedPlaceholder, setAnimatedPlaceholder] = useState("");
-
-    useEffect(() => {
-      if (!brandNames.length || isInputFocused || value.trim()) {
-        setAnimatedPlaceholder("");
-        return;
-      }
-
-      let active = true;
-      let wordIndex = 0;
-      let charIndex = 0;
-      let direction: "forward" | "back" = "forward";
-      let timeoutId: ReturnType<typeof setTimeout>;
-
-      const tick = () => {
-        if (!active) return;
-        const word = brandNames[wordIndex] || "";
-
-        if (direction === "forward") {
-          charIndex = Math.min(word.length, charIndex + 1);
-          setAnimatedPlaceholder(word.slice(0, charIndex).toUpperCase());
-          if (charIndex === word.length) {
-            direction = "back";
-            timeoutId = setTimeout(tick, 900);
-            return;
-          }
-          timeoutId = setTimeout(tick, 85);
-          return;
-        }
-
-        charIndex = Math.max(0, charIndex - 1);
-        setAnimatedPlaceholder(word.slice(0, charIndex).toUpperCase());
-        if (charIndex === 0) {
-          direction = "forward";
-          wordIndex = (wordIndex + 1) % brandNames.length;
-          timeoutId = setTimeout(tick, 260);
-          return;
-        }
-        timeoutId = setTimeout(tick, 45);
-      };
-
-      tick();
-      return () => {
-        active = false;
-        clearTimeout(timeoutId);
-      };
-    }, [brandNames, isInputFocused, value]);
+  ({ value, onChange, className }: BrandSearchInputProps) => {
 
     return (
       <label className={`relative block ${className ?? ""}`}>
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-400" />
         <input
           type="text"
-          placeholder=""
+          placeholder="Виробник"
           aria-label="Пошук виробника"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onFocus={() => setIsInputFocused(true)}
-          onBlur={() => setIsInputFocused(false)}
-          className="w-full rounded-xl border border-blue-200 bg-white/90 px-9 py-2 text-xs sm:text-sm font-semibold text-gray-700 placeholder:text-transparent shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition select-text"
+          className="w-full rounded-xl border border-blue-200 bg-white/90 px-9 py-2 text-xs sm:text-sm font-semibold text-gray-700 placeholder:text-blue-300/95 shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition select-text"
         />
-        {!value && !isInputFocused && (
-          <span className="pointer-events-none absolute left-9 top-1/2 -translate-y-1/2 text-xs sm:text-sm text-blue-400 uppercase tracking-[0.14em] truncate">
-            {animatedPlaceholder || "ВИРОБНИК"}
-          </span>
-        )}
         {value && (
           <button
             type="button"
@@ -125,7 +70,7 @@ function BrandCard({
     <button
       type="button"
       onClick={() => onOpen(brand.name)}
-      className="group relative isolate flex w-full min-h-[148px] items-center gap-3.5 overflow-hidden rounded-2xl border border-slate-100/85 bg-white/94 px-3 py-3 text-left shadow-[0_12px_28px_rgba(15,23,42,0.12)] ring-1 ring-transparent transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[4px] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/75 hover:to-blue-50 hover:shadow-[0_24px_60px_rgba(59,130,246,0.2),0_10px_26px_rgba(14,165,233,0.16)] hover:ring-2 hover:ring-sky-200/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 sm:min-h-[146px] sm:gap-4"
+      className="group relative isolate flex w-full min-h-[148px] items-center gap-3.5 overflow-hidden rounded-2xl border border-slate-100/85 bg-white/94 px-3 py-3 text-left shadow-[0_12px_28px_rgba(15,23,42,0.12)] ring-1 ring-transparent transition-[border-color,background-color,box-shadow,ring-color] duration-300 ease-out hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/75 hover:to-blue-50 hover:shadow-[0_18px_42px_rgba(59,130,246,0.16),0_8px_22px_rgba(14,165,233,0.12)] hover:ring-2 hover:ring-sky-200/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 sm:min-h-[146px] sm:gap-4"
       aria-label={`Обрати ${brand.name}`}
     >
       <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />

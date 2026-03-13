@@ -11,7 +11,6 @@ import React, {
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ExternalLink, Search, X } from "lucide-react";
-import { VirtuosoGrid } from "react-virtuoso";
 
 import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
@@ -1105,6 +1104,7 @@ const Data: React.FC<DataProps> = ({
   sortOrder,
 }) => {
   const searchParams = useSearchParams();
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
   const rawSearchQuery = searchParams.get("search") || "";
   const searchFilter =
@@ -1260,6 +1260,30 @@ const Data: React.FC<DataProps> = ({
     }
   }, [loading, isInitialLoading, hasMore, sortedData.length, loadNextPage]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (loading || isInitialLoading || !hasMore || sortedData.length === 0) return;
+
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry?.isIntersecting) return;
+        loadNextPage();
+      },
+      {
+        root: null,
+        rootMargin: "0px 0px 320px 0px",
+        threshold: 0.01,
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loading, isInitialLoading, hasMore, sortedData.length, loadNextPage]);
+
   const handleSendRequest = useCallback(() => {
     const query = rawSearchQuery.trim();
     const categoryLabel = subcategoryFromURL
@@ -1384,17 +1408,8 @@ const Data: React.FC<DataProps> = ({
         )}
 
         {!isInitialLoading && sortedData.length > 0 && (
-          <VirtuosoGrid
-            useWindowScroll
-            totalCount={sortedData.length}
-            overscan={220}
-            computeItemKey={(index) => sortedData[index]?.code || `item-${index}`}
-            endReached={() => {
-              loadNextPage();
-            }}
-            listClassName="mx-auto grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 mt-2"
-            itemContent={(index) => {
-              const item = sortedData[index];
+          <div className="mx-auto mt-2 grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
+            {sortedData.map((item, index) => {
               if (!item?.code) return null;
 
               const code = item.code;
@@ -1407,7 +1422,7 @@ const Data: React.FC<DataProps> = ({
 
               return (
                 <ProductCard
-                  key={code}
+                  key={code || `item-${index}`}
                   item={item}
                   qty={qty}
                   cartQty={cartQty}
@@ -1423,8 +1438,12 @@ const Data: React.FC<DataProps> = ({
                   onOpenProduct={handleOpenProduct}
                 />
               );
-            }}
-          />
+            })}
+          </div>
+        )}
+
+        {!isInitialLoading && hasMore && sortedData.length > 0 && (
+          <div ref={loadMoreSentinelRef} className="h-6 w-full" aria-hidden="true" />
         )}
 
         {isLoadingMore && sortedData.length > 0 && (

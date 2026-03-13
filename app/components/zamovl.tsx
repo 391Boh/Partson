@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
@@ -17,8 +17,12 @@ import DeliveryMethod from "./DeliveryMethod";
 import PaymentMethod from "./PaymentMethod";
 import OrderConfirmation from "./OrderConfirmation";
 
-type DeliveryMethodType = 'Нова Пошта' | 'Самовивіз' | 'Доставка у Львові' | '';
-type PaymentMethodType = 'Картка' | 'Готівка' | '';
+type DeliveryMethodType =
+  | "Доставка Новою"
+  | "Самовивіз"
+  | "Доставка по місту"
+  | "";
+type PaymentMethodType = "Карта" | "Готівка" | "";
 
 interface CityOrWarehouse {
   Description: string;
@@ -52,12 +56,14 @@ const Zamovl: React.FC<ZamovlProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
 
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('+380');
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethodType>('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('');
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("+380");
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethodType>("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("");
   const [selectedCity, setSelectedCity] = useState<CityOrWarehouse | null>(null);
-  const [selectedWarehouse, setSelectedWarehouse] = useState<CityOrWarehouse | null>(null);
+  const [selectedWarehouse, setSelectedWarehouse] = useState<CityOrWarehouse | null>(
+    null
+  );
   const [selectedLvivStreet, setSelectedLvivStreet] = useState<string | null>(null);
 
   const [orderId] = useState(() => `${Date.now()}`);
@@ -77,15 +83,15 @@ const Zamovl: React.FC<ZamovlProps> = ({
 
           if (userDocSnap.exists()) {
             const data = userDocSnap.data();
-            setName(data.name || '');
-            setPhone(data.phone || '+380');
+            setName(data.name || "");
+            setPhone(data.phone || "+380");
           }
         } catch (error) {
-          console.error("Помилка при завантаженні даних користувача:", error);
+          console.error("Помилка при отриманні даних профілю:", error);
         }
       } else {
-        setName('');
-        setPhone('+380');
+        setName("");
+        setPhone("+380");
       }
 
       setIsLoading(false);
@@ -99,7 +105,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
 
     const normalizedCartItems = cartItems.map((item) => ({
       name: item.name,
-      article: item.article || '',
+      article: item.article || "",
       price: item.price,
       quantity: item.quantity,
       code: item.code,
@@ -127,12 +133,14 @@ const Zamovl: React.FC<ZamovlProps> = ({
       onClearCart();
       setCurrentStep(3);
     } catch (error) {
-      console.error("Помилка при створенні замовлення:", error);
-      alert("Сталася помилка при створенні замовлення.");
+      console.error("Помилка при оформленні замовлення:", error);
+      alert("Не вдалося зберегти замовлення.");
     }
   };
 
   if (isLoading) return null;
+
+  const steps = ["Дані", "Доставка", "Оплата", "Готово"];
 
   const renderStep = () => {
     switch (currentStep) {
@@ -194,18 +202,43 @@ const Zamovl: React.FC<ZamovlProps> = ({
   };
 
   return (
-    <div className="fixed top-24 right-4 left-4 sm:left-auto sm:right-6 w-[92%] max-w-[520px] max-h-[78vh] bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_52%,rgba(224,242,254,0.94)_100%)] border border-sky-200/80 rounded-2xl shadow-[0_24px_60px_rgba(30,64,175,0.22)] p-5 sm:p-6 z-[9999] overflow-auto animate-fadeIn backdrop-blur-xl">
-      <div className="flex items-center justify-between pb-4 border-b border-sky-200/70">
-        <h3 className="text-slate-800 text-2xl font-bold tracking-tight">
+    <div className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter overflow-auto p-4 sm:p-5">
+      <div className="mb-4 h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
+      <div className="soft-panel-content flex items-center justify-between gap-3 border-b border-slate-200/70 pb-3.5">
+        <h3 className="soft-panel-title">
           Оформлення замовлення
         </h3>
         <button
           onClick={onCloseAll}
-          className="rounded-full border border-sky-200 bg-white p-1 text-slate-500 transition hover:bg-sky-50 hover:text-slate-700"
-          aria-label="Закрити оформлення"
+          className="soft-icon-button h-10 w-10 shrink-0 p-1 text-slate-500"
+          aria-label="Закрити форму замовлення"
         >
           <X size={20} />
         </button>
+      </div>
+      <div className="mt-3.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {steps.map((step, index) => {
+          const isActive = currentStep === index;
+          const isDone = currentStep > index;
+
+          return (
+            <div
+              key={step}
+              className={`rounded-[16px] px-2.5 py-2 text-center text-xs font-semibold transition ${
+                isActive
+                  ? "soft-segment soft-segment--active"
+                  : isDone
+                  ? "soft-surface-card text-emerald-700"
+                  : "soft-segment"
+              }`}
+            >
+              <span className="block text-[10px] uppercase tracking-[0.14em] opacity-70">
+                Крок {Math.min(index + 1, 4)}
+              </span>
+              <span className="mt-1 block text-sm">{step}</span>
+            </div>
+          );
+        })}
       </div>
 
       {renderStep()}

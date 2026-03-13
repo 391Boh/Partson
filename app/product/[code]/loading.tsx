@@ -1,7 +1,7 @@
 export default function ProductPageLoading() {
   return (
     <div
-      className="min-h-screen px-4 py-5 sm:py-7"
+      className="route-transition-shell min-h-screen px-4 py-5 sm:py-7"
       style={{
         backgroundImage:
           "radial-gradient(circle at 10% 10%, rgba(14,165,233,0.14), transparent 38%), radial-gradient(circle at 90% 15%, rgba(59,130,246,0.13), transparent 33%), linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",

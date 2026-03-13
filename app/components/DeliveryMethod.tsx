@@ -62,57 +62,53 @@ const DeliveryMethod: React.FC<Props> = ({
   const [lvivStreets, setLvivStreets] = useState<string[]>([]);
 
   useEffect(() => {
-    if (deliveryMethod === 'Нова Пошта') {
-      fetch('/api/novaposhta', {
-        method: 'POST',
-        body: JSON.stringify({
-          modelName: 'Address',
-          calledMethod: 'getCities'
-        })
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data?.data) setCities(data.data);
-        });
+    if (deliveryMethod !== 'Нова Пошта') return;
 
-      setSelectedCity(null);
-      setCityInput('');
-      setSelectedWarehouse(null);
-      setWarehouseInput('');
-      setWarehouses([]);
-    } else {
-      setCities([]);
-      setWarehouses([]);
-      setSelectedCity(null);
-      setSelectedWarehouse(null);
-      setCityInput('');
-      setWarehouseInput('');
-    }
-  }, [deliveryMethod, setSelectedCity, setSelectedWarehouse]);
+    let isCancelled = false;
+
+    fetch('/api/novaposhta', {
+      method: 'POST',
+      body: JSON.stringify({
+        modelName: 'Address',
+        calledMethod: 'getCities'
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (!isCancelled && data?.data) {
+          setCities(data.data);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [deliveryMethod]);
 
   useEffect(() => {
-    if (selectedCity) {
-      fetch('/api/novaposhta', {
-        method: 'POST',
-        body: JSON.stringify({
-          modelName: 'Address',
-          calledMethod: 'getWarehouses',
-          methodProperties: { CityRef: selectedCity.Ref }
-        })
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data?.data) setWarehouses(data.data);
-        });
+    if (!selectedCity) return;
 
-      setSelectedWarehouse(null);
-      setWarehouseInput('');
-    } else {
-      setWarehouses([]);
-      setSelectedWarehouse(null);
-      setWarehouseInput('');
-    }
-  }, [selectedCity, setSelectedWarehouse]);
+    let isCancelled = false;
+
+    fetch('/api/novaposhta', {
+      method: 'POST',
+      body: JSON.stringify({
+        modelName: 'Address',
+        calledMethod: 'getWarehouses',
+        methodProperties: { CityRef: selectedCity.Ref }
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (!isCancelled && data?.data) {
+          setWarehouses(data.data);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedCity]);
 
   const filteredCities = cityInput
     ? cities.filter(city =>
@@ -153,6 +149,29 @@ const DeliveryMethod: React.FC<Props> = ({
     []
   );
 
+  const handleDeliveryMethodChange = (
+    method: 'Нова Пошта' | 'Самовивіз' | 'Доставка у Львові'
+  ) => {
+    setDeliveryMethod(method);
+    setSelectedCity(null);
+    setCityInput('');
+    setCities([]);
+    setSelectedWarehouse(null);
+    setWarehouseInput('');
+    setWarehouses([]);
+    setSelectedLvivStreet(null);
+    setLvivStreet('');
+    setLvivStreets([]);
+  };
+
+  const handleCityInputChange = (value: string) => {
+    setCityInput(value);
+    setSelectedCity(null);
+    setSelectedWarehouse(null);
+    setWarehouseInput('');
+    setWarehouses([]);
+  };
+
   const handleLvivStreetInput = (value: string) => {
     setLvivStreet(value);
     setSelectedLvivStreet(null);
@@ -178,24 +197,24 @@ const DeliveryMethod: React.FC<Props> = ({
   };
 
   return (
-    <div className="mt-6 space-y-5 text-slate-700">
+    <div className="mt-5 space-y-4 text-slate-700">
       <p>Оберіть спосіб доставки:</p>
 
       <div className="flex flex-col gap-3">
         {options.map(option => (
           <label
             key={option.value}
-            className={`cursor-pointer rounded-lg border px-4 py-3 transition ${
+            className={`cursor-pointer rounded-[16px] border px-3.5 py-2.5 transition ${
               deliveryMethod === option.value
-                ? 'border-sky-400/80 bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_10px_22px_rgba(59,130,246,0.3)]'
-                : 'border-sky-200 bg-white text-slate-700 hover:bg-sky-50'
+                ? 'soft-segment soft-segment--active'
+                : 'soft-surface-card text-slate-700 hover:bg-white/70'
             }`}
           >
             <input
               type="radio"
               value={option.value}
               checked={deliveryMethod === option.value}
-              onChange={() => setDeliveryMethod(option.value)}
+              onChange={() => handleDeliveryMethodChange(option.value)}
               className="mr-2"
             />
             {option.label}
@@ -204,16 +223,19 @@ const DeliveryMethod: React.FC<Props> = ({
       </div>
 
       {deliveryMethod === 'Нова Пошта' && (
-        <div className="space-y-3 mt-4 relative">
+        <div className="relative mt-3.5 space-y-3">
           <div className="relative">
             {cityInput && filteredCities.length > 0 && (
-              <ul className="absolute z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-lg border border-sky-200 bg-white top-auto bottom-full shadow-[0_12px_26px_rgba(15,23,42,0.12)]">
+              <ul className="soft-surface-card absolute bottom-full top-auto z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-[16px]">
                 {filteredCities.map(city => (
                   <li
                     key={city.Ref}
                     onClick={() => {
                       setSelectedCity(city);
                       setCityInput(city.Description);
+                      setSelectedWarehouse(null);
+                      setWarehouseInput('');
+                      setWarehouses([]);
                       setCities([]);
                     }}
                     className="cursor-pointer px-4 py-2 text-slate-700 hover:bg-sky-50"
@@ -227,19 +249,16 @@ const DeliveryMethod: React.FC<Props> = ({
             <input
               type="text"
               value={cityInput}
-              onChange={(e) => {
-                setCityInput(e.target.value);
-                setSelectedCity(null);
-              }}
+              onChange={(e) => handleCityInputChange(e.target.value)}
               placeholder="Введіть назву міста"
-              className="w-full rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 outline-none transition focus:ring-2 focus:ring-sky-300"
+              className="soft-field px-4 py-2.5"
               autoComplete="off"
             />
           </div>
 
           <div className="relative">
             {warehouseInput && filteredWarehouses.length > 0 && (
-              <ul className="absolute z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-lg border border-sky-200 bg-white top-auto bottom-full shadow-[0_12px_26px_rgba(15,23,42,0.12)]">
+              <ul className="soft-surface-card absolute bottom-full top-auto z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-[16px]">
                 {filteredWarehouses.map(wh => (
                   <li
                     key={wh.Ref}
@@ -264,7 +283,7 @@ const DeliveryMethod: React.FC<Props> = ({
                 setSelectedWarehouse(null);
               }}
               placeholder="Введіть номер відділення"
-              className="w-full rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 outline-none transition focus:ring-2 focus:ring-sky-300 disabled:bg-slate-100 disabled:text-slate-400"
+              className="soft-field px-4 py-2.5 disabled:bg-slate-100 disabled:text-slate-400"
               autoComplete="off"
               disabled={!selectedCity}
             />
@@ -273,25 +292,25 @@ const DeliveryMethod: React.FC<Props> = ({
       )}
 
       {deliveryMethod === 'Самовивіз' && (
-        <div className="mt-4 rounded-lg border border-sky-200/70 bg-white/90 p-3 text-sm text-slate-600">
+        <div className="soft-surface-card mt-3.5 rounded-[16px] p-3.5 text-sm text-slate-600">
           <p><strong>Адреса самовивозу:</strong></p>
           <p>м. Львів, вул. Перфецького 10, офіс 307</p>
         </div>
       )}
 
       {deliveryMethod === 'Доставка у Львові' && (
-        <div className="mt-4 relative">
+        <div className="relative mt-3.5">
           <label className="block mb-1 text-sm">Вулиця у Львові</label>
           <input
             type="text"
             value={lvivStreet}
             onChange={(e) => handleLvivStreetInput(e.target.value)}
             placeholder="Введіть назву вулиці"
-            className="w-full rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 outline-none transition focus:ring-2 focus:ring-sky-300"
+            className="soft-field px-4 py-2.5"
             autoComplete="off"
           />
           {lvivStreets.length > 0 && (
-            <ul className="absolute z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-lg border border-sky-200 bg-white top-auto bottom-full shadow-[0_12px_26px_rgba(15,23,42,0.12)]">
+            <ul className="soft-surface-card absolute bottom-full top-auto z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-[16px]">
               {lvivStreets.map((street, index) => (
                 <li
                   key={index}
@@ -310,11 +329,11 @@ const DeliveryMethod: React.FC<Props> = ({
         </div>
       )}
 
-      <div className="flex justify-between mt-6">
+      <div className="mt-5 flex justify-between gap-3">
         <button
           type="button"
           onClick={onBack}
-          className="rounded-lg border border-sky-200 bg-white px-4 py-2 text-slate-700 transition hover:bg-sky-50"
+          className="soft-secondary-button px-4 py-2.5 text-sm font-medium"
         >
           <ArrowLeft className="inline mr-2" size={16} />
           Назад
@@ -328,10 +347,10 @@ const DeliveryMethod: React.FC<Props> = ({
             (deliveryMethod === 'Доставка у Львові' && !selectedLvivStreet) ||
             deliveryMethod === ''
           }
-          className={`rounded-lg px-4 py-2 text-white transition ${
+          className={`px-4 py-2.5 text-sm font-medium ${
             ((deliveryMethod === 'Нова Пошта' && (!selectedCity || !selectedWarehouse)) ||
             (deliveryMethod === 'Доставка у Львові' && !selectedLvivStreet) ||
-            deliveryMethod === '') ? 'cursor-not-allowed bg-slate-400' : 'bg-gradient-to-r from-blue-600 to-cyan-500 shadow-[0_10px_22px_rgba(59,130,246,0.3)] hover:brightness-110'
+            deliveryMethod === '') ? 'soft-primary-button cursor-not-allowed opacity-60' : 'soft-primary-button'
           }`}
         >
           Підтвердити
