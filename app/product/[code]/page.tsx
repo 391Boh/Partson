@@ -10,10 +10,12 @@ import {
   findCatalogProductByCode,
   toPriceUah,
 } from "app/lib/catalog-server";
+import { buildCatalogCategoryPath, buildCatalogProducerPath } from "app/lib/catalog-links";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import OpenChatButton from "app/components/OpenChatButton";
 import { getProductImagePath, PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image";
 import { getSiteUrl } from "app/lib/site-url";
+import { buildSeoSlug } from "app/lib/seo-slug";
 
 export const revalidate = 900;
 
@@ -104,32 +106,46 @@ const buildProductBreadcrumbJsonLd = (options: {
   siteUrl: string;
   canonicalUrl: string;
   name: string;
+  groupName?: string;
+  groupPath?: string | null;
 }) => {
-  const { siteUrl, canonicalUrl, name } = options;
+  const { siteUrl, canonicalUrl, name, groupName, groupPath } = options;
+
+  const itemListElement = [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Головна",
+      item: siteUrl,
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "Каталог",
+      item: `${siteUrl}/katalog`,
+    },
+  ];
+
+  if (groupName && groupPath) {
+    itemListElement.push({
+      "@type": "ListItem",
+      position: 3,
+      name: groupName,
+      item: `${siteUrl}${groupPath}`,
+    });
+  }
+
+  itemListElement.push({
+    "@type": "ListItem",
+    position: itemListElement.length + 1,
+    name,
+    item: canonicalUrl,
+  });
 
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "Головна",
-        item: siteUrl,
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "Каталог",
-        item: `${siteUrl}/katalog`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name,
-        item: canonicalUrl,
-      },
-    ],
+    itemListElement,
   };
 };
 
@@ -181,6 +197,26 @@ const buildProductMetaDescription = (options: {
   return `Купити ${name}. ${details}. Каталог автозапчастин PartsON.`;
 };
 
+const shouldIndexProductPage = (product: {
+  name: string;
+  article: string;
+  producer: string;
+  quantity: number;
+  group?: string;
+  subGroup?: string;
+  category?: string;
+}) => {
+  const filledSignals = [
+    product.name.trim(),
+    product.article.trim(),
+    product.producer.trim(),
+    (product.group || product.category || "").trim(),
+    (product.subGroup || "").trim(),
+  ].filter(Boolean).length;
+
+  return Boolean(product.name.trim()) && (product.quantity > 0 || filledSignals >= 3);
+};
+
 export async function generateMetadata({
   params,
   searchParams,
@@ -218,6 +254,7 @@ export async function generateMetadata({
     producer: product.producer,
     quantity: product.quantity,
   });
+  const indexable = shouldIndexProductPage(product);
   const keywords = Array.from(new Set([
     product.name,
     product.code,
@@ -258,11 +295,14 @@ export async function generateMetadata({
       images: [productImagePath],
     },
     robots: {
-      index: !isModalView,
+      index: !isModalView && indexable,
       follow: true,
       googleBot: {
-        index: !isModalView,
+        index: !isModalView && indexable,
         follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+        "max-video-preview": -1,
       },
     },
     other: otherMeta,
@@ -318,6 +358,20 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       });
 
   const siteUrl = getSiteUrl();
+  const productGroup = (product.group || product.category || "").trim();
+  const productSubgroup = (product.subGroup || "").trim();
+  const producerSlug = buildSeoSlug(product.producer || "");
+  const groupSlug = buildSeoSlug(productGroup);
+  const producerLandingPath = producerSlug ? `/manufacturers/${producerSlug}` : null;
+  const groupLandingPath = groupSlug ? `/groups/${groupSlug}` : null;
+  const subgroupCatalogPath =
+    productGroup && productSubgroup
+      ? buildCatalogCategoryPath(productGroup, productSubgroup)
+      : null;
+  const producerGroupCatalogPath =
+    product.producer && productGroup
+      ? buildCatalogProducerPath(product.producer, productGroup)
+      : null;
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
   const canonicalUrl = `${siteUrl}/product/${canonicalCode}`;
   const productImagePath = getProductImagePath(
@@ -341,6 +395,8 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     siteUrl,
     canonicalUrl,
     name: product.name,
+    groupName: productGroup || undefined,
+    groupPath: groupLandingPath,
   });
   const isInStock = Number.isFinite(product.quantity) && product.quantity > 0;
   const contentGridClass = isModalView
@@ -374,12 +430,34 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         }
       >
         {!isModalView && (
-          <Link
-            href="/katalog"
-            className="mb-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-800"
-          >
-            &larr; Повернутися в каталог
-          </Link>
+          <div className="mb-3 space-y-3">
+            <nav className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+              <Link href="/" className="transition hover:text-slate-800">
+                Головна
+              </Link>
+              <span>/</span>
+              <Link href="/katalog" className="transition hover:text-slate-800">
+                Каталог
+              </Link>
+              {groupLandingPath && productGroup && (
+                <>
+                  <span>/</span>
+                  <Link href={groupLandingPath} className="transition hover:text-slate-800">
+                    {productGroup}
+                  </Link>
+                </>
+              )}
+              <span>/</span>
+              <span className="text-slate-700">{product.name}</span>
+            </nav>
+
+            <Link
+              href="/katalog"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-800"
+            >
+              &larr; Повернутися в каталог
+            </Link>
+          </div>
         )}
 
         <article
@@ -477,6 +555,48 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 </Link>
               </section>
 
+              {(producerLandingPath || groupLandingPath || subgroupCatalogPath || producerGroupCatalogPath) && (
+                <section className="rounded-2xl border border-slate-200 bg-white p-3.5">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    Пов’язані сторінки
+                  </h2>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {producerLandingPath && (
+                      <Link
+                        href={producerLandingPath}
+                        className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+                      >
+                        Бренд: {product.producer}
+                      </Link>
+                    )}
+                    {groupLandingPath && (
+                      <Link
+                        href={groupLandingPath}
+                        className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+                      >
+                        Група: {productGroup}
+                      </Link>
+                    )}
+                    {subgroupCatalogPath && (
+                      <Link
+                        href={subgroupCatalogPath}
+                        className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+                      >
+                        Підгрупа: {productSubgroup}
+                      </Link>
+                    )}
+                    {producerGroupCatalogPath && (
+                      <Link
+                        href={producerGroupCatalogPath}
+                        className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+                      >
+                        {product.producer} у групі {productGroup}
+                      </Link>
+                    )}
+                  </div>
+                </section>
+              )}
+
               <section className="rounded-2xl border border-slate-200 bg-white p-3.5">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Опис</h2>
                 <p className={descriptionTextClass}>{descriptionDisplayText}</p>
@@ -497,5 +617,3 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     </div>
   );
 }
-
-

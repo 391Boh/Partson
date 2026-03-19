@@ -77,7 +77,7 @@ const AdvantagesSection = ({
 
   return (
     <section
-      className="group/advantages relative min-h-[280px] w-full select-none overflow-hidden bg-gradient-to-br from-sky-200/95 via-blue-300/86 to-indigo-300/88 pt-5 pb-3 sm:pt-6 sm:pb-4 lg:pt-7 lg:pb-5 font-[Montserrat] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),inset_0_-1px_0_rgba(30,64,175,0.22),0_18px_38px_rgba(30,64,175,0.2)] transition-[background-image,box-shadow,filter] duration-500 ease-out hover:from-sky-200/95 hover:via-blue-300/86 hover:to-indigo-300/90"
+      className="font-ui group/advantages relative min-h-[280px] w-full select-none overflow-hidden bg-gradient-to-br from-sky-200/95 via-blue-300/86 to-indigo-300/88 pt-5 pb-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82),inset_0_-1px_0_rgba(30,64,175,0.22),0_18px_38px_rgba(30,64,175,0.2)] transition-[background-image,box-shadow,filter] duration-500 ease-out hover:from-sky-200/95 hover:via-blue-300/86 hover:to-indigo-300/90 sm:pt-6 sm:pb-4 lg:pt-7 lg:pb-5"
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
     >
@@ -97,7 +97,7 @@ const AdvantagesSection = ({
               <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shadow-inner sm:h-11 sm:w-11">
                 <ShieldCheckIcon className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
               </span>
-              <h3 className="relative inline-block text-lg font-semibold tracking-tight text-slate-700 drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)] sm:text-xl">
+              <h3 className="font-display relative inline-block text-[21px] font-extrabold italic tracking-[-0.03em] text-slate-700 drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)] sm:text-[24px]">
                 <span className="relative inline-flex items-center">
                   Переваги PartsON
                   <span
@@ -138,17 +138,17 @@ const AdvantagesSection = ({
                     </span>
 
                     <div className="min-w-0 flex-1">
-                      <h4 className="break-words text-[15px] font-semibold leading-[1.25] text-slate-800">
+                      <h4 className="font-display break-words text-[17px] font-bold leading-[1.18] tracking-[-0.02em] text-slate-800">
                         {item.title}
                       </h4>
-                      <p className="mt-1 break-words text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600 sm:text-xs">
+                      <p className="font-ui mt-1 break-words text-[11px] font-semibold uppercase tracking-[0.04em] text-slate-600 sm:text-xs">
                         {item.short}
                       </p>
                     </div>
                   </div>
 
                   <div className="relative mt-3 flex-1 rounded-xl border border-slate-200/80 bg-white/82 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)]">
-                    <p className="text-[12px] leading-relaxed text-slate-600 sm:text-[13px]">
+                    <p className="font-ui text-[12px] font-medium leading-relaxed text-slate-600 sm:text-[13px]">
                       {item.detailed}
                     </p>
                   </div>

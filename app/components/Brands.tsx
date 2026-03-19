@@ -40,7 +40,7 @@ const BrandSearchInput = memo(
           aria-label="Пошук виробника"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-xl border border-blue-200 bg-white/90 px-9 py-2 text-xs sm:text-sm font-semibold text-gray-700 placeholder:text-blue-300/95 shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition select-text"
+          className="font-ui w-full rounded-xl border border-blue-200 bg-white/90 px-9 py-2 text-xs font-semibold tracking-normal text-gray-700 placeholder:text-blue-300/95 shadow-inner transition select-text focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-300 sm:text-sm"
         />
         {value && (
           <button
@@ -93,7 +93,7 @@ function BrandCard({
           onError={handleBrandLogoLoadError}
         />
       </span>
-      <p className="relative min-w-0 flex-1 break-words text-left text-[11px] leading-relaxed text-slate-600 transition-colors duration-300 group-hover:text-slate-700 line-clamp-4 sm:text-[12px] sm:line-clamp-4">
+      <p className="font-ui relative min-w-0 flex-1 break-words text-left text-[11px] font-medium leading-relaxed text-slate-600 transition-colors duration-300 group-hover:text-slate-700 line-clamp-4 sm:text-[12px] sm:line-clamp-4">
         {brand.description}
       </p>
     </button>
@@ -178,7 +178,7 @@ export default function BrandCarousel({
 
   return (
     <section
-      className="group/brandcars relative min-h-[320px] w-full select-none overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-5 pt-5 font-[Montserrat] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)]"
+      className="font-ui group/brandcars relative min-h-[320px] w-full select-none overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-5 pt-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)]"
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
     >
@@ -195,7 +195,7 @@ export default function BrandCarousel({
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shadow-inner">
                 <Factory size={18} />
               </span>
-              <h3 className="text-xl font-semibold tracking-tight text-slate-700 relative inline-block drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)]">
+              <h3 className="font-display relative inline-block text-[21px] font-extrabold italic tracking-[-0.03em] text-slate-700 drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)] sm:text-[24px]">
                 <span className="relative inline-flex items-center">
                   {"Вибір із"} {filteredBrands.length} {"виробників авто"}
                   <span

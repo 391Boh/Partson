@@ -1,4 +1,5 @@
 ﻿import { Geist_Mono, Montserrat } from "next/font/google";
+import { Exo_2, Manrope } from "next/font/google";
 import type { Metadata } from "next";
 import { Suspense, type ReactNode } from "react";
 import Script from "next/script";
@@ -10,7 +11,26 @@ import "./globals.css";
 
 const montserrat = { className: "", variable: "" };
 
-const geistMono = { variable: "" };
+const uiFont = Manrope({
+  subsets: ["latin", "cyrillic"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-ui",
+  display: "swap",
+});
+
+const displayFont = Exo_2({
+  subsets: ["latin", "cyrillic"],
+  weight: ["500", "600", "700", "800", "900"],
+  style: ["normal", "italic"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 const siteUrl = getSiteUrl();
 const siteUrlObject = (() => {
@@ -325,7 +345,9 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
         />
       </head>
-      <body className={`${montserrat.className} ${montserrat.variable} ${geistMono.variable}`}>
+      <body
+        className={`${uiFont.className} ${uiFont.variable} ${displayFont.variable} ${geistMono.variable}`}
+      >
         <div className="page-scale-root">
           <ClientWrapper>
             <Suspense fallback={layoutFallback}>
@@ -337,4 +359,3 @@ export default function RootLayout({
     </html>
   );
 }
-

@@ -264,7 +264,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
     >
       <div
         ref={modalRef}
-        className={`soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto p-5 transform-gpu transition-all duration-500 ease-in-out pointer-events-auto ${
+        className={`soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto p-3 sm:p-5 transform-gpu transition-all duration-500 ease-in-out pointer-events-auto ${
           isClosing
             ? "scale-95 opacity-0"
             : isVisible
@@ -281,7 +281,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
           <X size={22} />
         </button>
 
-        <div className="soft-panel-content flex flex-col gap-4">
+        <div className="soft-panel-content flex flex-col gap-3 sm:gap-4">
           <h2 className="text-xl font-bold text-center text-slate-800 flex items-center justify-center gap-2">
             <User className="w-5 h-5 text-sky-600" />
             {mode === "login" ? "Увійти" : "Реєстрація"}

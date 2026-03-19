@@ -90,25 +90,25 @@ export default function Footer() {
             <h3 className="mb-3 text-lg font-semibold text-slate-900">Інформація</h3>
             <ul className="grid grid-cols-2 gap-x-28 gap-y-2 text-sm">
               <li>
-                <Link className={infoLinkClass} href="/inform?tab=about">
+                <Link className={infoLinkClass} href="/inform/about">
                   <FaInfoCircle className={infoIconClass} />
                   <span>Про нас</span>
                 </Link>
               </li>
               <li>
-                <Link className={infoLinkClass} href="/inform?tab=delivery">
+                <Link className={infoLinkClass} href="/inform/delivery">
                   <FaTruck className={infoIconClass} />
                   <span>Доставка</span>
                 </Link>
               </li>
               <li>
-                <Link className={infoLinkClass} href="/inform?tab=location">
+                <Link className={infoLinkClass} href="/inform/location">
                   <FaMapMarkerAlt className={infoIconClass} />
                   <span>Локація</span>
                 </Link>
               </li>
               <li>
-                <Link className={infoLinkClass} href="/inform?tab=payment">
+                <Link className={infoLinkClass} href="/inform/payment">
                   <FaWallet className={infoIconClass} />
                   <span>Оплата</span>
                 </Link>

@@ -657,7 +657,7 @@ const ProductFetcher: React.FC<Props> = ({
   return (
     <section
       ref={sectionRef}
-      className={`group/tovar relative tovar-touch min-h-[420px] w-full overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-4 pt-4 font-[Montserrat] select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)] ${
+      className={`font-ui group/tovar relative tovar-touch min-h-[420px] w-full overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-4 pt-4 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)] ${
         canHover
           ? "transition-[box-shadow,background-image,filter] duration-300 ease-out hover:from-cyan-50/95 hover:via-sky-100/80 hover:to-blue-100/85 hover:brightness-[1.015] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(30,64,175,0.18),0_18px_38px_rgba(37,99,235,0.18)]"
           : ""
@@ -675,7 +675,7 @@ const ProductFetcher: React.FC<Props> = ({
                 <div className="h-9 w-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shadow-inner">
                   <Search size={16} />
                 </div>
-                <h3 className="min-w-0 flex-1 text-xl font-semibold tracking-tight text-slate-700 relative drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)]">
+                <h3 className="font-display relative min-w-0 flex-1 text-[21px] font-extrabold italic tracking-[-0.03em] text-slate-700 drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)] sm:text-[24px]">
                   <span className="relative inline-block max-w-full break-words">
                     {"\u0428\u0432\u0438\u0434\u043a\u0438\u0439 \u043f\u043e\u0448\u0443\u043a \u0442\u043e\u0432\u0430\u0440\u0456\u0432!"}
                     <span className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400 transform origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 hover:scale-x-100 shadow-[0_4px_12px_rgba(37,99,235,0.3)]" />

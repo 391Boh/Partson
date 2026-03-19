@@ -249,6 +249,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const headerRef = useRef<HTMLDivElement | null>(null);
   const panelContentRef = useRef<HTMLDivElement | null>(null);
   const requestBannerRef = useRef<HTMLDivElement | null>(null);
+  const lastWindowScrollYRef = useRef(0);
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
   const router = useRouter();
@@ -267,6 +268,11 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       setCollapsed(false);
     }
   }, [tabParam]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    lastWindowScrollYRef.current = window.scrollY;
+  }, []);
 
   useEffect(() => {
     setInternalSelectedCars(selectedCars);
@@ -415,6 +421,38 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     };
   }, [emitLayoutHeight, onLayoutChange]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleWindowScroll = () => {
+      const currentScrollY = window.scrollY;
+      const delta = Math.abs(currentScrollY - lastWindowScrollYRef.current);
+      lastWindowScrollYRef.current = currentScrollY;
+
+      if (collapsed) return;
+      if (delta < 8) return;
+      setCollapsed(true);
+    };
+
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleWindowScroll);
+  }, [collapsed]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const handlePointerDownOutside = (event: PointerEvent) => {
+      if (collapsed) return;
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (rootRef.current?.contains(target)) return;
+      setCollapsed(true);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDownOutside);
+    return () => document.removeEventListener('pointerdown', handlePointerDownOutside);
+  }, [collapsed]);
+
   const handleAutoPicked = useCallback(() => {
     if (!hasPartSelection) {
       setActiveComponent('category');
@@ -472,21 +510,33 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   ]);
 
   const handleOpenCategoryTab = useCallback(() => {
+    if (isCategoryTabActive && !collapsed) {
+      setCollapsed(true);
+      return;
+    }
     setCategoryResetSignal((prev) => prev + 1);
     setCategorySearchTerm('');
     setActiveComponent('category');
     setCollapsed(false);
-  }, []);
+  }, [collapsed, isCategoryTabActive]);
 
   const handleOpenProducerTab = useCallback(() => {
+    if (isProducerTabActive && !collapsed) {
+      setCollapsed(true);
+      return;
+    }
     setActiveComponent('producer');
     setCollapsed(false);
-  }, []);
+  }, [collapsed, isProducerTabActive]);
 
   const handleOpenAutoTab = useCallback(() => {
+    if (isAutoTabActive && !collapsed) {
+      setCollapsed(true);
+      return;
+    }
     setActiveComponent('auto');
     setCollapsed(false);
-  }, []);
+  }, [collapsed, isAutoTabActive]);
 
   const handleGoToLogin = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -633,7 +683,14 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   return (
     <section
       ref={rootRef}
-      className="w-full select-none overflow-hidden rounded-t-none rounded-b-[18px] border-x border-b border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.975)_0%,rgba(248,250,252,0.95)_100%)] text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.06)] ring-1 ring-sky-200/85 backdrop-blur-xl"
+      onClick={() => {
+        if (collapsed) {
+          setCollapsed(false);
+        }
+      }}
+      className={`w-full select-none overflow-hidden rounded-t-none rounded-b-[18px] border-x border-b border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.975)_0%,rgba(248,250,252,0.95)_100%)] text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.06)] ring-1 ring-sky-200/85 backdrop-blur-xl ${
+        collapsed ? 'cursor-pointer' : ''
+      }`}
     >
       <div
         ref={headerRef}

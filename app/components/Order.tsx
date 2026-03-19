@@ -149,7 +149,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
         ref={orderRef}
         className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter flex flex-col overflow-hidden"
       >
-        <div className="soft-panel-content flex flex-col gap-3 p-4 sm:p-4">
+        <div className="soft-panel-content flex flex-col gap-3 p-3 sm:p-4">
           <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
 
           <div className="soft-panel-header">
@@ -199,7 +199,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               <div className="loader" />
             </div>
           ) : pastOrders.length > 0 ? (
-            <div className="app-panel-scroll flex max-h-[52vh] flex-col gap-3 overflow-y-auto pr-1">
+            <div className="app-panel-scroll flex max-h-[36svh] flex-col gap-3 overflow-y-auto pr-1 sm:max-h-[52vh]">
               {pastOrders.map((order) => {
                 const isExpanded = expandedOrderId === order.id;
                 return (
@@ -228,7 +228,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                     {isExpanded && (
                       <div className="mt-3 space-y-3">
                         <div className="soft-note rounded-[16px] px-3 py-2.5">
-                          <ul className="app-panel-scroll max-h-36 list-inside list-disc overflow-y-auto space-y-1 text-xs text-slate-600">
+                          <ul className="app-panel-scroll max-h-28 list-inside list-disc overflow-y-auto space-y-1 text-xs text-slate-600 sm:max-h-36">
                             {order.cartItems?.map((item: PastOrderItem, idx: number) => (
                               <li key={idx}>
                                 {item.name} — {item.quantity} шт.
@@ -287,7 +287,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
       ref={orderRef}
       className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter flex flex-col overflow-hidden"
     >
-      <div className={`soft-panel-content flex flex-col p-4 sm:p-4 ${hasItems ? 'gap-3' : 'gap-2.5'}`}>
+      <div className={`soft-panel-content flex flex-col p-3 sm:p-4 ${hasItems ? 'gap-3' : 'gap-2.5'}`}>
         <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
 
         <div className="soft-panel-header">
@@ -344,7 +344,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               </div>
             </div>
 
-            <div className="app-panel-scroll flex max-h-[40vh] flex-col gap-3 overflow-y-auto pr-1">
+            <div className="app-panel-scroll flex max-h-[34svh] flex-col gap-3 overflow-y-auto pr-1 sm:max-h-[40vh]">
               {cartItems.map((item, index) => (
                 <div
                   key={item.code || index}

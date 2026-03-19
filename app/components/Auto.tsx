@@ -669,7 +669,7 @@ const AutoSection: React.FC<AutoProps> = ({
             showLeftPanel && !(isFilterVariant && isCompact)
               ? "grid-cols-1 lg:grid-cols-[1.45fr_0.95fr]"
               : "grid-cols-1"
-          } items-stretch gap-6 px-4 pb-4 pt-4 sm:px-5 lg:px-7 font-[Montserrat]`}
+          } items-stretch gap-6 px-4 pb-4 pt-4 font-ui sm:px-5 lg:px-7`}
         >
         {showLeftPanel && (
           <div className="min-w-0">
@@ -679,7 +679,7 @@ const AutoSection: React.FC<AutoProps> = ({
                   <div className="flex flex-col gap-3 group/brands">
                     <div className="flex flex-wrap items-center gap-3 w-full sm:flex-nowrap sm:items-center sm:justify-between group/brands">
                       <div className="order-1 w-full sm:w-auto flex items-center gap-3 sm:gap-4 group hover:[&_span[data-underline]]:scale-x-100 group-hover/brands:[&_span[data-underline]]:scale-x-100 group-hover/logogrid:[&_span[data-underline]]:scale-x-100">
-                        <h3 className="text-xl font-semibold tracking-tight text-slate-700 relative inline-block drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)]">
+                        <h3 className="font-display relative inline-block text-[21px] font-extrabold italic tracking-[-0.03em] text-slate-700 drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)] sm:text-[24px]">
                           <span className="relative inline-flex items-center">
                             {"\u0412\u0438\u0431\u0456\u0440 \u0456\u0437"} {filteredBrands.length} {"\u043c\u0430\u0440\u043e\u043a \u0430\u0432\u0442\u043e\u043c\u043e\u0431\u0456\u043b\u0456\u0432"}
                               <span

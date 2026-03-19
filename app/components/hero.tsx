@@ -31,19 +31,20 @@ const cardGradientHover =
 const cardInteractionStatic =
   "transition-[box-shadow,background-color,border-color] duration-300 ease-out";
 const heroHeadingText =
-  "font-black italic leading-[1.05] tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-sky-100 via-white to-sky-200";
+  "font-display font-black italic leading-[1.02] tracking-[-0.03em] text-transparent bg-clip-text bg-gradient-to-r from-sky-100 via-white to-sky-200";
 
 const actionButtonBase = [
   "inline-flex",
   "items-center",
   "gap-2",
   "justify-center",
-  "rounded-[12px]",
+  "rounded-[14px]",
   "px-5",
   "py-2.5",
-  "text-[10px]",
-  "font-semibold",
-  "tracking-[0.28em]",
+  "font-ui",
+  "text-[11px]",
+  "font-bold",
+  "tracking-[0.12em]",
   "uppercase",
   "transition-[box-shadow,filter,background-color,border-color]",
   "duration-400",
@@ -82,7 +83,7 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
 
   return (
     <section
-      className="group/hero relative isolate w-full select-none overflow-hidden py-6 font-[Montserrat] [background-size:162%_172%] [background-position:78%_48%] transition-[filter,background-position,background-size] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:hover:[background-position:72%_46%] motion-safe:hover:[background-size:170%_178%] sm:py-8"
+      className="font-ui group/hero relative isolate w-full select-none overflow-hidden py-6 [background-size:162%_172%] [background-position:78%_48%] transition-[filter,background-position,background-size] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:hover:[background-position:72%_46%] motion-safe:hover:[background-size:170%_178%] sm:py-8"
       style={{
         backgroundImage: depthBackground,
       }}
@@ -112,9 +113,7 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
                   </svg>
                 </span>
                 <div className="flex min-w-0 flex-col">
-                  <p
-                    className={`break-words ${heroHeadingText} text-base sm:text-lg md:text-xl uppercase tracking-[0.12em] -mt-1`}
-                  >
+                  <p className="font-display break-words -mt-1 text-[15px] font-extrabold italic uppercase tracking-[0.07em] text-sky-50 sm:text-[18px] md:text-[20px]">
                     Магазин автозапчастин
                   </p>
                   <span className="mt-1 h-0.5 w-32 bg-gradient-to-r from-sky-300/80 via-white/30 to-transparent" />
@@ -131,7 +130,7 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
                     — знайдеться все!
                   </span>
                 </p>
-                <p className="relative mt-2 text-sm font-semibold italic tracking-[0.12em] text-sky-100/85 sm:text-base md:text-[17px] leading-relaxed text-right pr-3 sm:pr-4 after:mt-2 after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-sky-300/80 after:via-white/30 after:to-transparent after:ml-auto">
+                <p className="font-display relative mt-2 pr-3 text-right text-sm font-semibold italic tracking-[0.05em] text-sky-100/85 sm:pr-4 sm:text-base md:text-[17px] leading-relaxed after:mt-2 after:ml-auto after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-sky-300/80 after:via-white/30 after:to-transparent">
                   Кожна деталь важлива...
                 </p>
               </div>
@@ -206,13 +205,13 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
                 </svg>
               </span>
               <div className="flex min-w-0 flex-col">
-                <p className="break-words text-xs italic font-semibold uppercase tracking-[0.22em] text-slate-100/85 sm:text-sm sm:tracking-[0.32em]">
+                <p className="font-display break-words text-xs font-semibold italic uppercase tracking-[0.14em] text-slate-100/90 sm:text-sm sm:tracking-[0.2em]">
                   Вигода від реєстрації
                 </p>
                 <span className="h-0.5 w-28 bg-gradient-to-r from-sky-300/70 via-white/25 to-transparent" />
               </div>
             </div>
-            <ul className="space-y-2 text-[13px] font-medium text-slate-100 sm:text-sm">
+            <ul className="space-y-2 text-[13px] font-semibold tracking-[-0.01em] text-slate-100 sm:text-[15px]">
               {benefitItems.map((benefit) => (
                 <li
                   key={benefit}
@@ -235,4 +234,3 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
 };
 
 export default Hero;
-

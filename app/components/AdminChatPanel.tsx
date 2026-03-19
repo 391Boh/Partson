@@ -5,14 +5,29 @@ import {
   ChatBubbleBottomCenterTextIcon,
   ShoppingBagIcon,
   PhoneIcon,
-  ChevronLeftIcon,
   TrashIcon,
-  PaperAirplaneIcon,
   CheckCircleIcon,
   EyeIcon,
   UsersIcon,
 } from '@heroicons/react/24/outline';
-import { ChevronDown, ChevronUp, Copy, MessageCircle, ShoppingBag } from 'lucide-react';
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Clock3,
+  Copy,
+  Mail,
+  MessageCircle,
+  PackagePlus,
+  PhoneCall,
+  Search,
+  SendHorizontal,
+  ShieldCheck,
+  ShoppingBag,
+  UserRound,
+  Users2,
+  X,
+} from 'lucide-react';
 import {
   collection,
   onSnapshot,
@@ -121,6 +136,8 @@ export default function AdminChatPanel({
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [userPhoneMap, setUserPhoneMap] = useState<Record<string, string>>({});
   const [orderSearch, setOrderSearch] = useState('');
+  const [messageSearch, setMessageSearch] = useState('');
+  const [callSearch, setCallSearch] = useState('');
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
@@ -353,6 +370,32 @@ export default function AdminChatPanel({
       return Number.isFinite(value) ? value : null;
     }
     return null;
+  };
+
+  const formatTimestampLabel = (raw: unknown) => {
+    const timestampMs = getTimestampMs(raw);
+    if (!timestampMs) return 'Щойно';
+
+    const value = new Date(timestampMs);
+    const now = new Date();
+    const sameDay =
+      value.getFullYear() === now.getFullYear() &&
+      value.getMonth() === now.getMonth() &&
+      value.getDate() === now.getDate();
+
+    if (sameDay) {
+      return new Intl.DateTimeFormat('uk-UA', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(value);
+    }
+
+    return new Intl.DateTimeFormat('uk-UA', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(value);
   };
 
   const getUserByChatId = (uid: string) =>
@@ -670,7 +713,9 @@ export default function AdminChatPanel({
     const phoneDigits = normalizePhoneDigits(phone);
     const uid = o.uid;
     const matchesSearch = normalizedOrderSearch
-      ? phone.toLowerCase().includes(normalizedOrderSearch) ||
+      ? `${o.name || ''} ${phone} ${o.city || ''} ${o.warehouse || ''} ${o.deliveryMethod || ''} ${o.paymentMethod || ''}`
+          .toLowerCase()
+          .includes(normalizedOrderSearch) ||
         (normalizedOrderSearchDigits && phoneDigits.includes(normalizedOrderSearchDigits))
       : true;
 
@@ -697,6 +742,8 @@ export default function AdminChatPanel({
       : '';
   const normalizedUserSearch = userSearch.trim().toLowerCase();
   const normalizedUserSearchDigits = normalizePhoneDigits(userSearch);
+  const normalizedMessageSearch = messageSearch.trim().toLowerCase();
+  const normalizedMessageSearchDigits = normalizePhoneDigits(messageSearch);
   const filteredUsers = users.filter((u) => {
     if (!normalizedUserSearch) return true;
 
@@ -731,7 +778,80 @@ export default function AdminChatPanel({
     );
   });
   const onlineUsersCount = sortedUsers.filter(isUserOnline).length;
-  const userCode = (item: UserRecord) => item.code || item.id;
+  const messageThreads = [...new Set(messages.map((m) => m.userId))]
+    .map((uid) => {
+      const threadMessages = messages.filter((m) => m.userId === uid);
+      const lastMessage = threadMessages.at(-1);
+      const matchedUser = getUserByChatId(uid);
+      const preview =
+        lastMessage?.type === 'product'
+          ? lastMessage?.product?.name ??
+            lastMessage?.product?.article ??
+            lastMessage?.product?.code ??
+            lastMessage?.text ??
+            ''
+          : lastMessage?.type === 'image'
+          ? lastMessage?.imageName
+            ? `Фото: ${lastMessage.imageName}`
+            : 'Фото'
+          : lastMessage?.text ?? '';
+      const unread = threadMessages.filter(
+        (m) => m.sender === 'user' && m.readByAdmin !== true
+      ).length;
+      const hasReply = threadMessages.some((m) => m.sender === 'manager');
+      const searchable = [
+        getUserLabel(uid),
+        matchedUser?.phone,
+        matchedUser?.email,
+        matchedUser?.code,
+        matchedUser?.chatUserId,
+        matchedUser?.id,
+        matchedUser?.vins.join(' '),
+        preview,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return {
+        uid,
+        unread,
+        hasReply,
+        preview,
+        label: getUserLabel(uid),
+        user: matchedUser,
+        lastMessage,
+        lastMessageMs: getTimestampMs(lastMessage?.createdAt) ?? 0,
+        searchable,
+      };
+    })
+    .filter((thread) => {
+      if (!normalizedMessageSearch) return true;
+      if (thread.searchable.includes(normalizedMessageSearch)) return true;
+      if (!normalizedMessageSearchDigits) return false;
+
+      return (
+        normalizePhoneDigits(thread.user?.phone).includes(normalizedMessageSearchDigits) ||
+        normalizePhoneDigits(thread.user?.code).includes(normalizedMessageSearchDigits) ||
+        normalizePhoneDigits(thread.user?.chatUserId).includes(normalizedMessageSearchDigits) ||
+        normalizePhoneDigits(thread.uid).includes(normalizedMessageSearchDigits)
+      );
+    })
+    .sort((left, right) => right.lastMessageMs - left.lastMessageMs);
+  const normalizedCallSearch = callSearch.trim().toLowerCase();
+  const normalizedCallSearchDigits = normalizePhoneDigits(callSearch);
+  const filteredCalls = calls.filter((call) => {
+    if (!normalizedCallSearch) return true;
+    const searchable = `${call.name} ${call.phone} ${call.message}`.toLowerCase();
+    if (searchable.includes(normalizedCallSearch)) return true;
+    if (!normalizedCallSearchDigits) return false;
+    return normalizePhoneDigits(call.phone).includes(normalizedCallSearchDigits);
+  });
+  const totalThreads = new Set(messages.map((m) => m.userId)).size;
+  const selectedUserRecord = selectedUserId ? getUserByChatId(selectedUserId) : null;
+  const getPrimaryVin = (item?: UserRecord | null) => item?.vins?.[0] || '';
+  const getUserIdentityValue = (item?: UserRecord | null) =>
+    getPrimaryVin(item) || item?.code || item?.id || '';
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -750,122 +870,176 @@ export default function AdminChatPanel({
 
   return (
     <div
-      className="fixed z-50 left-3 right-3 top-24 bottom-auto h-[70vh] max-h-[calc(100vh-5.5rem)] rounded-2xl shadow-2xl border border-slate-600/60 flex flex-col bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 backdrop-blur-xl md:left-6 md:right-auto md:top-20 md:w-[520px] md:rounded-3xl"
+      className="fixed left-2 right-2 top-[4.75rem] bottom-2 z-50 flex max-h-[calc(100vh-5.25rem)] flex-col overflow-hidden rounded-[24px] border border-sky-200/20 bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900 shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl md:left-6 md:right-auto md:top-20 md:bottom-6 md:w-[min(720px,calc(100vw-3rem))] md:rounded-[32px]"
       style={{
         backgroundSize: '200% 200%',
         animation: 'adminGradient 12s ease infinite',
       }}
     >
-      <div className="h-12 px-4 flex items-center justify-between border-b border-white/10 text-white rounded-t-2xl md:rounded-t-3xl">
-        <span className="flex items-center gap-2 font-semibold text-sm text-slate-100">
-          <ChatBubbleBottomCenterTextIcon className="w-4 h-4" />
-          Панель адміністратора
-        </span>
-        <button
-          onClick={onClose}
-          className="text-slate-300 hover:text-white transition"
-          aria-label="Close admin panel"
-        >
-          Закрити
-        </button>
+      <div className="border-b border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.82),rgba(30,41,59,0.72),rgba(14,165,233,0.16))] px-3 py-3 text-white sm:px-5 sm:py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-sky-200/20 bg-white/10 text-sky-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_18px_32px_rgba(14,165,233,0.2)]">
+              <ShieldCheck className="h-6 w-6" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-200/80 sm:text-[11px] sm:tracking-[0.18em]">
+                Керування магазином
+              </p>
+              <h2 className="mt-1 text-lg font-bold tracking-[-0.03em] text-white sm:text-xl">
+                Панель адміністратора
+              </h2>
+              <p className="mt-1 hidden text-xs text-slate-300 sm:block sm:text-sm">
+                Чати, клієнти, замовлення та зворотні дзвінки в одному вікні.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 hover:text-white"
+            aria-label="Закрити панель адміністратора"
+            title="Закрити"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
       </div>
 
-      <div className="grid grid-cols-4 gap-1 p-2 bg-white/5 border-b border-white/10 sticky top-0 z-10">
+      <div className="sticky top-0 z-10 grid grid-cols-2 gap-1.5 border-b border-white/10 bg-slate-950/25 px-2 py-2 sm:grid-cols-4 sm:gap-2 sm:px-3 sm:py-2.5">
         <Tab
-          icon={<ChatBubbleBottomCenterTextIcon className="w-5 h-5" />}
+          icon={<ChatBubbleBottomCenterTextIcon className="h-6 w-6" />}
           label="Повідомлення"
-          count={unreadMessages}
+          value={totalThreads}
+          meta={`Нові ${unreadMessages}`}
+          badgeCount={unreadMessages}
           active={tab === 'messages'}
           onClick={() => setTab('messages')}
         />
         <Tab
-          icon={<UsersIcon className="w-5 h-5" />}
+          icon={<UsersIcon className="h-6 w-6" />}
           label="Користувачі"
-          count={users.length}
+          value={users.length}
+          meta={`Онлайн ${onlineUsersCount}`}
+          badgeCount={onlineUsersCount}
           active={tab === 'users'}
           onClick={() => setTab('users')}
         />
         <Tab
-          icon={<ShoppingBagIcon className="w-5 h-5" />}
+          icon={<ShoppingBagIcon className="h-6 w-6" />}
           label="Замовлення"
-          count={unreadOrders}
+          value={orders.length}
+          meta={`Нові ${unreadOrders}`}
+          badgeCount={unreadOrders}
           active={tab === 'orders'}
           onClick={() => setTab('orders')}
         />
         <Tab
-          icon={<PhoneIcon className="w-5 h-5" />}
+          icon={<PhoneIcon className="h-6 w-6" />}
           label="Дзвінки"
-          count={unreadCalls}
+          value={calls.length}
+          meta={`Нові ${unreadCalls}`}
+          badgeCount={unreadCalls}
           active={tab === 'calls'}
           onClick={() => setTab('calls')}
         />
       </div>
 
-      <main className="flex-1 overflow-y-auto p-3 bg-slate-900/40 text-slate-100">
+      <main className="flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(15,23,42,0.5),rgba(2,6,23,0.56))] p-2 text-slate-100 sm:p-4">
         {tab === 'messages' && (
           <>
             {!selectedUserId ? (
-              <div className="space-y-2">
-                {[...new Set(messages.map((m) => m.userId))].map((uid) => {
-                  const unread = messages.filter(
-                    (m) =>
-                      m.userId === uid &&
-                      m.sender === 'user' &&
-                      !m.readByAdmin
-                  ).length;
-                  const last = messages.filter((m) => m.userId === uid).at(-1);
-                  const lastText =
-                    last?.type === 'product'
-                      ? last?.product?.name ??
-                        last?.product?.article ??
-                        last?.product?.code ??
-                        last?.text
-                      : last?.type === 'image'
-                      ? last?.imageName
-                        ? `Фото: ${last.imageName}`
-                        : 'Фото'
-                      : last?.text;
-                  const displayName = getUserLabel(uid);
-                  const hasReply = messages.some(
-                    (m) => m.userId === uid && m.sender === 'manager'
-                  );
+              <div className="space-y-3">
+                <SearchDock>
+                  <div className="space-y-2">
+                    <PanelSearchField
+                      value={messageSearch}
+                      onChange={setMessageSearch}
+                      placeholder="Пошук чату по імені, телефону, коду або тексту"
+                    />
+
+                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                      <InfoChip icon={<MessageCircle className="h-3.5 w-3.5" />} label={`Діалогів: ${messageThreads.length}`} />
+                      <InfoChip icon={<Clock3 className="h-3.5 w-3.5" />} label={`Без відповіді: ${messageThreads.filter((item) => !item.hasReply).length}`} />
+                    </div>
+                  </div>
+                </SearchDock>
+
+                {messageThreads.length === 0 && (
+                  <EmptyPanelState
+                    icon={<ChatBubbleBottomCenterTextIcon className="h-10 w-10" />}
+                    title="Чатів не знайдено"
+                    description="Нові діалоги з’являться тут. Також перевірте фільтр пошуку."
+                  />
+                )}
+
+                {messageThreads.map((thread) => {
                   return (
                     <div
-                      key={uid}
-                      onClick={() => openChat(uid)}
-                      className="bg-slate-800/70 border border-white/5 p-3 rounded-xl flex justify-between cursor-pointer hover:brightness-110 transition text-slate-100"
+                      key={thread.uid}
+                      onClick={() => openChat(thread.uid)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          openChat(thread.uid);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      className="group w-full rounded-[18px] border border-white/8 bg-[linear-gradient(180deg,rgba(30,41,59,0.82),rgba(15,23,42,0.74))] p-2.5 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.16)] transition-colors duration-200 hover:border-sky-300/20 hover:bg-white/[0.06] sm:rounded-[22px] sm:p-3"
                     >
-                      <div className="truncate">
-                        <p className="font-medium text-sm truncate">{displayName}</p>
-                        <p className="text-xs text-slate-300 truncate">
-                          {lastText}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full ${
-                            hasReply
-                              ? 'bg-emerald-500/20 text-emerald-200'
-                              : 'bg-amber-500/20 text-amber-200'
-                          }`}
-                        >
-                          {hasReply ? 'Є відповідь' : 'Без відповіді'}
+                      <div className="flex items-start gap-3">
+                        <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sky-100">
+                          <UserRound className="h-6 w-6" />
                         </span>
-                        {unread > 0 && (
-                          <span className="inline-flex items-center justify-center min-w-5 h-5 bg-rose-500 text-white text-[10px] px-1.5 rounded-full leading-none">
-                            {unread}
-                          </span>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteChat(uid);
-                          }}
-                          className="text-slate-400 hover:text-rose-400"
-                          title="Видалити чат"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-semibold text-white sm:text-[15px]">
+                              {thread.label}
+                            </p>
+                            {thread.user && isUserOnline(thread.user) && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+                                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                                Онлайн
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 hidden truncate text-xs text-slate-300 sm:block sm:text-[13px]">
+                            {thread.preview || 'Поки що без повідомлень'}
+                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                                thread.hasReply
+                                  ? 'bg-emerald-500/15 text-emerald-200'
+                                  : 'bg-amber-500/15 text-amber-200'
+                              }`}
+                            >
+                              {thread.hasReply ? 'Є відповідь' : 'Чекає відповіді'}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
+                              <Clock3 className="h-3.5 w-3.5" />
+                              {formatTimestampLabel(thread.lastMessage?.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2 pl-2">
+                          {thread.unread > 0 && (
+                            <span className="inline-flex min-w-[28px] items-center justify-center rounded-full bg-rose-500 px-2 py-1 text-[11px] font-bold text-white shadow-[0_10px_20px_rgba(244,63,94,0.28)]">
+                              {thread.unread}
+                            </span>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteChat(thread.uid);
+                            }}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-400 transition hover:bg-rose-500/15 hover:text-rose-300"
+                            title="Видалити чат"
+                          >
+                            <TrashIcon className="h-4.5 w-4.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -873,21 +1047,82 @@ export default function AdminChatPanel({
               </div>
             ) : (
                 <div className="flex flex-col h-full">
-                  <div className="flex items-center gap-2 mb-2">
-                    <button onClick={() => setSelectedUserId(null)}>
-                      <ChevronLeftIcon className="w-5 h-5" />
-                    </button>
-                  <span className="font-medium text-sm truncate">
-                    {selectedDisplayName}
-                  </span>
-                  <span className="ml-auto" />
-                </div>
+                  <div className="mb-3 rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(30,41,59,0.92),rgba(15,23,42,0.9))] p-3.5 shadow-[0_18px_34px_rgba(2,6,23,0.22)]">
+                    <div className="flex items-start gap-3">
+                      <button
+                        onClick={() => setSelectedUserId(null)}
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-100 transition hover:bg-white/10"
+                        title="Назад до списку чатів"
+                      >
+                        <ArrowLeft className="h-5 w-5" />
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="truncate text-sm font-semibold text-white sm:text-[15px]">
+                            {selectedDisplayName}
+                          </span>
+                          {selectedUserRecord && isUserOnline(selectedUserRecord) && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+                              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                              Онлайн
+                            </span>
+                          )}
+                        </div>
 
-                <div className="flex-1 overflow-y-auto space-y-2">
-                  {selectedMessages.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 px-4 py-6 text-center text-sm text-slate-300">
-                      У цього користувача ще немає повідомлень. Ви можете написати першим.
+                        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-300">
+                          {selectedUserRecord?.phone && (
+                            <InfoChip icon={<PhoneCall className="h-3.5 w-3.5" />} label={selectedUserRecord.phone} />
+                          )}
+                          {selectedUserRecord?.email && (
+                            <InfoChip icon={<Mail className="h-3.5 w-3.5" />} label={selectedUserRecord.email} />
+                          )}
+                          {selectedUserRecord && getUserIdentityValue(selectedUserRecord) && (
+                            <InfoChip
+                              icon={<Copy className="h-3.5 w-3.5" />}
+                              label={`${getPrimaryVin(selectedUserRecord) ? 'VIN' : 'Код'}: ${getUserIdentityValue(selectedUserRecord)}`}
+                            />
+                          )}
+                        </div>
+                      </div>
                     </div>
+
+                    {selectedUserRecord && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          onClick={() =>
+                            copyUserCode(
+                              selectedUserRecord.id,
+                              getUserIdentityValue(selectedUserRecord)
+                            )
+                          }
+                          disabled={!getUserIdentityValue(selectedUserRecord)}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Copy className="h-4 w-4" />
+                          <span className="hidden sm:inline">
+                            {getPrimaryVin(selectedUserRecord)
+                              ? 'Копіювати VIN'
+                              : 'Копіювати код'}
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => openUserOrders(selectedUserRecord.id)}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-sky-300/15 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/15"
+                        >
+                          <ShoppingBag className="h-4 w-4" />
+                          <span className="hidden sm:inline">Замовлення</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                <div className="app-panel-scroll flex-1 space-y-2 overflow-y-auto pr-1">
+                  {selectedMessages.length === 0 && (
+                    <EmptyPanelState
+                      icon={<MessageCircle className="h-10 w-10" />}
+                      title="Порожній чат"
+                      description="У цього користувача ще немає повідомлень. Ви можете написати першим."
+                    />
                   )}
                   {selectedMessages.map((m) => {
                     const isRichCard =
@@ -907,10 +1142,10 @@ export default function AdminChatPanel({
                           className={`max-w-[80%] ${
                             isRichCard
                               ? 'bg-transparent p-0 shadow-none'
-                              : `rounded-2xl px-3 py-2 text-sm ${
+                              : `rounded-[22px] px-3.5 py-2.5 text-sm shadow-[0_12px_24px_rgba(2,6,23,0.18)] ${
                                   m.sender === 'user'
                                     ? 'border border-white/10 bg-white/10 text-slate-100'
-                                    : 'bg-sky-600 text-white'
+                                    : 'bg-[linear-gradient(135deg,rgba(14,165,233,0.95),rgba(37,99,235,0.92))] text-white'
                                 }`
                           }`}
                         >
@@ -928,7 +1163,7 @@ export default function AdminChatPanel({
                         </div>
                         <button
                           onClick={() => deleteMessage(m.id)}
-                          className="ml-2 text-slate-400 hover:text-rose-400"
+                          className="ml-2 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-transparent text-slate-400 transition hover:border-white/10 hover:bg-white/5 hover:text-rose-400"
                           title="Видалити повідомлення"
                         >
                           <TrashIcon className="w-4 h-4" />
@@ -940,7 +1175,11 @@ export default function AdminChatPanel({
                 </div>
 
                 {showProductForm && (
-                  <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
+                  <div className="mt-2 rounded-[22px] border border-white/10 bg-white/5 p-3 text-xs shadow-[0_18px_32px_rgba(2,6,23,0.18)]">
+                    <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-200">
+                      <PackagePlus className="h-4 w-4" />
+                      Надсилання картки товару
+                    </div>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <input
                         value={productArticle}
@@ -956,13 +1195,15 @@ export default function AdminChatPanel({
                             sendProductCard();
                           }
                         }}
+                        data-search="true"
                       />
                       <button
                         onClick={sendProductCard}
                         disabled={productLoading}
-                        className="rounded-lg bg-emerald-500/80 px-3 py-2 text-xs text-white hover:bg-emerald-500 disabled:opacity-60"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500/80 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
                       >
-                        {productLoading ? 'Завантаження…' : 'Надіслати карточку'}
+                        <ShoppingBag className="h-4 w-4" />
+                        {productLoading ? 'Завантаження…' : 'Надіслати картку'}
                       </button>
                     </div>
                     {productError && (
@@ -973,7 +1214,7 @@ export default function AdminChatPanel({
                     <div className="mt-2 flex items-center gap-2">
                       <button
                         onClick={() => setShowProductForm(false)}
-                        className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200 hover:bg-white/10"
+                        className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-white/10"
                       >
                         Скасувати
                       </button>
@@ -981,7 +1222,7 @@ export default function AdminChatPanel({
                   </div>
                 )}
 
-                <div className="flex gap-2 mt-2">
+                <div className="mt-3 flex gap-2">
                   <input
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
@@ -996,16 +1237,22 @@ export default function AdminChatPanel({
                   />
                   <button
                     onClick={() => setShowProductForm((p) => !p)}
-                    className="bg-white/10 text-white p-2 rounded-full hover:bg-white/20 transition"
-                    title="Надіслати карточку"
+                    className={`inline-flex items-center justify-center gap-2 rounded-full border px-3 py-2 text-white transition ${
+                      showProductForm
+                        ? 'border-emerald-300/30 bg-emerald-500/20'
+                        : 'border-white/10 bg-white/10 hover:bg-white/20'
+                    }`}
+                    title="Надіслати картку товару"
                   >
-                    <ShoppingBagIcon className="w-5 h-5" />
+                    <PackagePlus className="h-5 w-5" />
+                    <span className="hidden text-xs font-semibold sm:inline">Товар</span>
                   </button>
                   <button
                     onClick={sendReply}
-                    className="bg-sky-600 text-white p-2 rounded-full hover:bg-sky-700 transition"
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-sky-600 px-3 py-2 text-white transition hover:bg-sky-700"
                   >
-                    <PaperAirplaneIcon className="w-5 h-5 rotate-90" />
+                    <SendHorizontal className="h-5 w-5" />
+                    <span className="hidden text-xs font-semibold sm:inline">Надіслати</span>
                   </button>
                 </div>
               </div>
@@ -1014,21 +1261,24 @@ export default function AdminChatPanel({
         )}
 
         {tab === 'users' && (
-          <div className="space-y-2">
-            <input
-              value={userSearch}
-              onChange={(e) => setUserSearch(e.target.value)}
-              className="w-full rounded-xl px-3 py-2 text-[16px] sm:text-sm bg-white/10 border border-white/10 text-white placeholder-slate-300 focus:border-sky-400 focus:outline-none"
-              placeholder="Пошук по імені, телефону, email, коду або VIN"
-            />
+          <div className="space-y-3">
+            <SearchDock>
+              <PanelSearchField
+                value={userSearch}
+                onChange={setUserSearch}
+                placeholder="Пошук по імені, телефону, email, коду або VIN"
+              />
+            </SearchDock>
 
             {sortedUsers.length === 0 && (
-              <div className="text-sm text-slate-300 bg-slate-800/70 border border-white/5 rounded-xl p-3">
-                Користувачів не знайдено
-              </div>
+              <EmptyPanelState
+                icon={<Users2 className="h-10 w-10" />}
+                title="Користувачів не знайдено"
+                description="Спробуйте змінити пошуковий запит або дочекайтеся нових реєстрацій."
+              />
             )}
             {sortedUsers.length > 0 && (
-              <div className="rounded-xl border border-sky-200/20 bg-white/5 p-2 text-[11px] text-slate-300 flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 rounded-[16px] border border-sky-200/20 bg-white/5 p-2 text-[10px] text-slate-300 sm:rounded-[18px] sm:p-2.5 sm:text-[11px]">
                 <span>Знайдено користувачів: {sortedUsers.length}</span>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-200">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]" />
@@ -1048,10 +1298,10 @@ export default function AdminChatPanel({
               return (
                 <div
                   key={userItem.id}
-                  className="bg-slate-800/70 border border-white/5 p-3 rounded-xl mb-2 w-full text-left flex flex-col gap-2 text-slate-100 transition-all hover:border-sky-300/40 hover:bg-slate-700/80 sm:flex-row sm:items-center sm:justify-between sm:gap-2"
+                  className="mb-2 flex w-full flex-col gap-1.5 rounded-[18px] border border-white/7 bg-[linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.64))] p-2.5 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] transition-colors hover:border-sky-300/20 hover:bg-white/[0.05] sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:rounded-[20px] sm:p-3"
                 >
-                  <div className="truncate">
-                    <div className="flex items-center gap-2">
+                    <div className="truncate">
+                      <div className="flex items-center gap-2">
                       <span
                         className={`h-2.5 w-2.5 shrink-0 rounded-full ${
                           online
@@ -1071,20 +1321,23 @@ export default function AdminChatPanel({
                       >
                         {online ? 'Онлайн' : 'Офлайн'}
                       </span>
-                    </div>
-                    <p className="text-[11px] text-slate-200">
-                      Код: {userCode(userItem)}
-                    </p>
-                    {userItem.phone && (
-                      <p className="text-xs text-slate-300 truncate">
-                        Телефон: {userItem.phone}
-                      </p>
-                    )}
-                    {userItem.email && (
-                      <p className="text-[11px] text-slate-400 truncate">
-                        {userItem.email}
-                      </p>
-                    )}
+                      </div>
+                      {!getPrimaryVin(userItem) && getUserIdentityValue(userItem) && (
+                        <p className="text-[11px] text-slate-200">
+                          Код: {getUserIdentityValue(userItem)}
+                        </p>
+                      )}
+                      {userItem.phone && (
+                        <p className="text-xs text-slate-300 truncate">
+                          <span className="hidden sm:inline">Телефон: </span>
+                          {userItem.phone}
+                        </p>
+                      )}
+                      {userItem.email && (
+                        <p className="hidden text-[11px] text-slate-400 truncate sm:block">
+                          {userItem.email}
+                        </p>
+                      )}
                     {userItem.vins.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {userItem.vins.slice(0, 2).map((vin) => (
@@ -1118,16 +1371,23 @@ export default function AdminChatPanel({
                     )}
 
                     <button
-                      onClick={() => copyUserCode(userItem.id, userCode(userItem))}
-                      className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:bg-white/15"
-                      title="Копіювати код користувача"
+                      onClick={() =>
+                        copyUserCode(userItem.id, getUserIdentityValue(userItem))
+                      }
+                      disabled={!getUserIdentityValue(userItem)}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:bg-white/15"
+                      title={
+                        getPrimaryVin(userItem)
+                          ? 'Копіювати VIN користувача'
+                          : 'Копіювати код користувача'
+                      }
                     >
                       <Copy size={16} />
                     </button>
 
                     <button
                       onClick={() => openUserOrders(userItem.id)}
-                      className="rounded-lg border border-white/10 bg-white/5 p-2 text-sky-200 transition hover:bg-white/15"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-2 text-sky-200 transition hover:bg-white/15"
                       title="Відкрити замовлення користувача"
                     >
                       <ShoppingBag size={16} />
@@ -1135,7 +1395,7 @@ export default function AdminChatPanel({
 
                     <button
                       onClick={() => openUserChat(userItem.id)}
-                      className="rounded-lg border border-white/10 bg-white/5 p-2 text-sky-300 transition hover:bg-white/15"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-2 text-sky-300 transition hover:bg-white/15"
                       title="Відкрити чат з користувачем"
                     >
                       <MessageCircle size={16} />
@@ -1149,34 +1409,38 @@ export default function AdminChatPanel({
 
         {tab === 'orders' && (
           <>
-            {filteredOrderUserName && (
-              <div className="mb-3 rounded-xl border border-sky-200/30 bg-white/5 px-2.5 py-1.5 text-xs text-slate-100 flex items-center justify-between gap-2">
-                <span>Показано замовлення: {filteredOrderUserName}</span>
-                <button
-                  onClick={clearOrderUserFilter}
-                  className="text-[11px] rounded-lg border border-white/15 px-2 py-1 text-white/90 hover:bg-white/10"
-                >
-                  Показати всі
-                </button>
+            <SearchDock>
+              <div className="space-y-2">
+                {filteredOrderUserName && (
+                  <div className="flex items-center justify-between gap-2 rounded-[16px] border border-sky-200/30 bg-white/5 px-2.5 py-1.5 text-[11px] text-slate-100 sm:rounded-[18px] sm:text-xs">
+                    <span className="truncate">Показано замовлення: {filteredOrderUserName}</span>
+                    <button
+                      onClick={clearOrderUserFilter}
+                      className="shrink-0 rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/90 hover:bg-white/10"
+                    >
+                      Показати всі
+                    </button>
+                  </div>
+                )}
+                <PanelSearchField
+                  value={orderSearch}
+                  onChange={setOrderSearch}
+                  placeholder="Пошук по імені, телефону, місту або доставці"
+                />
               </div>
-            )}
-            <div className="mb-3">
-              <input
-                value={orderSearch}
-                onChange={(e) => setOrderSearch(e.target.value)}
-                className="w-full rounded-xl px-3 py-2 text-[16px] sm:text-sm bg-white/10 border border-white/10 text-white placeholder-slate-300 focus:border-sky-400 focus:outline-none"
-                placeholder="Пошук по телефону"
-                data-search="true"
-              />
-            </div>
+            </SearchDock>
             {filteredOrders.length === 0 && (
-              <div className="text-sm text-slate-300 bg-slate-800/70 border border-white/5 rounded-xl p-3">
-                {orderUserFilterId &&
-                !filteredOrderUserPhone &&
-                !orders.some((o) => o.uid === orderUserFilterId)
-                  ? 'У цього користувача не збережений номер телефону'
-                  : 'Замовлень не знайдено'}
-              </div>
+              <EmptyPanelState
+                icon={<ShoppingBagIcon className="h-10 w-10" />}
+                title="Замовлень не знайдено"
+                description={
+                  orderUserFilterId &&
+                  !filteredOrderUserPhone &&
+                  !orders.some((o) => o.uid === orderUserFilterId)
+                    ? 'У цього користувача не збережений номер телефону.'
+                    : 'Спробуйте змінити фільтр або пошуковий запит.'
+                }
+              />
             )}
             {filteredOrders.map((o) => {
               const statusLabel = o.completed
@@ -1191,7 +1455,7 @@ export default function AdminChatPanel({
                 : 'bg-sky-500/20 text-sky-200';
 
               return (
-                <div key={o.id} className="bg-slate-800/70 border border-white/5 p-3 rounded-xl mb-2 text-slate-100">
+                <div key={o.id} className="mb-2 rounded-[18px] border border-white/6 bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2.5 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:rounded-[22px] sm:p-3">
                   <div className="flex justify-between items-center gap-2">
                     <div
                       className="flex-1 cursor-pointer"
@@ -1205,11 +1469,14 @@ export default function AdminChatPanel({
                           {statusLabel}
                         </span>
                       </div>
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        {formatTimestampLabel(o.createdAt)}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => markOrderViewed(o.id)}
-                        className={`text-amber-300 hover:text-amber-200 ${
+                        className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-amber-300 hover:text-amber-200 ${
                           o.read ? 'opacity-40 cursor-not-allowed' : ''
                         }`}
                         title="Позначити як переглянуте"
@@ -1219,7 +1486,7 @@ export default function AdminChatPanel({
                       </button>
                       <button
                         onClick={() => markOrderCompleted(o.id)}
-                        className={`text-emerald-300 hover:text-emerald-200 ${
+                        className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-emerald-300 hover:text-emerald-200 ${
                           o.completed ? 'opacity-40 cursor-not-allowed' : ''
                         }`}
                         title="Позначити як виконане"
@@ -1227,7 +1494,10 @@ export default function AdminChatPanel({
                       >
                         <CheckCircleIcon className="w-5 h-5" />
                       </button>
-                      <button onClick={() => toggleOrderExpand(o.id, true)}>
+                      <button
+                        onClick={() => toggleOrderExpand(o.id, true)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+                      >
                         {expandedOrderId === o.id ? <ChevronUp /> : <ChevronDown />}
                       </button>
                     </div>
@@ -1264,21 +1534,37 @@ export default function AdminChatPanel({
         )}
 
         {tab === 'calls' &&
-          calls.map((c) => {
+          (
+          <div className="space-y-3">
+            <SearchDock>
+              <PanelSearchField
+                value={callSearch}
+                onChange={setCallSearch}
+                placeholder="Пошук по імені, телефону або коментарю"
+              />
+            </SearchDock>
+            {filteredCalls.length === 0 && (
+              <EmptyPanelState
+                icon={<PhoneCall className="h-10 w-10" />}
+                title="Заявок на дзвінок не знайдено"
+                description="Спробуйте змінити пошук або дочекайтеся нових звернень."
+              />
+            )}
+          {filteredCalls.map((c) => {
             const callStatus = c.processed ? 'Виконано' : 'Новий';
             const callStatusClass = c.processed
               ? 'bg-emerald-500/20 text-emerald-200'
               : 'bg-sky-500/20 text-sky-200';
 
             return (
-              <div key={c.id} className="bg-slate-800/70 border border-white/5 p-3 rounded-xl mb-2 text-slate-100">
+              <div key={c.id} className="rounded-[18px] border border-white/6 bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2.5 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:rounded-[22px] sm:p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-medium">{c.name}</p>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full ${callStatusClass}`}>
                     {callStatus}
                   </span>
                 </div>
-                <div className="flex items-center justify-between gap-2">
+                <div className="mt-1 flex items-center justify-between gap-2">
                   <p className="text-xs text-slate-300">{c.phone}</p>
                   <div className="flex items-center gap-2">
                     {isMobileDevice ? (
@@ -1298,6 +1584,9 @@ export default function AdminChatPanel({
                     )}
                   </div>
                 </div>
+                <p className="mt-2 text-[11px] text-slate-400">
+                  {formatTimestampLabel(c.createdAt)}
+                </p>
                 <p className="text-xs mt-1">{c.message}</p>
                 <div className="mt-2 flex gap-2">
                   <button
@@ -1315,6 +1604,8 @@ export default function AdminChatPanel({
               </div>
             );
           })}
+          </div>
+          )}
       </main>
     </div>
   );
@@ -1323,33 +1614,139 @@ export default function AdminChatPanel({
 function Tab({
   icon,
   label,
-  count,
+  value,
+  meta,
+  badgeCount,
   active,
   onClick,
 }: {
   icon: React.ReactNode;
   label: string;
-  count: number;
+  value: number;
+  meta: string;
+  badgeCount: number;
   active: boolean;
   onClick: () => void;
 }) {
+  const displayBadgeCount = badgeCount > 99 ? '99+' : String(badgeCount);
+
   return (
     <button
       onClick={onClick}
-      className={`relative flex flex-col items-center justify-center h-12 rounded-xl transition ${
+      className={`relative flex min-h-[58px] items-center gap-2 rounded-[18px] border px-2.5 py-2 text-left transition sm:min-h-[64px] sm:gap-2.5 sm:px-3 sm:py-2 ${
         active
-          ? 'bg-white/10 text-white shadow'
-          : 'text-slate-300 hover:bg-white/5'
+          ? 'border-sky-300/35 bg-[linear-gradient(135deg,rgba(56,189,248,0.18),rgba(59,130,246,0.16))] text-white shadow-[0_14px_26px_rgba(14,165,233,0.14)]'
+          : 'border-white/5 text-slate-300 hover:bg-white/5'
       }`}
     >
-      {icon}
-      {count > 0 && (
-        <span className="absolute top-1 right-3 bg-rose-500 text-white text-[10px] px-1.5 rounded-full">
-          {count}
-        </span>
-      )}
-      <span className="text-[10px]">{label}</span>
+      <span
+        className={`relative inline-flex h-8 w-8 items-center justify-center rounded-xl sm:h-9 sm:w-9 ${
+          active ? 'bg-white/12 text-sky-100' : 'bg-white/6 text-slate-200'
+        }`}
+      >
+        {icon}
+        {badgeCount > 0 && (
+          <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-bold leading-none text-white shadow-[0_8px_18px_rgba(244,63,94,0.35)]">
+            {displayBadgeCount}
+          </span>
+        )}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate text-[10px] font-semibold leading-tight text-slate-100 sm:text-[11px]">
+              {label}
+            </div>
+            <div className="truncate text-[9px] font-medium leading-tight text-slate-300 sm:text-[10px]">
+              {meta}
+            </div>
+          </div>
+          <div className="shrink-0 text-base font-bold tracking-[-0.03em] text-white sm:text-lg">
+            {value}
+          </div>
+        </div>
+      </div>
     </button>
+  );
+}
+
+function PanelSearchField({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label className="relative block">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-sky-200/70" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-[16px] border border-white/10 bg-white/[0.07] py-2 pl-10 pr-10 text-[15px] text-white placeholder:text-slate-300/75 focus:border-sky-300/60 focus:outline-none sm:rounded-[18px] sm:py-2.5 sm:text-sm"
+        placeholder={placeholder}
+        data-search="true"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/6 text-slate-200 hover:bg-white/12"
+          aria-label="Очистити пошук"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
+    </label>
+  );
+}
+
+function SearchDock({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="sticky top-0 z-20 -mx-2 -mt-2 border-b border-white/6 bg-slate-950/88 px-2 pb-2 pt-1 backdrop-blur-xl sm:-mx-4 sm:-mt-4 sm:px-4 sm:pb-3 sm:pt-2">
+      {children}
+    </div>
+  );
+}
+
+function InfoChip({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-2 py-1 text-[10px] font-medium text-slate-200 sm:px-2.5 sm:text-[11px]">
+      {icon}
+      {label}
+    </span>
+  );
+}
+
+function EmptyPanelState({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-[24px] border border-dashed border-white/12 bg-white/5 px-4 py-8 text-center">
+      <div className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-[22px] border border-white/10 bg-white/6 text-sky-100">
+        {icon}
+      </div>
+      <h3 className="mt-4 text-base font-semibold text-white">{title}</h3>
+      <p className="mx-auto mt-2 max-w-md text-sm text-slate-300">{description}</p>
+    </div>
   );
 }
 

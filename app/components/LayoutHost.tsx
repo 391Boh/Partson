@@ -49,10 +49,34 @@ const isPermissionDeniedError = (error: unknown) => {
   return code === "permission-denied";
 };
 
-const ADMIN_ROLE_VALUES = new Set(["admin", "manager", "superadmin"]);
+const ADMIN_ROLE_VALUES = new Set([
+  "admin",
+  "administrator",
+  "manager",
+  "superadmin",
+  "owner",
+]);
+
+const normalizeAdminToken = (value: string) =>
+  value.trim().toLowerCase().replace(/[\s_-]+/g, "");
+
+const normalizeEmail = (value: unknown) =>
+  typeof value === "string" ? value.trim().toLowerCase() : "";
+
+const ADMIN_EMAIL_VALUES = new Set(
+  (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
+    .split(",")
+    .map((item) => normalizeEmail(item))
+    .filter(Boolean)
+);
 
 const normalizeAdminValue = (value: unknown) =>
-  typeof value === "string" ? value.trim().toLowerCase() : "";
+  typeof value === "string" ? normalizeAdminToken(value) : "";
+
+const hasAdminEmail = (value: unknown) => {
+  const normalized = normalizeEmail(value);
+  return normalized ? ADMIN_EMAIL_VALUES.has(normalized) : false;
+};
 
 const isTruthyAdminFlag = (value: unknown) => {
   if (value === true || value === 1) return true;
@@ -65,7 +89,7 @@ const isTruthyAdminFlag = (value: unknown) => {
 const hasAdminRole = (value: unknown): boolean => {
   if (!value) return false;
   if (typeof value === "string") {
-    return ADMIN_ROLE_VALUES.has(value.trim().toLowerCase());
+    return ADMIN_ROLE_VALUES.has(normalizeAdminToken(value));
   }
   if (Array.isArray(value)) {
     return value.some((entry) => hasAdminRole(entry));
@@ -78,14 +102,26 @@ const hasAdminRole = (value: unknown): boolean => {
   return false;
 };
 
-const hasAdminAccess = (source?: Record<string, unknown>) => {
+const hasAdminAccess = (
+  source?: Record<string, unknown>,
+  visited?: WeakSet<Record<string, unknown>>
+) => {
   if (!source) return false;
+
+  const seen = visited ?? new WeakSet<Record<string, unknown>>();
+  if (seen.has(source)) return false;
+  seen.add(source);
 
   return (
     hasAdminRole(source.role) ||
     hasAdminRole(source.roles) ||
     hasAdminRole(source.userRole) ||
     hasAdminRole(source.user_role) ||
+    hasAdminRole(source.permission) ||
+    hasAdminRole(source.permissions) ||
+    hasAdminRole(source.access) ||
+    hasAdminRole(source.accessLevel) ||
+    hasAdminRole(source.access_level) ||
     isTruthyAdminFlag(source.isAdmin) ||
     isTruthyAdminFlag(source.admin) ||
     isTruthyAdminFlag(source.is_admin) ||
@@ -94,7 +130,19 @@ const hasAdminAccess = (source?: Record<string, unknown>) => {
     isTruthyAdminFlag(source.is_manager) ||
     isTruthyAdminFlag(source.isSuperAdmin) ||
     isTruthyAdminFlag(source.superadmin) ||
-    isTruthyAdminFlag(source.is_superadmin)
+    isTruthyAdminFlag(source.is_superadmin) ||
+    Object.values(source).some((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      if (Array.isArray(entry)) {
+        return entry.some(
+          (item) =>
+            item &&
+            typeof item === "object" &&
+            hasAdminAccess(item as Record<string, unknown>, seen)
+        );
+      }
+      return hasAdminAccess(entry as Record<string, unknown>, seen);
+    })
   );
 };
 
@@ -102,11 +150,10 @@ const PRIMARY_WARMUP_ROUTES = [
   "/katalog",
   "/katalog?tab=auto",
   "/katalog?tab=category",
-  "/inform",
-  "/inform?tab=about",
-  "/inform?tab=delivery",
-  "/inform?tab=payment",
-  "/inform?tab=location",
+  "/inform/about",
+  "/inform/delivery",
+  "/inform/payment",
+  "/inform/location",
   "/groups",
   "/manufacturers",
 ] as const;
@@ -142,6 +189,108 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       return () => window.cancelAnimationFrame(frameId);
     }
   }, [pathname]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const root = document.documentElement;
+    const body = document.body;
+    const mediaQuery = window.matchMedia("(max-width: 639px)");
+    const overlaySelector = ".soft-modal-shell, .app-overlay-panel";
+
+    const previousStyles = {
+      htmlOverflow: root.style.overflow,
+      htmlOverscroll: root.style.overscrollBehavior,
+      bodyOverflow: body.style.overflow,
+      bodyOverscroll: body.style.overscrollBehavior,
+    };
+
+    let isLocked = false;
+
+    const getOverlayRoot = (target: EventTarget | null) => {
+      if (!(target instanceof Element)) return null;
+      return target.closest(overlaySelector);
+    };
+
+    const restoreBodyScroll = () => {
+      if (!isLocked) return;
+
+      root.style.overflow = previousStyles.htmlOverflow;
+      root.style.overscrollBehavior = previousStyles.htmlOverscroll;
+      body.style.overflow = previousStyles.bodyOverflow;
+      body.style.overscrollBehavior = previousStyles.bodyOverscroll;
+      isLocked = false;
+    };
+
+    const lockBodyScroll = () => {
+      if (isLocked) return;
+
+      root.style.overflow = "hidden";
+      root.style.overscrollBehavior = "none";
+      body.style.overflow = "hidden";
+      body.style.overscrollBehavior = "none";
+      isLocked = true;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!isLocked || !mediaQuery.matches) return;
+
+      if (!getOverlayRoot(event.target)) {
+        event.preventDefault();
+      }
+    };
+
+    const syncOverlayScrollLock = () => {
+      const hasModalOverlay =
+        Boolean(document.querySelector(overlaySelector)) ||
+        isChatOpen ||
+        isAdminPanelOpen;
+
+      if (mediaQuery.matches && hasModalOverlay) {
+        lockBodyScroll();
+        return;
+      }
+
+      restoreBodyScroll();
+    };
+
+    const observer = new MutationObserver(() => {
+      syncOverlayScrollLock();
+    });
+
+    observer.observe(body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "style"],
+    });
+
+    const handleViewportChange = () => {
+      syncOverlayScrollLock();
+    };
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleViewportChange);
+    } else {
+      mediaQuery.addListener(handleViewportChange);
+    }
+
+    window.addEventListener("resize", handleViewportChange);
+    document.addEventListener("touchmove", handleTouchMove, { passive: false });
+    syncOverlayScrollLock();
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", handleViewportChange);
+      document.removeEventListener("touchmove", handleTouchMove);
+      if (typeof mediaQuery.removeEventListener === "function") {
+        mediaQuery.removeEventListener("change", handleViewportChange);
+      } else {
+        mediaQuery.removeListener(handleViewportChange);
+      }
+      restoreBodyScroll();
+    };
+  }, [isAdminPanelOpen, isChatOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -215,7 +364,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         }
       };
 
-      await warm("/inform?tab=about");
+      await warm("/inform/about");
       void warm("/katalog");
     };
 
@@ -415,7 +564,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         }
         let claims: Record<string, unknown> = {};
         try {
-          const token = await user.getIdTokenResult();
+          const token = await user.getIdTokenResult(true);
           claims = (token?.claims ?? {}) as Record<string, unknown>;
         } catch {
           claims = {};
@@ -428,6 +577,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
             ? hasAdminAccess(claims.permissions as Record<string, unknown>)
             : false) ||
           hasAdminRole(claims.permissions);
+        const isAdminEmail =
+          hasAdminEmail(user.email) ||
+          hasAdminEmail(userData?.email) ||
+          hasAdminEmail(claims.email);
         const lastAuthenticatedUid = normalizeStoredId(
           localStorage.getItem("user_id")
         );
@@ -442,9 +595,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
         const adminStorageKey = `partson:isAdmin:${user.uid}`;
         const rememberedIsAdmin = localStorage.getItem(adminStorageKey) === "1";
-        const resolvedIsAdmin = isAdminRole || rememberedIsAdmin;
+        const resolvedIsAdmin = isAdminRole || isAdminEmail || rememberedIsAdmin;
         setIsAdmin(resolvedIsAdmin);
-        if (isAdminRole) {
+        if (isAdminRole || isAdminEmail) {
           localStorage.setItem(adminStorageKey, "1");
         }
         localStorage.setItem("user_id", user.uid);
@@ -598,7 +751,20 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       </main>
 
       {!isEmbeddedProductView && (
-        <div className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] z-50 flex flex-col-reverse items-end gap-3 sm:bottom-6 sm:right-6 sm:flex-col sm:gap-4 lg:right-7">
+        <div className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] z-50 flex flex-col items-end gap-2 sm:bottom-6 sm:right-6 sm:gap-4 lg:right-7">
+          {!loading && isAdmin && !isAdminPanelOpen && (
+            <button
+              onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
+              className="relative z-[60] inline-flex h-[56px] w-[56px] items-center justify-center rounded-[20px] bg-gradient-to-r from-blue-700 to-teal-800 text-white shadow-xl ring-1 ring-white/20 transition-all duration-300 hover:opacity-100 sm:h-auto sm:w-auto sm:gap-2 sm:rounded-full sm:px-4 sm:py-4"
+              aria-label="Адмін панель"
+              title="Адмін панель"
+            >
+              <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
+              <span className="hidden text-xs font-semibold sm:inline">Адмін</span>
+              {renderBadge(totalNotifications)}
+            </button>
+          )}
+
           {!isChatOpen && (
             <ChatButton
               onClick={() => setIsChatOpen(true)}
@@ -612,23 +778,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
               onClose={() => setIsAdminPanelOpen(false)}
               onNotificationCountChange={(count) => setTotalNotifications(count)}
             />
-          )}
-
-          {!loading && isAdmin && (
-            <button
-              onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
-              className={`relative z-[60] inline-flex min-h-[3.25rem] items-center justify-center gap-2 rounded-2xl px-3 py-3 text-white shadow-xl ring-1 ring-white/20 transition-all duration-300 sm:rounded-full sm:p-4 ${
-                isAdminPanelOpen
-                  ? "bg-gradient-to-r from-emerald-700 to-teal-700 opacity-100"
-                  : "bg-gradient-to-r from-blue-700 to-teal-800 opacity-60 hover:opacity-100"
-              }`}
-              aria-label="Адмін панель"
-              title="Адмін панель"
-            >
-              <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
-              <span className="text-xs font-semibold sm:hidden">Адмін</span>
-              {!isAdminPanelOpen && renderBadge(totalNotifications)}
-            </button>
           )}
         </div>
       )}
@@ -644,4 +793,3 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     </div>
   );
 }
-

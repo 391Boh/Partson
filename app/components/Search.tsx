@@ -105,12 +105,12 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     >
 
       {/* --- SEARCH BAR --- */}
-      <div className="flex items-center border border-gray-500 rounded-xl overflow-hidden w-full shadow-md transition-all hover:shadow-xl focus-within:ring-1 focus-within:ring-blue-500 bg-gray-800">
+      <div className="font-ui flex w-full items-center overflow-hidden rounded-xl border border-gray-500 bg-gray-800 shadow-md transition-all hover:shadow-xl focus-within:ring-1 focus-within:ring-blue-500">
 
         <input
           type="text"
           placeholder="Пошук..."
-          className="bg-gray-800 text-white px-3 py-2 outline-none w-full text-base sm:text-sm placeholder-gray-400 focus:bg-gray-700"
+          className="font-ui w-full bg-gray-800 px-3 py-2 text-base font-semibold tracking-normal text-white outline-none placeholder:font-medium placeholder:text-gray-400 focus:bg-gray-700 sm:text-sm"
           value={searchQuery}
           onChange={(e) => {
             setSearchQuery(e.target.value);
@@ -133,7 +133,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         )}
 
         <select
-          className="bg-gray-700 text-white h-9 border-l border-gray-600 outline-none text-base sm:text-sm px-2 py-2"
+          className="font-ui h-9 border-l border-gray-600 bg-gray-700 px-2 py-2 text-base font-semibold tracking-normal text-white outline-none sm:text-sm"
           value={filterBy}
           onChange={(e) =>
             setFilterBy(
@@ -160,7 +160,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
       {showDropdown && history.length > 0 && (
         <div className="absolute left-0 right-0 mt-2 bg-gray-900/95 border border-gray-600 rounded-2xl shadow-xl z-50 overflow-hidden animate-fadeIn max-h-64 overflow-y-auto">
 
-          <div className="flex justify-between items-center px-3 py-2 border-b border-gray-700 bg-gray-800 text-gray-300 text-xs uppercase tracking-wide">
+          <div className="font-display flex items-center justify-between border-b border-gray-700 bg-gray-800 px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-300">
             <span>Історія пошуку</span>
             <button className="text-red-400 hover:text-red-500 cursor-pointer" onClick={clearHistory} aria-label="Очистити історію">
               <XCircle size={16} />
@@ -170,7 +170,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           {history.map((item, index) => (
             <button
               key={index}
-              className="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-gray-800/80 rounded-xl flex items-center gap-2 cursor-pointer"
+              className="font-ui flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold tracking-normal text-gray-200 hover:bg-gray-800/80 cursor-pointer"
               onClick={() => handleSearch(item)}
             >
               <Clock size={14} className="text-gray-400" />

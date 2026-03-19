@@ -166,7 +166,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
         onTouchEnd={onTouchEnd}
         className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter overflow-hidden"
       >
-        <div className="soft-panel-content flex flex-col gap-3 p-4 sm:p-4">
+        <div className="soft-panel-content flex flex-col gap-3 p-3 sm:p-4">
         <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
 
         <div className="soft-panel-header">
@@ -226,7 +226,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                 : "Натисніть на номер, щоб швидко скопіювати його."}
             </div>
 
-            <div className="app-panel-scroll max-h-[36vh] space-y-2 overflow-y-auto pr-1">
+            <div className="app-panel-scroll max-h-[30svh] space-y-2 overflow-y-auto pr-1 sm:max-h-[36vh]">
             {[
               { name: "Богдан", phone: "+38 (063) 421-18-51" },
               { name: "Роман", phone: "+38 (067) 739-00-73" },
@@ -314,4 +314,3 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
 };
 
 export default Contacts;
-

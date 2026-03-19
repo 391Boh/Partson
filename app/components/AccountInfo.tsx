@@ -343,7 +343,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
   return (
     <div
       ref={modalRef}
-      className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter flex flex-col gap-3 overflow-y-auto p-4 select-none sm:p-5"
+      className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter flex flex-col gap-3 overflow-y-auto p-3 select-none sm:p-5"
     >
       <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
 
@@ -737,6 +737,5 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
 };
 
 export default AccountInfo;
-
 
 

@@ -12,8 +12,10 @@
     --soft-radius-surface: 16px;
     --soft-radius-control: 16px;
     --desktop-page-zoom: 0.75;
-    --font-geist-sans: "Segoe UI", "Montserrat", "Manrope", sans-serif;
-    --font-geist-mono: "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+    --font-ui-stack: var(--font-ui), "Manrope", "Segoe UI", sans-serif;
+    --font-display-stack: var(--font-display), "Exo 2", "Segoe UI", sans-serif;
+    --font-geist-sans: var(--font-ui-stack);
+    --font-geist-mono: var(--font-mono), "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
   }
 
   html {
@@ -25,10 +27,11 @@
     overflow-y: auto;
     scrollbar-gutter: stable both-edges;
     text-size-adjust: 100%;
+    font-kerning: normal;
   }
 
   body {
-    font-family: var(--font-geist-sans), 'Manrope', sans-serif;
+    font-family: var(--font-geist-sans);
     overflow-x: hidden;
     width: 100%;
     min-height: 100%;
@@ -39,6 +42,17 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overscroll-behavior-y: auto;
+    letter-spacing: -0.008em;
+    line-height: 1.48;
+    font-weight: 500;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    letter-spacing: inherit;
   }
 
   button:not(:disabled),
@@ -150,9 +164,11 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-geist-sans), 'Manrope', sans-serif;
-    font-style: italic;
+    font-family: var(--font-display-stack);
+    font-style: normal;
     font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.04;
 }
 
 /* Власні компоненти */
@@ -162,6 +178,23 @@ h1, h2, h3, h4, h5, h6 {
     width: 100px; /* зменшуємо розмір логотипу на мобільних */
     height: auto;
     image-rendering: crisp-edges; /* забезпечує чіткість */
+  }
+}
+
+@layer utilities {
+  .font-ui {
+    font-family: var(--font-geist-sans);
+    letter-spacing: -0.008em;
+    font-weight: 500;
+  }
+
+  .font-display {
+    font-family: var(--font-display-stack);
+  }
+
+  .font-display-italic {
+    font-family: var(--font-display-stack);
+    font-style: italic;
   }
 }
 
@@ -779,6 +812,9 @@ h1, h2, h3, h4, h5, h6 {
   max-height: calc(100dvh - var(--header-height, 4rem) - 0.9rem);
   margin-inline: auto;
   z-index: 90;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 @media (min-width: 640px) {
@@ -811,6 +847,7 @@ h1, h2, h3, h4, h5, h6 {
 .soft-panel-content {
   position: relative;
   z-index: 1;
+  min-height: 0;
 }
 
 .soft-surface-card {
@@ -1009,6 +1046,8 @@ h1, h2, h3, h4, h5, h6 {
 .app-panel-scroll {
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
 }
 
 .app-panel-card-hover {
@@ -1024,6 +1063,28 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.88),
       0 18px 32px rgba(148, 163, 184, 0.14);
+  }
+}
+
+@media (max-width: 639px) {
+  html:has(.soft-modal-shell),
+  body:has(.soft-modal-shell) {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  .soft-modal-shell {
+    border-radius: 16px;
+  }
+
+  .app-overlay-panel {
+    top: calc(var(--header-height, 3.5rem) + 0.7rem);
+    bottom: max(0.5rem, env(safe-area-inset-bottom));
+    left: max(0.35rem, env(safe-area-inset-left));
+    right: max(0.35rem, env(safe-area-inset-right));
+    width: auto;
+    max-width: none;
+    max-height: none;
   }
 }
 
@@ -1048,9 +1109,3 @@ h1, h2, h3, h4, h5, h6 {
     transition: none;
   }
 }
-
-
-
-
-
-

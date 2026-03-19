@@ -28,11 +28,10 @@ const CATALOG_PREFETCH_ROUTES = [
 ] as const;
 
 const INFO_PREFETCH_ROUTES = [
-  '/inform',
-  '/inform?tab=delivery',
-  '/inform?tab=payment',
-  '/inform?tab=about',
-  '/inform?tab=location',
+  '/inform/delivery',
+  '/inform/payment',
+  '/inform/about',
+  '/inform/location',
 ] as const;
 
 const INITIAL_PREFETCH_ROUTES = [...CATALOG_PREFETCH_ROUTES, ...INFO_PREFETCH_ROUTES] as const;
@@ -318,14 +317,14 @@ const Header: React.FC<HeaderProps> = () => {
     showSearchModal || modals.contact || modals.order || modals.auth;
 
   const buttonBaseClass =
-    'flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-sm font-medium rounded-lg border border-white/15 transition-all whitespace-nowrap bg-gray-700 hover:bg-gray-600 hover:border-white/35 cursor-pointer touch-manipulation active:scale-[0.98] select-none';
+    'font-ui flex min-h-[34px] items-center gap-1 rounded-[14px] border border-white/15 bg-gray-700 px-2.5 py-1.5 text-[10px] font-bold tracking-[0.01em] text-slate-50 transition-all whitespace-nowrap hover:border-white/35 hover:bg-gray-600 sm:min-h-0 sm:gap-1.5 sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[14px] cursor-pointer touch-manipulation active:scale-[0.98] select-none';
 
 
   const dropdownBaseClass =
-    'absolute z-50 mt-3 w-52 bg-gray-700 p-2 text-white rounded-2xl border-2 border-gray-500 shadow-xl py-2 backdrop-blur-sm select-none transition-all duration-150 ease-out origin-top';
+    'font-ui absolute z-50 mt-3 w-52 origin-top rounded-2xl border-2 border-gray-500 bg-gray-700 p-2 py-2 text-white shadow-xl backdrop-blur-sm select-none transition-all duration-150 ease-out';
 
   const dropdownItemClass =
-    'flex items-center gap-3 px-4 py-2 text-sm rounded-xl hover:bg-gray-600 cursor-pointer transition-transform active:scale-[0.98] select-none';
+    'flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-semibold tracking-[-0.01em] hover:bg-gray-600 cursor-pointer transition-transform active:scale-[0.98] select-none';
 
   const closeAllOverlays = () => {
     setActiveMenu('');
@@ -337,13 +336,13 @@ const Header: React.FC<HeaderProps> = () => {
   return (
     <header
       suppressHydrationWarning
-      className="bg-gradient-to-b from-gray-600 to-gray-800 relative z-50 flex h-16 items-center justify-center text-white"
+      className="font-ui relative z-50 flex h-14 items-center justify-center bg-gradient-to-b from-gray-600 to-gray-800 text-white sm:h-16"
     >
 
-      <div className="flex w-full max-w-[1400px] items-center justify-between gap-6 px-4 sm:px-5 lg:px-7">
+      <div className="flex w-full max-w-[1400px] items-center justify-between gap-2 px-2 sm:gap-4 sm:px-5 lg:px-7">
 
         {/* LEFT SECTION */}
-        <div className="flex items-center gap-4 flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center gap-2 sm:gap-4">
 
           {/* LOGO */}
           <Link
@@ -360,14 +359,14 @@ const Header: React.FC<HeaderProps> = () => {
               className="w-[65px] md:w-[85px] h-auto object-contain"
               onError={handleLogoLoadError}
             />
-            <span className="pointer-events-none absolute left-4 sm:left-1/2 top-full z-50 mt-2.5 sm:-translate-x-1/2 translate-y-1 whitespace-nowrap rounded-xl border border-slate-200/70 bg-gradient-to-r from-white/95 via-sky-50/95 to-indigo-50/90 pl-3.5 pr-2.5 pt-1.5 pb-1 text-[10px] font-semibold text-slate-900 opacity-0 shadow-[0_10px_22px_rgba(15,23,42,0.16)] backdrop-blur-md ring-1 ring-white/60 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+            <span className="pointer-events-none absolute left-4 top-full z-50 mt-2.5 translate-y-1 whitespace-nowrap rounded-xl border border-slate-200/70 bg-gradient-to-r from-white/95 via-sky-50/95 to-indigo-50/90 pl-3.5 pr-2.5 pt-1.5 pb-1 text-[10px] font-semibold tracking-[0.02em] text-slate-900 opacity-0 shadow-[0_10px_22px_rgba(15,23,42,0.16)] backdrop-blur-md ring-1 ring-white/60 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 sm:left-1/2 sm:-translate-x-1/2">
               Головна сторінка
             </span>
           </Link>
 
           {/* NAVIGATION */}
           <nav ref={navRef} className="relative select-none">
-            <ul className="flex gap-3 items-center">
+            <ul className="flex items-center gap-1 sm:gap-3">
 
               {/* MENU BUTTON */}
               <li className="relative select-none">
@@ -436,10 +435,10 @@ const Header: React.FC<HeaderProps> = () => {
                       ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
                       : "opacity-0 scale-95 -translate-y-1 pointer-events-none"
                   }`}>
-                    <li><Link href="/inform?tab=delivery" onClick={() => setActiveMenu('')} className={dropdownItemClass}><Truck size={18} /> Доставка</Link></li>
-                    <li><Link href="/inform?tab=payment" onClick={() => setActiveMenu('')} className={dropdownItemClass}><CreditCard size={18} /> Оплата</Link></li>
-                    <li><Link href="/inform?tab=about" onClick={() => setActiveMenu('')} className={dropdownItemClass}><Users size={18} /> Про нас</Link></li>
-                    <li><Link href="/inform?tab=location" onClick={() => setActiveMenu('')} className={dropdownItemClass}><MapPin size={18} /> Локація</Link></li>
+                    <li><Link href="/inform/delivery" onClick={() => setActiveMenu('')} className={dropdownItemClass}><Truck size={18} /> Доставка</Link></li>
+                    <li><Link href="/inform/payment" onClick={() => setActiveMenu('')} className={dropdownItemClass}><CreditCard size={18} /> Оплата</Link></li>
+                    <li><Link href="/inform/about" onClick={() => setActiveMenu('')} className={dropdownItemClass}><Users size={18} /> Про нас</Link></li>
+                    <li><Link href="/inform/location" onClick={() => setActiveMenu('')} className={dropdownItemClass}><MapPin size={18} /> Локація</Link></li>
                   </ul>
               </li>
 
@@ -449,7 +448,7 @@ const Header: React.FC<HeaderProps> = () => {
         </div>
 
         {/* SEARCH CENTER */}
-        <div className="flex-1 flex justify-center">
+        <div className="flex min-w-0 flex-1 justify-center px-1 sm:px-3">
           <div className="hidden lg:block w-full max-w-[380px]">
             <SearchBar onSearch={(q) => console.log(q)} />
           </div>
@@ -468,7 +467,7 @@ const Header: React.FC<HeaderProps> = () => {
         </div>
 
         {/* RIGHT BUTTONS */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center gap-1 sm:gap-2">
 
           {/* ACCOUNT */}
           <button
@@ -518,11 +517,11 @@ const Header: React.FC<HeaderProps> = () => {
               event.stopPropagation();
               toggleModal('contact');
             }}
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl border border-red-300/40 bg-gradient-to-r from-red-600 via-red-500 to-red-600 hover:from-red-500 hover:via-red-400 hover:to-red-500 text-white font-semibold shadow-sm shadow-red-500/30 cursor-pointer touch-manipulation ${
+            className={`font-ui flex min-h-[34px] items-center gap-1 rounded-[14px] border border-red-300/40 bg-gradient-to-r from-red-600 via-red-500 to-red-600 px-2.5 py-1.5 text-[10px] font-bold tracking-[0.01em] text-white shadow-sm shadow-red-500/30 hover:from-red-500 hover:via-red-400 hover:to-red-500 sm:min-h-0 sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2 sm:text-[14px] cursor-pointer touch-manipulation ${
               modals.contact ? 'ring-2 ring-red-300/60' : ''
             }`}
           >
-            <Phone size={18} className="sm:size-5" />
+            <Phone size={16} className="sm:size-5" />
             <span className="hidden sm:inline cursor-pointer select-none">Контакти</span>
           </button>
         </div>
@@ -545,7 +544,7 @@ const Header: React.FC<HeaderProps> = () => {
             className="fixed top-[calc(var(--header-height,4rem)+0.5rem)] left-2 right-2 sm:left-auto sm:right-6 w-auto sm:w-[80%] max-w-[420px] z-[95] rounded-2xl sm:rounded-3xl p-4 sm:p-5 bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 shadow-2xl border border-gray-500 animate-fadeIn"
           >
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <h2 className="font-display flex items-center gap-2 text-lg font-semibold tracking-[-0.03em] text-white">
                 <MagnifyingGlassIcon className="w-5 h-5 text-blue-400" />
                 Пошук
               </h2>
@@ -579,4 +578,3 @@ const Header: React.FC<HeaderProps> = () => {
 };
 
 export default Header;
-

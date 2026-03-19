@@ -198,7 +198,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
   };
 
   return (
-    <div className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter overflow-auto p-4 sm:p-5">
+    <div className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter overflow-auto p-3 sm:p-5">
       <div className="mb-4 h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
       <div className="soft-panel-content flex items-center justify-between gap-3 border-b border-slate-200/70 pb-3.5">
         <h3 className="soft-panel-title">
@@ -212,7 +212,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
           <X size={20} />
         </button>
       </div>
-      <div className="mt-3.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-1.5 sm:mt-3.5 sm:gap-2 sm:grid-cols-4">
         {steps.map((step, index) => {
           const isActive = currentStep === index;
           const isDone = currentStep > index;

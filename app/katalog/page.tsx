@@ -5,6 +5,7 @@ import {
   buildCatalogCategoryPath,
   buildCatalogProducerPath,
 } from "app/lib/catalog-links";
+import { buildSeoSlug } from "app/lib/seo-slug";
 
 interface KatalogPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -26,6 +27,16 @@ const pickFirstValue = (value: string | string[] | undefined) =>
 const normalizeValue = (value: string | string[] | undefined) =>
   pickFirstValue(value).replace(/\s+/g, " ").trim();
 
+const buildGroupLandingPath = (group: string) => {
+  const slug = buildSeoSlug(group);
+  return slug ? `/groups/${slug}` : buildCatalogCategoryPath(group);
+};
+
+const buildManufacturerLandingPath = (producer: string) => {
+  const slug = buildSeoSlug(producer);
+  return slug ? `/manufacturers/${slug}` : buildCatalogProducerPath(producer);
+};
+
 const buildCatalogMetadata = (searchParams: Record<string, string | string[] | undefined>) => {
   const tab = normalizeValue(searchParams.tab).toLowerCase();
   const group = normalizeValue(searchParams.group);
@@ -44,48 +55,51 @@ const buildCatalogMetadata = (searchParams: Record<string, string | string[] | u
   const hasSupportedTab = !tab || tab === "category" || tab === "producer";
 
   let canonicalPath = "/katalog";
-  let title = "Auto parts catalog";
+  let title = "Каталог автозапчастин";
   let description =
-    "PartsON auto parts catalog with search by code, article, manufacturer, and live availability.";
+    "Каталог автозапчастин PartsON з пошуком за кодом, артикулом, виробником та актуальною наявністю.";
 
   if (producer && group) {
     canonicalPath = buildCatalogProducerPath(producer, group);
-    title = `${producer}: ${group} - auto parts catalog`;
+    title = `${producer}: ${group} - каталог автозапчастин`;
     description =
-      `Browse ${producer} auto parts in group ${group} on PartsON with current availability.`;
+      `Підбір автозапчастин ${producer} у групі ${group} в каталозі PartsON з актуальною наявністю.`;
   } else if (producer) {
-    canonicalPath = buildCatalogProducerPath(producer);
-    title = `${producer} - manufacturer auto parts`;
+    canonicalPath = buildManufacturerLandingPath(producer);
+    title = `${producer} - виробник автозапчастин`;
     description =
-      `Browse available auto parts by manufacturer ${producer} in the PartsON catalog.`;
+      `Каталог автозапчастин виробника ${producer} у PartsON. Перейдіть до бренду та відкрийте товари з фільтром за виробником.`;
   } else if (group && subcategory) {
     canonicalPath = buildCatalogCategoryPath(group, subcategory);
-    title = `${subcategory} (${group}) - auto parts catalog`;
+    title = `${subcategory} - ${group} | Каталог автозапчастин`;
     description =
-      `Browse subgroup ${subcategory} in category ${group} in the PartsON catalog.`;
+      `Підбір автозапчастин у підгрупі ${subcategory} групи ${group} в каталозі PartsON.`;
   } else if (group) {
-    canonicalPath = buildCatalogCategoryPath(group);
-    title = `${group} - auto parts group`;
+    canonicalPath = buildGroupLandingPath(group);
+    title = `${group} - група автозапчастин`;
     description =
-      `Browse category ${group} in the PartsON catalog and open related subgroups.`;
+      `Група автозапчастин ${group} у каталозі PartsON. Доступні підгрупи та швидкий перехід до релевантних товарів.`;
   } else if (tab === "category") {
-    canonicalPath = buildCatalogCategoryPath(null);
-    title = "Auto parts catalog by categories";
+    canonicalPath = "/groups";
+    title = "Категорії автозапчастин";
     description =
-      "Select categories, groups, and subgroups in PartsON for faster product discovery.";
+      "Категорії, групи та підгрупи автозапчастин PartsON для швидкого переходу до потрібних товарів.";
   } else if (tab === "producer") {
-    canonicalPath = buildCatalogProducerPath(null);
-    title = "Auto parts catalog by manufacturers";
+    canonicalPath = "/manufacturers";
+    title = "Виробники автозапчастин";
     description =
-      "Select manufacturers in PartsON and open catalog pages filtered by brand.";
+      "Каталог виробників і брендів автозапчастин PartsON з переходом до сторінок брендів і фільтрованого каталогу.";
   }
 
-  const isFacetCombination = Boolean(producer || group || tab === "category" || tab === "producer");
+  const isRootCatalogPage = !tab && !group && !subcategory && !producer;
+  const isDeepFacetPage = Boolean(
+    (group && subcategory && !producer) || (producer && group)
+  );
   const indexable =
     !hasUnsupportedParams &&
     !hasEphemeralParams &&
     hasSupportedTab &&
-    (isFacetCombination || tab.length === 0);
+    (isRootCatalogPage || isDeepFacetPage);
 
   return {
     title,
