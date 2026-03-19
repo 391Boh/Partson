@@ -8,6 +8,7 @@ import {
   fetchPriceEuro,
   fetchProductDescription,
   findCatalogProductByCode,
+  findSimilarProductsBySubgroup,
   toPriceUah,
 } from "app/lib/catalog-server";
 import { buildCatalogCategoryPath, buildCatalogProducerPath } from "app/lib/catalog-links";
@@ -198,21 +199,6 @@ const buildProductMetaDescription = (options: {
   return `Купити ${name}. ${details}. Каталог автозапчастин PartsON.`;
 };
 
-const buildCatalogSearchPath = (
-  search: string | null | undefined,
-  filter: "name" | "article" | "code"
-) => {
-  const normalizedSearch = (search || "").trim();
-  if (!normalizedSearch) return null;
-
-  const params = new URLSearchParams({
-    search: normalizedSearch,
-    filter,
-  });
-
-  return `/katalog?${params.toString()}`;
-};
-
 const shouldIndexProductPage = (product: {
   name: string;
   article: string;
@@ -388,63 +374,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     product.producer && productGroup
       ? buildCatalogProducerPath(product.producer, productGroup)
       : null;
-  const similarByNamePath = buildCatalogSearchPath(product.name, "name");
-  const similarByArticlePath = buildCatalogSearchPath(product.article, "article");
-  const similarByCodePath = buildCatalogSearchPath(product.code, "code");
-  const catalogNavigationLinks = [
-    groupLandingPath
-      ? {
-          href: groupLandingPath,
-          title: productGroup,
-          subtitle: "Група товарів",
-        }
-      : null,
-    subgroupCatalogPath
-      ? {
-          href: subgroupCatalogPath,
-          title: productSubgroup,
-          subtitle: "Кінцева підгрупа",
-        }
-      : null,
-    producerLandingPath
-      ? {
-          href: producerLandingPath,
-          title: product.producer,
-          subtitle: "Сторінка бренду",
-        }
-      : null,
-    producerGroupCatalogPath
-      ? {
-          href: producerGroupCatalogPath,
-          title: `${product.producer} • ${productGroup}`,
-          subtitle: "Бренд у цій групі",
-        }
-      : null,
-  ].filter(Boolean) as Array<{ href: string; title: string; subtitle: string }>;
-  const similarProductLinks = [
-    similarByNamePath
-      ? {
-          href: similarByNamePath,
-          title: "Схожі за назвою",
-          subtitle: product.name,
-        }
-      : null,
-    similarByArticlePath
-      ? {
-          href: similarByArticlePath,
-          title: "Пошук за артикулом",
-          subtitle: product.article,
-        }
-      : null,
-    similarByCodePath
-      ? {
-          href: similarByCodePath,
-          title: "Пошук за кодом",
-          subtitle: product.code,
-        }
-      : null,
-  ].filter(Boolean) as Array<{ href: string; title: string; subtitle: string }>;
-  const relatedCatalogLinks = [...catalogNavigationLinks, ...similarProductLinks];
+  const similarProducts = isModalView
+    ? []
+    : await findSimilarProductsBySubgroup(product, { limit: 6, maxPages: 10, pageSize: 80 });
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
   const canonicalUrl = `${siteUrl}/product/${canonicalCode}`;
   const productImagePath = getProductImagePath(
@@ -547,7 +479,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300">
                   Деталі товару
                 </p>
-                <h1 className="mt-2 max-w-5xl text-[24px] font-extrabold leading-tight tracking-[-0.03em] text-white sm:text-[30px]">
+                <h1 className="mt-2 max-w-full break-words text-[clamp(1.65rem,3.8vw,3rem)] font-extrabold leading-[1.05] tracking-[-0.03em] text-white">
                   {product.name}
                 </h1>
               </div>
@@ -582,21 +514,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     </p>
                   </div>
 
-                  <OpenChatButton
-                    message={chatPrefillMessage}
-                    title="Відкрити чат з менеджером"
-                  />
+                  <OpenChatButton message={chatPrefillMessage} title="Відкрити чат з менеджером" />
                 </div>
               </section>
-
-              <ProductPageActions
-                code={product.code || resolvedCode}
-                article={product.article}
-                name={product.name}
-                producer={product.producer}
-                priceUah={priceUah}
-                quantity={product.quantity}
-              />
             </section>
 
             <section className="space-y-3">
@@ -643,28 +563,48 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 >
                   До каталогу
                 </Link>
+                <ProductPageActions
+                  code={product.code || resolvedCode}
+                  article={product.article}
+                  name={product.name}
+                  producer={product.producer}
+                  priceUah={priceUah}
+                  quantity={product.quantity}
+                />
               </section>
 
-              {relatedCatalogLinks.length > 0 && (
+              {similarProducts.length > 0 && (
                 <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)]">
                   <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
                     Схожі товари
                   </h2>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {relatedCatalogLinks.map((link) => (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {similarProducts.map((item) => {
+                      const itemCode = encodeURIComponent(item.code || item.article || item.name);
+                      const badgeLabel =
+                        item.quantity > 0 ? `В наявності: ${item.quantity}` : "Під замовлення";
+                      return (
                       <Link
-                        key={`${link.href}-${link.title}`}
-                        href={link.href}
+                        key={`${item.code}-${item.article}`}
+                        href={`/product/${itemCode}`}
                         className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 transition hover:border-sky-300 hover:bg-sky-50/70"
                       >
-                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                          {link.subtitle}
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 text-sm font-bold leading-5 text-slate-800">
+                            {item.name}
+                          </p>
+                          <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                            {badgeLabel}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                          {item.producer || "Схожий товар"}
                         </p>
-                        <p className="mt-1 text-sm font-bold leading-5 text-slate-800">
-                          {link.title}
+                        <p className="mt-1 text-sm font-semibold leading-5 text-slate-700">
+                          {item.article || item.code}
                         </p>
                       </Link>
-                    ))}
+                    )})}
                   </div>
                 </section>
               )}

@@ -175,6 +175,9 @@ const safeDecode = (value: string) => {
   }
 };
 
+const normalizeFacetValue = (value: string | null | undefined) =>
+  maybeFixMojibake((value || "").replace(/\s+/g, " ").trim()).toLowerCase();
+
 export const toPriceUah = (priceEuro: number | null, euroRate: number) => {
   if (typeof priceEuro !== "number" || !Number.isFinite(priceEuro) || priceEuro <= 0) {
     return null;
@@ -377,4 +380,64 @@ export const collectCatalogProductCodes = async (options?: {
   }
 
   return Array.from(codes);
+};
+
+export const findSimilarProductsBySubgroup = async (
+  product: CatalogProduct,
+  options?: {
+    limit?: number;
+    maxPages?: number;
+    pageSize?: number;
+  }
+) => {
+  const limit = options?.limit && options.limit > 0 ? options.limit : 6;
+  const maxPages = options?.maxPages && options.maxPages > 0 ? options.maxPages : 10;
+  const pageSize = options?.pageSize && options.pageSize > 0 ? options.pageSize : 80;
+
+  const targetCode = normalizeFacetValue(product.code);
+  const targetArticle = normalizeFacetValue(product.article);
+  const targetSubgroup = normalizeFacetValue(product.subGroup);
+  const targetGroup = normalizeFacetValue(product.group || product.category);
+  const targetProducer = normalizeFacetValue(product.producer);
+
+  if (!targetSubgroup && !targetGroup) return [];
+
+  const results: Array<{ item: CatalogProduct; score: number }> = [];
+  const seen = new Set<string>();
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const batch = await fetchCatalogProductsPage({ page, limit: pageSize });
+    if (batch.length === 0) break;
+
+    for (const item of batch) {
+      const itemCode = normalizeFacetValue(item.code);
+      const itemArticle = normalizeFacetValue(item.article);
+      if ((targetCode && itemCode === targetCode) || (targetArticle && itemArticle === targetArticle)) {
+        continue;
+      }
+
+      const itemSubgroup = normalizeFacetValue(item.subGroup);
+      const itemGroup = normalizeFacetValue(item.group || item.category);
+      const matchesSubgroup = targetSubgroup ? itemSubgroup === targetSubgroup : false;
+      const matchesGroup = !targetSubgroup && targetGroup ? itemGroup === targetGroup : false;
+      if (!matchesSubgroup && !matchesGroup) continue;
+
+      const dedupeKey = itemCode || itemArticle || `${item.name}:${itemGroup}:${itemSubgroup}`;
+      if (!dedupeKey || seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+
+      let score = 0;
+      if (matchesSubgroup) score += 5;
+      if (targetGroup && itemGroup === targetGroup) score += 2;
+      if (targetProducer && normalizeFacetValue(item.producer) === targetProducer) score += 1;
+      if (item.quantity > 0) score += 1;
+
+      results.push({ item, score });
+    }
+  }
+
+  return results
+    .sort((left, right) => right.score - left.score || right.item.quantity - left.item.quantity)
+    .slice(0, limit)
+    .map((entry) => entry.item);
 };
