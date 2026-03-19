@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { getProductSitemapIds } from "app/lib/product-sitemap";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
@@ -17,7 +18,13 @@ export async function GET() {
   const requestHeaders = await headers();
   const siteUrl = getSiteUrl({ headers: requestHeaders });
   const lastModified = new Date().toISOString();
-  const sitemapUrls = [`${siteUrl}/pages-sitemap.xml`, `${siteUrl}/product/sitemap.xml`];
+  const productSitemapIds = await getProductSitemapIds();
+  const sitemapUrls = [
+    `${siteUrl}/pages-sitemap.xml`,
+    ...productSitemapIds.map(
+      ({ id }) => `${siteUrl}/product/sitemap/${encodeURIComponent(String(id))}.xml`
+    ),
+  ];
 
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
