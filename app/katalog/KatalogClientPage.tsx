@@ -527,8 +527,8 @@ const Katalog: React.FC = () => {
   const shouldRenderFixedFilter = Boolean(portalRoot);
   const catalogTopOffset = shouldRenderFixedFilter
     ? filterHeight > 0
-      ? filterHeight + 12
-      : 84
+      ? filterHeight + 28
+      : 96
     : 0;
 
   return (
@@ -568,7 +568,6 @@ const Katalog: React.FC = () => {
 };
 
 export default Katalog;
-
 
 
 

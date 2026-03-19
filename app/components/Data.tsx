@@ -8,9 +8,9 @@ import React, {
   useRef,
   useDeferredValue,
 } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ExternalLink, Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
@@ -1103,6 +1103,7 @@ const Data: React.FC<DataProps> = ({
   selectedCategories,
   sortOrder,
 }) => {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -1148,36 +1149,11 @@ const Data: React.FC<DataProps> = ({
     producerFromURL,
   });
 
-  const [openedProductCode, setOpenedProductCode] = useState<string | null>(null);
-
   const handleOpenProduct = useCallback((code: string) => {
     const normalized = (code || "").trim();
     if (!normalized) return;
-    setOpenedProductCode(normalized);
-  }, []);
-
-  const handleCloseProduct = useCallback(() => {
-    setOpenedProductCode(null);
-  }, []);
-
-  useEffect(() => {
-    if (!openedProductCode || typeof window === "undefined") return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        handleCloseProduct();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [openedProductCode, handleCloseProduct]);
+    router.push(`/product/${encodeURIComponent(normalized)}`);
+  }, [router]);
 
   const sortedData = useMemo(() => {
     if (sortOrder === "none") return filteredData;
@@ -1493,67 +1469,9 @@ const Data: React.FC<DataProps> = ({
       <AnimatePresence>
         {selectedImage && <ImageModal src={selectedImage} onClose={handleImageClose} />}
       </AnimatePresence>
-
-      <AnimatePresence>
-        {openedProductCode && (
-          <motion.div
-            key={`product-modal-${openedProductCode}`}
-            className="fixed inset-0 z-[120] bg-slate-950/55 backdrop-blur-[2px]"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            onClick={handleCloseProduct}
-          >
-            <motion.div
-              className="absolute inset-2 flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_28px_70px_rgba(15,23,42,0.35)] sm:inset-auto sm:left-1/2 sm:top-1/2 sm:h-[min(92dvh,920px)] sm:w-[min(100%-1rem,1060px)] sm:-translate-x-1/2 sm:-translate-y-1/2"
-              initial={{ opacity: 0, y: 16, scale: 0.985 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.985 }}
-              transition={{ duration: 0.2, ease: [0.22, 0.61, 0.36, 1] }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-3 py-2.5 sm:px-4 sm:py-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Сторінка товару
-                  </p>
-                  <p className="text-sm font-semibold text-slate-800">{openedProductCode}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={`/product/${encodeURIComponent(openedProductCode)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-800"
-                  >
-                    Відкрити окремо
-                    <ExternalLink size={14} />
-                  </a>
-                  <button
-                    type="button"
-                    onClick={handleCloseProduct}
-                    className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-1.5 text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
-                    title="Закрити"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              </div>
-              <iframe
-                src={`/product/${encodeURIComponent(openedProductCode)}?view=modal`}
-                className="h-full min-h-0 w-full flex-1 border-0 bg-white"
-                title={`Товар ${openedProductCode}`}
-                loading="lazy"
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   );
 };
 
 export default Data;
                                                           
-

@@ -109,7 +109,7 @@ const AdvantagesSection = ({
             </div>
           </div>
 
-          <div className="group/logogrid mt-1 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          <div className="group/logogrid mt-1 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
             {advantages.map((item) => {
               const Icon = item.icon;
               return (
