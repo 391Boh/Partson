@@ -105,7 +105,7 @@ const hasAdminRole = (value: unknown): boolean => {
 const hasAdminAccess = (
   source?: Record<string, unknown>,
   visited?: WeakSet<Record<string, unknown>>
-) => {
+): boolean => {
   if (!source) return false;
 
   const seen = visited ?? new WeakSet<Record<string, unknown>>();
