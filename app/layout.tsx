@@ -13,7 +13,7 @@ const montserrat = { className: "", variable: "" };
 
 const uiFont = Manrope({
   subsets: ["latin", "cyrillic"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["500", "600", "700", "800"],
   variable: "--font-ui",
   display: "swap",
 });

@@ -197,6 +197,21 @@ const buildProductMetaDescription = (options: {
   return `Купити ${name}. ${details}. Каталог автозапчастин PartsON.`;
 };
 
+const buildCatalogSearchPath = (
+  search: string | null | undefined,
+  filter: "name" | "article" | "code"
+) => {
+  const normalizedSearch = (search || "").trim();
+  if (!normalizedSearch) return null;
+
+  const params = new URLSearchParams({
+    search: normalizedSearch,
+    filter,
+  });
+
+  return `/katalog?${params.toString()}`;
+};
+
 const shouldIndexProductPage = (product: {
   name: string;
   article: string;
@@ -372,6 +387,62 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     product.producer && productGroup
       ? buildCatalogProducerPath(product.producer, productGroup)
       : null;
+  const similarByNamePath = buildCatalogSearchPath(product.name, "name");
+  const similarByArticlePath = buildCatalogSearchPath(product.article, "article");
+  const similarByCodePath = buildCatalogSearchPath(product.code, "code");
+  const catalogNavigationLinks = [
+    groupLandingPath
+      ? {
+          href: groupLandingPath,
+          title: productGroup,
+          subtitle: "Група товарів",
+        }
+      : null,
+    subgroupCatalogPath
+      ? {
+          href: subgroupCatalogPath,
+          title: productSubgroup,
+          subtitle: "Кінцева підгрупа",
+        }
+      : null,
+    producerLandingPath
+      ? {
+          href: producerLandingPath,
+          title: product.producer,
+          subtitle: "Сторінка бренду",
+        }
+      : null,
+    producerGroupCatalogPath
+      ? {
+          href: producerGroupCatalogPath,
+          title: `${product.producer} • ${productGroup}`,
+          subtitle: "Бренд у цій групі",
+        }
+      : null,
+  ].filter(Boolean) as Array<{ href: string; title: string; subtitle: string }>;
+  const similarProductLinks = [
+    similarByNamePath
+      ? {
+          href: similarByNamePath,
+          title: "Схожі за назвою",
+          subtitle: product.name,
+        }
+      : null,
+    similarByArticlePath
+      ? {
+          href: similarByArticlePath,
+          title: "Пошук за артикулом",
+          subtitle: product.article,
+        }
+      : null,
+    similarByCodePath
+      ? {
+          href: similarByCodePath,
+          title: "Пошук за кодом",
+          subtitle: product.code,
+        }
+      : null,
+  ].filter(Boolean) as Array<{ href: string; title: string; subtitle: string }>;
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
   const canonicalUrl = `${siteUrl}/product/${canonicalCode}`;
   const productImagePath = getProductImagePath(
@@ -402,14 +473,14 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   });
   const isInStock = Number.isFinite(product.quantity) && product.quantity > 0;
   const contentGridClass = isModalView
-    ? "grid gap-3 p-3 sm:p-4 lg:grid-cols-[320px_minmax(0,1fr)]"
-    : "grid gap-4 p-3.5 sm:p-4 lg:grid-cols-[360px_minmax(0,1fr)]";
+    ? "grid gap-3 p-3 sm:p-4 lg:grid-cols-[340px_minmax(0,1fr)]"
+    : "grid gap-5 p-4 sm:p-5 xl:grid-cols-[400px_minmax(0,1fr)]";
   const productImageClass = isModalView
     ? "mx-auto h-[220px] w-full rounded-xl border border-slate-200 bg-slate-50 sm:h-[250px] md:h-[280px]"
-    : "mx-auto h-[260px] w-full rounded-xl border border-slate-200 bg-slate-50 sm:h-[300px]";
+    : "mx-auto h-[320px] w-full rounded-2xl border border-slate-200 bg-slate-50 sm:h-[360px] xl:h-[400px]";
   const descriptionTextClass = isModalView
     ? "mt-1.5 max-h-[180px] overflow-y-auto whitespace-pre-line break-words pr-1 text-sm leading-relaxed text-slate-700"
-    : "mt-1.5 max-h-[260px] overflow-y-auto whitespace-pre-line break-words pr-1 text-sm leading-relaxed text-slate-700";
+    : "mt-2 max-h-[320px] overflow-y-auto whitespace-pre-line break-words pr-1 text-[15px] font-medium leading-7 text-slate-700";
   const chatPrefillMessage = [
     "Потрібна консультація по товару:",
     product.name,
@@ -428,7 +499,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         className={
           isModalView
             ? "mx-auto w-full max-w-[1080px] px-2 py-2 sm:px-3 sm:py-3"
-            : "mx-auto w-full max-w-[1120px] px-4 py-6 sm:py-8"
+            : "mx-auto w-full max-w-[1400px] px-4 py-5 sm:px-5 sm:py-7 lg:px-7"
         }
       >
         {!isModalView && (
@@ -467,17 +538,40 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             isModalView ? "rounded-2xl" : "rounded-[26px]"
           }`}
         >
-          <header className="relative border-b border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-4 py-5 text-white sm:px-6">
+          <header className="relative border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-900 px-4 py-5 text-white sm:px-6 sm:py-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(56,189,248,0.24),transparent_45%),radial-gradient(circle_at_86%_18%,rgba(34,211,238,0.2),transparent_40%)]" />
-            <div className="relative">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-300">Деталі товару</p>
-              <h1 className="mt-1.5 text-lg font-semibold leading-tight sm:text-2xl">{product.name}</h1>
+            <div className="relative space-y-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300">
+                  Деталі товару
+                </p>
+                <h1 className="mt-2 max-w-5xl text-[24px] font-extrabold leading-tight tracking-[-0.03em] text-white sm:text-[30px]">
+                  {product.name}
+                </h1>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {product.producer && (
+                  <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-100">
+                    {product.producer}
+                  </span>
+                )}
+                {productGroup && (
+                  <span className="inline-flex rounded-full border border-sky-300/30 bg-sky-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-sky-100">
+                    {productGroup}
+                  </span>
+                )}
+                {productSubgroup && (
+                  <span className="inline-flex rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-cyan-100">
+                    {productSubgroup}
+                  </span>
+                )}
+              </div>
             </div>
           </header>
 
           <div className={contentGridClass}>
             <section className="space-y-3">
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-2.5">
+              <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-3 shadow-[0_16px_34px_rgba(15,23,42,0.08)]">
                 <ProductImageWithFallback
                   src={productImagePath}
                   fallbackSrc={fallbackImagePath}
@@ -492,13 +586,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 />
               </div>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-3.5">
+              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.06)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
                       Потрібна допомога?
                     </p>
-                    <p className="mt-1.5 text-sm text-slate-600">
+                    <p className="mt-1.5 text-sm font-medium leading-6 text-slate-600">
                       Якщо потрібна сумісність або аналог, напишіть у чат і менеджер підбере варіанти.
                     </p>
                   </div>
@@ -514,33 +608,33 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <section className="space-y-3">
               <div className="grid gap-2 sm:grid-cols-2">
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Код</p>
-                  <p className="mt-0.5 text-sm font-semibold text-slate-800">{product.code || "-"}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Код</p>
+                  <p className="mt-1 text-[15px] font-bold text-slate-800">{product.code || "-"}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Артикул</p>
-                  <p className="mt-0.5 text-sm font-semibold text-slate-800">{product.article || "-"}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Артикул</p>
+                  <p className="mt-1 text-[15px] font-bold text-slate-800">{product.article || "-"}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Виробник</p>
-                  <p className="mt-0.5 text-sm font-semibold text-slate-800">{product.producer || "-"}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Виробник</p>
+                  <p className="mt-1 text-[15px] font-bold text-slate-800">{product.producer || "-"}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Наявність</p>
-                  <p className="mt-0.5 text-sm font-semibold text-slate-800">{formatQuantity(product.quantity)}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Наявність</p>
+                  <p className="mt-1 text-[15px] font-bold text-slate-800">{formatQuantity(product.quantity)}</p>
                 </div>
               </div>
 
-              <section className="rounded-xl border border-sky-200/80 bg-[linear-gradient(130deg,rgba(240,249,255,0.96),rgba(236,253,245,0.88))] p-2.5 shadow-sm shadow-sky-100/70">
+              <section className="rounded-[24px] border border-sky-200/80 bg-[linear-gradient(130deg,rgba(240,249,255,0.96),rgba(236,253,245,0.88))] p-4 shadow-[0_16px_28px_rgba(14,165,233,0.08)]">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.12em] text-sky-700/90">Ціна</p>
-                    <p className={`mt-0.5 text-[21px] font-bold leading-tight ${hasPrice ? "text-sky-700" : "text-slate-600"}`}>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700/90">Ціна</p>
+                    <p className={`mt-1 text-[28px] font-extrabold leading-tight tracking-[-0.03em] ${hasPrice ? "text-sky-700" : "text-slate-600"}`}>
                       {formatPriceUah(priceUah)}
                     </p>
                   </div>
                   <div
-                    className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${
                       isInStock
                         ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                         : "border-amber-200 bg-amber-50 text-amber-700"
@@ -551,56 +645,62 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 </div>
                 <Link
                   href="/katalog"
-                  className="mt-2 inline-flex items-center justify-center rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
+                  className="mt-3 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-[0.08em] text-white transition hover:bg-slate-700"
                 >
                   До каталогу
                 </Link>
               </section>
 
-              {(producerLandingPath || groupLandingPath || subgroupCatalogPath || producerGroupCatalogPath) && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-3.5">
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                    Пов’язані сторінки
+              {catalogNavigationLinks.length > 0 && (
+                <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)]">
+                  <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
+                    Навігація по каталогу
                   </h2>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {producerLandingPath && (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {catalogNavigationLinks.map((link) => (
                       <Link
-                        href={producerLandingPath}
-                        className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+                        key={`${link.href}-${link.title}`}
+                        href={link.href}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 transition hover:border-sky-300 hover:bg-sky-50/70"
                       >
-                        Бренд: {product.producer}
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                          {link.subtitle}
+                        </p>
+                        <p className="mt-1 text-sm font-bold leading-5 text-slate-800">
+                          {link.title}
+                        </p>
                       </Link>
-                    )}
-                    {groupLandingPath && (
-                      <Link
-                        href={groupLandingPath}
-                        className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
-                      >
-                        Група: {productGroup}
-                      </Link>
-                    )}
-                    {subgroupCatalogPath && (
-                      <Link
-                        href={subgroupCatalogPath}
-                        className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
-                      >
-                        Підгрупа: {productSubgroup}
-                      </Link>
-                    )}
-                    {producerGroupCatalogPath && (
-                      <Link
-                        href={producerGroupCatalogPath}
-                        className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
-                      >
-                        {product.producer} у групі {productGroup}
-                      </Link>
-                    )}
+                    ))}
                   </div>
                 </section>
               )}
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-3.5">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Опис</h2>
+              {similarProductLinks.length > 0 && (
+                <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)]">
+                  <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
+                    Схожі товари у каталозі
+                  </h2>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {similarProductLinks.map((link) => (
+                      <Link
+                        key={`${link.href}-${link.title}`}
+                        href={link.href}
+                        className="rounded-2xl border border-slate-200 bg-[linear-gradient(145deg,rgba(248,250,252,0.95),rgba(255,255,255,0.98))] px-3 py-3 transition hover:border-sky-300 hover:bg-sky-50/60"
+                      >
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                          {link.title}
+                        </p>
+                        <p className="mt-1 text-sm font-bold leading-5 text-slate-800">
+                          {link.subtitle}
+                        </p>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)]">
+                <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">Опис</h2>
                 <p className={descriptionTextClass}>{descriptionDisplayText}</p>
               </section>
             </section>

@@ -42,9 +42,9 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overscroll-behavior-y: auto;
-    letter-spacing: -0.008em;
-    line-height: 1.48;
-    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.5;
+    font-weight: 600;
   }
 
   button,
@@ -53,6 +53,25 @@
   textarea {
     font: inherit;
     letter-spacing: inherit;
+    font-weight: 600;
+  }
+
+  a,
+  label,
+  th,
+  td,
+  figcaption {
+    font-weight: 600;
+  }
+
+  strong,
+  b {
+    font-weight: 800;
+  }
+
+  ::placeholder {
+    font-weight: 600;
+    color: rgb(100 116 139 / 0.92);
   }
 
   button:not(:disabled),
@@ -166,9 +185,9 @@ body {
 h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display-stack);
     font-style: normal;
-    font-weight: 800;
-    letter-spacing: -0.025em;
-    line-height: 1.04;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1.02;
 }
 
 /* Власні компоненти */
@@ -184,17 +203,19 @@ h1, h2, h3, h4, h5, h6 {
 @layer utilities {
   .font-ui {
     font-family: var(--font-geist-sans);
-    letter-spacing: -0.008em;
-    font-weight: 500;
+    letter-spacing: -0.01em;
+    font-weight: 600;
   }
 
   .font-display {
     font-family: var(--font-display-stack);
+    font-weight: 900;
   }
 
   .font-display-italic {
     font-family: var(--font-display-stack);
     font-style: italic;
+    font-weight: 900;
   }
 }
 
