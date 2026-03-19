@@ -380,17 +380,19 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   );
   const fallbackImagePath = PRODUCT_IMAGE_FALLBACK_PATH;
   const productImageUrl = `${siteUrl}${productImagePath}`;
-  const jsonLd = buildProductJsonLd({
-    name: product.name,
-    description: schemaDescription,
-    code: product.code,
-    article: product.article,
-    producer: product.producer,
-    quantity: product.quantity,
-    priceUah,
-    canonicalUrl,
-    imageUrls: [productImageUrl],
-  });
+  const jsonLd = hasPrice
+    ? buildProductJsonLd({
+        name: product.name,
+        description: schemaDescription,
+        code: product.code,
+        article: product.article,
+        producer: product.producer,
+        quantity: product.quantity,
+        priceUah,
+        canonicalUrl,
+        imageUrls: [productImageUrl],
+      })
+    : null;
   const breadcrumbJsonLd = buildProductBreadcrumbJsonLd({
     siteUrl,
     canonicalUrl,
@@ -606,10 +608,12 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         </article>
       </div>
 
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
