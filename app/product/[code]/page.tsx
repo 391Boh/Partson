@@ -13,6 +13,7 @@ import {
 import { buildCatalogCategoryPath, buildCatalogProducerPath } from "app/lib/catalog-links";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import OpenChatButton from "app/components/OpenChatButton";
+import ProductPageActions from "app/components/ProductPageActions";
 import { getProductImagePath, PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image";
 import { getSiteUrl } from "app/lib/site-url";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -443,6 +444,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         }
       : null,
   ].filter(Boolean) as Array<{ href: string; title: string; subtitle: string }>;
+  const relatedCatalogLinks = [...catalogNavigationLinks, ...similarProductLinks];
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
   const canonicalUrl = `${siteUrl}/product/${canonicalCode}`;
   const productImagePath = getProductImagePath(
@@ -540,7 +542,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         >
           <header className="relative border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-900 px-4 py-5 text-white sm:px-6 sm:py-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(56,189,248,0.24),transparent_45%),radial-gradient(circle_at_86%_18%,rgba(34,211,238,0.2),transparent_40%)]" />
-            <div className="relative space-y-3">
+            <div className="relative">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300">
                   Деталі товару
@@ -548,23 +550,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 <h1 className="mt-2 max-w-5xl text-[24px] font-extrabold leading-tight tracking-[-0.03em] text-white sm:text-[30px]">
                   {product.name}
                 </h1>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {product.producer && (
-                  <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-100">
-                    {product.producer}
-                  </span>
-                )}
-                {productGroup && (
-                  <span className="inline-flex rounded-full border border-sky-300/30 bg-sky-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-sky-100">
-                    {productGroup}
-                  </span>
-                )}
-                {productSubgroup && (
-                  <span className="inline-flex rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-cyan-100">
-                    {productSubgroup}
-                  </span>
-                )}
               </div>
             </div>
           </header>
@@ -603,6 +588,15 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   />
                 </div>
               </section>
+
+              <ProductPageActions
+                code={product.code || resolvedCode}
+                article={product.article}
+                name={product.name}
+                producer={product.producer}
+                priceUah={priceUah}
+                quantity={product.quantity}
+              />
             </section>
 
             <section className="space-y-3">
@@ -651,13 +645,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 </Link>
               </section>
 
-              {catalogNavigationLinks.length > 0 && (
+              {relatedCatalogLinks.length > 0 && (
                 <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)]">
                   <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
-                    Навігація по каталогу
+                    Схожі товари
                   </h2>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {catalogNavigationLinks.map((link) => (
+                    {relatedCatalogLinks.map((link) => (
                       <Link
                         key={`${link.href}-${link.title}`}
                         href={link.href}
@@ -668,30 +662,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                         </p>
                         <p className="mt-1 text-sm font-bold leading-5 text-slate-800">
                           {link.title}
-                        </p>
-                      </Link>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {similarProductLinks.length > 0 && (
-                <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)]">
-                  <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
-                    Схожі товари у каталозі
-                  </h2>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {similarProductLinks.map((link) => (
-                      <Link
-                        key={`${link.href}-${link.title}`}
-                        href={link.href}
-                        className="rounded-2xl border border-slate-200 bg-[linear-gradient(145deg,rgba(248,250,252,0.95),rgba(255,255,255,0.98))] px-3 py-3 transition hover:border-sky-300 hover:bg-sky-50/60"
-                      >
-                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                          {link.title}
-                        </p>
-                        <p className="mt-1 text-sm font-bold leading-5 text-slate-800">
-                          {link.subtitle}
                         </p>
                       </Link>
                     ))}
