@@ -1,4 +1,4 @@
-﻿import { cache, type CSSProperties } from "react";
+﻿import { cache, Suspense, type CSSProperties } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -8,13 +8,12 @@ import {
   fetchPriceEuro,
   fetchProductDescription,
   findCatalogProductByCode,
-  findSimilarProductsBySubgroup,
   toPriceUah,
 } from "app/lib/catalog-server";
-import { buildCatalogCategoryPath, buildCatalogProducerPath } from "app/lib/catalog-links";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import OpenChatButton from "app/components/OpenChatButton";
 import ProductPageActions from "app/components/ProductPageActions";
+import ProductRelatedItemsSection from "app/components/ProductRelatedItemsSection";
 import { getProductImagePath, PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image";
 import { getSiteUrl } from "app/lib/site-url";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -362,21 +361,8 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const siteUrl = getSiteUrl();
   const productGroup = (product.group || product.category || "").trim();
   const productSubgroup = (product.subGroup || "").trim();
-  const producerSlug = buildSeoSlug(product.producer || "");
   const groupSlug = buildSeoSlug(productGroup);
-  const producerLandingPath = producerSlug ? `/manufacturers/${producerSlug}` : null;
   const groupLandingPath = groupSlug ? `/groups/${groupSlug}` : null;
-  const subgroupCatalogPath =
-    productGroup && productSubgroup
-      ? buildCatalogCategoryPath(productGroup, productSubgroup)
-      : null;
-  const producerGroupCatalogPath =
-    product.producer && productGroup
-      ? buildCatalogProducerPath(product.producer, productGroup)
-      : null;
-  const similarProducts = isModalView
-    ? []
-    : await findSimilarProductsBySubgroup(product, { limit: 6, maxPages: 10, pageSize: 80 });
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
   const canonicalUrl = `${siteUrl}/product/${canonicalCode}`;
   const productImagePath = getProductImagePath(
@@ -408,7 +394,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const isInStock = Number.isFinite(product.quantity) && product.quantity > 0;
   const contentGridClass = isModalView
     ? "grid gap-3 p-3 sm:p-4 lg:grid-cols-[340px_minmax(0,1fr)]"
-    : "grid gap-5 p-4 sm:p-5 xl:grid-cols-[400px_minmax(0,1fr)]";
+    : "grid gap-5 p-4 sm:p-5 xl:grid-cols-[420px_minmax(0,1fr)]";
   const productImageClass = isModalView
     ? "mx-auto h-[220px] w-full rounded-xl border border-slate-200 bg-slate-50 sm:h-[250px] md:h-[280px]"
     : "mx-auto h-[320px] w-full rounded-2xl border border-slate-200 bg-slate-50 sm:h-[360px] xl:h-[400px]";
@@ -433,7 +419,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         className={
           isModalView
             ? "mx-auto w-full max-w-[1080px] px-2 py-2 sm:px-3 sm:py-3"
-            : "mx-auto w-full max-w-[1400px] px-4 py-5 sm:px-5 sm:py-7 lg:px-7"
+            : "mx-auto w-full max-w-[1500px] px-4 py-5 sm:px-6 sm:py-7 xl:px-8"
         }
       >
         {!isModalView && (
@@ -472,23 +458,56 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             isModalView ? "rounded-2xl" : "rounded-[26px]"
           }`}
         >
-          <header className="relative border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-900 px-4 py-5 text-white sm:px-6 sm:py-6">
+          <header className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-900 px-4 py-5 text-white sm:px-6 sm:py-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(56,189,248,0.24),transparent_45%),radial-gradient(circle_at_86%_18%,rgba(34,211,238,0.2),transparent_40%)]" />
-            <div className="relative">
-              <div>
+            <div className="relative grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+              <div className="min-w-0">
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300">
                   Деталі товару
                 </p>
-                <h1 className="mt-2 max-w-full break-words text-[clamp(1.65rem,3.8vw,3rem)] font-extrabold leading-[1.05] tracking-[-0.03em] text-white">
+                <h1 className="mt-2 max-w-[30ch] break-words text-[clamp(1.3rem,3.2vw,2.85rem)] font-black leading-[0.98] tracking-[-0.045em] text-white [overflow-wrap:anywhere]">
                   {product.name}
                 </h1>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {product.producer && (
+                    <span className="inline-flex rounded-full border border-white/15 bg-white/8 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-200">
+                      {product.producer}
+                    </span>
+                  )}
+                  {product.article && (
+                    <span className="inline-flex rounded-full border border-white/15 bg-white/8 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-200">
+                      Артикул: {product.article}
+                    </span>
+                  )}
+                  {productSubgroup && (
+                    <span className="inline-flex rounded-full border border-sky-300/25 bg-sky-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-sky-100">
+                      {productSubgroup}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                <span
+                  className={`inline-flex rounded-full border px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.1em] ${
+                    isInStock
+                      ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
+                      : "border-amber-300/25 bg-amber-400/10 text-amber-100"
+                  }`}
+                >
+                  {isInStock ? `В наявності ${product.quantity} шт.` : "Під замовлення"}
+                </span>
+                {product.code && (
+                  <span className="inline-flex rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-200">
+                    Код: {product.code}
+                  </span>
+                )}
               </div>
             </div>
           </header>
 
           <div className={contentGridClass}>
             <section className="space-y-3">
-              <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-3 shadow-[0_16px_34px_rgba(15,23,42,0.08)]">
+              <div className="overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-3 shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
                 <ProductImageWithFallback
                   src={productImagePath}
                   fallbackSrc={fallbackImagePath}
@@ -503,13 +522,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 />
               </div>
 
-              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.06)]">
+              <section className="rounded-[26px] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-4 shadow-[0_16px_32px_rgba(15,23,42,0.05)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
                       Потрібна допомога?
                     </p>
-                    <p className="mt-1.5 text-sm font-medium leading-6 text-slate-600">
+                    <p className="mt-1.5 text-sm font-semibold leading-6 text-slate-600">
                       Якщо потрібна сумісність або аналог, напишіть у чат і менеджер підбере варіанти.
                     </p>
                   </div>
@@ -519,36 +538,41 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               </section>
             </section>
 
-            <section className="space-y-3">
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
+            <section className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Код</p>
-                  <p className="mt-1 text-[15px] font-bold text-slate-800">{product.code || "-"}</p>
+                  <p className="mt-1 text-[15px] font-extrabold text-slate-900 [overflow-wrap:anywhere]">{product.code || "-"}</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
+                <div className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Артикул</p>
-                  <p className="mt-1 text-[15px] font-bold text-slate-800">{product.article || "-"}</p>
+                  <p className="mt-1 text-[15px] font-extrabold text-slate-900 [overflow-wrap:anywhere]">{product.article || "-"}</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
+                <div className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Виробник</p>
-                  <p className="mt-1 text-[15px] font-bold text-slate-800">{product.producer || "-"}</p>
+                  <p className="mt-1 text-[15px] font-extrabold text-slate-900 [overflow-wrap:anywhere]">{product.producer || "-"}</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
+                <div className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Наявність</p>
-                  <p className="mt-1 text-[15px] font-bold text-slate-800">{formatQuantity(product.quantity)}</p>
+                  <p className="mt-1 text-[15px] font-extrabold text-slate-900">{formatQuantity(product.quantity)}</p>
                 </div>
               </div>
 
-              <section className="rounded-[24px] border border-sky-200/80 bg-[linear-gradient(130deg,rgba(240,249,255,0.96),rgba(236,253,245,0.88))] p-4 shadow-[0_16px_28px_rgba(14,165,233,0.08)]">
-                <div className="flex items-center justify-between gap-2">
+              <section className="rounded-[26px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(240,249,255,0.98),rgba(236,253,245,0.92))] p-4 shadow-[0_18px_36px_rgba(14,165,233,0.1)] sm:p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700/90">Ціна</p>
-                    <p className={`mt-1 text-[28px] font-extrabold leading-tight tracking-[-0.03em] ${hasPrice ? "text-sky-700" : "text-slate-600"}`}>
+                    <p className={`mt-1 text-[30px] font-black leading-tight tracking-[-0.04em] ${hasPrice ? "text-sky-700" : "text-slate-700"}`}>
                       {formatPriceUah(priceUah)}
+                    </p>
+                    <p className="mt-2 max-w-[42ch] text-sm font-semibold leading-6 text-slate-600">
+                      {hasPrice
+                        ? "Оформіть замовлення прямо зі сторінки або змініть кількість перед додаванням."
+                        : "Ціна уточнюється. Відправте запит менеджеру і ми швидко підготуємо пропозицію."}
                     </p>
                   </div>
                   <div
-                    className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${
+                    className={`inline-flex rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] ${
                       isInStock
                         ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                         : "border-amber-200 bg-amber-50 text-amber-700"
@@ -559,7 +583,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 </div>
                 <Link
                   href="/katalog"
-                  className="mt-3 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-[0.08em] text-white transition hover:bg-slate-700"
+                  className="mt-4 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold uppercase tracking-[0.08em] text-white transition hover:bg-slate-700"
                 >
                   До каталогу
                 </Link>
@@ -573,46 +597,39 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 />
               </section>
 
-              {similarProducts.length > 0 && (
-                <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)]">
-                  <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
-                    Схожі товари
-                  </h2>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {similarProducts.map((item) => {
-                      const itemCode = encodeURIComponent(item.code || item.article || item.name);
-                      const badgeLabel =
-                        item.quantity > 0 ? `В наявності: ${item.quantity}` : "Під замовлення";
-                      return (
-                      <Link
-                        key={`${item.code}-${item.article}`}
-                        href={`/product/${itemCode}`}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 transition hover:border-sky-300 hover:bg-sky-50/70"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="min-w-0 text-sm font-bold leading-5 text-slate-800">
-                            {item.name}
-                          </p>
-                          <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
-                            {badgeLabel}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                          {item.producer || "Схожий товар"}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold leading-5 text-slate-700">
-                          {item.article || item.code}
-                        </p>
-                      </Link>
-                    )})}
-                  </div>
-                </section>
-              )}
-
-              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)]">
-                <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">Опис</h2>
+              <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:p-5">
+                <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">Опис товару</h2>
                 <p className={descriptionTextClass}>{descriptionDisplayText}</p>
               </section>
+
+              {!isModalView && (
+                <Suspense
+                  fallback={
+                    <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:p-5">
+                      <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-3">
+                        <div>
+                          <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-sky-700">
+                            Схожі товари
+                          </p>
+                          <h2 className="mt-1 text-xl font-extrabold tracking-[-0.03em] text-slate-900">
+                            Підбираємо товари з цієї підгрупи
+                          </h2>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {Array.from({ length: 3 }).map((_, index) => (
+                          <div
+                            key={index}
+                            className="h-[188px] animate-pulse rounded-[22px] border border-slate-200 bg-slate-100"
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  }
+                >
+                  <ProductRelatedItemsSection product={product} />
+                </Suspense>
+              )}
             </section>
           </div>
         </article>

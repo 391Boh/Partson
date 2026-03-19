@@ -213,6 +213,54 @@ export const fetchCatalogProductsPage = async (options: {
   return parseItemsFromText(response.text);
 };
 
+export const fetchCatalogProductsByFacet = async (options: {
+  group?: string;
+  subGroup?: string;
+  producer?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  const page = Number.isFinite(options.page) && options.page && options.page > 0
+    ? options.page
+    : 1;
+  const limit = Number.isFinite(options.limit) && options.limit && options.limit > 0
+    ? options.limit
+    : 24;
+  const group = (options.group || "").trim();
+  const subGroup = (options.subGroup || "").trim();
+  const producer = (options.producer || "").trim();
+
+  const body: Record<string, unknown> = {
+    [PAGE_FIELD]: page,
+    page,
+    [OFFSET_FIELD]: (page - 1) * limit,
+    [LIMIT_FIELD]: limit,
+  };
+
+  if (producer) {
+    for (const key of PRODUCER_FIELDS) body[key] = producer;
+  }
+
+  if (group && !subGroup) {
+    for (const key of SUBGROUP_FIELDS) body[key] = group;
+    for (const key of GROUP_FIELDS) body[key] = group;
+  } else if (subGroup) {
+    for (const key of GROUP_FIELDS) body[key] = group;
+    for (const key of SUBGROUP_FIELDS) body[key] = subGroup;
+  }
+
+  const response = await oneCRequest("getdata", {
+    method: "POST",
+    body,
+    retries: 1,
+    retryDelayMs: 200,
+    cacheTtlMs: 1000 * 60 * 3,
+  });
+
+  if (response.status < 200 || response.status >= 300) return [];
+  return parseItemsFromText(response.text);
+};
+
 export const findCatalogProductByCode = async (inputCode: string) => {
   const normalizedInput = safeDecode(inputCode || "").trim();
   const targetCode = normalizedInput.toLowerCase();
@@ -391,7 +439,7 @@ export const findSimilarProductsBySubgroup = async (
   }
 ) => {
   const limit = options?.limit && options.limit > 0 ? options.limit : 6;
-  const maxPages = options?.maxPages && options.maxPages > 0 ? options.maxPages : 10;
+  const maxPages = options?.maxPages && options.maxPages > 0 ? options.maxPages : 2;
   const pageSize = options?.pageSize && options.pageSize > 0 ? options.pageSize : 80;
 
   const targetCode = normalizeFacetValue(product.code);
@@ -402,14 +450,11 @@ export const findSimilarProductsBySubgroup = async (
 
   if (!targetSubgroup && !targetGroup) return [];
 
-  const results: Array<{ item: CatalogProduct; score: number }> = [];
-  const seen = new Set<string>();
+  const rankProducts = (items: CatalogProduct[]) => {
+    const results: Array<{ item: CatalogProduct; score: number }> = [];
+    const seen = new Set<string>();
 
-  for (let page = 1; page <= maxPages; page += 1) {
-    const batch = await fetchCatalogProductsPage({ page, limit: pageSize });
-    if (batch.length === 0) break;
-
-    for (const item of batch) {
+    for (const item of items) {
       const itemCode = normalizeFacetValue(item.code);
       const itemArticle = normalizeFacetValue(item.article);
       if ((targetCode && itemCode === targetCode) || (targetArticle && itemArticle === targetArticle)) {
@@ -434,10 +479,28 @@ export const findSimilarProductsBySubgroup = async (
 
       results.push({ item, score });
     }
+
+    return results
+      .sort((left, right) => right.score - left.score || right.item.quantity - left.item.quantity)
+      .slice(0, limit)
+      .map((entry) => entry.item);
+  };
+
+  const directBatch = await fetchCatalogProductsByFacet({
+    group: product.group || product.category,
+    subGroup: product.subGroup,
+    page: 1,
+    limit: Math.max(limit * 4, 24),
+  });
+  const directResults = rankProducts(directBatch);
+  if (directResults.length > 0) return directResults;
+
+  const fallbackBatch: CatalogProduct[] = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    const batch = await fetchCatalogProductsPage({ page, limit: pageSize });
+    if (batch.length === 0) break;
+    fallbackBatch.push(...batch);
   }
 
-  return results
-    .sort((left, right) => right.score - left.score || right.item.quantity - left.item.quantity)
-    .slice(0, limit)
-    .map((entry) => entry.item);
+  return rankProducts(fallbackBatch);
 };

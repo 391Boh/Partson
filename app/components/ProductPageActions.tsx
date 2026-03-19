@@ -66,7 +66,7 @@ const ProductPageActions = ({
   };
 
   return (
-    <div className="mt-4 flex flex-col gap-3">
+    <div className="mt-4 flex flex-col gap-3 border-t border-sky-200/80 pt-4">
       {cartQty > 0 && hasPrice && (
         <span className="inline-flex w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-emerald-700">
           У кошику: {cartQty}
@@ -74,8 +74,8 @@ const ProductPageActions = ({
       )}
 
       {hasPrice ? (
-        <div className="flex flex-col gap-3">
-          <div className="inline-flex w-fit items-center rounded-2xl border border-slate-200 bg-white/80 p-1 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="inline-flex w-fit items-center rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-sm">
             <button
               type="button"
               onClick={() => setOrderQty((prev) => Math.max(1, prev - 1))}
@@ -100,7 +100,7 @@ const ProductPageActions = ({
           <button
             type="button"
             onClick={handleAddToCart}
-            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-white transition ${
+            className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-white transition lg:min-w-[250px] ${
               justAdded
                 ? "bg-emerald-600 shadow-[0_14px_28px_rgba(5,150,105,0.22)]"
                 : "bg-slate-900 shadow-[0_14px_28px_rgba(15,23,42,0.18)] hover:bg-slate-800"
@@ -114,7 +114,7 @@ const ProductPageActions = ({
         <button
           type="button"
           onClick={handleRequestManager}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-sky-600 px-5 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-white shadow-[0_14px_28px_rgba(14,165,233,0.18)] transition hover:bg-sky-700"
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-sky-600 px-5 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-white shadow-[0_14px_28px_rgba(14,165,233,0.18)] transition hover:bg-sky-700 lg:min-w-[250px]"
         >
           <MessageCircle size={16} />
           <span>Запит менеджеру</span>
