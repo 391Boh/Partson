@@ -328,7 +328,7 @@ const getFirstResolvedValue = async <T,>(
 
 const getCatalogProduct = cache(async (code: string) => findCatalogProductByCode(code));
 const FAST_PRODUCT_LOOKUP_OPTIONS = {
-  timeoutMs: 3500,
+  timeoutMs: 2200,
   retries: 0,
 };
 
@@ -485,8 +485,8 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         new Set([product.article.trim(), product.code.trim(), resolvedCode].filter(Boolean))
       );
   const descriptionLookupOptions = isModalView
-    ? { timeoutMs: 1100, retries: 0 }
-    : { timeoutMs: 1600, retries: 0 };
+    ? { timeoutMs: 800, retries: 0 }
+    : { timeoutMs: 1100, retries: 0 };
   const descriptionPromise = primaryLookupKey
     ? fetchProductDescription(primaryLookupKey, descriptionLookupOptions).catch(() => null)
     : Promise.resolve(null);
@@ -517,6 +517,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const siteUrl = getSiteUrl();
   const productGroup = (product.group || product.category || "").trim();
   const productSubgroup = (product.subGroup || "").trim();
+  const visibleProductName = buildVisibleProductName(product.name);
   const groupSlug = buildSeoSlug(productGroup);
   const groupLandingPath = groupSlug ? `/groups/${groupSlug}` : null;
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
