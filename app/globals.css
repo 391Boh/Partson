@@ -12,7 +12,7 @@
     --soft-radius-surface: 16px;
     --soft-radius-control: 16px;
     --desktop-page-zoom: 0.75;
-    --font-ui-stack: var(--font-ui), "Manrope", "Segoe UI", sans-serif;
+    --font-ui-stack: var(--font-ui), "Exo 2", "Segoe UI", sans-serif;
     --font-display-stack: var(--font-display), "Exo 2", "Segoe UI", sans-serif;
     --font-geist-sans: var(--font-ui-stack);
     --font-geist-mono: var(--font-mono), "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
@@ -42,9 +42,9 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overscroll-behavior-y: auto;
-    letter-spacing: -0.01em;
-    line-height: 1.5;
-    font-weight: 600;
+    letter-spacing: -0.014em;
+    line-height: 1.42;
+    font-weight: 700;
   }
 
   button,
@@ -53,7 +53,7 @@
   textarea {
     font: inherit;
     letter-spacing: inherit;
-    font-weight: 600;
+    font-weight: 700;
   }
 
   a,
@@ -61,12 +61,12 @@
   th,
   td,
   figcaption {
-    font-weight: 600;
+    font-weight: 700;
   }
 
   strong,
   b {
-    font-weight: 800;
+    font-weight: 900;
   }
 
   ::placeholder {
@@ -185,13 +185,16 @@ body {
 h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display-stack);
     font-style: italic;
-    font-weight: 900;
-    letter-spacing: -0.04em;
-    line-height: 0.98;
+    font-weight: 800;
+    letter-spacing: -0.038em;
+    line-height: 0.97;
     text-wrap: balance;
     font-synthesis: none;
     text-rendering: geometricPrecision;
-}
+    font-optical-sizing: auto;
+    transform: skewX(-4deg);
+    transform-origin: left center;
+  }
 
 /* Власні компоненти */
 
@@ -206,24 +209,28 @@ h1, h2, h3, h4, h5, h6 {
 @layer utilities {
   .font-ui {
     font-family: var(--font-geist-sans);
-    letter-spacing: -0.01em;
-    font-weight: 600;
+    letter-spacing: -0.014em;
+    font-weight: 700;
   }
 
   .font-display {
     font-family: var(--font-display-stack);
     font-style: italic;
-    font-weight: 900;
-    letter-spacing: -0.04em;
-    line-height: 0.98;
+    font-weight: 800;
+    letter-spacing: -0.038em;
+    line-height: 0.97;
+    transform: skewX(-4deg);
+    transform-origin: left center;
   }
 
   .font-display-italic {
     font-family: var(--font-display-stack);
     font-style: italic;
-    font-weight: 900;
-    letter-spacing: -0.04em;
-    line-height: 0.98;
+    font-weight: 800;
+    letter-spacing: -0.038em;
+    line-height: 0.97;
+    transform: skewX(-4deg);
+    transform-origin: left center;
   }
 }
 
@@ -239,7 +246,7 @@ h1, h2, h3, h4, h5, h6 {
         @apply bg-gradient-to-b from-gray-800 to-gray-600 text-white p-6 rounded-lg shadow-2xl shadow-gray-900 flex items-center gap-4;
     }
 
-    header {
+    .site-header-shell {
       height: var(--header-height, 4rem);
       min-height: var(--header-height, 4rem);
       display: flex;

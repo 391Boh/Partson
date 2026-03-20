@@ -1,5 +1,5 @@
 ﻿import { Geist_Mono, Montserrat } from "next/font/google";
-import { Exo_2, Manrope } from "next/font/google";
+import { Exo_2 } from "next/font/google";
 import type { Metadata } from "next";
 import { Suspense, type ReactNode } from "react";
 import Script from "next/script";
@@ -11,9 +11,10 @@ import "./globals.css";
 
 const montserrat = { className: "", variable: "" };
 
-const uiFont = Manrope({
+const uiFont = Exo_2({
   subsets: ["latin", "cyrillic"],
-  weight: ["500", "600", "700", "800"],
+  weight: ["500", "600", "700", "800", "900"],
+  style: ["normal"],
   variable: "--font-ui",
   display: "swap",
 });

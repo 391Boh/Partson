@@ -1,6 +1,5 @@
 ﻿import { cache, Suspense, type CSSProperties } from "react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
@@ -10,7 +9,6 @@ import {
   findCatalogProductByCode,
   toPriceUah,
 } from "app/lib/catalog-server";
-import { buildCatalogCategoryPath } from "app/lib/catalog-links";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import OpenChatButton from "app/components/OpenChatButton";
 import ProductPageActions from "app/components/ProductPageActions";
@@ -56,21 +54,38 @@ const normalizeView = (view: string | string[] | undefined) => {
 
 const buildProductJsonLd = (options: {
   name: string;
+  visibleName: string;
   description: string;
   code: string;
   article: string;
   producer: string;
+  group: string;
+  subGroup: string;
   quantity: number;
   priceUah: number | null;
   canonicalUrl: string;
   imageUrls: string[];
 }) => {
-  const { name, description, code, article, producer, quantity, priceUah, canonicalUrl, imageUrls } = options;
+  const {
+    name,
+    visibleName,
+    description,
+    code,
+    article,
+    producer,
+    group,
+    subGroup,
+    quantity,
+    priceUah,
+    canonicalUrl,
+    imageUrls,
+  } = options;
 
   const offers =
     priceUah != null
       ? {
           "@type": "Offer",
+          "@id": `${canonicalUrl}#offer`,
           priceCurrency: "UAH",
           price: String(priceUah),
           availability:
@@ -78,6 +93,13 @@ const buildProductJsonLd = (options: {
               ? "https://schema.org/InStock"
               : "https://schema.org/PreOrder",
           itemCondition: "https://schema.org/NewCondition",
+          inventoryLevel:
+            quantity > 0
+              ? {
+                  "@type": "QuantitativeValue",
+                  value: quantity,
+                }
+              : undefined,
           seller: {
             "@type": "Organization",
             name: "PartsON",
@@ -92,15 +114,88 @@ const buildProductJsonLd = (options: {
   return {
     "@context": "https://schema.org",
     "@type": "Product",
+    "@id": `${canonicalUrl}#product`,
     name,
+    alternateName: visibleName !== name ? visibleName : undefined,
     description,
     url: canonicalUrl,
-    category: "Автозапчастини",
-    image: imageUrls,
+    mainEntityOfPage: canonicalUrl,
+    category: [group, subGroup].filter(Boolean).join(" / ") || "Автозапчастини",
+    image: imageUrls.map((url) => ({
+      "@type": "ImageObject",
+      url,
+    })),
     sku: article || undefined,
     mpn: code || undefined,
     brand: producer ? { "@type": "Brand", name: producer } : undefined,
+    manufacturer: producer ? { "@type": "Organization", name: producer } : undefined,
+    identifier: [
+      code
+        ? {
+            "@type": "PropertyValue",
+            propertyID: "code",
+            value: code,
+          }
+        : null,
+      article
+        ? {
+            "@type": "PropertyValue",
+            propertyID: "article",
+            value: article,
+          }
+        : null,
+    ].filter(Boolean),
+    additionalProperty: [
+      group
+        ? {
+            "@type": "PropertyValue",
+            name: "Група",
+            value: group,
+          }
+        : null,
+      subGroup
+        ? {
+            "@type": "PropertyValue",
+            name: "Підгрупа",
+            value: subGroup,
+          }
+        : null,
+    ].filter(Boolean),
     offers,
+  };
+};
+
+const buildProductItemPageJsonLd = (options: {
+  siteUrl: string;
+  canonicalUrl: string;
+  name: string;
+  description: string;
+  imageUrl: string;
+  hasProductSchema: boolean;
+}) => {
+  const { siteUrl, canonicalUrl, name, description, imageUrl, hasProductSchema } = options;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemPage",
+    "@id": `${canonicalUrl}#page`,
+    url: canonicalUrl,
+    name,
+    description,
+    isPartOf: {
+      "@type": "WebSite",
+      name: "PartsON",
+      url: siteUrl,
+    },
+    primaryImageOfPage: {
+      "@type": "ImageObject",
+      url: imageUrl,
+    },
+    mainEntity: hasProductSchema
+      ? {
+          "@id": `${canonicalUrl}#product`,
+        }
+      : undefined,
   };
 };
 
@@ -199,24 +294,12 @@ const buildProductFaqJsonLd = (options: {
   };
 };
 
-const buildProductLead = (options: {
-  producer: string;
-  group: string;
-  subGroup: string;
-  quantity: number;
-  hasPrice: boolean;
-}) => {
-  const { producer, group, subGroup, quantity, hasPrice } = options;
-  const parts = [
-    producer ? `бренд ${producer}` : null,
-    subGroup ? `підгрупа ${subGroup}` : group ? `група ${group}` : null,
-    quantity > 0 ? `в наявності ${quantity} шт.` : "доступний під замовлення",
-    hasPrice ? "з актуальною ціною" : "з уточненням ціни через менеджера",
-  ]
-    .filter(Boolean)
-    .join(" • ");
+const buildVisibleProductName = (value: string) => {
+  const source = (value || "").trim();
+  if (!source) return "Товар";
 
-  return parts || "Оригінальна сторінка товару з характеристиками і швидким замовленням.";
+  const cleaned = source.replace(/\s*\([^)]*\)/g, "").replace(/\s{2,}/g, " ").trim();
+  return cleaned || source;
 };
 
 const getFirstResolvedValue = async <T,>(
@@ -314,12 +397,13 @@ export async function generateMetadata({
 
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
   const canonicalPath = `/product/${canonicalCode}`;
+  const visibleProductName = buildVisibleProductName(product.name);
   const productImagePath = getProductImagePath(
     product.code || resolvedCode,
     product.article
   );
   const description = buildProductMetaDescription({
-    name: product.name,
+    name: visibleProductName,
     article: product.article,
     producer: product.producer,
     quantity: product.quantity,
@@ -343,26 +427,29 @@ export async function generateMetadata({
   if (product.producer) otherMeta["product:brand"] = product.producer;
   if (product.article) otherMeta["product:mpn"] = product.article;
   if (product.code) otherMeta["product:retailer_item_id"] = product.code;
+  const productImageUrl = `${getSiteUrl()}${productImagePath}`;
+  otherMeta["image"] = productImageUrl;
+  otherMeta["thumbnail"] = productImageUrl;
 
   return {
-    title: product.name,
+    title: `${visibleProductName}${product.producer ? ` ${product.producer}` : ""}${product.article ? ` ${product.article}` : ""}`,
     description,
     keywords,
     alternates: {
       canonical: canonicalPath,
     },
     openGraph: {
-      type: "article",
+      type: "website",
       url: canonicalPath,
-      title: product.name,
+      title: visibleProductName,
       description,
-      images: [{ url: productImagePath, alt: `Фото товару ${product.name}` }],
+      images: [{ url: productImageUrl, alt: `Фото товару ${visibleProductName}` }],
     },
     twitter: {
       card: "summary_large_image",
-      title: product.name,
+      title: visibleProductName,
       description,
-      images: [productImagePath],
+      images: [productImageUrl],
     },
     robots: {
       index: !isModalView && indexable,
@@ -430,14 +517,8 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const siteUrl = getSiteUrl();
   const productGroup = (product.group || product.category || "").trim();
   const productSubgroup = (product.subGroup || "").trim();
-  const producerSlug = buildSeoSlug(product.producer);
   const groupSlug = buildSeoSlug(productGroup);
   const groupLandingPath = groupSlug ? `/groups/${groupSlug}` : null;
-  const producerLandingPath = producerSlug ? `/manufacturers/${producerSlug}` : null;
-  const subgroupCatalogPath =
-    productGroup && productSubgroup
-      ? buildCatalogCategoryPath(productGroup, productSubgroup)
-      : null;
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
   const canonicalUrl = `${siteUrl}/product/${canonicalCode}`;
   const productImagePath = getProductImagePath(
@@ -449,16 +530,27 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const jsonLd = hasPrice
     ? buildProductJsonLd({
         name: product.name,
+        visibleName: visibleProductName,
         description: schemaDescription,
         code: product.code,
         article: product.article,
         producer: product.producer,
+        group: productGroup,
+        subGroup: productSubgroup,
         quantity: product.quantity,
         priceUah,
         canonicalUrl,
         imageUrls: [productImageUrl],
       })
     : null;
+  const itemPageJsonLd = buildProductItemPageJsonLd({
+    siteUrl,
+    canonicalUrl,
+    name: visibleProductName,
+    description: schemaDescription,
+    imageUrl: productImageUrl,
+    hasProductSchema: Boolean(jsonLd),
+  });
   const breadcrumbJsonLd = buildProductBreadcrumbJsonLd({
     siteUrl,
     canonicalUrl,
@@ -467,13 +559,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     groupPath: groupLandingPath,
   });
   const isInStock = Number.isFinite(product.quantity) && product.quantity > 0;
-  const productLead = buildProductLead({
-    producer: product.producer,
-    group: productGroup,
-    subGroup: productSubgroup,
-    quantity: product.quantity,
-    hasPrice,
-  });
   const faqJsonLd = buildProductFaqJsonLd({
     name: product.name,
     producer: product.producer,
@@ -484,10 +569,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   });
   const contentGridClass = isModalView
     ? "grid gap-3 p-3 sm:p-4 lg:grid-cols-[340px_minmax(0,1fr)]"
-    : "grid gap-4 p-3 sm:gap-5 sm:p-5 xl:grid-cols-[420px_minmax(0,1fr)]";
+    : "grid gap-3 p-3 sm:gap-4 sm:p-4 xl:grid-cols-[320px_minmax(0,1fr)] 2xl:grid-cols-[340px_minmax(0,1fr)]";
   const productImageClass = isModalView
     ? "mx-auto h-[220px] w-full rounded-xl border border-slate-200 bg-slate-50 sm:h-[250px] md:h-[280px]"
-    : "mx-auto h-[250px] w-full rounded-2xl border border-slate-200 bg-slate-50 sm:h-[360px] xl:h-[400px]";
+    : "mx-auto h-[220px] w-full rounded-2xl border border-slate-200 bg-slate-50 sm:h-[280px] xl:h-[320px] 2xl:h-[340px]";
   const descriptionTextClass = isModalView
     ? "mt-1.5 max-h-[180px] overflow-y-auto whitespace-pre-line break-words pr-1 text-sm leading-relaxed text-slate-700"
     : "mt-2 max-h-[320px] overflow-y-auto whitespace-pre-line break-words pr-1 text-[14px] font-semibold leading-6 text-slate-700 sm:text-[15px] sm:leading-7";
@@ -509,113 +594,99 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         className={
           isModalView
             ? "mx-auto w-full max-w-[1080px] px-2 py-2 sm:px-3 sm:py-3"
-            : "mx-auto w-full max-w-[1500px] px-3 py-4 sm:px-6 sm:py-7 xl:px-8"
+            : "mx-auto w-full max-w-[1400px] px-3 py-3 sm:px-5 sm:py-5 lg:px-7"
         }
       >
-        {!isModalView && (
-          <div className="mb-3 space-y-2.5 sm:space-y-3">
-            <nav className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-slate-500 sm:gap-2 sm:text-xs">
-              <Link href="/" className="transition hover:text-slate-800">
-                Головна
-              </Link>
-              <span>/</span>
-              <Link href="/katalog" className="transition hover:text-slate-800">
-                Каталог
-              </Link>
-              {groupLandingPath && productGroup && (
-                <>
-                  <span>/</span>
-                  <Link href={groupLandingPath} className="transition hover:text-slate-800">
-                    {productGroup}
-                  </Link>
-                </>
-              )}
-            </nav>
-
-            <Link
-              href="/katalog"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-800 sm:w-auto sm:justify-start sm:py-1.5"
-            >
-              &larr; Повернутися в каталог
-            </Link>
-          </div>
-        )}
-
         <article
           className={`overflow-hidden border border-slate-200/80 bg-white/95 shadow-[0_22px_52px_rgba(15,23,42,0.12)] backdrop-blur-sm ${
             isModalView ? "rounded-2xl" : "rounded-[24px] sm:rounded-[26px]"
           }`}
         >
-          <header className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-900 px-3 py-4 text-white sm:px-6 sm:py-6">
+          <header className="relative block h-auto min-h-0 border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-900 px-3 py-4 text-white sm:px-5 sm:py-5">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(56,189,248,0.24),transparent_45%),radial-gradient(circle_at_86%_18%,rgba(34,211,238,0.2),transparent_40%)]" />
-            <div className="relative grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-end">
+            <div className="relative">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_340px]">
               <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300">
-                  Сторінка товару
-                </p>
-                <h1 className="font-display-italic mt-2 max-w-none break-words text-[clamp(1rem,5.3vw,2.85rem)] font-black leading-[1.04] tracking-[-0.05em] text-white [overflow-wrap:anywhere] [text-wrap:balance] sm:max-w-[28ch] sm:text-[clamp(1.35rem,3.2vw,2.85rem)] sm:leading-[1] lg:max-w-[32ch]">
-                  {product.name}
+                <h1 className="font-display-italic max-w-none break-words text-[clamp(1rem,2.5vw,1.85rem)] font-black leading-[1.04] tracking-[-0.03em] text-white [overflow-wrap:anywhere] [text-wrap:pretty] sm:text-[clamp(1.18rem,2vw,2rem)] xl:max-w-[42ch]">
+                  {visibleProductName}
                 </h1>
-                <p className="mt-3 max-w-[68ch] text-[13px] font-semibold leading-6 text-slate-200/90 sm:text-[15px]">
-                  {productLead}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-1.5 sm:mt-4 sm:gap-2">
-                  {product.producer && (
-                    <span className="inline-flex max-w-full rounded-full border border-white/15 bg-white/8 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-200 [overflow-wrap:anywhere] sm:px-3 sm:text-[11px] sm:tracking-[0.1em]">
-                      {product.producer}
-                    </span>
-                  )}
-                  {productSubgroup && (
-                    <span className="inline-flex max-w-full rounded-full border border-sky-300/25 bg-sky-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-sky-100 [overflow-wrap:anywhere] sm:px-3 sm:text-[11px] sm:tracking-[0.1em]">
-                      {productSubgroup}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="rounded-[22px] border border-white/12 bg-white/8 p-3 shadow-[0_18px_34px_rgba(15,23,42,0.18)] backdrop-blur-sm">
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-300">
-                  Швидкий огляд
-                </p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/20 px-3 py-2">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-300">
-                      Статус
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:max-w-[760px]">
+                  <div className="rounded-[16px] border border-white/12 bg-white/7 px-3 py-2.5">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-300 sm:text-[10px]">
+                      Виробник
                     </p>
-                    <p className="mt-1 text-sm font-extrabold text-white">
-                      {isInStock ? "В наявності" : "Під замовлення"}
+                    <p className="mt-1 text-[13px] font-extrabold leading-5 text-white [overflow-wrap:anywhere] sm:text-[14px]">
+                      {product.producer || "Без бренду"}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/20 px-3 py-2">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-300">
-                      Ціна
+                  <div className="rounded-[16px] border border-white/12 bg-white/7 px-3 py-2.5">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-300 sm:text-[10px]">
+                      Категорія
                     </p>
-                    <p className="mt-1 text-sm font-extrabold text-white">
-                      {hasPrice ? "Актуальна" : "За запитом"}
+                    <p className="mt-1 text-[13px] font-extrabold leading-5 text-white [overflow-wrap:anywhere] sm:text-[14px]">
+                      {productSubgroup || productGroup || "Автозапчастини"}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/20 px-3 py-2">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-300">
+                  <div className="rounded-[16px] border border-white/12 bg-white/7 px-3 py-2.5">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-300 sm:text-[10px]">
+                      Код
+                    </p>
+                    <p className="mt-1 text-[13px] font-extrabold leading-5 text-white [overflow-wrap:anywhere] sm:text-[14px]">
+                      {product.code || resolvedCode}
+                    </p>
+                  </div>
+                  <div className="rounded-[16px] border border-white/12 bg-white/7 px-3 py-2.5">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-300 sm:text-[10px]">
                       Артикул
                     </p>
-                    <p className="mt-1 text-sm font-extrabold text-white [overflow-wrap:anywhere]">
+                    <p className="mt-1 text-[13px] font-extrabold leading-5 text-white [overflow-wrap:anywhere] sm:text-[14px]">
                       {product.article || "-"}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/20 px-3 py-2">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-300">
-                      Код
+                </div>
+              </div>
+              <div className="rounded-[20px] border border-white/12 bg-white/8 p-2.5 shadow-[0_18px_34px_rgba(15,23,42,0.18)] backdrop-blur-sm sm:p-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-[16px] border border-white/12 bg-white/6 px-3 py-2.5">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-300">
+                      Статус
                     </p>
-                    <p className="mt-1 text-sm font-extrabold text-white [overflow-wrap:anywhere]">
-                      {product.code || "-"}
+                    <p className="mt-1 text-[13px] font-extrabold leading-5 text-white sm:text-[14px]">
+                      {isInStock ? `В наявності${product.quantity > 0 ? ` · ${product.quantity} шт.` : ""}` : "Під замовлення"}
+                    </p>
+                  </div>
+                  <div className="rounded-[16px] border border-white/12 bg-white/6 px-3 py-2.5">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-300">
+                      Ціна
+                    </p>
+                    <p className="mt-1 text-[13px] font-extrabold leading-5 text-white sm:text-[14px]">
+                      {hasPrice ? formatPriceUah(priceUah) : "За запитом"}
                     </p>
                   </div>
                 </div>
+                <p className="mt-2 text-[12px] font-semibold leading-5 text-slate-200">
+                  {hasPrice
+                    ? "Замовлення доступне одразу зі сторінки."
+                    : "Надішліть запит менеджеру для уточнення ціни."}
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <ProductPageActions
+                    code={product.code || resolvedCode}
+                    article={product.article}
+                    name={product.name}
+                    producer={product.producer}
+                    priceUah={priceUah}
+                    quantity={product.quantity}
+                    compact
+                  />
+                </div>
               </div>
             </div>
+          </div>
           </header>
 
           <div className={contentGridClass}>
-            <section className="space-y-3">
+            <section className="space-y-2.5">
               <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-2.5 shadow-[0_18px_38px_rgba(15,23,42,0.08)] sm:rounded-[26px] sm:p-3">
                 <ProductImageWithFallback
                   src={productImagePath}
@@ -631,7 +702,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 />
               </div>
 
-              <section className="rounded-[22px] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-3.5 shadow-[0_16px_32px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-4">
+              <section className="rounded-[22px] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-3 shadow-[0_16px_32px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
@@ -645,198 +716,86 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   <OpenChatButton message={chatPrefillMessage} title="Відкрити чат з менеджером" />
                 </div>
               </section>
+
+              <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-4">
+                <h2 className="font-display-italic text-[1.05rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.2rem]">
+                  Поширені питання
+                </h2>
+                <div className="mt-3 space-y-2.5">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <h3 className="text-[15px] font-extrabold text-slate-900 not-italic">
+                      Як замовити товар?
+                    </h3>
+                    <p className="mt-1.5 text-sm font-semibold leading-6 text-slate-700">
+                      {hasPrice
+                        ? "Якщо ціна вже доступна, товар можна одразу додати в замовлення. Якщо потрібна перевірка сумісності, відкрий чат і менеджер підкаже."
+                        : "Якщо ціна не показується, надішліть запит менеджеру прямо зі сторінки. Ми уточнимо ціну, наявність і можливі аналоги."}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <h3 className="text-[15px] font-extrabold text-slate-900 not-italic">
+                      Як перевірити сумісність?
+                    </h3>
+                    <p className="mt-1.5 text-sm font-semibold leading-6 text-slate-700">
+                      Для точного підбору звіряйте код, артикул і виробника. Якщо є сумніви, напишіть у чат з VIN або даними авто.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <h3 className="text-[15px] font-extrabold text-slate-900 not-italic">
+                      Які терміни по наявності?
+                    </h3>
+                    <p className="mt-1.5 text-sm font-semibold leading-6 text-slate-700">
+                      {isInStock
+                        ? `Зараз товар є в наявності${product.quantity > 0 ? `: ${product.quantity} шт.` : "."}`
+                        : "Зараз товар доступний під замовлення. Точний термін постачання уточнюється менеджером після заявки."}
+                    </p>
+                  </div>
+                </div>
+              </section>
             </section>
 
-            <section className="space-y-4">
-              <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
-                <div className="rounded-[18px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-3.5 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.04)] sm:rounded-2xl sm:px-4">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Код</p>
-                  <p className="mt-1 text-[15px] font-extrabold text-slate-900 [overflow-wrap:anywhere]">{product.code || "-"}</p>
-                </div>
-                <div className="rounded-[18px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-3.5 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.04)] sm:rounded-2xl sm:px-4">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Артикул</p>
-                  <p className="mt-1 text-[15px] font-extrabold text-slate-900 [overflow-wrap:anywhere]">{product.article || "-"}</p>
-                </div>
-                <div className="rounded-[18px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-3.5 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.04)] sm:rounded-2xl sm:px-4">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Виробник</p>
-                  <p className="mt-1 text-[15px] font-extrabold text-slate-900 [overflow-wrap:anywhere]">{product.producer || "-"}</p>
-                </div>
-                <div className="rounded-[18px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-3.5 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.04)] sm:rounded-2xl sm:px-4">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Наявність</p>
-                  <p className="mt-1 text-[15px] font-extrabold text-slate-900">{formatQuantity(product.quantity)}</p>
-                </div>
-              </div>
-
-              <section className="rounded-[22px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(240,249,255,0.98),rgba(236,253,245,0.92))] p-3.5 shadow-[0_18px_36px_rgba(14,165,233,0.1)] sm:rounded-[26px] sm:p-5 xl:sticky xl:top-24">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700/90">Ціна</p>
-                    <p className={`mt-1 break-words text-[26px] font-black leading-tight tracking-[-0.04em] sm:text-[30px] ${hasPrice ? "text-sky-700" : "text-slate-700"}`}>
-                      {formatPriceUah(priceUah)}
-                    </p>
-                    <p className="mt-2 max-w-[42ch] text-[13px] font-semibold leading-5 text-slate-600 sm:text-sm sm:leading-6">
-                      {hasPrice
-                        ? "Оформіть замовлення прямо зі сторінки або змініть кількість перед додаванням."
-                        : "Ціна уточнюється. Відправте запит менеджеру і ми швидко підготуємо пропозицію."}
-                    </p>
-                  </div>
-                  <div
-                    className={`inline-flex rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] ${
-                      isInStock
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-amber-200 bg-amber-50 text-amber-700"
-                    }`}
-                  >
-                    {isInStock ? "В наявності" : "Під замовлення"}
-                  </div>
-                </div>
-                <Link
-                  href="/katalog"
-                  className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold uppercase tracking-[0.08em] text-white transition hover:bg-slate-700 sm:w-auto"
-                >
-                  До каталогу
-                </Link>
-                <ProductPageActions
-                  code={product.code || resolvedCode}
-                  article={product.article}
-                  name={product.name}
-                  producer={product.producer}
-                  priceUah={priceUah}
-                  quantity={product.quantity}
-                />
-              </section>
-
-              <section className="rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-5">
-                <h2 className="font-display-italic text-[1.05rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.2rem]">
-                  Швидкі переходи
-                </h2>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {groupLandingPath && (
-                    <Link
-                      href={groupLandingPath}
-                      className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
-                    >
-                      Група: {productGroup}
-                    </Link>
-                  )}
-                  {subgroupCatalogPath && (
-                    <Link
-                      href={subgroupCatalogPath}
-                      className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
-                    >
-                      Підгрупа: {productSubgroup}
-                    </Link>
-                  )}
-                  {producerLandingPath && (
-                    <Link
-                      href={producerLandingPath}
-                      className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
-                    >
-                      Бренд: {product.producer}
-                    </Link>
-                  )}
-                </div>
-              </section>
-
-              <section className="rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-5">
+            <section className="space-y-3">
+              <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-4">
                 <h2 className="font-display-italic text-[1.05rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.2rem]">
                   Опис товару
                 </h2>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                  Коротка інформація про товар, його призначення та статус по каталогу.
+                </p>
                 <p className={descriptionTextClass}>{descriptionDisplayText}</p>
               </section>
 
               {!isModalView && (
-                <Suspense
-                  fallback={
-                    <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:p-5">
-                      <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-3">
-                        <div>
-                          <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-sky-700">
-                            Схожі товари
-                          </p>
-                          <h2 className="mt-1 text-xl font-extrabold tracking-[-0.03em] text-slate-900">
-                            Підбираємо товари з цієї підгрупи
-                          </h2>
+                <div>
+                  <Suspense
+                    fallback={
+                      <section className="rounded-[26px] border border-slate-200 bg-white p-3 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:p-4">
+                        <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-3">
+                          <div>
+                            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-sky-700">
+                              Схожі товари
+                            </p>
+                            <h2 className="mt-1 text-xl font-extrabold tracking-[-0.03em] text-slate-900">
+                              Підбираємо товари з цієї підгрупи
+                            </h2>
+                          </div>
                         </div>
-                      </div>
-                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                        {Array.from({ length: 3 }).map((_, index) => (
-                          <div
-                            key={index}
-                            className="h-[188px] animate-pulse rounded-[22px] border border-slate-200 bg-slate-100"
-                          />
-                        ))}
-                      </div>
-                    </section>
-                  }
-                >
-                  <ProductRelatedItemsSection product={product} />
-                </Suspense>
+                        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          {Array.from({ length: 3 }).map((_, index) => (
+                            <div
+                              key={index}
+                              className="h-[188px] animate-pulse rounded-[22px] border border-slate-200 bg-slate-100"
+                            />
+                          ))}
+                        </div>
+                      </section>
+                    }
+                  >
+                    <ProductRelatedItemsSection product={product} />
+                  </Suspense>
+                </div>
               )}
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
-                <section className="rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-5">
-                  <h2 className="font-display-italic text-[1.05rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.2rem]">
-                    Підбір і сумісність
-                  </h2>
-                  <p className="mt-3 text-[14px] font-semibold leading-6 text-slate-700 sm:text-[15px] sm:leading-7">
-                    {product.name} — це позиція з категорії {productSubgroup || productGroup || "автозапчастин"}.
-                    На сторінці зібрані основні дані для швидкого вибору: код, артикул,
-                    виробник, наявність і актуальний статус ціни. Для максимально точного
-                    підбору орієнтуйтесь на код товару та сумісність з вашим авто.
-                  </p>
-                  <ul className="mt-4 grid gap-2.5 sm:grid-cols-2">
-                    <li className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                      Виробник: <span className="font-extrabold text-slate-900">{product.producer || "-"}</span>
-                    </li>
-                    <li className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                      Група: <span className="font-extrabold text-slate-900">{productGroup || "-"}</span>
-                    </li>
-                    <li className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                      Підгрупа: <span className="font-extrabold text-slate-900">{productSubgroup || "-"}</span>
-                    </li>
-                    <li className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                      Статус: <span className="font-extrabold text-slate-900">{isInStock ? "В наявності" : "Під замовлення"}</span>
-                    </li>
-                  </ul>
-                </section>
-
-                <section className="rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-5">
-                  <h2 className="font-display-italic text-[1.05rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.2rem]">
-                    Поширені питання
-                  </h2>
-                  <div className="mt-4 space-y-3">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <h3 className="text-[15px] font-extrabold text-slate-900 not-italic">
-                        Як замовити товар?
-                      </h3>
-                      <p className="mt-1.5 text-sm font-semibold leading-6 text-slate-700">
-                        {hasPrice
-                          ? "Якщо ціна вже доступна, товар можна одразу додати в замовлення. Якщо потрібна перевірка сумісності, відкрий чат і менеджер підкаже."
-                          : "Якщо ціна не показується, надішліть запит менеджеру прямо зі сторінки. Ми уточнимо ціну, наявність і можливі аналоги."}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <h3 className="text-[15px] font-extrabold text-slate-900 not-italic">
-                        Як перевірити сумісність?
-                      </h3>
-                      <p className="mt-1.5 text-sm font-semibold leading-6 text-slate-700">
-                        Для точного підбору звіряйте код, артикул і виробника. Якщо є сумніви, напишіть у чат з VIN або даними авто.
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <h3 className="text-[15px] font-extrabold text-slate-900 not-italic">
-                        Які терміни по наявності?
-                      </h3>
-                      <p className="mt-1.5 text-sm font-semibold leading-6 text-slate-700">
-                        {isInStock
-                          ? `Зараз товар є в наявності${product.quantity > 0 ? `: ${product.quantity} шт.` : "."}`
-                          : "Зараз товар доступний під замовлення. Точний термін постачання уточнюється менеджером після заявки."}
-                      </p>
-                    </div>
-                  </div>
-                </section>
-              </div>
             </section>
           </div>
         </article>
@@ -848,6 +807,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       )}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemPageJsonLd) }}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}

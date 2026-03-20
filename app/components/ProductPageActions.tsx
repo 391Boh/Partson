@@ -12,6 +12,7 @@ type ProductPageActionsProps = {
   producer: string;
   priceUah: number | null;
   quantity: number;
+  compact?: boolean;
 };
 
 const ProductPageActions = ({
@@ -21,6 +22,7 @@ const ProductPageActions = ({
   producer,
   priceUah,
   quantity,
+  compact = false,
 }: ProductPageActionsProps) => {
   const { addToCart, cartItems } = useCart();
   const [orderQty, setOrderQty] = useState(1);
@@ -66,7 +68,7 @@ const ProductPageActions = ({
   };
 
   return (
-    <div className="mt-4 flex flex-col gap-3 border-t border-sky-200/80 pt-4">
+    <div className={compact ? "flex flex-col gap-3" : "mt-4 flex flex-col gap-3 border-t border-sky-200/80 pt-4"}>
       {cartQty > 0 && hasPrice && (
         <span className="inline-flex w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-emerald-700">
           У кошику: {cartQty}
@@ -74,8 +76,8 @@ const ProductPageActions = ({
       )}
 
       {hasPrice ? (
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="inline-flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-sm sm:w-fit sm:justify-start">
+        <div className="flex items-center gap-2.5">
+          <div className="inline-flex min-w-0 flex-1 items-center justify-between rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-sm sm:flex-none">
             <button
               type="button"
               onClick={() => setOrderQty((prev) => Math.max(1, prev - 1))}
@@ -100,24 +102,28 @@ const ProductPageActions = ({
           <button
             type="button"
             onClick={handleAddToCart}
-            className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-white transition sm:w-auto lg:min-w-[250px] ${
+            title={justAdded ? "Товар додано" : "Додати в замовлення"}
+            aria-label={justAdded ? "Товар додано" : "Додати в замовлення"}
+            className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white transition ${
               justAdded
                 ? "bg-emerald-600 shadow-[0_14px_28px_rgba(5,150,105,0.22)]"
-                : "bg-slate-900 shadow-[0_14px_28px_rgba(15,23,42,0.18)] hover:bg-slate-800"
+                : "bg-red-600 shadow-[0_14px_28px_rgba(220,38,38,0.24)] hover:bg-red-500"
             }`}
           >
-            {justAdded ? <Check size={16} /> : <ShoppingCart size={16} />}
-            <span>{justAdded ? "Додано" : "Додати в замовлення"}</span>
+            {justAdded ? <Check size={18} /> : <ShoppingCart size={18} />}
+            <span className="sr-only">{justAdded ? "Додано" : "Додати в замовлення"}</span>
           </button>
         </div>
       ) : (
         <button
           type="button"
           onClick={handleRequestManager}
-          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-sky-600 px-5 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-white shadow-[0_14px_28px_rgba(14,165,233,0.18)] transition hover:bg-sky-700 sm:w-auto lg:min-w-[250px]"
+          title="Запит менеджеру"
+          aria-label="Запит менеджеру"
+          className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-red-600 text-white shadow-[0_14px_28px_rgba(220,38,38,0.24)] transition hover:bg-red-500"
         >
-          <MessageCircle size={16} />
-          <span>Запит менеджеру</span>
+          <MessageCircle size={18} />
+          <span className="sr-only">Запит менеджеру</span>
         </button>
       )}
     </div>

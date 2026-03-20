@@ -10,6 +10,14 @@ type ProductRelatedItemsSectionProps = {
 const formatStockLabel = (quantity: number) =>
   quantity > 0 ? `В наявності ${quantity} шт.` : "Під замовлення";
 
+const buildVisibleProductName = (value: string) => {
+  const source = (value || "").trim();
+  if (!source) return "Товар";
+
+  const cleaned = source.replace(/\s*\([^)]*\)/g, "").replace(/\s{2,}/g, " ").trim();
+  return cleaned || source;
+};
+
 export default async function ProductRelatedItemsSection({
   product,
 }: ProductRelatedItemsSectionProps) {
@@ -36,6 +44,9 @@ export default async function ProductRelatedItemsSection({
           <h2 className="font-display-italic mt-1 break-words text-lg font-black leading-tight tracking-[-0.04em] text-slate-900 sm:text-xl">
             Позиції з підгрупи “{subgroupLabel}”
           </h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+            Добірка релевантних товарів з тієї ж підгрупи для швидкого переходу до аналогів.
+          </p>
         </div>
         <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-sky-700 sm:px-3 sm:text-[11px]">
           {similarProducts.length} варіантів
@@ -45,6 +56,7 @@ export default async function ProductRelatedItemsSection({
       <div className="mt-4 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3 sm:gap-3">
         {similarProducts.map((item) => {
           const itemCode = encodeURIComponent(item.code || item.article || item.name);
+          const visibleItemName = buildVisibleProductName(item.name);
           return (
             <Link
               key={`${item.code}-${item.article}-${item.name}`}
@@ -67,7 +79,7 @@ export default async function ProductRelatedItemsSection({
               </div>
 
               <p className="mt-3 min-h-[60px] break-words text-[15px] font-extrabold leading-5 text-slate-900 sm:mt-4 sm:min-h-[72px] sm:text-[16px] sm:leading-6">
-                {item.name}
+                {visibleItemName}
               </p>
 
               <div className="mt-3 flex items-end justify-between gap-3 sm:mt-4">

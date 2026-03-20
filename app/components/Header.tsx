@@ -336,7 +336,7 @@ const Header: React.FC<HeaderProps> = () => {
   return (
     <header
       suppressHydrationWarning
-      className="font-ui relative z-50 flex h-14 items-center justify-center bg-gradient-to-b from-gray-600 to-gray-800 text-white sm:h-16"
+      className="site-header-shell font-ui relative z-50 flex h-14 items-center justify-center bg-gradient-to-b from-gray-600 to-gray-800 text-white sm:h-16"
     >
 
       <div className="flex w-full max-w-[1400px] items-center justify-between gap-2 px-2 sm:gap-4 sm:px-5 lg:px-7">
