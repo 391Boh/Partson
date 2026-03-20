@@ -184,10 +184,11 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display-stack);
-    font-style: normal;
+    font-style: italic;
     font-weight: 900;
-    letter-spacing: -0.03em;
-    line-height: 1.02;
+    letter-spacing: -0.04em;
+    line-height: 0.98;
+    text-wrap: balance;
 }
 
 /* Власні компоненти */
@@ -209,6 +210,7 @@ h1, h2, h3, h4, h5, h6 {
 
   .font-display {
     font-family: var(--font-display-stack);
+    font-style: italic;
     font-weight: 900;
   }
 

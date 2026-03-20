@@ -440,8 +440,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   </Link>
                 </>
               )}
-              <span>/</span>
-              <span className="text-slate-700">{product.name}</span>
             </nav>
 
             <Link
@@ -463,20 +461,15 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <div className="relative grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
               <div className="min-w-0">
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300">
-                  Деталі товару
+                  Сторінка товару
                 </p>
-                <h1 className="mt-2 max-w-none break-words text-[clamp(1.05rem,6.2vw,2.85rem)] font-black leading-[1.02] tracking-[-0.05em] text-white [overflow-wrap:anywhere] sm:max-w-[30ch] sm:text-[clamp(1.4rem,3.2vw,2.85rem)] sm:leading-[0.98]">
+                <h1 className="mt-2 max-w-none break-words text-[clamp(1rem,5.3vw,2.85rem)] font-black leading-[1.04] tracking-[-0.05em] text-white [overflow-wrap:anywhere] [text-wrap:balance] sm:max-w-[28ch] sm:text-[clamp(1.35rem,3.2vw,2.85rem)] sm:leading-[1] lg:max-w-[32ch]">
                   {product.name}
                 </h1>
                 <div className="mt-3 flex flex-wrap gap-1.5 sm:mt-4 sm:gap-2">
                   {product.producer && (
                     <span className="inline-flex max-w-full rounded-full border border-white/15 bg-white/8 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-200 [overflow-wrap:anywhere] sm:px-3 sm:text-[11px] sm:tracking-[0.1em]">
                       {product.producer}
-                    </span>
-                  )}
-                  {product.article && (
-                    <span className="inline-flex max-w-full rounded-full border border-white/15 bg-white/8 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-200 [overflow-wrap:anywhere] sm:px-3 sm:text-[11px] sm:tracking-[0.1em]">
-                      Артикул: {product.article}
                     </span>
                   )}
                   {productSubgroup && (
@@ -496,11 +489,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 >
                   {isInStock ? `В наявності ${product.quantity} шт.` : "Під замовлення"}
                 </span>
-                {product.code && (
-                  <span className="inline-flex max-w-full rounded-full border border-white/15 bg-white/8 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-200 [overflow-wrap:anywhere] sm:px-3 sm:py-1.5 sm:text-[11px] sm:tracking-[0.1em]">
-                    Код: {product.code}
-                  </span>
-                )}
               </div>
             </div>
           </header>
