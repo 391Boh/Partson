@@ -189,6 +189,8 @@ h1, h2, h3, h4, h5, h6 {
     letter-spacing: -0.04em;
     line-height: 0.98;
     text-wrap: balance;
+    font-synthesis: none;
+    text-rendering: geometricPrecision;
 }
 
 /* Власні компоненти */
@@ -212,12 +214,16 @@ h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display-stack);
     font-style: italic;
     font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 0.98;
   }
 
   .font-display-italic {
     font-family: var(--font-display-stack);
     font-style: italic;
     font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 0.98;
   }
 }
 

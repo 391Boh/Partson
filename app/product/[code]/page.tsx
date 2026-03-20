@@ -10,6 +10,7 @@ import {
   findCatalogProductByCode,
   toPriceUah,
 } from "app/lib/catalog-server";
+import { buildCatalogCategoryPath } from "app/lib/catalog-links";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import OpenChatButton from "app/components/OpenChatButton";
 import ProductPageActions from "app/components/ProductPageActions";
@@ -148,6 +149,74 @@ const buildProductBreadcrumbJsonLd = (options: {
     "@type": "BreadcrumbList",
     itemListElement,
   };
+};
+
+const buildProductFaqJsonLd = (options: {
+  name: string;
+  producer: string;
+  group: string;
+  subGroup: string;
+  hasPrice: boolean;
+  quantity: number;
+}) => {
+  const { name, producer, group, subGroup, hasPrice, quantity } = options;
+  const productLabel = name || "товару";
+  const producerLabel = producer || "виробника";
+  const groupLabel = subGroup || group || "каталогу";
+  const availabilityLabel = quantity > 0 ? "є в наявності" : "доступний під замовлення";
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: `Як замовити ${productLabel}?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: hasPrice
+            ? `Товар ${productLabel} можна додати в замовлення прямо на сторінці. Якщо потрібна додаткова консультація по підбору, менеджер допоможе уточнити сумісність і терміни.`
+            : `Для товару ${productLabel} ціна уточнюється. Надішліть запит менеджеру зі сторінки товару і ми підготуємо актуальну пропозицію.`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: `Чи підійде ${productLabel} до мого авто?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `Товар відноситься до підгрупи ${groupLabel}. Для точного підбору рекомендуємо перевіряти код, артикул і виробника ${producerLabel}, а також звіряти сумісність з менеджером перед оформленням.`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: `Яка наявність і терміни по ${productLabel}?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `Зараз товар ${availabilityLabel}. Актуальна наявність, статус замовлення і можливі аналоги уточнюються в момент оформлення заявки.`,
+        },
+      },
+    ],
+  };
+};
+
+const buildProductLead = (options: {
+  producer: string;
+  group: string;
+  subGroup: string;
+  quantity: number;
+  hasPrice: boolean;
+}) => {
+  const { producer, group, subGroup, quantity, hasPrice } = options;
+  const parts = [
+    producer ? `бренд ${producer}` : null,
+    subGroup ? `підгрупа ${subGroup}` : group ? `група ${group}` : null,
+    quantity > 0 ? `в наявності ${quantity} шт.` : "доступний під замовлення",
+    hasPrice ? "з актуальною ціною" : "з уточненням ціни через менеджера",
+  ]
+    .filter(Boolean)
+    .join(" • ");
+
+  return parts || "Оригінальна сторінка товару з характеристиками і швидким замовленням.";
 };
 
 const getFirstResolvedValue = async <T,>(
@@ -361,8 +430,14 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const siteUrl = getSiteUrl();
   const productGroup = (product.group || product.category || "").trim();
   const productSubgroup = (product.subGroup || "").trim();
+  const producerSlug = buildSeoSlug(product.producer);
   const groupSlug = buildSeoSlug(productGroup);
   const groupLandingPath = groupSlug ? `/groups/${groupSlug}` : null;
+  const producerLandingPath = producerSlug ? `/manufacturers/${producerSlug}` : null;
+  const subgroupCatalogPath =
+    productGroup && productSubgroup
+      ? buildCatalogCategoryPath(productGroup, productSubgroup)
+      : null;
   const canonicalCode = encodeURIComponent(product.code || resolvedCode);
   const canonicalUrl = `${siteUrl}/product/${canonicalCode}`;
   const productImagePath = getProductImagePath(
@@ -392,6 +467,21 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     groupPath: groupLandingPath,
   });
   const isInStock = Number.isFinite(product.quantity) && product.quantity > 0;
+  const productLead = buildProductLead({
+    producer: product.producer,
+    group: productGroup,
+    subGroup: productSubgroup,
+    quantity: product.quantity,
+    hasPrice,
+  });
+  const faqJsonLd = buildProductFaqJsonLd({
+    name: product.name,
+    producer: product.producer,
+    group: productGroup,
+    subGroup: productSubgroup,
+    hasPrice,
+    quantity: product.quantity,
+  });
   const contentGridClass = isModalView
     ? "grid gap-3 p-3 sm:p-4 lg:grid-cols-[340px_minmax(0,1fr)]"
     : "grid gap-4 p-3 sm:gap-5 sm:p-5 xl:grid-cols-[420px_minmax(0,1fr)]";
@@ -458,14 +548,17 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         >
           <header className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-900 px-3 py-4 text-white sm:px-6 sm:py-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(56,189,248,0.24),transparent_45%),radial-gradient(circle_at_86%_18%,rgba(34,211,238,0.2),transparent_40%)]" />
-            <div className="relative grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="relative grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-end">
               <div className="min-w-0">
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300">
                   Сторінка товару
                 </p>
-                <h1 className="mt-2 max-w-none break-words text-[clamp(1rem,5.3vw,2.85rem)] font-black leading-[1.04] tracking-[-0.05em] text-white [overflow-wrap:anywhere] [text-wrap:balance] sm:max-w-[28ch] sm:text-[clamp(1.35rem,3.2vw,2.85rem)] sm:leading-[1] lg:max-w-[32ch]">
+                <h1 className="font-display-italic mt-2 max-w-none break-words text-[clamp(1rem,5.3vw,2.85rem)] font-black leading-[1.04] tracking-[-0.05em] text-white [overflow-wrap:anywhere] [text-wrap:balance] sm:max-w-[28ch] sm:text-[clamp(1.35rem,3.2vw,2.85rem)] sm:leading-[1] lg:max-w-[32ch]">
                   {product.name}
                 </h1>
+                <p className="mt-3 max-w-[68ch] text-[13px] font-semibold leading-6 text-slate-200/90 sm:text-[15px]">
+                  {productLead}
+                </p>
                 <div className="mt-3 flex flex-wrap gap-1.5 sm:mt-4 sm:gap-2">
                   {product.producer && (
                     <span className="inline-flex max-w-full rounded-full border border-white/15 bg-white/8 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-200 [overflow-wrap:anywhere] sm:px-3 sm:text-[11px] sm:tracking-[0.1em]">
@@ -479,16 +572,44 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   )}
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 lg:justify-end">
-                <span
-                  className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] sm:px-3 sm:py-1.5 sm:text-[11px] sm:tracking-[0.1em] ${
-                    isInStock
-                      ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
-                      : "border-amber-300/25 bg-amber-400/10 text-amber-100"
-                  }`}
-                >
-                  {isInStock ? `В наявності ${product.quantity} шт.` : "Під замовлення"}
-                </span>
+              <div className="rounded-[22px] border border-white/12 bg-white/8 p-3 shadow-[0_18px_34px_rgba(15,23,42,0.18)] backdrop-blur-sm">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-300">
+                  Швидкий огляд
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-2xl border border-white/10 bg-slate-950/20 px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-300">
+                      Статус
+                    </p>
+                    <p className="mt-1 text-sm font-extrabold text-white">
+                      {isInStock ? "В наявності" : "Під замовлення"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-slate-950/20 px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-300">
+                      Ціна
+                    </p>
+                    <p className="mt-1 text-sm font-extrabold text-white">
+                      {hasPrice ? "Актуальна" : "За запитом"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-slate-950/20 px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-300">
+                      Артикул
+                    </p>
+                    <p className="mt-1 text-sm font-extrabold text-white [overflow-wrap:anywhere]">
+                      {product.article || "-"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-slate-950/20 px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-300">
+                      Код
+                    </p>
+                    <p className="mt-1 text-sm font-extrabold text-white [overflow-wrap:anywhere]">
+                      {product.code || "-"}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </header>
@@ -546,7 +667,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 </div>
               </div>
 
-              <section className="rounded-[22px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(240,249,255,0.98),rgba(236,253,245,0.92))] p-3.5 shadow-[0_18px_36px_rgba(14,165,233,0.1)] sm:rounded-[26px] sm:p-5">
+              <section className="rounded-[22px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(240,249,255,0.98),rgba(236,253,245,0.92))] p-3.5 shadow-[0_18px_36px_rgba(14,165,233,0.1)] sm:rounded-[26px] sm:p-5 xl:sticky xl:top-24">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700/90">Ціна</p>
@@ -586,7 +707,41 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               </section>
 
               <section className="rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-5">
-                <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">Опис товару</h2>
+                <h2 className="font-display-italic text-[1.05rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.2rem]">
+                  Швидкі переходи
+                </h2>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {groupLandingPath && (
+                    <Link
+                      href={groupLandingPath}
+                      className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                    >
+                      Група: {productGroup}
+                    </Link>
+                  )}
+                  {subgroupCatalogPath && (
+                    <Link
+                      href={subgroupCatalogPath}
+                      className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                    >
+                      Підгрупа: {productSubgroup}
+                    </Link>
+                  )}
+                  {producerLandingPath && (
+                    <Link
+                      href={producerLandingPath}
+                      className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                    >
+                      Бренд: {product.producer}
+                    </Link>
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-5">
+                <h2 className="font-display-italic text-[1.05rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.2rem]">
+                  Опис товару
+                </h2>
                 <p className={descriptionTextClass}>{descriptionDisplayText}</p>
               </section>
 
@@ -618,6 +773,70 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   <ProductRelatedItemsSection product={product} />
                 </Suspense>
               )}
+
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
+                <section className="rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-5">
+                  <h2 className="font-display-italic text-[1.05rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.2rem]">
+                    Підбір і сумісність
+                  </h2>
+                  <p className="mt-3 text-[14px] font-semibold leading-6 text-slate-700 sm:text-[15px] sm:leading-7">
+                    {product.name} — це позиція з категорії {productSubgroup || productGroup || "автозапчастин"}.
+                    На сторінці зібрані основні дані для швидкого вибору: код, артикул,
+                    виробник, наявність і актуальний статус ціни. Для максимально точного
+                    підбору орієнтуйтесь на код товару та сумісність з вашим авто.
+                  </p>
+                  <ul className="mt-4 grid gap-2.5 sm:grid-cols-2">
+                    <li className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                      Виробник: <span className="font-extrabold text-slate-900">{product.producer || "-"}</span>
+                    </li>
+                    <li className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                      Група: <span className="font-extrabold text-slate-900">{productGroup || "-"}</span>
+                    </li>
+                    <li className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                      Підгрупа: <span className="font-extrabold text-slate-900">{productSubgroup || "-"}</span>
+                    </li>
+                    <li className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                      Статус: <span className="font-extrabold text-slate-900">{isInStock ? "В наявності" : "Під замовлення"}</span>
+                    </li>
+                  </ul>
+                </section>
+
+                <section className="rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-5">
+                  <h2 className="font-display-italic text-[1.05rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.2rem]">
+                    Поширені питання
+                  </h2>
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <h3 className="text-[15px] font-extrabold text-slate-900 not-italic">
+                        Як замовити товар?
+                      </h3>
+                      <p className="mt-1.5 text-sm font-semibold leading-6 text-slate-700">
+                        {hasPrice
+                          ? "Якщо ціна вже доступна, товар можна одразу додати в замовлення. Якщо потрібна перевірка сумісності, відкрий чат і менеджер підкаже."
+                          : "Якщо ціна не показується, надішліть запит менеджеру прямо зі сторінки. Ми уточнимо ціну, наявність і можливі аналоги."}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <h3 className="text-[15px] font-extrabold text-slate-900 not-italic">
+                        Як перевірити сумісність?
+                      </h3>
+                      <p className="mt-1.5 text-sm font-semibold leading-6 text-slate-700">
+                        Для точного підбору звіряйте код, артикул і виробника. Якщо є сумніви, напишіть у чат з VIN або даними авто.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <h3 className="text-[15px] font-extrabold text-slate-900 not-italic">
+                        Які терміни по наявності?
+                      </h3>
+                      <p className="mt-1.5 text-sm font-semibold leading-6 text-slate-700">
+                        {isInStock
+                          ? `Зараз товар є в наявності${product.quantity > 0 ? `: ${product.quantity} шт.` : "."}`
+                          : "Зараз товар доступний під замовлення. Точний термін постачання уточнюється менеджером після заявки."}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              </div>
             </section>
           </div>
         </article>
@@ -633,6 +852,12 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+      {!isModalView && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        />
+      )}
     </div>
   );
 }
