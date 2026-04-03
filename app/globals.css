@@ -1,21 +1,59 @@
-﻿
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "./";
 
+@font-face {
+  font-family: "Exo 2";
+  src: url("/fonts/exo2-variable.ttf") format("truetype-variations");
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+}
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@font-face {
+  font-family: "Exo 2";
+  src: url("/fonts/exo2-variable-italic.ttf") format("truetype-variations");
+  font-style: italic;
+  font-weight: 400 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("/fonts/montserrat-500.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("/fonts/montserrat-700.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("/fonts/montserrat-800.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+}
 
 @layer base {
   :root {
     --soft-radius-panel: 18px;
     --soft-radius-surface: 16px;
     --soft-radius-control: 16px;
-    --desktop-page-zoom: 0.75;
-    --font-ui-stack: var(--font-ui), "Exo 2", "Segoe UI", sans-serif;
-    --font-display-stack: var(--font-display), "Exo 2", "Segoe UI", sans-serif;
+    --desktop-page-zoom: 0.86;
+    --font-ui-stack: "Exo 2", "Montserrat", "Segoe UI Variable", "Segoe UI", sans-serif;
+    --font-display-stack: "Exo 2", "Montserrat", "Segoe UI Variable", "Segoe UI", sans-serif;
     --font-geist-sans: var(--font-ui-stack);
-    --font-geist-mono: var(--font-mono), "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+    --font-geist-mono: "Geist Mono", "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+    --scrollbar-track: linear-gradient(180deg, rgba(226, 238, 252, 0.72), rgba(241, 245, 249, 0.58));
+    --scrollbar-thumb: linear-gradient(180deg, rgba(14, 165, 233, 0.72), rgba(37, 99, 235, 0.78));
+    --scrollbar-thumb-hover: linear-gradient(180deg, rgba(2, 132, 199, 0.88), rgba(29, 78, 216, 0.9));
   }
 
   html {
@@ -25,7 +63,7 @@
     min-height: 100%;
     height: auto;
     overflow-y: auto;
-    scrollbar-gutter: stable both-edges;
+    scrollbar-gutter: stable;
     text-size-adjust: 100%;
     font-kerning: normal;
   }
@@ -42,9 +80,10 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overscroll-behavior-y: auto;
-    letter-spacing: -0.014em;
-    line-height: 1.42;
-    font-weight: 700;
+    letter-spacing: -0.018em;
+    line-height: 1.38;
+    font-weight: 620;
+    font-variation-settings: "wght" 620;
   }
 
   button,
@@ -53,7 +92,8 @@
   textarea {
     font: inherit;
     letter-spacing: inherit;
-    font-weight: 700;
+    font-weight: 620;
+    font-variation-settings: "wght" 620;
   }
 
   a,
@@ -61,7 +101,8 @@
   th,
   td,
   figcaption {
-    font-weight: 700;
+    font-weight: 620;
+    font-variation-settings: "wght" 620;
   }
 
   strong,
@@ -119,45 +160,68 @@
   will-change: auto;
 }
 
+.page-loading-shell {
+  animation: routeLoadingFadeIn 0.18s ease-out;
+  animation-fill-mode: both;
+}
+
 .route-transition-shell {
-  animation: routeFadeIn 0.34s cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform, filter;
+  animation: routeFadeIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+  will-change: opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  contain: paint;
 }
 
 .deferred-section-content {
-  animation: deferredSectionFadeIn 0.42s cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform, filter;
+  animation: deferredSectionFadeIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+  will-change: opacity;
 }
 
 .deferred-section-fallback {
   opacity: 1;
 }
 
+.catalog-filter-shell {
+  transition: opacity 180ms ease, transform 180ms ease, visibility 180ms ease;
+}
+
+.catalog-image-modal-open .catalog-filter-shell {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-10px);
+  visibility: hidden;
+}
+
 @keyframes routeFadeIn {
   from {
-    opacity: 0.01;
-    transform: translate3d(0, 10px, 0) scale(0.992);
-    filter: blur(10px);
+    opacity: 0.7;
   }
 
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-    filter: blur(0);
   }
 }
 
 @keyframes deferredSectionFadeIn {
   from {
-    opacity: 0.02;
-    transform: translate3d(0, 12px, 0);
-    filter: blur(9px);
+    opacity: 0.72;
   }
 
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
-    filter: blur(0);
+  }
+}
+
+@keyframes routeLoadingFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
   }
 }
 
@@ -171,7 +235,8 @@
   }
 
   .route-transition-shell,
-  .deferred-section-content {
+  .deferred-section-content,
+  .page-loading-shell {
     animation: none;
     will-change: auto;
   }
@@ -184,16 +249,15 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display-stack);
-    font-style: italic;
-    font-weight: 800;
-    letter-spacing: -0.038em;
-    line-height: 0.97;
+    font-style: italic !important;
+    font-weight: 780 !important;
+    font-variation-settings: "wght" 780;
+    letter-spacing: -0.064em;
+    line-height: 0.9;
     text-wrap: balance;
     font-synthesis: none;
     text-rendering: geometricPrecision;
     font-optical-sizing: auto;
-    transform: skewX(-4deg);
-    transform-origin: left center;
   }
 
 /* Власні компоненти */
@@ -209,28 +273,80 @@ h1, h2, h3, h4, h5, h6 {
 @layer utilities {
   .font-ui {
     font-family: var(--font-geist-sans);
-    letter-spacing: -0.014em;
-    font-weight: 700;
+    letter-spacing: -0.018em;
+    font-weight: 620;
+    font-variation-settings: "wght" 620;
   }
 
   .font-display {
     font-family: var(--font-display-stack);
-    font-style: italic;
-    font-weight: 800;
-    letter-spacing: -0.038em;
-    line-height: 0.97;
-    transform: skewX(-4deg);
-    transform-origin: left center;
+    font-style: italic !important;
+    font-weight: 780 !important;
+    font-variation-settings: "wght" 780;
+    letter-spacing: -0.064em;
+    line-height: 0.9;
   }
 
   .font-display-italic {
     font-family: var(--font-display-stack);
-    font-style: italic;
-    font-weight: 800;
-    letter-spacing: -0.038em;
-    line-height: 0.97;
-    transform: skewX(-4deg);
-    transform-origin: left center;
+    font-style: italic !important;
+    font-weight: 780 !important;
+    font-variation-settings: "wght" 780;
+    letter-spacing: -0.064em;
+    line-height: 0.9;
+  }
+
+  .font-name-accent {
+    font-family: var(--font-display-stack);
+    font-style: italic !important;
+    font-weight: 760 !important;
+    font-variation-settings: "wght" 760;
+    letter-spacing: -0.056em;
+    line-height: 0.94;
+    text-wrap: balance;
+  }
+
+  .page-shell-inline {
+    --page-shell-inline-padding: clamp(0.75rem, 1.2vw, 1rem);
+    width: 100%;
+    max-width: 1560px;
+    margin-inline: auto;
+    padding-left: max(var(--page-shell-inline-padding), env(safe-area-inset-left));
+    padding-right: max(var(--page-shell-inline-padding), env(safe-area-inset-right));
+  }
+
+  .details-summary-reset::-webkit-details-marker {
+    display: none;
+  }
+
+  .top-header-offset {
+    top: var(--header-height, 4rem);
+  }
+
+  .top-header-offset-plus-05 {
+    top: calc(var(--header-height, 4rem) + 0.5rem);
+  }
+
+  .top-header-offset-plus-065 {
+    top: calc(var(--header-height, 4rem) + 0.65rem);
+  }
+
+  .pt-header-offset {
+    padding-top: var(--header-height, 4rem);
+  }
+
+  .catalog-hub-stage {
+    min-height: 0;
+  }
+
+  .catalog-hub-panel {
+    min-height: 22rem;
+  }
+
+  @media (min-width: 1024px) {
+    .catalog-hub-panel {
+      min-height: clamp(24rem, 44svh, 34rem);
+    }
   }
 }
 
@@ -774,34 +890,53 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Modern scrollbar styling */
-* {
+html,
+body,
+.app-panel-scroll,
+.brand-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.6) transparent;
+  scrollbar-color: rgba(14, 165, 233, 0.72) rgba(226, 238, 252, 0.65);
 }
 
-*::-webkit-scrollbar {
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.app-panel-scroll::-webkit-scrollbar,
+.brand-scroll::-webkit-scrollbar {
   width: 10px;
+  height: 10px;
 }
 
-*::-webkit-scrollbar-track {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.05));
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
+.app-panel-scroll::-webkit-scrollbar-track,
+.brand-scroll::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
   border-radius: 999px;
 }
 
-*::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.6), rgba(59, 130, 246, 0.65));
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
+.app-panel-scroll::-webkit-scrollbar-thumb,
+.brand-scroll::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.15);
+  box-shadow: inset 0 0 0 1px rgba(12, 74, 110, 0.18);
 }
 
-*::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.85), rgba(59, 130, 246, 0.9));
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover,
+.app-panel-scroll::-webkit-scrollbar-thumb:hover,
+.brand-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
   background-clip: content-box;
 }
 
-*::-webkit-scrollbar-corner {
+html::-webkit-scrollbar-corner,
+body::-webkit-scrollbar-corner,
+.app-panel-scroll::-webkit-scrollbar-corner,
+.brand-scroll::-webkit-scrollbar-corner {
   background: transparent;
 }
 
@@ -1049,11 +1184,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .soft-panel-title {
+  font-family: var(--font-display-stack);
+  font-style: italic;
   color: #0f172a;
   font-size: clamp(1.05rem, 0.92rem + 0.52vw, 1.55rem);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  font-weight: 720;
+  letter-spacing: -0.05em;
+  line-height: 0.96;
 }
 
 .soft-panel-subtitle {

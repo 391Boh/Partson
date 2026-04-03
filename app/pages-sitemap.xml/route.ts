@@ -75,6 +75,12 @@ const buildStaticPages = (siteUrl: string, lastModified: Date): SitemapEntry[] =
     priority: 0.94,
   },
   {
+    url: toAbsoluteSitePath(siteUrl, "/auto"),
+    lastModified,
+    changeFrequency: "weekly",
+    priority: 0.9,
+  },
+  {
     url: toAbsoluteSitePath(siteUrl, "/groups"),
     lastModified,
     changeFrequency: "weekly",

@@ -8,6 +8,7 @@ export interface CatalogProduct {
   name: string;
   producer: string;
   quantity: number;
+  priceEuro?: number | null;
   group?: string;
   subGroup?: string;
   category?: string;
@@ -76,6 +77,7 @@ const PRIVAT_URL =
   "https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5";
 let cachedEuroRate = 50;
 let lastEuroFetchAt = 0;
+let euroRateRefreshPromise: Promise<number> | null = null;
 const EURO_RATE_TTL_MS = 1000 * 60 * 30;
 
 const maybeFixMojibake = (input: string) => {
@@ -135,6 +137,7 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
   const name = readFirstString(record, NAME_FIELDS) || code || article || "Товар";
   const producer = readFirstString(record, PRODUCER_FIELDS);
   const quantity = readFirstNumber(record, QTY_FIELDS, 0);
+  const priceEuro = readFirstNumber(record, PRICE_FIELDS, Number.NaN);
   const group = readFirstString(record, GROUP_FIELDS);
   const subGroup = readFirstString(record, SUBGROUP_FIELDS);
   const category = readFirstString(record, CATEGORY_FIELDS);
@@ -146,6 +149,7 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
     name,
     producer,
     quantity: Number.isFinite(quantity) ? quantity : 0,
+    priceEuro: Number.isFinite(priceEuro) && priceEuro > 0 ? priceEuro : null,
     group,
     subGroup,
     category,
@@ -188,6 +192,10 @@ export const toPriceUah = (priceEuro: number | null, euroRate: number) => {
 export const fetchCatalogProductsPage = async (options: {
   page: number;
   limit?: number;
+  timeoutMs?: number;
+  retries?: number;
+  retryDelayMs?: number;
+  cacheTtlMs?: number;
 }) => {
   const page = Number.isFinite(options.page) && options.page > 0 ? options.page : 1;
   const limit = Number.isFinite(options.limit) && options.limit && options.limit > 0
@@ -204,9 +212,12 @@ export const fetchCatalogProductsPage = async (options: {
   const response = await oneCRequest("getdata", {
     method: "POST",
     body,
-    retries: 1,
-    retryDelayMs: 250,
-    cacheTtlMs: page === 1 ? 1000 * 20 : 1000 * 15,
+    timeoutMs: options.timeoutMs,
+    retries: options.retries ?? 1,
+    retryDelayMs: options.retryDelayMs ?? 250,
+    cacheTtlMs:
+      options.cacheTtlMs ??
+      (page === 1 ? 1000 * 20 : 1000 * 15),
   });
 
   if (response.status < 200 || response.status >= 300) return [];
@@ -261,26 +272,50 @@ export const fetchCatalogProductsByFacet = async (options: {
   return parseItemsFromText(response.text);
 };
 
-export const findCatalogProductByCode = async (inputCode: string) => {
+export const findCatalogProductByCode = async (
+  inputCode: string,
+  options?: {
+    lookupLimit?: number;
+    fallbackPages?: number;
+    pageSize?: number;
+    timeoutMs?: number;
+    retries?: number;
+    retryDelayMs?: number;
+    cacheTtlMs?: number;
+  }
+) => {
   const normalizedInput = safeDecode(inputCode || "").trim();
   const targetCode = normalizedInput.toLowerCase();
   if (!normalizedInput) return null;
+  const lookupLimit =
+    Number.isFinite(options?.lookupLimit) && (options?.lookupLimit || 0) > 0
+      ? Math.floor(options?.lookupLimit as number)
+      : 50;
+  const fallbackPages =
+    Number.isFinite(options?.fallbackPages) && (options?.fallbackPages || 0) > 0
+      ? Math.floor(options?.fallbackPages as number)
+      : 8;
+  const pageSize =
+    Number.isFinite(options?.pageSize) && (options?.pageSize || 0) > 0
+      ? Math.floor(options?.pageSize as number)
+      : 80;
 
   // Fast path: query getdata by code aliases.
   const lookupBody: Record<string, unknown> = {
     [PAGE_FIELD]: 1,
     page: 1,
     [OFFSET_FIELD]: 0,
-    [LIMIT_FIELD]: 50,
+    [LIMIT_FIELD]: lookupLimit,
   };
   for (const key of CODE_FIELDS) lookupBody[key] = normalizedInput;
 
   const lookupResponse = await oneCRequest("getdata", {
     method: "POST",
     body: lookupBody,
-    retries: 1,
-    retryDelayMs: 250,
-    cacheTtlMs: 1000 * 30,
+    timeoutMs: options?.timeoutMs,
+    retries: options?.retries ?? 1,
+    retryDelayMs: options?.retryDelayMs ?? 250,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 30,
   });
 
   if (lookupResponse.status >= 200 && lookupResponse.status < 300) {
@@ -295,8 +330,15 @@ export const findCatalogProductByCode = async (inputCode: string) => {
   }
 
   // Fallback: scan first pages in case backend ignores search fields.
-  for (let page = 1; page <= 8; page += 1) {
-    const batch = await fetchCatalogProductsPage({ page, limit: 80 });
+  for (let page = 1; page <= fallbackPages; page += 1) {
+    const batch = await fetchCatalogProductsPage({
+      page,
+      limit: pageSize,
+      timeoutMs: options?.timeoutMs,
+      retries: options?.retries ?? 1,
+      retryDelayMs: options?.retryDelayMs ?? 200,
+      cacheTtlMs: options?.cacheTtlMs ?? 1000 * 20,
+    });
     if (batch.length === 0) break;
 
     const exact = batch.find((item) => item.code.trim().toLowerCase() === targetCode);
@@ -344,29 +386,55 @@ export const fetchPriceEuro = async (
   }
 };
 
+const refreshEuroRate = async () => {
+  if (euroRateRefreshPromise) return euroRateRefreshPromise;
+
+  euroRateRefreshPromise = (async () => {
+    const now = Date.now();
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1200);
+      const response = await fetch(PRIVAT_URL, {
+        cache: "no-store",
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
+      if (!response.ok) return cachedEuroRate;
+
+      const payload = (await response.json()) as Array<{ ccy?: string; sale?: string }>;
+      const euro = Array.isArray(payload)
+        ? payload.find((item) => item?.ccy === "EUR")
+        : null;
+
+      const sale = euro?.sale ? Number(euro.sale) : Number.NaN;
+      if (Number.isFinite(sale) && sale > 0) {
+        cachedEuroRate = sale;
+        lastEuroFetchAt = now;
+      }
+    } catch {
+      // Keep previous cached value.
+    }
+
+    return cachedEuroRate;
+  })().finally(() => {
+    euroRateRefreshPromise = null;
+  });
+
+  return euroRateRefreshPromise;
+};
+
 export const fetchEuroRate = async () => {
   const now = Date.now();
-  if (now - lastEuroFetchAt < EURO_RATE_TTL_MS) return cachedEuroRate;
-
-  try {
-    const response = await fetch(PRIVAT_URL, { cache: "no-store" });
-    if (!response.ok) return cachedEuroRate;
-
-    const payload = (await response.json()) as Array<{ ccy?: string; sale?: string }>;
-    const euro = Array.isArray(payload)
-      ? payload.find((item) => item?.ccy === "EUR")
-      : null;
-
-    const sale = euro?.sale ? Number(euro.sale) : Number.NaN;
-    if (Number.isFinite(sale) && sale > 0) {
-      cachedEuroRate = sale;
-      lastEuroFetchAt = now;
-    }
-  } catch {
-    // Keep previous cached value.
+  if (lastEuroFetchAt > 0 && now - lastEuroFetchAt < EURO_RATE_TTL_MS) {
+    return cachedEuroRate;
   }
 
-  return cachedEuroRate;
+  if (lastEuroFetchAt > 0) {
+    void refreshEuroRate();
+    return cachedEuroRate;
+  }
+
+  return refreshEuroRate();
 };
 
 export const fetchProductDescription = async (
@@ -503,4 +571,211 @@ export const findSimilarProductsBySubgroup = async (
   }
 
   return rankProducts(fallbackBatch);
+};
+
+export const fetchCatalogProductsByArticle = async (
+  article: string,
+  options?: {
+    limit?: number;
+    page?: number;
+  }
+) => {
+  const normalizedArticle = (article || "").trim();
+  if (!normalizedArticle) return [];
+
+  const page = Number.isFinite(options?.page) && (options?.page || 0) > 0
+    ? Math.floor(options?.page as number)
+    : 1;
+  const limit = Number.isFinite(options?.limit) && (options?.limit || 0) > 0
+    ? Math.floor(options?.limit as number)
+    : 36;
+
+  const body: Record<string, unknown> = {
+    [PAGE_FIELD]: page,
+    page,
+    [OFFSET_FIELD]: (page - 1) * limit,
+    [LIMIT_FIELD]: limit,
+    [INFO_ARTICLE_FIELD]: normalizedArticle,
+  };
+
+  for (const key of ARTICLE_FIELDS) {
+    body[key] = normalizedArticle;
+  }
+
+  const response = await oneCRequest("getdata", {
+    method: "POST",
+    body,
+    retries: 1,
+    retryDelayMs: 200,
+    cacheTtlMs: 1000 * 60 * 3,
+  });
+
+  if (response.status < 200 || response.status >= 300) return [];
+
+  const target = normalizeFacetValue(normalizedArticle);
+  const seen = new Set<string>();
+  const filtered: CatalogProduct[] = [];
+
+  for (const item of parseItemsFromText(response.text)) {
+    const itemArticle = normalizeFacetValue(item.article);
+    const itemCode = normalizeFacetValue(item.code);
+    const itemName = normalizeFacetValue(item.name);
+
+    const matches =
+      (target && itemArticle === target) ||
+      (target && itemArticle.includes(target)) ||
+      (target && itemCode === target) ||
+      (target && itemName.includes(target));
+
+    if (!matches) continue;
+
+    const dedupeKey = itemCode || itemArticle || `${item.name}:${item.producer}`;
+    if (!dedupeKey || seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    filtered.push(item);
+  }
+
+  return filtered.slice(0, limit);
+};
+
+const normalizeArticleSearchToken = (value: string | null | undefined) =>
+  normalizeFacetValue(value).replace(/[\s\-_.\\/]+/g, "");
+
+const productNameContainsArticle = (productName: string, article: string) => {
+  const normalizedName = normalizeFacetValue(productName);
+  const normalizedArticle = normalizeFacetValue(article);
+  const compactName = normalizeArticleSearchToken(productName);
+  const compactArticle = normalizeArticleSearchToken(article);
+
+  if (!normalizedName || !normalizedArticle) return false;
+  if (normalizedName.includes(normalizedArticle)) return true;
+  if (!compactName || !compactArticle) return false;
+
+  return compactName.includes(compactArticle);
+};
+
+export const findAnalogProductsByArticleInName = async (
+  product: CatalogProduct,
+  options?: {
+    limit?: number;
+    maxPages?: number;
+    pageSize?: number;
+  }
+) => {
+  const limit = options?.limit && options.limit > 0 ? options.limit : 6;
+  const maxPages = options?.maxPages && options.maxPages > 0 ? options.maxPages : 3;
+  const pageSize = options?.pageSize && options.pageSize > 0 ? options.pageSize : 80;
+
+  const targetCode = normalizeFacetValue(product.code);
+  const targetArticle = normalizeFacetValue(product.article);
+  const targetSubgroup = normalizeFacetValue(product.subGroup);
+  const targetGroup = normalizeFacetValue(product.group || product.category);
+  const targetProducer = normalizeFacetValue(product.producer);
+
+  if (!targetArticle) return [];
+
+  const rankProducts = (items: CatalogProduct[]) => {
+    const results: Array<{ item: CatalogProduct; score: number }> = [];
+    const seen = new Set<string>();
+
+    for (const item of items) {
+      const itemCode = normalizeFacetValue(item.code);
+      const itemArticle = normalizeFacetValue(item.article);
+      if ((targetCode && itemCode === targetCode) || (targetArticle && itemArticle === targetArticle)) {
+        continue;
+      }
+
+      if (!productNameContainsArticle(item.name, targetArticle)) continue;
+
+      const itemSubgroup = normalizeFacetValue(item.subGroup);
+      const itemGroup = normalizeFacetValue(item.group || item.category);
+      const itemProducer = normalizeFacetValue(item.producer);
+      const dedupeKey = itemCode || itemArticle || `${item.name}:${itemGroup}:${itemSubgroup}`;
+      if (!dedupeKey || seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+
+      let score = 0;
+      if (item.quantity > 0) score += 2;
+      if (targetProducer && itemProducer === targetProducer) score += 3;
+      if (targetSubgroup && itemSubgroup === targetSubgroup) score += 4;
+      if (targetGroup && itemGroup === targetGroup) score += 2;
+      if (normalizeFacetValue(item.name).includes(targetArticle)) score += 3;
+
+      results.push({ item, score });
+    }
+
+    return results
+      .sort((left, right) => right.score - left.score || right.item.quantity - left.item.quantity)
+      .slice(0, limit)
+      .map((entry) => entry.item);
+  };
+
+  const directBatch = await fetchCatalogProductsByFacet({
+    group: product.group || product.category,
+    subGroup: product.subGroup,
+    page: 1,
+    limit: Math.max(limit * 12, 72),
+  });
+  const directResults = rankProducts(directBatch);
+  if (directResults.length >= Math.min(3, limit)) return directResults;
+
+  const fallbackBatch: CatalogProduct[] = [...directBatch];
+  for (let page = 1; page <= maxPages; page += 1) {
+    const batch = await fetchCatalogProductsPage({ page, limit: pageSize });
+    if (batch.length === 0) break;
+    fallbackBatch.push(...batch);
+  }
+
+  return rankProducts(fallbackBatch);
+};
+
+export const fetchCatalogProductsByHeaderSearchQuery = async (
+  query: string,
+  options?: {
+    page?: number;
+    limit?: number;
+  }
+) => {
+  const normalizedQuery = (query || "").replace(/\s+/g, " ").trim();
+  if (!normalizedQuery) return [];
+
+  const page =
+    Number.isFinite(options?.page) && (options?.page || 0) > 0
+      ? Math.floor(options?.page as number)
+      : 1;
+  const limit =
+    Number.isFinite(options?.limit) && (options?.limit || 0) > 0
+      ? Math.floor(options?.limit as number)
+      : 48;
+
+  const baseBody: Record<string, unknown> = {
+    [PAGE_FIELD]: page,
+    page,
+    [OFFSET_FIELD]: (page - 1) * limit,
+    [LIMIT_FIELD]: limit,
+  };
+
+  const makeBody = (keys: string[]) => {
+    const body: Record<string, unknown> = { ...baseBody };
+    for (const key of keys) body[key] = normalizedQuery;
+    return body;
+  };
+
+  const run = async (keys: string[]) => {
+    const response = await oneCRequest("getdata", {
+      method: "POST",
+      body: makeBody(keys),
+      retries: 1,
+      retryDelayMs: 200,
+      cacheTtlMs: 1000 * 60 * 2,
+    });
+    if (response.status < 200 || response.status >= 300) return [];
+    return parseItemsFromText(response.text);
+  };
+
+  const primary = await run([...NAME_FIELDS]);
+  if (primary.length > 0) return primary.slice(0, limit);
+
+  const fallback = await run([...ARTICLE_FIELDS, ...CODE_FIELDS]);
+  return fallback.slice(0, limit);
 };

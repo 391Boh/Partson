@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FC, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -249,16 +249,29 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const headerRef = useRef<HTMLDivElement | null>(null);
   const panelContentRef = useRef<HTMLDivElement | null>(null);
   const requestBannerRef = useRef<HTMLDivElement | null>(null);
-  const lastWindowScrollYRef = useRef(0);
   const searchParams = useSearchParams();
-  const tabParam = searchParams.get('tab');
+  const currentSearchParams = searchParams ?? new URLSearchParams();
+  const searchParamsKey = currentSearchParams.toString();
+  const tabParam = currentSearchParams.get('tab');
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() || '/katalog';
   const [activeComponent, setActiveComponent] = useState<'auto' | 'category' | 'producer'>('auto');
   const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>(selectedCars);
   const [localSortOrder, setLocalSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
   const [collapsed, setCollapsed] = useState(false);
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
+  const collapseFilter = useCallback(() => {
+    setCollapsed((prev) => (prev ? prev : true));
+  }, []);
+  const handleHeaderToggle = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    if (target.closest('button, a, input, select, textarea, label, [role="button"]')) {
+      return;
+    }
+
+    setCollapsed((prev) => !prev);
+  }, []);
   const [categoryResetSignal, setCategoryResetSignal] = useState(0);
   const [producerSearchTerm, setProducerSearchTerm] = useState('');
 
@@ -268,11 +281,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       setCollapsed(false);
     }
   }, [tabParam]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    lastWindowScrollYRef.current = window.scrollY;
-  }, []);
 
   useEffect(() => {
     setInternalSelectedCars(selectedCars);
@@ -299,9 +307,9 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const isSortNone = effectiveSortOrder === 'none';
   const isSortAsc = effectiveSortOrder === 'asc';
 
-  const groupParam = searchParams.get('group');
-  const subcategoryParam = searchParams.get('subcategory');
-  const producerParam = (searchParams.get('producer') || '').trim();
+  const groupParam = currentSearchParams.get('group');
+  const subcategoryParam = currentSearchParams.get('subcategory');
+  const producerParam = (currentSearchParams.get('producer') || '').trim();
   const categoryLabel =
     subcategoryParam ||
     groupParam ||
@@ -309,8 +317,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const hasCategoryLabel = Boolean(categoryLabel);
   const categoryCount = selectedCategories.length;
   const carCount = selectedCars.length;
-  const searchQuery = (searchParams.get('search') || '').trim();
-  const searchFilter = searchParams.get('filter') || 'all';
+  const searchQuery = (currentSearchParams.get('search') || '').trim();
+  const searchFilter = currentSearchParams.get('filter') || 'all';
   const hasCategorySelection =
     Boolean(subcategoryParam || groupParam) || selectedCategories.length > 0;
   const hasPartSelection =
@@ -424,34 +432,35 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const handleWindowScroll = () => {
-      const currentScrollY = window.scrollY;
-      const delta = Math.abs(currentScrollY - lastWindowScrollYRef.current);
-      lastWindowScrollYRef.current = currentScrollY;
+    let lastKnownScrollY = window.scrollY;
+    let frameId = 0;
 
-      if (collapsed) return;
-      if (delta < 8) return;
-      setCollapsed(true);
+    const handleScroll = () => {
+      if (frameId !== 0) return;
+
+      frameId = window.requestAnimationFrame(() => {
+        frameId = 0;
+        const nextScrollY = window.scrollY;
+        const delta = Math.abs(nextScrollY - lastKnownScrollY);
+        lastKnownScrollY = nextScrollY;
+
+        if (collapsed) return;
+        if (nextScrollY < 20) return;
+        if (delta < 12) return;
+
+        collapseFilter();
+      });
     };
 
-    window.addEventListener('scroll', handleWindowScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleWindowScroll);
-  }, [collapsed]);
+    window.addEventListener('scroll', handleScroll, { passive: true });
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-
-    const handlePointerDownOutside = (event: PointerEvent) => {
-      if (collapsed) return;
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (rootRef.current?.contains(target)) return;
-      setCollapsed(true);
+    return () => {
+      if (frameId !== 0) {
+        window.cancelAnimationFrame(frameId);
+      }
+      window.removeEventListener('scroll', handleScroll);
     };
-
-    document.addEventListener('pointerdown', handlePointerDownOutside);
-    return () => document.removeEventListener('pointerdown', handlePointerDownOutside);
-  }, [collapsed]);
+  }, [collapseFilter, collapsed]);
 
   const handleAutoPicked = useCallback(() => {
     if (!hasPartSelection) {
@@ -483,7 +492,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     onSelectedCarSelectionChange?.(null);
     setCategorySearchTerm('');
 
-    const nextParams = new URLSearchParams(searchParams.toString());
+    const nextParams = new URLSearchParams(searchParamsKey);
     nextParams.delete('group');
     nextParams.delete('subcategory');
     nextParams.delete('tab');
@@ -492,7 +501,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     nextParams.delete('filter');
     nextParams.delete('reset');
     const nextQuery = nextParams.toString();
-    if (nextQuery !== searchParams.toString()) {
+    if (nextQuery !== searchParamsKey) {
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
     }
   }, [
@@ -503,7 +512,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     onSelectedCarSelectionChange,
     pathname,
     router,
-    searchParams,
+    searchParamsKey,
     selectedVin,
     selectedCategories,
     onResetSort,
@@ -550,39 +559,57 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     );
   }, []);
 
-  const autoButtonClass = isAutoSelected
-    ? 'flex items-center gap-1 rounded-lg px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] transition-all duration-200 border border-blue-300 bg-blue-100 text-blue-700 ring-1 ring-blue-200 hover:bg-blue-200/70 hover:shadow-sm active:scale-95 cursor-pointer touch-manipulation'
-    : 'flex items-center gap-1 rounded-lg px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] transition-all duration-200 border border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:bg-slate-100 hover:shadow-sm active:scale-95 cursor-pointer touch-manipulation';
-  const categoryButtonClass = isCategorySelected
-    ? 'flex items-center gap-1 rounded-lg px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] transition-all duration-200 border border-emerald-300 bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-200/70 hover:shadow-sm active:scale-95 cursor-pointer touch-manipulation'
-    : 'flex items-center gap-1 rounded-lg px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] transition-all duration-200 border border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:bg-slate-100 hover:shadow-sm active:scale-95 cursor-pointer touch-manipulation';
+  const filterChipBase =
+    'flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10px] transition-all duration-200 active:scale-95 cursor-pointer touch-manipulation sm:px-2 sm:text-[11px]';
+  const filterChipIdle =
+    `${filterChipBase} border border-slate-200/90 bg-white/88 text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.07)] ring-1 ring-white/75 backdrop-blur-md hover:border-slate-300 hover:bg-white hover:text-slate-800`;
+  const filterChipBlue =
+    `${filterChipBase} border border-sky-300/90 bg-sky-50/86 text-sky-800 shadow-[0_10px_20px_rgba(14,165,233,0.10)] ring-1 ring-sky-100/90 backdrop-blur-md hover:border-sky-300 hover:bg-sky-50`;
+  const filterChipEmerald =
+    `${filterChipBase} border border-emerald-300/90 bg-emerald-50/86 text-emerald-800 shadow-[0_10px_20px_rgba(16,185,129,0.10)] ring-1 ring-emerald-100/90 backdrop-blur-md hover:border-emerald-300 hover:bg-emerald-50`;
+  const filterChipPurple =
+    `${filterChipBase} border border-violet-300/90 bg-violet-50/86 text-violet-800 shadow-[0_10px_20px_rgba(139,92,246,0.10)] ring-1 ring-violet-100/90 backdrop-blur-md hover:border-violet-300 hover:bg-violet-50`;
+
+  const filterIconBase =
+    'inline-flex h-5 w-5 items-center justify-center rounded-full border transition-all duration-200 ease-out backdrop-blur-md';
+  const filterIconIdle =
+    `${filterIconBase} border-slate-200/90 bg-white/92 text-slate-600 shadow-[0_6px_14px_rgba(15,23,42,0.08)] ring-1 ring-white/80`;
+  const filterIconBlue =
+    `${filterIconBase} border-sky-300/90 bg-sky-50/92 text-sky-800 shadow-[0_8px_16px_rgba(14,165,233,0.10)] ring-1 ring-sky-100/90`;
+  const filterIconEmerald =
+    `${filterIconBase} border-emerald-300/90 bg-emerald-50/92 text-emerald-800 shadow-[0_8px_16px_rgba(16,185,129,0.10)] ring-1 ring-emerald-100/90`;
+  const filterIconPurple =
+    `${filterIconBase} border-violet-300/90 bg-violet-50/92 text-violet-800 shadow-[0_8px_16px_rgba(139,92,246,0.10)] ring-1 ring-violet-100/90`;
+
+  const autoButtonClass = isAutoSelected ? filterChipBlue : filterChipIdle;
+  const categoryButtonClass = isCategorySelected ? filterChipEmerald : filterChipIdle;
 
   const autoIconWrapClass = isAutoTabActive
-    ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-sm shadow-blue-300/40 ring-1 ring-blue-200/80 transition-all duration-200 ease-out'
+    ? filterIconBlue
     : isAutoSelected
-      ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-700 ring-1 ring-blue-200/80 transition-all duration-200 ease-out'
-      : 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-500 ring-1 ring-slate-200 transition-all duration-200 ease-out';
+      ? filterIconBlue
+      : filterIconIdle;
 
   const categoryIconWrapClass = isCategoryTabActive
-    ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-teal-500 text-white shadow-sm shadow-emerald-300/40 ring-1 ring-emerald-200/80 transition-all duration-200 ease-out'
+    ? filterIconEmerald
     : isCategorySelected
-      ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200/80 transition-all duration-200 ease-out'
-      : 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-500 ring-1 ring-slate-200 transition-all duration-200 ease-out';
+      ? filterIconEmerald
+      : filterIconIdle;
   const producerIconWrapClass = isProducerTabActive
-    ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-indigo-500 text-white shadow-sm shadow-indigo-300/40 ring-1 ring-indigo-200/80 transition-all duration-200 ease-out'
+    ? filterIconPurple
     : isProducerSelected
-      ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 text-purple-700 ring-1 ring-purple-200/80 transition-all duration-200 ease-out'
-      : 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-500 ring-1 ring-slate-200 transition-all duration-200 ease-out';
+      ? filterIconPurple
+      : filterIconIdle;
   const sortButtonClass = isSortNone
-    ? 'flex items-center gap-1 rounded-lg px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] transition-all duration-200 border border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:bg-slate-100 hover:shadow-sm active:scale-95 cursor-pointer touch-manipulation'
+    ? filterChipIdle
     : isSortAsc
-      ? 'flex items-center gap-1 rounded-lg px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] transition-all duration-200 border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:shadow-sm active:scale-95 cursor-pointer touch-manipulation'
-      : 'flex items-center gap-1 rounded-lg px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] transition-all duration-200 border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:shadow-sm active:scale-95 cursor-pointer touch-manipulation';
+      ? filterChipBlue
+      : filterChipEmerald;
   const priceIconWrapClass = isSortNone
-    ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[10px] font-extrabold text-slate-500 ring-1 ring-slate-200 transition-all duration-200 ease-out'
+    ? `${filterIconIdle} text-[10px] font-bold`
     : isSortAsc
-      ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-sky-500 text-[10px] font-extrabold text-white shadow-sm shadow-blue-300/40 ring-1 ring-blue-200/80 transition-all duration-200 ease-out'
-      : 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-teal-500 text-[10px] font-extrabold text-white shadow-sm shadow-emerald-300/40 ring-1 ring-emerald-200/80 transition-all duration-200 ease-out';
+      ? `${filterIconBlue} text-[10px] font-bold`
+      : `${filterIconEmerald} text-[10px] font-bold`;
   const overlayPanelHeight = 'min(72vh, calc(100dvh - var(--header-height, 4rem) - 6rem))';
 
   const renderActivePanel = () => {
@@ -619,10 +646,10 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 value={producerSearchTerm}
                 onChange={(e) => setProducerSearchTerm(e.target.value)}
                 placeholder="Пошук виробника..."
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 shadow-sm outline-none transition focus:border-purple-300 focus:ring-2 focus:ring-purple-200"
+                className="w-full rounded-lg border border-white/72 bg-white/72 px-3 py-2 text-[12px] font-semibold text-slate-800 shadow-[0_8px_20px_rgba(15,23,42,0.04)] outline-none backdrop-blur-md transition focus:border-purple-200/85 focus:bg-white/84 focus:ring-2 focus:ring-purple-100/70"
               />
             </div>
-            <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-white/72 bg-white/62 px-3 py-2 backdrop-blur-xl">
               <div className="flex min-w-max gap-3">
                 {brands
                   .filter((b) =>
@@ -633,7 +660,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                       key={b.name}
                       type="button"
                       onClick={() => {
-                        const nextParams = new URLSearchParams(searchParams.toString());
+                        const nextParams = new URLSearchParams(currentSearchParams.toString());
                         nextParams.set('producer', b.name);
                         nextParams.set('tab', 'producer');
                         router.replace(
@@ -644,8 +671,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                       }}
                       className={`flex h-16 w-24 items-center justify-center rounded-lg border transition ${
                         producerParam === b.name
-                          ? 'border-purple-300 bg-purple-50 shadow-sm'
-                          : 'border-slate-200 bg-white hover:border-purple-200 hover:bg-purple-50/60'
+                          ? 'border-purple-200/85 bg-white/76 shadow-[0_8px_18px_rgba(15,23,42,0.05)] backdrop-blur-md'
+                          : 'border-white/72 bg-white/68 backdrop-blur-md hover:border-purple-200/70 hover:bg-white/82'
                       }`}
                     >
                       {b.logo ? (
@@ -683,19 +710,17 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   return (
     <section
       ref={rootRef}
-      onClick={() => {
-        if (collapsed) {
-          setCollapsed(false);
-        }
-      }}
-      className={`w-full select-none overflow-hidden rounded-t-none rounded-b-[18px] border-x border-b border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.975)_0%,rgba(248,250,252,0.95)_100%)] text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.06)] ring-1 ring-sky-200/85 backdrop-blur-xl ${
-        collapsed ? 'cursor-pointer' : ''
+      className={`w-full select-none overflow-hidden rounded-[20px] border border-slate-200/90 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.95)_0%,rgba(248,250,252,0.90)_48%,rgba(240,249,255,0.88)_100%)] text-slate-800 ring-1 ring-white/80 backdrop-blur-2xl transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out ${
+        collapsed
+          ? '-translate-y-1 shadow-[0_12px_28px_rgba(15,23,42,0.08)]'
+          : 'translate-y-0 shadow-[0_20px_46px_rgba(15,23,42,0.10)]'
       }`}
     >
       <div
         ref={headerRef}
-        className={`flex items-center justify-between gap-1.5 bg-transparent px-2.5 py-2.5 sm:gap-3 sm:px-4 sm:py-3 ${
-          collapsed ? '' : 'border-b border-slate-100/90'
+        onClick={handleHeaderToggle}
+        className={`flex cursor-pointer items-center justify-between gap-1.5 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.58)_0%,rgba(241,245,249,0.54)_52%,rgba(224,242,254,0.48)_100%)] px-2.5 py-2.5 sm:gap-3 sm:px-4 sm:py-3 ${
+          collapsed ? '' : 'border-b border-slate-200/80'
         }`}
       >
           <div className="flex shrink-0 items-center gap-2 text-[11px] font-semibold tracking-wide text-slate-700 sm:text-xs">
@@ -762,9 +787,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               type="button"
               onClick={handleOpenProducerTab}
               className={
-                isProducerSelected
-                  ? 'flex items-center gap-1 rounded-lg px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] transition-all duration-200 border border-purple-300 bg-purple-100 text-purple-700 ring-1 ring-purple-200 hover:bg-purple-200/70 hover:shadow-sm active:scale-95 cursor-pointer touch-manipulation'
-                  : 'flex items-center gap-1 rounded-lg px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] transition-all duration-200 border border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:bg-slate-100 hover:shadow-sm active:scale-95 cursor-pointer touch-manipulation'
+                isProducerSelected ? filterChipPurple : filterChipIdle
               }
               aria-label="Відкрити вкладку виробників"
               aria-pressed={isProducerSelected}
@@ -816,13 +839,13 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
           </div>
           <div className="flex shrink-0 items-center justify-end gap-2">
             {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleClearFilters();
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                handleClearFilters();
                 }}
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-100 hover:shadow active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/72 bg-white/72 text-slate-500 shadow-[0_6px_16px_rgba(15,23,42,0.04)] backdrop-blur-md transition hover:bg-white/84 hover:text-slate-700 active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8"
                 aria-label="Очистити фільтри"
               >
                 <X size={14} className="pointer-events-none sm:size-4" />
@@ -830,8 +853,11 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             )}
             <button
               type="button"
-              onClick={() => setCollapsed((prev) => !prev)}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-100 hover:shadow active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8"
+              onClick={(event) => {
+                event.stopPropagation();
+                setCollapsed((prev) => !prev);
+              }}
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-white/72 bg-white/72 text-slate-500 shadow-[0_6px_16px_rgba(15,23,42,0.04)] backdrop-blur-md transition hover:bg-white/84 hover:text-slate-700 active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8"
               aria-label={collapsed ? 'Розгорнути фільтрацію' : 'Згорнути фільтрацію'}
               aria-expanded={!collapsed}
             >
@@ -845,15 +871,17 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       </div>
 
       <div
-        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
-          collapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'
+        className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${
+          collapsed
+            ? 'grid-rows-[0fr] opacity-0 -translate-y-2'
+            : 'grid-rows-[1fr] opacity-100 translate-y-0'
         }`}
         onTransitionEnd={emitLayoutHeight}
       >
         <div className="min-h-0 overflow-hidden">
           <div ref={panelContentRef} className="p-2 sm:p-3">
             <div
-              className="overflow-y-auto rounded-t-none rounded-b-[14px] border border-slate-200/90 bg-slate-50/95 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] sm:p-3"
+              className="overflow-y-auto rounded-[16px] border border-slate-200/85 bg-white/76 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_12px_28px_rgba(15,23,42,0.05)] ring-1 ring-white/75 backdrop-blur-2xl sm:p-3"
               style={{ maxHeight: overlayPanelHeight }}
             >
               {renderActivePanel()}
@@ -865,7 +893,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       {showRequestBanner && (
         <div
           ref={requestBannerRef}
-          className="mx-2 mb-2 mt-1 overflow-hidden rounded-[16px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(14,165,233,0.10)_0%,rgba(255,255,255,0.98)_22%,rgba(240,249,255,0.97)_60%,rgba(224,242,254,0.94)_100%)] shadow-[0_10px_24px_rgba(14,165,233,0.10)] ring-1 ring-white/80 sm:mx-3 sm:mb-3"
+          className="mx-2 mb-2 mt-1 overflow-hidden rounded-[16px] border border-sky-200/80 bg-[image:linear-gradient(135deg,rgba(14,165,233,0.10)_0%,rgba(255,255,255,0.98)_22%,rgba(240,249,255,0.97)_60%,rgba(224,242,254,0.94)_100%)] shadow-[0_10px_24px_rgba(14,165,233,0.10)] ring-1 ring-white/80 sm:mx-3 sm:mb-3"
         >
           <div className="grid gap-3 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4 sm:py-3.5">
             <div className="min-w-0 space-y-2.5">
@@ -919,7 +947,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 <button
                   type="button"
                   onClick={onConfirmRequest}
-                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#0ea5e9_0%,#0284c7_100%)] px-3.5 py-1.5 text-[11px] font-bold text-white shadow-[0_10px_22px_rgba(14,165,233,0.18)] transition hover:brightness-105 active:scale-[0.98]"
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full bg-[image:linear-gradient(135deg,#0ea5e9_0%,#0284c7_100%)] px-3.5 py-1.5 text-[11px] font-bold text-white shadow-[0_10px_22px_rgba(14,165,233,0.18)] transition hover:brightness-105 active:scale-[0.98]"
                 >
                   <MessageCircle size={13} />
                   <span>Надіслати</span>

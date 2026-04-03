@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-
-import HomePageClient from "./home-page-client";
+import HomePageContent from "./components/HomePageContent";
 
 export const metadata: Metadata = {
   title: "PartsON - Магазин автозапчастин",
@@ -38,5 +37,5 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  return <HomePageClient />;
+  return <HomePageContent />;
 }

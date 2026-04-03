@@ -1,0 +1,106 @@
+import type { Metadata } from "next";
+
+const DEFAULT_IMAGE = {
+  url: "/Car-parts-fullwidth.png",
+  width: 1200,
+  height: 630,
+  alt: "PartsON - автозапчастини",
+};
+
+const BASE_KEYWORDS = [
+  "PartsON",
+  "автозапчастини",
+  "каталог автозапчастин",
+  "купити автозапчастини",
+  "магазин автозапчастин",
+  "доставка автозапчастин україна",
+];
+
+const mergeKeywords = (...groups: Array<Array<string | null | undefined> | undefined>) =>
+  Array.from(
+    new Set(
+      groups
+        .flatMap((group) => group ?? [])
+        .map((item) => (item || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+type BuildPageMetadataOptions = {
+  title: string;
+  description: string;
+  canonicalPath: string;
+  keywords?: string[];
+  image?: {
+    url: string;
+    width?: number;
+    height?: number;
+    alt?: string;
+  };
+  openGraphTitle?: string;
+  openGraphDescription?: string;
+  twitterTitle?: string;
+  twitterDescription?: string;
+  type?: "website" | "article";
+  index?: boolean;
+  follow?: boolean;
+};
+
+export const buildPageMetadata = ({
+  title,
+  description,
+  canonicalPath,
+  keywords = [],
+  image = DEFAULT_IMAGE,
+  openGraphTitle,
+  openGraphDescription,
+  twitterTitle,
+  twitterDescription,
+  type = "website",
+  index = true,
+  follow = true,
+}: BuildPageMetadataOptions): Metadata => ({
+  title,
+  description,
+  category: "auto parts",
+  authors: [{ name: "PartsON" }],
+  creator: "PartsON",
+  publisher: "PartsON",
+  alternates: {
+    canonical: canonicalPath,
+  },
+  keywords: mergeKeywords(BASE_KEYWORDS, keywords),
+  openGraph: {
+    type,
+    locale: "uk_UA",
+    url: canonicalPath,
+    siteName: "PartsON",
+    title: openGraphTitle ?? `${title} | PartsON`,
+    description: openGraphDescription ?? description,
+    images: [
+      {
+        url: image.url,
+        width: image.width ?? DEFAULT_IMAGE.width,
+        height: image.height ?? DEFAULT_IMAGE.height,
+        alt: image.alt ?? DEFAULT_IMAGE.alt,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: twitterTitle ?? openGraphTitle ?? `${title} | PartsON`,
+    description: twitterDescription ?? openGraphDescription ?? description,
+    images: [image.url],
+  },
+  robots: {
+    index,
+    follow,
+    googleBot: {
+      index,
+      follow,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+});

@@ -82,7 +82,7 @@ const chatGhostSquareButton = `${chatGhostButton} h-8 w-8`;
 const chatSecondaryPillButton =
   'inline-flex items-center gap-2 rounded-[14px] border border-slate-200/80 bg-white/92 px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-[0_10px_22px_rgba(15,23,42,0.06)] transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out hover:-translate-y-0.5 hover:border-sky-200/80 hover:bg-white hover:shadow-[0_16px_30px_rgba(14,165,233,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/70';
 const chatPrimaryPillButton =
-  'inline-flex items-center gap-2 rounded-[14px] border border-sky-100/35 bg-[linear-gradient(135deg,rgba(15,23,42,0.95)_0%,rgba(37,99,235,0.9)_52%,rgba(6,182,212,0.88)_100%)] px-3.5 py-2 text-xs font-semibold text-white shadow-[0_16px_30px_rgba(37,99,235,0.22)] transition-[transform,box-shadow,border-color,filter] duration-300 ease-out hover:-translate-y-0.5 hover:brightness-[1.03] hover:shadow-[0_20px_36px_rgba(14,165,233,0.24)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/80';
+  'inline-flex items-center gap-2 rounded-[14px] border border-sky-100/35 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.95)_0%,rgba(37,99,235,0.9)_52%,rgba(6,182,212,0.88)_100%)] px-3.5 py-2 text-xs font-semibold text-white shadow-[0_16px_30px_rgba(37,99,235,0.22)] transition-[transform,box-shadow,border-color,filter] duration-300 ease-out hover:-translate-y-0.5 hover:brightness-[1.03] hover:shadow-[0_20px_36px_rgba(14,165,233,0.24)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/80';
 const CHAT_IMAGE_MAX_INPUT_BYTES = 20 * 1024 * 1024;
 const CHAT_IMAGE_MAX_INLINE_BYTES = 340 * 1024;
 const CHAT_IMAGE_HARD_MAX_INLINE_BYTES = 430 * 1024;
@@ -663,7 +663,7 @@ export default function TelegramChat({
       ref={chatRef}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="fixed z-50 flex flex-col overflow-hidden border border-white/14 bg-[linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(241,245,249,0.98)_100%)] shadow-[0_36px_88px_rgba(2,6,23,0.32)] backdrop-blur-2xl"
+      className="fixed z-50 flex flex-col overflow-hidden border border-white/14 bg-[image:linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(241,245,249,0.98)_100%)] shadow-[0_36px_88px_rgba(2,6,23,0.32)] backdrop-blur-2xl"
       style={
         isDesktop
           ? {
@@ -682,11 +682,11 @@ export default function TelegramChat({
             }
       }
     >
-      <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(37,99,235,0.12),transparent_34%)]" />
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[linear-gradient(180deg,rgba(255,255,255,0.5),transparent)]" />
+      <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(37,99,235,0.12),transparent_34%)]" />
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.5),transparent)]" />
 
-      <div className="relative overflow-hidden border-b border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.98)_0%,rgba(30,41,59,0.96)_42%,rgba(14,165,233,0.84)_100%)] px-4 py-3 text-white">
-        <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(255,255,255,0.12),transparent_34%),radial-gradient(circle_at_84%_14%,rgba(125,211,252,0.2),transparent_28%)]" />
+      <div className="relative overflow-hidden border-b border-white/10 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.98)_0%,rgba(30,41,59,0.96)_42%,rgba(14,165,233,0.84)_100%)] px-4 py-3 text-white">
+        <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_18%_16%,rgba(255,255,255,0.12),transparent_34%),radial-gradient(circle_at_84%_14%,rgba(125,211,252,0.2),transparent_28%)]" />
         <div className="relative flex items-start justify-between gap-2.5">
           <div className="min-w-0 flex flex-1 items-start gap-2.5 pr-2 sm:pr-3">
             <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[15px] border border-white/14 bg-white/10 text-sky-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(2,6,23,0.16)] backdrop-blur sm:h-10 sm:w-10 sm:rounded-[16px]">
@@ -720,11 +720,11 @@ export default function TelegramChat({
               animate={{ opacity: 1, y: 0, height: 'auto' }}
               exit={{ opacity: 0, y: -10, height: 0 }}
               transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-              className="relative mt-2.5 overflow-hidden rounded-[18px] border border-emerald-200/18 bg-[linear-gradient(135deg,rgba(16,185,129,0.18)_0%,rgba(14,165,233,0.12)_100%)] px-3 py-2.5 shadow-[0_14px_28px_rgba(5,150,105,0.16)] backdrop-blur"
+              className="relative mt-2.5 overflow-hidden rounded-[18px] border border-emerald-200/18 bg-[image:linear-gradient(135deg,rgba(16,185,129,0.18)_0%,rgba(14,165,233,0.12)_100%)] px-3 py-2.5 shadow-[0_14px_28px_rgba(5,150,105,0.16)] backdrop-blur"
             >
               <motion.span
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.24),transparent)]"
+                className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-[image:linear-gradient(90deg,transparent,rgba(255,255,255,0.24),transparent)]"
                 animate={{ x: ['0%', '360%'] }}
                 transition={{ duration: 3.4, ease: 'easeInOut', repeat: Infinity }}
               />
@@ -753,10 +753,10 @@ export default function TelegramChat({
       </div>
 
       <div className="relative flex-1 overflow-y-auto brand-scroll px-3 py-3">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.65),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(56,189,248,0.12),transparent_26%),linear-gradient(180deg,rgba(248,250,252,0.46),rgba(241,245,249,0.2))]" />
+        <div className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.65),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(56,189,248,0.12),transparent_26%),linear-gradient(180deg,rgba(248,250,252,0.46),rgba(241,245,249,0.2))]" />
         <div className="relative space-y-3 pb-1">
           <div className="flex max-w-[92%] items-start gap-3 rounded-[22px] border border-sky-100/70 bg-white/90 px-4 py-3 text-sm text-slate-700 shadow-[0_14px_28px_rgba(15,23,42,0.08)] backdrop-blur">
-            <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border border-sky-100/80 bg-[linear-gradient(135deg,rgba(239,246,255,0.95),rgba(224,242,254,0.92))] text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.12)]">
+            <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border border-sky-100/80 bg-[image:linear-gradient(135deg,rgba(239,246,255,0.95),rgba(224,242,254,0.92))] text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.12)]">
               <Headphones size={16} strokeWidth={2} />
             </span>
             <div className="min-w-0">
@@ -790,10 +790,10 @@ export default function TelegramChat({
                     isUser
                       ? isRichCard
                         ? ''
-                        : 'border border-slate-200/85 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_58%,rgba(226,232,240,0.9)_100%)] text-slate-700 shadow-[0_12px_26px_rgba(15,23,42,0.08)] backdrop-blur'
+                        : 'border border-slate-200/85 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_58%,rgba(226,232,240,0.9)_100%)] text-slate-700 shadow-[0_12px_26px_rgba(15,23,42,0.08)] backdrop-blur'
                       : isRichCard
                       ? ''
-                      : 'border border-sky-100/35 bg-[linear-gradient(145deg,rgba(15,23,42,0.96)_0%,rgba(30,64,175,0.92)_52%,rgba(14,165,233,0.86)_100%)] text-white shadow-[0_18px_36px_rgba(37,99,235,0.22)]'
+                      : 'border border-sky-100/35 bg-[image:linear-gradient(145deg,rgba(15,23,42,0.96)_0%,rgba(30,64,175,0.92)_52%,rgba(14,165,233,0.86)_100%)] text-white shadow-[0_18px_36px_rgba(37,99,235,0.22)]'
                   }`}
                 >
                   {product ? (
@@ -815,11 +815,11 @@ export default function TelegramChat({
         </div>
       </div>
       {orderItems.length > 0 && (
-        <div className="border-t border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(240,249,255,0.92))] px-3 py-3">
+        <div className="border-t border-slate-200/80 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.95),rgba(240,249,255,0.92))] px-3 py-3">
           <div className="rounded-[20px] border border-sky-100/70 bg-white/88 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.08)] backdrop-blur">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-[14px] border border-sky-100/80 bg-[linear-gradient(135deg,rgba(239,246,255,0.96),rgba(224,242,254,0.92))] text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.12)]">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-[14px] border border-sky-100/80 bg-[image:linear-gradient(135deg,rgba(239,246,255,0.96),rgba(224,242,254,0.92))] text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.12)]">
                   <ClipboardList size={15} strokeWidth={2} />
                 </span>
                 <div>
@@ -840,7 +840,7 @@ export default function TelegramChat({
               {orderItems.map((item) => (
                 <div
                   key={item.code}
-                  className="flex items-center justify-between gap-2 rounded-[16px] border border-slate-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(248,250,252,0.92))] px-2.5 py-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)]"
+                  className="flex items-center justify-between gap-2 rounded-[16px] border border-slate-200/80 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.96),rgba(248,250,252,0.92))] px-2.5 py-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)]"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[11px] font-semibold text-slate-800">
@@ -901,7 +901,7 @@ export default function TelegramChat({
       )}
 
       <div className="border-t border-slate-200/80 bg-white/92 px-3 py-3">
-        <div className="rounded-[20px] border border-slate-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.86))] p-2 shadow-[0_12px_26px_rgba(15,23,42,0.05)]">
+        <div className="rounded-[20px] border border-slate-200/80 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.86))] p-2 shadow-[0_12px_26px_rgba(15,23,42,0.05)]">
           <input
             ref={fileInputRef}
             type="file"
@@ -934,7 +934,7 @@ export default function TelegramChat({
             </button>
             <button
               onClick={sendMessage}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-[16px] border border-sky-100/35 bg-[linear-gradient(145deg,rgba(30,41,59,0.96)_0%,rgba(37,99,235,0.92)_48%,rgba(34,211,238,0.88)_100%)] text-white shadow-[0_16px_30px_rgba(14,116,144,0.2)] transition-[transform,box-shadow,filter,border-color] duration-300 ease-out hover:-translate-y-0.5 hover:border-sky-100/55 hover:brightness-[1.04] hover:shadow-[0_20px_38px_rgba(14,165,233,0.26)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/80"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[16px] border border-sky-100/35 bg-[image:linear-gradient(145deg,rgba(30,41,59,0.96)_0%,rgba(37,99,235,0.92)_48%,rgba(34,211,238,0.88)_100%)] text-white shadow-[0_16px_30px_rgba(14,116,144,0.2)] transition-[transform,box-shadow,filter,border-color] duration-300 ease-out hover:-translate-y-0.5 hover:border-sky-100/55 hover:brightness-[1.04] hover:shadow-[0_20px_38px_rgba(14,165,233,0.26)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/80"
             >
               <Send size={18} className="text-white" />
             </button>
@@ -992,7 +992,7 @@ function ChatProductCard({
     !!code && typeof product.price === 'number' && maxQty > 0;
 
   return (
-    <div className="min-w-[250px] max-w-[326px] rounded-[20px] border border-slate-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_56%,rgba(224,242,254,0.92)_100%)] p-3.5 text-slate-900 shadow-[0_16px_30px_rgba(15,23,42,0.08)]">
+    <div className="min-w-[250px] max-w-[326px] rounded-[20px] border border-slate-200/80 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_56%,rgba(224,242,254,0.92)_100%)] p-3.5 text-slate-900 shadow-[0_16px_30px_rgba(15,23,42,0.08)]">
       <div className="flex gap-3">
         <div className="h-[76px] w-[92px] shrink-0 overflow-hidden rounded-[16px] border border-sky-100/80 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.04)]">
           <ProductCardImage productCode={code} className="w-full h-full" />
@@ -1065,7 +1065,7 @@ function ChatProductCard({
           disabled={!canAdd}
           className={`inline-flex items-center gap-2 rounded-[14px] px-3.5 py-2 text-[11px] font-semibold transition-[transform,box-shadow,filter,background-color,color] duration-300 ease-out ${
             canAdd
-              ? 'border border-sky-100/35 bg-[linear-gradient(135deg,rgba(15,23,42,0.95)_0%,rgba(37,99,235,0.9)_52%,rgba(6,182,212,0.88)_100%)] text-white shadow-[0_14px_28px_rgba(37,99,235,0.2)] hover:-translate-y-0.5 hover:brightness-[1.03] hover:shadow-[0_18px_32px_rgba(14,165,233,0.22)]'
+              ? 'border border-sky-100/35 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.95)_0%,rgba(37,99,235,0.9)_52%,rgba(6,182,212,0.88)_100%)] text-white shadow-[0_14px_28px_rgba(37,99,235,0.2)] hover:-translate-y-0.5 hover:brightness-[1.03] hover:shadow-[0_18px_32px_rgba(14,165,233,0.22)]'
               : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400'
           }`}
         >
@@ -1093,7 +1093,7 @@ function ChatImageCard({
       rel="noreferrer"
       className={`group block min-w-[230px] max-w-[320px] overflow-hidden rounded-[20px] border ${
         isUser
-          ? 'border-sky-300/18 bg-[linear-gradient(160deg,rgba(15,23,42,0.92)_0%,rgba(30,41,59,0.88)_100%)] shadow-[0_18px_34px_rgba(15,23,42,0.26)]'
+          ? 'border-sky-300/18 bg-[image:linear-gradient(160deg,rgba(15,23,42,0.92)_0%,rgba(30,41,59,0.88)_100%)] shadow-[0_18px_34px_rgba(15,23,42,0.26)]'
           : 'border-sky-100/75 bg-white/95 shadow-[0_16px_30px_rgba(15,23,42,0.08)]'
       }`}
     >

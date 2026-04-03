@@ -1,7 +1,7 @@
 ﻿'use client';
 
-import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import type { ComponentType, ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { db } from "../../firebase";
 import {
@@ -14,17 +14,30 @@ import {
   setDoc,
 } from "firebase/firestore";
 import Header from "./Header";
-import dynamic from "next/dynamic";
+import ChatButton from "./ChatButton";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Shield } from "lucide-react";
-
-const AdminChatPanel = dynamic(() => import("./AdminChatPanel"), { ssr: false });
-const TelegramChat = dynamic(() => import("./TelegramChat"), { ssr: false });
-const ChatButton = dynamic(() => import("./ChatButton"), { ssr: false });
 
 interface LayoutHostProps {
   children: ReactNode;
 }
+
+type AdminChatPanelComponentProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  onNotificationCountChange?: (count: number) => void;
+};
+
+type TelegramChatComponentProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  prefillMessage?: string | null;
+  onPrefillSent?: () => void;
+};
+
+type RouteViewState = {
+  isEmbeddedProductView: boolean;
+};
 
 const normalizeStoredId = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : null;
@@ -147,6 +160,8 @@ const hasAdminAccess = (
 };
 
 const PRIMARY_WARMUP_ROUTES = [
+  "/",
+  "/auto",
   "/katalog",
   "/katalog?tab=auto",
   "/katalog?tab=category",
@@ -158,7 +173,31 @@ const PRIMARY_WARMUP_ROUTES = [
   "/manufacturers",
 ] as const;
 
+function RouteViewStateSync({
+  pathname,
+  onChange,
+}: {
+  pathname: string;
+  onChange: (state: RouteViewState) => void;
+}) {
+  const searchParams = useSearchParams();
+  const viewParam = searchParams?.get("view") ?? null;
+
+  useEffect(() => {
+    onChange({
+      isEmbeddedProductView:
+        pathname.startsWith("/product/") && viewParam === "modal",
+    });
+  }, [onChange, pathname, viewParam]);
+
+  return null;
+}
+
 export default function LayoutHost({ children }: LayoutHostProps) {
+  const [AdminChatPanelComponent, setAdminChatPanelComponent] =
+    useState<ComponentType<AdminChatPanelComponentProps> | null>(null);
+  const [TelegramChatComponent, setTelegramChatComponent] =
+    useState<ComponentType<TelegramChatComponentProps> | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -168,16 +207,41 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const [userUnreadCount, setUserUnreadCount] = useState(0);
   const [totalNotifications, setTotalNotifications] = useState(0);
   const [prefillMessage, setPrefillMessage] = useState<string | null>(null);
+  const [routeViewState, setRouteViewState] = useState<RouteViewState>({
+    isEmbeddedProductView: false,
+  });
 
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const pathnameValue = usePathname();
+  const pathname = pathnameValue ?? "";
   const warmupStartedRef = useRef(false);
   const auth = getAuth();
   const isDevelopment = process.env.NODE_ENV !== "production";
-  const isEmbeddedProductView =
-    pathname.startsWith("/product/") && searchParams.get("view") === "modal";
-  const routeTransitionKey = `${pathname}?${searchParams.toString()}`;
+  const { isEmbeddedProductView } = routeViewState;
+  const openChat = useCallback(() => {
+    setIsChatOpen(true);
+  }, []);
+  const closeChat = useCallback(() => {
+    setIsChatOpen(false);
+  }, []);
+
+  const syncRouteViewState = useCallback((nextState: RouteViewState) => {
+    setRouteViewState((currentState) => {
+      if (
+        currentState.isEmbeddedProductView === nextState.isEmbeddedProductView
+      ) {
+        return currentState;
+      }
+
+      return nextState;
+    });
+  }, []);
+
+  useEffect(() => {
+    syncRouteViewState({
+      isEmbeddedProductView: false,
+    });
+  }, [pathname, syncRouteViewState]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -189,6 +253,46 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       return () => window.cancelAnimationFrame(frameId);
     }
   }, [pathname]);
+
+  useEffect(() => {
+    if (!isAdminPanelOpen || AdminChatPanelComponent) return;
+
+    let cancelled = false;
+
+    void import("./AdminChatPanel")
+      .then((module) => {
+        if (!cancelled) {
+          setAdminChatPanelComponent(() => module.default);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load admin chat panel chunk:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [AdminChatPanelComponent, isAdminPanelOpen]);
+
+  useEffect(() => {
+    if (!isChatOpen || TelegramChatComponent) return;
+
+    let cancelled = false;
+
+    void import("./TelegramChat")
+      .then((module) => {
+        if (!cancelled) {
+          setTelegramChatComponent(() => module.default);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load telegram chat chunk:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [TelegramChatComponent, isChatOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -305,6 +409,11 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       Boolean(connection?.saveData) ||
       (typeof connection?.effectiveType === "string" &&
         connection.effectiveType.includes("2g"));
+    const deviceMemory = (navigator as Navigator & { deviceMemory?: number })
+      .deviceMemory;
+    const isLowMemoryDevice =
+      typeof deviceMemory === "number" && deviceMemory > 0 && deviceMemory <= 4;
+    const shouldUseLightWarmup = isSlowConnection || isLowMemoryDevice;
     const isHome = window.location?.pathname === "/";
 
     const GETPROD_CACHE_KEY = "partson:getprod";
@@ -358,7 +467,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         try {
           await fetch(path, { cache: "no-store", signal: controller.signal });
         } catch {
-          // ignore
         } finally {
           window.clearTimeout(timer);
         }
@@ -376,6 +484,8 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       if (document.visibilityState === "hidden") return;
       preloadAllChunks();
       void warmRoutes();
+      if (isDevelopment) return;
+
       try {
         void fetch("/api/preload", { cache: "no-store" }).catch(() => {});
       } catch {}
@@ -410,6 +520,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       } catch {}
 
       if (isHome) return;
+
       try {
         let selectedCars: string[] = [];
         try {
@@ -424,7 +535,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           selectedCars,
           selectedCategories: [],
         };
-        body["\u041d\u043e\u043c\u0435\u0440\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u044b"] = 1;
+        body["НомерСтраницы"] = 1;
 
         const cacheKey = JSON.stringify({
           endpoint: "getdata",
@@ -455,14 +566,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         } catch {}
 
         if (!Array.isArray(result)) return;
+
         const warmPriceCodes = Array.from(
           new Set(
             result
               .map((item: Record<string, unknown>) => {
-                const article =
-                  item?.["\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443"];
-                const code =
-                  item?.["\u041d\u043e\u043c\u0435\u043d\u043a\u043b\u0430\u0442\u0443\u0440\u0430\u041a\u043e\u0434"];
+                const article = item?.["НомерПоКаталогу"];
+                const code = item?.["НоменклатураКод"];
                 return typeof article === "string" ? article : code;
               })
               .map((code: unknown) => (typeof code === "string" ? code.trim() : ""))
@@ -474,7 +584,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           void fetch("/api/proxy?endpoint=prices", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ РљРѕРґ: code }),
+            body: JSON.stringify({ Код: code }),
           }).catch(() => {});
         });
       } catch {}
@@ -487,16 +597,16 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     let preloadAllTimer: number | null = null;
     let loadListener: (() => void) | null = null;
 
-    if (!isSlowConnection) {
+    if (!shouldUseLightWarmup) {
       initialWarmupFrameId = window.requestAnimationFrame(() => {
-        PRIMARY_WARMUP_ROUTES.forEach((route) => router.prefetch(route));
+        PRIMARY_WARMUP_ROUTES.slice(0, 5).forEach((route) => router.prefetch(route));
         preloadCriticalChunks();
-        warmRoutesTimer = window.setTimeout(() => void warmRoutes(), 160);
+        warmRoutesTimer = window.setTimeout(() => void warmRoutes(), 600);
       });
     }
 
     const scheduleWarmup = () => {
-      if (isSlowConnection) return;
+      if (shouldUseLightWarmup) return;
 
       preloadAllTimer = window.setTimeout(preloadAllChunks, 2500);
 
@@ -524,9 +634,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       if (preloadAllTimer != null) window.clearTimeout(preloadAllTimer);
       if (timerId != null) window.clearTimeout(timerId);
       if (idleId != null && "cancelIdleCallback" in window) {
-        (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(
-          idleId
-        );
+        (
+          window as Window & { cancelIdleCallback?: (id: number) => void }
+        ).cancelIdleCallback?.(idleId);
       }
     };
   }, [isDevelopment, router]);
@@ -551,6 +661,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         setAuthUserUid(user.uid);
         const userRef = doc(db, "users", user.uid);
         let userData: Record<string, unknown> | undefined;
+
         try {
           const userSnap = await getDoc(userRef);
           userData = userSnap.exists()
@@ -562,6 +673,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           }
           userData = undefined;
         }
+
         let claims: Record<string, unknown> = {};
         try {
           const token = await user.getIdTokenResult(true);
@@ -569,6 +681,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         } catch {
           claims = {};
         }
+
         const isAdminRole =
           hasAdminAccess(userData) ||
           hasAdminAccess(claims) ||
@@ -577,10 +690,12 @@ export default function LayoutHost({ children }: LayoutHostProps) {
             ? hasAdminAccess(claims.permissions as Record<string, unknown>)
             : false) ||
           hasAdminRole(claims.permissions);
+
         const isAdminEmail =
           hasAdminEmail(user.email) ||
           hasAdminEmail(userData?.email) ||
           hasAdminEmail(claims.email);
+
         const lastAuthenticatedUid = normalizeStoredId(
           localStorage.getItem("user_id")
         );
@@ -588,6 +703,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           localStorage.getItem("chat_user_id")
         );
         const persistedChatId = readUserChatId(userData);
+
         const resolvedChatId =
           lastAuthenticatedUid === user.uid
             ? storedChatId || persistedChatId || user.uid
@@ -596,10 +712,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         const adminStorageKey = `partson:isAdmin:${user.uid}`;
         const rememberedIsAdmin = localStorage.getItem(adminStorageKey) === "1";
         const resolvedIsAdmin = isAdminRole || isAdminEmail || rememberedIsAdmin;
+
         setIsAdmin(resolvedIsAdmin);
+
         if (isAdminRole || isAdminEmail) {
           localStorage.setItem(adminStorageKey, "1");
         }
+
         localStorage.setItem("user_id", user.uid);
 
         if (storedChatId !== resolvedChatId) {
@@ -632,10 +751,68 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   }, [auth]);
 
   useEffect(() => {
+    if (!userId || typeof window === "undefined") return;
+
+    const presenceRef = doc(db, "chatPresence", userId);
+    let presenceSyncAllowed = true;
+
+    const syncPresence = async (isOnline: boolean) => {
+      if (!presenceSyncAllowed) return;
+      try {
+        await setDoc(
+          presenceRef,
+          {
+            userIsOnline: isOnline,
+            userLastSeenAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (error) {
+        if (isPermissionDeniedError(error)) {
+          presenceSyncAllowed = false;
+          return;
+        }
+        console.error("Failed to sync chat presence:", error);
+      }
+    };
+
+    const markVisible = () => {
+      void syncPresence(document.visibilityState === "visible");
+    };
+
+    const markHidden = () => {
+      void syncPresence(false);
+    };
+
+    void syncPresence(document.visibilityState === "visible");
+
+    const heartbeatId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void syncPresence(true);
+      }
+    }, 30000);
+
+    document.addEventListener("visibilitychange", markVisible);
+    window.addEventListener("focus", markVisible);
+    window.addEventListener("blur", markHidden);
+    window.addEventListener("pagehide", markHidden);
+
+    return () => {
+      window.clearInterval(heartbeatId);
+      document.removeEventListener("visibilitychange", markVisible);
+      window.removeEventListener("focus", markVisible);
+      window.removeEventListener("blur", markHidden);
+      window.removeEventListener("pagehide", markHidden);
+      void syncPresence(false);
+    };
+  }, [userId]);
+
+  useEffect(() => {
     if (!authUserUid || typeof window === "undefined") return;
 
     const userRef = doc(db, "users", authUserUid);
     let presenceSyncAllowed = true;
+
     const syncPresence = async (isOnline: boolean) => {
       if (!presenceSyncAllowed) return;
       try {
@@ -696,8 +873,8 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const unreadMessages = snapshot.docs.filter((doc) => {
-        const data = doc.data();
+      const unreadMessages = snapshot.docs.filter((messageDoc) => {
+        const data = messageDoc.data();
         if (data.sender !== "manager") return false;
         return data.textRead === false || data.textRead === undefined;
       });
@@ -716,45 +893,52 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       if (typeof detail === "string" && detail.trim()) {
         setPrefillMessage(detail);
       }
-      setIsChatOpen(true);
+      openChat();
     };
 
     window.addEventListener("openChatWithMessage", handleOpenChat as EventListener);
+
     return () => {
       window.removeEventListener("openChatWithMessage", handleOpenChat as EventListener);
     };
-  }, []);
+  }, [openChat]);
 
   const renderBadge = (count: number) => {
     if (count <= 0) return null;
     const displayCount = count > 99 ? "99+" : count;
 
     return (
-      <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[24px] h-6 bg-red-600 text-white text-xs font-bold rounded-full px-1.5 border-2 border-white">
+      <span className="absolute -top-1 -right-1 flex min-w-[24px] items-center justify-center rounded-full border-2 border-white bg-red-600 px-1.5 text-xs font-bold text-white h-6">
         {displayCount}
       </span>
     );
   };
 
   return (
-    <div style={{ ['--header-height' as string]: '4rem' }}>
+    <div style={{ ["--header-height" as string]: "4rem" }}>
+      <Suspense fallback={null}>
+        <RouteViewStateSync pathname={pathname} onChange={syncRouteViewState} />
+      </Suspense>
+
       {!isEmbeddedProductView && (
         <div className="fixed top-0 left-0 right-0 z-50 h-16">
-          <Header setIsChatOpen={setIsChatOpen} />
+          <Header />
         </div>
       )}
 
-      <main className={isEmbeddedProductView ? "min-h-screen" : "min-h-screen pt-[var(--header-height)]"}>
-        <div key={routeTransitionKey} className="route-transition-shell">
-          {children}
-        </div>
+      <main
+        className={
+          isEmbeddedProductView ? "min-h-screen" : "min-h-screen pt-header-offset"
+        }
+      >
+        <div className="route-transition-shell">{children}</div>
       </main>
 
       {!isEmbeddedProductView && (
         <div className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] z-50 flex flex-col items-end gap-2 sm:bottom-6 sm:right-6 sm:gap-4 lg:right-7">
           {!loading && isAdmin && !isAdminPanelOpen && (
             <button
-              onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
+              onClick={() => setIsAdminPanelOpen((prev) => !prev)}
               className="relative z-[60] inline-flex h-[56px] w-[56px] items-center justify-center rounded-[20px] bg-gradient-to-r from-blue-700 to-teal-800 text-white shadow-xl ring-1 ring-white/20 transition-all duration-300 hover:opacity-100 sm:h-auto sm:w-auto sm:gap-2 sm:rounded-full sm:px-4 sm:py-4"
               aria-label="Адмін панель"
               title="Адмін панель"
@@ -767,13 +951,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
           {!isChatOpen && (
             <ChatButton
-              onClick={() => setIsChatOpen(true)}
+              onClick={openChat}
               unreadCount={userUnreadCount}
             />
           )}
 
-          {isAdmin && (
-            <AdminChatPanel
+          {isAdmin && AdminChatPanelComponent && (
+            <AdminChatPanelComponent
               isOpen={isAdminPanelOpen}
               onClose={() => setIsAdminPanelOpen(false)}
               onNotificationCountChange={(count) => setTotalNotifications(count)}
@@ -782,10 +966,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         </div>
       )}
 
-      {!isEmbeddedProductView && isChatOpen && (
-        <TelegramChat
+      {!isEmbeddedProductView && isChatOpen && TelegramChatComponent && (
+        <TelegramChatComponent
           isOpen={isChatOpen}
-          onClose={() => setIsChatOpen(false)}
+          onClose={closeChat}
           prefillMessage={prefillMessage}
           onPrefillSent={() => setPrefillMessage(null)}
         />

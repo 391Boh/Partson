@@ -32,7 +32,7 @@ const Login: React.FC<LoginProps> = ({ onClose, onShowRegister }) => {
   const [rememberMe, setRememberMe] = useState(false);
 
   const [savedUsers, setSavedUsers] = useState<SavedUser[]>([]);
-  const [showSavedUsersDropdown, setShowSavedUsersDropdown] = useState(false);
+  const [, setShowSavedUsersDropdown] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);

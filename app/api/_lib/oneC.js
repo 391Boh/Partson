@@ -42,6 +42,7 @@ export function getOneCConfigError() {
 }
 
 const responseCache = new Map();
+const inFlightRequests = new Map();
 
 function nowMs() {
   return Date.now();
@@ -147,79 +148,91 @@ export async function oneCRequest(endpoint, options = {}) {
     if (cached) return cached;
   }
 
-  const url = getOneCUrl(endpoint);
-  const headers = {
-    Authorization: getOneCAuthHeader(),
-  };
-
-  let payload;
-  if (method !== "GET" && method !== "HEAD") {
-    headers["Content-Type"] = "application/json";
-    payload = stableStringify(body || {});
+  const inFlight = inFlightRequests.get(resolvedCacheKey);
+  if (inFlight) {
+    return inFlight;
   }
 
-  let attempt = 0;
-  while (true) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const requestPromise = (async () => {
+    const url = getOneCUrl(endpoint);
+    const headers = {
+      Authorization: getOneCAuthHeader(),
+    };
 
-    try {
-      const res = await fetch(url, {
-        method,
-        headers,
-        body: payload,
-        signal: controller.signal,
-        cache: "no-store",
-      });
+    let payload;
+    if (method !== "GET" && method !== "HEAD") {
+      headers["Content-Type"] = "application/json";
+      payload = stableStringify(body || {});
+    }
 
-      const text = await res.text();
-      const result = {
-        status: res.status,
-        text,
-        contentType: res.headers.get("content-type") || "",
-      };
+    let attempt = 0;
+    while (true) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-      const shouldRetryStatus =
-        retryOn5xx &&
-        res.status >= 500 &&
-        res.status < 600 &&
-        attempt < retries;
+      try {
+        const res = await fetch(url, {
+          method,
+          headers,
+          body: payload,
+          signal: controller.signal,
+          cache: "no-store",
+        });
 
-      if (shouldRetryStatus) {
+        const text = await res.text();
+        const result = {
+          status: res.status,
+          text,
+          contentType: res.headers.get("content-type") || "",
+        };
+
+        const shouldRetryStatus =
+          retryOn5xx &&
+          res.status >= 500 &&
+          res.status < 600 &&
+          attempt < retries;
+
+        if (shouldRetryStatus) {
+          attempt += 1;
+          const delay = Math.min(1000, retryDelayMs * Math.pow(2, attempt - 1));
+          await sleep(delay);
+          continue;
+        }
+
+        if (cacheTtlMs > 0 && res.ok) {
+          setCached(resolvedCacheKey, result, cacheTtlMs);
+        }
+
+        return result;
+      } catch (err) {
         attempt += 1;
+        const details =
+          err?.name === "AbortError"
+            ? `Request timeout after ${timeoutMs}ms`
+            : err?.message || String(err);
+        if (attempt > retries) {
+          return {
+            status: 500,
+            text: JSON.stringify({
+              error: "1C Service unreachable",
+              details,
+              endpoint,
+              url,
+            }),
+            contentType: "application/json",
+          };
+        }
+
         const delay = Math.min(1000, retryDelayMs * Math.pow(2, attempt - 1));
         await sleep(delay);
-        continue;
+      } finally {
+        clearTimeout(timer);
       }
-
-      if (cacheTtlMs > 0 && res.ok) {
-        setCached(resolvedCacheKey, result, cacheTtlMs);
-      }
-
-      return result;
-    } catch (err) {
-      attempt += 1;
-      const details =
-        err?.name === "AbortError"
-          ? `Request timeout after ${timeoutMs}ms`
-          : err?.message || String(err);
-      if (attempt > retries) {
-        return {
-          status: 500,
-          text: JSON.stringify({
-            error: "1C Service unreachable",
-            details,
-            endpoint,
-            url,
-          }),
-          contentType: "application/json",
-        };
-      }
-
-      const delay = Math.min(1000, retryDelayMs * Math.pow(2, attempt - 1));
-      await sleep(delay);
-    } finally {
-      clearTimeout(timer);
     }
-  }
+  })().finally(() => {
+    inFlightRequests.delete(resolvedCacheKey);
+  });
+
+  inFlightRequests.set(resolvedCacheKey, requestPromise);
+  return requestPromise;
 }

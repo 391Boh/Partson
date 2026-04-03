@@ -4,6 +4,15 @@ import { oneCRequest } from "app/api/_lib/oneC";
 
 export const PRODUCT_IMAGE_FALLBACK_PATH = "/Car-parts-fullwidth.png";
 
+type ProductImageLookupOptions = {
+  timeoutMs?: number;
+  retries?: number;
+  retryDelayMs?: number;
+  cacheTtlMs?: number;
+  missCacheTtlMs?: number;
+  allowUrlDownload?: boolean;
+};
+
 const IMAGE_BASE64_FIELDS = [
   "image_base64",
   "imageBase64",
@@ -40,6 +49,7 @@ const DATA_URI_REGEX =
 const URL_LIKE_REGEX = /^(https?:)?\/\/|^\//i;
 const FILE_NAME_LIKE_REGEX =
   /^[A-Za-z0-9._~!$&'()*+,;=:@%/-]+\.(?:png|jpe?g|webp|gif|bmp|svg)(?:\?.*)?$/i;
+const imageMissCache = new Map<string, number>();
 
 const safeDecode = (value: string) => {
   try {
@@ -50,6 +60,13 @@ const safeDecode = (value: string) => {
 };
 
 const safeTrim = (value: string) => value.replace(/[\u0000-\u001f]+/g, "").trim();
+
+const pruneImageMissCache = () => {
+  const now = Date.now();
+  for (const [key, expiresAt] of imageMissCache.entries()) {
+    if (expiresAt <= now) imageMissCache.delete(key);
+  }
+};
 
 const normalizeBase64 = (value: string) => {
   const cleaned = value.replace(/[\r\n\s]+/g, "").trim();
@@ -237,9 +254,40 @@ const fetchImageUrlAsBase64 = async (rawUrl: string) => {
   }
 };
 
-export const fetchProductImageBase64 = async (codeOrArticle: string) => {
+export const fetchProductImageBase64 = async (
+  codeOrArticle: string,
+  options?: ProductImageLookupOptions
+) => {
   const normalized = safeDecode(codeOrArticle || "").trim();
   if (!normalized) return null;
+  pruneImageMissCache();
+
+  const timeoutMs =
+    Number.isFinite(options?.timeoutMs) && (options?.timeoutMs || 0) > 0
+      ? Math.floor(options?.timeoutMs as number)
+      : 9000;
+  const retries =
+    Number.isFinite(options?.retries) && (options?.retries || 0) >= 0
+      ? Math.floor(options?.retries as number)
+      : 0;
+  const retryDelayMs =
+    Number.isFinite(options?.retryDelayMs) && (options?.retryDelayMs || 0) >= 0
+      ? Math.floor(options?.retryDelayMs as number)
+      : 250;
+  const cacheTtlMs =
+    Number.isFinite(options?.cacheTtlMs) && (options?.cacheTtlMs || 0) > 0
+      ? Math.floor(options?.cacheTtlMs as number)
+      : 1000 * 60 * 60;
+  const missCacheTtlMs =
+    Number.isFinite(options?.missCacheTtlMs) && (options?.missCacheTtlMs || 0) > 0
+      ? Math.floor(options?.missCacheTtlMs as number)
+      : 1000 * 60 * 20;
+  const allowUrlDownload = options?.allowUrlDownload !== false;
+  const missCacheKey = `${normalized.toLowerCase()}::${timeoutMs}::${allowUrlDownload ? "1" : "0"}`;
+
+  if ((imageMissCache.get(missCacheKey) || 0) > Date.now()) {
+    return null;
+  }
 
   const queryBodies: Array<Record<string, string>> = [
     { code: normalized },
@@ -258,10 +306,10 @@ export const fetchProductImageBase64 = async (codeOrArticle: string) => {
     const response = await oneCRequest("getimages", {
       method: "POST",
       body,
-      timeoutMs: 9000,
-      retries: 0,
-      retryDelayMs: 250,
-      cacheTtlMs: 1000 * 60 * 60,
+      timeoutMs,
+      retries,
+      retryDelayMs,
+      cacheTtlMs,
     });
     if (response.status < 200 || response.status >= 300) continue;
 
@@ -290,11 +338,13 @@ export const fetchProductImageBase64 = async (codeOrArticle: string) => {
 
     const imageUrl = readImageUrl(payload);
     if (!imageUrl) continue;
+    if (!allowUrlDownload) continue;
 
     const downloaded = await fetchImageUrlAsBase64(imageUrl);
     if (downloaded) return downloaded;
   }
 
+  imageMissCache.set(missCacheKey, Date.now() + missCacheTtlMs);
   return null;
 };
 

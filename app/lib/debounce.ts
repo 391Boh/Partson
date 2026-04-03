@@ -1,8 +1,10 @@
-export type Debounced<T extends (...args: any[]) => void> = ((
-  ...args: Parameters<T>
-) => void) & { cancel: () => void };
+type AnyVoidFunction<Args extends unknown[] = unknown[]> = (...args: Args) => void;
 
-export function debounce<T extends (...args: any[]) => void>(
+export type Debounced<T extends AnyVoidFunction> = ((...args: Parameters<T>) => void) & {
+  cancel: () => void;
+};
+
+export function debounce<T extends AnyVoidFunction>(
   fn: T,
   wait: number
 ): Debounced<T> {

@@ -1,36 +1,28 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 
 const infoDescription =
   "Доставка, оплата, контакти та інформація про магазин автозапчастин PartsON.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Інформація для клієнтів",
   description: infoDescription,
-  alternates: {
-    canonical: "/inform",
+  canonicalPath: "/inform",
+  keywords: [
+    "доставка автозапчастин",
+    "оплата автозапчастин",
+    "контакти магазину автозапчастин",
+    "інформація для клієнтів",
+  ],
+  openGraphTitle: "Інформація для клієнтів | PartsON",
+  image: {
+    url: "/Car-parts-fullwidth.png",
+    alt: "Інформація PartsON",
   },
-  openGraph: {
-    type: "website",
-    locale: "uk_UA",
-    url: "/inform",
-    title: "Інформація для клієнтів | PartsON",
-    description: infoDescription,
-    images: [{ url: "/Car-parts-fullwidth.png", alt: "Інформація PartsON" }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Інформація для клієнтів | PartsON",
-    description: infoDescription,
-    images: ["/Car-parts-fullwidth.png"],
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
-};
+});
 
 export default function InformLayout({ children }: { children: ReactNode }) {
   const siteUrl = getSiteUrl();

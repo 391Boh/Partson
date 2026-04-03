@@ -50,5 +50,10 @@ export default async function InformationSectionPage({
   const resolvedSection = getInformationSection(section);
   if (!resolvedSection) notFound();
 
-  return <InformationPageClient initialSectionKey={resolvedSection.key} />;
+  return (
+    <>
+      <h1 className="sr-only">Інформація PartsON: {resolvedSection.title}</h1>
+      <InformationPageClient initialSectionKey={resolvedSection.key} />
+    </>
+  );
 }

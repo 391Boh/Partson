@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { Plus, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { db } from '../../firebase';
 import { carBrands, type CarBrand } from 'app/components/carBrands';
 import CarModels from 'app/components/CarModels';

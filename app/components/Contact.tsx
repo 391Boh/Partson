@@ -155,7 +155,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
   return (
     <>
       {toast && (
-        <div className="fixed left-1/2 top-[calc(var(--header-height,4rem)+0.65rem)] z-[95] flex -translate-x-1/2 items-center gap-2 rounded-[16px] border border-emerald-300/50 bg-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-[0_16px_34px_rgba(16,185,129,0.32)]">
+        <div className="top-header-offset-plus-065 fixed left-1/2 z-[95] flex -translate-x-1/2 items-center gap-2 rounded-[16px] border border-emerald-300/50 bg-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-[0_16px_34px_rgba(16,185,129,0.32)]">
           <Check size={16} /> Номер скопійовано
         </div>
       )}

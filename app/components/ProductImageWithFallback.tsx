@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { ImageOff, Maximize2, X } from "lucide-react";
 
 interface ProductImageWithFallbackProps {
@@ -16,9 +16,6 @@ interface ProductImageWithFallbackProps {
   fetchPriority?: "high" | "low" | "auto";
   zoomEnabled?: boolean;
 }
-
-const PARTSON_LOGO_PATH = "/Car-parts.png";
-const REVEAL_TRANSITION = { duration: 0.26, ease: [0.22, 0.61, 0.36, 1] as const };
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
@@ -43,28 +40,23 @@ export default function ProductImageWithFallback({
   fetchPriority = "auto",
   zoomEnabled = true,
 }: ProductImageWithFallbackProps) {
-  const noPhotoLabel =
-    "\u0424\u043e\u0442\u043e \u0442\u0438\u043c\u0447\u0430\u0441\u043e\u0432\u043e \u0432\u0456\u0434\u0441\u0443\u0442\u043d\u0454";
-  const logoAlt = "\u041b\u043e\u0433\u043e\u0442\u0438\u043f PartsON";
-  const openPhotoTitle = "\u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0438 \u0444\u043e\u0442\u043e";
+  const noPhotoLabel = "\u0417\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f \u0432\u0456\u0434\u0441\u0443\u0442\u043d\u0454";
+  const openPhotoTitle = "\u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0438 \u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f";
   const closeTitle = "\u0417\u0430\u043a\u0440\u0438\u0442\u0438";
-  const photoLabel = "\u0424\u043e\u0442\u043e";
+  const photoLabel = "\u0417\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f";
 
-  const placeholderImageSrc = (fallbackSrc || "").trim() || PARTSON_LOGO_PATH;
+  const candidateSrc = (src || "").trim();
+  const normalizedFallbackPath = useMemo(() => normalizeSrcPath(fallbackSrc), [fallbackSrc]);
 
   const [loadedSrc, setLoadedSrc] = useState("");
   const [failedSrc, setFailedSrc] = useState("");
-  const [lightboxSrc, setLightboxSrc] = useState("");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
-
-  const normalizedFallbackPath = useMemo(() => normalizeSrcPath(fallbackSrc), [fallbackSrc]);
-  const candidateSrc = (src || "").trim();
 
   const showPlaceholder = !candidateSrc || failedSrc === candidateSrc;
   const isLoaded = !showPlaceholder && loadedSrc === candidateSrc;
   const showPlaceholderOverlay = !showPlaceholder && !isLoaded;
   const canOpen = zoomEnabled && isLoaded;
-  const isLightboxOpen = lightboxSrc === candidateSrc && canOpen;
 
   const applyLoadedCandidate = useCallback(
     (element: HTMLImageElement | null) => {
@@ -74,18 +66,18 @@ export default function ProductImageWithFallback({
         element.currentSrc || element.src || candidateSrc
       );
 
-      // If backend returns fallback instead of product photo, show no-photo state.
       if (normalizedFallbackPath && loadedPath === normalizedFallbackPath) {
         setFailedSrc(candidateSrc);
         return;
       }
 
       setLoadedSrc(candidateSrc);
+      setFailedSrc("");
     },
     [candidateSrc, normalizedFallbackPath]
   );
 
-  const handleImageLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
+  const handleImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
     applyLoadedCandidate(event.currentTarget);
   };
 
@@ -94,14 +86,11 @@ export default function ProductImageWithFallback({
     setFailedSrc(candidateSrc);
   };
 
-  const openLightbox = () => {
-    if (!canOpen) return;
-    setLightboxSrc(candidateSrc);
-  };
-
-  const closeLightbox = () => {
-    setLightboxSrc("");
-  };
+  useEffect(() => {
+    setLoadedSrc("");
+    setFailedSrc("");
+    setLightboxOpen(false);
+  }, [candidateSrc]);
 
   useEffect(() => {
     if (!candidateSrc) return;
@@ -117,173 +106,120 @@ export default function ProductImageWithFallback({
     setFailedSrc(candidateSrc);
   }, [applyLoadedCandidate, candidateSrc]);
 
+  useEffect(() => {
+    if (!lightboxOpen) return undefined;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLightboxOpen(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxOpen]);
+
+  const renderPlaceholder = (overlay = false) => (
+    <div
+      className={`relative flex flex-col items-center justify-center gap-2 text-center ${
+        overlay ? "px-4" : "px-5"
+      }`}
+    >
+      <div className="absolute inset-x-3 top-1/2 hidden h-px -translate-y-5 bg-gradient-to-r from-transparent via-slate-300/75 to-transparent sm:block" />
+      <ImageOff
+        size={34}
+        strokeWidth={1.7}
+        className="relative text-slate-400/90"
+        aria-hidden="true"
+      />
+      <span className="relative text-center text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 sm:text-[11px]">
+        {noPhotoLabel}
+      </span>
+    </div>
+  );
+
   if (showPlaceholder) {
     return (
-      <motion.div
+      <div
         role="img"
         aria-label={alt}
-        className={`${className ?? ""} flex items-center justify-center rounded-xl border border-slate-200 bg-[linear-gradient(160deg,#f8fafc,#f1f5f9)]`}
-        initial={{ opacity: 0, scale: 0.985, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={REVEAL_TRANSITION}
+        className={`${className ?? ""} flex items-center justify-center rounded-xl border border-slate-200 bg-[image:linear-gradient(160deg,#f8fafc,#f1f5f9)]`}
       >
-        <motion.div
-          className="flex flex-col items-center gap-2 text-center"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...REVEAL_TRANSITION, delay: 0.05 }}
-        >
-          <motion.img
-            src={placeholderImageSrc}
-            alt={logoAlt}
-            width={220}
-            height={110}
-            loading="lazy"
-            decoding="async"
-            className="h-auto w-[170px] max-w-full object-contain sm:w-[220px]"
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ ...REVEAL_TRANSITION, delay: 0.08 }}
-          />
-          <motion.span
-            className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm"
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...REVEAL_TRANSITION, delay: 0.12 }}
-          >
-            <ImageOff size={13} />
-            {noPhotoLabel}
-          </motion.span>
-        </motion.div>
-      </motion.div>
+        {renderPlaceholder()}
+      </div>
     );
   }
 
   return (
     <>
-      <motion.div
-        className={`${className ?? ""} group relative overflow-hidden rounded-xl bg-[linear-gradient(160deg,#f8fafc,#f1f5f9)]`}
-        initial={{ opacity: 0, scale: 0.985, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={REVEAL_TRANSITION}
+      <div
+        className={`${className ?? ""} group relative overflow-hidden rounded-xl bg-[image:linear-gradient(160deg,#f8fafc,#f1f5f9)]`}
       >
-        <AnimatePresence initial={false}>
-          {showPlaceholderOverlay && (
-            <motion.div
-              className="absolute inset-0 z-10 flex items-center justify-center bg-[linear-gradient(160deg,#f8fafc,#f1f5f9)]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <motion.div
-                className="flex flex-col items-center gap-2 text-center"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                transition={REVEAL_TRANSITION}
-              >
-                <motion.img
-                  src={placeholderImageSrc}
-                  alt={logoAlt}
-                  width={220}
-                  height={110}
-                  loading="lazy"
-                  decoding="async"
-                  className="h-auto w-[170px] max-w-full object-contain sm:w-[220px]"
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.97 }}
-                  transition={REVEAL_TRANSITION}
-                />
-                <motion.span
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm"
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 2 }}
-                  transition={{ ...REVEAL_TRANSITION, delay: 0.05 }}
-                >
-                  <ImageOff size={13} />
-                  {noPhotoLabel}
-                </motion.span>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {showPlaceholderOverlay ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[image:linear-gradient(160deg,#f8fafc,#f1f5f9)]">
+            {renderPlaceholder(true)}
+          </div>
+        ) : null}
 
-        <motion.img
+        <Image
           ref={imageRef}
-          src={candidateSrc || undefined}
+          src={candidateSrc}
           alt={alt}
           width={width}
           height={height}
+          sizes="(max-width: 768px) 100vw, 720px"
           loading={loading}
           decoding={decoding}
           fetchPriority={fetchPriority}
           onLoad={handleImageLoad}
           onError={handleImageError}
-          initial={false}
-          animate={{
-            opacity: isLoaded ? 1 : 0,
-            scale: isLoaded ? 1 : 1.02,
-            filter: isLoaded ? "blur(0px)" : "blur(4px)",
-          }}
-          transition={REVEAL_TRANSITION}
-          className="h-full w-full object-contain"
+          unoptimized
+          className={`h-full w-full object-contain transition-[opacity,transform,filter] duration-300 ${
+            isLoaded ? "opacity-100 blur-0 scale-100" : "opacity-0 blur-sm scale-[1.02]"
+          }`}
         />
 
-        {canOpen && (
+        {canOpen ? (
           <button
             type="button"
-            onClick={openLightbox}
+            onClick={() => setLightboxOpen(true)}
             className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-900"
             title={openPhotoTitle}
           >
             <Maximize2 size={13} />
             {photoLabel}
           </button>
-        )}
-      </motion.div>
+        ) : null}
+      </div>
 
-      <AnimatePresence>
-        {isLightboxOpen && (
-          <motion.div
-            className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-6"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            onClick={closeLightbox}
+      {lightboxOpen && canOpen ? (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-6"
+          onClick={() => setLightboxOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950 p-2 shadow-[0_28px_70px_rgba(2,6,23,0.55)]"
+            onClick={(event) => event.stopPropagation()}
           >
-            <motion.div
-              className="relative w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950 p-2 shadow-[0_28px_70px_rgba(2,6,23,0.55)]"
-              initial={{ opacity: 0, y: 16, scale: 0.985 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.985 }}
-              transition={{ duration: 0.2, ease: [0.22, 0.61, 0.36, 1] }}
-              onClick={(event) => event.stopPropagation()}
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(false)}
+              className="absolute right-3 top-3 z-10 inline-flex items-center justify-center rounded-full border border-slate-600 bg-slate-900/90 p-1.5 text-slate-200 transition hover:border-slate-400 hover:text-white"
+              title={closeTitle}
             >
-              <button
-                type="button"
-                onClick={closeLightbox}
-                className="absolute right-3 top-3 z-10 inline-flex items-center justify-center rounded-full border border-slate-600 bg-slate-900/90 p-1.5 text-slate-200 transition hover:border-slate-400 hover:text-white"
-                title={closeTitle}
-              >
-                <X size={16} />
-              </button>
-              <img
-                src={candidateSrc}
-                alt={alt}
-                width={1400}
-                height={1400}
-                loading="eager"
-                decoding="sync"
-                className="max-h-[86dvh] w-full rounded-xl object-contain"
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <X size={16} />
+            </button>
+            <Image
+              src={candidateSrc}
+              alt={alt}
+              width={1400}
+              height={1400}
+              sizes="100vw"
+              priority
+              unoptimized
+              className="max-h-[86dvh] w-full rounded-xl object-contain"
+            />
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

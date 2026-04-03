@@ -4,9 +4,12 @@ import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Info, ShoppingCart, ChevronDown, Trash2, Copy, Check, MessageCircle } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
+import { buildVisibleProductName } from "app/lib/product-url";
 
 const INFO_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443"; // РќРѕРјРµСЂРџРѕРљР°С‚Р°Р»РѕРіСѓ
 const INFO_DESC_KEYS = ["\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435", "\u041E\u043F\u0438\u0441"];
+const MOTION_EASE_OUT = [0.22, 1, 0.36, 1] as const;
+const MOTION_EASE_LINEAR = [0, 0, 1, 1] as const;
 const safBackface = {
     backfaceVisibility: "hidden" as const,
     WebkitBackfaceVisibility: "hidden" as const,
@@ -19,6 +22,9 @@ interface Product {
     name: string;
     producer: string;
     quantity: number;
+    group?: string;
+    subGroup?: string;
+    category?: string;
 }
 
 interface Props {
@@ -34,8 +40,15 @@ interface Props {
     onRemoveFromCart: (code: string) => void;
     onQtyChange: (code: string, delta: number) => void;
     onFlip: (code: string) => void;
-    onImageOpen: (code: string) => void;
-    onOpenProduct: (code: string) => void;
+    onImageOpen: (code: string, article?: string) => void;
+    onOpenProduct: (
+        code: string,
+        name?: string,
+        article?: string,
+        group?: string,
+        subGroup?: string,
+        category?: string
+    ) => void;
 }
 
 const ProductCard: React.FC<Props> = ({
@@ -99,9 +112,9 @@ const ProductCard: React.FC<Props> = ({
 
     const quantity = item.quantity ?? 0;
     const code = item.code ?? "";
-    const name =
-        (item.name || "\u041D\u0430\u0437\u0432\u0430 \u0442\u043E\u0432\u0430\u0440\u0443 \u0432\u0456\u0434\u0441\u0443\u0442\u043D\u044F").replace(/\s*\(.*?\)/g, "") ||
-        "\u041D\u0430\u0437\u0432\u0430 \u0442\u043E\u0432\u0430\u0440\u0443 \u0432\u0456\u0434\u0441\u0443\u0442\u043D\u044F";
+    const name = buildVisibleProductName(
+        item.name || "\u041D\u0430\u0437\u0432\u0430 \u0442\u043E\u0432\u0430\u0440\u0443 \u0432\u0456\u0434\u0441\u0443\u0442\u043D\u044F"
+    );
     const article = item.article || "-";
     const producer = item.producer || "-";
 
@@ -230,8 +243,8 @@ useEffect(() => {
         ? { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const }
         : { duration: 0 };
     const flipTransition = allowMotion
-        ? { type: "tween", duration: isCoarsePointer ? 0.28 : 0.34, ease: "easeOut" }
-        : { duration: 0.2, ease: "linear" };
+        ? { type: "tween" as const, duration: isCoarsePointer ? 0.28 : 0.34, ease: MOTION_EASE_OUT }
+        : { duration: 0.2, ease: MOTION_EASE_LINEAR };
 
     return (
         <>
@@ -285,8 +298,9 @@ useEffect(() => {
                         <div className="w-2/5 h-full flex items-center justify-center overflow-hidden rounded-lg bg-white mr-2">
                             <ProductCardImage
                                 productCode={code}
+                                articleHint={item.article}
                                 className="w-full h-full transition-transform duration-200 group-hover:scale-[1.02]"
-                                onClick={() => onImageOpen(code)}
+                                onClick={() => onImageOpen(code, item.article)}
                             />
                         </div>
 
@@ -295,9 +309,16 @@ useEffect(() => {
                                 type="button"
                                 onClick={(event) => {
                                     event.stopPropagation();
-                                    onOpenProduct(code);
+                                    onOpenProduct(
+                                        code,
+                                        item.name,
+                                        item.article,
+                                        item.group,
+                                        item.subGroup,
+                                        item.category
+                                    );
                                 }}
-                                className="text-left text-[13px] sm:text-[13px] !font-bold tracking-tight text-slate-900 leading-snug transition-colors duration-200 hover:text-blue-700 hover:underline line-clamp-3"
+                                className="font-name-accent text-left text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 leading-[1.02] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
                                 title="Відкрити сторінку товару"
                             >
                                 {name}
@@ -520,7 +541,7 @@ useEffect(() => {
 >
     {/* Header */}
     <div className="rounded-t-xl px-3 py-2.5 border-b border-slate-200 bg-gradient-to-r from-blue-50/70 via-white/70 to-slate-50/70 backdrop-blur-sm">
-        <h3 className="text-[13px] sm:text-[14px] !font-normal !not-italic tracking-tight text-slate-900 text-left leading-tight line-clamp-2">
+        <h3 className="font-name-accent text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 text-left leading-[1.02] line-clamp-2">
             {name}
         </h3>
 
@@ -574,4 +595,3 @@ useEffect(() => {
 };
 
 export default memo(ProductCard);
-

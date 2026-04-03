@@ -1,10 +1,8 @@
 'use client';
 
 import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { AnimatePresence, motion } from 'framer-motion';
 import {
   Building2,
   Clock,
@@ -27,15 +25,6 @@ import {
   informationSections,
   type InformationSectionKey,
 } from './section-config';
-
-const MapComponent = dynamic(() => import('app/components/Map'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">
-      Завантаження карти...
-    </div>
-  ),
-});
 
 type InfoCardProps = {
   title: string;
@@ -71,13 +60,8 @@ const InfoCard = memo(function InfoCard({
   children,
 }: InfoCardProps) {
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className={`${infoCardBase} ${tone}`}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_50%)]" />
+    <article className={`${infoCardBase} ${tone}`}>
+      <div className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_50%)]" />
       <div className="relative">
         <div className="mb-3 flex items-center gap-2.5">
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-sky-100 bg-sky-50 text-sky-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
@@ -87,7 +71,7 @@ const InfoCard = memo(function InfoCard({
         </div>
         <div className="text-[15px] leading-relaxed text-slate-700">{children}</div>
       </div>
-    </motion.article>
+    </article>
   );
 });
 
@@ -227,9 +211,30 @@ const LocationTab = ({ active }: { active: boolean }) => (
       </InfoCard>
     </div>
 
-    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-100 shadow-[0_12px_28px_rgba(15,23,42,0.14)]">
-      <div className="h-[280px] sm:h-[340px] lg:h-full lg:min-h-[438px]">
-        {active && <MapComponent />}
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-100 to-sky-50 shadow-[0_12px_28px_rgba(15,23,42,0.14)]">
+      <div className="flex h-[280px] flex-col items-center justify-center gap-4 px-5 text-center sm:h-[340px] lg:h-full lg:min-h-[438px]">
+        {!active ? null : (
+          <>
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-sky-100 bg-white text-sky-700 shadow-[0_10px_24px_rgba(56,189,248,0.16)]">
+              <MapPin size={24} />
+            </div>
+            <div className="space-y-2">
+              <p className="text-lg font-semibold text-slate-900">Відкрити маршрут у Google Maps</p>
+              <p className="text-sm leading-6 text-slate-600">
+                Швидкий перехід до навігації без важкого картографічного bundle у dev-режимі.
+              </p>
+            </div>
+            <a
+              href="https://maps.google.com/?q=Львів,+вул.+Перфецького,+8"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white px-4 py-2 text-sm font-semibold text-sky-800 transition hover:border-sky-300 hover:bg-sky-50"
+            >
+              <Navigation size={16} />
+              Відкрити карту
+            </a>
+          </>
+        )}
       </div>
     </div>
   </div>
@@ -254,7 +259,7 @@ export default function InformationPageClient({
   initialSectionKey,
 }: InformationPageClientProps) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() || "/inform";
   const [activeIdx, setActiveIdx] = useState(() =>
     Math.max(
       tabs.findIndex((tab) => tab.key === initialSectionKey),
@@ -292,11 +297,11 @@ export default function InformationPageClient({
       onCut={(event) => event.preventDefault()}
     >
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_10%,rgba(56,189,248,0.24),transparent_42%),radial-gradient(circle_at_88%_10%,rgba(125,211,252,0.22),transparent_38%),linear-gradient(180deg,rgba(240,249,255,0.96)_0%,rgba(226,232,240,0.9)_45%,rgba(224,242,254,0.92)_100%)]" />
+        <div className="absolute inset-0 bg-[image:radial-gradient(circle_at_12%_10%,rgba(56,189,248,0.24),transparent_42%),radial-gradient(circle_at_88%_10%,rgba(125,211,252,0.22),transparent_38%),linear-gradient(180deg,rgba(240,249,255,0.96)_0%,rgba(226,232,240,0.9)_45%,rgba(224,242,254,0.92)_100%)]" />
         <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(148,163,184,0.18)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.18)_1px,transparent_1px)] [background-size:38px_38px]" />
       </div>
 
-      <section className="relative mx-auto grid w-full max-w-[1400px] gap-4 px-4 py-4 sm:px-5 sm:py-6 lg:px-7">
+      <section className="page-shell-inline relative grid gap-4 py-4 sm:py-6">
         <nav className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
           <Link href="/" className="transition hover:text-slate-200">
             Головна
@@ -354,17 +359,9 @@ export default function InformationPageClient({
             if (diffX < 0) handleTabChange((activeIdx - 1 + tabs.length) % tabs.length);
           }}
         >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab.key}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.24, ease: 'easeOut' }}
-            >
-              {renderTabContent(activeTab.key)}
-            </motion.div>
-          </AnimatePresence>
+          <div key={activeTab.key}>
+            {renderTabContent(activeTab.key)}
+          </div>
         </main>
       </section>
     </div>

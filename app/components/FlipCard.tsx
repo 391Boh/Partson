@@ -5,82 +5,13 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useState, memo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { buildCatalogCategoryPath } from "app/lib/catalog-links";
+import { getCategoryIconPath } from "app/lib/category-icons";
+import { buildVisibleProductName } from "app/lib/product-url";
 
 export type ProductNode = {
   name: string;
   children?: ProductNode[];
 };
-
-//
-// ICON MAP
-//
-const normalizeLabel = (value: string) => value.trim();
-const LATIN_TO_CYR: Record<string, string> = {
-  A: "А",
-  a: "а",
-  B: "В",
-  b: "в",
-  C: "С",
-  c: "с",
-  E: "Е",
-  e: "е",
-  H: "Н",
-  h: "н",
-  I: "І",
-  i: "і",
-  K: "К",
-  k: "к",
-  M: "М",
-  m: "м",
-  O: "О",
-  o: "о",
-  P: "Р",
-  p: "р",
-  T: "Т",
-  t: "т",
-  X: "Х",
-  x: "х",
-  Y: "У",
-  y: "у",
-};
-const normalizeCategoryKey = (value: string) => {
-  const converted = normalizeLabel(value).replace(
-    /[ABCEHIKMOPTXYabcehikmoptxy]/g,
-    (char) => LATIN_TO_CYR[char] || char
-  );
-  return converted.toLowerCase().replace(/\s+/g, " ");
-};
-const categoryIconMap = new Map<string, string>();
-const addCategoryIcon = (label: string, icon: string) => {
-  const safeLabel = label.replace(
-    /[\u0456\u0457\u0454\u0491\u0406\u0407\u0404\u0490]/g,
-    "?"
-  );
-  categoryIconMap.set(label, icon);
-  categoryIconMap.set(safeLabel, icon);
-  categoryIconMap.set(normalizeCategoryKey(label), icon);
-  categoryIconMap.set(normalizeCategoryKey(safeLabel), icon);
-};
-export const getCategoryIconPath = (label: string) => {
-  const resolved =
-    categoryIconMap.get(label) ?? categoryIconMap.get(normalizeCategoryKey(label));
-  return `/Katlogo/${resolved || "rul.png"}`;
-};
-
-addCategoryIcon("Паливна система", "palivna_systema.png");
-addCategoryIcon("Гальмівна система", "halmivna_systema.png");
-addCategoryIcon("Деталі двигуна", "detali_dvyhuna.png");
-addCategoryIcon("Деталі підвіски", "detali_pidvisky.png");
-addCategoryIcon("Амортизація", "amort.png");
-addCategoryIcon("Деталі для ТО", "detali_dlia_to.png");
-addCategoryIcon("Привід та коробка передач", "pryvid_ta_korobka_peredach.png");
-addCategoryIcon("Система охолодження", "systema_okholodzhennia.png");
-addCategoryIcon("Освітлення", "osvitlennia.png");
-addCategoryIcon("Інше", "inshe.png");
-addCategoryIcon("Електроніка", "elektronika.png");
-addCategoryIcon("Кузовні елементи", "kuzovni_elementy.png");
-addCategoryIcon("Датчики та електроніка", "datchyky_ta_elektronika.png");
-addCategoryIcon("Рідини та мастила", "ridyny_ta_mastyla.png");
 
 //
 // FIX: SAFARI / MACOS SAFE 3D BACKFACE SETTINGS
@@ -91,6 +22,8 @@ const safBackface: React.CSSProperties = {
   transformStyle: "preserve-3d",
   willChange: "transform",
 };
+const MOTION_EASE_OUT = [0.16, 1, 0.3, 1] as const;
+const MOTION_EASE_IN_OUT = [0.65, 0, 0.35, 1] as const;
 
 //
 // ENTRANCE ANIMATION
@@ -101,7 +34,7 @@ const entrance = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.45, ease: "easeOut" }
+    transition: { duration: 0.45, ease: MOTION_EASE_OUT }
   }
 };
 
@@ -155,6 +88,7 @@ function FlipCardComponent({
   const subPageCount = Math.max(1, subPages);
   const hasSubgroups = (node?: ProductNode | null) =>
     Array.isArray(node?.children) && node.children.length > 0;
+  const displayProductName = buildVisibleProductName(product.name);
 
   //
   // SWIPE FOR MOBILE
@@ -171,11 +105,11 @@ function FlipCardComponent({
 
     if (Math.abs(diff) > 40) {
       if (activeGroup) {
-        sub + 1 < subPages && diff > 0 && setSub(sub + 1);
-        sub > 0 && diff < 0 && setSub(sub - 1);
+        if (sub + 1 < subPages && diff > 0) setSub(sub + 1);
+        if (sub > 0 && diff < 0) setSub(sub - 1);
       } else {
-        page + 1 < mainPages && diff > 0 && setPage(page + 1);
-        page > 0 && diff < 0 && setPage(page - 1);
+        if (page + 1 < mainPages && diff > 0) setPage(page + 1);
+        if (page > 0 && diff < 0) setPage(page - 1);
       }
     }
   };
@@ -214,7 +148,7 @@ function FlipCardComponent({
     >
       <motion.div
         animate={{ rotateY: isFlipped ? 180 : 0 }}
-        transition={{ duration: 0.55, ease: "easeInOut" }}
+        transition={{ duration: 0.55, ease: MOTION_EASE_IN_OUT }}
         style={{
           transformStyle: "preserve-3d",
         }}
@@ -239,8 +173,8 @@ function FlipCardComponent({
           }}
         >
           <Image
-            src={getCategoryIconPath(product.name)}
-            alt={product.name}
+            src={getCategoryIconPath(displayProductName)}
+            alt={displayProductName}
             width={60}
             height={60}
             unoptimized
@@ -256,7 +190,7 @@ function FlipCardComponent({
           />
 
           <h3 className="text-[13px] font-semibold text-slate-800 line-clamp-2 mb-1">
-            {product.name}
+            {displayProductName}
           </h3>
 
           <span className="px-2 py-1 rounded-full text-[11px] bg-white/70 text-slate-600">
@@ -292,16 +226,24 @@ function FlipCardComponent({
             "
           >
             <span className="text-[11px] font-semibold text-slate-700 mx-1 truncate">
-              {activeGroup?.name || product.name}
+              {buildVisibleProductName(activeGroup?.name || product.name)}
             </span>
 
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => {
                   if (activeGroup) {
-                    sub === 0 ? setActiveGroup(null) : setSub(sub - 1);
+                    if (sub === 0) {
+                      setActiveGroup(null);
+                    } else {
+                      setSub(sub - 1);
+                    }
                   } else {
-                    page === 0 ? flip() : setPage(page - 1);
+                    if (page === 0) {
+                      flip();
+                    } else {
+                      setPage(page - 1);
+                    }
                   }
                 }}
                 className="
@@ -359,7 +301,9 @@ function FlipCardComponent({
                 "
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate">{item.name}</span>
+                  <span className="truncate" title={item.name}>
+                    {buildVisibleProductName(item.name)}
+                  </span>
                   {hasSubgroups(item) && (
                     <ArrowRight className="w-4 h-4 text-blue-400" />
                   )}

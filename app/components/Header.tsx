@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, type ComponentType } from 'react';
 import {
   ShoppingCart, User, Menu, Info, Car,
   List, Truck, CreditCard, MapPin, Users, Phone, Search
@@ -8,16 +8,11 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
-import { getAuth, onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import SearchBar from 'app/components/Search';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { useCart } from 'app/context/CartContext';
 import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { createPortal } from 'react-dom';
-
-const Contact = dynamic(() => import('./Contact'), { ssr: false });
-const Order = dynamic(() => import('./Order'), { ssr: false });
-const AuthModal = dynamic(() => import('./AuthModal'), { ssr: false });
+import { auth } from '../../firebase';
 
 type AppRouterInstance = ReturnType<typeof useRouter>;
 
@@ -34,8 +29,6 @@ const INFO_PREFETCH_ROUTES = [
   '/inform/location',
 ] as const;
 
-const INITIAL_PREFETCH_ROUTES = [...CATALOG_PREFETCH_ROUTES, ...INFO_PREFETCH_ROUTES] as const;
-
 const prefetchRouteList = (
   router: AppRouterInstance,
   prefetchedRoutes: Set<string>,
@@ -48,16 +41,37 @@ const prefetchRouteList = (
   }
 };
 
-interface HeaderProps {
-  setIsChatOpen: (open: boolean) => void;
-}
+type ContactComponentProps = {
+  onClose: () => void;
+};
 
-const Header: React.FC<HeaderProps> = () => {
+type OrderComponentProps = {
+  onClose: () => void;
+};
+
+type AuthModalComponentProps = {
+  isOpen: boolean;
+  user: FirebaseUser | null;
+  initialMode?: 'login' | 'register';
+  initialAccountTab?: 'profile' | 'vins' | 'security' | null;
+  onClose: () => void;
+};
+
+type SearchBarComponentProps = {
+  onSearch: (
+    searchQuery: string,
+    filterBy: 'all' | 'article' | 'name' | 'code' | 'producer'
+  ) => void;
+};
+
+type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
+
+const Header: React.FC = () => {
   const { cartItems } = useCart();
   const logoFallbackPath = '/favicon-192x192.png';
   const [hasMounted, setHasMounted] = useState(false);
 
-  const [user, setUser] = useState<FirebaseUser | null>(() => getAuth().currentUser);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [activeMenu, setActiveMenu] = useState<string>('');
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register' | undefined>(
@@ -71,6 +85,14 @@ const Header: React.FC<HeaderProps> = () => {
     order: false,
     auth: false,
   });
+  const [ContactComponent, setContactComponent] =
+    useState<ComponentType<ContactComponentProps> | null>(null);
+  const [OrderComponent, setOrderComponent] =
+    useState<ComponentType<OrderComponentProps> | null>(null);
+  const [AuthModalComponent, setAuthModalComponent] =
+    useState<ComponentType<AuthModalComponentProps> | null>(null);
+  const [SearchBarComponent, setSearchBarComponent] =
+    useState<ComponentType<SearchBarComponentProps> | null>(null);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const prefetchedRoutesRef = useRef<Set<string>>(new Set());
   const skipManualPrefetchRef = useRef(false);
@@ -78,8 +100,7 @@ const Header: React.FC<HeaderProps> = () => {
   const navRef = useRef<HTMLDivElement>(null);
   const searchModalRef = useRef<HTMLDivElement>(null);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
-  const auth = getAuth();
-  const pathname = usePathname();
+  const pathname = usePathname() || "";
   const router = useRouter();
 
   const prefetchCatalogRoutes = () => {
@@ -94,11 +115,48 @@ const Header: React.FC<HeaderProps> = () => {
 
   // AUTH LISTENER
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (authUser) => {
+    setUser(auth.currentUser ?? null);
+    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
       setUser(authUser ?? null);
     });
-    return () => unsub();
-  }, [auth]);
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (SearchBarComponent) return;
+
+    let cancelled = false;
+    const win = window as Window & {
+      requestIdleCallback?: RequestIdleCallback;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const loadSearch = () => {
+      void import('app/components/Search').then((module) => {
+        if (!cancelled) {
+          setSearchBarComponent(() => module.default);
+        }
+      });
+    };
+    let timeoutId: number | null = null;
+    let idleId: number | null = null;
+
+    if (typeof win.requestIdleCallback === 'function') {
+      idleId = win.requestIdleCallback(loadSearch, { timeout: 1200 });
+    } else {
+      timeoutId = window.setTimeout(loadSearch, 320);
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId != null && typeof win.cancelIdleCallback === 'function') {
+        win.cancelIdleCallback(idleId);
+      }
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [SearchBarComponent]);
 
   // CLOSE MENUS ON CLICK OUTSIDE
   useEffect(() => {
@@ -126,19 +184,11 @@ const Header: React.FC<HeaderProps> = () => {
     const connection = (navigator as Navigator & {
       connection?: { saveData?: boolean; effectiveType?: string };
     }).connection;
-    const isSlowConnection =
+    skipManualPrefetchRef.current =
       Boolean(connection?.saveData) ||
       (typeof connection?.effectiveType === 'string' &&
         connection.effectiveType.includes('2g'));
-    skipManualPrefetchRef.current = isSlowConnection;
-    if (isSlowConnection) return;
-
-    const frameId = window.requestAnimationFrame(() => {
-      prefetchRouteList(router, prefetchedRoutesRef.current, INITIAL_PREFETCH_ROUTES);
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     const handleCloseOverlays = () => {
@@ -252,6 +302,15 @@ const Header: React.FC<HeaderProps> = () => {
     image.src = logoFallbackPath;
   };
 
+  const preventLogoAssetInteraction = (
+    event:
+      | React.ClipboardEvent<HTMLElement>
+      | React.DragEvent<HTMLElement>
+      | React.MouseEvent<HTMLElement>
+  ) => {
+    event.preventDefault();
+  };
+
   const handleBrandClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (pathname !== '/') return;
 
@@ -311,8 +370,62 @@ const Header: React.FC<HeaderProps> = () => {
     return () => window.cancelAnimationFrame(frameId);
   }, []);
 
+  useEffect(() => {
+    if (!modals.contact || ContactComponent) return;
+
+    let cancelled = false;
+    void import('./Contact').then((module) => {
+      if (!cancelled) {
+        setContactComponent(() => module.default);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ContactComponent, modals.contact]);
+
+  useEffect(() => {
+    if (!modals.order || OrderComponent) return;
+
+    let cancelled = false;
+    void import('./Order').then((module) => {
+      if (!cancelled) {
+        setOrderComponent(() => module.default);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [OrderComponent, modals.order]);
+
+  useEffect(() => {
+    if (!modals.auth || AuthModalComponent) return;
+
+    let cancelled = false;
+    void import('./AuthModal').then((module) => {
+      if (!cancelled) {
+        setAuthModalComponent(() => module.default);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [AuthModalComponent, modals.auth]);
+
   const renderPortal = (node: React.ReactNode) =>
     portalRoot ? createPortal(node, portalRoot) : null;
+  const renderSearchBar = (onSearch: SearchBarComponentProps['onSearch']) => {
+    if (!SearchBarComponent) {
+      return (
+        <div className="h-10 w-full rounded-xl border border-gray-500 bg-gray-800/80 shadow-md" />
+      );
+    }
+
+    return <SearchBarComponent onSearch={onSearch} />;
+  };
   const hasOverlayPortalOpen =
     showSearchModal || modals.contact || modals.order || modals.auth;
 
@@ -339,7 +452,7 @@ const Header: React.FC<HeaderProps> = () => {
       className="site-header-shell font-ui relative z-50 flex h-14 items-center justify-center bg-gradient-to-b from-gray-600 to-gray-800 text-white sm:h-16"
     >
 
-      <div className="flex w-full max-w-[1400px] items-center justify-between gap-2 px-2 sm:gap-4 sm:px-5 lg:px-7">
+      <div className="page-shell-inline flex items-center justify-between gap-2 sm:gap-4">
 
         {/* LEFT SECTION */}
         <div className="flex flex-shrink-0 items-center gap-2 sm:gap-4">
@@ -348,16 +461,23 @@ const Header: React.FC<HeaderProps> = () => {
           <Link
             href="/"
             aria-label="Головна сторінка"
-            className="group relative flex items-center"
+            className="group relative flex select-none items-center"
             onClick={handleBrandClick}
+            onContextMenu={preventLogoAssetInteraction}
+            onDragStart={preventLogoAssetInteraction}
+            onCopy={preventLogoAssetInteraction}
+            onCut={preventLogoAssetInteraction}
+            draggable={false}
           >
             <Image
               src="/Car-parts.png"
               alt="PartsOn Logo"
               width={70}
               height={40}
-              className="w-[65px] md:w-[85px] h-auto object-contain"
+              className="pointer-events-none h-auto w-[65px] select-none object-contain md:w-[85px]"
               onError={handleLogoLoadError}
+              onContextMenu={preventLogoAssetInteraction}
+              draggable={false}
             />
             <span className="pointer-events-none absolute left-4 top-full z-50 mt-2.5 translate-y-1 whitespace-nowrap rounded-xl border border-slate-200/70 bg-gradient-to-r from-white/95 via-sky-50/95 to-indigo-50/90 pl-3.5 pr-2.5 pt-1.5 pb-1 text-[10px] font-semibold tracking-[0.02em] text-slate-900 opacity-0 shadow-[0_10px_22px_rgba(15,23,42,0.16)] backdrop-blur-md ring-1 ring-white/60 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 sm:left-1/2 sm:-translate-x-1/2">
               Головна сторінка
@@ -450,7 +570,7 @@ const Header: React.FC<HeaderProps> = () => {
         {/* SEARCH CENTER */}
         <div className="flex min-w-0 flex-1 justify-center px-1 sm:px-3">
           <div className="hidden lg:block w-full max-w-[380px]">
-            <SearchBar onSearch={(q) => console.log(q)} />
+            {renderSearchBar(() => {})}
           </div>
 
           <button
@@ -554,17 +674,22 @@ const Header: React.FC<HeaderProps> = () => {
             </div>
 
             <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700">
-              <SearchBar onSearch={() => setShowSearchModal(false)} />
+              {renderSearchBar(() => setShowSearchModal(false))}
             </div>
           </div>
         )}
 
       {/* MODALS */}
-      {modals.contact && renderPortal(<Contact onClose={() => closeModal('contact')} />)}
-      {modals.order && renderPortal(<Order onClose={() => closeModal('order')} />)}
+      {modals.contact &&
+        ContactComponent &&
+        renderPortal(<ContactComponent onClose={() => closeModal('contact')} />)}
+      {modals.order &&
+        OrderComponent &&
+        renderPortal(<OrderComponent onClose={() => closeModal('order')} />)}
       {modals.auth &&
+        AuthModalComponent &&
         renderPortal(
-          <AuthModal
+          <AuthModalComponent
             isOpen={modals.auth}
             user={user}
             initialMode={authInitialMode}

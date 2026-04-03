@@ -1,6 +1,4 @@
-﻿import { Geist_Mono, Montserrat } from "next/font/google";
-import { Exo_2 } from "next/font/google";
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Suspense, type ReactNode } from "react";
 import Script from "next/script";
 import ClientWrapper from "./client-wrapper";
@@ -8,30 +6,6 @@ import LayoutHost from "./components/LayoutHost";
 import PageLoadingShell from "./components/PageLoadingShell";
 import { getSiteUrl } from "./lib/site-url";
 import "./globals.css";
-
-const montserrat = { className: "", variable: "" };
-
-const uiFont = Exo_2({
-  subsets: ["latin", "cyrillic"],
-  weight: ["500", "600", "700", "800", "900"],
-  style: ["normal"],
-  variable: "--font-ui",
-  display: "swap",
-});
-
-const displayFont = Exo_2({
-  subsets: ["latin", "cyrillic"],
-  weight: ["500", "600", "700", "800", "900"],
-  style: ["normal", "italic"],
-  variable: "--font-display",
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  display: "swap",
-});
 
 const siteUrl = getSiteUrl();
 const siteUrlObject = (() => {
@@ -346,9 +320,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
         />
       </head>
-      <body
-        className={`${uiFont.className} ${uiFont.variable} ${displayFont.variable} ${geistMono.variable}`}
-      >
+      <body>
         <div className="page-scale-root">
           <ClientWrapper>
             <Suspense fallback={layoutFallback}>

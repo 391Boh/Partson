@@ -11,30 +11,26 @@ const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains; preload" },
 ];
 
-const allowedDevOrigins = Array.from(
-  new Set(
-    ["192.168.0.100", ...(process.env.NEXT_ALLOWED_DEV_ORIGINS || "").split(",")]
-      .map((value) => value.trim())
-      .filter(Boolean)
-  )
-);
+const isProduction = process.env.NODE_ENV === "production";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  transpilePackages: ["leaflet", "react-leaflet"],
-  allowedDevOrigins,
-  experimental: {
-    // Disable Turbopack's persistent dev cache to avoid local SST allocation failures.
-    turbopackFileSystemCacheForDev: false,
-  },
+  outputFileTracingRoot: path.resolve(process.cwd()),
+  allowedDevOrigins: ["192.168.192.80"],
   images: {
     qualities: [75, 100],
-  },
-  turbopack: {
-    // Keep Turbopack scoped to this project; avoids scanning parent workspace on Windows.
-    root: path.resolve(process.cwd()),
+    localPatterns: [
+      // Keep default strict behavior for regular local images (no query string).
+      { pathname: "/**", search: "" },
+      // Allow article hint query for dynamic product image endpoint.
+      { pathname: "/product-image/**" },
+    ],
   },
   async headers() {
+    if (!isProduction) {
+      return [];
+    }
+
     return [
       {
         source: "/(.*)",

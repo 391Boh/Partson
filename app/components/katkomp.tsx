@@ -1,9 +1,15 @@
 "use client";
 
+import Image from "next/image";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ProductNode } from "app/components/FlipCard";
+import {
+  fetchCatalogVersionHash,
+  readCatalogBrowserCache,
+  writeCatalogBrowserCache,
+} from "app/lib/catalog-client-cache";
+import { buildVisibleProductName } from "app/lib/product-url";
 
 interface CategoryProps {
   selectedCategories: string[];
@@ -29,53 +35,29 @@ interface SearchResult {
 }
 
 let cachedProducts: ProductNode[] | null = null;
-const CACHE_KEY = "partson:getprod";
-const CACHE_TTL_MS = 1000 * 60 * 60 * 24;
-const STALE_CACHE_TTL_MS = 1000 * 60 * 60 * 72;
+let cachedProductsPromise: Promise<ProductNode[]> | null = null;
+let cachedProductsLoadError: string | null = null;
+let cachedProductsHash: string | null = null;
 
-type CachedProducts = { nodes: ProductNode[]; fresh: boolean; usable: boolean };
-
-const readCachedProducts = (): CachedProducts => {
-  if (typeof window === "undefined") return { nodes: [], fresh: false, usable: false };
-
-  const storages: (Storage | undefined)[] = [window.localStorage, window.sessionStorage];
-  for (const storage of storages) {
-    if (!storage) continue;
-    try {
-      const raw = storage.getItem(CACHE_KEY);
-      if (!raw) continue;
-      const parsed: unknown = JSON.parse(raw);
-      const record =
-        parsed && typeof parsed === "object" && "v" in (parsed as Record<string, unknown>)
-          ? (parsed as { t?: unknown; v?: unknown })
-          : { v: parsed, t: 0 };
-
-      const ts = typeof record.t === "number" ? record.t : 0;
-      const age = Date.now() - ts;
-      const nodes = toProductNodes(record.v ?? null);
-      if (nodes.length === 0) continue;
-
-      const fresh = age <= CACHE_TTL_MS;
-      const usable = age <= STALE_CACHE_TTL_MS;
-      if (!usable) continue;
-      return { nodes, fresh, usable };
-    } catch {
-      continue;
-    }
-  }
-
-  return { nodes: [], fresh: false, usable: false };
+type CachedProducts = {
+  nodes: ProductNode[];
+  fresh: boolean;
+  usable: boolean;
+  hash: string | null;
 };
 
-const writeCachedProducts = (value: unknown) => {
-  if (typeof window === "undefined") return;
-  const payload = JSON.stringify({ t: Date.now(), v: value });
-  try {
-    window.sessionStorage.setItem(CACHE_KEY, payload);
-  } catch {}
-  try {
-    window.localStorage.setItem(CACHE_KEY, payload);
-  } catch {}
+const readCachedProducts = (): CachedProducts => {
+  const snapshot = readCatalogBrowserCache(toProductNodes);
+  return {
+    nodes: snapshot.items,
+    fresh: snapshot.fresh,
+    usable: snapshot.usable,
+    hash: snapshot.hash,
+  };
+};
+
+const writeCachedProducts = (value: unknown, hash?: string | null) => {
+  writeCatalogBrowserCache(value, hash);
 };
 
 const NAME_KEYS = [
@@ -89,6 +71,8 @@ const CHILD_KEYS = [
   "children",
 ] as const;
 const normalizeLabel = (value: string) => value.trim();
+const getDisplayLabel = (value: string) =>
+  buildVisibleProductName(normalizeLabel(value) || "\u0411\u0435\u0437 \u043d\u0430\u0437\u0432\u0438");
 const normalizeCategoryKey = (value: string) =>
   normalizeLabel(value).toLowerCase().replace(/\s+/g, " ");
 const normalizeNodeName = (node?: ProductNode | null) => {
@@ -195,6 +179,78 @@ const toProductNodes = (value: unknown): ProductNode[] => {
   return transformData(value);
 };
 
+type LoadProductsOptions = {
+  forceRefresh?: boolean;
+  expectedHash?: string | null;
+};
+
+const loadProducts = async (
+  options: LoadProductsOptions = {}
+): Promise<ProductNode[]> => {
+  const { forceRefresh = false, expectedHash = null } = options;
+  const normalizedExpectedHash = (expectedHash || "").trim() || null;
+
+  if (!forceRefresh && cachedProducts && cachedProducts.length > 0) {
+    if (
+      !normalizedExpectedHash ||
+      !cachedProductsHash ||
+      cachedProductsHash === normalizedExpectedHash
+    ) {
+      return cachedProducts;
+    }
+  }
+
+  if (!forceRefresh) {
+    const cached = readCachedProducts();
+    const cacheHashMatches =
+      !normalizedExpectedHash || !cached.hash || cached.hash === normalizedExpectedHash;
+    if (cached.nodes.length > 0 && cached.fresh && cacheHashMatches) {
+      cachedProducts = cached.nodes;
+      cachedProductsHash = cached.hash;
+      cachedProductsLoadError = null;
+      return cached.nodes;
+    }
+  }
+
+  if (cachedProductsPromise) return cachedProductsPromise;
+
+  cachedProductsPromise = (async () => {
+    try {
+      const response = await fetch("/api/proxy?endpoint=getprod", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const raw = await response.json();
+      const transformed = transformData(raw);
+      if (transformed.length === 0) {
+        cachedProductsLoadError = "Отримано некоректний формат відповіді каталогу товарів";
+        cachedProducts = [];
+        cachedProductsHash = null;
+        return [];
+      }
+      writeCachedProducts(raw, normalizedExpectedHash);
+      cachedProducts = transformed;
+      cachedProductsHash = normalizedExpectedHash;
+      cachedProductsLoadError = null;
+      return transformed;
+    } catch (err: unknown) {
+      cachedProductsLoadError =
+        err instanceof Error ? err.message : "Невідома помилка";
+      cachedProducts = [];
+      cachedProductsHash = null;
+      return [];
+    }
+  })().finally(() => {
+    cachedProductsPromise = null;
+  });
+
+  return cachedProductsPromise;
+};
+
 const collectLeafPaths = (
   nodes?: ProductNode[],
   parents: string[] = []
@@ -271,24 +327,21 @@ const Category: React.FC<CategoryProps> = ({
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const lastResetSignalRef = useRef<number | null>(null);
-  const [isGroupLoading, setIsGroupLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const currentSearchParams = searchParams ?? new URLSearchParams();
 
   useEffect(() => {
     if (cachedProducts) {
       setTreeData(cachedProducts);
-      return;
     }
 
     const cache = readCachedProducts();
     if (cache.usable && cache.nodes.length > 0) {
       cachedProducts = cache.nodes;
+      cachedProductsHash = cache.hash;
       setTreeData(cache.nodes);
       setLoading(false);
-      if (cache.fresh) {
-        return;
-      }
     }
 
     let cancelled = false;
@@ -298,22 +351,27 @@ const Category: React.FC<CategoryProps> = ({
       setError(null);
 
       try {
-        const response = await fetch("/api/proxy?endpoint=getprod", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
+        const latestHash = await fetchCatalogVersionHash();
+        if (cancelled) return;
+
+        const hasUsableCache = cache.usable && cache.nodes.length > 0;
+        const hasMatchingVersion = latestHash ? cache.hash === latestHash : cache.fresh;
+
+        if (hasUsableCache && hasMatchingVersion) {
+          setLoading(false);
+          setError(null);
+          return;
+        }
+
+        const transformed = await loadProducts({
+          forceRefresh: !hasUsableCache || Boolean(latestHash ? cache.hash !== latestHash : !cache.fresh),
+          expectedHash: latestHash,
         });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const raw = await response.json();
-        writeCachedProducts(raw);
-        const transformed = transformData(raw);
-        cachedProducts = transformed;
-
-        if (!cancelled) {
+        if (cancelled) return;
+        if (transformed.length > 0) {
           setTreeData(transformed);
         }
+        setError(cachedProductsLoadError);
       } catch (err: unknown) {
         if (!cancelled) {
           const message =
@@ -331,6 +389,44 @@ const Category: React.FC<CategoryProps> = ({
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const refreshOnFocus = async () => {
+      const latestHash = await fetchCatalogVersionHash({ force: true });
+      if (!active || !latestHash) return;
+
+      const cache = readCachedProducts();
+      if (cache.hash === latestHash && cache.nodes.length > 0) return;
+
+      const transformed = await loadProducts({
+        forceRefresh: true,
+        expectedHash: latestHash,
+      });
+      if (!active || transformed.length === 0) return;
+      setTreeData(transformed);
+      setError(cachedProductsLoadError);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshOnFocus();
+    };
+
+    const handleFocus = () => {
+      void refreshOnFocus();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      active = false;
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -489,14 +585,7 @@ const Category: React.FC<CategoryProps> = ({
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
-    el.scrollTo({ top: 0, behavior: "smooth" });
-  }, [step, activeCategory, activeGroup, isSearchMode]);
-
-  // Lightweight loader while switching category/group/subgroup to mask heavy filtering.
-  useEffect(() => {
-    setIsGroupLoading(true);
-    const id = window.setTimeout(() => setIsGroupLoading(false), 220);
-    return () => window.clearTimeout(id);
+    el.scrollTo({ top: 0, behavior: "auto" });
   }, [step, activeCategory, activeGroup, isSearchMode]);
 
   useEffect(() => {
@@ -552,7 +641,7 @@ const Category: React.FC<CategoryProps> = ({
   const pushSelection = (group: string, subcategory?: string | null) => {
     if (!group) return;
     clearSelectedCategories();
-    const nextParams = new URLSearchParams(searchParams.toString());
+    const nextParams = new URLSearchParams(currentSearchParams.toString());
     nextParams.set("group", group);
     if (subcategory) {
       nextParams.set("subcategory", subcategory);
@@ -564,7 +653,7 @@ const Category: React.FC<CategoryProps> = ({
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem("catalogScrollTarget", "results");
     }
-    router.push(`/katalog?${nextParams.toString()}`);
+    router.replace(`/katalog?${nextParams.toString()}`, { scroll: false });
   };
 
   const headerLabelMap = {
@@ -641,12 +730,7 @@ const Category: React.FC<CategoryProps> = ({
   };
 
   return (
-    <motion.div
-      className="flex h-full flex-col gap-2"
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-    >
+    <div className="flex h-full flex-col gap-2">
       <div className="flex items-center gap-2">
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-600">
           {!isSearchMode && (activeCategory || activeGroup) ? (
@@ -664,12 +748,12 @@ const Category: React.FC<CategoryProps> = ({
           </span>
           {!isSearchMode && activeCategory && (
             <span className="text-[10px] text-slate-400">
-              {step === "category" ? "" : `(${activeCategory})`}
+              {step === "category" ? "" : `(${getDisplayLabel(activeCategory)})`}
             </span>
           )}
           {!isSearchMode && activeGroup && (
             <span className="text-[10px] text-slate-400">
-              {`(${activeGroup})`}
+              {`(${getDisplayLabel(activeGroup)})`}
             </span>
           )}
         </div>
@@ -725,37 +809,30 @@ const Category: React.FC<CategoryProps> = ({
           </div>
         )}
 
-        {!loading && !error && isGroupLoading && (
-          <div className="py-6 text-center text-[11px] text-slate-400">
-            <div className="loader mx-auto mb-2" />
-            {"Завантаження..."}
-          </div>
-        )}
-
-        {!loading && !error && !isGroupLoading && (
+        {!loading && !error && (
           <div className="p-2">
             {isSearchMode && (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
                 {searchResults.length > 0 ? (
                   searchResults.map((item) => (
-                    <motion.button
+                    <button
                       key={item.id}
                       type="button"
                       onClick={() => handleSearchSelect(item.path)}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.18 }}
                       className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-left text-[10px] transition shadow-sm hover:border-blue-200 hover:bg-blue-50/40"
                     >
                       <div className="text-[11px] font-semibold text-slate-800 line-clamp-1">
-                        {item.label}
+                        {getDisplayLabel(item.label)}
                       </div>
                       {item.trail ? (
                         <div className="text-[10px] text-slate-500 line-clamp-1">
-                          {item.trail}
+                          {item.trail
+                            .split(" / ")
+                            .map(getDisplayLabel)
+                            .join(" / ")}
                         </div>
                       ) : null}
-                    </motion.button>
+                    </button>
                   ))
                 ) : (
                   <div className="col-span-full py-4 text-center text-[11px] text-slate-400">
@@ -778,25 +855,24 @@ const Category: React.FC<CategoryProps> = ({
                       : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/40";
 
                     return (
-                      <motion.button
+                      <button
                         key={item.name}
                         type="button"
                         onClick={() => handleCategorySelect(item.name)}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.18 }}
                         className={`flex items-start gap-2 rounded-xl border px-2.5 py-1.5 text-left text-[10px] transition shadow-sm ${buttonClass}`}
                       >
-                        <img
-                          src={getCategoryIcon(item.name)}
-                          alt={item.name}
+                        <Image
+                          src={getCategoryIcon(getDisplayLabel(item.name))}
+                          alt={getDisplayLabel(item.name)}
+                          width={16}
+                          height={16}
+                          sizes="16px"
                           className="h-4 w-4 shrink-0 object-contain"
-                          loading="lazy"
                         />
                         <div className="text-[11px] font-semibold text-slate-800 line-clamp-2">
-                          {item.name}
+                          {getDisplayLabel(item.name)}
                         </div>
-                      </motion.button>
+                      </button>
                     );
                   })
                 ) : (
@@ -816,13 +892,10 @@ const Category: React.FC<CategoryProps> = ({
                     const isSelected = selectedCategories.includes(name);
 
                     return (
-                      <motion.button
+                      <button
                         key={name}
                         type="button"
                         onClick={() => handleGroupSelect(group)}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.18 }}
                         className={`flex w-full items-center justify-between rounded-xl border px-2.5 py-1.5 text-left text-[10px] transition shadow-sm ${
                           isSelected
                             ? "border-emerald-200 bg-emerald-50/70 text-emerald-800"
@@ -830,12 +903,12 @@ const Category: React.FC<CategoryProps> = ({
                         }`}
                       >
                         <span className="text-[11px] font-semibold text-slate-800 line-clamp-1">
-                          {name}
+                          {getDisplayLabel(name)}
                         </span>
                         {hasChildren && (
                           <span className="text-[10px] text-slate-400">{">"}</span>
                         )}
-                      </motion.button>
+                      </button>
                     );
                   })
                 ) : (
@@ -853,13 +926,10 @@ const Category: React.FC<CategoryProps> = ({
                     const isSelected = selectedCategories.includes(item.label);
 
                     return (
-                      <motion.button
+                      <button
                         key={item.id}
                         type="button"
                         onClick={() => handleSubgroupSelect(item)}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.18 }}
                         className={`w-full rounded-xl border px-2.5 py-1.5 text-left text-[10px] transition shadow-sm ${
                           isSelected
                             ? "border-emerald-200 bg-emerald-50/70 text-emerald-800"
@@ -867,18 +937,21 @@ const Category: React.FC<CategoryProps> = ({
                         }`}
                       >
                         <div className="text-[11px] font-semibold text-slate-800 line-clamp-1">
-                          {item.label}
+                          {getDisplayLabel(item.label)}
                         </div>
                         {item.trail ? (
                           <div className="text-[10px] text-slate-500 line-clamp-1">
-                            {item.trail}
+                            {item.trail
+                              .split(" / ")
+                              .map(getDisplayLabel)
+                              .join(" / ")}
                           </div>
                         ) : item.depth === 1 ? (
                           <div className="text-[10px] text-slate-400">
                             {"\u0411\u0435\u0437 \u043f\u0456\u0434\u0433\u0440\u0443\u043f\u0438"}
                           </div>
                         ) : null}
-                      </motion.button>
+                      </button>
                     );
                   })
                 ) : (
@@ -891,7 +964,7 @@ const Category: React.FC<CategoryProps> = ({
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 };
 

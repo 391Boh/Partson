@@ -5,6 +5,12 @@ import { motion, useReducedMotion } from "framer-motion";
 import { FlipCard, type ProductNode } from "./FlipCard";
 import { useRouter } from "next/navigation";
 import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  fetchCatalogVersionHash,
+  readCatalogBrowserCache,
+  writeCatalogBrowserCache,
+} from "app/lib/catalog-client-cache";
+import { buildVisibleProductName } from "app/lib/product-url";
 
 interface CategoryRow {
   group: string;
@@ -21,10 +27,8 @@ interface Props {
 let cachedProducts: ProductNode[] | null = null;
 let cachedProductsPromise: Promise<ProductNode[]> | null = null;
 let cachedProductsLoadError: string | null = null;
+let cachedProductsHash: string | null = null;
 
-const CACHE_KEY = "partson:getprod";
-const CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24h fresh cache
-const STALE_CACHE_TTL_MS = 1000 * 60 * 60 * 72; // serve stale up to 3 days while refreshing
 const RETRYABLE_HTTP_STATUSES = new Set([500, 502, 503, 504]);
 const MAX_FETCH_ATTEMPTS = 3;
 const MAX_TREE_DEPTH = 8;
@@ -32,6 +36,8 @@ const MAX_CHILDREN_PER_NODE = 250;
 const MAX_GROUPS_FOR_RENDER = 240;
 const MAX_CATEGORY_ROWS = 1800;
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const getDisplayLabel = (value: string) => buildVisibleProductName(value || "Без назви");
+const MOTION_EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
 type ProductArrayResult = {
   nodes: unknown[];
@@ -109,68 +115,54 @@ const cardVariants = {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { duration: 0.25, ease: "easeOut" },
+    transition: { duration: 0.25, ease: MOTION_EASE_OUT },
   },
 } as const;
 
-type CachedProducts = { nodes: ProductNode[]; fresh: boolean; usable: boolean };
+type CachedProducts = {
+  nodes: ProductNode[];
+  fresh: boolean;
+  usable: boolean;
+  hash: string | null;
+};
 
 const readCachedProducts = (): CachedProducts => {
-  if (typeof window === "undefined") return { nodes: [], fresh: false, usable: false };
-
-  const storages: (Storage | undefined)[] = [window.localStorage, window.sessionStorage];
-  for (const storage of storages) {
-    if (!storage) continue;
-    try {
-      const raw = storage.getItem(CACHE_KEY);
-      if (!raw) continue;
-      const parsed: unknown = JSON.parse(raw);
-      const record =
-        parsed && typeof parsed === "object" && "v" in (parsed as Record<string, unknown>)
-          ? (parsed as { t?: unknown; v?: unknown })
-          : { v: parsed, t: 0 };
-
-      const timestamp = typeof record.t === "number" ? record.t : 0;
-      const age = Date.now() - timestamp;
-      const nodes = toProductNodes(record.v ?? null);
-      if (nodes.length === 0) continue;
-
-      const fresh = age <= CACHE_TTL_MS;
-      const usable = age <= STALE_CACHE_TTL_MS;
-      if (!usable) continue;
-      return { nodes, fresh, usable };
-    } catch {
-      continue;
-    }
-  }
-
-  return { nodes: [], fresh: false, usable: false };
+  const snapshot = readCatalogBrowserCache(toProductNodes);
+  return {
+    nodes: snapshot.items,
+    fresh: snapshot.fresh,
+    usable: snapshot.usable,
+    hash: snapshot.hash,
+  };
 };
 
-const writeBrowserCache = (value: unknown) => {
-  if (typeof window === "undefined") return;
-  const payload = JSON.stringify({ t: Date.now(), v: value });
-  try {
-    window.sessionStorage.setItem(CACHE_KEY, payload);
-  } catch {}
-  try {
-    window.localStorage.setItem(CACHE_KEY, payload);
-  } catch {}
+const writeBrowserCache = (value: unknown, hash?: string | null) => {
+  writeCatalogBrowserCache(value, hash);
 };
 
-type LoadOptions = { forceRefresh?: boolean };
+type LoadOptions = { forceRefresh?: boolean; expectedHash?: string | null };
 
 const loadProducts = async (options: LoadOptions = {}): Promise<ProductNode[]> => {
-  const { forceRefresh = false } = options;
+  const { forceRefresh = false, expectedHash = null } = options;
+  const normalizedExpectedHash = (expectedHash || "").trim() || null;
 
   if (!forceRefresh && cachedProducts && cachedProducts.length > 0) {
-    return cachedProducts;
+    if (
+      !normalizedExpectedHash ||
+      !cachedProductsHash ||
+      cachedProductsHash === normalizedExpectedHash
+    ) {
+      return cachedProducts;
+    }
   }
 
   if (!forceRefresh) {
     const cached = readCachedProducts();
-    if (cached.nodes.length > 0 && cached.fresh) {
+    const cacheHashMatches =
+      !normalizedExpectedHash || !cached.hash || cached.hash === normalizedExpectedHash;
+    if (cached.nodes.length > 0 && cached.fresh && cacheHashMatches) {
       cachedProducts = cached.nodes;
+      cachedProductsHash = cached.hash;
       cachedProductsLoadError = null;
       return cached.nodes;
     }
@@ -209,7 +201,6 @@ const loadProducts = async (options: LoadOptions = {}): Promise<ProductNode[]> =
 
         const raw = (await response.json()) as unknown;
         const extracted = extractProductArray(raw);
-        writeBrowserCache(raw);
 
         if (!extracted.extracted) {
           lastError = "Отримано некоректний формат відповіді каталогу товарів";
@@ -217,8 +208,10 @@ const loadProducts = async (options: LoadOptions = {}): Promise<ProductNode[]> =
           return [];
         }
 
+        writeBrowserCache(raw, normalizedExpectedHash);
         const transformed = normalizeProductNodes(extracted.nodes);
         cachedProducts = transformed;
+        cachedProductsHash = normalizedExpectedHash;
         cachedProductsLoadError = null;
         return transformed;
       } catch (err: unknown) {
@@ -229,12 +222,14 @@ const loadProducts = async (options: LoadOptions = {}): Promise<ProductNode[]> =
         }
         cachedProductsLoadError = lastError;
         cachedProducts = [];
+        cachedProductsHash = null;
         return [];
       }
     }
 
     cachedProductsLoadError = lastError;
     cachedProducts = [];
+    cachedProductsHash = null;
     return [];
   })().finally(() => {
     cachedProductsPromise = null;
@@ -401,10 +396,10 @@ const LoadingNotice = ({ shouldAnimate, title, subtitle }: LoadingNoticeProps) =
   <motion.div
     initial={shouldAnimate ? { opacity: 0, y: 8 } : false}
     animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
-    transition={shouldAnimate ? { duration: 0.35, ease: "easeOut" } : undefined}
-    className="relative overflow-hidden rounded-xl border border-cyan-200/80 bg-[linear-gradient(120deg,rgba(236,254,255,0.96)_0%,rgba(224,242,254,0.94)_55%,rgba(209,250,229,0.9)_100%)] px-3 py-3 shadow-[0_10px_24px_rgba(6,182,212,0.16)]"
+    transition={shouldAnimate ? { duration: 0.35, ease: MOTION_EASE_OUT } : undefined}
+    className="relative overflow-hidden rounded-xl border border-cyan-200/80 bg-[image:linear-gradient(120deg,rgba(236,254,255,0.96)_0%,rgba(224,242,254,0.94)_55%,rgba(209,250,229,0.9)_100%)] px-3 py-3 shadow-[0_10px_24px_rgba(6,182,212,0.16)]"
   >
-    <div className="pointer-events-none absolute inset-0 opacity-80 bg-[radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.22),transparent_44%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.2),transparent_40%)]" />
+    <div className="pointer-events-none absolute inset-0 opacity-80 bg-[image:radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.22),transparent_44%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.2),transparent_40%)]" />
     <div className="pointer-events-none absolute right-0 top-1/2 h-20 w-20 -translate-y-1/2 rounded-full bg-emerald-300/25 blur-3xl" />
     <div className="relative flex items-center gap-3">
       <div className="shrink-0">
@@ -455,12 +450,12 @@ const ProductFetcher: React.FC<Props> = ({
   const isBooting = !hasExternalProducts && !isHydrated;
   const showSkeleton = !hasLoadedOnce && (isBooting || isLoading);
   const entryMotion = shouldAnimate
-    ? {
-        initial: { opacity: 0, y: 10 },
-        animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.25, ease: "easeOut" },
-      }
-    : {};
+      ? {
+          initial: { opacity: 0, y: 10 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.25, ease: MOTION_EASE_OUT },
+        }
+      : {};
 
   const normalizedProducts = useMemo(
     () =>
@@ -585,6 +580,8 @@ const ProductFetcher: React.FC<Props> = ({
     if (cache.usable && cache.nodes.length > 0) {
       setProductNodes(cache.nodes);
       setHasLoadedOnce(true);
+      cachedProducts = cache.nodes;
+      cachedProductsHash = cache.hash;
       if (cache.fresh) {
         setIsLoading(false);
       }
@@ -594,7 +591,23 @@ const ProductFetcher: React.FC<Props> = ({
 
     setLoadError(null);
 
-    loadProducts({ forceRefresh: !cache.fresh }).then((data) => {
+    const syncCatalogTree = async () => {
+      const latestHash = await fetchCatalogVersionHash();
+      if (!active) return;
+
+      const hasUsableCache = cache.usable && cache.nodes.length > 0;
+      const hasMatchingVersion = latestHash ? cache.hash === latestHash : cache.fresh;
+      if (hasUsableCache && hasMatchingVersion) {
+        setIsLoading(false);
+        setLoadError(null);
+        return;
+      }
+
+      const data = await loadProducts({
+        forceRefresh: !hasUsableCache || Boolean(latestHash ? cache.hash !== latestHash : !cache.fresh),
+        expectedHash: latestHash,
+      });
+
       if (!active) return;
       if (data.length > 0) {
         setProductNodes(data);
@@ -602,7 +615,9 @@ const ProductFetcher: React.FC<Props> = ({
       }
       setIsLoading(false);
       setLoadError(cachedProductsLoadError);
-    });
+    };
+
+    void syncCatalogTree();
 
     return () => {
       active = false;
@@ -629,6 +644,49 @@ const ProductFetcher: React.FC<Props> = ({
     media.addListener(update);
     return () => media.removeListener(update);
   }, []);
+
+  useEffect(() => {
+    if (hasExternalProducts || !isHydrated) return;
+
+    let active = true;
+
+    const refreshOnFocus = async () => {
+      const latestHash = await fetchCatalogVersionHash({ force: true });
+      if (!active || !latestHash) return;
+
+      const cache = readCachedProducts();
+      if (cache.hash === latestHash && cache.nodes.length > 0) return;
+
+      const data = await loadProducts({
+        forceRefresh: true,
+        expectedHash: latestHash,
+      });
+      if (!active) return;
+      if (data.length > 0) {
+        setProductNodes(data);
+        setHasLoadedOnce(true);
+      }
+      setLoadError(cachedProductsLoadError);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshOnFocus();
+    };
+
+    const handleFocus = () => {
+      void refreshOnFocus();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      active = false;
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [hasExternalProducts, isHydrated]);
 
   const pagedGroups = useMemo(() => {
     const start = (page - 1) * ITEMS_PER_PAGE;
@@ -663,19 +721,19 @@ const ProductFetcher: React.FC<Props> = ({
           : ""
       } sm:pb-0`}
     >
-      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/tovar:opacity-100 bg-[radial-gradient(circle_at_12%_16%,rgba(125,211,252,0.26),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.22),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(147,197,253,0.2),transparent_36%)]" />
-      <div className="relative z-10 mx-auto grid w-full max-w-[1400px] grid-cols-1 items-start gap-6 px-4 sm:px-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:px-7">
+      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/tovar:opacity-100 bg-[image:radial-gradient(circle_at_12%_16%,rgba(125,211,252,0.26),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.22),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(147,197,253,0.2),transparent_36%)]" />
+      <div className="page-shell-inline relative z-10 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <motion.aside
         {...entryMotion}
         className={`${canHover ? "group " : ""}relative z-10 min-w-0 self-start overflow-hidden rounded-2xl border border-sky-100/90 bg-gradient-to-br from-white/96 via-sky-50/82 to-blue-100/72 backdrop-blur-sm shadow-[0_18px_44px_rgba(2,132,199,0.2),0_10px_26px_rgba(30,64,175,0.14)] px-5 pb-1 pt-3 text-gray-800 transition-all duration-300 hover:shadow-[0_26px_56px_rgba(2,132,199,0.28),0_12px_30px_rgba(30,64,175,0.18)]`}
       >
-            <div className="absolute inset-0 pointer-events-none opacity-75 bg-[radial-gradient(circle_at_20%_20%,rgba(224,242,254,0.95),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(59,130,246,0.18),transparent_36%)]" />
+            <div className="absolute inset-0 pointer-events-none opacity-75 bg-[image:radial-gradient(circle_at_20%_20%,rgba(224,242,254,0.95),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(59,130,246,0.18),transparent_36%)]" />
             <div className="relative">
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-9 w-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shadow-inner">
                   <Search size={16} />
                 </div>
-                <h3 className="font-display relative min-w-0 flex-1 text-[21px] font-extrabold italic tracking-[-0.03em] text-slate-700 drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)] sm:text-[24px]">
+                <h3 className="font-display relative min-w-0 flex-1 text-[22px] tracking-[-0.045em] text-slate-700 sm:text-[25px]">
                   <span className="relative inline-block max-w-full break-words">
                     {"\u0428\u0432\u0438\u0434\u043a\u0438\u0439 \u043f\u043e\u0448\u0443\u043a \u0442\u043e\u0432\u0430\u0440\u0456\u0432!"}
                     <span className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400 transform origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 hover:scale-x-100 shadow-[0_4px_12px_rgba(37,99,235,0.3)]" />
@@ -720,8 +778,10 @@ const ProductFetcher: React.FC<Props> = ({
                   <div className="grid grid-cols-1 gap-2.5">
                     {displayedRows.map((row) => {
                       const isActive = selectedCategories.includes(row.id);
+                      const displayLeaf = getDisplayLabel(row.leaf);
                       const trailLabel =
-                        row.path.slice(0, -1).join(" / ") || row.group;
+                        row.path.slice(0, -1).map(getDisplayLabel).join(" / ") ||
+                        getDisplayLabel(row.group);
                       return (
                         <button
                           key={row.id}
@@ -729,22 +789,22 @@ const ProductFetcher: React.FC<Props> = ({
                           onClick={() => handleRowSelect(row)}
                           className={`group/row relative w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-all duration-300 ${
                             isActive
-                              ? "border-cyan-300/90 bg-[linear-gradient(115deg,rgba(207,250,254,0.97)_0%,rgba(224,242,254,0.95)_52%,rgba(209,250,229,0.92)_100%)] shadow-[0_14px_30px_rgba(6,182,212,0.28)] ring-1 ring-cyan-200/80"
+                              ? "border-cyan-300/90 bg-[image:linear-gradient(115deg,rgba(207,250,254,0.97)_0%,rgba(224,242,254,0.95)_52%,rgba(209,250,229,0.92)_100%)] shadow-[0_14px_30px_rgba(6,182,212,0.28)] ring-1 ring-cyan-200/80"
                               : [
-                                  "border-sky-100/95 bg-[linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] shadow-[0_8px_18px_rgba(8,145,178,0.14)]",
+                                  "border-sky-100/95 bg-[image:linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] shadow-[0_8px_18px_rgba(8,145,178,0.14)]",
                                   "hover:border-cyan-300/80",
                                   "hover:shadow-[0_18px_36px_rgba(6,182,212,0.22)]",
                                   "hover:ring-1 hover:ring-cyan-200/80",
-                                  "hover:bg-[linear-gradient(112deg,rgba(236,254,255,0.98)_0%,rgba(224,242,254,0.96)_48%,rgba(209,250,229,0.93)_100%)]",
+                                  "hover:bg-[image:linear-gradient(112deg,rgba(236,254,255,0.98)_0%,rgba(224,242,254,0.96)_48%,rgba(209,250,229,0.93)_100%)]",
                                   "hover:saturate-[1.06]",
                                 ].join(" ")
                           }`}
                         >
-                          <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover/row:opacity-100 bg-[radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.22),transparent_42%),radial-gradient(circle_at_86%_16%,rgba(56,189,248,0.2),transparent_38%),radial-gradient(circle_at_52%_100%,rgba(45,212,191,0.16),transparent_38%)]" />
+                          <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover/row:opacity-100 bg-[image:radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.22),transparent_42%),radial-gradient(circle_at_86%_16%,rgba(56,189,248,0.2),transparent_38%),radial-gradient(circle_at_52%_100%,rgba(45,212,191,0.16),transparent_38%)]" />
                           <div className="relative flex items-center gap-2.5">
                             <div className="min-w-0 flex-1 space-y-0.5">
                               <div className="truncate text-sm font-semibold text-slate-800">
-                                {row.leaf}
+                                {displayLeaf}
                               </div>
                               <div className="truncate text-xs text-slate-500/90">
                                 {trailLabel}
@@ -859,10 +919,10 @@ const ProductFetcher: React.FC<Props> = ({
                   {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
                     <div
                       key={`card-skeleton-${index}`}
-                      className="skeleton-card relative overflow-hidden rounded-xl border border-cyan-100/80 bg-[linear-gradient(120deg,rgba(255,255,255,0.94)_0%,rgba(240,249,255,0.9)_52%,rgba(224,242,254,0.88)_100%)] px-4 py-5 shadow-[0_8px_18px_rgba(8,145,178,0.14)]"
+                      className="skeleton-card relative overflow-hidden rounded-xl border border-cyan-100/80 bg-[image:linear-gradient(120deg,rgba(255,255,255,0.94)_0%,rgba(240,249,255,0.9)_52%,rgba(224,242,254,0.88)_100%)] px-4 py-5 shadow-[0_8px_18px_rgba(8,145,178,0.14)]"
                       aria-hidden="true"
                     >
-                      <div className="pointer-events-none absolute inset-0 opacity-70 bg-[radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.2),transparent_42%),radial-gradient(circle_at_85%_18%,rgba(56,189,248,0.16),transparent_40%)]" />
+                      <div className="pointer-events-none absolute inset-0 opacity-70 bg-[image:radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.2),transparent_42%),radial-gradient(circle_at_85%_18%,rgba(56,189,248,0.16),transparent_40%)]" />
                       <div className="relative h-12 w-12 rounded-full border border-cyan-200/60 bg-cyan-100/90" />
                       <div className="relative mt-4 h-3 w-3/4 rounded-full bg-cyan-100/90" />
                       <div className="relative mt-2 h-3 w-1/2 rounded-full bg-cyan-100/70" />

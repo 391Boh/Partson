@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { buildPageMetadata } from "app/lib/seo-metadata";
 
 export type InformationSectionKey = "delivery" | "payment" | "about" | "location";
 
@@ -86,37 +87,15 @@ export const getInformationMetadata = (key: InformationSectionKey): Metadata => 
     "Інформаційні сторінки PartsON: доставка, оплата, контакти та інформація про магазин автозапчастин.";
   const canonicalPath = getInformationPath(resolvedKey);
 
-  return {
+  return buildPageMetadata({
     title,
     description,
-    keywords: [...(section?.keywords || []), "PartsON", "автозапчастини"],
-    alternates: {
-      canonical: canonicalPath,
+    canonicalPath,
+    keywords: section?.keywords || [],
+    openGraphTitle: title,
+    image: {
+      url: "/Car-parts-fullwidth.png",
+      alt: title,
     },
-    openGraph: {
-      type: "website",
-      locale: "uk_UA",
-      url: canonicalPath,
-      title,
-      description,
-      images: [{ url: "/Car-parts-fullwidth.png", alt: title }],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-      images: ["/Car-parts-fullwidth.png"],
-    },
-    robots: {
-      index: true,
-      follow: true,
-      googleBot: {
-        index: true,
-        follow: true,
-        "max-image-preview": "large",
-        "max-snippet": -1,
-        "max-video-preview": -1,
-      },
-    },
-  };
+  });
 };

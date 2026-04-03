@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, type ReactNode } from "react";
 
 type SectionBoundaryProps = {
   children: ReactNode;
@@ -18,7 +18,7 @@ class SectionBoundary extends Component<SectionBoundaryProps, SectionBoundarySta
     return { hasError: true };
   }
 
-  componentDidCatch(_error: Error, _errorInfo: ErrorInfo) {}
+  componentDidCatch() {}
 
   render() {
     if (!this.state.hasError) {
@@ -26,7 +26,7 @@ class SectionBoundary extends Component<SectionBoundaryProps, SectionBoundarySta
     }
 
     return (
-      <div className="mx-auto w-full max-w-[1400px] px-4 py-4 sm:px-5 lg:px-7">
+      <div className="page-shell-inline py-4">
         <div className="rounded-2xl border border-amber-300/70 bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 px-4 py-4 text-slate-800 shadow-[0_12px_28px_rgba(217,119,6,0.14)]">
           <p className="text-sm font-semibold">
             {this.props.title || "Компонент тимчасово недоступний"}

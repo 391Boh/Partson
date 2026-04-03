@@ -122,6 +122,89 @@ interface Props {
   onNotificationCountChange?: (count: number) => void;
 }
 
+const normalizeCode = (raw: unknown): string | undefined => {
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed || undefined;
+  }
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return String(raw).trim();
+  }
+  return undefined;
+};
+
+const normalizePhoneDigits = (raw?: string) => (raw || '').replace(/\D/g, '');
+
+const normalizeVins = (raw: unknown): string[] => {
+  if (!raw) return [];
+
+  if (typeof raw === 'string') {
+    return raw
+      .split(/[,;\n]/)
+      .map((vin) => vin.trim())
+      .filter(Boolean);
+  }
+
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((vin): vin is string => typeof vin === 'string')
+      .map((vin) => vin.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof raw === 'object') {
+    return Object.values(raw as Record<string, unknown>)
+      .map((vin) => normalizeCode(vin))
+      .filter((vin): vin is string => Boolean(vin));
+  }
+
+  return [];
+};
+
+const getTimestampMs = (raw: unknown) => {
+  if (!raw) return null;
+  if (typeof raw === 'string' || raw instanceof Date || typeof raw === 'number') {
+    const value = new Date(raw).getTime();
+    return Number.isFinite(value) ? value : null;
+  }
+  if (
+    typeof raw === 'object' &&
+    raw !== null &&
+    'toDate' in (raw as { toDate?: unknown }) &&
+    typeof (raw as { toDate?: () => Date }).toDate === 'function'
+  ) {
+    const value = (raw as { toDate: () => Date }).toDate().getTime();
+    return Number.isFinite(value) ? value : null;
+  }
+  return null;
+};
+
+const formatTimestampLabel = (raw: unknown) => {
+  const timestampMs = getTimestampMs(raw);
+  if (!timestampMs) return 'Щойно';
+
+  const value = new Date(timestampMs);
+  const now = new Date();
+  const sameDay =
+    value.getFullYear() === now.getFullYear() &&
+    value.getMonth() === now.getMonth() &&
+    value.getDate() === now.getDate();
+
+  if (sameDay) {
+    return new Intl.DateTimeFormat('uk-UA', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(value);
+  }
+
+  return new Intl.DateTimeFormat('uk-UA', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(value);
+};
+
 export default function AdminChatPanel({
   isOpen,
   onClose,
@@ -134,6 +217,9 @@ export default function AdminChatPanel({
   const [orders, setOrders] = useState<Order[]>([]);
   const [calls, setCalls] = useState<CallRequest[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
+  const [chatPresenceMap, setChatPresenceMap] = useState<
+    Record<string, { userIsOnline: boolean; userLastSeenAt?: unknown }>
+  >({});
   const [userPhoneMap, setUserPhoneMap] = useState<Record<string, string>>({});
   const [orderSearch, setOrderSearch] = useState('');
   const [messageSearch, setMessageSearch] = useState('');
@@ -220,6 +306,25 @@ export default function AdminChatPanel({
       });
       setUserPhoneMap(nextMap);
       setUsers(nextUsers);
+    });
+  }, []);
+
+  useEffect(() => {
+    return onSnapshot(collection(db, 'chatPresence'), (snap) => {
+      const nextPresenceMap: Record<
+        string,
+        { userIsOnline: boolean; userLastSeenAt?: unknown }
+      > = {};
+
+      snap.docs.forEach((snapshotDoc) => {
+        const data = snapshotDoc.data() as Record<string, unknown>;
+        nextPresenceMap[snapshotDoc.id] = {
+          userIsOnline: data?.userIsOnline === true,
+          userLastSeenAt: data?.userLastSeenAt ?? data?.lastSeenAt,
+        };
+      });
+
+      setChatPresenceMap(nextPresenceMap);
     });
   }, []);
 
@@ -315,97 +420,47 @@ export default function AdminChatPanel({
     );
   };
 
-  const normalizeCode = (raw: unknown): string | undefined => {
-    if (typeof raw === 'string') {
-      const trimmed = raw.trim();
-      return trimmed || undefined;
-    }
-    if (typeof raw === 'number' && Number.isFinite(raw)) {
-      return String(raw).trim();
-    }
-    return undefined;
-  };
-
-  const normalizePhoneDigits = (raw?: string) => (raw || '').replace(/\D/g, '');
-
-  const normalizeVins = (raw: unknown): string[] => {
-    if (!raw) return [];
-
-    if (typeof raw === 'string') {
-      return raw
-        .split(/[,;\n]/)
-        .map((vin) => vin.trim())
-        .filter(Boolean);
-    }
-
-    if (Array.isArray(raw)) {
-      return raw
-        .filter((vin): vin is string => typeof vin === 'string')
-        .map((vin) => vin.trim())
-        .filter(Boolean);
-    }
-
-    if (typeof raw === 'object') {
-      return Object.values(raw as Record<string, unknown>)
-        .map((vin) => normalizeCode(vin))
-        .filter((vin): vin is string => Boolean(vin));
-    }
-
-    return [];
-  };
-
-  const getTimestampMs = (raw: unknown) => {
-    if (!raw) return null;
-    if (typeof raw === 'string' || raw instanceof Date || typeof raw === 'number') {
-      const value = new Date(raw).getTime();
-      return Number.isFinite(value) ? value : null;
-    }
-    if (
-      typeof raw === 'object' &&
-      raw !== null &&
-      'toDate' in (raw as { toDate?: unknown }) &&
-      typeof (raw as { toDate?: () => Date }).toDate === 'function'
-    ) {
-      const value = (raw as { toDate: () => Date }).toDate().getTime();
-      return Number.isFinite(value) ? value : null;
-    }
-    return null;
-  };
-
-  const formatTimestampLabel = (raw: unknown) => {
-    const timestampMs = getTimestampMs(raw);
-    if (!timestampMs) return 'Щойно';
-
-    const value = new Date(timestampMs);
-    const now = new Date();
-    const sameDay =
-      value.getFullYear() === now.getFullYear() &&
-      value.getMonth() === now.getMonth() &&
-      value.getDate() === now.getDate();
-
-    if (sameDay) {
-      return new Intl.DateTimeFormat('uk-UA', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(value);
-    }
-
-    return new Intl.DateTimeFormat('uk-UA', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(value);
-  };
-
-  const getUserByChatId = (uid: string) =>
-    users.find((u) => u.chatUserId === uid || u.id === uid);
-
   const getUserChatId = (user: UserRecord) => user.chatUserId || user.id;
 
+  const allUsers = (() => {
+    const nextUsers = [...users];
+    const seenChatIds = new Set(nextUsers.map((user) => getUserChatId(user)).filter(Boolean));
+
+    for (const chatId of new Set([
+      ...messages.map((message) => message.userId),
+      ...Object.keys(chatPresenceMap),
+    ])) {
+      const normalizedChatId = (chatId || '').trim();
+      if (!normalizedChatId || seenChatIds.has(normalizedChatId)) continue;
+
+      seenChatIds.add(normalizedChatId);
+      nextUsers.push({
+        id: normalizedChatId,
+        chatUserId: normalizedChatId,
+        vins: [],
+        isOnline: chatPresenceMap[normalizedChatId]?.userIsOnline === true,
+        lastSeenAt: chatPresenceMap[normalizedChatId]?.userLastSeenAt,
+      });
+    }
+
+    return nextUsers;
+  })();
+
+  const getUserByChatId = (uid: string) =>
+    allUsers.find((u) => u.chatUserId === uid || u.id === uid);
+
+  const getResolvedUserPresence = (user: UserRecord) => {
+    const presence = chatPresenceMap[getUserChatId(user)];
+    return {
+      isOnline: presence?.userIsOnline ?? user.isOnline ?? false,
+      lastSeenAt: presence?.userLastSeenAt ?? user.lastSeenAt,
+    };
+  };
+
   const isUserOnline = (user: UserRecord) => {
-    if (user.isOnline !== true) return false;
-    const lastSeenMs = getTimestampMs(user.lastSeenAt);
+    const presence = getResolvedUserPresence(user);
+    if (presence.isOnline !== true) return false;
+    const lastSeenMs = getTimestampMs(presence.lastSeenAt);
     if (!lastSeenMs) return true;
     return Date.now() - lastSeenMs <= 1000 * 90;
   };
@@ -744,7 +799,7 @@ export default function AdminChatPanel({
   const normalizedUserSearchDigits = normalizePhoneDigits(userSearch);
   const normalizedMessageSearch = messageSearch.trim().toLowerCase();
   const normalizedMessageSearchDigits = normalizePhoneDigits(messageSearch);
-  const filteredUsers = users.filter((u) => {
+  const filteredUsers = allUsers.filter((u) => {
     if (!normalizedUserSearch) return true;
 
     const searchable =
@@ -766,8 +821,8 @@ export default function AdminChatPanel({
       return Number(rightOnline) - Number(leftOnline);
     }
 
-    const leftSeen = getTimestampMs(left.lastSeenAt) ?? 0;
-    const rightSeen = getTimestampMs(right.lastSeenAt) ?? 0;
+    const leftSeen = getTimestampMs(getResolvedUserPresence(left).lastSeenAt) ?? 0;
+    const rightSeen = getTimestampMs(getResolvedUserPresence(right).lastSeenAt) ?? 0;
     if (leftSeen !== rightSeen) {
       return rightSeen - leftSeen;
     }
@@ -876,7 +931,7 @@ export default function AdminChatPanel({
         animation: 'adminGradient 12s ease infinite',
       }}
     >
-      <div className="border-b border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.82),rgba(30,41,59,0.72),rgba(14,165,233,0.16))] px-3 py-3 text-white sm:px-5 sm:py-4">
+      <div className="border-b border-white/10 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.82),rgba(30,41,59,0.72),rgba(14,165,233,0.16))] px-3 py-3 text-white sm:px-5 sm:py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-sky-200/20 bg-white/10 text-sky-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_18px_32px_rgba(14,165,233,0.2)]">
@@ -945,7 +1000,7 @@ export default function AdminChatPanel({
         />
       </div>
 
-      <main className="flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(15,23,42,0.5),rgba(2,6,23,0.56))] p-2 text-slate-100 sm:p-4">
+      <main className="flex-1 overflow-y-auto bg-[image:linear-gradient(180deg,rgba(15,23,42,0.5),rgba(2,6,23,0.56))] p-2 text-slate-100 sm:p-4">
         {tab === 'messages' && (
           <>
             {!selectedUserId ? (
@@ -986,7 +1041,7 @@ export default function AdminChatPanel({
                       }}
                       role="button"
                       tabIndex={0}
-                      className="group w-full rounded-[18px] border border-white/8 bg-[linear-gradient(180deg,rgba(30,41,59,0.82),rgba(15,23,42,0.74))] p-2.5 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.16)] transition-colors duration-200 hover:border-sky-300/20 hover:bg-white/[0.06] sm:rounded-[22px] sm:p-3"
+                      className="group w-full rounded-[18px] border border-white/8 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.82),rgba(15,23,42,0.74))] p-2.5 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.16)] transition-colors duration-200 hover:border-sky-300/20 hover:bg-white/[0.06] sm:rounded-[22px] sm:p-3"
                     >
                       <div className="flex items-start gap-3">
                         <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sky-100">
@@ -1047,7 +1102,7 @@ export default function AdminChatPanel({
               </div>
             ) : (
                 <div className="flex flex-col h-full">
-                  <div className="mb-3 rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(30,41,59,0.92),rgba(15,23,42,0.9))] p-3.5 shadow-[0_18px_34px_rgba(2,6,23,0.22)]">
+                  <div className="mb-3 rounded-[24px] border border-white/10 bg-[image:linear-gradient(135deg,rgba(30,41,59,0.92),rgba(15,23,42,0.9))] p-3.5 shadow-[0_18px_34px_rgba(2,6,23,0.22)]">
                     <div className="flex items-start gap-3">
                       <button
                         onClick={() => setSelectedUserId(null)}
@@ -1145,7 +1200,7 @@ export default function AdminChatPanel({
                               : `rounded-[22px] px-3.5 py-2.5 text-sm shadow-[0_12px_24px_rgba(2,6,23,0.18)] ${
                                   m.sender === 'user'
                                     ? 'border border-white/10 bg-white/10 text-slate-100'
-                                    : 'bg-[linear-gradient(135deg,rgba(14,165,233,0.95),rgba(37,99,235,0.92))] text-white'
+                                    : 'bg-[image:linear-gradient(135deg,rgba(14,165,233,0.95),rgba(37,99,235,0.92))] text-white'
                                 }`
                           }`}
                         >
@@ -1298,7 +1353,7 @@ export default function AdminChatPanel({
               return (
                 <div
                   key={userItem.id}
-                  className="mb-2 flex w-full flex-col gap-1.5 rounded-[18px] border border-white/7 bg-[linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.64))] p-2.5 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] transition-colors hover:border-sky-300/20 hover:bg-white/[0.05] sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:rounded-[20px] sm:p-3"
+                  className="mb-2 flex w-full flex-col gap-1.5 rounded-[18px] border border-white/7 bg-[image:linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.64))] p-2.5 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] transition-colors hover:border-sky-300/20 hover:bg-white/[0.05] sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:rounded-[20px] sm:p-3"
                 >
                     <div className="truncate">
                       <div className="flex items-center gap-2">
@@ -1455,7 +1510,7 @@ export default function AdminChatPanel({
                 : 'bg-sky-500/20 text-sky-200';
 
               return (
-                <div key={o.id} className="mb-2 rounded-[18px] border border-white/6 bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2.5 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:rounded-[22px] sm:p-3">
+                <div key={o.id} className="mb-2 rounded-[18px] border border-white/6 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2.5 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:rounded-[22px] sm:p-3">
                   <div className="flex justify-between items-center gap-2">
                     <div
                       className="flex-1 cursor-pointer"
@@ -1557,7 +1612,7 @@ export default function AdminChatPanel({
               : 'bg-sky-500/20 text-sky-200';
 
             return (
-              <div key={c.id} className="rounded-[18px] border border-white/6 bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2.5 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:rounded-[22px] sm:p-3">
+              <div key={c.id} className="rounded-[18px] border border-white/6 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2.5 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:rounded-[22px] sm:p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-medium">{c.name}</p>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full ${callStatusClass}`}>
@@ -1635,7 +1690,7 @@ function Tab({
       onClick={onClick}
       className={`relative flex min-h-[58px] items-center gap-2 rounded-[18px] border px-2.5 py-2 text-left transition sm:min-h-[64px] sm:gap-2.5 sm:px-3 sm:py-2 ${
         active
-          ? 'border-sky-300/35 bg-[linear-gradient(135deg,rgba(56,189,248,0.18),rgba(59,130,246,0.16))] text-white shadow-[0_14px_26px_rgba(14,165,233,0.14)]'
+          ? 'border-sky-300/35 bg-[image:linear-gradient(135deg,rgba(56,189,248,0.18),rgba(59,130,246,0.16))] text-white shadow-[0_14px_26px_rgba(14,165,233,0.14)]'
           : 'border-white/5 text-slate-300 hover:bg-white/5'
       }`}
     >

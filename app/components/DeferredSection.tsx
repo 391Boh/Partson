@@ -8,6 +8,7 @@ interface DeferredSectionProps {
   rootMargin?: string;
   minHeight?: string;
   className?: string;
+  initiallyVisible?: boolean;
   /** Fallback timeout to force mount on browsers where observers can be unreliable. */
   fallbackDelayMs?: number;
 }
@@ -25,13 +26,14 @@ const DeferredSection = ({
   rootMargin = "200px",
   minHeight = "1px",
   className,
+  initiallyVisible = false,
   fallbackDelayMs = 10000,
 }: DeferredSectionProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(initiallyVisible);
 
   useEffect(() => {
-    if (isVisible) return;
+    if (initiallyVisible || isVisible) return;
 
     const node = containerRef.current;
     if (!node) return;
@@ -73,7 +75,7 @@ const DeferredSection = ({
       observer.disconnect();
       clearTimeout(timeoutId);
     };
-  }, [isVisible, fallbackDelayMs, rootMargin]);
+  }, [fallbackDelayMs, initiallyVisible, isVisible, rootMargin]);
 
   return (
     <div

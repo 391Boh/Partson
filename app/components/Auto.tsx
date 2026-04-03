@@ -4,7 +4,7 @@ import React, { useState, useRef, useMemo, useCallback, useEffect } from "react"
 import Image from "next/image";
 import { Car, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 import { carBrands, CarBrand } from "../components/carBrands";
@@ -33,6 +33,7 @@ interface AutoProps {
   compact?: boolean;
   variant?: "default" | "filter";
   showSummary?: boolean;
+  showAllBrands?: boolean;
 }
 
 interface ModDetails {
@@ -47,12 +48,86 @@ type Debounced<TArgs extends unknown[]> = ((...args: TArgs) => void) & {
 };
 
 const BRAND_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
+const AUTO_STORAGE_KEYS = {
+  cars: "partson:selectedCars",
+  selection: "partson:selectedCarSelection",
+  vin: "partson:selectedVin",
+} as const;
+
+type StoredCarState = {
+  cars: string[];
+  selection: PersistedCarSelection | null;
+  vin: string | null;
+};
 
 const handleBrandLogoLoadError = (event: React.SyntheticEvent<HTMLImageElement>) => {
   const image = event.currentTarget;
   if (image.dataset.fallbackApplied === "1") return;
   image.dataset.fallbackApplied = "1";
   image.src = BRAND_LOGO_FALLBACK_PATH;
+};
+
+const normalizeCars = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "")
+    : [];
+
+const parseSelection = (value: unknown): PersistedCarSelection | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const brand = typeof record.brand === "string" && record.brand.trim() ? record.brand : "";
+  const model = typeof record.model === "string" && record.model.trim() ? record.model : "";
+  const label = typeof record.label === "string" && record.label.trim() ? record.label : "";
+  const year = typeof record.year === "number" && Number.isFinite(record.year) ? record.year : null;
+  const volume =
+    typeof record.volume === "string" && record.volume.trim() ? record.volume : null;
+  const power = typeof record.power === "string" && record.power.trim() ? record.power : null;
+  const gearbox =
+    typeof record.gearbox === "string" && record.gearbox.trim() ? record.gearbox : null;
+  const drive = typeof record.drive === "string" && record.drive.trim() ? record.drive : null;
+
+  if (!brand || !model || !label) return null;
+  return { brand, model, year, volume, power, gearbox, drive, label };
+};
+
+const parseVin = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const arraysEqual = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
+
+const selectionEqual = (
+  a: PersistedCarSelection | null,
+  b: PersistedCarSelection | null
+) =>
+  a?.brand === b?.brand &&
+  a?.model === b?.model &&
+  a?.year === b?.year &&
+  a?.volume === b?.volume &&
+  a?.power === b?.power &&
+  a?.gearbox === b?.gearbox &&
+  a?.drive === b?.drive &&
+  a?.label === b?.label;
+
+const readStoredCarState = (storage: Storage): StoredCarState => {
+  const rawCars = storage.getItem(AUTO_STORAGE_KEYS.cars);
+  const rawSelection = storage.getItem(AUTO_STORAGE_KEYS.selection);
+  const rawVin = storage.getItem(AUTO_STORAGE_KEYS.vin);
+  const parsedCars = rawCars ? (JSON.parse(rawCars) as unknown) : [];
+  const parsedSelection = rawSelection ? (JSON.parse(rawSelection) as unknown) : null;
+
+  const cars = normalizeCars(parsedCars);
+  const selection = parseSelection(parsedSelection);
+  const vin = parseVin(rawVin);
+
+  if (selection && !cars.includes(selection.label)) {
+    return { cars: [...cars, selection.label], selection, vin };
+  }
+
+  return { cars, selection, vin };
 };
 
 const debounce = <TArgs extends unknown[]>(
@@ -151,22 +226,35 @@ const AutoBrandSearchInput = React.memo(
 AutoBrandSearchInput.displayName = "AutoBrandSearchInput";
 
 const AutoSection: React.FC<AutoProps> = ({
-  selectedCars = [],
-  handleCarChange = () => {},
-  initialSelection = null,
+  selectedCars: selectedCarsProp,
+  handleCarChange: handleCarChangeProp,
+  initialSelection,
   onSelectionChange,
   onVinSelect,
-  selectedVin: selectedVinProp = null,
+  selectedVin: selectedVinProp,
   compact = false,
   variant = "default",
   showSummary = true,
+  showAllBrands = false,
   playEntranceAnimations = true,
 }) => {
+  const isStandalonePersistenceEnabled =
+    selectedCarsProp === undefined &&
+    handleCarChangeProp === undefined &&
+    initialSelection === undefined &&
+    onSelectionChange === undefined &&
+    selectedVinProp === undefined &&
+    onVinSelect === undefined;
   const shouldReduceMotion = useReducedMotion() ?? false;
   const shouldAnimate = !shouldReduceMotion && playEntranceAnimations;
   const isCompact = Boolean(compact);
   const isFilterVariant = variant === "filter";
   const [searchTerm, setSearchTerm] = useState("");
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>([]);
+  const [internalSelection, setInternalSelection] =
+    useState<PersistedCarSelection | null>(null);
+  const [selectionReady, setSelectionReady] = useState(!isStandalonePersistenceEnabled);
   const [selectedBrand, setSelectedBrand] = useState<CarBrand | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
@@ -187,6 +275,29 @@ const AutoSection: React.FC<AutoProps> = ({
   const isSwiping = useRef(false);
   const selectionHydratedRef = useRef<string | null>(null);
   const lastSelectedLabelRef = useRef<string | null>(null);
+  const skipNextStandaloneRemoteSaveRef = useRef(false);
+
+  const selectedCars = selectedCarsProp ?? internalSelectedCars;
+  const resolvedInitialSelection = initialSelection ?? internalSelection;
+
+  const handleCarChange = useCallback(
+    (car: string) => {
+      const normalized = car.trim();
+      if (!normalized) return;
+
+      if (handleCarChangeProp) {
+        handleCarChangeProp(normalized);
+        return;
+      }
+
+      setInternalSelectedCars((prev) =>
+        prev.includes(normalized)
+          ? prev.filter((item) => item !== normalized)
+          : [...prev, normalized]
+      );
+    },
+    [handleCarChangeProp]
+  );
 
   const debouncedSetSearchTerm = useMemo(
     () => debounce((value: string) => setSearchTerm(value), 250),
@@ -207,10 +318,29 @@ const AutoSection: React.FC<AutoProps> = ({
   }, [debouncedSetSearchTerm]);
 
   useEffect(() => {
-    if (!initialSelection) return;
-    const incomingLabel = initialSelection.label || null;
+    if (!isStandalonePersistenceEnabled || typeof window === "undefined") return;
+
+    try {
+      const nextState = readStoredCarState(window.localStorage);
+      setInternalSelectedCars((prev) =>
+        arraysEqual(prev, nextState.cars) ? prev : nextState.cars
+      );
+      setInternalSelection((prev) =>
+        selectionEqual(prev, nextState.selection) ? prev : nextState.selection
+      );
+      setSelectedVin((prev) => (prev === (nextState.vin ?? "") ? prev : nextState.vin ?? ""));
+    } catch (error) {
+      console.error("Failed to load auto state from local storage:", error);
+    } finally {
+      setSelectionReady(true);
+    }
+  }, [isStandalonePersistenceEnabled]);
+
+  useEffect(() => {
+    if (!resolvedInitialSelection) return;
+    const incomingLabel = resolvedInitialSelection.label || null;
     if (selectionHydratedRef.current === incomingLabel) return;
-    const brandName = initialSelection.brand?.trim();
+    const brandName = resolvedInitialSelection.brand?.trim();
     if (!brandName) return;
     const resolvedBrand =
       carBrands.find((brand) => brand.name === brandName) ??
@@ -221,21 +351,23 @@ const AutoSection: React.FC<AutoProps> = ({
       } as CarBrand);
 
     setSelectedBrand(resolvedBrand);
-    setSelectedModel(initialSelection.model || null);
+    setSelectedModel(resolvedInitialSelection.model || null);
     setSelectedYear(
-      typeof initialSelection.year === "number" ? initialSelection.year : null
+      typeof resolvedInitialSelection.year === "number"
+        ? resolvedInitialSelection.year
+        : null
     );
     setSelectedModDetails({
-      volume: initialSelection.volume ?? null,
-      power: initialSelection.power ?? null,
-      gearbox: initialSelection.gearbox ?? null,
-      drive: initialSelection.drive ?? null,
+      volume: resolvedInitialSelection.volume ?? null,
+      power: resolvedInitialSelection.power ?? null,
+      gearbox: resolvedInitialSelection.gearbox ?? null,
+      drive: resolvedInitialSelection.drive ?? null,
     });
-    setSelectedCarLabel(initialSelection.label || null);
-    lastSelectedLabelRef.current = initialSelection.label || null;
+    setSelectedCarLabel(resolvedInitialSelection.label || null);
+    lastSelectedLabelRef.current = resolvedInitialSelection.label || null;
     setActiveTab("engine");
     selectionHydratedRef.current = incomingLabel ?? "__loaded__";
-  }, [initialSelection]);
+  }, [resolvedInitialSelection]);
 
   useEffect(() => {
     if (selectedVinProp === undefined) return;
@@ -250,6 +382,10 @@ const AutoSection: React.FC<AutoProps> = ({
     let unsubscribeProfile: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (!cancelled) {
+        setFirebaseUser(user ?? null);
+      }
+
       if (unsubscribeProfile) {
         unsubscribeProfile();
         unsubscribeProfile = null;
@@ -259,6 +395,9 @@ const AutoSection: React.FC<AutoProps> = ({
         if (!cancelled) {
           setProfileVins([]);
           setVinLoading(false);
+          if (isStandalonePersistenceEnabled) {
+            setSelectionReady(true);
+          }
         }
         return;
       }
@@ -282,12 +421,53 @@ const AutoSection: React.FC<AutoProps> = ({
 
           setProfileVins(uniqueVins);
           setVinLoading(false);
+
+          if (isStandalonePersistenceEnabled) {
+            const avtoData =
+              data && typeof data.avto === "object" && data.avto !== null
+                ? (data.avto as Record<string, unknown>)
+                : null;
+            const avtoCars = normalizeCars(avtoData?.cars);
+            let storedCars = avtoCars.length
+              ? avtoCars
+              : normalizeCars(data?.selectedCars);
+            const avtoSelection = parseSelection(avtoData?.selection);
+            const storedSelection =
+              avtoSelection ?? parseSelection(data?.selectedCarSelection);
+            const avtoVin = parseVin(avtoData?.vin);
+            const storedVin = avtoVin ?? parseVin(data?.selectedVin);
+            const hasRemoteSelection =
+              Boolean(storedSelection) || storedCars.length > 0 || Boolean(storedVin);
+
+            if (hasRemoteSelection) {
+              if (storedSelection && !storedCars.includes(storedSelection.label)) {
+                storedCars = [...storedCars, storedSelection.label];
+              }
+              setInternalSelectedCars((prev) =>
+                arraysEqual(prev, storedCars) ? prev : storedCars
+              );
+              setInternalSelection((prev) =>
+                selectionEqual(prev, storedSelection ?? null)
+                  ? prev
+                  : storedSelection ?? null
+              );
+              setSelectedVin((prev) =>
+                prev === (storedVin ?? "") ? prev : storedVin ?? ""
+              );
+              skipNextStandaloneRemoteSaveRef.current = true;
+            }
+
+            setSelectionReady(true);
+          }
         },
         (error) => {
           console.error("Failed to load VIN codes:", error);
           if (!cancelled) {
             setProfileVins([]);
             setVinLoading(false);
+            if (isStandalonePersistenceEnabled) {
+              setSelectionReady(true);
+            }
           }
         }
       );
@@ -298,7 +478,7 @@ const AutoSection: React.FC<AutoProps> = ({
       if (unsubscribeProfile) unsubscribeProfile();
       unsubscribeAuth();
     };
-  }, []);
+  }, [isStandalonePersistenceEnabled]);
 
   const filteredBrands = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -307,7 +487,9 @@ const AutoSection: React.FC<AutoProps> = ({
     );
   }, [searchTerm]);
 
-  const brandsPerPage = 8;
+  const brandsPerPage = showAllBrands
+    ? Math.max(filteredBrands.length, 1)
+    : 8;
   const [brandPage, setBrandPage] = useState(0);
   const totalBrandPages = Math.max(
     1,
@@ -483,6 +665,86 @@ const AutoSection: React.FC<AutoProps> = ({
     onVinSelect?.(selectedVin ? selectedVin : null);
   }, [onVinSelect, selectedVin]);
 
+  useEffect(() => {
+    if (!isStandalonePersistenceEnabled || !selectionReady || typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        AUTO_STORAGE_KEYS.cars,
+        JSON.stringify(internalSelectedCars)
+      );
+      if (internalSelection) {
+        window.localStorage.setItem(
+          AUTO_STORAGE_KEYS.selection,
+          JSON.stringify(internalSelection)
+        );
+      } else {
+        window.localStorage.removeItem(AUTO_STORAGE_KEYS.selection);
+      }
+      if (selectedVin) {
+        window.localStorage.setItem(AUTO_STORAGE_KEYS.vin, selectedVin);
+      } else {
+        window.localStorage.removeItem(AUTO_STORAGE_KEYS.vin);
+      }
+    } catch (error) {
+      console.error("Failed to persist auto state to local storage:", error);
+    }
+  }, [
+    internalSelectedCars,
+    internalSelection,
+    isStandalonePersistenceEnabled,
+    selectedVin,
+    selectionReady,
+  ]);
+
+  useEffect(() => {
+    if (!isStandalonePersistenceEnabled || !selectionReady || !firebaseUser) return;
+    if (skipNextStandaloneRemoteSaveRef.current) {
+      skipNextStandaloneRemoteSaveRef.current = false;
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const docRef = doc(db, "users", firebaseUser.uid);
+        const avtoPayload = {
+          cars: internalSelectedCars,
+          selection: internalSelection,
+          vin: selectedVin || null,
+        };
+        await setDoc(
+          docRef,
+          {
+            selectedCars: internalSelectedCars,
+            selectedCarSelection: internalSelection,
+            selectedVin: selectedVin || null,
+            avto: avtoPayload,
+          },
+          { merge: true }
+        );
+      } catch (error) {
+        console.error("Failed to persist auto state to Firestore:", error);
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    firebaseUser,
+    internalSelectedCars,
+    internalSelection,
+    isStandalonePersistenceEnabled,
+    selectedVin,
+    selectionReady,
+  ]);
+
+  useEffect(() => {
+    if (!isStandalonePersistenceEnabled || !internalSelection) return;
+    if (selectedCars.includes(internalSelection.label)) return;
+    setInternalSelection(null);
+  }, [internalSelection, isStandalonePersistenceEnabled, selectedCars]);
+
   const handleSelectCar = useCallback(
     (carLabel: string) => {
       const normalized = carLabel.trim();
@@ -507,8 +769,9 @@ const AutoSection: React.FC<AutoProps> = ({
       if (label) {
         setSelectedCarLabel(label);
       }
-      if (onSelectionChange && selectedBrand && selectedModel && label) {
-        onSelectionChange({
+      if (!selectedBrand || !selectedModel || !label) return;
+
+      const nextSelection = {
           brand: selectedBrand.name,
           model: selectedModel,
           year: selectedYear ?? null,
@@ -517,10 +780,22 @@ const AutoSection: React.FC<AutoProps> = ({
           gearbox: details.gearbox ?? null,
           drive: details.drive ?? null,
           label,
-        });
+        };
+
+      if (onSelectionChange) {
+        onSelectionChange(nextSelection);
+      } else if (isStandalonePersistenceEnabled) {
+        setInternalSelection(nextSelection);
       }
     },
-    [onSelectionChange, selectedBrand, selectedModel, selectedYear, selectedCarLabel]
+    [
+      isStandalonePersistenceEnabled,
+      onSelectionChange,
+      selectedBrand,
+      selectedModel,
+      selectedYear,
+      selectedCarLabel,
+    ]
   );
 
   const resetToBrandIfEmpty = useCallback(
@@ -558,6 +833,9 @@ const AutoSection: React.FC<AutoProps> = ({
   const handleRemoveCar = (carLabel: string) => {
     const nextCarCount = selectedCarRows.filter((item) => item !== carLabel).length;
     handleCarChange(carLabel);
+    if (isStandalonePersistenceEnabled && internalSelection?.label === carLabel) {
+      setInternalSelection(null);
+    }
     if (selectedCarLabel === carLabel) {
       setSelectedCarLabel(null);
       lastSelectedLabelRef.current = null;
@@ -619,7 +897,7 @@ const AutoSection: React.FC<AutoProps> = ({
 
   return (
     <div className="group/auto relative w-full select-none">
-      <div className="relative isolate overflow-hidden rounded-none border border-white/10 shadow-[0_22px_70px_rgba(15,23,42,0.35)] transition duration-700 ease-out group-hover/auto:shadow-[0_30px_96px_rgba(30,64,175,0.34)]">
+      <div className="relative isolate overflow-hidden rounded-none border border-white/10 shadow-[0_22px_70px_rgba(15,23,42,0.35)]">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 transition-opacity duration-700 ease-out"
@@ -631,11 +909,7 @@ const AutoSection: React.FC<AutoProps> = ({
         />
         <div
           aria-hidden
-          className={`pointer-events-none absolute inset-0 ${
-            shouldReduceMotion
-              ? "opacity-0"
-              : "opacity-0 transition-opacity duration-500 ease-out group-hover/auto:opacity-100"
-          }`}
+          className="pointer-events-none absolute inset-0 opacity-0"
           style={{
             backgroundImage: AUTO_BG_HOVER,
             backgroundSize: "220% 220%",
@@ -645,31 +919,25 @@ const AutoSection: React.FC<AutoProps> = ({
         {!shouldReduceMotion && (
           <div
             aria-hidden
-            className="pointer-events-none absolute -left-[8%] -top-[12%] hidden h-[260px] w-[260px] rounded-full bg-[radial-gradient(circle,rgba(30,64,175,0.24)_0%,rgba(30,64,175,0)_70%)] blur-[38px] opacity-45 transition-opacity duration-300 ease-out group-hover/auto:opacity-60 md:block"
+            className="pointer-events-none absolute -left-[8%] -top-[12%] hidden h-[260px] w-[260px] rounded-full bg-[image:radial-gradient(circle,rgba(30,64,175,0.24)_0%,rgba(30,64,175,0)_70%)] blur-[38px] opacity-45 md:block"
           />
         )}
         {!shouldReduceMotion && (
           <div
             aria-hidden
-            className="pointer-events-none absolute -right-[10%] -bottom-[20%] hidden h-[280px] w-[280px] rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.22)_0%,rgba(59,130,246,0)_72%)] blur-[42px] opacity-42 transition-opacity duration-300 ease-out group-hover/auto:opacity-58 md:block"
+            className="pointer-events-none absolute -right-[10%] -bottom-[20%] hidden h-[280px] w-[280px] rounded-full bg-[image:radial-gradient(circle,rgba(59,130,246,0.22)_0%,rgba(59,130,246,0)_72%)] blur-[42px] opacity-42 md:block"
           />
         )}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(112deg,rgba(255,255,255,0.18)_0%,rgba(255,255,255,0.03)_38%,rgba(30,64,175,0.14)_100%)] opacity-85 transition-all duration-700 ease-out group-hover/auto:opacity-100"
+          className="pointer-events-none absolute inset-0 bg-[image:linear-gradient(112deg,rgba(255,255,255,0.18)_0%,rgba(255,255,255,0.03)_38%,rgba(30,64,175,0.14)_100%)] opacity-85"
         />
-        {!shouldReduceMotion && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-y-[-34%] left-[-24%] w-[52%] rotate-[15deg] bg-gradient-to-br from-white/0 via-white/22 to-white/0 opacity-0 blur-[2px] transition-all duration-500 ease-out group-hover/auto:translate-x-[16%] group-hover/auto:opacity-75"
-          />
-        )}
         <div
-          className={`relative mx-auto grid w-full max-w-[1400px] ${
+          className={`relative grid w-full ${
             showLeftPanel && !(isFilterVariant && isCompact)
               ? "grid-cols-1 lg:grid-cols-[1.45fr_0.95fr]"
               : "grid-cols-1"
-          } items-stretch gap-6 px-4 pb-4 pt-4 font-ui sm:px-5 lg:px-7`}
+          } page-shell-inline items-stretch gap-6 pb-4 pt-4 font-ui`}
         >
         {showLeftPanel && (
           <div className="min-w-0">
@@ -679,7 +947,7 @@ const AutoSection: React.FC<AutoProps> = ({
                   <div className="flex flex-col gap-3 group/brands">
                     <div className="flex flex-wrap items-center gap-3 w-full sm:flex-nowrap sm:items-center sm:justify-between group/brands">
                       <div className="order-1 w-full sm:w-auto flex items-center gap-3 sm:gap-4 group hover:[&_span[data-underline]]:scale-x-100 group-hover/brands:[&_span[data-underline]]:scale-x-100 group-hover/logogrid:[&_span[data-underline]]:scale-x-100">
-                        <h3 className="font-display relative inline-block text-[21px] font-extrabold italic tracking-[-0.03em] text-slate-700 drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)] sm:text-[24px]">
+                        <h3 className="font-display relative inline-block text-[22px] tracking-[-0.045em] text-slate-700 sm:text-[25px]">
                           <span className="relative inline-flex items-center">
                             {"\u0412\u0438\u0431\u0456\u0440 \u0456\u0437"} {filteredBrands.length} {"\u043c\u0430\u0440\u043e\u043a \u0430\u0432\u0442\u043e\u043c\u043e\u0431\u0456\u043b\u0456\u0432"}
                               <span
@@ -695,35 +963,37 @@ const AutoSection: React.FC<AutoProps> = ({
                         onChange={handleSearchChange}
                       />
 
-                      <div className="order-2 shrink-0 max-w-full overflow-x-auto no-scrollbar sm:mr-3">
-                        <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
-                          <button
-                            type="button"
-                            onClick={handlePrevPage}
-                            disabled={!canGoPrev}
-                            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
-                            aria-label="\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
-                          >
-                            <ChevronLeft size={12} />
-                          </button>
+                      {!showAllBrands && totalBrandPages > 1 && (
+                        <div className="order-2 shrink-0 max-w-full overflow-x-auto no-scrollbar sm:mr-3">
+                          <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
+                            <button
+                              type="button"
+                              onClick={handlePrevPage}
+                              disabled={!canGoPrev}
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                              aria-label="\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
+                            >
+                              <ChevronLeft size={12} />
+                            </button>
 
-                          <div className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-1.5 py-0 text-[9px] font-semibold text-slate-600 shadow-inner">
-                            <span>{safeBrandPage + 1}</span>
-                            <span className="text-slate-400">/</span>
-                            <span>{totalBrandPages}</span>
+                            <div className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-1.5 py-0 text-[9px] font-semibold text-slate-600 shadow-inner">
+                              <span>{safeBrandPage + 1}</span>
+                              <span className="text-slate-400">/</span>
+                              <span>{totalBrandPages}</span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handleNextPage}
+                              disabled={!canGoNext}
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                              aria-label="\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0430 \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
+                            >
+                              <ChevronRight size={12} />
+                            </button>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={handleNextPage}
-                            disabled={!canGoNext}
-                            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
-                            aria-label="\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0430 \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
-                          >
-                            <ChevronRight size={12} />
-                          </button>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
 
@@ -753,20 +1023,19 @@ const AutoSection: React.FC<AutoProps> = ({
                               lastSelectedLabelRef.current = null;
                               setActiveTab("model");
                             }}
-                            className={`group relative isolate flex w-full flex-col items-center justify-center gap-3 overflow-hidden bg-white/94 px-3 sm:px-3.5 shadow-[0_14px_34px_rgba(15,23,42,0.12)] border border-slate-100/80 ring-1 ring-transparent transition-[border-color,background-color,box-shadow,ring-color] duration-300 ease-out hover:shadow-[0_20px_48px_rgba(59,130,246,0.16),0_8px_24px_rgba(14,165,233,0.12)] hover:ring-2 hover:ring-sky-200/90 hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-0 ${
+                            className={`group relative isolate flex w-full flex-col items-center justify-center gap-3 overflow-hidden bg-white/94 px-3 sm:px-3.5 shadow-[0_14px_34px_rgba(15,23,42,0.12)] border border-slate-100/80 ring-1 ring-transparent transition-[border-color,background-color,box-shadow,ring-color] duration-300 ease-out hover:shadow-[0_18px_38px_rgba(59,130,246,0.14),0_6px_18px_rgba(14,165,233,0.1)] hover:ring-1 hover:ring-sky-200/80 hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-0 ${
                               isCompact
                                 ? "rounded-[16px] py-2.5 min-h-[94px]"
                                 : "rounded-xl py-3.5 min-h-[108px]"
                             }`}
                             aria-label={`\u041e\u0431\u0440\u0430\u0442\u0438 ${brand.name}`}
                           >
-                            <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
+                            <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
                             <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
-                            <span className="pointer-events-none absolute -right-12 -top-16 h-28 w-28 rounded-full bg-sky-200/26 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[6px] group-hover:-translate-y-[6px]" />
-                            <span className="pointer-events-none absolute -left-14 -bottom-16 h-32 w-32 rounded-full bg-cyan-200/22 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-x-[4px] group-hover:translate-y-[4px]" />
-                            <span className="pointer-events-none absolute inset-y-[-30%] left-[-28%] w-[58%] rotate-[16deg] bg-gradient-to-br from-white/0 via-white/28 to-white/0 opacity-0 blur-[2px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[18%] group-hover:opacity-80" />
+                            <span className="pointer-events-none absolute -right-12 -top-16 h-28 w-28 rounded-full bg-sky-200/26 blur-3xl opacity-80" />
+                            <span className="pointer-events-none absolute -left-14 -bottom-16 h-32 w-32 rounded-full bg-cyan-200/22 blur-3xl opacity-75" />
 
-                          <div className="relative flex h-[82px] w-[82px] items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.07] group-active:scale-[0.99]">
+                          <div className="relative flex h-[82px] w-[82px] items-center justify-center transition-transform duration-300 ease-out group-active:scale-[0.99]">
                               <Image
                                 src={brand.logo}
                                 alt={`${brand.name} logo`}
@@ -1105,7 +1374,7 @@ const AutoSection: React.FC<AutoProps> = ({
           ) : (
             <>
               <header
-                className={`mb-1 rounded-2xl border border-sky-100/80 bg-[linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] shadow-[0_12px_28px_rgba(8,145,178,0.12)] ${
+                className={`mb-1 rounded-2xl border border-sky-100/80 bg-[image:linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] shadow-[0_12px_28px_rgba(8,145,178,0.12)] ${
                   isCompact ? "p-2.5" : "p-3"
                 }`}
               >
@@ -1201,8 +1470,8 @@ const AutoSection: React.FC<AutoProps> = ({
                       disabled={!isEnabled}
                       className={`group/step flex min-w-0 items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all ${
                         isActive
-                          ? "border-cyan-300/90 bg-[linear-gradient(115deg,rgba(207,250,254,0.97)_0%,rgba(224,242,254,0.95)_52%,rgba(209,250,229,0.92)_100%)] text-cyan-800 shadow-[0_14px_30px_rgba(6,182,212,0.28)] ring-1 ring-cyan-200/80"
-                          : "border-sky-100/95 bg-[linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] text-slate-600 shadow-[0_8px_18px_rgba(8,145,178,0.12)] hover:border-cyan-300/80 hover:shadow-[0_14px_28px_rgba(6,182,212,0.2)] hover:ring-1 hover:ring-cyan-200/80"
+                          ? "border-cyan-300/90 bg-[image:linear-gradient(115deg,rgba(207,250,254,0.97)_0%,rgba(224,242,254,0.95)_52%,rgba(209,250,229,0.92)_100%)] text-cyan-800 shadow-[0_14px_30px_rgba(6,182,212,0.28)] ring-1 ring-cyan-200/80"
+                          : "border-sky-100/95 bg-[image:linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] text-slate-600 shadow-[0_8px_18px_rgba(8,145,178,0.12)] hover:border-cyan-300/80 hover:shadow-[0_14px_28px_rgba(6,182,212,0.2)] hover:ring-1 hover:ring-cyan-200/80"
                       } ${!isEnabled ? "cursor-not-allowed opacity-40 hover:border-sky-100/95 hover:shadow-[0_8px_18px_rgba(8,145,178,0.12)] hover:ring-0" : ""}`}
                     >
                       <span className="flex h-5 w-5 items-center justify-center rounded-md border border-current text-[10px]">
@@ -1224,7 +1493,7 @@ const AutoSection: React.FC<AutoProps> = ({
               </nav>
 
               <div
-                className={`rounded-2xl border border-sky-100/90 bg-[linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] shadow-[0_8px_18px_rgba(8,145,178,0.14)] ${
+                className={`rounded-2xl border border-sky-100/90 bg-[image:linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] shadow-[0_8px_18px_rgba(8,145,178,0.14)] ${
                   isCompact ? "px-3 py-2.5" : "px-5 py-4"
                 }`}
               >
@@ -1246,7 +1515,7 @@ const AutoSection: React.FC<AutoProps> = ({
                   <button
                     type="button"
                     onClick={handleOpenVinTab}
-                    className={`w-full rounded-lg border border-emerald-300/80 bg-[linear-gradient(120deg,rgba(209,250,229,0.95)_0%,rgba(220,252,231,0.92)_48%,rgba(187,247,208,0.9)_100%)] px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-[0_10px_20px_rgba(16,185,129,0.16)] transition hover:brightness-105 hover:shadow-[0_14px_26px_rgba(16,185,129,0.24)] ${
+                    className={`w-full rounded-lg border border-emerald-300/80 bg-[image:linear-gradient(120deg,rgba(209,250,229,0.95)_0%,rgba(220,252,231,0.92)_48%,rgba(187,247,208,0.9)_100%)] px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-[0_10px_20px_rgba(16,185,129,0.16)] transition hover:brightness-105 hover:shadow-[0_14px_26px_rgba(16,185,129,0.24)] ${
                       isCompact ? "py-2 text-[11px]" : ""
                     }`}
                   >

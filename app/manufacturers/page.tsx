@@ -1,180 +1,115 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import ManufacturersCatalogClient, {
-  type ManufacturerListItem,
-} from "app/manufacturers/ManufacturersCatalogClient";
+import { Factory, Layers3 } from "lucide-react";
 
-import { getCatalogSeoFacets } from "app/lib/catalog-seo";
-import { getBrandLogoMap, getProducerInitials, resolveProducerLogo } from "app/lib/brand-logo";
+import CatalogHubHero from "app/components/CatalogHubHero";
+import { brands } from "app/components/brandsData";
+import { getProducerInitials } from "app/lib/brand-logo";
 import { buildSeoSlug } from "app/lib/seo-slug";
+import { buildPageMetadata } from "app/lib/seo-metadata";
+import ManufacturersDirectory from "app/manufacturers/ManufacturersDirectory";
 
 export const revalidate = 21600;
 
-const pageDescription =
-  "Каталог брендів і виробників автозапчастин PartsON. Обирайте бренд та переходьте до каталогу товарів із фільтром за виробником.";
+const catalogShellClass = "page-shell-inline";
 
-export const metadata: Metadata = {
+const pageDescription =
+  "Каталог брендів і виробників автозапчастин PartsON у Львові. Обирайте бренд, переходьте до каталогу товарів із фільтром за виробником і замовляйте з доставкою по Україні.";
+
+export const metadata: Metadata = buildPageMetadata({
   title: "Каталог брендів і виробників автозапчастин",
   description: pageDescription,
+  canonicalPath: "/manufacturers",
   keywords: [
     "виробники автозапчастин",
     "бренди автозапчастин",
     "каталог виробників",
-    "PartsON",
+    "каталог брендів",
+    "автозапчастини львів",
   ],
-  alternates: { canonical: "/manufacturers" },
-  openGraph: {
-    type: "website",
-    url: "/manufacturers",
-    locale: "uk_UA",
-    title: "Каталог брендів і виробників автозапчастин | PartsON",
-    description: pageDescription,
-    images: [{ url: "/Car-parts-fullwidth.png", alt: "PartsON - бренди і виробники автозапчастин" }],
+  openGraphTitle: "Каталог брендів і виробників автозапчастин | PartsON",
+  image: {
+    url: "/Car-parts-fullwidth.png",
+    alt: "PartsON - бренди і виробники автозапчастин",
   },
-  twitter: {
-    card: "summary_large_image",
-    title: "Каталог брендів і виробників автозапчастин | PartsON",
+});
+
+type ManufacturerListItem = {
+  label: string;
+  slug: string;
+  initials: string;
+  description: string | null;
+  logoPath: string | null;
+};
+const clientProducers: ManufacturerListItem[] = brands
+  .map((brand) => ({
+    label: brand.name,
+    slug: buildSeoSlug(brand.name),
+    initials: getProducerInitials(brand.name),
+    description: brand.description ?? null,
+    logoPath: brand.logo ?? null,
+  }))
+  .sort((left, right) => left.label.localeCompare(right.label, "uk", { sensitivity: "base" }));
+
+export default function ManufacturersPage() {
+  const manufacturersStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Каталог брендів і виробників автозапчастин PartsON",
     description: pageDescription,
-    images: ["/Car-parts-fullwidth.png"],
-  },
-  robots: { index: true, follow: true },
-};
-
-interface ManufacturersPageSearchParams {
-  q?: string | string[];
-}
-
-type ProducersCollection = Awaited<ReturnType<typeof getCatalogSeoFacets>>["producers"];
-type ProducerItem = ProducersCollection[number];
-
-const normalizeQuery = (value: string | string[] | undefined) => {
-  const raw = Array.isArray(value) ? value[0] || "" : value || "";
-  return raw.trim();
-};
-
-const decodeLogoLabel = (logoPath: string) => {
-  const fileName = logoPath.split("/").pop() || "";
-  if (!fileName) return "";
-  const label = decodeURIComponent(fileName).replace(/\.[^.]+$/u, "");
-  return label.replace(/\s+/g, " ").trim();
-};
-
-const buildFallbackProducers = (logoMap: Map<string, string>): ProducerItem[] => {
-  const producersBySlug = new Map<string, ProducerItem>();
-
-  for (const logoPath of logoMap.values()) {
-    const label = decodeLogoLabel(logoPath);
-    if (!label) continue;
-
-    const slug = buildSeoSlug(label);
-    if (!slug || producersBySlug.has(slug)) continue;
-
-    producersBySlug.set(slug, {
-      label,
-      slug,
-      productCount: 0,
-      topGroups: [],
-    });
-  }
-
-  return Array.from(producersBySlug.values()).sort((a, b) =>
-    a.label.localeCompare(b.label, "uk")
-  );
-};
-
-const toClientProducers = (
-  producers: ProducerItem[],
-  logoMap: Map<string, string>
-): ManufacturerListItem[] =>
-  producers.map((producer) => ({
-    label: producer.label,
-    slug: producer.slug,
-    productCount: producer.productCount,
-    topGroups: producer.topGroups.map((group) => ({
-      label: group.label,
-      slug: group.slug,
-      productCount: group.productCount,
-    })),
-    logoPath: resolveProducerLogo(producer.label, logoMap),
-    initials: getProducerInitials(producer.label),
-  }));
-
-export default async function ManufacturersPage({
-  searchParams,
-}: {
-  searchParams?: Promise<ManufacturersPageSearchParams>;
-}) {
-  const [resolvedSearchParams, logoMap] = await Promise.all([
-    searchParams ?? Promise.resolve({} as ManufacturersPageSearchParams),
-    getBrandLogoMap(),
-  ]);
-
-  let producers: ProducersCollection = [];
-  let hasFacetError = false;
-  try {
-    const data = await getCatalogSeoFacets();
-    producers = data.producers;
-  } catch {
-    hasFacetError = true;
-    producers = [];
-  }
-
-  const fallbackProducers = buildFallbackProducers(logoMap);
-  const hasFacetData = producers.length > 0;
-  const sourceProducers = hasFacetData ? producers : fallbackProducers;
-
-  const query = normalizeQuery(resolvedSearchParams.q);
-  const clientProducers = toClientProducers(sourceProducers, logoMap);
+    url: "https://partson.shop/manufacturers",
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: clientProducers.slice(0, 48).map((producer, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: producer.label,
+        url: `https://partson.shop/manufacturers/${producer.slug}`,
+      })),
+    },
+  };
 
   return (
-    <main className="relative h-[calc(100dvh-var(--header-height,0px))] overflow-hidden bg-[radial-gradient(circle_at_8%_0%,rgba(56,189,248,0.22),transparent_38%),radial-gradient(circle_at_92%_2%,rgba(34,211,238,0.2),transparent_36%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)]">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-sky-200/25 via-cyan-100/10 to-transparent" />
+    <main className="relative bg-[image:radial-gradient(circle_at_8%_0%,rgba(56,189,248,0.22),transparent_38%),radial-gradient(circle_at_92%_2%,rgba(34,211,238,0.2),transparent_36%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] text-slate-900 select-none [&_input]:select-text [&_textarea]:select-text">
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-sky-200/25 via-cyan-100/10 to-transparent" />
 
-      <div className="relative mx-auto flex h-full w-full max-w-[1240px] flex-col px-4 py-3 sm:py-4">
-        <section className="shrink-0 rounded-2xl border border-white/70 bg-white/88 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.09)] backdrop-blur-sm sm:p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-700">
-                Бренди автозапчастин
-              </p>
-              <h1 className="mt-2 text-lg font-semibold italic tracking-tight text-slate-900 sm:text-xl">
-                Каталог брендів і виробників автозапчастин
-              </h1>
-              <p className="mt-1 max-w-[760px] text-xs leading-relaxed text-slate-600 sm:text-sm">
-                Оберіть бренд і відкрийте каталог із уже застосованим фільтром виробника.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href="/katalog"
-                className="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                Повний каталог
-              </Link>
-              <Link
-                href="/groups"
-                className="inline-flex h-8 items-center rounded-lg border border-cyan-300 bg-cyan-50 px-3 text-xs font-semibold text-cyan-800 transition hover:bg-cyan-100"
-              >
-                Групи
-              </Link>
-            </div>
-          </div>
-
-          {!hasFacetData && sourceProducers.length > 0 && (
-            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:text-sm">
-              Показано резервний список брендів із локального каталогу логотипів.
-            </div>
-          )}
-          {hasFacetError && sourceProducers.length === 0 && (
-            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900 sm:text-sm">
-              Дані виробників тимчасово недоступні. Спробуйте оновити сторінку пізніше.
-            </div>
-          )}
-        </section>
-
-        <ManufacturersCatalogClient producers={clientProducers} initialQuery={query} />
+        <div className={`${catalogShellClass} catalog-hub-stage relative flex flex-col py-3 sm:py-4 lg:py-5`}>
+          <CatalogHubHero
+            current="manufacturers"
+            badge="Бренди та виробники"
+            icon={Factory}
+            title="Каталог брендів і виробників автозапчастин"
+            description="Оберіть бренд і відкрийте каталог із уже застосованим фільтром виробника, щоб швидше перейти до потрібної пропозиції без зайвих кроків."
+            stats={[
+              {
+                label: "Брендів",
+                value: clientProducers.length.toLocaleString("uk-UA"),
+                icon: Factory,
+              },
+              {
+                label: "Маршрут підбору",
+                value: "Бренд / каталог",
+                icon: Layers3,
+              },
+            ]}
+            quickLinks={[
+              {
+                href: "#manufacturers-directory",
+                label: "Пошук брендів",
+                icon: Layers3,
+                accent: true,
+              },
+            ]}
+          />
+        </div>
       </div>
+
+      <ManufacturersDirectory items={clientProducers} />
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(manufacturersStructuredData) }}
+      />
     </main>
   );
 }

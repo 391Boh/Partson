@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import { NextResponse } from "next/server";
 
 import { fetchProductImageBase64, PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image";
@@ -17,15 +21,61 @@ const safeDecode = (value: string) => {
   }
 };
 
-const fallbackRedirect = (request: Request) =>
-  NextResponse.redirect(new URL(PRODUCT_IMAGE_FALLBACK_PATH, request.url), 307);
+const fallbackRedirect = (request: Request) => {
+  const response = NextResponse.redirect(new URL(PRODUCT_IMAGE_FALLBACK_PATH, request.url), 307);
+  response.headers.set(
+    "cache-control",
+    "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400"
+  );
+  return response;
+};
 const fallbackNotFound = () =>
   new NextResponse(null, {
     status: 404,
     headers: {
-      "cache-control": "public, max-age=600, s-maxage=600",
+      "cache-control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
     },
   });
+const FAST_IMAGE_LOOKUP_OPTIONS = {
+  timeoutMs: 1800,
+  retries: 0,
+  retryDelayMs: 120,
+  cacheTtlMs: 1000 * 60 * 60,
+  missCacheTtlMs: 1000 * 60 * 20,
+};
+const STRICT_IMAGE_LOOKUP_OPTIONS = {
+  timeoutMs: 1250,
+  retries: 0,
+  retryDelayMs: 80,
+  cacheTtlMs: 1000 * 60 * 20,
+  missCacheTtlMs: 1000 * 60 * 5,
+  allowUrlDownload: true,
+};
+const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
+  lookupLimit: 16,
+  fallbackPages: 1,
+  pageSize: 24,
+  timeoutMs: 700,
+  retries: 0,
+  retryDelayMs: 80,
+  cacheTtlMs: 1000 * 60 * 10,
+};
+let fallbackImageHashPromise: Promise<string | null> | null = null;
+
+const buildBufferHash = (buffer: Buffer) =>
+  createHash("sha1").update(buffer).digest("hex");
+
+const getFallbackImageHash = async () => {
+  if (fallbackImageHashPromise) return fallbackImageHashPromise;
+
+  fallbackImageHashPromise = readFile(
+    path.join(process.cwd(), "public", PRODUCT_IMAGE_FALLBACK_PATH.replace(/^\//, ""))
+  )
+    .then((buffer) => buildBufferHash(buffer))
+    .catch(() => null);
+
+  return fallbackImageHashPromise;
+};
 
 const detectContentType = (buffer: Buffer) => {
   if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
@@ -61,6 +111,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   const requestUrl = new URL(request.url);
   const strictMode = requestUrl.searchParams.get("strict") === "1";
   const articleHint = safeDecode(requestUrl.searchParams.get("article") || "").trim();
+  const lookupOptions = strictMode ? STRICT_IMAGE_LOOKUP_OPTIONS : FAST_IMAGE_LOOKUP_OPTIONS;
 
   const resolvedParams = await context.params;
   const rawCode = resolvedParams?.code || "";
@@ -78,25 +129,28 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     lookupKeys.push(trimmed);
   };
 
-  addLookupKey(normalizedCode);
   addLookupKey(articleHint);
+  addLookupKey(normalizedCode);
 
   let imageBase64: string | null = null;
   for (const key of lookupKeys) {
     try {
-      imageBase64 = await fetchProductImageBase64(key);
+      imageBase64 = await fetchProductImageBase64(key, lookupOptions);
     } catch {
       imageBase64 = null;
     }
     if (imageBase64) break;
   }
 
-  if (!imageBase64 && !articleHint) {
+  if (!imageBase64 && !articleHint && !strictMode) {
     try {
-      const product = await findCatalogProductByCode(normalizedCode);
+      const product = await findCatalogProductByCode(
+        normalizedCode,
+        IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS
+      );
       const article = (product?.article || "").trim();
-      if (article) {
-        imageBase64 = await fetchProductImageBase64(article);
+      if (article && article.toLowerCase() !== normalizedCode.toLowerCase()) {
+        imageBase64 = await fetchProductImageBase64(article, lookupOptions);
       }
     } catch {
       imageBase64 = null;
@@ -110,6 +164,11 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   try {
     const imageBuffer = Buffer.from(imageBase64, "base64");
     if (!imageBuffer.length) {
+      return strictMode ? fallbackNotFound() : fallbackRedirect(request);
+    }
+
+    const fallbackHash = await getFallbackImageHash();
+    if (fallbackHash && buildBufferHash(imageBuffer) === fallbackHash) {
       return strictMode ? fallbackNotFound() : fallbackRedirect(request);
     }
 

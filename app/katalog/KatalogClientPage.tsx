@@ -2,35 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { getAuth, onAuthStateChanged, type User } from 'firebase/auth';
+import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { auth, db } from '../../firebase';
 import type { PersistedCarSelection } from 'app/components/Auto';
+import Data from 'app/components/Data';
 import FilterSidebar from 'app/components/filtrtion';
-
-const Data = dynamic(() => import('app/components/Data'), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full px-6 pb-8 pt-4 sm:px-4 lg:px-6">
-      <div className="flex min-h-[140px] flex-col items-center justify-center gap-2 pb-3">
-        <div className="loader" />
-        <p className="text-gray-400 text-xs">Завантаження товарів...</p>
-      </div>
-      <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
-        {Array.from({ length: 10 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-[320px] w-full rounded-xl border border-slate-200/70 bg-gradient-to-br from-slate-100 via-slate-200 to-slate-100 animate-pulse"
-          />
-        ))}
-      </div>
-    </div>
-  ),
-});
-
-const Order = dynamic(() => import('app/components/Order'), { ssr: false });
 
 const STORAGE_KEYS = {
   cars: 'partson:selectedCars',
@@ -41,10 +19,12 @@ const SESSION_KEYS = {
   skipRemoteLoad: 'partson:catalogSkipRemoteLoad',
 };
 
+const FILTER_TOP_GAP = 14;
+const FILTER_RESULTS_GAP = 32;
+
 const Katalog: React.FC = () => {
   const [selectedCars, setSelectedCars] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [isOrderVisible, setIsOrderVisible] = useState<boolean>(false);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
   const [selectedCarSelection, setSelectedCarSelection] =
     useState<PersistedCarSelection | null>(null);
@@ -56,9 +36,11 @@ const Katalog: React.FC = () => {
   const [carsLoaded, setCarsLoaded] = useState(false);
   const [localReady, setLocalReady] = useState(false);
   const searchParams = useSearchParams();
-  const searchParamsKey = searchParams.toString();
+  const currentSearchParams = searchParams ?? new URLSearchParams();
+  const searchParamsKey = currentSearchParams.toString();
+  const resetParam = currentSearchParams.get('reset');
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() || '/katalog';
   const skipRemoteLoadRef = useRef(false);
   const skipNextRemoteSaveRef = useRef(false);
   const hasLoadedLocalRef = useRef(false);
@@ -70,14 +52,14 @@ const Katalog: React.FC = () => {
     setFilterHeight((prev) => (prev === nextHeight ? prev : nextHeight));
   }, []);
 
-  const groupParam = searchParams.get('group');
-  const subcategoryParam = searchParams.get('subcategory');
+  const groupParam = currentSearchParams.get('group');
+  const subcategoryParam = currentSearchParams.get('subcategory');
   const categoryLabel =
     subcategoryParam ||
     groupParam ||
     (selectedCategories.length > 0 ? selectedCategories.join(', ') : '');
-  const searchQuery = (searchParams.get('search') || '').trim();
-  const searchFilter = searchParams.get('filter') || 'all';
+  const searchQuery = (currentSearchParams.get('search') || '').trim();
+  const searchFilter = currentSearchParams.get('filter') || 'all';
   const searchFilterLabels: Record<string, string> = {
     name: 'Назва',
     code: 'Код',
@@ -146,8 +128,7 @@ const Katalog: React.FC = () => {
   }, [searchParamsKey]);
 
   useEffect(() => {
-    const reset = searchParams.get('reset');
-    if (reset !== '1') return;
+    if (resetParam !== '1') return;
 
     skipRemoteLoadRef.current = true;
     setSelectedCars([]);
@@ -162,7 +143,7 @@ const Katalog: React.FC = () => {
       window.localStorage.removeItem(STORAGE_KEYS.selection);
     }
 
-    const nextParams = new URLSearchParams(searchParams.toString());
+    const nextParams = new URLSearchParams(searchParamsKey);
     nextParams.delete('reset');
     nextParams.delete('group');
     nextParams.delete('subcategory');
@@ -170,14 +151,13 @@ const Katalog: React.FC = () => {
     nextParams.delete('filter');
     const query = nextParams.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);
-  }, [pathname, router, searchParams]);
+  }, [pathname, resetParam, router, searchParamsKey]);
 
   useEffect(() => {
     if (hasLoadedLocalRef.current) return;
     hasLoadedLocalRef.current = true;
     if (typeof window === 'undefined') return;
-    const reset = searchParams.get('reset');
-    if (reset === '1') {
+    if (resetParam === '1') {
       setLocalReady(true);
       return;
     }
@@ -258,7 +238,7 @@ const Katalog: React.FC = () => {
     } finally {
       setLocalReady(true);
     }
-  }, [searchParams]);
+  }, [resetParam, searchParamsKey]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -268,7 +248,6 @@ const Katalog: React.FC = () => {
     skipRemoteLoadRef.current = true;
   }, []);
   useEffect(() => {
-    const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
 
@@ -466,14 +445,14 @@ const Katalog: React.FC = () => {
       setSelectedCarSelection(null);
     }
 
-    const nextParams = new URLSearchParams(searchParams.toString());
+    const nextParams = new URLSearchParams(currentSearchParams.toString());
     nextParams.delete('group');
     nextParams.delete('subcategory');
     nextParams.delete('search');
     nextParams.delete('filter');
     nextParams.delete('reset');
     const nextQuery = nextParams.toString();
-    if (nextQuery !== searchParams.toString()) {
+    if (nextQuery !== currentSearchParams.toString()) {
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
     }
   };
@@ -494,10 +473,6 @@ const Katalog: React.FC = () => {
     setSelectedCategories((prev) =>
       prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
     );
-  };
-
-  const toggleOrder = () => {
-    setIsOrderVisible((prev) => !prev);
   };
 
   const toggleSortOrder = () => {
@@ -524,23 +499,19 @@ const Katalog: React.FC = () => {
     />
   );
 
-  const shouldRenderFixedFilter = Boolean(portalRoot);
-  const catalogTopOffset = shouldRenderFixedFilter
-    ? filterHeight > 0
-      ? filterHeight + 28
-      : 96
-    : 0;
+  const catalogTopOffset =
+    filterHeight > 0 ? filterHeight + FILTER_TOP_GAP + FILTER_RESULTS_GAP : 136;
 
   return (
     <section className="w-full pb-6">
       {portalRoot
         ? createPortal(
           <div
-            className="pointer-events-none fixed inset-x-0 z-40"
-            style={{ top: 'var(--header-height, 4rem)' }}
+            className="catalog-filter-shell pointer-events-none fixed inset-x-0 z-40"
+            style={{ top: `calc(var(--header-height, 4rem) + ${FILTER_TOP_GAP}px)` }}
           >
             <div
-              className="pointer-events-auto mx-auto w-full max-w-[1400px] px-6 sm:px-4 lg:px-6 -mt-px"
+              className="pointer-events-auto page-shell-inline -mt-px"
             >
               {filterSidebar}
             </div>
@@ -550,7 +521,7 @@ const Katalog: React.FC = () => {
         )
         : null}
       <div
-        className="mx-auto w-full max-w-[1400px] transition-[padding-top] duration-200 ease-out motion-reduce:transition-none"
+        className="page-shell-inline"
         style={{
           paddingTop: catalogTopOffset,
         }}
@@ -561,17 +532,8 @@ const Katalog: React.FC = () => {
           sortOrder={sortOrder}
         />
       </div>
-
-      {isOrderVisible && <Order onClose={toggleOrder} />}
     </section>
   );
 };
 
 export default Katalog;
-
-
-
-
-
-
-

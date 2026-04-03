@@ -12,8 +12,12 @@ export default defineConfig([
   },
   globalIgnores([
     ".next/**",
+    ".dev-archive/**",
+    ".scratch/**",
+    ".scratch2/**",
     "out/**",
     "build/**",
+    "dist/**",
     "next-env.d.ts",
   ]),
 ]);

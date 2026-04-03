@@ -9,12 +9,13 @@ import React, {
   useDeferredValue,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import { Search } from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
 import ProductCard from "app/components/ProductCard";
+import { buildProductPath } from "app/lib/product-url";
 
 // --- Types ---
 interface DataProps {
@@ -30,6 +31,7 @@ export interface Product {
   name: string;
   producer: string;
   quantity: number;
+  priceEuro?: number | null;
   group?: string;
   subGroup?: string;
   category?: string;
@@ -39,11 +41,22 @@ export interface Product {
 // Keep pages small to avoid overloading 1C and shorten perceived waits.
 const ITEMS_PER_PAGE = 10;
 const PROXY_ROUTE = "/api/proxy";
-const PRICE_CACHE_PREFIX = "partson:price:";
-const IMAGE_CACHE_PREFIX = "img_";
+const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
+const PRICE_CACHE_PREFIX = "partson:v2:price:";
+const IMAGE_CACHE_PREFIX = "partson:v2:img:";
 const IMAGE_CACHE_FALLBACK = "__NO_IMAGE__";
-const IMAGE_MODAL_FALLBACK_PATH = "/Car-parts-fullwidth.png";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
+const PRICE_MAX_RETRY_ATTEMPTS = 5;
+const PRICE_RETRY_DELAY_MS = 650;
+const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 20;
+const PRICE_PRIORITY_ITEMS_COUNT = 16;
+const PRICE_IMMEDIATE_ITEMS_COUNT = 6;
+const PRICE_IMMEDIATE_BATCH_SIZE = 1;
+const PRICE_IMMEDIATE_BATCH_CONCURRENCY = 6;
+const PRICE_PRIORITY_BATCH_SIZE = 4;
+const PRICE_PRIORITY_BATCH_CONCURRENCY = 5;
+const PRICE_BACKGROUND_BATCH_SIZE = 12;
+const PRICE_BACKGROUND_BATCH_CONCURRENCY = 4;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 30;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 20;
 
@@ -88,13 +101,19 @@ const GROUP_FIELDS = [
   "\u0413\u0440\u0443\u043f\u043f\u0430", // Р“СЂСѓРїРїР°
   "\u0420\u043e\u0434\u0438\u0442\u0435\u043b\u044c\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435", // Р РѕРґРёС‚РµР»СЊРќР°РёРјРµРЅРѕРІР°РЅРёРµ
   "Category",
+  "group",
 ];
 const SUBGROUP_FIELDS = [
   "\u041f\u043e\u0434\u0433\u0440\u0443\u043f\u043f\u0430", // РџРѕРґРіСЂСѓРїРїР°
   "\u0420\u043e\u0434\u0438\u0442\u0435\u043b\u044c\u0420\u043e\u0434\u0438\u0442\u0435\u043b\u044c\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435", // Р РѕРґРёС‚РµР»СЊР РѕРґРёС‚РµР»СЊРќР°РёРјРµРЅРѕРІР°РЅРёРµ
   "Subcategory",
+  "subGroup",
 ];
-const CATEGORY_FIELDS = ["\u041a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f", "Category"]; // РљР°С‚РµРіРѕСЂРёСЏ
+const CATEGORY_FIELDS = [
+  "\u041a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f",
+  "Category",
+  "category",
+]; // РљР°С‚РµРіРѕСЂРёСЏ
 const PRICE_VALUE_FIELDS = [
   "\u0426\u0456\u043d\u0430\u041f\u0440\u043e\u0434", // Р¦С–РЅР°РџСЂРѕРґ
   "\u0426\u0435\u043d\u0430\u041f\u0440\u043e\u0434", // Р¦РµРЅР°РџСЂРѕРґ
@@ -102,8 +121,6 @@ const PRICE_VALUE_FIELDS = [
   "\u0426\u0456\u043d\u0430", // Р¦С–РЅР°
   "price",
 ];
-const PRICE_CODE_FIELD = "\u041a\u043e\u0434"; // РљРѕРґ
-
 const readFirstString = (
   source: Record<string, unknown>,
   keys: readonly string[],
@@ -143,6 +160,14 @@ const toPriceUAH = (euro: number | null | undefined, euroRate: number) => {
   return Math.round(euro * euroRate);
 };
 
+const getProductPriceStateKey = (item: Pick<Product, "code" | "article">) =>
+  (item.code || item.article || "").trim();
+
+const getProductPriceLookupKeys = (item: Pick<Product, "code" | "article">) =>
+  Array.from(
+    new Set([(item.article || "").trim(), (item.code || "").trim()].filter(Boolean))
+  );
+
 const normalizeProduct = (raw: unknown): Product => {
   const record =
     raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
@@ -160,6 +185,7 @@ const normalizeProduct = (raw: unknown): Product => {
     return trimmed;
   })();
   const quantity = readFirstNumber(record, QTY_FIELDS, 0);
+  const priceEuro = readFirstNumber(record, PRICE_VALUE_FIELDS, Number.NaN);
 
   const group = readFirstString(record, GROUP_FIELDS);
   const subGroup = readFirstString(record, SUBGROUP_FIELDS);
@@ -178,6 +204,7 @@ const normalizeProduct = (raw: unknown): Product => {
     name,
     producer,
     quantity,
+    priceEuro: Number.isFinite(priceEuro) && priceEuro > 0 ? priceEuro : null,
     group,
     subGroup,
     category,
@@ -268,47 +295,75 @@ const writePageToSession = (key: string, items: Product[]) => {
 };
 
 // --- Р—Р°РІР°РЅС‚Р°Р¶РµРЅРЅСЏ РІРµР»РёРєРѕС— РєР°СЂС‚РёРЅРєРё ---
-async function fetchImageBase64(productCode: string): Promise<string | null> {
+async function fetchImageBase64(
+  productCode: string,
+  articleHint?: string
+): Promise<string | null> {
   try {
+    const lookupKeys = Array.from(
+      new Set(
+        [(articleHint || "").trim(), (productCode || "").trim()].filter(Boolean)
+      )
+    );
+    if (lookupKeys.length === 0) return null;
+
     if (typeof window !== "undefined") {
-      try {
-        const cached = window.sessionStorage.getItem(`${IMAGE_CACHE_PREFIX}${productCode}`);
-        if (cached) {
-          if (cached === IMAGE_CACHE_FALLBACK) return null;
-          return cached;
-        }
-      } catch {}
-    }
-
-    const res = await fetch(`${PROXY_ROUTE}?endpoint=getimages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: productCode }),
-    });
-
-    if (!res.ok) return null;
-
-    let text = await res.text();
-    text = text.replace(/[\r\n]+/g, "");
-
-    const json = JSON.parse(text);
-    if (!json || !json.image_base64) {
-      try {
-        if (typeof window !== "undefined") {
-          window.sessionStorage.setItem(`${IMAGE_CACHE_PREFIX}${productCode}`, IMAGE_CACHE_FALLBACK);
-        }
-      } catch {}
-      return null;
-    }
-
-    const image = `data:image/png;base64,${json.image_base64}`;
-    try {
-      if (typeof window !== "undefined") {
-        window.sessionStorage.setItem(`${IMAGE_CACHE_PREFIX}${productCode}`, image);
+      for (const lookupKey of lookupKeys) {
+        try {
+          const cached = window.sessionStorage.getItem(
+            `${IMAGE_CACHE_PREFIX}${lookupKey}`
+          );
+          if (cached && cached !== IMAGE_CACHE_FALLBACK && cached.startsWith("data:image/")) {
+            return cached;
+          }
+        } catch {}
       }
-    } catch {}
+    }
 
-    return image;
+    for (const lookupKey of lookupKeys) {
+      const requestBodies = [
+        { code: lookupKey },
+        { article: lookupKey },
+      ];
+
+      for (const body of requestBodies) {
+        const res = await fetch(`${PROXY_ROUTE}?endpoint=getimages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) continue;
+
+        let text = await res.text();
+        text = text.replace(/[\r\n]+/g, "");
+
+        let json: { image_base64?: string } | null = null;
+        try {
+          json = JSON.parse(text) as { image_base64?: string };
+        } catch {
+          json = null;
+        }
+
+        if (!json?.image_base64) continue;
+
+        const image = `data:image/png;base64,${json.image_base64}`;
+        try {
+          if (typeof window !== "undefined") {
+            for (const cacheKey of lookupKeys) {
+              window.sessionStorage.setItem(
+                `${IMAGE_CACHE_PREFIX}${cacheKey}`,
+                image
+              );
+            }
+          }
+        } catch {}
+
+        return image;
+      }
+    }
+
+    return null;
   } catch (e) {
     console.error("Помилка завантаження зображення:", e);
     return null;
@@ -348,45 +403,19 @@ function useCatalogData(params: {
     () => (hasUrlCategoryFilter ? [] : selectedCategories),
     [hasUrlCategoryFilter, selectedCategories]
   );
-  const initialTrimmed = normalizedSearch;
-  const initialCacheKey = JSON.stringify({
-    endpoint: "getdata",
-    page: 1,
-    limit: ITEMS_PER_PAGE,
-    q: initialTrimmed,
-    filter: searchFilter,
-    cars: selectedCars,
-    cats: effectiveSelectedCategories,
-    group: groupFromURL,
-    subcat: subcategoryFromURL,
-    producer: producerFromURL,
-  });
-  const initialCachedItems = (() => {
-    if (typeof window === "undefined") return null;
-    const memoryHit = readPageFromMemory(initialCacheKey);
-    if (memoryHit && memoryHit.length > 0) return memoryHit;
-    const sessionHit = readPageFromSession(initialCacheKey);
-    if (sessionHit && sessionHit.length > 0) {
-      writePageToMemory(initialCacheKey, sessionHit, MEMORY_CACHE_TTL_MS_FIRST_PAGE);
-      return sessionHit;
-    }
-    return null;
-  })();
-
-  const [data, setData] = useState<Product[]>(() => initialCachedItems ?? []);
+  const [data, setData] = useState<Product[]>([]);
   const [prices, setPrices] = useState<Record<string, number | null>>({});
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [flippedCard, setFlippedCard] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(() =>
-    initialCachedItems ? initialCachedItems.length === ITEMS_PER_PAGE : true
-  );
-  const [loading, setLoading] = useState(() => !initialCachedItems);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(() => Boolean(initialCachedItems));
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [filterLoading, setFilterLoading] = useState(false);
+  const [priceRetryTick, setPriceRetryTick] = useState(0);
   const isRefetching = loading && page === 1;
   const querySignature = useMemo(
     () =>
@@ -410,10 +439,17 @@ function useCatalogData(params: {
     ]
   );
   const activeQuerySignatureRef = useRef(querySignature);
-  const firstPageReadySignatureRef = useRef<string | null>(
-    initialCachedItems ? querySignature : null
-  );
+  const firstPageReadySignatureRef = useRef<string | null>(null);
   const pagingRequestedRef = useRef(false);
+  const pricesRef = useRef<Record<string, number | null>>({});
+  const priceAttemptsRef = useRef<Record<string, number>>({});
+  const priceLoadingKeysRef = useRef<Set<string>>(new Set());
+  const priceRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const priceRetryCooldownUntilRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    pricesRef.current = prices;
+  }, [prices]);
 
   // ? Курс EUR (fallback 50)
   const [euroRate, setEuroRate] = useState<number>(50);
@@ -503,14 +539,18 @@ function useCatalogData(params: {
     activeQuerySignatureRef.current = querySignature;
     firstPageReadySignatureRef.current = null;
     pagingRequestedRef.current = false;
+    priceAttemptsRef.current = {};
+    priceLoadingKeysRef.current.clear();
+    priceRetryCooldownUntilRef.current = {};
+    if (priceRetryTimerRef.current) {
+      clearTimeout(priceRetryTimerRef.current);
+      priceRetryTimerRef.current = null;
+    }
     setPage(1);
     setHasMore(true);
     setHasLoadedOnce(false);
-    setPrices({});
-    setQuantities({});
     setFlippedCard(null);
     setSelectedImage(null);
-    setData([]);
     setError(null);
     setLoading(true);
     setFilterLoading(true);
@@ -563,7 +603,7 @@ function useCatalogData(params: {
 
     let cancelled = false;
     const controller = new AbortController();
-    const debounceDelay = page === 1 ? 80 : 0;
+    const debounceDelay = 0;
 
     const trimmed = normalizedSearch;
     const cacheKey = buildCacheKey(page, trimmed);
@@ -783,6 +823,56 @@ function useCatalogData(params: {
     });
   }, [safeData]);
 
+  useEffect(() => {
+    if (safeData.length === 0) return;
+
+    setPrices((prev) => {
+      let didChange = false;
+      const next = { ...prev };
+
+      for (const item of safeData) {
+        const stateKey = getProductPriceStateKey(item);
+        if (!stateKey || next[stateKey] !== undefined) continue;
+
+        const inlinePrice =
+          typeof item.priceEuro === "number" &&
+          Number.isFinite(item.priceEuro) &&
+          item.priceEuro > 0
+            ? item.priceEuro
+            : null;
+
+        if (inlinePrice == null) continue;
+
+        next[stateKey] = inlinePrice;
+        didChange = true;
+      }
+
+      return didChange ? next : prev;
+    });
+
+    if (typeof window === "undefined") return;
+
+    for (const item of safeData) {
+      const inlinePrice =
+        typeof item.priceEuro === "number" &&
+        Number.isFinite(item.priceEuro) &&
+        item.priceEuro > 0
+          ? item.priceEuro
+          : null;
+      if (inlinePrice == null) continue;
+
+      const lookupKeys = getProductPriceLookupKeys(item);
+      for (const lookupKey of lookupKeys) {
+        try {
+          window.sessionStorage.setItem(
+            `${PRICE_CACHE_PREFIX}${lookupKey}`,
+            JSON.stringify({ v: inlinePrice, t: Date.now() })
+          );
+        } catch {}
+      }
+    }
+  }, [safeData]);
+
   // --- РЈРЅС–РєР°Р»СЊРЅС– С‚РѕРІР°СЂРё ---
   const uniqueData = useMemo(() => {
     const map = new Map<string, Product>();
@@ -837,7 +927,6 @@ function useCatalogData(params: {
   // --- Р—Р°РІР°РЅС‚Р°Р¶РµРЅРЅСЏ С†С–РЅ (Р±Р°С‚С‡РµРј) ---
   useEffect(() => {
     let cancelled = false;
-    let idleId: number | null = null;
     const controller = new AbortController();
 
     const readCachedPrice = (code: string) => {
@@ -851,13 +940,20 @@ function useCatalogData(params: {
           window.sessionStorage.removeItem(`${PRICE_CACHE_PREFIX}${code}`);
           return { hit: false as const };
         }
-        return { hit: true as const, value: parsed.v ?? null };
+        if (
+          typeof parsed.v === "number" &&
+          Number.isFinite(parsed.v) &&
+          parsed.v > 0
+        ) {
+          return { hit: true as const, value: parsed.v };
+        }
+        return { hit: false as const };
       } catch {
         return { hit: false as const };
       }
     };
 
-    const writeCachedPrice = (code: string, price: number | null) => {
+    const writeCachedPrice = (code: string, price: number) => {
       if (typeof window === "undefined") return;
       try {
         window.sessionStorage.setItem(
@@ -868,131 +964,275 @@ function useCatalogData(params: {
     };
 
     const loadPrices = async () => {
-      const source = filteredData.slice(
-        0,
-        Math.min(filteredData.length, Math.ceil(ITEMS_PER_PAGE * 1.5))
-      );
-      const codes = Array.from(
-        new Set(
-          source
-            .map((i) => (i.article || i.code || "").trim())
-            .filter(Boolean)
-            .filter((c) => prices[c] === undefined)
-        )
+      const nowTs = Date.now();
+      const source = filteredData.filter(
+        (item) => {
+          const stateKey = getProductPriceStateKey(item);
+          if (!stateKey) return false;
+          const hasInlinePrice =
+            typeof item.priceEuro === "number" &&
+            Number.isFinite(item.priceEuro) &&
+            item.priceEuro > 0;
+          if (hasInlinePrice) return false;
+
+          const resolvedPrice = pricesRef.current[stateKey];
+          if (
+            typeof resolvedPrice === "number" &&
+            Number.isFinite(resolvedPrice) &&
+            resolvedPrice > 0
+          ) {
+            return false;
+          }
+          if (resolvedPrice === null) {
+            const cooldownUntil = priceRetryCooldownUntilRef.current[stateKey] ?? 0;
+            if (cooldownUntil > nowTs) return false;
+            delete priceRetryCooldownUntilRef.current[stateKey];
+            priceAttemptsRef.current[stateKey] = 0;
+          }
+          if (priceLoadingKeysRef.current.has(stateKey)) return false;
+          return (priceAttemptsRef.current[stateKey] ?? 0) < PRICE_MAX_RETRY_ATTEMPTS;
+        }
       );
 
-      if (!codes.length) return;
+      if (!source.length) return;
 
       const cachedUpdates: Record<string, number | null> = {};
-      const missingCodes: string[] = [];
+      const missingItems: Array<{
+        stateKey: string;
+        lookupKeys: string[];
+      }> = [];
 
-      for (const code of codes) {
-        const cached = readCachedPrice(code);
-        if (cached.hit) cachedUpdates[code] = cached.value;
-        else missingCodes.push(code);
+      for (const item of source) {
+        const stateKey = getProductPriceStateKey(item);
+        if (!stateKey) continue;
+
+        const lookupKeys = getProductPriceLookupKeys(item);
+        let resolvedCachedPrice: number | null | undefined;
+
+        for (const lookupKey of lookupKeys) {
+          const cached = readCachedPrice(lookupKey);
+          if (!cached.hit) continue;
+          resolvedCachedPrice = cached.value;
+          break;
+        }
+
+        if (resolvedCachedPrice !== undefined) {
+          cachedUpdates[stateKey] = resolvedCachedPrice;
+          continue;
+        }
+
+        missingItems.push({ stateKey, lookupKeys });
       }
 
       if (!cancelled && Object.keys(cachedUpdates).length > 0) {
         setPrices((prev) => ({ ...prev, ...cachedUpdates }));
       }
 
-      if (!missingCodes.length) return;
+      if (!missingItems.length) return;
 
-      const maxConcurrency = 3;
-      let cursor = 0;
-      const responses: Array<{ code: string; price: number | null }> = new Array(
-        missingCodes.length
-      );
+      const applyBatchPrices = (
+        batch: Array<{ stateKey: string; lookupKeys: string[] }>,
+        batchPrices: Record<string, number | null>
+      ) => {
+        if (cancelled) return;
 
-      const workers = Array.from(
-        { length: Math.min(maxConcurrency, missingCodes.length) },
-        async () => {
-          while (cursor < missingCodes.length) {
-            const index = cursor;
-            cursor += 1;
-            const code = missingCodes[index];
+        let nextRetryDelayMs: number | null = null;
+        setPrices((prev) => {
+          let didChange = false;
+          const next = { ...prev };
+          for (const item of batch) {
+            const resolvedPrice = batchPrices[item.stateKey];
+            const hasResolvedPrice =
+              typeof resolvedPrice === "number" &&
+              Number.isFinite(resolvedPrice) &&
+              resolvedPrice > 0;
 
-            try {
-              const res = await fetch(`${PROXY_ROUTE}?endpoint=prices`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ [PRICE_CODE_FIELD]: code }),
-                signal: controller.signal,
-              });
-
-              const t = await res.text();
-              try {
-                const json = JSON.parse(t) as Record<string, unknown>;
-                const priceRaw = readFirstNumber(json, PRICE_VALUE_FIELDS, Number.NaN);
-                const price = Number.isFinite(priceRaw) ? priceRaw : null;
-                responses[index] = { code, price };
-              } catch {
-                responses[index] = { code, price: null };
+            if (hasResolvedPrice) {
+              if (next[item.stateKey] !== resolvedPrice) {
+                next[item.stateKey] = resolvedPrice;
+                didChange = true;
               }
-            } catch {
-              responses[index] = { code, price: null };
+              writeCachedPrice(item.stateKey, resolvedPrice);
+              for (const lookupKey of item.lookupKeys) {
+                writeCachedPrice(lookupKey, resolvedPrice);
+              }
+              delete priceAttemptsRef.current[item.stateKey];
+              delete priceRetryCooldownUntilRef.current[item.stateKey];
+              continue;
+            }
+
+            const nextAttempt = (priceAttemptsRef.current[item.stateKey] ?? 0) + 1;
+            priceAttemptsRef.current[item.stateKey] = nextAttempt;
+
+            if (nextAttempt >= PRICE_MAX_RETRY_ATTEMPTS) {
+              const retryInMs = PRICE_REVALIDATE_AFTER_NULL_MS;
+              priceRetryCooldownUntilRef.current[item.stateKey] = Date.now() + retryInMs;
+              if (next[item.stateKey] !== null) {
+                next[item.stateKey] = null;
+                didChange = true;
+              }
+              nextRetryDelayMs =
+                nextRetryDelayMs == null
+                  ? retryInMs
+                  : Math.min(nextRetryDelayMs, retryInMs);
+            } else {
+              nextRetryDelayMs =
+                nextRetryDelayMs == null
+                  ? PRICE_RETRY_DELAY_MS
+                  : Math.min(nextRetryDelayMs, PRICE_RETRY_DELAY_MS);
             }
           }
-        }
-      );
+          return didChange ? next : prev;
+        });
 
-      await Promise.all(workers);
+        for (const item of batch) {
+          priceLoadingKeysRef.current.delete(item.stateKey);
+        }
+
+        if (nextRetryDelayMs != null && !priceRetryTimerRef.current) {
+          priceRetryTimerRef.current = setTimeout(() => {
+            priceRetryTimerRef.current = null;
+            setPriceRetryTick((value) => value + 1);
+          }, nextRetryDelayMs);
+        }
+      };
+
+      const runPriceQueue = async (
+        queue: Array<{ stateKey: string; lookupKeys: string[] }>,
+        options: { batchSize: number; maxConcurrency: number; mode: "fast" | "full" }
+      ) => {
+        if (queue.length === 0) return;
+
+        let cursor = 0;
+        const workers = Array.from(
+          {
+            length: Math.min(
+              options.maxConcurrency,
+              Math.ceil(queue.length / options.batchSize)
+            ),
+          },
+          async () => {
+            while (cursor < queue.length) {
+              const batch = queue.slice(cursor, cursor + options.batchSize);
+              cursor += options.batchSize;
+              if (batch.length === 0) return;
+
+              for (const item of batch) {
+                priceLoadingKeysRef.current.add(item.stateKey);
+              }
+
+              try {
+                const response = await fetch(
+                  `${CATALOG_PRICE_BATCH_ROUTE}?mode=${options.mode}`,
+                  {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ items: batch }),
+                  signal: controller.signal,
+                  cache: "no-store",
+                  }
+                );
+
+                if (!response.ok) {
+                  applyBatchPrices(batch, {});
+                  continue;
+                }
+
+                const payload = (await response.json()) as {
+                  prices?: Record<string, number | null>;
+                };
+                applyBatchPrices(batch, payload?.prices ?? {});
+              } catch (error) {
+                if (error instanceof Error && error.name === "AbortError") {
+                  for (const item of batch) {
+                    priceLoadingKeysRef.current.delete(item.stateKey);
+                  }
+                  return;
+                }
+                applyBatchPrices(batch, {});
+              }
+            }
+          }
+        );
+
+        await Promise.all(workers);
+      };
+
+      const priorityItems = missingItems.slice(0, PRICE_PRIORITY_ITEMS_COUNT);
+      const immediateItems = priorityItems.slice(0, PRICE_IMMEDIATE_ITEMS_COUNT);
+      const batchedPriorityItems = priorityItems.slice(PRICE_IMMEDIATE_ITEMS_COUNT);
+      const backgroundItems = missingItems.slice(PRICE_PRIORITY_ITEMS_COUNT);
+
+      await runPriceQueue(immediateItems, {
+        batchSize: PRICE_IMMEDIATE_BATCH_SIZE,
+        maxConcurrency: PRICE_IMMEDIATE_BATCH_CONCURRENCY,
+        mode: "fast",
+      });
 
       if (cancelled) return;
 
-      setPrices((prev) => {
-        const next = { ...prev };
-        for (const item of responses) {
-          if (!item) continue;
-          next[item.code] = item.price;
-          writeCachedPrice(item.code, item.price);
-        }
-        return next;
+      await runPriceQueue(batchedPriorityItems, {
+        batchSize: PRICE_PRIORITY_BATCH_SIZE,
+        maxConcurrency: PRICE_PRIORITY_BATCH_CONCURRENCY,
+        mode: "fast",
+      });
+
+      if (cancelled) return;
+
+      const unresolvedPriorityItems = priorityItems.filter((item) => {
+        const resolvedPrice = pricesRef.current[item.stateKey];
+        return !(
+          typeof resolvedPrice === "number" &&
+          Number.isFinite(resolvedPrice) &&
+          resolvedPrice > 0
+        );
+      });
+
+      await runPriceQueue(unresolvedPriorityItems, {
+        batchSize: PRICE_PRIORITY_BATCH_SIZE,
+        maxConcurrency: PRICE_PRIORITY_BATCH_CONCURRENCY,
+        mode: "full",
+      });
+
+      if (cancelled) return;
+
+      await runPriceQueue(backgroundItems, {
+        batchSize: PRICE_BACKGROUND_BATCH_SIZE,
+        maxConcurrency: PRICE_BACKGROUND_BATCH_CONCURRENCY,
+        mode: "full",
       });
     };
 
-    const scheduleLoad = () => {
-      if (typeof window === "undefined") {
-        loadPrices();
-        return;
-      }
-
-      const idleWindow = window as Window & {
-        requestIdleCallback?: (cb: () => void) => number;
-        cancelIdleCallback?: (id: number) => void;
-      };
-      const requestIdle = idleWindow.requestIdleCallback;
-
-      if (typeof requestIdle === "function") {
-        idleId = requestIdle(() => {
-          if (!cancelled) loadPrices();
-        });
-      } else {
-        idleId = window.setTimeout(() => {
-          if (!cancelled) loadPrices();
-        }, 120);
-      }
-    };
-
-    scheduleLoad();
+    void loadPrices();
     return () => {
       cancelled = true;
       abortControllerSafely(controller);
-      if (typeof window === "undefined" || idleId === null) return;
-      const idleWindow = window as Window & {
-        requestIdleCallback?: (cb: () => void) => number;
-        cancelIdleCallback?: (id: number) => void;
-      };
-      const cancelIdle = idleWindow.cancelIdleCallback;
-
-      if (typeof cancelIdle === "function") {
-        cancelIdle(idleId);
-      } else {
-        clearTimeout(idleId);
+      if (priceRetryTimerRef.current) {
+        clearTimeout(priceRetryTimerRef.current);
+        priceRetryTimerRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredData]);
+  }, [filteredData, priceRetryTick]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const requestPriceRetry = () => {
+      setPriceRetryTick((value) => value + 1);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        requestPriceRetry();
+      }
+    };
+
+    window.addEventListener("focus", requestPriceRetry);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", requestPriceRetry);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   // --- handlers ---
   const handleFlip = useCallback((code: string) => {
@@ -1024,8 +1264,8 @@ function useCatalogData(params: {
         return;
       }
 
-      const key = (item.article || code).trim();
-      const euro = prices[key] ?? null;
+      const priceKey = getProductPriceStateKey(item);
+      const euro = prices[priceKey] ?? null;
       const priceUAH = toPriceUAH(euro, euroRate);
 
       if (priceUAH == null) {
@@ -1050,9 +1290,10 @@ function useCatalogData(params: {
     [removeFromCart]
   );
 
-  const handleImageOpen = useCallback(async (code: string) => {
-    const src = await fetchImageBase64(code);
-    setSelectedImage(src || IMAGE_MODAL_FALLBACK_PATH);
+  const handleImageOpen = useCallback(async (code: string, article?: string) => {
+    const src = await fetchImageBase64(code, article);
+    if (!src) return;
+    setSelectedImage(src);
   }, []);
 
   const handleImageClose = useCallback(() => setSelectedImage(null), []);
@@ -1106,16 +1347,18 @@ const Data: React.FC<DataProps> = ({
   const router = useRouter();
   const searchParams = useSearchParams();
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const currentSearchParams = searchParams ?? new URLSearchParams();
 
-  const rawSearchQuery = searchParams.get("search") || "";
+  const rawSearchQuery = currentSearchParams.get("search") || "";
   const searchFilter =
-    (searchParams.get("filter") as "all" | "article" | "name" | "code" | "producer") ||
+    (currentSearchParams.get("filter") as "all" | "article" | "name" | "code" | "producer") ||
     "all";
 
-  const groupFromURL = searchParams.get("group");
-  const subcategoryFromURL = searchParams.get("subcategory");
-  const producerFromURL = (searchParams.get("producer") || "").trim() || null;
+  const groupFromURL = currentSearchParams.get("group");
+  const subcategoryFromURL = currentSearchParams.get("subcategory");
+  const producerFromURL = (currentSearchParams.get("producer") || "").trim() || null;
   const lastFilterSignatureRef = useRef<string | null>(null);
+  const [lastStableSortedData, setLastStableSortedData] = useState<Product[]>([]);
 
   const {
     filteredData,
@@ -1149,11 +1392,35 @@ const Data: React.FC<DataProps> = ({
     producerFromURL,
   });
 
-  const handleOpenProduct = useCallback((code: string) => {
+  const handleOpenProduct = useCallback((
+    code: string,
+    name?: string,
+    article?: string,
+    group?: string,
+    subGroup?: string,
+    category?: string
+  ) => {
     const normalized = (code || "").trim();
     if (!normalized) return;
-    router.push(`/product/${encodeURIComponent(normalized)}`);
-  }, [router]);
+    const normalizedGroup =
+      (group || "").trim() ||
+      (category || "").trim() ||
+      (groupFromURL || "").trim();
+    const normalizedSubGroup =
+      (subGroup || "").trim() ||
+      (subcategoryFromURL || "").trim();
+
+    router.push(
+      buildProductPath({
+        code: normalized,
+        article,
+        name,
+        group: normalizedGroup,
+        subGroup: normalizedSubGroup,
+        category: normalizedGroup || category,
+      })
+    );
+  }, [groupFromURL, router, subcategoryFromURL]);
 
   const sortedData = useMemo(() => {
     if (sortOrder === "none") return filteredData;
@@ -1161,10 +1428,10 @@ const Data: React.FC<DataProps> = ({
     const isAsc = sortOrder === "asc";
 
     copy.sort((a, b) => {
-      const keyA = (a.article || a.code || "").trim();
-      const keyB = (b.article || b.code || "").trim();
-      const euroA = prices[keyA] ?? null;
-      const euroB = prices[keyB] ?? null;
+      const priceKeyA = getProductPriceStateKey(a);
+      const priceKeyB = getProductPriceStateKey(b);
+      const euroA = prices[priceKeyA] ?? null;
+      const euroB = prices[priceKeyB] ?? null;
       const priceA = toPriceUAH(euroA, euroRate);
       const priceB = toPriceUAH(euroB, euroRate);
 
@@ -1181,12 +1448,21 @@ const Data: React.FC<DataProps> = ({
   // Disable list/card animations for fastest scroll on all devices.
   const shouldAnimateList = false;
 
-  const isInitialLoading = (filterLoading || loading) && sortedData.length === 0;
+  useEffect(() => {
+    if (sortedData.length > 0) {
+      setLastStableSortedData(sortedData);
+    }
+  }, [sortedData]);
+  const showGridOverlay = sortedData.length > 0 && (filterLoading || isRefetching);
+  const visibleSortedData =
+    showGridOverlay && lastStableSortedData.length > 0
+      ? lastStableSortedData
+      : sortedData;
+  const isInitialLoading = (filterLoading || loading) && visibleSortedData.length === 0;
   const isEmptyState =
     hasLoadedOnce && !isInitialLoading && !loading && sortedData.length === 0 && !error;
   const showEmptyState = isEmptyState && !isRefetching;
   const isLoadingMore = loading && !isRefetching;
-  const showGridOverlay = !isInitialLoading && (filterLoading || isRefetching);
 
   // Trigger overlay when any filter/search param changes; clear when load finishes.
   const filterSignature = useMemo(
@@ -1199,7 +1475,6 @@ const Data: React.FC<DataProps> = ({
         producerFromURL,
         selectedCategories,
         selectedCars,
-        sortOrder,
       }),
     [
       rawSearchQuery,
@@ -1209,7 +1484,6 @@ const Data: React.FC<DataProps> = ({
       producerFromURL,
       selectedCategories,
       selectedCars,
-      sortOrder,
     ]
   );
 
@@ -1340,34 +1614,23 @@ const Data: React.FC<DataProps> = ({
     <>
       <div
         id="catalog-results"
-        className={`relative w-full px-6 pb-8 pt-0 transition-opacity duration-150 motion-reduce:transition-none sm:px-4 lg:px-6 ${
+        data-filter-autoclose="results"
+        className={`relative w-full px-3 pb-8 pt-0 sm:px-3.5 lg:px-4 ${
           isEmptyState ? 'overflow-hidden h-[calc(100dvh-96px)]' : ''
         }`}
         style={{
           minHeight: "calc(100dvh - 96px)",
-          opacity: showGridOverlay ? 0.85 : 1,
         }}
-        aria-busy={showGridOverlay}
+        aria-busy={loading || filterLoading}
       >
-        <AnimatePresence>
-          {showGridOverlay && (
-            <motion.div
-              key="grid-overlay"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.18 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-b from-white via-white/80 to-white/30 backdrop-blur-[2px]"
-            />
-          )}
-        </AnimatePresence>
-
         {showGridOverlay && (
-          <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center">
-            <div className="flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/95 px-3 py-1 shadow-sm shadow-slate-200/60">
-              <div className="loader h-5 w-5 scale-75" />
-              <span className="text-[11px] text-slate-500">Завантаження...</span>
-            </div>
+          <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center px-4">
+              <div className="flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/96 px-3 py-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
+                <div className="loader h-4 w-4 scale-75" />
+                <span className="text-[11px] font-medium text-slate-600">
+                  Оновлюємо каталог...
+                </span>
+              </div>
           </div>
         )}
         {!loading && error && (
@@ -1383,17 +1646,17 @@ const Data: React.FC<DataProps> = ({
           </div>
         )}
 
-        {!isInitialLoading && sortedData.length > 0 && (
+        {!isInitialLoading && visibleSortedData.length > 0 && (
           <div className="mx-auto mt-2 grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
-            {sortedData.map((item, index) => {
+            {visibleSortedData.map((item, index) => {
               if (!item?.code) return null;
 
               const code = item.code;
               const qty = quantities[code] ?? 1;
               const cartQty = cartMap[code] ?? 0;
 
-              const key = (item.article || code).trim();
-              const euro = prices[key] ?? null;
+              const priceKey = getProductPriceStateKey(item);
+              const euro = prices[priceKey] ?? null;
               const priceUAH = toPriceUAH(euro, euroRate);
 
               return (
@@ -1418,11 +1681,11 @@ const Data: React.FC<DataProps> = ({
           </div>
         )}
 
-        {!isInitialLoading && hasMore && sortedData.length > 0 && (
+        {!isInitialLoading && hasMore && visibleSortedData.length > 0 && (
           <div ref={loadMoreSentinelRef} className="h-6 w-full" aria-hidden="true" />
         )}
 
-        {isLoadingMore && sortedData.length > 0 && (
+        {isLoadingMore && visibleSortedData.length > 0 && (
           <div className="mt-3 flex justify-center">
             <div className="flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/95 px-4 py-2 shadow-sm shadow-slate-200/60">
               <div className="loader h-5 w-5" />
@@ -1459,7 +1722,7 @@ const Data: React.FC<DataProps> = ({
           </div>
         )}
 
-        {!loading && hasMore && sortedData.length > 0 && (
+        {!loading && hasMore && visibleSortedData.length > 0 && (
           <p className="text-center text-xs text-gray-400 mt-3">
             Прокрутіть нижче, щоб завантажити більше товарів...
           </p>

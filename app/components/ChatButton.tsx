@@ -63,22 +63,22 @@ export default function ChatButton({
         style={{ backgroundSize: "180% 180%" }}
         className={`pointer-events-none absolute inset-0 rounded-[22px] ${
           hasUnread
-            ? "bg-[linear-gradient(145deg,rgba(159,18,57,0.98)_0%,rgba(244,63,94,0.95)_48%,rgba(251,146,60,0.92)_100%)]"
-            : "bg-[linear-gradient(145deg,rgba(15,23,42,0.98)_0%,rgba(30,64,175,0.94)_46%,rgba(14,165,233,0.88)_100%)]"
+            ? "bg-[image:linear-gradient(145deg,rgba(159,18,57,0.98)_0%,rgba(244,63,94,0.95)_48%,rgba(251,146,60,0.92)_100%)]"
+            : "bg-[image:linear-gradient(145deg,rgba(15,23,42,0.98)_0%,rgba(30,64,175,0.94)_46%,rgba(14,165,233,0.88)_100%)]"
         }`}
       />
       <span
         className={`pointer-events-none absolute inset-0 rounded-[22px] border border-white/10 ${
           hasUnread
-            ? "bg-[radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.2),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.1),transparent_82%)]"
-            : "bg-[radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_82%)]"
+            ? "bg-[image:radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.2),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.1),transparent_82%)]"
+            : "bg-[image:radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_82%)]"
         }`}
       />
       <span
         className={`pointer-events-none absolute inset-[1px] rounded-[21px] ${
           hasUnread
-            ? "bg-[linear-gradient(165deg,rgba(255,255,255,0.16),rgba(255,255,255,0.04)_38%,rgba(255,255,255,0.07)_100%)]"
-            : "bg-[linear-gradient(165deg,rgba(255,255,255,0.14),rgba(255,255,255,0.04)_38%,rgba(255,255,255,0.06)_100%)]"
+            ? "bg-[image:linear-gradient(165deg,rgba(255,255,255,0.16),rgba(255,255,255,0.04)_38%,rgba(255,255,255,0.07)_100%)]"
+            : "bg-[image:linear-gradient(165deg,rgba(255,255,255,0.14),rgba(255,255,255,0.04)_38%,rgba(255,255,255,0.06)_100%)]"
         }`}
       />
       <motion.span
@@ -95,9 +95,9 @@ export default function ChatButton({
         aria-hidden="true"
         variants={sheenVariants}
         transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-        className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 skew-x-[-18deg] bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent)] mix-blend-screen"
+        className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 skew-x-[-18deg] bg-[image:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent)] mix-blend-screen"
       />
-      <span className="pointer-events-none absolute inset-x-4 top-2.5 h-6 rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.22),transparent)] blur-md" />
+      <span className="pointer-events-none absolute inset-x-4 top-2.5 h-6 rounded-full bg-[image:linear-gradient(180deg,rgba(255,255,255,0.22),transparent)] blur-md" />
 
       <motion.span
         variants={iconVariants}
@@ -115,7 +115,7 @@ export default function ChatButton({
         className="
           pointer-events-none absolute left-1/2 -top-[3.6rem]
           -translate-x-1/2 translate-y-1.5 whitespace-nowrap
-          rounded-[15px] border border-white/65 bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_58%,rgba(224,242,254,0.94)_100%)]
+          rounded-[15px] border border-white/65 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_58%,rgba(224,242,254,0.94)_100%)]
           px-3.5 py-2 text-[11px] font-semibold tracking-[0.05em] text-slate-800
           shadow-[0_18px_36px_rgba(15,23,42,0.16)] backdrop-blur-xl
           opacity-0 transition-all duration-250 ease-out
@@ -140,7 +140,7 @@ export default function ChatButton({
               min-w-[28px] h-7
               flex items-center justify-center
               rounded-full border border-white/45
-              bg-[linear-gradient(135deg,#fb7185_0%,#ef4444_48%,#f97316_100%)]
+              bg-[image:linear-gradient(135deg,#fb7185_0%,#ef4444_48%,#f97316_100%)]
               px-1.5 text-[11px] font-bold text-white
               shadow-[0_10px_24px_rgba(239,68,68,0.34)]
             "

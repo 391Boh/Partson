@@ -81,9 +81,9 @@ const AdvantagesSection = ({
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
     >
-      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/advantages:opacity-100 bg-[radial-gradient(circle_at_12%_16%,rgba(56,189,248,0.24),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(59,130,246,0.2),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(99,102,241,0.18),transparent_36%)]" />
+      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/advantages:opacity-100 bg-[image:radial-gradient(circle_at_12%_16%,rgba(56,189,248,0.24),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(59,130,246,0.2),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(99,102,241,0.18),transparent_36%)]" />
 
-      <div className="relative z-10 mx-auto w-full max-w-[1400px] px-4 sm:px-5 lg:px-7">
+      <div className="page-shell-inline relative z-10">
         <motion.div
           initial={shouldAnimate ? { opacity: 0, y: 8 } : false}
           animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
@@ -109,7 +109,7 @@ const AdvantagesSection = ({
             </div>
           </div>
 
-          <div className="group/logogrid mt-1 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="group/logogrid no-scrollbar mt-1 grid grid-flow-col auto-cols-[minmax(260px,1fr)] items-stretch gap-3 overflow-x-auto pb-1 scroll-smooth sm:auto-cols-[minmax(280px,1fr)] sm:gap-4">
             {advantages.map((item) => {
               const Icon = item.icon;
               return (
@@ -122,9 +122,9 @@ const AdvantagesSection = ({
                       ? { duration: 0.18, ease: "easeOut" }
                       : undefined
                   }
-                  className="group/card relative isolate flex h-full min-h-[190px] flex-col overflow-hidden rounded-[20px] border border-white/80 bg-gradient-to-br from-white/98 via-slate-50/95 to-sky-50/78 p-3.5 text-left shadow-[0_12px_26px_rgba(15,23,42,0.1),inset_0_1px_0_rgba(255,255,255,0.92)] ring-1 ring-transparent transition-[border-color,box-shadow,background-color] duration-250 ease-out sm:min-h-[198px] sm:p-4 hover:border-sky-200/80 hover:shadow-[0_18px_34px_rgba(37,99,235,0.16)]"
+                  className="group/card relative isolate flex min-h-[190px] min-w-0 flex-col overflow-hidden rounded-[20px] border border-white/80 bg-gradient-to-br from-white/98 via-slate-50/95 to-sky-50/78 p-3.5 text-left shadow-[0_12px_26px_rgba(15,23,42,0.1),inset_0_1px_0_rgba(255,255,255,0.92)] ring-1 ring-transparent transition-[border-color,box-shadow,background-color] duration-250 ease-out sm:min-h-[198px] sm:p-4 hover:border-sky-200/80 hover:shadow-[0_18px_34px_rgba(37,99,235,0.16)]"
                 >
-                  <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(125,211,252,0.22),transparent_30%),radial-gradient(circle_at_82%_10%,rgba(59,130,246,0.16),transparent_34%)] opacity-70 transition-opacity duration-300 ease-out group-hover/card:opacity-100" />
+                  <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_18%,rgba(125,211,252,0.22),transparent_30%),radial-gradient(circle_at_82%_10%,rgba(59,130,246,0.16),transparent_34%)] opacity-70 transition-opacity duration-300 ease-out group-hover/card:opacity-100" />
                   <span className="pointer-events-none absolute left-3 right-3 top-1 h-[2px] rounded-full bg-gradient-to-r from-sky-300/70 via-blue-400/65 to-cyan-300/70" />
                   <span
                     className={`pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full blur-3xl transition-opacity duration-300 ease-out group-hover/card:opacity-90 ${item.glowTone}`}

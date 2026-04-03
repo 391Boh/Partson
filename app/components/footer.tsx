@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
+  FaCarSide,
   FaEnvelope,
   FaInfoCircle,
   FaIndustry,
@@ -54,7 +55,7 @@ export default function Footer() {
         style={{ backgroundImage: hoverGradient }}
       />
 
-      <div className="relative z-10 mx-auto w-full max-w-[1400px] px-4 sm:px-4 lg:px-6">
+      <div className="page-shell-inline relative z-10">
         <div className="grid grid-cols-1 gap-x-14 gap-y-8 md:grid-cols-4 lg:gap-x-20">
           <Link
             href="/"
@@ -111,6 +112,12 @@ export default function Footer() {
                 <Link className={infoLinkClass} href="/inform/payment">
                   <FaWallet className={infoIconClass} />
                   <span>Оплата</span>
+                </Link>
+              </li>
+              <li>
+                <Link className={infoLinkClass} href="/auto">
+                  <FaCarSide className={infoIconClass} />
+                  <span>Марки і моделі авто</span>
                 </Link>
               </li>
               <li>

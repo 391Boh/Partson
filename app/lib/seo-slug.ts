@@ -53,7 +53,7 @@ const hashValue = (value: string) => {
   return (hash >>> 0).toString(36);
 };
 
-export const buildSeoSlug = (value: string) => {
+export const buildPlainSeoSlug = (value: string) => {
   const normalized = normalizeWhitespace(value).toLowerCase();
   if (!normalized) return "item";
 
@@ -67,6 +67,12 @@ export const buildSeoSlug = (value: string) => {
       .replace(/^-+|-+$/g, "")
       .replace(/-{2,}/g, "-") || "item";
 
-  return `${slugBase}-${hashValue(normalized)}`;
+  return slugBase;
 };
 
+export const buildSeoSlug = (value: string) => {
+  const normalized = normalizeWhitespace(value).toLowerCase();
+  if (!normalized) return "item";
+
+  return `${buildPlainSeoSlug(normalized)}-${hashValue(normalized)}`;
+};
