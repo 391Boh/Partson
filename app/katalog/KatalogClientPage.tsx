@@ -7,6 +7,7 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import type { PersistedCarSelection } from 'app/components/Auto';
+import { buildVisibleProductName } from 'app/lib/product-url';
 import Data from 'app/components/Data';
 import FilterSidebar from 'app/components/filtrtion';
 
@@ -54,10 +55,11 @@ const Katalog: React.FC = () => {
 
   const groupParam = currentSearchParams.get('group');
   const subcategoryParam = currentSearchParams.get('subcategory');
-  const categoryLabel =
+  const rawCategoryLabel =
     subcategoryParam ||
     groupParam ||
     (selectedCategories.length > 0 ? selectedCategories.join(', ') : '');
+  const categoryLabel = buildVisibleProductName(rawCategoryLabel);
   const searchQuery = (currentSearchParams.get('search') || '').trim();
   const searchFilter = currentSearchParams.get('filter') || 'all';
   const searchFilterLabels: Record<string, string> = {

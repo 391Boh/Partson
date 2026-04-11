@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { brands } from 'app/components/brandsData';
+import { buildVisibleProductName } from 'app/lib/product-url';
 import type { PersistedCarSelection } from 'app/components/Auto';
 
 interface FilterSidebarProps {
@@ -309,11 +310,13 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
 
   const groupParam = currentSearchParams.get('group');
   const subcategoryParam = currentSearchParams.get('subcategory');
+  const displayedGroupParam = groupParam ? buildVisibleProductName(groupParam) : null;
+  const displayedSubcategoryParam = subcategoryParam ? buildVisibleProductName(subcategoryParam) : null;
   const producerParam = (currentSearchParams.get('producer') || '').trim();
   const categoryLabel =
-    subcategoryParam ||
-    groupParam ||
-    (selectedCategories.length > 0 ? selectedCategories.join(', ') : '');
+    displayedSubcategoryParam ||
+    displayedGroupParam ||
+    (selectedCategories.length > 0 ? selectedCategories.map(c => buildVisibleProductName(c)).join(', ') : '');
   const hasCategoryLabel = Boolean(categoryLabel);
   const categoryCount = selectedCategories.length;
   const carCount = selectedCars.length;
@@ -629,7 +632,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       case 'category':
         return (
           <Category
-            selectedCategories={selectedCategories}
+            selectedCategories={selectedCategories.map(cat => buildVisibleProductName(cat))}
             handleCategoryChange={handleCategoryToggle}
             searchTerm={categorySearchTerm}
             onSearchTermChange={setCategorySearchTerm}
@@ -771,7 +774,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 <>
                   <span className="hidden sm:inline">Категорія:</span>
                   <span className="hidden max-w-[220px] truncate font-medium text-slate-700 sm:inline">
-                    {categoryLabel}
+                    {buildVisibleProductName(categoryLabel)}
                   </span>
                 </>
               ) : (

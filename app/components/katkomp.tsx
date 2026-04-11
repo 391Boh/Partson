@@ -629,8 +629,8 @@ const Category: React.FC<CategoryProps> = ({
       nextGroup = hasChildren || path.length > 2 ? path[1] : null;
     }
 
-    setActiveCategory(categoryName);
-    setActiveGroup(nextGroup);
+    setActiveCategory(categoryName ? buildVisibleProductName(categoryName) : null);
+    setActiveGroup(nextGroup ? buildVisibleProductName(nextGroup) : null);
   }, [categories, selectedCategories]);
 
   const clearSelectedCategories = () => {
@@ -676,7 +676,7 @@ const Category: React.FC<CategoryProps> = ({
       : filteredSubgroupItems.length;
 
   const handleCategorySelect = (name: string) => {
-    setActiveCategory(name);
+    setActiveCategory(buildVisibleProductName(name));
     setActiveGroup(null);
     setSearchTerm("");
   };
@@ -686,11 +686,11 @@ const Category: React.FC<CategoryProps> = ({
     const hasChildren = (group.children ?? []).length > 0;
     setSearchTerm("");
     if (hasChildren) {
-      setActiveGroup(name);
+      setActiveGroup(buildVisibleProductName(name));
       return;
     }
     if (!activeCategory) return;
-    pushSelection(activeCategory, name);
+    pushSelection(activeCategory, buildVisibleProductName(name));
   };
 
   const handleSubgroupSelect = (item: SubgroupItem) => {
@@ -700,7 +700,7 @@ const Category: React.FC<CategoryProps> = ({
       path.length >= 2 ? path[path.length - 2] : activeGroup || activeCategory;
     if (!parent || !leaf) return;
     setSearchTerm("");
-    pushSelection(parent, leaf);
+    pushSelection(parent, buildVisibleProductName(leaf));
   };
 
   const handleSearchSelect = (path: string[]) => {
@@ -712,12 +712,12 @@ const Category: React.FC<CategoryProps> = ({
     const subcategoryParam = path.length >= 2 ? path[path.length - 1] : null;
 
     if (categoryName) {
-      setActiveCategory(categoryName);
-      setActiveGroup(nextGroup);
+      setActiveCategory(buildVisibleProductName(categoryName));
+      setActiveGroup(nextGroup ? buildVisibleProductName(nextGroup) : null);
     }
     setSearchTerm("");
     if (groupParam) {
-      pushSelection(groupParam, subcategoryParam);
+      pushSelection(buildVisibleProductName(groupParam), subcategoryParam ? buildVisibleProductName(subcategoryParam) : null);
     }
   };
 
