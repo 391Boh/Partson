@@ -1,10 +1,9 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
-import SeoDisclosure from "app/components/SeoDisclosure";
 import SmartLink from "app/components/SmartLink";
 import { buildCatalogCategoryPath, buildGroupItemPath } from "app/lib/catalog-links";
 import { getProductTreeDataset } from "app/lib/product-tree";
@@ -159,6 +158,9 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   if (itemSlug !== item.itemSlug) {
     permanentRedirect(buildGroupItemPath(item.groupSlug, item.itemSlug));
   }
+  if (item.children.length === 0) {
+    redirect(item.catalogPath);
+  }
 
   const siteUrl = getSiteUrl();
   const pagePath = buildGroupItemPath(item.groupSlug, item.itemSlug);
@@ -256,6 +258,9 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
       <h1 className="font-display-italic mt-3 text-3xl tracking-[-0.048em] text-slate-900">
         {visibleLabel}
       </h1>
+      <p className="mt-2 text-sm text-slate-600">
+        {`Груп у розділі: ${item.children.length}`}
+      </p>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
         {item.parentSubgroupLabel
           ? `Кінцева категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel}.`
@@ -279,46 +284,25 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
       </div>
 
       {item.children.length > 0 ? (
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-4">
+        <section className="mt-8 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
           <h2 className="font-display-italic text-lg tracking-[-0.046em] text-slate-800">
-            Кінцеві категорії
+            Підкатегорії
           </h2>
-          <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <ul className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {item.children.map((child) => (
               <li key={child.slug}>
                 <CatalogPrefetchLink
-                  href={buildGroupItemPath(item.groupSlug, child.slug)}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+                  href={buildCatalogCategoryPath(item.groupLabel, child.label)}
+                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800"
                 >
                   <span>{buildVisibleProductName(child.label)}</span>
+                  <span className="text-slate-400">&rarr;</span>
                 </CatalogPrefetchLink>
               </li>
             ))}
           </ul>
         </section>
       ) : null}
-
-      <section className="relative left-1/2 right-1/2 mt-8 w-screen -translate-x-1/2 border-y border-sky-100/80 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.9),rgba(239,246,255,0.74))]">
-        <div className="page-shell-inline py-5 sm:py-6">
-          <SeoDisclosure
-            title={`${visibleLabel} у каталозі PartsON`}
-            titleClassName="font-display-italic text-[1.35rem] sm:text-[1.55rem]"
-            bodyClassName="text-[14px] leading-7 sm:text-[15px]"
-          >
-            <p>{buildGroupItemDescription(item)}</p>
-            <div className="mt-3 space-y-3">
-              <p>
-                Сторінка створена як окремий SEO-маршрут для категорії {visibleLabel}, щоб у sitemap і
-                внутрішній навігації не використовувалися довгі адреси виду `katalog?...`.
-              </p>
-              <p>
-                Для перегляду товарів відкрий каталог цієї категорії або повернись до групи
-                {` ${visibleGroupLabel}`} для переходу до суміжних розділів.
-              </p>
-            </div>
-          </SeoDisclosure>
-        </div>
-      </section>
 
       <script
         type="application/ld+json"

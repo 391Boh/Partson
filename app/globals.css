@@ -80,8 +80,9 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overscroll-behavior-y: auto;
-    letter-spacing: -0.018em;
-    line-height: 1.38;
+    font-size: clamp(16px, 0.3vw + 15px, 17px);
+    letter-spacing: 0.012em;
+    line-height: 1.5;
     font-weight: 620;
     font-variation-settings: "wght" 620;
   }
@@ -252,8 +253,8 @@ h1, h2, h3, h4, h5, h6 {
     font-style: italic !important;
     font-weight: 780 !important;
     font-variation-settings: "wght" 780;
-    letter-spacing: -0.064em;
-    line-height: 0.9;
+  letter-spacing: -0.016em;
+  line-height: 1.08;
     text-wrap: balance;
     font-synthesis: none;
     text-rendering: geometricPrecision;
@@ -273,7 +274,8 @@ h1, h2, h3, h4, h5, h6 {
 @layer utilities {
   .font-ui {
     font-family: var(--font-geist-sans);
-    letter-spacing: -0.018em;
+    letter-spacing: 0.012em;
+    line-height: 1.5;
     font-weight: 620;
     font-variation-settings: "wght" 620;
   }

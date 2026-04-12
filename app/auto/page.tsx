@@ -4,7 +4,6 @@ import { ArrowRight, CarFront, Factory, Layers3 } from "lucide-react";
 
 import AutoBrandsDirectoryClient from "app/auto/AutoBrandsDirectoryClient";
 import CatalogHubHero from "app/components/CatalogHubHero";
-import SeoDisclosure from "app/components/SeoDisclosure";
 import { carBrands } from "app/components/carBrands";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
@@ -38,7 +37,6 @@ export const metadata: Metadata = buildPageMetadata({
 
 export default function AutoPage() {
   const siteUrl = getSiteUrl();
-  const featuredAutoBrands = carBrands.slice(0, 8).map((brand) => brand.name);
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
@@ -139,55 +137,12 @@ export default function AutoPage() {
           ]}
         />
 
+        <h1 className="sr-only">{title}</h1>
+
       </section>
 
       <AutoBrandsDirectoryClient items={carBrands} />
 
-      <section className="relative left-1/2 right-1/2 mt-6 w-screen -translate-x-1/2 border-y border-sky-100/80 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.94),rgba(239,246,255,0.76))]">
-        <div className="page-shell-inline py-5 sm:py-6">
-          <SeoDisclosure
-            title="Підбір запчастин по авто як окремий SEO-маршрут каталогу"
-            summaryLabel="SEO-контент"
-            titleClassName="font-display-italic text-[1.35rem] sm:text-[1.55rem]"
-            bodyClassName="text-[14px] leading-7 sm:text-[15px]"
-          >
-            <p>
-              {description} Сторінка <strong>/auto</strong> допомагає індексувати запити за
-              маркою, моделлю та сценарієм підбору без перевантаження каталогу технічними
-              фільтрами.
-            </p>
-            <div className="mt-3 space-y-3">
-              <p>
-                Користувачі починають підбір із марки автомобіля, а далі переходять у каталог уже з
-                підготовленим контекстом пошуку. Це скорочує шлях до товару і додає окрему сторінку
-                під високочастотні SEO-запити на кшталт запчастини по авто або підбір по марці авто.
-              </p>
-              <p>
-                У фокусі каталогу зараз марки {featuredAutoBrands.join(", ")}. Поруч із підбором по
-                авто залишаються доступними маршрути по групах товарів і по виробниках, що покращує
-                перелінковку між розділами.
-              </p>
-            </div>
-            <ul className="mt-4 grid gap-2.5 md:grid-cols-2">
-              {[
-                `${carBrands.length.toLocaleString("uk-UA")} марок авто для старту підбору;`,
-                "окремий H1 і метаопис під сценарій пошуку по авто;",
-                "вхід у каталог без довгих query-URL у sitemap;",
-                "суміжна перелінковка на групи товарів та виробників;",
-                "краще покриття запитів запчастини по авто, за маркою і моделлю;",
-                "зручний мобільний маршрут для швидкого переходу до каталогу;",
-              ].map((item) => (
-                <li
-                  key={item}
-                  className="rounded-2xl border border-slate-200/80 bg-slate-50/90 px-4 py-3 text-sm leading-6 text-slate-600"
-                >
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </SeoDisclosure>
-        </div>
-      </section>
     </main>
   );
 }

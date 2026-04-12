@@ -6,7 +6,7 @@ import { ChevronRight, FolderTree, Search, X } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import SmartLink from "app/components/SmartLink";
-import { buildGroupItemPath } from "app/lib/catalog-links";
+import { buildCatalogCategoryPath, buildGroupItemPath } from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildVisibleProductName } from "app/lib/product-url";
 
@@ -72,17 +72,23 @@ const filterGroups = (groups: GroupsDirectoryItem[], query: string) => {
   if (!query) return groups;
 
   return groups.flatMap((group) => {
+    const rawGroupLabel = group.label;
     const groupLabel = buildVisibleProductName(group.label);
-    const groupMatches = normalize(groupLabel).includes(query);
+    const groupMatches = normalize(`${groupLabel} ${rawGroupLabel}`).includes(query);
 
     const matchedSubgroups = group.subgroups.flatMap((subgroup) => {
+      const rawSubgroupLabel = subgroup.label;
       const subgroupLabel = buildVisibleProductName(subgroup.label);
-      const subgroupMatches = normalize(`${groupLabel} ${subgroupLabel}`).includes(query);
+      const subgroupMatches = normalize(
+        `${groupLabel} ${rawGroupLabel} ${subgroupLabel} ${rawSubgroupLabel}`
+      ).includes(query);
 
       const matchedChildren = subgroup.children.filter((child) =>
-        normalize(`${groupLabel} ${subgroupLabel} ${buildVisibleProductName(child.label)}`).includes(
-          query
-        )
+        normalize(
+          `${groupLabel} ${rawGroupLabel} ${subgroupLabel} ${rawSubgroupLabel} ${buildVisibleProductName(
+            child.label
+          )} ${child.label}`
+        ).includes(query)
       );
 
       if (!groupMatches && !subgroupMatches && matchedChildren.length === 0) {
@@ -147,7 +153,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                 </span>
               ) : (
                 <SmartLink
-                  href={`/groups/${group.slug}`}
+                  href={buildCatalogCategoryPath(group.label)}
                   className="font-display mt-2 block text-[19px] font-[760] italic text-slate-900 transition hover:text-cyan-700"
                 >
                   {visibleGroupLabel}
@@ -174,7 +180,11 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
             >
               <div className="flex items-start justify-between gap-3">
                 <CatalogPrefetchLink
-                  href={buildGroupItemPath(group.slug, subgroup.slug)}
+                  href={
+                    subgroup.children.length > 0
+                      ? buildGroupItemPath(group.slug, subgroup.slug)
+                      : buildCatalogCategoryPath(group.label, subgroup.label)
+                  }
                   className="inline-flex min-w-0 items-center gap-2 text-sm font-[720] leading-5 text-slate-800 transition hover:text-cyan-700"
                 >
                   <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-cyan-100 bg-cyan-50 text-cyan-700">
@@ -191,14 +201,15 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
               </div>
 
               {subgroup.children.length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-1.5 pl-9">
+                <div className="mt-3 grid grid-cols-1 gap-2 pl-0 sm:grid-cols-2">
                   {subgroup.children.map((child) => (
                     <CatalogPrefetchLink
                       key={child.slug}
-                      href={buildGroupItemPath(group.slug, child.slug)}
-                      className="inline-flex rounded-full border border-sky-100 bg-sky-50/90 px-3 py-1.5 text-[12px] font-medium text-slate-700 transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-800"
+                      href={buildCatalogCategoryPath(group.label, child.label)}
+                      className="flex items-center justify-between rounded-xl border border-sky-100 bg-sky-50/90 px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-800"
                     >
-                      {buildVisibleProductName(child.label)}
+                      <span>{buildVisibleProductName(child.label)}</span>
+                      <ChevronRight size={14} strokeWidth={2.1} />
                     </CatalogPrefetchLink>
                   ))}
                 </div>
@@ -209,11 +220,11 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
       ) : (
         <div className="mt-3">
           <SmartLink
-            href={`/groups/${group.slug}`}
+            href={buildCatalogCategoryPath(group.label)}
             className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50/90 px-4 py-2 text-sm font-[720] text-cyan-900 transition hover:border-cyan-300 hover:bg-cyan-100"
           >
             <ChevronRight size={16} strokeWidth={2.3} />
-            Перейти до групи
+            Перейти до каталогу
           </SmartLink>
         </div>
       )}

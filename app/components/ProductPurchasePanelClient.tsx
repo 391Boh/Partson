@@ -149,12 +149,16 @@ export default function ProductPurchasePanelClient(
     const cachedPrice = readCachedPrice();
     if (cachedPrice !== undefined) {
       setPriceUah(cachedPrice);
-    } else if (normalizedInitialPrice != null) {
+      return;
+    }
+
+    if (normalizedInitialPrice != null) {
       setPriceUah(normalizedInitialPrice);
       writeCachedPrice(normalizedInitialPrice);
-    } else {
-      setPriceUah(undefined);
+      return;
     }
+
+    setPriceUah(undefined);
 
     const controller = new AbortController();
     let cancelled = false;

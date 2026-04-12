@@ -18,9 +18,9 @@ interface CityOrWarehouse {
 }
 
 export type DeliveryMethodValue =
-  | 'РќРѕРІР° РџРѕС€С‚Р°'
-  | 'РЎР°РјРѕРІРёРІС–Р·'
-  | 'Р”РѕСЃС‚Р°РІРєР° Сѓ Р›СЊРІРѕРІС–'
+  | 'Нова Пошта'
+  | 'Самовивіз'
+  | 'Доставка у Львові'
   | '';
 
 interface Props {
@@ -300,7 +300,7 @@ const DeliveryMethod: React.FC<Props> = ({
       {deliveryMethod === 'Самовивіз' && (
         <div className="soft-surface-card mt-3.5 rounded-[16px] p-3.5 text-sm text-slate-600">
           <p><strong>Адреса самовивозу:</strong></p>
-          <p>м. Львів, вул. Перфецького 10, офіс 307</p>
+           <p>м. Львів, вул. Перфецького, 8</p>
         </div>
       )}
 

@@ -74,6 +74,17 @@ const Category = dynamic<CategoryProps>(() => import('app/components/katkomp'), 
   ),
 });
 
+const stripParentheticalMeta = (value: string) => {
+  const normalized = value.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  return normalized || value.trim();
+};
+
+const getFilterDisplayLabel = (value: string) => {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return '';
+  return stripParentheticalMeta(trimmed);
+};
+
 interface FilterAutoPanelProps {
   selectedCars: string[];
   handleCarChange: (car: string) => void;
@@ -315,6 +326,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     groupParam ||
     (selectedCategories.length > 0 ? selectedCategories.join(', ') : '');
   const hasCategoryLabel = Boolean(categoryLabel);
+  const displayCategoryLabel = getFilterDisplayLabel(categoryLabel);
   const categoryCount = selectedCategories.length;
   const carCount = selectedCars.length;
   const searchQuery = (currentSearchParams.get('search') || '').trim();
@@ -339,10 +351,11 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   };
   const searchFilterLabel = searchFilterLabels[searchFilter] || '';
   const searchLabel = searchFilterLabel
-    ? `${searchQuery} (${searchFilterLabel})`
+    ? `${searchQuery} · ${searchFilterLabel}`
     : searchQuery;
-  const producerLabel = producerParam ? `Виробник: ${producerParam}` : '';
-  const partLabel = [categoryLabel, producerLabel, searchLabel].filter(Boolean).join(' / ');
+  const displayProducerLabel = getFilterDisplayLabel(producerParam);
+  const producerLabel = displayProducerLabel ? `Виробник: ${displayProducerLabel}` : '';
+  const partLabel = [displayCategoryLabel, producerLabel, searchLabel].filter(Boolean).join(' / ');
   const showSearchInfo = Boolean(searchQuery) && !hasCategorySelection;
   const hasActiveFilters =
     carCount > 0 ||
@@ -361,6 +374,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     if (selectedCars.length > 0) return selectedCars.join(', ');
     return '';
   }, [selectedCarSelection, selectedCars, selectedVin]);
+  const displayCarLabel = getFilterDisplayLabel(carLabel);
   const showRequestBanner =
     Boolean(requestMessage) && isAutoSelected && hasStrictPartSelection;
   const canSubmitRequest = Boolean(onConfirmRequest);
@@ -560,7 +574,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   }, []);
 
   const filterChipBase =
-    'flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11px] transition-all duration-200 active:scale-95 cursor-pointer touch-manipulation sm:px-2 sm:text-[12px]';
+    'flex min-h-[36px] max-w-full items-center gap-1.5 rounded-xl px-2 py-1 text-[11px] transition-all duration-200 active:scale-95 cursor-pointer touch-manipulation sm:px-2.5 sm:py-1.5 sm:text-[12px]';
   const filterChipIdle =
     `${filterChipBase} border border-slate-200/90 bg-white/88 text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.07)] ring-1 ring-white/75 backdrop-blur-md hover:border-slate-300 hover:bg-white hover:text-slate-800`;
   const filterChipBlue =
@@ -719,7 +733,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       <div
         ref={headerRef}
         onClick={handleHeaderToggle}
-        className={`flex cursor-pointer items-center justify-between gap-1.5 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.58)_0%,rgba(241,245,249,0.54)_52%,rgba(224,242,254,0.48)_100%)] px-2.5 py-2.5 sm:gap-3 sm:px-4 sm:py-3 ${
+        className={`flex cursor-pointer flex-wrap items-center justify-between gap-2 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.58)_0%,rgba(241,245,249,0.54)_52%,rgba(224,242,254,0.48)_100%)] px-2.5 py-2.5 sm:gap-3 sm:px-4 sm:py-3 ${
           collapsed ? '' : 'border-b border-slate-200/80'
         }`}
       >
@@ -727,10 +741,10 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             <Filter size={16} className="text-slate-600" />
             <span className="hidden sm:inline">Фільтрація</span>
           </div>
-          <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-2 sm:gap-2.5">
             {showSearchInfo && (
               <div
-                className="hidden items-center gap-1 text-[12px] text-slate-500 sm:flex"
+                className="hidden items-center gap-1 text-[12px] text-slate-500 lg:flex"
               >
                 <Search size={12} className="text-slate-400" />
                 <span className="hidden md:inline">Пошук:</span>
@@ -762,15 +776,16 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               className={categoryButtonClass}
               aria-label="Відкрити вкладку категорії"
               aria-pressed={isCategorySelected}
+              title={displayCategoryLabel || 'Категорія'}
             >
               <span className={categoryIconWrapClass} aria-hidden="true">
                 <Layers size={12} className="pointer-events-none" />
               </span>
               {hasCategoryLabel ? (
                 <>
-                  <span className="hidden sm:inline">Категорія:</span>
-                  <span className="hidden max-w-[220px] truncate font-medium text-slate-700 sm:inline">
-                    {categoryLabel}
+                  <span className="hidden md:inline text-slate-500">Категорія</span>
+                  <span className="max-w-[150px] truncate font-medium text-slate-700 sm:max-w-[220px]">
+                    {displayCategoryLabel}
                   </span>
                 </>
               ) : (
@@ -790,6 +805,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               }
               aria-label="Відкрити вкладку виробників"
               aria-pressed={isProducerSelected}
+              title={displayProducerLabel || 'Виробник'}
             >
               <span className={producerIconWrapClass} aria-hidden="true">
                 <Package size={12} className="pointer-events-none" />

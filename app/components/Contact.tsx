@@ -278,7 +278,8 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                 <p className="text-sm font-semibold text-slate-800">Наш магазин</p>
                 <p className="mt-1 text-sm leading-relaxed text-slate-600">
                   м. Львів, вул. Перфецького, 8<br />
-                  Пн–Нд: 08:00–19:00
+                  Пн–Сб: 08:00–18:00<br />
+                  Нд: 08:00–16:00
                 </p>
               </div>
             </div>
@@ -298,7 +299,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
           </button>
         ) : (
           <a
-            href="https://maps.google.com/?q=Львів,+вул.+Перфецького,+8"
+            href="https://www.google.com/maps?cid=11517394092669341405"
             target="_blank"
             rel="noopener noreferrer"
             className="soft-primary-button mt-1 flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold"

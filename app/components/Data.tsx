@@ -9,7 +9,7 @@ import React, {
   useDeferredValue,
   startTransition,
 } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { Search } from "lucide-react";
 
@@ -67,6 +67,9 @@ const LOAD_MORE_OBSERVER_ROOT_MARGIN = "0px 0px 1100px 0px";
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 220;
 const INITIAL_SKELETON_COUNT = ITEMS_PER_PAGE;
 const APPEND_SKELETON_COUNT = 4;
+const DEFAULT_EURO_RATE = 50;
+const EURO_RATE_CACHE_KEY = "partson:v1:euro-rate";
+const EURO_RATE_CACHE_TTL_MS = 1000 * 60 * 30;
 
 // Backend field aliases (use escapes to stay ASCII-friendly)
 const NAME_FIELDS = [
@@ -251,6 +254,61 @@ const writeCachedPriceEntry = (code: string, price: number | null) => {
   } catch {}
   try {
     window.localStorage.setItem(`${PRICE_CACHE_PREFIX}${code}`, payload);
+  } catch {}
+};
+
+const readCachedEuroRate = () => {
+  if (typeof window === "undefined") return null;
+
+  const readFromStorage = (storage: Storage) => {
+    try {
+      const raw = storage.getItem(EURO_RATE_CACHE_KEY);
+      if (!raw) return null;
+
+      const parsed = JSON.parse(raw) as { rate?: number; t?: number };
+      if (
+        !parsed ||
+        typeof parsed.t !== "number" ||
+        typeof parsed.rate !== "number" ||
+        !Number.isFinite(parsed.rate) ||
+        parsed.rate <= 0
+      ) {
+        return null;
+      }
+
+      if (Date.now() - parsed.t > EURO_RATE_CACHE_TTL_MS) {
+        storage.removeItem(EURO_RATE_CACHE_KEY);
+        return null;
+      }
+
+      return parsed.rate;
+    } catch {
+      return null;
+    }
+  };
+
+  const sessionHit = readFromStorage(window.sessionStorage);
+  if (sessionHit != null) return sessionHit;
+
+  try {
+    return readFromStorage(window.localStorage);
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedEuroRate = (rate: number) => {
+  if (typeof window === "undefined") return;
+  if (!Number.isFinite(rate) || rate <= 0) return;
+
+  const payload = JSON.stringify({ rate, t: Date.now() });
+
+  try {
+    window.sessionStorage.setItem(EURO_RATE_CACHE_KEY, payload);
+  } catch {}
+
+  try {
+    window.localStorage.setItem(EURO_RATE_CACHE_KEY, payload);
   } catch {}
 };
 
@@ -1270,10 +1328,16 @@ function useCatalogData(params: {
   );
 
   // ? Курс EUR (fallback 50)
-  const [euroRate, setEuroRate] = useState<number>(50);
+  const [euroRate, setEuroRate] = useState<number>(DEFAULT_EURO_RATE);
 
   // ? РєСѓСЂСЃ Р· РќРћР’РћР“Рћ PROXY: /api/proxy?endpoint=euro
   useEffect(() => {
+    const cachedRate = readCachedEuroRate();
+    if (cachedRate != null) {
+      setEuroRate((prev) => (prev === cachedRate ? prev : cachedRate));
+      return;
+    }
+
     let cancelled = false;
 
     const loadEuroRate = async () => {
@@ -1287,7 +1351,9 @@ function useCatalogData(params: {
         const json: { rate?: number } = await res.json();
 
         if (!cancelled && typeof json?.rate === "number") {
-          setEuroRate(json.rate);
+          const nextRate = json.rate;
+          writeCachedEuroRate(nextRate);
+          setEuroRate((prev) => (prev === nextRate ? prev : nextRate));
         }
       } catch (e) {
         console.error("Не вдалося завантажити курс EUR", e);
@@ -2096,7 +2162,6 @@ const Data: React.FC<DataProps> = ({
   selectedCategories,
   sortOrder,
 }) => {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const currentSearchParams = searchParams ?? new URLSearchParams();
@@ -2151,36 +2216,6 @@ const Data: React.FC<DataProps> = ({
     producerFromURL,
     sortOrder,
   });
-
-  const handleOpenProduct = useCallback((
-    code: string,
-    name?: string,
-    article?: string,
-    group?: string,
-    subGroup?: string,
-    category?: string
-  ) => {
-    const normalized = (code || "").trim();
-    if (!normalized) return;
-    const normalizedGroup =
-      (group || "").trim() ||
-      (category || "").trim() ||
-      (groupFromURL || "").trim();
-    const normalizedSubGroup =
-      (subGroup || "").trim() ||
-      (subcategoryFromURL || "").trim();
-
-    router.push(
-      buildProductPath({
-        code: normalized,
-        article,
-        name,
-        group: normalizedGroup,
-        subGroup: normalizedSubGroup,
-        category: normalizedGroup || category,
-      })
-    );
-  }, [groupFromURL, router, subcategoryFromURL]);
 
   const requestNextPageOnScroll = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -2466,11 +2501,27 @@ const Data: React.FC<DataProps> = ({
                 const shouldPrioritizeImage = index < IMAGE_PRIORITY_ITEMS_COUNT;
                 const imageBatchKey = buildProductImageBatchKey(item.code, item.article);
                 const hasPhoto = item.hasPhoto !== false;
+                const normalizedGroup =
+                  (item.group || "").trim() ||
+                  (item.category || "").trim() ||
+                  (groupFromURL || "").trim();
+                const normalizedSubGroup =
+                  (item.subGroup || "").trim() ||
+                  (subcategoryFromURL || "").trim();
+                const productHref = buildProductPath({
+                  code: item.code,
+                  article: item.article,
+                  name: item.name,
+                  group: normalizedGroup,
+                  subGroup: normalizedSubGroup,
+                  category: normalizedGroup || item.category,
+                });
 
                 return (
                   <ProductCard
                     key={code || `item-${index}`}
                     item={item}
+                    productHref={productHref}
                     qty={qty}
                     cartQty={cartQty}
                     priceUAH={priceUAH}
@@ -2494,7 +2545,6 @@ const Data: React.FC<DataProps> = ({
                     onQtyChange={handleQtyChange}
                     onFlip={handleFlip}
                     onImageOpen={handleImageOpen}
-                    onOpenProduct={handleOpenProduct}
                   />
                 );
               })}

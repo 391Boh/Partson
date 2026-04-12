@@ -1,17 +1,14 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
-import SeoDisclosure from "app/components/SeoDisclosure";
 import SmartLink from "app/components/SmartLink";
 import { buildCatalogCategoryPath, buildGroupItemPath } from "app/lib/catalog-links";
-import { findSeoGroupBySlug } from "app/lib/catalog-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
-import { getGroupMetaDescription, getGroupSeoCopy } from "app/lib/seo-copy";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
@@ -27,11 +24,13 @@ interface GroupPageProps {
 type GroupPageData = {
   label: string;
   slug: string;
-  productCount: number;
   subgroups: Array<{
     label: string;
     slug: string;
-    productCount: number;
+    children: Array<{
+      label: string;
+      slug: string;
+    }>;
   }>;
 };
 
@@ -41,39 +40,27 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   return Math.floor(numeric);
 };
 
-const normalizeLookupValue = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
-
 const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null> => {
-  const [dataset, seoGroup] = await Promise.all([
-    getProductTreeDataset().catch(() => null),
-    findSeoGroupBySlug(slug).catch(() => null),
-  ]);
+  const dataset = await getProductTreeDataset().catch(() => null);
   const group = dataset?.groups.find((item) => item.slug === slug);
   if (!group) return null;
-
-  const subgroupCounts = new Map(
-    (seoGroup?.subgroups || []).map((subgroup) => [
-      normalizeLookupValue(subgroup.label),
-      subgroup.productCount,
-    ])
-  );
 
   return {
     label: group.label,
     slug: group.slug,
-    productCount: seoGroup?.productCount ?? 0,
     subgroups: group.subgroups.map((subgroup) => ({
       label: subgroup.label,
       slug: subgroup.slug,
-      productCount: subgroupCounts.get(normalizeLookupValue(subgroup.label)) ?? 0,
+      children: (Array.isArray(subgroup.children) ? subgroup.children : []).map((child) => ({
+        label: child.label,
+        slug: child.slug,
+      })),
     })),
   };
 });
 
-const buildGroupDescription = (label: string, productCount: number) =>
-  productCount > 0
-    ? getGroupMetaDescription(label, productCount)
-    : `Каталог автозапчастин групи ${label} в PartsON з підгрупами, швидким переходом у потрібний розділ і доставкою по Україні.`;
+const buildGroupDescription = (label: string) =>
+  `Каталог автозапчастин групи ${label} в PartsON з підгрупами, швидким переходом у потрібний розділ і доставкою по Україні.`;
 
 const buildGroupPagePath = (slug: string) => `/groups/${encodeURIComponent(slug)}`;
 
@@ -101,7 +88,7 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
     };
   }
 
-  const description = buildGroupDescription(group.label, group.productCount);
+  const description = buildGroupDescription(group.label);
   const canonicalPath = buildGroupPagePath(group.slug);
 
   return buildPageMetadata({
@@ -127,44 +114,22 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   const { slug } = await params;
   const group = await getGroupBySlug(slug);
   if (!group) notFound();
+  if (group.subgroups.length === 0) {
+    redirect(buildCatalogCategoryPath(group.label));
+  }
 
   const siteUrl = getSiteUrl();
   const pagePath = buildGroupPagePath(group.slug);
   const catalogLink = buildCatalogCategoryPath(group.label);
   const canonicalPageUrl = `${siteUrl}${pagePath}`;
   const visibleGroupLabel = buildVisibleProductName(group.label);
-  const replaceGroupLabel = (value: string) =>
-    visibleGroupLabel !== group.label ? value.split(group.label).join(visibleGroupLabel) : value;
-  const seoCopy =
-    group.productCount > 0
-      ? getGroupSeoCopy(group.label, group.productCount)
-      : {
-          title: `Каталог автозапчастин ${group.label} у PartsON`,
-          intro: `На сторінці ${group.label} зібрані основні підгрупи та прямі переходи до потрібних розділів каталогу автозапчастин.`,
-          paragraphs: [
-            `Розділ ${group.label} допомагає швидко перейти до релевантних товарів без зайвого ручного пошуку по всьому каталогу автозапчастин.`,
-            `Сторінка підходить для навігації між суміжними підгрупами і швидкого старту підбору та купівлі автозапчастин у PartsON.`,
-          ],
-          highlights: [
-            `${group.subgroups.length} підгруп для швидкого переходу;`,
-            "зручна навігація по каталогу;",
-            "підбір автозапчастин за категорією, кодом і артикулом;",
-            "замовлення з доставкою по Україні;",
-          ],
-        };
-  const visibleSeoCopy = {
-    title: replaceGroupLabel(seoCopy.title),
-    intro: replaceGroupLabel(seoCopy.intro),
-    paragraphs: seoCopy.paragraphs.map(replaceGroupLabel),
-    highlights: seoCopy.highlights.map(replaceGroupLabel),
-  };
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     name: `Каталог автозапчастин ${group.label}`,
     url: canonicalPageUrl,
-    description: buildGroupDescription(group.label, group.productCount),
+    description: buildGroupDescription(group.label),
     isPartOf: {
       "@type": "WebSite",
       name: "PartsON",
@@ -211,7 +176,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
     "@type": "WebPage",
     name: `Каталог автозапчастин ${group.label}`,
     url: canonicalPageUrl,
-    description: buildGroupDescription(group.label, group.productCount),
+    description: buildGroupDescription(group.label),
     inLanguage: "uk-UA",
     isPartOf: {
       "@type": "WebSite",
@@ -259,9 +224,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
         Каталог автозапчастин {visibleGroupLabel}
       </h1>
       <p className="mt-2 text-sm text-slate-600">
-        {group.productCount > 0
-          ? `Товарів у групі: ${group.productCount}`
-          : `Підгруп у розділі: ${group.subgroups.length}`}
+        {`Груп у розділі: ${group.subgroups.length}`}
       </p>
       <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
         На цій сторінці зібрані основні підгрупи для категорії {visibleGroupLabel}. Використовуйте
@@ -293,50 +256,48 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
       </div>
 
       {group.subgroups.length > 0 && (
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-4">
-          <h2 className="font-display-italic text-lg tracking-[-0.046em] text-slate-800">Підгрупи</h2>
-          <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {group.subgroups.map((subgroup) => (
-              <li key={subgroup.slug}>
+        <section className="mt-8 space-y-4">
+          {group.subgroups.map((subgroup) =>
+            subgroup.children.length > 0 ? (
+              <div key={subgroup.slug} className="rounded-[24px] border border-slate-200/90 bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-display-italic text-base font-[720] tracking-[-0.04em] text-slate-800">
+                    {buildVisibleProductName(subgroup.label)}
+                  </h2>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+                    {subgroup.children.length} підгруп
+                  </span>
+                </div>
+                <ul className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  {subgroup.children.map((child) => (
+                    <li key={child.slug}>
+                      <CatalogPrefetchLink
+                        href={buildCatalogCategoryPath(group.label, child.label)}
+                        className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800"
+                      >
+                        <span>{buildVisibleProductName(child.label)}</span>
+                        <span className="text-slate-400">
+                          &rarr;
+                        </span>
+                      </CatalogPrefetchLink>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div key={subgroup.slug} className="rounded-[22px] border border-slate-200/90 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
                 <CatalogPrefetchLink
-                  href={buildGroupItemPath(group.slug, subgroup.slug)}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+                  href={buildCatalogCategoryPath(group.label, subgroup.label)}
+                  className="flex items-center justify-between rounded-[22px] px-4 py-3.5 text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-800"
                 >
-                  <span>{buildVisibleProductName(subgroup.label)}</span>
-                  <span className="text-xs text-slate-500">{subgroup.productCount}</span>
+                  <span className="font-medium">{buildVisibleProductName(subgroup.label)}</span>
+                  <span className="text-slate-400">&rarr;</span>
                 </CatalogPrefetchLink>
-              </li>
-            ))}
-          </ul>
+              </div>
+            )
+          )}
         </section>
       )}
-
-      <section className="relative left-1/2 right-1/2 mt-8 w-screen -translate-x-1/2 border-y border-sky-100/80 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.9),rgba(239,246,255,0.74))]">
-        <div className="page-shell-inline py-5 sm:py-6">
-          <SeoDisclosure
-            title={visibleSeoCopy.title}
-            titleClassName="font-display-italic text-[1.35rem] sm:text-[1.55rem]"
-            bodyClassName="text-[14px] leading-7 sm:text-[15px]"
-          >
-            <p>{visibleSeoCopy.intro}</p>
-            <div className="mt-3 space-y-3">
-              {visibleSeoCopy.paragraphs.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
-            </div>
-            <ul className="mt-4 grid gap-2.5">
-              {visibleSeoCopy.highlights.map((item) => (
-                <li
-                  key={item}
-                  className="rounded-2xl border border-slate-200/80 bg-slate-50/90 px-4 py-3 text-sm leading-6 text-slate-600"
-                >
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </SeoDisclosure>
-        </div>
-      </section>
 
       <script
         type="application/ld+json"

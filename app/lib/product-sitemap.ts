@@ -2,9 +2,9 @@ import { unstable_cache } from "next/cache";
 
 import {
   fetchCatalogProductsByQuery,
-  fetchPriceEuroMapByLookupKeys,
   type CatalogProduct,
 } from "app/lib/catalog-server";
+import { getProductTreeDataset } from "app/lib/product-tree";
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
@@ -18,68 +18,38 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
 
 const PRODUCT_SITEMAP_MAX_ITEMS = parsePositiveInt(
   process.env.PRODUCT_SITEMAP_MAX_ITEMS,
-  3000
+  1000
 );
 
-const PRODUCT_SITEMAP_MAX_PAGES = parsePositiveInt(
-  process.env.PRODUCT_SITEMAP_MAX_PAGES,
+const PRODUCT_SITEMAP_MAX_BATCHES = parsePositiveInt(
+  process.env.PRODUCT_SITEMAP_MAX_BATCHES,
   20
 );
 
-const PRODUCT_SITEMAP_PAGE_SIZE = parsePositiveInt(
-  process.env.PRODUCT_SITEMAP_PAGE_SIZE,
-  50
+const PRODUCT_SITEMAP_QUERY_PAGE_SIZE = Math.min(
+  500,
+  parsePositiveInt(process.env.PRODUCT_SITEMAP_PAGE_SIZE, 500)
 );
 
 const PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS = parsePositiveInt(
   process.env.PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
-  2000
-);
-
-const PRODUCT_SITEMAP_PRICE_TIMEOUT_MS = parsePositiveInt(
-  process.env.PRODUCT_SITEMAP_PRICE_TIMEOUT_MS,
-  1200
-);
-
-const PRODUCT_SITEMAP_SOURCE_PAGES_PER_CHUNK = parsePositiveInt(
-  process.env.PRODUCT_SITEMAP_SOURCE_PAGES_PER_CHUNK,
-  1
-);
-
-const PRODUCT_SITEMAP_STOP_AFTER_EMPTY_PAGES = parsePositiveInt(
-  process.env.PRODUCT_SITEMAP_STOP_AFTER_EMPTY_PAGES,
-  2
+  4000
 );
 
 const PRODUCT_SITEMAP_BUILD_TIMEOUT_MS = parsePositiveInt(
   process.env.PRODUCT_SITEMAP_BUILD_TIMEOUT_MS,
-  8000
+  30000
 );
 
-const PRODUCT_SITEMAP_BUILD_MAX_PAGES_PER_SITEMAP = parsePositiveInt(
-  process.env.PRODUCT_SITEMAP_BUILD_MAX_PAGES_PER_SITEMAP,
-  1
+const PRODUCT_SITEMAP_MAX_SOURCE_QUERIES = parsePositiveInt(
+  process.env.PRODUCT_SITEMAP_MAX_SOURCE_QUERIES ||
+    process.env.PRODUCT_SITEMAP_MAX_SOURCE_PAGES,
+  200
 );
 
-const PRODUCT_SITEMAP_PRICE_LOOKUP_CHUNK_SIZE = parsePositiveInt(
-  process.env.PRODUCT_SITEMAP_PRICE_LOOKUP_CHUNK_SIZE,
-  5
-);
-
-const PRODUCT_SITEMAP_EFFECTIVE_PAGES_PER_CHUNK = Math.max(
-  1,
-  Math.min(
-    PRODUCT_SITEMAP_SOURCE_PAGES_PER_CHUNK,
-    Math.max(1, Math.floor(PRODUCT_SITEMAP_MAX_ITEMS / PRODUCT_SITEMAP_PAGE_SIZE))
-  )
-);
-
-const PRODUCT_SITEMAP_ID_COUNT = Math.min(
-  5,
-  Math.max(
-    1,
-    Math.ceil(PRODUCT_SITEMAP_MAX_PAGES / PRODUCT_SITEMAP_EFFECTIVE_PAGES_PER_CHUNK)
-  )
+const PRODUCT_SITEMAP_MAX_QUERY_PAGES = parsePositiveInt(
+  process.env.PRODUCT_SITEMAP_MAX_QUERY_PAGES,
+  8
 );
 
 export type ProductSitemapEntry = {
@@ -90,6 +60,13 @@ export type ProductSitemapEntry = {
   group?: string;
   subGroup?: string;
   category?: string;
+};
+
+type ProductSitemapQuery = {
+  key: string;
+  group?: string;
+  subcategory?: string;
+  producer?: string;
 };
 
 const normalizeProductCodes = (codes: string[]) => {
@@ -116,24 +93,27 @@ const normalizeProductCodes = (codes: string[]) => {
   return uniqueCodes;
 };
 
-const getLookupKeys = (product: Pick<CatalogProduct, "code" | "article">) =>
-  Array.from(
-    new Set([(product.article || "").trim(), (product.code || "").trim()].filter(Boolean))
-  );
+const normalizeLabel = (value?: string | null) => (value || "").replace(/\s+/g, " ").trim();
 
-const hasInlinePrice = (product: Pick<CatalogProduct, "priceEuro">) =>
-  typeof product.priceEuro === "number" &&
-  Number.isFinite(product.priceEuro) &&
-  product.priceEuro > 0;
+const hasSitemapEligiblePrice = (product: CatalogProduct) =>
+  typeof product.priceEuro === "number" && Number.isFinite(product.priceEuro) && product.priceEuro > 0;
 
-const chunkArray = <T,>(items: T[], size: number): T[][] => {
-  const result: T[][] = [];
+const toProductSitemapEntry = (product: CatalogProduct): ProductSitemapEntry | null => {
+  const code = (product.code || "").trim();
 
-  for (let index = 0; index < items.length; index += size) {
-    result.push(items.slice(index, index + size));
+  if (!code || !hasSitemapEligiblePrice(product)) {
+    return null;
   }
 
-  return result;
+  return {
+    code,
+    article: (product.article || "").trim() || undefined,
+    name: product.name,
+    producer: product.producer,
+    group: product.group,
+    subGroup: product.subGroup,
+    category: product.category,
+  };
 };
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -154,215 +134,201 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-const resolveEntriesForCatalogPage = async (
-  products: CatalogProduct[]
-): Promise<ProductSitemapEntry[]> => {
-  const validProducts = products.filter((product) => Boolean((product.code || "").trim()));
+const buildProductSitemapQueries = async (): Promise<ProductSitemapQuery[]> => {
+  const queries: ProductSitemapQuery[] = [
+    {
+      key: "all-priced",
+    },
+  ];
+  const seen = new Set<string>();
 
-  if (validProducts.length === 0) {
-    return [];
-  }
+  const addQuery = (query: ProductSitemapQuery) => {
+    if (seen.has(query.key)) {
+      return;
+    }
 
-  const withoutInlinePrice = validProducts.filter((product) => !hasInlinePrice(product));
+    seen.add(query.key);
+    queries.push(query);
+  };
 
-  const priceLookupKeys = normalizeProductCodes(
-    withoutInlinePrice.flatMap((product) => getLookupKeys(product))
-  );
+  seen.add("all-priced");
 
-  const priceMap: Record<string, number> = {};
+  const dataset = await getProductTreeDataset().catch(() => null);
 
-  if (priceLookupKeys.length > 0) {
-    const keyChunks = chunkArray(
-      priceLookupKeys,
-      Math.max(1, PRODUCT_SITEMAP_PRICE_LOOKUP_CHUNK_SIZE)
-    );
+  if (dataset) {
+    for (const group of dataset.groups) {
+      const groupLabel = normalizeLabel(group.label);
 
-    for (const keys of keyChunks) {
-      try {
-        const partialMap = await withTimeout(
-          fetchPriceEuroMapByLookupKeys(keys, {
-            sourceTimeoutMs: PRODUCT_SITEMAP_PRICE_TIMEOUT_MS,
-            sourceCacheTtlMs: 1000 * 60 * 10,
-            includeDirectLookup: true,
-            includePricesPost: false,
-            timeoutMs: PRODUCT_SITEMAP_PRICE_TIMEOUT_MS,
-            retries: 1,
-            retryDelayMs: 150,
-            cacheTtlMs: 1000 * 60 * 15,
-            directConcurrency: 8,
-            maxKeys: 64,
-          }),
-          PRODUCT_SITEMAP_PRICE_TIMEOUT_MS + 1000
-        );
-
-        Object.assign(priceMap, partialMap);
-      } catch {
-        // Пропускаємо тільки цей батч lookup-ключів
+      if (!groupLabel) {
+        continue;
       }
-    }
-  }
 
-  return validProducts.flatMap((product) => {
-    const normalizedCode = (product.code || "").trim();
+      if (group.subgroups.length === 0) {
+        addQuery({
+          key: `group:${groupLabel.toLowerCase()}`,
+          group: groupLabel,
+        });
+        continue;
+      }
 
-    if (!normalizedCode) {
-      return [];
-    }
+      for (const subgroup of group.subgroups) {
+        const subgroupLabel = normalizeLabel(subgroup.label);
 
-    const hasResolvedPrice =
-      hasInlinePrice(product) ||
-      getLookupKeys(product).some((key) => {
-        const value = priceMap[key.trim().toLowerCase()];
-
-        return typeof value === "number" && Number.isFinite(value) && value > 0;
-      });
-
-    if (!hasResolvedPrice) {
-      return [];
-    }
-
-    return [
-      {
-        code: normalizedCode,
-        article: (product.article || "").trim() || undefined,
-        name: product.name,
-        producer: product.producer,
-        group: product.group,
-        subGroup: product.subGroup,
-        category: product.category,
-      },
-    ];
-  });
-};
-
-export const getProductSitemapIds = async () => {
-  return Array.from({ length: PRODUCT_SITEMAP_ID_COUNT }, (_, index) => ({
-    id: String(index),
-  }));
-};
-
-const buildProductEntriesForSitemapId = async (
-  id: string
-): Promise<ProductSitemapEntry[]> => {
-  const numericId = Number.parseInt(id, 10);
-
-  if (!Number.isFinite(numericId) || numericId < 0 || numericId >= PRODUCT_SITEMAP_ID_COUNT) {
-    return [];
-  }
-
-  const startPage = numericId * PRODUCT_SITEMAP_EFFECTIVE_PAGES_PER_CHUNK + 1;
-
-  if (startPage > PRODUCT_SITEMAP_MAX_PAGES) {
-    return [];
-  }
-
-  const rawEndPage = Math.min(
-    PRODUCT_SITEMAP_MAX_PAGES,
-    startPage + PRODUCT_SITEMAP_EFFECTIVE_PAGES_PER_CHUNK - 1
-  );
-
-  const endPage = Math.min(
-    rawEndPage,
-    startPage + Math.max(1, PRODUCT_SITEMAP_BUILD_MAX_PAGES_PER_SITEMAP) - 1
-  );
-
-  const seenCodes = new Set<string>();
-  const entries: ProductSitemapEntry[] = [];
-
-  const startedAt = Date.now();
-  let consecutiveEmptyPages = 0;
-  let pageCursor = 1;
-  let cursor = "";
-
-  while (pageCursor <= endPage && entries.length < PRODUCT_SITEMAP_MAX_ITEMS) {
-    if (Date.now() - startedAt >= PRODUCT_SITEMAP_BUILD_TIMEOUT_MS) {
-      return entries;
-    }
-
-    let pageResult:
-      | {
-          items: CatalogProduct[];
-          hasMore: boolean;
-          nextCursor: string;
-        }
-      | null = null;
-
-    try {
-      pageResult = await withTimeout(
-        fetchCatalogProductsByQuery({
-          page: 1,
-          limit: PRODUCT_SITEMAP_PAGE_SIZE,
-          cursor,
-          timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
-          retries: 1,
-          retryDelayMs: 150,
-          cacheTtlMs: 1000 * 60,
-        }),
-        PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000
-      );
-    } catch {
-      return entries;
-    }
-
-    const batch = pageResult?.items ?? [];
-
-    if (batch.length === 0) {
-      consecutiveEmptyPages += 1;
-    } else {
-      consecutiveEmptyPages = 0;
-    }
-
-    if (pageCursor >= startPage && batch.length > 0) {
-      try {
-        const remainingTime = PRODUCT_SITEMAP_BUILD_TIMEOUT_MS - (Date.now() - startedAt);
-
-        if (remainingTime <= 0) {
-          return entries;
+        if (!subgroupLabel) {
+          continue;
         }
 
-        const pageEntries = await withTimeout(
-          resolveEntriesForCatalogPage(batch),
-          Math.max(1000, remainingTime)
-        );
+        addQuery({
+          key: `group:${groupLabel.toLowerCase()}|sub:${subgroupLabel.toLowerCase()}`,
+          group: groupLabel,
+          subcategory: subgroupLabel,
+        });
 
-        for (const entry of pageEntries) {
-          const dedupeKey = entry.code.trim().toLowerCase();
+        for (const child of subgroup.children) {
+          const childLabel = normalizeLabel(child.label);
 
-          if (!dedupeKey || seenCodes.has(dedupeKey)) {
+          if (!childLabel || childLabel.toLowerCase() === subgroupLabel.toLowerCase()) {
             continue;
           }
 
-          seenCodes.add(dedupeKey);
-          entries.push(entry);
-
-          if (entries.length >= PRODUCT_SITEMAP_MAX_ITEMS) {
-            return entries;
-          }
+          addQuery({
+            key: `group:${groupLabel.toLowerCase()}|leaf:${childLabel.toLowerCase()}`,
+            group: groupLabel,
+            subcategory: childLabel,
+          });
         }
-      } catch {
-        return entries;
       }
     }
+  }
 
-    if (consecutiveEmptyPages >= PRODUCT_SITEMAP_STOP_AFTER_EMPTY_PAGES) {
-      return entries;
+  return queries;
+};
+
+const fetchEntriesForQuery = async (
+  query: ProductSitemapQuery
+): Promise<ProductSitemapEntry[]> => {
+  const entries: ProductSitemapEntry[] = [];
+  const seenCodes = new Set<string>();
+  let page = 1;
+  let cursor = "";
+  let cursorField: string | null = null;
+
+  while (page <= PRODUCT_SITEMAP_MAX_QUERY_PAGES) {
+    const pageResult: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>> = await withTimeout(
+      fetchCatalogProductsByQuery({
+        page,
+        limit: PRODUCT_SITEMAP_QUERY_PAGE_SIZE,
+        group: query.group,
+        subcategory: query.subcategory,
+        producer: query.producer,
+        sortOrder: "desc",
+        cursor,
+        cursorField,
+        timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
+        retries: 2,
+        retryDelayMs: 180,
+        cacheTtlMs: 1000 * 60,
+      }),
+      PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000
+    );
+
+    for (const product of pageResult.items) {
+      const entry = toProductSitemapEntry(product);
+      if (!entry) continue;
+
+      const dedupeKey = entry.code.trim().toLowerCase();
+      if (!dedupeKey || seenCodes.has(dedupeKey)) continue;
+
+      seenCodes.add(dedupeKey);
+      entries.push(entry);
     }
 
-    if (!pageResult?.hasMore || !pageResult?.nextCursor) {
-      return entries;
+    if (!pageResult.hasMore) break;
+
+    if (pageResult.nextCursor) {
+      cursor = pageResult.nextCursor;
+      cursorField = pageResult.cursorField ?? null;
+    } else {
+      page += 1;
     }
 
-    cursor = pageResult.nextCursor;
-    pageCursor += 1;
+    if (!pageResult.nextCursor) {
+      cursor = "";
+      cursorField = null;
+    }
+
+    if (pageResult.nextCursor) {
+      page += 1;
+    }
   }
 
   return entries;
 };
 
-const getProductEntriesBySitemapIdWithCache = unstable_cache(
-  buildProductEntriesForSitemapId,
+const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][]> => {
+  const queries = await buildProductSitemapQueries();
+  const seenCodes = new Set<string>();
+  const batches: ProductSitemapEntry[][] = [];
+  let currentBatch: ProductSitemapEntry[] = [];
+  const startedAt = Date.now();
+  let processedQueries = 0;
+
+  for (const query of queries) {
+    if (
+      PRODUCT_SITEMAP_MAX_SOURCE_QUERIES != null &&
+      processedQueries >= PRODUCT_SITEMAP_MAX_SOURCE_QUERIES
+    ) {
+      break;
+    }
+
+    if (
+      PRODUCT_SITEMAP_BUILD_TIMEOUT_MS != null &&
+      Date.now() - startedAt >= PRODUCT_SITEMAP_BUILD_TIMEOUT_MS
+    ) {
+      break;
+    }
+
+    processedQueries += 1;
+
+    let entries: ProductSitemapEntry[] = [];
+
+    try {
+      entries = await fetchEntriesForQuery(query);
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const dedupeKey = entry.code.trim().toLowerCase();
+
+      if (!dedupeKey || seenCodes.has(dedupeKey)) {
+        continue;
+      }
+
+      seenCodes.add(dedupeKey);
+      currentBatch.push(entry);
+
+      if (currentBatch.length >= PRODUCT_SITEMAP_MAX_ITEMS) {
+        batches.push(currentBatch);
+        if (batches.length >= PRODUCT_SITEMAP_MAX_BATCHES) {
+          return batches;
+        }
+        currentBatch = [];
+      }
+    }
+  }
+
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
+  }
+
+  return batches;
+};
+
+const getProductSitemapEntryBatchesWithCache = unstable_cache(
+  buildProductSitemapEntryBatches,
   [
-    `product-sitemap-entries-v12-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_PAGES}-${PRODUCT_SITEMAP_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_PRICE_TIMEOUT_MS}-${PRODUCT_SITEMAP_SOURCE_PAGES_PER_CHUNK}-${PRODUCT_SITEMAP_EFFECTIVE_PAGES_PER_CHUNK}-${PRODUCT_SITEMAP_STOP_AFTER_EMPTY_PAGES}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_MAX_PAGES_PER_SITEMAP}-${PRODUCT_SITEMAP_PRICE_LOOKUP_CHUNK_SIZE}-${PRODUCT_SITEMAP_ID_COUNT}`,
+    `product-sitemap-entries-v17-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_BATCHES}-${PRODUCT_SITEMAP_QUERY_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ?? "none"}-${PRODUCT_SITEMAP_MAX_SOURCE_QUERIES ?? "all"}-${PRODUCT_SITEMAP_MAX_QUERY_PAGES}`,
   ],
   {
     revalidate: 60 * 60,
@@ -370,8 +336,23 @@ const getProductEntriesBySitemapIdWithCache = unstable_cache(
   }
 );
 
-export const getProductEntriesBySitemapId = async (id: string) =>
-  getProductEntriesBySitemapIdWithCache(id);
+export const getProductSitemapIds = async () => {
+  const batches = await getProductSitemapEntryBatchesWithCache();
+
+  return batches.map((_, index) => ({
+    id: String(index),
+  }));
+};
+
+export const getProductEntriesBySitemapId = async (id: string) => {
+  const numericId = Number.parseInt(id, 10);
+
+  if (!Number.isFinite(numericId) || numericId < 0) {
+    return [];
+  }
+
+  return (await getProductSitemapEntryBatchesWithCache())[numericId] ?? [];
+};
 
 export const getProductCodesBySitemapId = async (id: string) => {
   const entries = await getProductEntriesBySitemapId(id);

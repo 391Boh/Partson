@@ -17,24 +17,6 @@ function normalize(value?: string | null): string {
   return (value ?? "").trim();
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`Sitemap generation timed out after ${ms}ms`));
-    }, ms);
-
-    promise
-      .then((result) => {
-        clearTimeout(timer);
-        resolve(result);
-      })
-      .catch((error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
-  });
-}
-
 export default async function sitemap(props: {
   id: Promise<string | number>;
 }): Promise<MetadataRoute.Sitemap> {
@@ -45,7 +27,7 @@ export default async function sitemap(props: {
   let entries: Awaited<ReturnType<typeof getProductEntriesBySitemapId>> = [];
 
   try {
-    entries = await withTimeout(getProductEntriesBySitemapId(id), 25000);
+    entries = await getProductEntriesBySitemapId(id);
   } catch (error) {
     console.error(`Failed to build product sitemap for id "${id}"`, error);
     return [];

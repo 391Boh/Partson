@@ -7,6 +7,7 @@ import { notFound, redirect } from "next/navigation";
 import {
   fetchCatalogProductsByArticle,
   fetchEuroRate,
+  fetchProductDescription,
   findCatalogProductByCode,
   toPriceUah,
 } from "app/lib/catalog-server";
@@ -785,7 +786,21 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           toPriceUah(product.priceEuro ?? null, rate)
         )
       : Promise.resolve<number | null>(null);
-  const initialPriceUah = await initialPriceUahPromise;
+  const initialDescriptionTextPromise = resolveWithTimeout(
+    () =>
+      fetchProductDescription(lookupKeys[0], {
+        timeoutMs: 200,
+        retries: 0,
+        retryDelayMs: 0,
+        cacheTtlMs: 1000 * 60 * 30,
+      }),
+    null,
+    100
+  );
+  const [initialPriceUah, initialDescriptionText] = await Promise.all([
+    initialPriceUahPromise,
+    initialDescriptionTextPromise,
+  ]);
   const productGroup = (product.group || product.category || "").trim();
   const productSubgroup = (product.subGroup || "").trim();
   const visibleProductName = buildVisibleProductName(product.name);
@@ -901,7 +916,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     : visibleProductSubgroup || visibleProductGroup
       ? `До категорії ${visibleProductSubgroup || visibleProductGroup}`
       : "До каталогу";
-  const productHeadingText = `Купити ${visibleProductName}${product.producer ? ` ${product.producer}` : ""}${product.article ? `, артикул ${product.article}` : ""}`;
+  const productHeadingText = visibleProductName;
   const keywordPhrases = Array.from(
     new Set(
       [
@@ -1089,7 +1104,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <section className="space-y-3">
               <ProductDescriptionClientCard
                 fallbackText={fallbackDescription}
-                initialText={null}
+                initialText={initialDescriptionText}
                 lookupKeys={decodeLookupKeysSignature(lookupKeysSignature)}
                 isModalView={isModalView}
                 descriptionTextClass={descriptionTextClass}

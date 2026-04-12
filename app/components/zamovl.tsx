@@ -83,7 +83,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
             setPhone(data.phone || "+380");
           }
         } catch (error) {
-          console.error("РџРѕРјРёР»РєР° РїСЂРё РѕС‚СЂРёРјР°РЅРЅС– РґР°РЅРёС… РїСЂРѕС„С–Р»СЋ:", error);
+          console.error("Помилка при отриманні даних профілю:", error);
         }
       } else {
         setName("");
@@ -129,14 +129,14 @@ const Zamovl: React.FC<ZamovlProps> = ({
       onClearCart();
       setCurrentStep(3);
     } catch (error) {
-      console.error("РџРѕРјРёР»РєР° РїСЂРё РѕС„РѕСЂРјР»РµРЅРЅС– Р·Р°РјРѕРІР»РµРЅРЅСЏ:", error);
-      alert("РќРµ РІРґР°Р»РѕСЃСЏ Р·Р±РµСЂРµРіС‚Рё Р·Р°РјРѕРІР»РµРЅРЅСЏ.");
+      console.error("Помилка при оформленні замовлення:", error);
+      alert("Не вдалося зберегти замовлення.");
     }
   };
 
   if (isLoading) return null;
 
-  const steps = ["Р”Р°РЅС–", "Р”РѕСЃС‚Р°РІРєР°", "РћРїР»Р°С‚Р°", "Р“РѕС‚РѕРІРѕ"];
+  const steps = ["Дані", "Доставка", "Оплата", "Готово"];
 
   const renderStep = () => {
     switch (currentStep) {
@@ -202,12 +202,12 @@ const Zamovl: React.FC<ZamovlProps> = ({
       <div className="mb-4 h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
       <div className="soft-panel-content flex items-center justify-between gap-3 border-b border-slate-200/70 pb-3.5">
         <h3 className="soft-panel-title">
-          РћС„РѕСЂРјР»РµРЅРЅСЏ Р·Р°РјРѕРІР»РµРЅРЅСЏ
+          Оформлення замовлення
         </h3>
         <button
           onClick={onCloseAll}
           className="soft-icon-button h-10 w-10 shrink-0 p-1 text-slate-500"
-          aria-label="Р—Р°РєСЂРёС‚Рё С„РѕСЂРјСѓ Р·Р°РјРѕРІР»РµРЅРЅСЏ"
+          aria-label="Закрити форму замовлення"
         >
           <X size={20} />
         </button>
@@ -229,7 +229,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
               }`}
             >
               <span className="block text-[10px] uppercase tracking-[0.14em] opacity-70">
-                РљСЂРѕРє {Math.min(index + 1, 4)}
+                Крок {Math.min(index + 1, 4)}
               </span>
               <span className="mt-1 block text-sm">{step}</span>
             </div>

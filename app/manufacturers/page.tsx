@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Factory, Layers3 } from "lucide-react";
 
 import CatalogHubHero from "app/components/CatalogHubHero";
-import SeoDisclosure from "app/components/SeoDisclosure";
 import { brands } from "app/components/brandsData";
 import { getProducerInitials } from "app/lib/brand-logo";
 import { buildCatalogProducerPath } from "app/lib/catalog-links";
@@ -95,11 +94,6 @@ export default async function ManufacturersPage() {
   const indexedBrands = seoFacets?.producers.length ?? 0;
   const indexedProducts =
     seoFacets?.producers.reduce((sum, producer) => sum + producer.productCount, 0) ?? 0;
-  const topSeoBrands = (seoFacets?.producers ?? []).slice(0, 8).map((producer) => producer.label);
-  const topSeoBrandsText =
-    topSeoBrands.length > 0
-      ? topSeoBrands.join(", ")
-      : "Bosch, Brembo, Sachs, Lemforder та інші популярні бренди";
   const manufacturersStructuredData = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
@@ -179,62 +173,12 @@ export default async function ManufacturersPage() {
               })),
             ]}
           />
+
+          <h1 className="sr-only">Виробники автозапчастин і бренди в каталозі</h1>
         </div>
       </div>
 
       <ManufacturersDirectory items={clientProducers} />
-
-      <section className="relative left-1/2 right-1/2 mt-6 w-screen -translate-x-1/2 border-y border-sky-100/80 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.94),rgba(239,246,255,0.76))]">
-        <div className={`${catalogShellClass} py-5 sm:py-6`}>
-          <SeoDisclosure
-            title="Виробники автозапчастин PartsON як окремі SEO-сторінки брендів"
-            summaryLabel="SEO-контент"
-            titleClassName="font-display-italic text-[1.35rem] sm:text-[1.55rem]"
-            bodyClassName="text-[14px] leading-7 sm:text-[15px]"
-          >
-            <p>
-              {buildManufacturersPageDescription(
-                clientProducers.length,
-                indexedBrands,
-                indexedProducts
-              )}
-            </p>
-            <div className="mt-3 space-y-3">
-              <p>
-                Сторінка <strong>/manufacturers</strong> зібрана як бренд-хаб: звідси пошукові
-                системи й користувачі переходять на унікальні URL виробників без довгих адрес з
-                параметрами фільтрації, що покращує індексацію та канонічну структуру каталогу.
-              </p>
-              <p>
-                Серед найпомітніших брендів у каталозі зараз: {topSeoBrandsText}. Для кожного
-                виробника формується окремий title, description, H1 та перелік суміжних груп
-                товарів.
-              </p>
-            </div>
-            <ul className="mt-4 grid gap-2.5 md:grid-cols-2">
-              {[
-                `${clientProducers.length.toLocaleString("uk-UA")} брендів у довіднику виробників;`,
-                indexedBrands > 0
-                  ? `${indexedBrands.toLocaleString("uk-UA")} брендів уже підсилені SEO-маршрутами;`
-                  : "окремі сторінки брендів для індексації й перелінковки;",
-                indexedProducts > 0
-                  ? `${indexedProducts.toLocaleString("uk-UA")} товарних позицій розподілено по сторінках брендів;`
-                  : "брендові сторінки ведуть у відфільтрований каталог без зайвих кроків;",
-                "швидкий вхід у каталог виробника, аналоги та суміжні товарні групи;",
-                "краще покриття запитів виду купити Bosch, Brembo, Sachs, Lemforder;",
-                "унікальні title, description та H1 для брендових сторінок;",
-              ].map((item) => (
-                <li
-                  key={item}
-                  className="rounded-2xl border border-slate-200/80 bg-slate-50/90 px-4 py-3 text-sm leading-6 text-slate-600"
-                >
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </SeoDisclosure>
-        </div>
-      </section>
 
       <script
         type="application/ld+json"

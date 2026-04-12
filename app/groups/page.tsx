@@ -2,14 +2,12 @@ import type { Metadata } from "next";
 import { ChevronRight, FolderTree, Layers3 } from "lucide-react";
 
 import CatalogHubHero from "app/components/CatalogHubHero";
-import SeoDisclosure from "app/components/SeoDisclosure";
 import GroupsDirectoryClient, {
   type GroupsDirectoryItem,
 } from "app/groups/GroupsDirectoryClient";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
-import { groupsCatalogSeoContent } from "app/lib/seo-copy";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 
@@ -84,10 +82,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function GroupsPage() {
   const siteUrl = getSiteUrl();
-  const [dataset, seoFacets] = await Promise.all([
-    getProductTreeDataset().catch(() => ({ groups: [], labels: [] })),
-    getCatalogSeoFacets().catch(() => null),
-  ]);
+  const dataset = await getProductTreeDataset().catch(() => ({ groups: [], labels: [] }));
+
   const clientGroups: GroupsDirectoryItem[] = dataset.groups.map((group) => ({
     label: group.label,
     slug: group.slug,
@@ -100,31 +96,23 @@ export default async function GroupsPage() {
       })),
     })),
   }));
+
   const hasResolvedGroups = clientGroups.length > 0;
   const totalSubgroups = clientGroups.reduce((sum, group) => sum + group.subgroups.length, 0);
   const totalThirdLevelItems = clientGroups.reduce(
-    (sum, group) => sum + group.subgroups.reduce((innerSum, subgroup) => innerSum + subgroup.children.length, 0),
+    (sum, group) =>
+      sum + group.subgroups.reduce((innerSum, subgroup) => innerSum + subgroup.children.length, 0),
     0
   );
-  const indexedProductCount =
-    seoFacets?.groups.reduce((sum, group) => sum + group.productCount, 0) ?? 0;
+
   const featuredGroups = [...clientGroups]
     .sort((left, right) => right.subgroups.length - left.subgroups.length)
     .slice(0, 2);
-  const topSeoGroups = (seoFacets?.groups ?? [])
-    .slice(0, 8)
-    .map((group) => buildVisibleProductName(group.label));
-  const featuredSearchTargets =
-    topSeoGroups.length > 0
-      ? topSeoGroups
-      : featuredGroups.map((group) => buildVisibleProductName(group.label));
-  const featuredSearchTargetsText =
-    featuredSearchTargets.length > 0
-      ? featuredSearchTargets.join(", ")
-      : "ходова частина, гальмівна система, фільтри та деталі двигуна";
+
   const totalGroupsLabel = hasResolvedGroups
     ? clientGroups.length.toLocaleString("uk-UA")
     : "оновлюється";
+
   const groupsStructuredData: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
@@ -132,6 +120,7 @@ export default async function GroupsPage() {
     description: groupsDescription,
     url: `${siteUrl}/groups`,
   };
+
   if (hasResolvedGroups) {
     groupsStructuredData.mainEntity = {
       "@type": "ItemList",
@@ -212,6 +201,8 @@ export default async function GroupsPage() {
               })),
             ]}
           />
+
+          <h1 className="sr-only">Категорії та групи автозапчастин для підбору</h1>
         </div>
       </div>
 
@@ -226,56 +217,6 @@ export default async function GroupsPage() {
           </div>
         </section>
       )}
-
-      <section className="relative left-1/2 right-1/2 mt-6 w-screen -translate-x-1/2 border-y border-sky-100/80 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.94),rgba(239,246,255,0.76))]">
-        <div className={`${catalogShellClass} py-5 sm:py-6`}>
-          <SeoDisclosure
-            title="Категорії автозапчастин PartsON для індексації та швидкого переходу"
-            summaryLabel="SEO-контент"
-            titleClassName="font-display-italic text-[1.35rem] sm:text-[1.55rem]"
-            bodyClassName="text-[14px] leading-7 sm:text-[15px]"
-          >
-            <p>
-              {buildGroupsPageDescription(
-                clientGroups.length,
-                totalSubgroups,
-                totalThirdLevelItems,
-                indexedProductCount
-              )}
-            </p>
-            <div className="mt-3 space-y-3">
-              <p>
-                Сторінка <strong>/groups</strong> працює як SEO-хаб для пошуку по категоріях:
-                звідси пошукові системи й користувачі переходять до окремих груп, підгруп і
-                кінцевих категорій без довгих адрес з query-параметрами.
-              </p>
-              <p>
-                Найчастіше переглядають розділи {featuredSearchTargetsText}. Це допомагає індексувати
-                найважливіші товарні напрямки окремими маршрутами з унікальними заголовками,
-                описами та внутрішніми посиланнями.
-              </p>
-            </div>
-            <ul className="mt-4 grid gap-2.5 md:grid-cols-2">
-              {[
-                `${clientGroups.length.toLocaleString("uk-UA")} груп каталогу в одному маршруті;`,
-                `${totalSubgroups.toLocaleString("uk-UA")} підгруп для швидкого переходу до товарів;`,
-                `${totalThirdLevelItems.toLocaleString("uk-UA")} кінцевих SEO-сторінок категорій;`,
-                indexedProductCount > 0
-                  ? `${indexedProductCount.toLocaleString("uk-UA")} товарних позицій враховано в SEO-структурі;`
-                  : "категорійна навігація для індексації без дублювання URL;",
-                ...groupsCatalogSeoContent.highlights.slice(0, 8).map((item) => `${item};`),
-              ].map((item) => (
-                <li
-                  key={item}
-                  className="rounded-2xl border border-slate-200/80 bg-slate-50/90 px-4 py-3 text-sm leading-6 text-slate-600"
-                >
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </SeoDisclosure>
-        </div>
-      </section>
 
       <script
         type="application/ld+json"

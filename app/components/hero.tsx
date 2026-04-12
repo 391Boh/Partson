@@ -106,16 +106,16 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
                     <path d="M9 21v-6h6v6" />
                   </svg>
                 </span>
-                <div className="flex min-w-0 flex-col">
-                  <h1 className="font-display break-words -mt-1 text-[15px] font-extrabold italic uppercase tracking-[0.07em] text-sky-50 sm:text-[18px] md:text-[20px]">
-                    Магазин і каталог автозапчастин PartsON
+                <div className="flex min-w-0 flex-col gap-1">
+                  <h1 className="font-display break-words text-[15px] font-extrabold italic leading-snug tracking-[0.04em] text-sky-50 sm:text-[18px] md:text-[20px] md:leading-tight">
+                    Інтернет-магазин автозапчастин у Львові
                   </h1>
                   <span className="mt-1 h-0.5 w-32 bg-gradient-to-r from-sky-300/80 via-white/30 to-transparent" />
                 </div>
               </div>
-              <div className="relative z-10 space-y-2.5 pt-1">
+              <div className="relative z-10 space-y-2 pt-1.5">
                 <p
-                  className={`${heroHeadingText} flex items-baseline gap-1 flex-wrap md:flex-nowrap text-[18px] sm:text-[20px] md:text-[22px] lg:text-[24px] mt-1 mb-4 sm:mb-3 md:mb-2`}
+                  className={`${heroHeadingText} mt-1 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[18px] leading-tight sm:text-[20px] md:mb-2 md:flex-nowrap md:items-baseline md:text-[22px] lg:text-[24px]`}
                 >
                   <span className="text-[20px] sm:text-[23px] md:text-[25px] lg:text-[27px]">
                     PartsON
@@ -124,7 +124,7 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
                     — знайдеться все!
                   </span>
                 </p>
-                <p className="font-display relative mt-2 pr-3 text-right text-sm font-semibold italic tracking-[0.05em] text-sky-100/85 sm:pr-4 sm:text-base md:text-[17px] leading-relaxed after:mt-2 after:ml-auto after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-sky-300/80 after:via-white/30 after:to-transparent">
+                <p className="font-display relative ml-auto max-w-[34ch] pr-2 text-right text-sm font-semibold italic leading-relaxed tracking-[0.05em] text-sky-100/90 sm:pr-3 sm:text-base md:text-[17px] after:mt-2 after:ml-auto after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-sky-300/80 after:via-white/30 after:to-transparent">
                   Кожна деталь важлива...
                 </p>
               </div>

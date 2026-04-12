@@ -1,15 +1,16 @@
 ﻿"use client";
 
-import React, { memo, useCallback, useEffect, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Info, ShoppingCart, ChevronDown, Trash2, Copy, Check, MessageCircle } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
+import SmartLink from "app/components/SmartLink";
 import { buildVisibleProductName } from "app/lib/product-url";
 
-const INFO_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443"; // РќРѕРјРµСЂРџРѕРљР°С‚Р°Р»РѕРіСѓ
-const INFO_DESC_KEYS = ["\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435", "\u041E\u043F\u0438\u0441"];
 const MOTION_EASE_OUT = [0.22, 1, 0.36, 1] as const;
 const MOTION_EASE_LINEAR = [0, 0, 1, 1] as const;
+const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
+const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
 const safBackface = {
     backfaceVisibility: "hidden" as const,
     WebkitBackfaceVisibility: "hidden" as const,
@@ -29,6 +30,7 @@ interface Product {
 
 interface Props {
     item: Product;
+    productHref: string;
     qty: number;
     cartQty: number;
     priceUAH: number | null;
@@ -48,18 +50,11 @@ interface Props {
     onQtyChange: (code: string, delta: number) => void;
     onFlip: (code: string) => void;
     onImageOpen: (code: string, article?: string) => void;
-    onOpenProduct: (
-        code: string,
-        name?: string,
-        article?: string,
-        group?: string,
-        subGroup?: string,
-        category?: string
-    ) => void;
 }
 
 const ProductCard: React.FC<Props> = ({
     item,
+    productHref,
     qty,
     cartQty,
     priceUAH,
@@ -78,7 +73,6 @@ const ProductCard: React.FC<Props> = ({
     onQtyChange,
     onFlip,
     onImageOpen,
-    onOpenProduct,
 }) => {
     const reduceMotion = useReducedMotion() ?? false;
     const motionEnabled = motionEnabledProp ?? true;
@@ -131,6 +125,18 @@ const ProductCard: React.FC<Props> = ({
     );
     const article = item.article || "-";
     const producer = item.producer || "-";
+    const descriptionRequestUrl = useMemo(() => {
+        const params = new URLSearchParams();
+
+        for (const key of [article, code]) {
+            const normalized = (key || "").trim();
+            if (!normalized || normalized === "-") continue;
+            params.append("lookup", normalized);
+        }
+
+        const serialized = params.toString();
+        return serialized ? `/api/product-description?${serialized}` : "";
+    }, [article, code]);
 
     const isAvailable = quantity > 0;
     const isPriceLoading = priceStatus === "loading";
@@ -218,43 +224,121 @@ const descLoaded = useRef(false);
 
 useEffect(() => {
     if (!isFlipped) return;
-    if (!article || article === "-") return;
+    if (!descriptionRequestUrl) return;
     if (descLoaded.current) return;
+
+    const readCachedDescription = () => {
+        if (typeof window === "undefined" || !descriptionRequestUrl) return null;
+
+        const readFromStorage = (storage: Storage) => {
+            try {
+                const raw = storage.getItem(`${DESCRIPTION_CACHE_PREFIX}${descriptionRequestUrl}`);
+                if (!raw) return null;
+
+                const parsed = JSON.parse(raw) as { value?: string | null; t?: number };
+                if (!parsed || typeof parsed.t !== "number") return null;
+                if (Date.now() - parsed.t > DESCRIPTION_CACHE_TTL_MS) {
+                    storage.removeItem(`${DESCRIPTION_CACHE_PREFIX}${descriptionRequestUrl}`);
+                    return null;
+                }
+
+                return typeof parsed.value === "string" && parsed.value.trim()
+                    ? parsed.value.trim()
+                    : null;
+            } catch {
+                return null;
+            }
+        };
+
+        const sessionHit = readFromStorage(window.sessionStorage);
+        if (sessionHit) return sessionHit;
+
+        try {
+            return readFromStorage(window.localStorage);
+        } catch {
+            return null;
+        }
+    };
+
+    const writeCachedDescription = (value: string) => {
+        if (typeof window === "undefined" || !descriptionRequestUrl) return;
+
+        const payload = JSON.stringify({ value, t: Date.now() });
+
+        try {
+            window.sessionStorage.setItem(
+                `${DESCRIPTION_CACHE_PREFIX}${descriptionRequestUrl}`,
+                payload
+            );
+        } catch {
+            // Ignore sessionStorage quota issues.
+        }
+
+        try {
+            window.localStorage.setItem(
+                `${DESCRIPTION_CACHE_PREFIX}${descriptionRequestUrl}`,
+                payload
+            );
+        } catch {
+            // Ignore localStorage quota issues.
+        }
+    };
+
+    const cachedDescription = readCachedDescription();
+    if (cachedDescription) {
+        setDescription(cachedDescription);
+        descLoaded.current = true;
+        return;
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
 
     const loadDescription = async () => {
         try {
             setLoadingDesc(true);
 
-            const res = await fetch(
-                `/api/proxy?endpoint=getinfo`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ [INFO_ARTICLE_FIELD]: article }),
-                }
-            );
+            const res = await fetch(descriptionRequestUrl, {
+                method: "GET",
+                headers: { Accept: "application/json" },
+                signal: controller.signal,
+            });
+            const data = (await res.json()) as { description?: string | null };
+            if (cancelled) return;
 
-            const data = await res.json();
-
-            const rawDesc = INFO_DESC_KEYS.map((k) => data?.[k])
-                .find((v) => typeof v === "string" && v.trim());
+            const rawDesc =
+                typeof data.description === "string" && data.description.trim()
+                    ? data.description.trim()
+                    : null;
 
             setDescription(
-                typeof rawDesc === "string" && rawDesc.trim()
+                rawDesc
                     ? rawDesc
                     : "\u041E\u043F\u0438\u0441 \u0432\u0456\u0434\u0441\u0443\u0442\u043D\u0456\u0439"
             );
+            if (rawDesc) {
+                writeCachedDescription(rawDesc);
+            }
 
             descLoaded.current = true;
         } catch {
-            setDescription("\u041D\u0435 \u0432\u0434\u0430\u043B\u043E\u0441\u044F \u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0438\u0442\u0438 \u043E\u043F\u0438\u0441");
+            if (!cancelled) {
+                setDescription("\u041D\u0435 \u0432\u0434\u0430\u043B\u043E\u0441\u044F \u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0438\u0442\u0438 \u043E\u043F\u0438\u0441");
+            }
         } finally {
-            setLoadingDesc(false);
+            if (!cancelled) {
+                setLoadingDesc(false);
+            }
         }
     };
 
-    loadDescription();
-}, [isFlipped, article]);
+    void loadDescription();
+
+    return () => {
+        cancelled = true;
+        controller.abort();
+    };
+}, [descriptionRequestUrl, isFlipped]);
 
 
     const entryMotionEnabled = allowMotion;
@@ -330,23 +414,13 @@ useEffect(() => {
                         </div>
 
                         <div className="w-3/5 h-full flex items-center">
-                            <button
-                                type="button"
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    onOpenProduct(
-                                        code,
-                                        item.name,
-                                        item.article,
-                                        item.group,
-                                        item.subGroup,
-                                        item.category
-                                    );
-                                }}
+                            <SmartLink
+                                href={productHref}
+                                onClick={(event) => event.stopPropagation()}
                                 className="font-name-accent text-left text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 leading-[1.02] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
                             >
                                 {name}
-                            </button>
+                            </SmartLink>
                         </div>
                     </div>
 

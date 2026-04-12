@@ -109,6 +109,13 @@ export default function ProductDescriptionClientCard({
     const cachedDescription = readCachedDescription();
     if (cachedDescription) {
       setDescriptionText(cachedDescription);
+      return;
+    }
+
+    if (normalizedInitialText) {
+      setDescriptionText(normalizedInitialText);
+      writeCachedDescription(normalizedInitialText);
+      return;
     }
 
     const controller = new AbortController();
@@ -144,7 +151,7 @@ export default function ProductDescriptionClientCard({
       cancelled = true;
       controller.abort();
     };
-  }, [cacheKey, requestUrl]);
+  }, [cacheKey, normalizedInitialText, requestUrl]);
 
   return (
     <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-4">

@@ -125,7 +125,7 @@ const PaymentMethod: React.FC<Props> = ({
         };
 
         if (!res.ok || !json.data || !json.signature) {
-          console.error('LiqPay payload error:', json.error || 'Invalid payload');
+          console.error('Помилка даних LiqPay:', json.error || 'Некоректні дані');
           alert('Помилка ініціалізації оплати. Перевірте налаштування ключів.');
           return;
         }
@@ -156,12 +156,12 @@ const PaymentMethod: React.FC<Props> = ({
             }
           })
           .on('liqpay.close', () => {
-            console.log('LiqPay window closed');
+            console.log('Вікно LiqPay закрито');
           });
 
         alreadyInitiated.current = true;
       } catch (err) {
-        console.error('LiqPay init error:', err);
+        console.error('Помилка ініціалізації LiqPay:', err);
       }
     };
 

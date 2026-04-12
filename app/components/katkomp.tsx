@@ -71,8 +71,17 @@ const CHILD_KEYS = [
   "children",
 ] as const;
 const normalizeLabel = (value: string) => value.trim();
-const getDisplayLabel = (value: string) =>
-  buildVisibleProductName(normalizeLabel(value) || "\u0411\u0435\u0437 \u043d\u0430\u0437\u0432\u0438");
+const stripParentheticalMeta = (value: string) => {
+  const normalized = normalizeLabel(value)
+    .replace(/\s*\([^)]*\)\s*/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return normalized || normalizeLabel(value);
+};
+const getCompactDisplayLabel = (value: string) =>
+  buildVisibleProductName(
+    stripParentheticalMeta(value) || "\u0411\u0435\u0437 \u043d\u0430\u0437\u0432\u0438"
+  );
 const normalizeCategoryKey = (value: string) =>
   normalizeLabel(value).toLowerCase().replace(/\s+/g, " ");
 const normalizeNodeName = (node?: ProductNode | null) => {
@@ -580,6 +589,10 @@ const Category: React.FC<CategoryProps> = ({
   }, [isSearchMode, searchQuery, treeData]);
 
   const step = activeGroup ? "subgroup" : activeCategory ? "group" : "category";
+  const activeTrail = [
+    activeCategory ? getCompactDisplayLabel(activeCategory) : null,
+    activeGroup ? getCompactDisplayLabel(activeGroup) : null,
+  ].filter(Boolean) as string[];
 
   // Ensure list starts at top whenever user opens a new level.
   useEffect(() => {
@@ -731,7 +744,7 @@ const Category: React.FC<CategoryProps> = ({
 
   return (
     <div className="flex h-full flex-col gap-2">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-600">
           {!isSearchMode && (activeCategory || activeGroup) ? (
             <button
@@ -746,19 +759,19 @@ const Category: React.FC<CategoryProps> = ({
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
             {isSearchMode ? searchResults.length : currentCount}
           </span>
-          {!isSearchMode && activeCategory && (
-            <span className="text-[10px] text-slate-400">
-              {step === "category" ? "" : `(${getDisplayLabel(activeCategory)})`}
-            </span>
-          )}
-          {!isSearchMode && activeGroup && (
-            <span className="text-[10px] text-slate-400">
-              {`(${getDisplayLabel(activeGroup)})`}
-            </span>
-          )}
+          {!isSearchMode &&
+            activeTrail.map((item) => (
+              <span
+                key={item}
+                className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600"
+                title={item}
+              >
+                <span className="truncate">{item}</span>
+              </span>
+            ))}
         </div>
 
-        <label className="relative ml-auto w-[220px] shrink-0">
+        <label className="relative w-full shrink-0 sm:ml-auto sm:w-[260px]">
           <input
             type="text"
             placeholder={searchLabelMap[step]}
@@ -822,13 +835,13 @@ const Category: React.FC<CategoryProps> = ({
                       className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-left text-[10px] transition shadow-sm hover:border-blue-200 hover:bg-blue-50/40"
                     >
                       <div className="text-[11px] font-semibold text-slate-800 line-clamp-1">
-                        {getDisplayLabel(item.label)}
+                        {getCompactDisplayLabel(item.label)}
                       </div>
                       {item.trail ? (
                         <div className="text-[10px] text-slate-500 line-clamp-1">
                           {item.trail
                             .split(" / ")
-                            .map(getDisplayLabel)
+                            .map(getCompactDisplayLabel)
                             .join(" / ")}
                         </div>
                       ) : null}
@@ -862,15 +875,15 @@ const Category: React.FC<CategoryProps> = ({
                         className={`flex items-start gap-2 rounded-xl border px-2.5 py-1.5 text-left text-[10px] transition shadow-sm ${buttonClass}`}
                       >
                         <Image
-                          src={getCategoryIcon(getDisplayLabel(item.name))}
-                          alt={getDisplayLabel(item.name)}
+                          src={getCategoryIcon(getCompactDisplayLabel(item.name))}
+                          alt={getCompactDisplayLabel(item.name)}
                           width={16}
                           height={16}
                           sizes="16px"
                           className="h-4 w-4 shrink-0 object-contain"
                         />
                         <div className="text-[11px] font-semibold text-slate-800 line-clamp-2">
-                          {getDisplayLabel(item.name)}
+                          {getCompactDisplayLabel(item.name)}
                         </div>
                       </button>
                     );
@@ -903,7 +916,7 @@ const Category: React.FC<CategoryProps> = ({
                         }`}
                       >
                         <span className="text-[11px] font-semibold text-slate-800 line-clamp-1">
-                          {getDisplayLabel(name)}
+                          {getCompactDisplayLabel(name)}
                         </span>
                         {hasChildren && (
                           <span className="text-[10px] text-slate-400">{">"}</span>
@@ -937,13 +950,13 @@ const Category: React.FC<CategoryProps> = ({
                         }`}
                       >
                         <div className="text-[11px] font-semibold text-slate-800 line-clamp-1">
-                          {getDisplayLabel(item.label)}
+                          {getCompactDisplayLabel(item.label)}
                         </div>
                         {item.trail ? (
                           <div className="text-[10px] text-slate-500 line-clamp-1">
                             {item.trail
                               .split(" / ")
-                              .map(getDisplayLabel)
+                              .map(getCompactDisplayLabel)
                               .join(" / ")}
                           </div>
                         ) : item.depth === 1 ? (

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import HomePageContent from "./components/HomePageContent";
 
-const homeTitle = "Магазин і каталог автозапчастин у Львові";
+const homeTitle = "Інтернет-магазин автозапчастин у Львові";
 const homeDescription =
   "Купити автозапчастини в PartsON: каталог деталей за кодом, артикулом, VIN і виробником з доставкою по Львову та Україні.";
 
@@ -21,7 +21,7 @@ export const metadata: Metadata = buildPageMetadata({
   openGraphTitle: `${homeTitle} | PartsON`,
   image: {
     url: "/Car-parts-fullwidth.png",
-    alt: "Магазин і каталог автозапчастин PartsON",
+    alt: "Інтернет-магазин автозапчастин у Львові PartsON",
   },
 });
 
