@@ -1,3 +1,5 @@
+import { buildPlainSeoSlug } from "app/lib/seo-slug";
+
 const normalizeFacetValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
 
@@ -37,6 +39,21 @@ export const buildGroupItemPath = (
   }
 
   return `/groups/${encodeURIComponent(normalizedGroupSlug)}/${encodeURIComponent(normalizedItemSlug)}`;
+};
+
+export const buildGroupPath = (groupSlugOrLabel: string | null | undefined) => {
+  const normalizedGroup = normalizeFacetValue(groupSlugOrLabel);
+
+  if (!normalizedGroup) {
+    return "/groups";
+  }
+
+  const slug =
+    normalizedGroup === buildPlainSeoSlug(normalizedGroup)
+      ? normalizedGroup
+      : buildPlainSeoSlug(normalizedGroup);
+
+  return `/groups/${encodeURIComponent(slug)}`;
 };
 
 export const buildCatalogProducerPath = (

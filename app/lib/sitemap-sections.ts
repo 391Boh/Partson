@@ -4,7 +4,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 
 import { getInformationPath, informationSections } from "app/inform/section-config";
-import { buildCatalogCategoryPath, buildGroupItemPath } from "app/lib/catalog-links";
+import { buildGroupItemPath } from "app/lib/catalog-links";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
 
@@ -50,8 +50,10 @@ const collectGroupListingPaths = (
     }>;
   }>
 ) => {
-  const paths: string[] = [];
-  const seenPaths = new Set<string>();
+  const subgroupPaths: string[] = [];
+  const childPaths: string[] = [];
+  const seenSubgroupPaths = new Set<string>();
+  const seenChildPaths = new Set<string>();
 
   for (const group of groups) {
     const groupSlug = (group.slug || "").trim();
@@ -61,57 +63,25 @@ const collectGroupListingPaths = (
       const subgroupSlug = (subgroup.slug || "").trim();
       if (!subgroupSlug) continue;
 
-      if ((Array.isArray(subgroup.children) ? subgroup.children : []).length === 0) continue;
+      const subgroupPath = buildGroupItemPath(groupSlug, subgroupSlug);
+      if (!seenSubgroupPaths.has(subgroupPath)) {
+        seenSubgroupPaths.add(subgroupPath);
+        subgroupPaths.push(subgroupPath);
+      }
 
-      const path = buildGroupItemPath(groupSlug, subgroupSlug);
-      if (seenPaths.has(path)) continue;
-      seenPaths.add(path);
-      paths.push(path);
-    }
-  }
+      for (const child of Array.isArray(subgroup.children) ? subgroup.children : []) {
+        const childSlug = (child.slug || "").trim();
+        if (!childSlug) continue;
 
-  return paths;
-};
-
-const collectCatalogCategoryPaths = (
-  groups: Array<{
-    label: string;
-    subgroups: Array<{
-      label: string;
-      children: Array<{
-        label: string;
-      }>;
-    }>;
-  }>
-) => {
-  const paths: string[] = [];
-  const seenPaths = new Set<string>();
-
-  for (const group of groups) {
-    const groupLabel = (group.label || "").trim();
-    if (!groupLabel) continue;
-
-    for (const subgroup of group.subgroups || []) {
-      const subgroupLabel = (subgroup.label || "").trim();
-      if (!subgroupLabel) continue;
-
-      const children = Array.isArray(subgroup.children) ? subgroup.children : [];
-      const leafPaths =
-        children.length > 0
-          ? children
-              .map((child) => buildCatalogCategoryPath(groupLabel, (child.label || "").trim()))
-              .filter(Boolean)
-          : [buildCatalogCategoryPath(groupLabel, subgroupLabel)];
-
-      for (const path of leafPaths) {
-        if (seenPaths.has(path)) continue;
-        seenPaths.add(path);
-        paths.push(path);
+        const childPath = buildGroupItemPath(groupSlug, childSlug);
+        if (seenChildPaths.has(childPath)) continue;
+        seenChildPaths.add(childPath);
+        childPaths.push(childPath);
       }
     }
   }
 
-  return paths;
+  return { subgroupPaths, childPaths };
 };
 
 const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
@@ -147,7 +117,9 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
     });
   }
 
-  for (const path of collectGroupListingPaths(dataset.groups).slice(0, maxGroupListingPages)) {
+  const { subgroupPaths, childPaths } = collectGroupListingPaths(dataset.groups);
+
+  for (const path of subgroupPaths.slice(0, maxGroupListingPages)) {
     entries.push({
       path,
       lastModified: now,
@@ -156,7 +128,7 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
     });
   }
 
-  for (const path of collectCatalogCategoryPaths(dataset.groups).slice(0, maxCategoryLeafPages)) {
+  for (const path of childPaths.slice(0, maxCategoryLeafPages)) {
     entries.push({
       path,
       lastModified: now,

@@ -4,7 +4,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 
 import { oneCRequest } from "app/api/_lib/oneC";
-import { buildSeoSlug } from "app/lib/seo-slug";
+import { buildPlainSeoSlug, buildSeoSlug } from "app/lib/seo-slug";
 
 export interface ProductTreeNode {
   name: string;
@@ -14,6 +14,7 @@ export interface ProductTreeNode {
 export interface ProductTreeGroup {
   label: string;
   slug: string;
+  legacySlug?: string;
   subgroups: Array<{
     label: string;
     slug: string;
@@ -207,6 +208,7 @@ const buildLegacyChildSlug = (
 
 const buildDataset = (nodes: ProductTreeNode[]): ProductTreeDataset => {
   const labels = new Set<string>();
+  const usedGroupSlugs = new Set<string>();
 
   const visit = (node: ProductTreeNode) => {
     const label = normalizeValue(node.name);
@@ -241,8 +243,8 @@ const buildDataset = (nodes: ProductTreeNode[]): ProductTreeDataset => {
           {
             label: subgroupLabel,
             slug: allocateUniqueSlug(usedItemSlugs, [
-              buildSeoSlug(subgroupLabel),
-              legacySubgroupSlug,
+              buildPlainSeoSlug(subgroupLabel),
+              buildPlainSeoSlug(`${label}-${subgroupLabel}`),
             ]),
             legacySlug: undefined as string | undefined,
             children: new Map<string, { label: string; slug: string; legacySlug?: string }>(),
@@ -259,9 +261,9 @@ const buildDataset = (nodes: ProductTreeNode[]): ProductTreeDataset => {
 
           const legacyChildSlug = buildLegacyChildSlug(label, subgroupLabel, childLabel);
           const childSlug = allocateUniqueSlug(usedItemSlugs, [
-            buildSeoSlug(childLabel),
-            buildSeoSlug(`${subgroupLabel}-${childLabel}`),
-            legacyChildSlug,
+            buildPlainSeoSlug(childLabel),
+            buildPlainSeoSlug(`${subgroupLabel}-${childLabel}`),
+            buildPlainSeoSlug(`${label}-${subgroupLabel}-${childLabel}`),
           ]);
 
           existingSubgroup.children.set(normalizeTreeKey(childLabel), {
@@ -287,10 +289,15 @@ const buildDataset = (nodes: ProductTreeNode[]): ProductTreeDataset => {
 
       return {
         label,
-        slug: buildSeoSlug(label),
+        slug: allocateUniqueSlug(usedGroupSlugs, [buildPlainSeoSlug(label)]),
+        legacySlug: undefined as string | undefined,
         subgroups,
       };
     })
+    .map((group) => ({
+      ...group,
+      legacySlug: group.slug !== buildSeoSlug(group.label) ? buildSeoSlug(group.label) : undefined,
+    }))
     .filter((group) => group.label)
     .sort((left, right) => compareLabels(left.label, right.label));
 
@@ -312,7 +319,7 @@ const fetchDataset = async (): Promise<ProductTreeDataset> => {
   return buildDataset(nodes);
 };
 
-const fetchDatasetCached = unstable_cache(fetchDataset, ["product-tree-v3"], {
+const fetchDatasetCached = unstable_cache(fetchDataset, ["product-tree-v4"], {
   revalidate: 60 * 60 * 6,
   tags: ["product-tree"],
 });

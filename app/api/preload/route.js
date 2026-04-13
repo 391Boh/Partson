@@ -3,8 +3,8 @@ import { oneCRequest } from "../_lib/oneC";
 
 export async function GET() {
   try {
-    // Warm up 1C cache without blocking client navigation.
-    void oneCRequest("Preload", { method: "GET", retries: 0 });
+    // Warm up the primary 1C dataset without hitting optional endpoints
+    // that may not exist on every 1C deployment.
     void oneCRequest("getprod", {
       method: "POST",
       body: {},

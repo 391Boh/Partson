@@ -49,7 +49,8 @@ export interface Product {
 const ITEMS_PER_PAGE = 10;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const PRICE_CACHE_PREFIX = "partson:v5:price:";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v4";
+const PRICE_CACHE_PREFIX = "partson:v8:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
@@ -328,9 +329,13 @@ const getResolvedProductPriceUAH = (
   const priceKey = getProductPriceStateKey(item);
   const cachedEuro = priceKey ? prices[priceKey] : undefined;
   const resolvedEuro =
-    typeof cachedEuro === "number" || cachedEuro === null
+    typeof cachedEuro === "number" && Number.isFinite(cachedEuro) && cachedEuro > 0
       ? cachedEuro
-      : item.priceEuro ?? null;
+      : typeof item.priceEuro === "number" && Number.isFinite(item.priceEuro) && item.priceEuro > 0
+        ? item.priceEuro
+        : cachedEuro === null
+          ? null
+          : item.priceEuro ?? null;
 
   return toPriceUAH(resolvedEuro, euroRate);
 };
@@ -720,6 +725,8 @@ function useCatalogData(params: {
     () => (hasUrlCategoryFilter ? [] : selectedCategories),
     [hasUrlCategoryFilter, selectedCategories]
   );
+  const effectiveServerSortOrder =
+    selectedCars.length === 0 ? sortOrder : "none";
   const canUseCursorPagination =
     selectedCars.length === 0 && sortOrder === "none";
   const [data, setData] = useState<Product[]>([]);
@@ -749,7 +756,7 @@ function useCatalogData(params: {
         group: groupFromURL,
         subcat: subcategoryFromURL,
         producer: producerFromURL,
-        sort: sortOrder,
+        sort: effectiveServerSortOrder,
       }),
     [
       normalizedSearch,
@@ -759,7 +766,7 @@ function useCatalogData(params: {
       groupFromURL,
       subcategoryFromURL,
       producerFromURL,
-      sortOrder,
+      effectiveServerSortOrder,
     ]
   );
   const activeQuerySignatureRef = useRef(querySignature);
@@ -1397,7 +1404,7 @@ function useCatalogData(params: {
   const buildCacheKey = useCallback(
     (pageNum: number, trimmed: string, cursor = "") =>
       JSON.stringify({
-        endpoint: "catalog-page:v1",
+        endpoint: CATALOG_PAGE_CACHE_VERSION,
         page: pageNum,
         limit: ITEMS_PER_PAGE,
         cursor,
@@ -1408,7 +1415,7 @@ function useCatalogData(params: {
         group: groupFromURL,
         subcat: subcategoryFromURL,
         producer: producerFromURL,
-        sort: sortOrder,
+        sort: effectiveServerSortOrder,
       }),
     [
       searchFilter,
@@ -1417,7 +1424,7 @@ function useCatalogData(params: {
       groupFromURL,
       subcategoryFromURL,
       producerFromURL,
-      sortOrder,
+      effectiveServerSortOrder,
     ]
   );
 
@@ -1444,7 +1451,7 @@ function useCatalogData(params: {
             group: groupFromURL,
             subcategory: subcategoryFromURL,
             producer: producerFromURL,
-            sortOrder,
+            sortOrder: effectiveServerSortOrder,
           }),
           cache: "no-store",
         });
@@ -1502,7 +1509,7 @@ function useCatalogData(params: {
       producerFromURL,
       searchFilter,
       selectedCars,
-      sortOrder,
+      effectiveServerSortOrder,
       subcategoryFromURL,
     ]
   );
@@ -1930,7 +1937,7 @@ function useCatalogData(params: {
 
       for (const item of safeData) {
         const stateKey = getProductPriceStateKey(item);
-        if (!stateKey || next[stateKey] !== undefined) continue;
+        if (!stateKey) continue;
 
         const inlinePrice =
           typeof item.priceEuro === "number" &&
@@ -1947,8 +1954,10 @@ function useCatalogData(params: {
           continue;
         }
 
-        next[stateKey] = inlinePrice;
-        didChange = true;
+        if (next[stateKey] !== inlinePrice) {
+          next[stateKey] = inlinePrice;
+          didChange = true;
+        }
       }
 
       pricesRef.current = didChange ? next : prev;

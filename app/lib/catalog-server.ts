@@ -580,6 +580,68 @@ export const toPriceUah = (priceEuro: number | null, euroRate: number) => {
   return Math.round(priceEuro * euroRate);
 };
 
+const enrichProductsWithAllgoodsPrices = async (
+  items: CatalogProduct[],
+  options?: {
+    timeoutMs?: number;
+    cacheTtlMs?: number;
+    maxKeys?: number;
+  }
+) => {
+  if (!Array.isArray(items) || items.length === 0) return items;
+
+  const lookupKeys = Array.from(
+    new Set(
+      items
+        .flatMap((item) => [item.article, item.code])
+        .map((value) => normalizeFacetValue(value))
+        .filter(Boolean)
+    )
+  ).slice(0, options?.maxKeys && options.maxKeys > 0 ? options.maxKeys : 120);
+
+  if (lookupKeys.length === 0) return items;
+
+  const lookupPrices = await fetchPriceEuroMapByLookupKeys(lookupKeys, {
+    sourceTimeoutMs: options?.timeoutMs,
+    sourceCacheTtlMs: options?.cacheTtlMs,
+    timeoutMs: options?.timeoutMs,
+    retries: 0,
+    retryDelayMs: 120,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 5,
+    includeDirectLookup: true,
+    includePricesPost: false,
+    directConcurrency: 6,
+    maxKeys: lookupKeys.length,
+  }).catch(() => ({} as Record<string, number>));
+
+  if (Object.keys(lookupPrices).length === 0) return items;
+
+  return items.map((item) => {
+    if (
+      typeof item.priceEuro === "number" &&
+      Number.isFinite(item.priceEuro) &&
+      item.priceEuro > 0
+    ) {
+      return item;
+    }
+
+    const articleKey = normalizeFacetValue(item.article);
+    const codeKey = normalizeFacetValue(item.code);
+    const resolvedPrice =
+      (articleKey ? lookupPrices[articleKey] : undefined) ??
+      (codeKey ? lookupPrices[codeKey] : undefined);
+
+    if (typeof resolvedPrice !== "number" || !Number.isFinite(resolvedPrice) || resolvedPrice <= 0) {
+      return item;
+    }
+
+    return {
+      ...item,
+      priceEuro: resolvedPrice,
+    };
+  });
+};
+
 export const fetchCatalogProductsPage = async (options: {
   page: number;
   limit?: number;
@@ -612,7 +674,11 @@ export const fetchCatalogProductsPage = async (options: {
   });
 
   if (response.status < 200 || response.status >= 300) return [];
-  return parseItemsFromText(response.text);
+  return await enrichProductsWithAllgoodsPrices(parseItemsFromText(response.text), {
+    timeoutMs: options.timeoutMs,
+    cacheTtlMs: options.cacheTtlMs,
+    maxKeys: limit * 2,
+  });
 };
 
 export const fetchCatalogProductsByQuery = async (options: {
@@ -829,7 +895,13 @@ export const fetchCatalogProductsByQuery = async (options: {
           : `Catalog getdata failed: ${response.status}`
       );
     }
-    const items = parseItemsFromText(response.text);
+    const items = await enrichProductsWithAllgoodsPrices(parseItemsFromText(response.text), {
+      timeoutMs: options.timeoutMs,
+      cacheTtlMs:
+        options.cacheTtlMs ??
+        (page === 1 ? 1000 * 20 : 1000 * 15),
+      maxKeys: limit * 2,
+    });
     return {
       items,
       hasMore: items.length >= limit,
@@ -965,7 +1037,14 @@ export const findCatalogProductByCode = async (
   });
 
   if (lookupResponse.status >= 200 && lookupResponse.status < 300) {
-    const candidates = parseItemsFromText(lookupResponse.text);
+    const candidates = await enrichProductsWithAllgoodsPrices(
+      parseItemsFromText(lookupResponse.text),
+      {
+        timeoutMs: options?.timeoutMs,
+        cacheTtlMs: options?.cacheTtlMs ?? 1000 * 30,
+        maxKeys: lookupLimit * 2,
+      }
+    );
     const exact = candidates.find((item) => item.code.trim().toLowerCase() === targetCode);
     if (exact) return exact;
     const byArticle = candidates.find(
@@ -1479,11 +1558,16 @@ export const fetchCatalogProductsByArticle = async (
 
   if (response.status < 200 || response.status >= 300) return [];
 
+  const enriched = await enrichProductsWithAllgoodsPrices(parseItemsFromText(response.text), {
+    cacheTtlMs: 1000 * 60 * 3,
+    maxKeys: limit * 2,
+  });
+
   const target = normalizeFacetValue(normalizedArticle);
   const seen = new Set<string>();
   const filtered: CatalogProduct[] = [];
 
-  for (const item of parseItemsFromText(response.text)) {
+  for (const item of enriched) {
     const itemArticle = normalizeFacetValue(item.article);
     const itemCode = normalizeFacetValue(item.code);
     const itemName = normalizeFacetValue(item.name);

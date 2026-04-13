@@ -76,6 +76,8 @@ const normalizeAdminToken = (value: string) =>
 const normalizeEmail = (value: unknown) =>
   typeof value === "string" ? value.trim().toLowerCase() : "";
 
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v4";
+
 const ADMIN_EMAIL_VALUES = new Set(
   (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
     .split(",")
@@ -550,13 +552,20 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         } catch {}
 
         const body: Record<string, unknown> = {
+          page: 1,
+          limit: 10,
           selectedCars,
           selectedCategories: [],
+          searchQuery: "",
+          searchFilter: "all",
+          group: "",
+          subcategory: "",
+          producer: "",
+          sortOrder: "none",
         };
-        body["НомерСтраницы"] = 1;
 
         const cacheKey = JSON.stringify({
-          endpoint: "getdata",
+          endpoint: CATALOG_PAGE_CACHE_VERSION,
           page: 1,
           q: "",
           filter: "all",
@@ -570,7 +579,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           if (window.sessionStorage.getItem(cacheKey)) return;
         } catch {}
 
-        const res = await fetch("/api/proxy?endpoint=getdata", {
+        const res = await fetch("/api/catalog-page", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -578,19 +587,20 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
         if (!res.ok) return;
         const result = await res.json();
+        const items = Array.isArray(result?.items) ? result.items : [];
 
         try {
           window.sessionStorage.setItem(cacheKey, JSON.stringify(result));
         } catch {}
 
-        if (!Array.isArray(result)) return;
+        if (items.length === 0) return;
 
         const warmPriceCodes = Array.from(
           new Set(
-            result
+            items
               .map((item: Record<string, unknown>) => {
-                const article = item?.["НомерПоКаталогу"];
-                const code = item?.["НоменклатураКод"];
+                const article = item?.["НомерПоКаталогу"] ?? item?.article;
+                const code = item?.["НоменклатураКод"] ?? item?.code;
                 return typeof article === "string" ? article : code;
               })
               .map((code: unknown) => (typeof code === "string" ? code.trim() : ""))

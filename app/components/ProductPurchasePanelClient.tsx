@@ -19,7 +19,7 @@ type ProductPurchasePanelClientProps = {
   isInStock: boolean;
 };
 
-const PRODUCT_PRICE_CACHE_PREFIX = "partson:v3:product-page-price:";
+const PRODUCT_PRICE_CACHE_PREFIX = "partson:v6:product-page-price:";
 const PRODUCT_PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRODUCT_PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 60 * 2;
 
@@ -220,10 +220,10 @@ export default function ProductPurchasePanelClient(
       : "Надішліть запит менеджеру для уточнення ціни.";
 
   return (
-    <div className="rounded-[20px] border border-white/12 bg-white/8 p-2.5 shadow-[0_18px_34px_rgba(15,23,42,0.18)] backdrop-blur-sm sm:p-3">
+    <div className="rounded-[20px] border border-white/14 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.08))] p-2.5 shadow-[0_22px_40px_rgba(15,23,42,0.2)] backdrop-blur-md sm:p-3">
       <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-[16px] border border-white/12 bg-white/6 px-3 py-2.5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-300">
+        <div className="rounded-[16px] border border-white/12 bg-white/7 px-3 py-2.5">
+          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-300/90">
             Статус
           </p>
           <p className="mt-1 text-[13px] font-extrabold leading-5 text-white sm:text-[14px]">
@@ -232,21 +232,21 @@ export default function ProductPurchasePanelClient(
               : "Під замовлення"}
           </p>
         </div>
-        <div className="rounded-[16px] border border-white/12 bg-white/6 px-3 py-2.5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-300">
+        <div className="rounded-[16px] border border-white/12 bg-white/7 px-3 py-2.5">
+          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-300/90">
             Ціна
           </p>
-          <p className="mt-1 text-[13px] font-extrabold leading-5 text-white sm:text-[14px]">
+          <p className="mt-1 text-[14px] font-black leading-5 text-white sm:text-[15px]">
             {isLoading ? "Завантажуємо" : formatPriceUah(priceUah ?? null)}
           </p>
         </div>
       </div>
 
-      <p className="mt-2 text-[12px] leading-5 text-slate-200">{helperText}</p>
+      <p className="mt-2.5 text-[12px] leading-5 text-slate-200">{helperText}</p>
 
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2.5 flex items-center gap-2">
         {isLoading ? (
-          <div className="h-12 w-12 animate-pulse rounded-2xl bg-white/12" aria-hidden="true" />
+          <div className="h-12 w-full animate-pulse rounded-2xl bg-white/12" aria-hidden="true" />
         ) : (
           <ProductPageActions
             code={product.code || resolvedCode}

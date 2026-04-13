@@ -28,12 +28,12 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
       </p>
       <p className="text-center text-sm text-slate-600">
         Ми зв&apos;яжемося з вами за номером{" "}
-        <span className="font-semibold text-blue-600">{phone}</span>
+        <span className="break-all font-semibold text-blue-600">{phone}</span>
       </p>
 
       <div className="text-center">
         <p className="text-xs text-slate-500">Номер замовлення</p>
-        <p className="font-mono text-base text-blue-600">{orderId}</p>
+        <p className="break-all font-mono text-base text-blue-600">{orderId}</p>
       </div>
 
       <p className="text-center text-lg font-semibold text-emerald-600">

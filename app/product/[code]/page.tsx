@@ -1,22 +1,24 @@
 ﻿import { cache, type CSSProperties } from "react";
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import {
   fetchCatalogProductsByArticle,
   fetchEuroRate,
-  fetchProductDescription,
   findCatalogProductByCode,
   toPriceUah,
 } from "app/lib/catalog-server";
-import ProductDescriptionClientCard from "app/components/ProductDescriptionClientCard";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import OpenChatButton from "app/components/OpenChatButton";
 import ProductPurchasePanelClient from "app/components/ProductPurchasePanelClient";
-import ProductRelatedItemsClientSection from "app/components/ProductRelatedItemsClientSection";
-import { buildCatalogCategoryPath, buildCatalogProducerPath } from "app/lib/catalog-links";
+import {
+  buildCatalogCategoryPath,
+  buildCatalogProducerPath,
+  buildGroupPath,
+} from "app/lib/catalog-links";
 import { getProductImagePath, PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image";
 import {
   buildProductPath,
@@ -31,6 +33,54 @@ import { getSiteUrl } from "app/lib/site-url";
 import { buildSeoSlug } from "app/lib/seo-slug";
 
 export const revalidate = 900;
+
+const ProductDescriptionClientCard = dynamic(
+  () => import("app/components/ProductDescriptionClientCard"),
+  {
+    loading: () => (
+      <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[24px] sm:p-4">
+        <div className="flex items-end justify-between gap-2.5 border-b border-slate-100 pb-2.5">
+          <div className="min-w-0">
+            <div className="h-3 w-16 animate-pulse rounded-full bg-sky-100" />
+            <div className="mt-2 h-6 w-56 animate-pulse rounded-full bg-slate-100" />
+          </div>
+          <div className="h-6 w-28 animate-pulse rounded-full bg-slate-100" />
+        </div>
+        <div className="mt-3 space-y-2">
+          <div className="h-4 w-full animate-pulse rounded-full bg-slate-100" />
+          <div className="h-4 w-[92%] animate-pulse rounded-full bg-slate-100" />
+          <div className="h-4 w-[84%] animate-pulse rounded-full bg-slate-100" />
+          <div className="h-4 w-[76%] animate-pulse rounded-full bg-slate-100" />
+        </div>
+      </section>
+    ),
+  }
+);
+
+const ProductRelatedItemsClientSection = dynamic(
+  () => import("app/components/ProductRelatedItemsClientSection"),
+  {
+    loading: () => (
+      <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
+        <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-2.5">
+          <div>
+            <div className="h-3 w-16 animate-pulse rounded-full bg-sky-100" />
+            <div className="mt-2 h-6 w-52 animate-pulse rounded-full bg-slate-100" />
+          </div>
+          <div className="h-6 w-24 animate-pulse rounded-full bg-slate-100" />
+        </div>
+        <div className="mt-3 grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-[156px] animate-pulse rounded-[18px] border border-slate-200 bg-slate-100"
+            />
+          ))}
+        </div>
+      </section>
+    ),
+  }
+);
 
 interface ProductPageParams {
   code: string;
@@ -509,12 +559,6 @@ const buildProductFallbackDescription = (options: {
     .join(" ");
 };
 
-const decodeLookupKeysSignature = (signature: string) =>
-  signature
-    .split("\n")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-
 const getFirstResolvedNonNull = async <T,>(promises: Array<Promise<T | null>>) => {
   if (promises.length === 0) return null;
 
@@ -777,7 +821,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     : Array.from(
         new Set([product.article.trim(), product.code.trim(), resolvedCode].filter(Boolean))
       );
-  const lookupKeysSignature = lookupKeys.join("\n");
   const initialPriceUahPromise =
     typeof product.priceEuro === "number" &&
     Number.isFinite(product.priceEuro) &&
@@ -786,21 +829,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           toPriceUah(product.priceEuro ?? null, rate)
         )
       : Promise.resolve<number | null>(null);
-  const initialDescriptionTextPromise = resolveWithTimeout(
-    () =>
-      fetchProductDescription(lookupKeys[0], {
-        timeoutMs: 200,
-        retries: 0,
-        retryDelayMs: 0,
-        cacheTtlMs: 1000 * 60 * 30,
-      }),
-    null,
-    100
-  );
-  const [initialPriceUah, initialDescriptionText] = await Promise.all([
-    initialPriceUahPromise,
-    initialDescriptionTextPromise,
-  ]);
+  const initialPriceUah = await initialPriceUahPromise;
   const productGroup = (product.group || product.category || "").trim();
   const productSubgroup = (product.subGroup || "").trim();
   const visibleProductName = buildVisibleProductName(product.name);
@@ -823,8 +852,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   });
 
   const siteUrl = getSiteUrl();
-  const groupSlug = buildSeoSlug(productGroup);
-  const groupLandingPath = groupSlug ? `/groups/${groupSlug}` : null;
+  const groupLandingPath = productGroup ? buildGroupPath(productGroup) : null;
   const producerSlug = buildSeoSlug(product.producer);
   const producerLandingPath = producerSlug ? `/manufacturers/${producerSlug}` : null;
   const categoryCatalogPath = productSubgroup
@@ -883,14 +911,14 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     quantity: product.quantity,
   });
   const contentGridClass = isModalView
-    ? "grid gap-3 p-3 sm:p-4 lg:grid-cols-[340px_minmax(0,1fr)]"
-    : "grid gap-3 p-3 sm:gap-3.5 sm:p-4 xl:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)]";
+    ? "grid gap-2.5 p-2.5 sm:p-3 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start"
+    : "grid gap-3 p-2.5 sm:gap-3.5 sm:p-3.5 xl:grid-cols-[minmax(264px,312px)_minmax(0,1fr)] xl:items-start 2xl:grid-cols-[minmax(280px,328px)_minmax(0,1fr)]";
   const productImageClass = isModalView
-    ? "mx-auto h-[220px] w-full rounded-xl border border-slate-200 bg-slate-50 sm:h-[250px] md:h-[280px]"
-    : "mx-auto h-[210px] w-full rounded-2xl border border-slate-200 bg-slate-50 sm:h-[250px] xl:h-[285px] 2xl:h-[300px]";
+    ? "mx-auto h-[210px] w-full rounded-xl border border-slate-200 bg-slate-50 sm:h-[238px] md:h-[260px]"
+    : "mx-auto h-[190px] w-full rounded-2xl border border-slate-200 bg-slate-50 sm:h-[220px] xl:h-[248px] 2xl:h-[260px]";
   const descriptionTextClass = isModalView
-    ? "mt-1.5 max-h-[180px] overflow-y-auto whitespace-pre-line break-words pr-1 text-sm leading-relaxed text-slate-700"
-    : "mt-2 max-h-[280px] overflow-y-auto whitespace-pre-line break-words pr-1 text-[14px] leading-6 text-slate-700 sm:text-[15px] sm:leading-7";
+    ? "mt-1.5 max-h-[172px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-sm leading-relaxed text-slate-700"
+    : "mt-2 max-h-[238px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-[14px] leading-6 text-slate-700 sm:text-[15px] sm:leading-[1.65]";
   const chatPrefillMessage = [
     "Потрібна консультація по товару:",
     product.name,
@@ -910,6 +938,26 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       ? { href: categoryCatalogPath, label: visibleProductSubgroup }
       : null,
   ].filter(Boolean) as Array<{ href: string; label: string }>;
+  const productMetaItems = [
+    {
+      label: "Виробник",
+      value: product.producer || "Без бренду",
+      href: producerLandingPath,
+    },
+    {
+      label: "Категорія",
+      value: visibleProductSubgroup || visibleProductGroup || "Автозапчастини",
+      href: categoryCatalogPath,
+    },
+    {
+      label: "Артикул",
+      value: product.article || "-",
+    },
+    {
+      label: "Код товару",
+      value: product.code || resolvedCode,
+    },
+  ];
   const keywordButtonHref = producerCatalogPath || categoryCatalogPath || "/katalog";
   const keywordButtonLabel = producerCatalogPath
     ? `Більше від ${product.producer}`
@@ -982,7 +1030,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             isModalView ? "rounded-2xl" : "rounded-[24px] sm:rounded-[26px]"
           }`}
         >
-          <header className="relative block h-auto min-h-0 border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-900 px-3 py-3.5 text-white sm:px-4 sm:py-4">
+          <header className="relative block h-auto min-h-0 border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-900 px-3 py-3 text-white sm:px-4 sm:py-3.5">
             <div className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_15%_20%,rgba(56,189,248,0.24),transparent_45%),radial-gradient(circle_at_86%_18%,rgba(34,211,238,0.2),transparent_40%)]" />
             <div className="relative">
               {!isModalView && (
@@ -998,79 +1046,75 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                       </Link>
                     </span>
                   ))}
-                  <span className="inline-flex items-center gap-2">
-                    <span className="text-slate-500">/</span>
-                    <span className="text-white">{visibleProductName}</span>
-                  </span>
                 </nav>
               )}
-              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_340px]">
               <div className="min-w-0">
                 <h1 className="font-display-italic max-w-none break-words text-[clamp(1rem,2.5vw,1.85rem)] font-black leading-[1.04] tracking-[-0.03em] text-white [overflow-wrap:anywhere] [text-wrap:pretty] sm:text-[clamp(1.18rem,2vw,2rem)] xl:max-w-[42ch]">
                   {productHeadingText}
                 </h1>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:max-w-[760px]">
-                  <div className="rounded-[16px] border border-white/12 bg-white/7 px-3 py-2.5">
-                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-300 sm:text-[10px]">
-                      Виробник
-                    </p>
-                    {producerLandingPath && product.producer ? (
-                      <Link
-                        href={producerLandingPath}
-                        className="mt-1 block text-[13px] font-extrabold leading-5 text-white underline decoration-white/30 underline-offset-4 transition hover:decoration-white [overflow-wrap:anywhere] sm:text-[14px]"
-                      >
-                        {product.producer}
-                      </Link>
-                    ) : (
-                      <p className="mt-1 text-[13px] font-extrabold leading-5 text-white [overflow-wrap:anywhere] sm:text-[14px]">
-                        {product.producer || "Без бренду"}
-                      </p>
-                    )}
-                  </div>
-                  <div className="rounded-[16px] border border-white/12 bg-white/7 px-3 py-2.5">
-                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-300 sm:text-[10px]">
-                      Категорія
-                    </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {producerLandingPath && product.producer ? (
                     <Link
-                      href={categoryCatalogPath}
-                      className="mt-1 block text-[13px] font-extrabold leading-5 text-white underline decoration-white/30 underline-offset-4 transition hover:decoration-white [overflow-wrap:anywhere] sm:text-[14px]"
+                      href={producerLandingPath}
+                      className="inline-flex min-h-10 items-center rounded-full border border-white/16 bg-white/9 px-3.5 py-2 text-[12px] font-bold text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] transition hover:border-white/28 hover:bg-white/14 sm:text-[13px]"
                     >
-                      {visibleProductSubgroup || visibleProductGroup || "Автозапчастини"}
+                      {product.producer}
                     </Link>
-                  </div>
-                  <div className="rounded-[16px] border border-white/12 bg-white/7 px-3 py-2.5">
-                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-300 sm:text-[10px]">
-                      Код
-                    </p>
-                    <p className="mt-1 text-[13px] font-extrabold leading-5 text-white [overflow-wrap:anywhere] sm:text-[14px]">
-                      {product.code || resolvedCode}
-                    </p>
-                  </div>
-                  <div className="rounded-[16px] border border-white/12 bg-white/7 px-3 py-2.5">
-                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-300 sm:text-[10px]">
-                      Артикул
-                    </p>
-                    <p className="mt-1 text-[13px] font-extrabold leading-5 text-white [overflow-wrap:anywhere] sm:text-[14px]">
-                      {product.article || "-"}
-                    </p>
-                  </div>
+                  ) : (
+                    <span className="inline-flex min-h-10 items-center rounded-full border border-white/16 bg-white/9 px-3.5 py-2 text-[12px] font-bold text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] sm:text-[13px]">
+                      {product.producer || "Без бренду"}
+                    </span>
+                  )}
+                  <Link
+                    href={categoryCatalogPath}
+                    className="inline-flex min-h-10 items-center rounded-full border border-white/16 bg-white/9 px-3.5 py-2 text-[12px] font-bold text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] transition hover:border-white/28 hover:bg-white/14 sm:text-[13px]"
+                  >
+                    {visibleProductSubgroup || visibleProductGroup || "Автозапчастини"}
+                  </Link>
+                </div>
+                <div className="mt-3 grid gap-1.5 sm:grid-cols-2 xl:max-w-[760px]">
+                  {productMetaItems.map((item) => (
+                    <div key={item.label} className="rounded-[16px] border border-white/12 bg-white/7 px-2.5 py-2">
+                      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-300 sm:text-[10px]">
+                        {item.label}
+                      </p>
+                      {item.href ? (
+                        <Link
+                          href={item.href}
+                          className="mt-1 block text-[13px] font-extrabold leading-5 text-white underline decoration-white/30 underline-offset-4 transition hover:decoration-white [overflow-wrap:anywhere] sm:text-[14px]"
+                        >
+                          {item.value}
+                        </Link>
+                      ) : (
+                        <p className="mt-1 text-[13px] font-extrabold leading-5 text-white [overflow-wrap:anywhere] sm:text-[14px]">
+                          {item.value}
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
-              <ProductPurchasePanelClient
-                lookupKeys={decodeLookupKeysSignature(lookupKeysSignature)}
-                isModalView={isModalView}
-                initialPriceUah={initialPriceUah}
-                resolvedCode={resolvedCode}
-                product={product}
-                isInStock={isInStock}
-              />
+              <div className="xl:pl-2">
+                <div className="mb-2 rounded-[16px] border border-emerald-200/70 bg-emerald-50 px-3 py-2 text-[13px] font-extrabold text-emerald-900 shadow-[0_8px_18px_rgba(16,185,129,0.08)]">
+                  Ціна: {initialPriceUah != null ? `${initialPriceUah.toLocaleString("uk-UA")} грн` : "За запитом"}
+                </div>
+                <ProductPurchasePanelClient
+                  lookupKeys={lookupKeys}
+                  isModalView={isModalView}
+                  initialPriceUah={initialPriceUah}
+                  resolvedCode={resolvedCode}
+                  product={product}
+                  isInStock={isInStock}
+                />
+              </div>
             </div>
           </div>
           </header>
 
           <div className={contentGridClass}>
-            <section className="space-y-3">
-              <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-2.5 shadow-[0_18px_38px_rgba(15,23,42,0.08)] sm:rounded-[26px] sm:p-3">
+            <section className="space-y-2.5 xl:sticky xl:top-[calc(var(--header-height,4rem)+0.9rem)]">
+              <div className="overflow-hidden rounded-[20px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-2 shadow-[0_18px_38px_rgba(15,23,42,0.08)] sm:rounded-[24px] sm:p-2.5">
                 <ProductImageWithFallback
                   src={productImagePath}
                   fallbackSrc={fallbackImagePath}
@@ -1085,14 +1129,14 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 />
               </div>
 
-              <section className="rounded-[22px] border border-slate-200 bg-[image:linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-3 shadow-[0_16px_32px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-4">
+              <section className="rounded-[20px] border border-slate-200 bg-[image:linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-3 shadow-[0_16px_32px_rgba(15,23,42,0.05)] sm:rounded-[24px]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
                       Потрібна допомога?
                     </p>
-                    <p className="mt-1.5 text-sm leading-6 text-slate-600">
-                      Якщо потрібна сумісність або аналог, напишіть у чат і менеджер підбере варіанти.
+                    <p className="mt-1 text-[13px] leading-5 text-slate-600 sm:text-sm sm:leading-6">
+                      Якщо потрібна сумісність або аналог, менеджер швидко підбере варіант у чаті.
                     </p>
                   </div>
 
@@ -1101,16 +1145,17 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               </section>
             </section>
 
-            <section className="space-y-3">
+            <section className="space-y-2.5">
               <ProductDescriptionClientCard
                 fallbackText={fallbackDescription}
-                initialText={initialDescriptionText}
-                lookupKeys={decodeLookupKeysSignature(lookupKeysSignature)}
+                lookupKeys={lookupKeys}
                 isModalView={isModalView}
                 descriptionTextClass={descriptionTextClass}
               />
 
-              {!isModalView && <ProductRelatedItemsClientSection product={product} />}
+              {!isModalView && (
+                <ProductRelatedItemsClientSection product={product} />
+              )}
             </section>
           </div>
 

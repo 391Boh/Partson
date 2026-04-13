@@ -1,8 +1,5 @@
-'use client';
-
-import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
 import {
   Award,
   Building2,
@@ -204,7 +201,7 @@ const AboutTab = () => (
   </div>
 );
 
-const LocationTab = ({ active }: { active: boolean }) => (
+const LocationTab = () => (
   <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
     <div className="grid gap-4 content-start">
       <InfoCard title="Адреса" icon={MapPin} accent="sky" featured>
@@ -255,16 +252,14 @@ const LocationTab = ({ active }: { active: boolean }) => (
     </div>
 
     <div className="overflow-hidden rounded-2xl border border-slate-200/80 shadow-[0_4px_24px_rgba(15,23,42,0.10)] min-h-[320px] lg:min-h-0">
-      {active && (
-        <iframe
-          title="PartsON — Карта Львів"
-          src={MAPS_EMBED_URL}
-          className="h-full min-h-[320px] w-full border-0 lg:min-h-[520px]"
-          loading="lazy"
-          allowFullScreen
-          referrerPolicy="no-referrer-when-downgrade"
-        />
-      )}
+      <iframe
+        title="PartsON — Карта Львів"
+        src={MAPS_EMBED_URL}
+        className="h-full min-h-[320px] w-full border-0 lg:min-h-[520px]"
+        loading="lazy"
+        allowFullScreen
+        referrerPolicy="no-referrer-when-downgrade"
+      />
     </div>
   </div>
 );
@@ -275,43 +270,19 @@ const renderTabContent = (key: InformationSectionKey) => {
     case 'delivery': return <DeliveryTab />;
     case 'payment':  return <PaymentTab />;
     case 'about':    return <AboutTab />;
-    case 'location': return <LocationTab active />;
+    case 'location': return <LocationTab />;
     default:         return <DeliveryTab />;
   }
 };
 
 // ─── Головний компонент ────────────────────────────────────────────────────
 export default function InformationPageClient({ initialSectionKey }: InformationPageClientProps) {
-  const router   = useRouter();
-  const pathname = usePathname() || '/inform';
-  const [activeIdx, setActiveIdx] = useState(() =>
-    Math.max(tabs.findIndex((t) => t.key === initialSectionKey), 0)
-  );
-  const startTouch = useRef({ x: 0, y: 0 });
-
-  useEffect(() => {
-    const pathKey = pathname.split('/').filter(Boolean).at(-1) || '';
-    const resolved = getInformationSection(pathKey) || getInformationSection(initialSectionKey);
-    if (!resolved) return;
-    const idx = tabs.findIndex((t) => t.key === resolved.key);
-    if (idx >= 0) setActiveIdx(idx);
-  }, [initialSectionKey, pathname]);
-
-  const handleTabChange = useCallback((idx: number) => {
-    const next = tabs[idx]?.key;
-    if (!next) return;
-    setActiveIdx(idx);
-    router.replace(getInformationPath(next), { scroll: false });
-  }, [router]);
-
-  const activeTab = tabs[activeIdx];
+  const activeTab = tabs.find((tab) => tab.key === initialSectionKey) || tabs[0];
 
   return (
     <div
       className="relative min-h-[calc(100vh-4rem)] overflow-hidden select-none"
       style={{ background: 'linear-gradient(160deg,#f0f9ff 0%,#e8f4fd 40%,#eef2ff 100%)' }}
-      onCopy={(e) => e.preventDefault()}
-      onCut={(e) => e.preventDefault()}
     >
       {/* Декоративний фон */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -352,14 +323,13 @@ export default function InformationPageClient({ initialSectionKey }: Information
         {/* Навігаційні вкладки */}
         <nav className="relative overflow-hidden rounded-2xl border border-white/80 bg-white/70 p-2 shadow-[0_4px_18px_rgba(15,23,42,0.07)] backdrop-blur-xl">
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
-            {tabs.map((tab, idx) => {
-              const isActive = idx === activeIdx;
+            {tabs.map((tab) => {
+              const isActive = tab.key === activeTab.key;
               const Icon = tab.icon;
               return (
-                <button
+                <Link
                   key={tab.key}
-                  type="button"
-                  onClick={() => handleTabChange(idx)}
+                  href={getInformationPath(tab.key)}
                   aria-current={isActive ? 'page' : undefined}
                   className={`relative rounded-xl px-3 py-3 text-left transition-all duration-200 active:scale-[0.98] ${
                     isActive
@@ -374,27 +344,14 @@ export default function InformationPageClient({ initialSectionKey }: Information
                   <p className={`mt-0.5 text-[11px] font-medium ${isActive ? 'text-sky-100' : 'text-slate-400'}`}>
                     {tab.subtitle}
                   </p>
-                </button>
+                </Link>
               );
             })}
           </div>
         </nav>
 
         {/* Вміст вкладки */}
-        <main
-          onTouchStart={(e) => { startTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
-          onTouchEnd={(e) => {
-            const dx = startTouch.current.x - e.changedTouches[0].clientX;
-            const dy = startTouch.current.y - e.changedTouches[0].clientY;
-            if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx)) return;
-            if (dx > 0) handleTabChange((activeIdx + 1) % tabs.length);
-            if (dx < 0) handleTabChange((activeIdx - 1 + tabs.length) % tabs.length);
-          }}
-        >
-          <div key={activeTab.key}>
-            {renderTabContent(activeTab.key)}
-          </div>
-        </main>
+        <main>{renderTabContent(activeTab.key)}</main>
 
       </section>
     </div>

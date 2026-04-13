@@ -2,6 +2,10 @@
   "name": "partson",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x || 22.x",
+    "npm": ">=10"
+  },
   "scripts": {
     "clean:next": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\"",
     "dev": "next dev --turbopack",

@@ -25,6 +25,7 @@ export default function ProductDescriptionClientCard({
   const [descriptionText, setDescriptionText] = useState(
     normalizedInitialText || fallbackText
   );
+  const hasCatalogDescription = Boolean(normalizedInitialText);
 
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -154,12 +155,22 @@ export default function ProductDescriptionClientCard({
   }, [cacheKey, normalizedInitialText, requestUrl]);
 
   return (
-    <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[26px] sm:p-4">
-      <h2 className="font-display-italic text-[1.05rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.2rem]">
-        Опис товару
-      </h2>
-      <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-        Коротка інформація про товар, його призначення та статус по каталогу.
+    <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[24px] sm:p-4">
+      <div className="flex flex-wrap items-end justify-between gap-2.5 border-b border-slate-100 pb-2.5">
+        <div className="min-w-0">
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-sky-700">
+            Опис
+          </p>
+          <h2 className="font-display-italic mt-1 text-[1.02rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.14rem]">
+            Що варто знати про товар
+          </h2>
+        </div>
+        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-600">
+          {hasCatalogDescription ? "Оригінальний опис" : "Каталожна довідка"}
+        </span>
+      </div>
+      <p className="mt-2 text-[13px] font-medium leading-5 text-slate-600 sm:text-sm sm:leading-6">
+        Коротка інформація про призначення, позицію в каталозі та спосіб замовлення.
       </p>
       <p className={descriptionTextClass}>{descriptionText}</p>
     </section>

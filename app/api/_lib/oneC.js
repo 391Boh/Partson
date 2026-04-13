@@ -110,8 +110,6 @@ export function getOneCAuthHeader() {
 }
 
 export function getOneCTimeoutMs(endpoint) {
-  // First hit on 1C endpoints can be slow (cache warm-up / heavy queries),
-  // so give "catalog" endpoints more time to avoid unnecessary retries.
   switch (endpoint) {
     case "getdata":
       return 25000;

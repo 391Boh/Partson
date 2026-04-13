@@ -2,6 +2,7 @@
 
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_ITEMS_PER_PAGE = 10;
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v4";
 
 type CatalogSearchFilter = "all" | "article" | "name" | "code" | "producer";
 
@@ -37,7 +38,7 @@ const buildCatalogPageCacheKey = (params: {
   producer: string | null;
 }) =>
   JSON.stringify({
-    endpoint: "catalog-page:v1",
+    endpoint: CATALOG_PAGE_CACHE_VERSION,
     page: params.page,
     limit: CATALOG_ITEMS_PER_PAGE,
     cursor: "",

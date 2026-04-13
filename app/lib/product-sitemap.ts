@@ -4,7 +4,6 @@ import {
   fetchCatalogProductsByQuery,
   type CatalogProduct,
 } from "app/lib/catalog-server";
-import { getProductTreeDataset } from "app/lib/product-tree";
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
@@ -16,14 +15,27 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   return Math.floor(numeric);
 };
 
+const parseOptionalPositiveInt = (value: string | undefined) => {
+  if (!value) {
+    return null;
+  }
+
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+
+  return Math.floor(numeric);
+};
+
 const PRODUCT_SITEMAP_MAX_ITEMS = parsePositiveInt(
   process.env.PRODUCT_SITEMAP_MAX_ITEMS,
   1000
 );
 
-const PRODUCT_SITEMAP_MAX_BATCHES = parsePositiveInt(
-  process.env.PRODUCT_SITEMAP_MAX_BATCHES,
-  20
+const PRODUCT_SITEMAP_MAX_BATCHES = parseOptionalPositiveInt(
+  process.env.PRODUCT_SITEMAP_MAX_BATCHES
 );
 
 const PRODUCT_SITEMAP_QUERY_PAGE_SIZE = Math.min(
@@ -33,23 +45,15 @@ const PRODUCT_SITEMAP_QUERY_PAGE_SIZE = Math.min(
 
 const PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS = parsePositiveInt(
   process.env.PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
-  4000
+  8000
 );
 
-const PRODUCT_SITEMAP_BUILD_TIMEOUT_MS = parsePositiveInt(
-  process.env.PRODUCT_SITEMAP_BUILD_TIMEOUT_MS,
-  30000
+const PRODUCT_SITEMAP_BUILD_TIMEOUT_MS = parseOptionalPositiveInt(
+  process.env.PRODUCT_SITEMAP_BUILD_TIMEOUT_MS
 );
 
-const PRODUCT_SITEMAP_MAX_SOURCE_QUERIES = parsePositiveInt(
-  process.env.PRODUCT_SITEMAP_MAX_SOURCE_QUERIES ||
-    process.env.PRODUCT_SITEMAP_MAX_SOURCE_PAGES,
-  200
-);
-
-const PRODUCT_SITEMAP_MAX_QUERY_PAGES = parsePositiveInt(
-  process.env.PRODUCT_SITEMAP_MAX_QUERY_PAGES,
-  8
+const PRODUCT_SITEMAP_MAX_SOURCE_PAGES = parseOptionalPositiveInt(
+  process.env.PRODUCT_SITEMAP_MAX_SOURCE_PAGES
 );
 
 export type ProductSitemapEntry = {
@@ -60,13 +64,6 @@ export type ProductSitemapEntry = {
   group?: string;
   subGroup?: string;
   category?: string;
-};
-
-type ProductSitemapQuery = {
-  key: string;
-  group?: string;
-  subcategory?: string;
-  producer?: string;
 };
 
 const normalizeProductCodes = (codes: string[]) => {
@@ -92,8 +89,6 @@ const normalizeProductCodes = (codes: string[]) => {
 
   return uniqueCodes;
 };
-
-const normalizeLabel = (value?: string | null) => (value || "").replace(/\s+/g, " ").trim();
 
 const hasSitemapEligiblePrice = (product: CatalogProduct) =>
   typeof product.priceEuro === "number" && Number.isFinite(product.priceEuro) && product.priceEuro > 0;
@@ -134,149 +129,20 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-const buildProductSitemapQueries = async (): Promise<ProductSitemapQuery[]> => {
-  const queries: ProductSitemapQuery[] = [
-    {
-      key: "all-priced",
-    },
-  ];
-  const seen = new Set<string>();
-
-  const addQuery = (query: ProductSitemapQuery) => {
-    if (seen.has(query.key)) {
-      return;
-    }
-
-    seen.add(query.key);
-    queries.push(query);
-  };
-
-  seen.add("all-priced");
-
-  const dataset = await getProductTreeDataset().catch(() => null);
-
-  if (dataset) {
-    for (const group of dataset.groups) {
-      const groupLabel = normalizeLabel(group.label);
-
-      if (!groupLabel) {
-        continue;
-      }
-
-      if (group.subgroups.length === 0) {
-        addQuery({
-          key: `group:${groupLabel.toLowerCase()}`,
-          group: groupLabel,
-        });
-        continue;
-      }
-
-      for (const subgroup of group.subgroups) {
-        const subgroupLabel = normalizeLabel(subgroup.label);
-
-        if (!subgroupLabel) {
-          continue;
-        }
-
-        addQuery({
-          key: `group:${groupLabel.toLowerCase()}|sub:${subgroupLabel.toLowerCase()}`,
-          group: groupLabel,
-          subcategory: subgroupLabel,
-        });
-
-        for (const child of subgroup.children) {
-          const childLabel = normalizeLabel(child.label);
-
-          if (!childLabel || childLabel.toLowerCase() === subgroupLabel.toLowerCase()) {
-            continue;
-          }
-
-          addQuery({
-            key: `group:${groupLabel.toLowerCase()}|leaf:${childLabel.toLowerCase()}`,
-            group: groupLabel,
-            subcategory: childLabel,
-          });
-        }
-      }
-    }
-  }
-
-  return queries;
-};
-
-const fetchEntriesForQuery = async (
-  query: ProductSitemapQuery
-): Promise<ProductSitemapEntry[]> => {
-  const entries: ProductSitemapEntry[] = [];
-  const seenCodes = new Set<string>();
-  let page = 1;
-  let cursor = "";
-  let cursorField: string | null = null;
-
-  while (page <= PRODUCT_SITEMAP_MAX_QUERY_PAGES) {
-    const pageResult: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>> = await withTimeout(
-      fetchCatalogProductsByQuery({
-        page,
-        limit: PRODUCT_SITEMAP_QUERY_PAGE_SIZE,
-        group: query.group,
-        subcategory: query.subcategory,
-        producer: query.producer,
-        sortOrder: "desc",
-        cursor,
-        cursorField,
-        timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
-        retries: 2,
-        retryDelayMs: 180,
-        cacheTtlMs: 1000 * 60,
-      }),
-      PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000
-    );
-
-    for (const product of pageResult.items) {
-      const entry = toProductSitemapEntry(product);
-      if (!entry) continue;
-
-      const dedupeKey = entry.code.trim().toLowerCase();
-      if (!dedupeKey || seenCodes.has(dedupeKey)) continue;
-
-      seenCodes.add(dedupeKey);
-      entries.push(entry);
-    }
-
-    if (!pageResult.hasMore) break;
-
-    if (pageResult.nextCursor) {
-      cursor = pageResult.nextCursor;
-      cursorField = pageResult.cursorField ?? null;
-    } else {
-      page += 1;
-    }
-
-    if (!pageResult.nextCursor) {
-      cursor = "";
-      cursorField = null;
-    }
-
-    if (pageResult.nextCursor) {
-      page += 1;
-    }
-  }
-
-  return entries;
-};
-
 const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][]> => {
-  const queries = await buildProductSitemapQueries();
   const seenCodes = new Set<string>();
+  const seenRequestStates = new Set<string>();
   const batches: ProductSitemapEntry[][] = [];
   let currentBatch: ProductSitemapEntry[] = [];
   const startedAt = Date.now();
-  let processedQueries = 0;
+  let cursor = "";
+  let page = 1;
+  let sourcePageCount = 0;
 
-  for (const query of queries) {
+  while (true) {
     if (
-      PRODUCT_SITEMAP_MAX_SOURCE_QUERIES != null &&
-      processedQueries >= PRODUCT_SITEMAP_MAX_SOURCE_QUERIES
+      PRODUCT_SITEMAP_MAX_SOURCE_PAGES != null &&
+      sourcePageCount >= PRODUCT_SITEMAP_MAX_SOURCE_PAGES
     ) {
       break;
     }
@@ -288,19 +154,33 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
       break;
     }
 
-    processedQueries += 1;
-
-    let entries: ProductSitemapEntry[] = [];
-
-    try {
-      entries = await fetchEntriesForQuery(query);
-    } catch {
-      continue;
+    const requestState = cursor ? `cursor:${cursor}` : `page:${page}`;
+    if (seenRequestStates.has(requestState)) {
+      break;
     }
+    seenRequestStates.add(requestState);
+    sourcePageCount += 1;
 
-    for (const entry of entries) {
+    const pageResult: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>> = await withTimeout(
+      fetchCatalogProductsByQuery({
+        page,
+        limit: PRODUCT_SITEMAP_QUERY_PAGE_SIZE,
+        cursor,
+        timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
+        retries: 2,
+        retryDelayMs: 180,
+        cacheTtlMs: 1000 * 60,
+      }),
+      PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000
+    );
+
+    for (const product of pageResult.items) {
+      const entry = toProductSitemapEntry(product);
+      if (!entry) {
+        continue;
+      }
+
       const dedupeKey = entry.code.trim().toLowerCase();
-
       if (!dedupeKey || seenCodes.has(dedupeKey)) {
         continue;
       }
@@ -310,11 +190,31 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
 
       if (currentBatch.length >= PRODUCT_SITEMAP_MAX_ITEMS) {
         batches.push(currentBatch);
-        if (batches.length >= PRODUCT_SITEMAP_MAX_BATCHES) {
+        if (
+          PRODUCT_SITEMAP_MAX_BATCHES != null &&
+          batches.length >= PRODUCT_SITEMAP_MAX_BATCHES
+        ) {
           return batches;
         }
         currentBatch = [];
       }
+    }
+
+    if (!pageResult.hasMore) {
+      break;
+    }
+
+    const nextCursor = (pageResult.nextCursor || "").trim();
+    if (nextCursor) {
+      cursor = nextCursor;
+      continue;
+    }
+
+    cursor = "";
+    page += 1;
+
+    if (pageResult.items.length < PRODUCT_SITEMAP_QUERY_PAGE_SIZE) {
+      break;
     }
   }
 
@@ -328,7 +228,7 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
 const getProductSitemapEntryBatchesWithCache = unstable_cache(
   buildProductSitemapEntryBatches,
   [
-    `product-sitemap-entries-v17-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_BATCHES}-${PRODUCT_SITEMAP_QUERY_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ?? "none"}-${PRODUCT_SITEMAP_MAX_SOURCE_QUERIES ?? "all"}-${PRODUCT_SITEMAP_MAX_QUERY_PAGES}`,
+    `product-sitemap-entries-v18-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_BATCHES ?? "all"}-${PRODUCT_SITEMAP_QUERY_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ?? "none"}-${PRODUCT_SITEMAP_MAX_SOURCE_PAGES ?? "all"}`,
   ],
   {
     revalidate: 60 * 60,

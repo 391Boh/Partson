@@ -4,6 +4,7 @@ import KatalogPageShell from "app/katalog/KatalogPageShell";
 import {
   buildCatalogCategoryPath,
   buildCatalogProducerPath,
+  buildGroupPath,
 } from "app/lib/catalog-links";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
@@ -44,8 +45,8 @@ const normalizeValue = (value: string | string[] | undefined) =>
   pickFirstValue(value).replace(/\s+/g, " ").trim();
 
 const buildGroupLandingPath = (group: string) => {
-  const slug = buildSeoSlug(group);
-  return slug ? `/groups/${slug}` : buildCatalogCategoryPath(group);
+  const path = buildGroupPath(group);
+  return path !== "/groups" ? path : buildCatalogCategoryPath(group);
 };
 
 const buildManufacturerLandingPath = (producer: string) => {

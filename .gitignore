@@ -1,8 +1,15 @@
 node_modules
 .next
+.next-stale-*/
 .next-local
 .env
 .DS_Store
+.local-backup/
+.dev-archive/
+.scratch/
+.scratch2/
+*.tsbuildinfo
+*.tmp
 *.xlsx
 *.xml
 !app/*.xml/

@@ -1,11 +1,13 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
-import SmartLink from "app/components/SmartLink";
-import { buildCatalogCategoryPath, buildGroupItemPath } from "app/lib/catalog-links";
+import {
+  buildCatalogCategoryPath,
+  buildGroupItemPath,
+} from "app/lib/catalog-links";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
@@ -24,6 +26,7 @@ interface GroupPageProps {
 type GroupPageData = {
   label: string;
   slug: string;
+  legacySlug?: string;
   subgroups: Array<{
     label: string;
     slug: string;
@@ -42,12 +45,15 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
 
 const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null> => {
   const dataset = await getProductTreeDataset().catch(() => null);
-  const group = dataset?.groups.find((item) => item.slug === slug);
+  const group = dataset?.groups.find(
+    (item) => item.slug === slug || item.legacySlug === slug
+  );
   if (!group) return null;
 
   return {
     label: group.label,
     slug: group.slug,
+    legacySlug: group.legacySlug,
     subgroups: group.subgroups.map((subgroup) => ({
       label: subgroup.label,
       slug: subgroup.slug,
@@ -59,8 +65,11 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
   };
 });
 
+const buildGroupTitle = (label: string) =>
+  `Каталог автозапчастин ${buildVisibleProductName(label)}`;
+
 const buildGroupDescription = (label: string) =>
-  `Каталог автозапчастин групи ${label} в PartsON з підгрупами, швидким переходом у потрібний розділ і доставкою по Україні.`;
+  `Каталог автозапчастин групи ${buildVisibleProductName(label)} в PartsON з підгрупами, швидким переходом у потрібний розділ і доставкою по Україні.`;
 
 const buildGroupPagePath = (slug: string) => `/groups/${encodeURIComponent(slug)}`;
 
@@ -92,7 +101,7 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
   const canonicalPath = buildGroupPagePath(group.slug);
 
   return buildPageMetadata({
-    title: `Каталог автозапчастин ${group.label}`,
+    title: buildGroupTitle(group.label),
     description,
     canonicalPath,
     keywords: [
@@ -114,8 +123,8 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   const { slug } = await params;
   const group = await getGroupBySlug(slug);
   if (!group) notFound();
-  if (group.subgroups.length === 0) {
-    redirect(buildCatalogCategoryPath(group.label));
+  if (slug !== group.slug) {
+    permanentRedirect(buildGroupPagePath(group.slug));
   }
 
   const siteUrl = getSiteUrl();
@@ -123,13 +132,23 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   const catalogLink = buildCatalogCategoryPath(group.label);
   const canonicalPageUrl = `${siteUrl}${pagePath}`;
   const visibleGroupLabel = buildVisibleProductName(group.label);
+  const hasSubgroups = group.subgroups.length > 0;
+  const description = buildGroupDescription(group.label);
+  const pageTitle = buildGroupTitle(group.label);
+  const pageDescription = hasSubgroups
+    ? `На цій сторінці зібрані основні підгрупи для категорії ${visibleGroupLabel}. Використовуйте її як швидкий перехід у каталог автозапчастин або для навігації по суміжних товарних напрямках.`
+    : `Це окрема SEO-сторінка групи ${visibleGroupLabel}. Вона веде у відповідний розділ каталогу і дає чистий постійний URL без довгих query-параметрів.`;
+  const pageBadge = hasSubgroups ? "Група каталогу" : "Окрема група";
+  const pageStats = hasSubgroups
+    ? `${group.subgroups.length} підгруп у розділі`
+    : "Прямий перехід у каталог";
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: `Каталог автозапчастин ${group.label}`,
+    name: pageTitle,
     url: canonicalPageUrl,
-    description: buildGroupDescription(group.label),
+    description,
     isPartOf: {
       "@type": "WebSite",
       name: "PartsON",
@@ -174,9 +193,9 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   const webPageJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebPage",
-    name: `Каталог автозапчастин ${group.label}`,
+    name: pageTitle,
     url: canonicalPageUrl,
-    description: buildGroupDescription(group.label),
+    description,
     inLanguage: "uk-UA",
     isPartOf: {
       "@type": "WebSite",
@@ -192,7 +211,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   const offerCatalogJsonLd = {
     "@context": "https://schema.org",
     "@type": "OfferCatalog",
-    name: `Каталог групи ${group.label}`,
+    name: `Каталог групи ${visibleGroupLabel}`,
     url: canonicalPageUrl,
     itemListElement: group.subgroups.slice(0, 120).map((subgroup, index) => ({
       "@type": "ListItem",
@@ -220,40 +239,39 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
         &larr; Усі групи
       </Link>
 
-      <h1 className="font-display-italic mt-3 text-3xl tracking-[-0.048em] text-slate-900">
-        Каталог автозапчастин {visibleGroupLabel}
-      </h1>
-      <p className="mt-2 text-sm text-slate-600">
-        {`Груп у розділі: ${group.subgroups.length}`}
-      </p>
-      <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-        На цій сторінці зібрані основні підгрупи для категорії {visibleGroupLabel}. Використовуйте
-        її як швидкий перехід у каталог автозапчастин або для навігації по суміжних товарних
-        напрямках.
-      </p>
+      <section className="mt-4 overflow-hidden rounded-[28px] border border-slate-200/90 bg-[radial-gradient(circle_at_top_left,rgba(186,230,253,0.22),transparent_34%),linear-gradient(160deg,#ffffff_0%,#f8fbff_55%,#eef6ff_100%)] p-5 shadow-[0_20px_44px_rgba(15,23,42,0.08)]">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex rounded-full border border-sky-200 bg-sky-50/90 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-sky-800">
+            {pageBadge}
+          </span>
+          <span className="inline-flex rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-600">
+            {pageStats}
+          </span>
+        </div>
 
-      <div className="mt-5 flex flex-wrap gap-2">
-        <CatalogPrefetchLink
-          href={catalogLink}
-          prefetchCatalogOnViewport
-          className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
-        >
-          Відкрити каталог цієї групи
-        </CatalogPrefetchLink>
-        <CatalogPrefetchLink
-          href="/katalog"
-          prefetchCatalogOnViewport
-          className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
-        >
-          Весь каталог
-        </CatalogPrefetchLink>
-        <SmartLink
-          href="/manufacturers"
-          className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
-        >
-          Усі виробники
-        </SmartLink>
-      </div>
+        <h1 className="font-display-italic mt-4 text-3xl tracking-[-0.048em] text-slate-900 sm:text-[2.2rem]">
+          {pageTitle}
+        </h1>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
+          {pageDescription}
+        </p>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          <CatalogPrefetchLink
+            href={catalogLink}
+            prefetchCatalogOnViewport
+            className="inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+          >
+            Перейти в каталог
+          </CatalogPrefetchLink>
+          <Link
+            href="/groups"
+            className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+          >
+            Усі групи
+          </Link>
+        </div>
+      </section>
 
       {group.subgroups.length > 0 && (
         <section className="mt-8 space-y-4">
@@ -272,7 +290,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                   {subgroup.children.map((child) => (
                     <li key={child.slug}>
                       <CatalogPrefetchLink
-                        href={buildCatalogCategoryPath(group.label, child.label)}
+                        href={buildGroupItemPath(group.slug, child.slug)}
                         className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800"
                       >
                         <span>{buildVisibleProductName(child.label)}</span>
@@ -287,7 +305,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
             ) : (
               <div key={subgroup.slug} className="rounded-[22px] border border-slate-200/90 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
                 <CatalogPrefetchLink
-                  href={buildCatalogCategoryPath(group.label, subgroup.label)}
+                  href={buildGroupItemPath(group.slug, subgroup.slug)}
                   className="flex items-center justify-between rounded-[22px] px-4 py-3.5 text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-800"
                 >
                   <span className="font-medium">{buildVisibleProductName(subgroup.label)}</span>

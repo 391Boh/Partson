@@ -335,11 +335,11 @@ const DeliveryMethod: React.FC<Props> = ({
         </div>
       )}
 
-      <div className="mt-5 flex justify-between gap-3">
+      <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
         <button
           type="button"
           onClick={onBack}
-          className="soft-secondary-button px-4 py-2.5 text-sm font-medium"
+          className="soft-secondary-button w-full px-4 py-2.5 text-sm font-medium sm:w-auto"
         >
           <ArrowLeft className="inline mr-2" size={16} />
           Назад
@@ -353,7 +353,7 @@ const DeliveryMethod: React.FC<Props> = ({
             (deliveryMethod === 'Доставка у Львові' && !selectedLvivStreet) ||
             deliveryMethod === ''
           }
-          className={`px-4 py-2.5 text-sm font-medium ${
+          className={`w-full px-4 py-2.5 text-sm font-medium sm:w-auto ${
             ((deliveryMethod === 'Нова Пошта' && (!selectedCity || !selectedWarehouse)) ||
             (deliveryMethod === 'Доставка у Львові' && !selectedLvivStreet) ||
             deliveryMethod === '') ? 'soft-primary-button cursor-not-allowed opacity-60' : 'soft-primary-button'

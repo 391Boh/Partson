@@ -1,8 +1,8 @@
 ﻿"use client";
 
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Info, ShoppingCart, ChevronDown, Trash2, Copy, Check, MessageCircle } from "lucide-react";
+import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
 import { buildVisibleProductName } from "app/lib/product-url";
@@ -145,15 +145,18 @@ const ProductCard: React.FC<Props> = ({
         typeof priceUAH === "number" &&
         Number.isFinite(priceUAH) &&
         priceUAH > 0;
+    const visiblePriceLabel = hasPrice
+        ? `${priceUAH.toLocaleString("uk-UA")} грн`
+        : isPriceLoading
+            ? "Уточнюємо"
+            : "За запитом";
     const isPlusDisabled = !isAvailable || (isAvailable && cartQty + qty >= quantity);
     const isAddDisabled = !isAvailable || (isAvailable && cartQty + qty > quantity);
     const isCartButtonDisabled = isPriceLoading ? true : hasPrice ? isAddDisabled : false;
     const isRequestAction = priceStatus === "request";
     const isCounterDisabled = !isAvailable;
     const [justAdded, setJustAdded] = useState(false);
-    const [copyToast, setCopyToast] = useState(false);
     const prevCartQty = useRef(cartQty);
-    const copyToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isFrontVisible = !isFlipped;
     const frontVisibilityClass = isFrontVisible
         ? "opacity-100 pointer-events-auto"
@@ -173,50 +176,6 @@ const ProductCard: React.FC<Props> = ({
         prevCartQty.current = cartQty;
     }, [cartQty]);
 
-    useEffect(() => {
-        return () => {
-            if (copyToastTimerRef.current) {
-                clearTimeout(copyToastTimerRef.current);
-            }
-        };
-    }, []);
-
-    const handleCopyArticle = useCallback(
-        async (event: React.MouseEvent<HTMLButtonElement>) => {
-            event.stopPropagation();
-            const cleanArticle = article.trim();
-            if (!cleanArticle || cleanArticle === "-") return;
-
-            try {
-                if (
-                    typeof navigator !== "undefined" &&
-                    navigator.clipboard &&
-                    typeof navigator.clipboard.writeText === "function"
-                ) {
-                    await navigator.clipboard.writeText(cleanArticle);
-                } else {
-                    const textarea = document.createElement("textarea");
-                    textarea.value = cleanArticle;
-                    textarea.style.position = "fixed";
-                    textarea.style.opacity = "0";
-                    document.body.appendChild(textarea);
-                    textarea.focus();
-                    textarea.select();
-                    document.execCommand("copy");
-                    document.body.removeChild(textarea);
-                }
-
-                setCopyToast(true);
-                if (copyToastTimerRef.current) {
-                    clearTimeout(copyToastTimerRef.current);
-                }
-                copyToastTimerRef.current = setTimeout(() => setCopyToast(false), 1500);
-            } catch (error) {
-                console.error("Copy article failed:", error);
-            }
-        },
-        [article]
-    );
     // ================== РћРџРРЎ (BACK) ==================
 const [description, setDescription] = useState<string | null>(null);
 const [loadingDesc, setLoadingDesc] = useState(false);
@@ -351,11 +310,6 @@ useEffect(() => {
 
     return (
         <>
-        {copyToast && (
-            <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[999] bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg">
-                <Check size={16} /> {"\u0410\u0440\u0442\u0438\u043A\u0443\u043B \u0441\u043A\u043E\u043F\u0456\u0439\u043E\u0432\u0430\u043D\u043E"}
-            </div>
-        )}
         <motion.div
             className="relative w-full h-[320px] [perspective:1200px] select-none"
             initial={entryMotionEnabled ? { opacity: 0, y: 10 } : false}
@@ -430,32 +384,10 @@ useEffect(() => {
                             <span className="text-slate-500">{"\u041A\u043E\u0434:"}</span>
                             <span className="font-medium text-slate-700">{code || "-"}</span>
                         </div>
-                        <button
-                            type="button"
-                            onClick={handleCopyArticle}
-                            disabled={!article || article === "-"}
-                            aria-label={
-                                article && article !== "-"
-                                    ? "Скопіювати артикул"
-                                    : "Артикул недоступний"
-                            }
-                            className={`group flex w-full items-center justify-between px-1 py-0.5 rounded transition-colors ${
-                                article && article !== "-"
-                                    ? "hover:bg-slate-100/70"
-                                    : "cursor-default"
-                            }`}
-                        >
+                        <div className="flex w-full items-center justify-between px-1 py-0.5 rounded hover:bg-slate-100/70 transition-colors">
                             <span className="text-slate-500">Артикул:</span>
-                            <span className="inline-flex items-center gap-1.5 font-medium text-slate-700">
-                                {article && article !== "-" && (
-                                    <Copy
-                                        size={12}
-                                        className="shrink-0 text-slate-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
-                                    />
-                                )}
-                                <span>{article}</span>
-                            </span>
-                        </button>
+                            <span className="font-medium text-slate-700">{article}</span>
+                        </div>
                         <div className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
                             <span className="text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
                             <span className="font-medium text-slate-700">{producer}</span>

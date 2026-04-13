@@ -198,21 +198,22 @@ const Zamovl: React.FC<ZamovlProps> = ({
   };
 
   return (
-    <div className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter overflow-auto p-3 sm:p-5">
-      <div className="mb-4 h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
-      <div className="soft-panel-content flex items-center justify-between gap-3 border-b border-slate-200/70 pb-3.5">
-        <h3 className="soft-panel-title">
-          Оформлення замовлення
-        </h3>
-        <button
-          onClick={onCloseAll}
-          className="soft-icon-button h-10 w-10 shrink-0 p-1 text-slate-500"
-          aria-label="Закрити форму замовлення"
-        >
-          <X size={20} />
-        </button>
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-1.5 sm:mt-3.5 sm:gap-2 sm:grid-cols-4">
+    <div className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden">
+      <div className="soft-panel-content flex min-h-0 flex-1 flex-col p-3 sm:p-5">
+        <div className="mb-4 h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
+        <div className="flex flex-col gap-2.5 border-b border-slate-200/70 pb-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <h3 className="soft-panel-title">
+            Оформлення замовлення
+          </h3>
+          <button
+            onClick={onCloseAll}
+            className="soft-icon-button h-10 w-10 shrink-0 p-1 text-slate-500"
+            aria-label="Закрити форму замовлення"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-1.5 sm:mt-3.5 sm:gap-2 sm:grid-cols-4">
         {steps.map((step, index) => {
           const isActive = currentStep === index;
           const isDone = currentStep > index;
@@ -235,9 +236,12 @@ const Zamovl: React.FC<ZamovlProps> = ({
             </div>
           );
         })}
-      </div>
+        </div>
 
-      {renderStep()}
+        <div className="app-panel-scroll mt-3 min-h-0 flex-1 overflow-y-auto sm:pr-1">
+          {renderStep()}
+        </div>
+      </div>
     </div>
   );
 };

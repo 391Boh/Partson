@@ -1,7 +1,18 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Phone, MapPin, Check, Copy, User, ExternalLink } from "lucide-react";
+import {
+  ArrowRight,
+  BadgeCheck,
+  Clock3,
+  ExternalLink,
+  Headphones,
+  MapPin,
+  Phone,
+  Store,
+  User,
+  X,
+} from "lucide-react";
 import Zvyaz from "app/components/zvyaz";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -10,10 +21,6 @@ import { db } from "../../firebase";
 interface ContactsProps {
   onClose: () => void;
 }
-
-const detectMobile = () =>
-  typeof window !== "undefined" &&
-  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 const formatPhone = (raw: string) => {
   const d = raw.replace(/\D/g, "");
@@ -38,15 +45,19 @@ const OperatorIcon = ({ phone }: { phone: string }) => {
   return null;
 };
 
+const CONTACT_PEOPLE = [
+  { name: "Богдан", phone: "+38 (063) 421-18-51", note: "Швидка консультація та підбір" },
+  { name: "Роман", phone: "+38 (067) 739-00-73", note: "Замовлення і наявність" },
+  { name: "Дмитро", phone: "+38 (068) 479-61-72", note: "Самовивіз і уточнення деталей" },
+] as const;
+
 const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
   const ref = useRef<HTMLDivElement>(null);
   const touchStartX = useRef<number | null>(null);
 
   const [tab, setTab] = useState<"phones" | "address">("phones");
-  const [toast, setToast] = useState(false);
   const [showZvyaz, setShowZvyaz] = useState(false);
   const [userData, setUserData] = useState<{ name: string; phone: string } | null>(null);
-  const [isMobileDevice, setIsMobileDevice] = useState(false);
 
   /* Close on outside click */
   useEffect(() => {
@@ -88,44 +99,10 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
     });
   }, []);
 
-  useEffect(() => {
-    setIsMobileDevice(detectMobile());
-  }, []);
-
-  /* Copy or Call */
-  const handlePhoneAction = async (phone: string) => {
+  /* Call */
+  const handlePhoneAction = (phone: string) => {
     const cleanPhone = phone.replace(/\s/g, "");
-
-    const shouldCall = isMobileDevice || detectMobile();
-    if (shouldCall) {
-      window.location.href = `tel:${cleanPhone}`;
-      return;
-    }
-
-    try {
-      if (
-        typeof navigator !== "undefined" &&
-        navigator.clipboard &&
-        typeof navigator.clipboard.writeText === "function"
-      ) {
-        await navigator.clipboard.writeText(cleanPhone);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = cleanPhone;
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      }
-
-      setToast(true);
-      setTimeout(() => setToast(false), 1500);
-    } catch (err) {
-      console.error("Copy failed:", err);
-    }
+    window.location.href = `tel:${cleanPhone}`;
   };
 
   /* Swipe */
@@ -154,160 +131,218 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
 
   return (
     <>
-      {toast && (
-        <div className="top-header-offset-plus-065 fixed left-1/2 z-[95] flex -translate-x-1/2 items-center gap-2 rounded-[16px] border border-emerald-300/50 bg-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-[0_16px_34px_rgba(16,185,129,0.32)]">
-          <Check size={16} /> Номер скопійовано
-        </div>
-      )}
-
       <div
         ref={ref}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter overflow-hidden"
+        className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter overflow-y-auto overflow-x-hidden"
       >
-        <div className="soft-panel-content flex flex-col gap-3 p-3 sm:p-4">
-        <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
+        <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
+          <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
 
-        <div className="soft-panel-header">
-          <div className="min-w-0">
-            <span className="soft-panel-eyebrow">
-              <Phone size={14} />
-              Контакти
-            </span>
-            <h2 className="soft-panel-title mt-3">Зв&apos;язок і підтримка</h2>
-            <p className="soft-panel-subtitle">
-              Оберіть зручний спосіб: швидкий дзвінок, адреса магазину або зворотний зв&apos;язок.
-            </p>
-          </div>
-
-          <button onClick={onClose} className="soft-icon-button h-10 w-10 shrink-0 p-1">
-            <X size={18} className="text-slate-500" />
-          </button>
-        </div>
-
-        <div className="soft-panel-tabs">
-          <div className="grid w-full grid-cols-2 gap-2">
-            <button
-              onClick={() => {
-                setTab("phones");
-              }}
-              className={`flex items-center justify-center gap-2 rounded-[16px] px-3 py-2.5 text-sm font-semibold transition ${
-                tab === "phones"
-                  ? "soft-segment soft-segment--active"
-                  : "soft-segment hover:bg-white/70 hover:text-slate-800"
-              }`}
-            >
-              <Phone size={16} />
-              Дзвінок
-            </button>
-
-            <button
-              onClick={() => {
-                setTab("address");
-              }}
-              className={`flex items-center justify-center gap-2 rounded-[16px] px-3 py-2.5 text-sm font-semibold transition ${
-                tab === "address"
-                  ? "soft-segment soft-segment--active"
-                  : "soft-segment hover:bg-white/70 hover:text-slate-800"
-              }`}
-            >
-              <MapPin size={16} />
-              Адреса
-            </button>
-          </div>
-        </div>
-
-        {tab === "phones" && (
-          <div className="space-y-3">
-            <div className="soft-note rounded-[16px] px-4 py-2.5 text-sm">
-              {isMobileDevice
-                ? "Натисніть на номер, щоб одразу зателефонувати."
-                : "Натисніть на номер, щоб швидко скопіювати його."}
+          <div className="soft-panel-header">
+            <div className="min-w-0">
+              <span className="soft-panel-eyebrow">
+                <Phone size={14} />
+                Контакти
+              </span>
+              <h2 className="soft-panel-title mt-3">Зв&apos;язок і підтримка</h2>
+              <p className="soft-panel-subtitle">
+                Оберіть зручний спосіб: швидкий дзвінок, адреса магазину або зворотний зв&apos;язок.
+              </p>
             </div>
 
-            <div className="app-panel-scroll max-h-[30svh] space-y-2 overflow-y-auto pr-1 sm:max-h-[36vh]">
-            {[
-              { name: "Богдан", phone: "+38 (063) 421-18-51" },
-              { name: "Роман", phone: "+38 (067) 739-00-73" },
-              { name: "Дмитро", phone: "+38 (068) 479-61-72" },
-            ].map((c, i) => (
-              <button
-                key={i}
-                onClick={() => handlePhoneAction(c.phone)}
-                className="soft-surface-card app-panel-card-hover w-full rounded-[16px] px-4 py-3 text-left"
-              >
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-[16px] border border-sky-200/70 bg-white/80 text-sky-600 shadow-[0_10px_22px_rgba(56,189,248,0.12)]">
-                      <User size={16} />
-                    </span>
-                    <div>
-                      <p className="font-semibold text-slate-800">{c.name}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {isMobileDevice ? "Торкніться для дзвінка" : "Клікніть для копіювання"}
-                      </p>
-                    </div>
-                  </div>
+            <button onClick={onClose} className="soft-icon-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10">
+              <X size={18} className="text-slate-500" />
+            </button>
+          </div>
 
-                  <div className="flex items-center gap-2">
-                    <OperatorIcon phone={c.phone} />
-                    {isMobileDevice ? (
-                      <Phone size={14} className="text-blue-600" />
-                    ) : (
-                      <Copy size={14} className="text-blue-600" />
-                    )}
-                  </div>
+          <div className="soft-panel-tabs">
+            <div className="grid w-full grid-cols-2 gap-1.5 sm:gap-2">
+              <button
+                onClick={() => {
+                  setTab("phones");
+                }}
+                className={`flex items-center justify-center gap-1.5 rounded-[14px] px-2.5 py-2 text-sm font-semibold transition sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
+                  tab === "phones"
+                    ? "soft-segment soft-segment--active"
+                    : "soft-segment hover:bg-white/70 hover:text-slate-800"
+                }`}
+              >
+                <Phone size={16} />
+                Дзвінок
+              </button>
+
+              <button
+                onClick={() => {
+                  setTab("address");
+                }}
+                className={`flex items-center justify-center gap-1.5 rounded-[14px] px-2.5 py-2 text-sm font-semibold transition sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
+                  tab === "address"
+                    ? "soft-segment soft-segment--active"
+                    : "soft-segment hover:bg-white/70 hover:text-slate-800"
+                }`}
+              >
+                <MapPin size={16} />
+                Адреса
+              </button>
+            </div>
+          </div>
+
+          <div className="app-panel-scroll min-h-0 flex-1 overflow-y-auto sm:pr-1">
+            <section className="soft-panel-hero px-3 py-3 sm:px-4 sm:py-3.5">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
+                <div className="max-w-2xl">
+                  <h3 className="soft-panel-section-heading">
+                    {tab === "phones" ? "Швидкий канал звʼязку" : "Магазин і самовивіз"}
+                  </h3>
+                  <p className="soft-panel-section-text">
+                    {tab === "phones"
+                      ? "Оберіть зручний номер для консультації, підбору деталей або оформлення замовлення."
+                      : "Завітайте до магазину у Львові або відкрийте маршрут у мапах для швидкого виїзду."}
+                  </p>
                 </div>
 
-                <div className="mt-2 text-sm font-medium text-slate-700">{c.phone}</div>
-              </button>
-            ))}
-            </div>
-          </div>
-        )}
-
-        {tab === "address" && (
-          <div className="space-y-3">
-            <div className="soft-surface-card rounded-[16px] p-3.5 text-slate-700">
-            <div className="flex gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-sky-200/70 bg-white/80 text-sky-600 shadow-[0_10px_22px_rgba(56,189,248,0.12)]">
-                <MapPin size={18} />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-slate-800">Наш магазин</p>
-                <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                  м. Львів, вул. Перфецького, 8<br />
-                  Пн–Сб: 08:00–18:00<br />
-                  Нд: 08:00–16:00
-                </p>
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 sm:px-3 sm:py-1.5 sm:text-xs">
+                  <BadgeCheck size={14} />
+                  {tab === "phones" ? "На звʼязку" : "Працюємо щодня"}
+                </div>
               </div>
-            </div>
-          </div>
-            <div className="soft-note rounded-[16px] px-4 py-2.5 text-sm">
-              Підходить для самовивозу, консультації та швидкого підбору деталей на місці.
-            </div>
-          </div>
-        )}
 
-        {tab === "phones" ? (
-          <button
-            onClick={() => setShowZvyaz(true)}
-            className="soft-primary-button mt-1 w-full py-3 text-sm font-semibold"
-          >
-            Замовити дзвінок
-          </button>
-        ) : (
-          <a
-            href="https://www.google.com/maps?cid=11517394092669341405"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="soft-primary-button mt-1 flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold"
-          >
-            <ExternalLink size={16} />
-            Переглянути на мапі
-          </a>
-        )}
+              <div className="soft-panel-stat-grid mt-2.5">
+                <div className="soft-panel-stat-card">
+                  <span className="soft-panel-stat-label">Контактів</span>
+                  <span className="soft-panel-stat-value">{CONTACT_PEOPLE.length}</span>
+                </div>
+                <div className="soft-panel-stat-card">
+                  <span className="soft-panel-stat-label">Підтримка</span>
+                  <span className="soft-panel-stat-value">Швидко</span>
+                </div>
+                <div className="soft-panel-stat-card">
+                  <span className="soft-panel-stat-label">Локація</span>
+                  <span className="soft-panel-stat-value">Львів</span>
+                </div>
+                <div className="soft-panel-stat-card">
+                  <span className="soft-panel-stat-label">Графік</span>
+                  <span className="soft-panel-stat-value">Пн–Нд</span>
+                </div>
+              </div>
+            </section>
+
+            <div className="mt-2 space-y-2 pb-1">
+              {tab === "phones" && (
+                <div className="space-y-2">
+                  <div className="soft-note rounded-[16px] px-3 py-2 text-[13px] sm:rounded-[18px] sm:px-3.5 sm:py-2.5 sm:text-sm">
+                    Натисніть на номер, щоб одразу зателефонувати. Якщо зручніше, нижче можна залишити запит на зворотний дзвінок.
+                  </div>
+
+                  <div className="space-y-2 sm:app-panel-scroll sm:max-h-[38vh] sm:space-y-2.5">
+                    {CONTACT_PEOPLE.map((c) => (
+                      <button
+                        key={c.phone}
+                        onClick={() => handlePhoneAction(c.phone)}
+                        className="soft-surface-card app-panel-card-hover w-full rounded-[18px] px-3 py-3 text-left sm:rounded-[20px] sm:px-3.5 sm:py-3.5"
+                      >
+                        <div className="flex items-start justify-between gap-2.5">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-[14px] border border-sky-200/70 bg-white/80 text-sky-600 shadow-[0_10px_22px_rgba(56,189,248,0.12)] sm:h-10 sm:w-10 sm:rounded-[16px]">
+                              <User size={15} />
+                            </span>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-[14px] font-semibold text-slate-800 sm:text-[15px]">{c.name}</p>
+                                <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 sm:text-[11px]">
+                                  На звʼязку
+                                </span>
+                              </div>
+                              <p className="mt-0.5 text-[11px] text-slate-500 sm:mt-1 sm:text-xs">
+                                {c.note}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <OperatorIcon phone={c.phone} />
+                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-50 text-blue-600 sm:h-8 sm:w-8">
+                              <Phone size={13} />
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mt-2 flex flex-col gap-2 sm:mt-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                          <div className="min-w-0">
+                            <div className="break-words text-[13px] font-medium text-slate-700 sm:text-sm">{c.phone}</div>
+                            <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-slate-500 sm:mt-1 sm:text-[11px]">
+                              <Headphones size={12} />
+                              Торкніться або клікніть для дзвінка
+                            </div>
+                          </div>
+                          <span className="inline-flex items-center gap-1 self-start text-[11px] font-semibold text-sky-700 sm:self-auto sm:text-xs">
+                            Подзвонити
+                            <ArrowRight size={14} />
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {tab === "address" && (
+                <div className="space-y-2">
+                  <div className="soft-surface-card rounded-[18px] p-3 text-slate-700 sm:rounded-[20px] sm:p-3.5">
+                    <div className="flex gap-2.5 sm:gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] border border-sky-200/70 bg-white/80 text-sky-600 shadow-[0_10px_22px_rgba(56,189,248,0.12)] sm:h-11 sm:w-11 sm:rounded-[18px]">
+                        <Store size={17} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-semibold text-slate-800 sm:text-[15px]">Наш магазин</p>
+                        <p className="mt-0.5 text-[13px] leading-relaxed text-slate-600 sm:mt-1 sm:text-sm">
+                          м. Львів, вул. Перфецького, 8
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] sm:mt-2.5 sm:gap-2 sm:text-xs">
+                          <span className="soft-chip px-3 py-1.5 text-slate-600">
+                            <Clock3 size={13} className="mr-1.5" />
+                            Пн–Сб: 08:00–18:00
+                          </span>
+                          <span className="soft-chip px-3 py-1.5 text-slate-600">
+                            <Clock3 size={13} className="mr-1.5" />
+                            Нд: 08:00–16:00
+                          </span>
+                          <span className="soft-chip px-3 py-1.5 text-emerald-700">
+                            <MapPin size={13} className="mr-1.5" />
+                            Самовивіз доступний
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="soft-note rounded-[16px] px-3 py-2 text-[13px] sm:rounded-[18px] sm:px-3.5 sm:py-2.5 sm:text-sm">
+                    Підходить для самовивозу, консультації та швидкого підбору деталей на місці.
+                  </div>
+                </div>
+              )}
+
+              {tab === "phones" ? (
+                <button
+                  onClick={() => setShowZvyaz(true)}
+                  className="soft-primary-button mt-1 w-full py-2.25 text-sm font-semibold sm:py-2.5"
+                >
+                  Замовити дзвінок
+                </button>
+              ) : (
+                <a
+                  href="https://www.google.com/maps?cid=11517394092669341405"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="soft-primary-button mt-1 flex w-full items-center justify-center gap-2 py-2.25 text-sm font-semibold sm:py-2.5"
+                >
+                  <ExternalLink size={16} />
+                  Переглянути на мапі
+                </a>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </>

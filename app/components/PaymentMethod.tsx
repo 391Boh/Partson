@@ -56,6 +56,10 @@ const PaymentMethod: React.FC<Props> = ({
   const alreadyInitiated = useRef(false);
   const [isPaid, setIsPaid] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [sdkStatus, setSdkStatus] = useState<'loading' | 'ready' | 'error'>(() =>
+    typeof window !== 'undefined' && window.LiqPayCheckout ? 'ready' : 'loading',
+  );
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const handleConfirm = async () => {
     const orderData = { name, phone, amount, orderId, paymentMethod, deliveryMethod };
@@ -74,19 +78,57 @@ const PaymentMethod: React.FC<Props> = ({
   };
 
   useEffect(() => {
-    if (!document.getElementById('liqpay-sdk')) {
-      const script = document.createElement('script');
-      script.src = 'https://static.liqpay.ua/libjs/checkout.js';
-      script.id = 'liqpay-sdk';
-      script.async = true;
-      document.body.appendChild(script);
+    if (typeof window === 'undefined') return;
+    if (window.LiqPayCheckout) {
+      setSdkStatus('ready');
+      return;
     }
+
+    const existingScript = document.getElementById('liqpay-sdk') as HTMLScriptElement | null;
+    const handleLoad = () => {
+      setSdkStatus(window.LiqPayCheckout ? 'ready' : 'error');
+      if (!window.LiqPayCheckout) {
+        setPaymentError('Платіжний віджет LiqPay не ініціалізувався. Спробуйте оновити сторінку.');
+      }
+    };
+    const handleError = () => {
+      setSdkStatus('error');
+      setPaymentError('Не вдалося завантажити LiqPay. Перевірте підключення або спробуйте ще раз.');
+    };
+
+    if (existingScript) {
+      existingScript.addEventListener('load', handleLoad);
+      existingScript.addEventListener('error', handleError);
+
+      return () => {
+        existingScript.removeEventListener('load', handleLoad);
+        existingScript.removeEventListener('error', handleError);
+      };
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://static.liqpay.ua/libjs/checkout.js';
+    script.id = 'liqpay-sdk';
+    script.async = true;
+    script.addEventListener('load', handleLoad);
+    script.addEventListener('error', handleError);
+    document.body.appendChild(script);
+
+    return () => {
+      script.removeEventListener('load', handleLoad);
+      script.removeEventListener('error', handleError);
+    };
   }, []);
 
   useEffect(() => {
     if (paymentMethod !== 'Картка') {
       alreadyInitiated.current = false;
       setIsPaid(false);
+      setPaymentError(null);
+      return;
+    }
+
+    if (sdkStatus !== 'ready') {
       return;
     }
 
@@ -95,6 +137,7 @@ const PaymentMethod: React.FC<Props> = ({
 
     const initLiqPay = async () => {
       try {
+        setPaymentError(null);
         const origin = typeof window !== 'undefined' ? window.location.origin : '';
         const resultUrl =
           process.env.NEXT_PUBLIC_LIQPAY_RESULT_URL || `${origin}/success`;
@@ -126,13 +169,21 @@ const PaymentMethod: React.FC<Props> = ({
 
         if (!res.ok || !json.data || !json.signature) {
           console.error('Помилка даних LiqPay:', json.error || 'Некоректні дані');
-          alert('Помилка ініціалізації оплати. Перевірте налаштування ключів.');
+          setPaymentError(
+            json.error || 'Помилка ініціалізації оплати. Перевірте ключі та публічні URL LiqPay.',
+          );
           return;
         }
 
         if (!window.LiqPayCheckout) {
           console.error('LiqPayCheckout не завантажений');
+          setPaymentError('Платіжний віджет ще не готовий. Спробуйте ще раз за кілька секунд.');
           return;
+        }
+
+        const checkoutContainer = document.getElementById('liqpay_checkout');
+        if (checkoutContainer) {
+          checkoutContainer.innerHTML = '';
         }
 
         window.LiqPayCheckout.init({
@@ -144,6 +195,7 @@ const PaymentMethod: React.FC<Props> = ({
           .on('liqpay.callback', async (liqpayData) => {
             if (liqpayData?.status === 'success') {
               setIsPaid(true);
+              setPaymentError(null);
               // Автоматично підтверджуємо оплату після успіху
               try {
                 await handleConfirm();
@@ -152,7 +204,7 @@ const PaymentMethod: React.FC<Props> = ({
               }
             }
             if (liqpayData?.status === 'failure') {
-              alert('Оплата не пройшла');
+              setPaymentError('Оплата не пройшла. Спробуйте ще раз або оберіть інший спосіб.');
             }
           })
           .on('liqpay.close', () => {
@@ -162,6 +214,7 @@ const PaymentMethod: React.FC<Props> = ({
         alreadyInitiated.current = true;
       } catch (err) {
         console.error('Помилка ініціалізації LiqPay:', err);
+        setPaymentError('Не вдалося ініціалізувати оплату карткою. Перевірте налаштування LiqPay.');
       }
     };
 
@@ -169,7 +222,7 @@ const PaymentMethod: React.FC<Props> = ({
       initLiqPay();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentMethod, amount, orderId, name, phone]);
+  }, [paymentMethod, amount, orderId, name, phone, deliveryMethod, sdkStatus]);
 
   const isConfirmationEnabled =
     paymentMethod === 'Готівка' || (paymentMethod === 'Картка' && isPaid);
@@ -214,28 +267,42 @@ const PaymentMethod: React.FC<Props> = ({
         </label>
       </div>
 
-      <div className="mt-5 flex gap-3">
+      {paymentMethod === 'Картка' && sdkStatus === 'loading' && (
+        <div className="soft-note rounded-[16px] px-4 py-3 text-sm">
+          Завантажуємо форму оплати карткою…
+        </div>
+      )}
+
+      {paymentError && (
+        <div className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {paymentError}
+        </div>
+      )}
+
+      <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:justify-end">
+        <button
+          onClick={onBack}
+          className="soft-secondary-button flex w-full items-center justify-center gap-2 py-2.5 text-sm font-medium sm:w-auto sm:min-w-[170px]"
+        >
+          <ArrowLeft size={18} /> Назад
+        </button>
+
         <button
           onClick={handleConfirm}
           disabled={!isConfirmationEnabled || isConfirming}
-          className="soft-primary-button flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-medium disabled:opacity-50"
+          className="soft-primary-button flex w-full items-center justify-center gap-2 py-2.5 text-sm font-medium disabled:opacity-50 sm:w-auto sm:min-w-[220px]"
         >
           <Check size={18} />
           {isConfirming ? 'Підтвердження...' : 'Підтвердити оплату'}
         </button>
-
-        <button
-          onClick={onBack}
-          className="soft-secondary-button flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-medium"
-        >
-          <ArrowLeft size={18} /> Назад
-        </button>
       </div>
 
-      <div
-        id="liqpay_checkout"
-        className="soft-surface-card mx-auto w-full max-w-[980px] overflow-hidden rounded-[16px] p-2"
-      />
+      {paymentMethod === 'Картка' && sdkStatus === 'ready' && (
+        <div
+          id="liqpay_checkout"
+          className="soft-surface-card mx-auto w-full max-w-[980px] overflow-hidden rounded-[16px] p-2"
+        />
+      )}
     </div>
   );
 };

@@ -6,7 +6,11 @@ import { ChevronRight, FolderTree, Search, X } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import SmartLink from "app/components/SmartLink";
-import { buildCatalogCategoryPath, buildGroupItemPath } from "app/lib/catalog-links";
+import {
+  buildCatalogCategoryPath,
+  buildGroupItemPath,
+  buildGroupPath,
+} from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildVisibleProductName } from "app/lib/product-url";
 
@@ -153,7 +157,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                 </span>
               ) : (
                 <SmartLink
-                  href={buildCatalogCategoryPath(group.label)}
+                  href={buildGroupPath(group.slug)}
                   className="font-display mt-2 block text-[19px] font-[760] italic text-slate-900 transition hover:text-cyan-700"
                 >
                   {visibleGroupLabel}
@@ -205,7 +209,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                   {subgroup.children.map((child) => (
                     <CatalogPrefetchLink
                       key={child.slug}
-                      href={buildCatalogCategoryPath(group.label, child.label)}
+                      href={buildGroupItemPath(group.slug, child.slug)}
                       className="flex items-center justify-between rounded-xl border border-sky-100 bg-sky-50/90 px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-800"
                     >
                       <span>{buildVisibleProductName(child.label)}</span>
@@ -220,7 +224,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
       ) : (
         <div className="mt-3">
           <SmartLink
-            href={buildCatalogCategoryPath(group.label)}
+            href={buildGroupPath(group.slug)}
             className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50/90 px-4 py-2 text-sm font-[720] text-cyan-900 transition hover:border-cyan-300 hover:bg-cyan-100"
           >
             <ChevronRight size={16} strokeWidth={2.3} />
