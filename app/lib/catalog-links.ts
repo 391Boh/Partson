@@ -56,6 +56,23 @@ export const buildGroupPath = (groupSlugOrLabel: string | null | undefined) => {
   return `/groups/${encodeURIComponent(slug)}`;
 };
 
+export const buildManufacturerPath = (
+  producerSlugOrLabel: string | null | undefined
+) => {
+  const normalizedProducer = normalizeFacetValue(producerSlugOrLabel);
+
+  if (!normalizedProducer) {
+    return "/manufacturers";
+  }
+
+  const slug =
+    normalizedProducer === buildPlainSeoSlug(normalizedProducer)
+      ? normalizedProducer
+      : buildPlainSeoSlug(normalizedProducer);
+
+  return `/manufacturers/${encodeURIComponent(slug)}`;
+};
+
 export const buildCatalogProducerPath = (
   producer: string | null | undefined,
   group?: string | null

@@ -145,11 +145,6 @@ const ProductCard: React.FC<Props> = ({
         typeof priceUAH === "number" &&
         Number.isFinite(priceUAH) &&
         priceUAH > 0;
-    const visiblePriceLabel = hasPrice
-        ? `${priceUAH.toLocaleString("uk-UA")} грн`
-        : isPriceLoading
-            ? "Уточнюємо"
-            : "За запитом";
     const isPlusDisabled = !isAvailable || (isAvailable && cartQty + qty >= quantity);
     const isAddDisabled = !isAvailable || (isAvailable && cartQty + qty > quantity);
     const isCartButtonDisabled = isPriceLoading ? true : hasPrice ? isAddDisabled : false;

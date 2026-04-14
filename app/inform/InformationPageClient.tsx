@@ -24,7 +24,6 @@ import {
 
 import {
   getInformationPath,
-  getInformationSection,
   informationSections,
   type InformationSectionKey,
 } from './section-config';
@@ -150,7 +149,7 @@ const PaymentTab = () => (
 
     <InfoCard title="Оплата при отриманні" icon={Wallet} accent="amber">
       <ul className="space-y-3">
-        <Li icon={Package} cls="text-amber-500">Оплата <strong className="font-semibold text-slate-700">у відділенні Нової Пошти</strong> або кур'єру після огляду</Li>
+        <Li icon={Package} cls="text-amber-500">{"Оплата "}<strong className="font-semibold text-slate-700">у відділенні Нової Пошти</strong>{" або кур'єру після огляду"}</Li>
         <Li icon={CheckCircle} cls="text-amber-500">Можливість оглянути товар перед оплатою</Li>
       </ul>
     </InfoCard>
@@ -195,8 +194,8 @@ const AboutTab = () => (
       <p>Надішліть VIN або параметри авто — підготуємо <strong className="font-semibold text-slate-700">точний перелік позицій</strong> без помилок у підборі.</p>
     </InfoCard>
 
-    <InfoCard title="Зв'язок та підтримка" icon={MessageCircle} accent="cyan">
-      <p>Оперативний зв'язок через чат у робочий час. Менеджер зорієнтує по наявності, термінах і доставці.</p>
+    <InfoCard title={"Зв'язок та підтримка"} icon={MessageCircle} accent="cyan">
+      <p>{"Оперативний зв'язок через чат у робочий час. Менеджер зорієнтує по наявності, термінах і доставці."}</p>
     </InfoCard>
   </div>
 );

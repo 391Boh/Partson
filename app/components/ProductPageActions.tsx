@@ -75,7 +75,7 @@ const ProductPageActions = ({
           : "mt-4 flex flex-col gap-3 border-t border-sky-200/80 pt-4"
       }
     >
-      {cartQty > 0 && hasPrice && (
+      {!compact && cartQty > 0 && hasPrice && (
         <span className="inline-flex w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-emerald-700">
           У кошику: {cartQty}
         </span>

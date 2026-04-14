@@ -383,7 +383,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
   return (
     <div
       ref={modalRef}
-      className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden select-none"
+      className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden select-none"
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-4">
         <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
@@ -409,7 +409,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         <div className="soft-panel-tabs grid grid-cols-3">
           <button
             onClick={() => setActiveTab("profile")}
-            className={`flex-1 rounded-[14px] px-2.5 py-2 text-sm font-semibold transition sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
+            className={`min-w-0 flex-1 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
               activeTab === "profile"
                 ? "soft-segment soft-segment--active"
                 : "soft-segment hover:bg-white/70 hover:text-slate-700"
@@ -419,7 +419,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           </button>
           <button
             onClick={() => setActiveTab("vins")}
-            className={`flex-1 rounded-[14px] px-2.5 py-2 text-sm font-semibold transition sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
+            className={`min-w-0 flex-1 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
               activeTab === "vins"
                 ? "soft-segment soft-segment--active"
                 : "soft-segment hover:bg-white/70 hover:text-slate-700"
@@ -429,7 +429,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           </button>
           <button
             onClick={() => setActiveTab("security")}
-            className={`flex-1 rounded-[14px] px-2.5 py-2 text-sm font-semibold transition sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
+            className={`min-w-0 flex-1 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
               activeTab === "security"
                 ? "soft-segment soft-segment--active"
                 : "soft-segment hover:bg-white/70 hover:text-slate-700"
@@ -454,7 +454,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   <h3 className="mt-2 truncate text-[1rem] font-[780] tracking-[-0.05em] text-slate-900 sm:mt-2.5 sm:text-[1.08rem]">
                     {displayName}
                   </h3>
-                  <p className="mt-0.5 truncate text-[12px] text-slate-600 sm:text-[13px]">{emailValue}</p>
+                  <p className="mt-0.5 break-all text-[12px] text-slate-600 sm:text-[13px] sm:break-normal">{emailValue}</p>
                 </div>
               </div>
 

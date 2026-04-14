@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
-import { ImageOff, Maximize2, X } from "lucide-react";
+import { ImageOff, Maximize2 } from "lucide-react";
+
+import ImageModal from "app/components/ImageModal";
 
 interface ProductImageWithFallbackProps {
   src: string;
@@ -41,8 +43,7 @@ export default function ProductImageWithFallback({
 }: ProductImageWithFallbackProps) {
   const noPhotoLabel = "\u0417\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f \u0432\u0456\u0434\u0441\u0443\u0442\u043d\u0454";
   const openPhotoTitle = "\u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0438 \u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f";
-  const closeTitle = "\u0417\u0430\u043a\u0440\u0438\u0442\u0438";
-  const photoLabel = "\u0417\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f";
+  const photoLabel = "\u0424\u043E\u0442\u043E";
 
   const candidateSrc = (src || "").trim();
   const normalizedFallbackPath = useMemo(() => normalizeSrcPath(fallbackSrc), [fallbackSrc]);
@@ -104,17 +105,6 @@ export default function ProductImageWithFallback({
 
     setFailedSrc(candidateSrc);
   }, [applyLoadedCandidate, candidateSrc]);
-
-  useEffect(() => {
-    if (!lightboxOpen) return undefined;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setLightboxOpen(false);
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lightboxOpen]);
 
   const renderPlaceholder = (overlay = false) => (
     <div
@@ -189,34 +179,7 @@ export default function ProductImageWithFallback({
       </div>
 
       {lightboxOpen && canOpen ? (
-        <div
-          className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-6"
-          onClick={() => setLightboxOpen(false)}
-        >
-          <div
-            className="relative w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950 p-2 shadow-[0_28px_70px_rgba(2,6,23,0.55)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setLightboxOpen(false)}
-              className="absolute right-3 top-3 z-10 inline-flex items-center justify-center rounded-full border border-slate-600 bg-slate-900/90 p-1.5 text-slate-200 transition hover:border-slate-400 hover:text-white"
-              title={closeTitle}
-            >
-              <X size={16} />
-            </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={candidateSrc}
-              alt={alt}
-              loading="eager"
-              decoding="async"
-              width={1400}
-              height={1400}
-              className="max-h-[86dvh] w-full rounded-xl object-contain"
-            />
-          </div>
-        </div>
+        <ImageModal src={candidateSrc} onClose={() => setLightboxOpen(false)} />
       ) : null}
     </>
   );

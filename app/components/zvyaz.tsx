@@ -55,7 +55,7 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, userData }) => {
 
   return (
     <div
-      className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden"
+      className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden"
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
         <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />

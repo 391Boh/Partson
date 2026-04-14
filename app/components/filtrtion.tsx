@@ -374,7 +374,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     if (selectedCars.length > 0) return selectedCars.join(', ');
     return '';
   }, [selectedCarSelection, selectedCars, selectedVin]);
-  const displayCarLabel = getFilterDisplayLabel(carLabel);
   const showRequestBanner =
     Boolean(requestMessage) && isAutoSelected && hasStrictPartSelection;
   const canSubmitRequest = Boolean(onConfirmRequest);

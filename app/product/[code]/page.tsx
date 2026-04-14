@@ -18,6 +18,7 @@ import {
   buildCatalogCategoryPath,
   buildCatalogProducerPath,
   buildGroupPath,
+  buildManufacturerPath,
 } from "app/lib/catalog-links";
 import { getProductImagePath, PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image";
 import {
@@ -30,7 +31,6 @@ import {
 import { resolveProductCodeFromSeoRoute } from "app/lib/product-route-resolver";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getSiteUrl } from "app/lib/site-url";
-import { buildSeoSlug } from "app/lib/seo-slug";
 
 export const revalidate = 900;
 
@@ -853,8 +853,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
   const siteUrl = getSiteUrl();
   const groupLandingPath = productGroup ? buildGroupPath(productGroup) : null;
-  const producerSlug = buildSeoSlug(product.producer);
-  const producerLandingPath = producerSlug ? `/manufacturers/${producerSlug}` : null;
+  const producerLandingPath = product.producer
+    ? buildManufacturerPath(product.producer)
+    : null;
   const categoryCatalogPath = productSubgroup
     ? buildCatalogCategoryPath(productGroup || productSubgroup, productSubgroup)
     : productGroup
@@ -1053,26 +1054,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 <h1 className="font-display-italic max-w-none break-words text-[clamp(1rem,2.5vw,1.85rem)] font-black leading-[1.04] tracking-[-0.03em] text-white [overflow-wrap:anywhere] [text-wrap:pretty] sm:text-[clamp(1.18rem,2vw,2rem)] xl:max-w-[42ch]">
                   {productHeadingText}
                 </h1>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {producerLandingPath && product.producer ? (
-                    <Link
-                      href={producerLandingPath}
-                      className="inline-flex min-h-10 items-center rounded-full border border-white/16 bg-white/9 px-3.5 py-2 text-[12px] font-bold text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] transition hover:border-white/28 hover:bg-white/14 sm:text-[13px]"
-                    >
-                      {product.producer}
-                    </Link>
-                  ) : (
-                    <span className="inline-flex min-h-10 items-center rounded-full border border-white/16 bg-white/9 px-3.5 py-2 text-[12px] font-bold text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] sm:text-[13px]">
-                      {product.producer || "Без бренду"}
-                    </span>
-                  )}
-                  <Link
-                    href={categoryCatalogPath}
-                    className="inline-flex min-h-10 items-center rounded-full border border-white/16 bg-white/9 px-3.5 py-2 text-[12px] font-bold text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] transition hover:border-white/28 hover:bg-white/14 sm:text-[13px]"
-                  >
-                    {visibleProductSubgroup || visibleProductGroup || "Автозапчастини"}
-                  </Link>
-                </div>
                 <div className="mt-3 grid gap-1.5 sm:grid-cols-2 xl:max-w-[760px]">
                   {productMetaItems.map((item) => (
                     <div key={item.label} className="rounded-[16px] border border-white/12 bg-white/7 px-2.5 py-2">
@@ -1096,9 +1077,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 </div>
               </div>
               <div className="xl:pl-2">
-                <div className="mb-2 rounded-[16px] border border-emerald-200/70 bg-emerald-50 px-3 py-2 text-[13px] font-extrabold text-emerald-900 shadow-[0_8px_18px_rgba(16,185,129,0.08)]">
-                  Ціна: {initialPriceUah != null ? `${initialPriceUah.toLocaleString("uk-UA")} грн` : "За запитом"}
-                </div>
                 <ProductPurchasePanelClient
                   lookupKeys={lookupKeys}
                   isModalView={isModalView}
@@ -1124,7 +1102,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   loading="eager"
                   decoding="async"
                   fetchPriority="high"
-                  zoomEnabled={false}
                   className={productImageClass}
                 />
               </div>

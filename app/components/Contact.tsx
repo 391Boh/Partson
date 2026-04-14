@@ -135,7 +135,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
         ref={ref}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter overflow-y-auto overflow-x-hidden"
+        className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter overflow-y-auto overflow-x-hidden"
       >
         <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
           <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
@@ -243,7 +243,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                         onClick={() => handlePhoneAction(c.phone)}
                         className="soft-surface-card app-panel-card-hover w-full rounded-[18px] px-3 py-3 text-left sm:rounded-[20px] sm:px-3.5 sm:py-3.5"
                       >
-                        <div className="flex items-start justify-between gap-2.5">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-2.5">
                           <div className="flex min-w-0 items-center gap-2.5">
                             <span className="flex h-9 w-9 items-center justify-center rounded-[14px] border border-sky-200/70 bg-white/80 text-sky-600 shadow-[0_10px_22px_rgba(56,189,248,0.12)] sm:h-10 sm:w-10 sm:rounded-[16px]">
                               <User size={15} />
@@ -261,7 +261,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 self-start sm:self-auto">
                             <OperatorIcon phone={c.phone} />
                             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-50 text-blue-600 sm:h-8 sm:w-8">
                               <Phone size={13} />

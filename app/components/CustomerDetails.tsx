@@ -47,7 +47,7 @@ const CustomerDetails: React.FC<Props> = ({
       <div className="space-y-3">
         <div>
           <label htmlFor="customer-name" className="mb-1 block text-sm">
-            Ім'я
+            {"Ім'я"}
           </label>
           <input
             id="customer-name"

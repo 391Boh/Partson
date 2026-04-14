@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useState, type SyntheticEvent } 
 import { motion, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Factory, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { buildCatalogProducerPath } from "app/lib/catalog-links";
+import { buildManufacturerPath } from "app/lib/catalog-links";
 import { brands } from "./brandsData";
 
 const MOBILE_ITEMS_PER_PAGE = 6;
@@ -171,7 +171,7 @@ export default function BrandCarousel({
 
   const openCatalog = useCallback(
     (brandName: string) => {
-      router.push(buildCatalogProducerPath(brandName));
+      router.push(buildManufacturerPath(brandName));
     },
     [router]
   );

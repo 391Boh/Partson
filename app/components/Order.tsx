@@ -166,7 +166,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     return (
       <div
         ref={orderRef}
-        className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
+        className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
       >
         <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
           <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
@@ -266,7 +266,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                     className="soft-surface-card app-panel-card-hover rounded-[18px] p-3 text-left text-slate-700 sm:rounded-[20px] sm:p-3.5"
                     onClick={() => toggleExpandOrder(order.id)}
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col items-start gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                       <div className="min-w-0">
                         <div className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-sky-50/80 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
                           <CalendarClock size={13} />
@@ -288,7 +288,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                           </span>
                         </div>
                       </div>
-                      <span className="soft-icon-button h-8 w-8 shrink-0 p-0 sm:h-9 sm:w-9">
+                      <span className="soft-icon-button h-8 w-8 shrink-0 self-end p-0 sm:h-9 sm:w-9 sm:self-auto">
                         {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                       </span>
                     </div>
@@ -361,7 +361,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   return (
     <div
       ref={orderRef}
-      className="soft-modal-shell soft-panel-glow app-overlay-panel app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
+      className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
         <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />

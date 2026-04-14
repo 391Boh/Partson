@@ -1012,11 +1012,25 @@ body::-webkit-scrollbar-corner,
   touch-action: pan-y;
 }
 
+.app-overlay-panel--wide {
+  max-width: min(100vw - 1.5rem, 620px);
+}
+
 @media (min-width: 640px) {
   .app-overlay-panel {
     left: auto;
     right: max(1.5rem, env(safe-area-inset-right));
     width: min(560px, calc(100vw - 2.75rem));
+  }
+
+  .app-overlay-panel--wide {
+    width: min(620px, calc(100vw - 2.75rem));
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-overlay-panel--wide {
+    width: min(700px, calc(100vw - 4rem));
   }
 }
 
@@ -1280,6 +1294,7 @@ body::-webkit-scrollbar-corner,
 }
 
 .soft-panel-stat-card {
+  min-width: 0;
   border-radius: calc(var(--soft-radius-surface) - 1px);
   border: 1px solid rgba(186, 219, 255, 0.72);
   background: rgba(255, 255, 255, 0.72);
@@ -1306,6 +1321,7 @@ body::-webkit-scrollbar-corner,
   font-weight: 760;
   line-height: 1.1;
   letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
 }
 
 .soft-panel-section-heading {
@@ -1498,6 +1514,13 @@ body::-webkit-scrollbar-corner,
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior-y: contain;
+  }
+
+  .app-overlay-panel--wide {
+    top: calc(var(--header-height, 3.5rem) + 0.35rem);
+    bottom: max(0.35rem, env(safe-area-inset-bottom));
+    left: max(0.25rem, env(safe-area-inset-left));
+    right: max(0.25rem, env(safe-area-inset-right));
   }
 
   .app-overlay-panel .app-panel-scroll {

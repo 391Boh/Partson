@@ -17,6 +17,29 @@ function normalize(value?: string | null): string {
   return (value ?? "").trim();
 }
 
+function hasResolvableSeoLookupToken(value?: string | null): boolean {
+  const normalized = normalize(value);
+  return normalized.length >= 5 && /\d/.test(normalized);
+}
+
+function canUseSeoProductPath(entry: Awaited<ReturnType<typeof getProductEntriesBySitemapId>>[number]) {
+  const hasFacetContext = Boolean(
+    normalize(entry.group) ||
+      normalize(entry.subGroup) ||
+      normalize(entry.category)
+  );
+  const hasName = Boolean(normalize(entry.name));
+
+  if (!hasFacetContext || !hasName) {
+    return false;
+  }
+
+  return (
+    hasResolvableSeoLookupToken(entry.article) ||
+    hasResolvableSeoLookupToken(entry.code)
+  );
+}
+
 export default async function sitemap(props: {
   id: Promise<string | number>;
 }): Promise<MetadataRoute.Sitemap> {
@@ -41,13 +64,7 @@ export default async function sitemap(props: {
         return null;
       }
 
-      const hasSeoRouteContext = Boolean(
-        normalize(entry.group) ||
-          normalize(entry.subGroup) ||
-          normalize(entry.category)
-      );
-
-      const productPath = hasSeoRouteContext
+      const productPath = canUseSeoProductPath(entry)
         ? buildProductPath({
             code: normalizedCode,
             article: entry.article ?? undefined,

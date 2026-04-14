@@ -5,7 +5,7 @@ import { useDeferredValue, useMemo, useState } from "react";
 import { ArrowRight, Factory, Search, X } from "lucide-react";
 
 import SmartLink from "app/components/SmartLink";
-import { buildCatalogProducerPath } from "app/lib/catalog-links";
+import { buildManufacturerPath } from "app/lib/catalog-links";
 
 type ManufacturerItem = {
   label: string;
@@ -60,7 +60,7 @@ export default function ManufacturersDirectory({
                   Усі виробники в компактній сітці
                 </h2>
                 <p className="mt-2 text-sm leading-5.5 text-slate-600 sm:text-[14px]">
-                  Швидкий пошук і прямий перехід у каталог по вибраному виробнику.
+                  Швидкий пошук і перехід на SEO-сторінку бренду з виходом у каталог.
                 </p>
               </div>
 
@@ -139,10 +139,10 @@ export default function ManufacturersDirectory({
 
                     <div className="mt-auto pt-4">
                       <SmartLink
-                        href={buildCatalogProducerPath(item.label)}
+                        href={buildManufacturerPath(item.slug)}
                         className="inline-flex items-center gap-2 rounded-full border border-cyan-300/80 bg-cyan-50 px-3.5 py-2 text-[13px] font-semibold text-cyan-900 transition hover:border-cyan-400 hover:bg-cyan-100"
                       >
-                        В каталог
+                        Сторінка бренду
                         <ArrowRight size={14} strokeWidth={2.2} />
                       </SmartLink>
                     </div>

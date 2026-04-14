@@ -19,7 +19,7 @@ type ProductPurchasePanelClientProps = {
   isInStock: boolean;
 };
 
-const PRODUCT_PRICE_CACHE_PREFIX = "partson:v6:product-page-price:";
+const PRODUCT_PRICE_CACHE_PREFIX = "partson:v4:product-page-price:";
 const PRODUCT_PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRODUCT_PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 60 * 2;
 

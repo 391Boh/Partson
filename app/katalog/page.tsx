@@ -5,10 +5,10 @@ import {
   buildCatalogCategoryPath,
   buildCatalogProducerPath,
   buildGroupPath,
+  buildManufacturerPath,
 } from "app/lib/catalog-links";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
-import { buildSeoSlug } from "app/lib/seo-slug";
 
 interface KatalogPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -50,8 +50,8 @@ const buildGroupLandingPath = (group: string) => {
 };
 
 const buildManufacturerLandingPath = (producer: string) => {
-  const slug = buildSeoSlug(producer);
-  return slug ? `/manufacturers/${slug}` : buildCatalogProducerPath(producer);
+  const path = buildManufacturerPath(producer);
+  return path !== "/manufacturers" ? path : buildCatalogProducerPath(producer);
 };
 
 const normalizeFacetPair = (group: string, subcategory: string) => {

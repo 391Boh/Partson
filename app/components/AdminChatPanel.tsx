@@ -541,7 +541,6 @@ export default function AdminChatPanel({
     const trimmed = article.trim();
     if (!trimmed) return null;
 
-    const PAGE_FIELD = "НомерСтраницы";
     const NAME_FIELDS = ["Наименование", "НоменклатураНаименование", "name"];
     const CODE_FIELDS = ["Код", "НоменклатураКод", "ID", "code"];
     const ARTICLE_FIELDS = ["НомерПоКаталогу", "Артикул", "article"];

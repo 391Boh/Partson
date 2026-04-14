@@ -4,7 +4,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 
 import { getInformationPath, informationSections } from "app/inform/section-config";
-import { buildGroupItemPath } from "app/lib/catalog-links";
+import { buildGroupItemPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
 
@@ -161,7 +161,7 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
 
   for (const producer of facets.producers.slice(0, maxManufacturerPages)) {
     entries.push({
-      path: `/manufacturers/${encodeURIComponent(producer.slug)}`,
+      path: buildManufacturerPath(producer.slug),
       lastModified: facets.generatedAt,
       changeFrequency: "weekly",
       priority: 0.82,
