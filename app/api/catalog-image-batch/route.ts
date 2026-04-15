@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 
 import { findCatalogProductByCode } from "app/lib/catalog-server";
+import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import {
   fetchProductImageBase64Batch,
 } from "app/lib/product-image";
@@ -11,7 +14,7 @@ import { buildProductImageBatchKey } from "app/lib/product-image-path";
 
 export const runtime = "nodejs";
 
-const MAX_BATCH_ITEMS = 20;
+const MAX_BATCH_ITEMS = 48;
 const BATCH_CONCURRENCY = 6;
 const OPTIMIZED_IMAGE_CACHE_TTL_MS = 1000 * 60 * 60;
 const CATALOG_IMAGE_MAX_WIDTH = 320;
@@ -77,6 +80,19 @@ const optimizedCatalogDataUriCache = new Map<
   string,
   { expiresAt: number; value: string }
 >();
+let fallbackImageHashPromise: Promise<string | null> | null = null;
+
+const getFallbackImageHash = async () => {
+  if (fallbackImageHashPromise) return fallbackImageHashPromise;
+
+  fallbackImageHashPromise = readFile(
+    path.join(process.cwd(), "public", PRODUCT_IMAGE_FALLBACK_PATH.replace(/^\//, ""))
+  )
+    .then((buffer) => buildBufferHash(buffer))
+    .catch(() => null);
+
+  return fallbackImageHashPromise;
+};
 
 const pruneOptimizedCatalogDataUriCache = () => {
   const now = Date.now();
@@ -166,6 +182,12 @@ const optimizeCatalogImageToDataUri = async (imageBase64: string) => {
   try {
     const imageBuffer = Buffer.from(imageBase64, "base64");
     if (!imageBuffer.length) return null;
+
+    const fallbackHash = await getFallbackImageHash();
+    const imageHash = buildBufferHash(imageBuffer);
+    if (fallbackHash && imageHash === fallbackHash) {
+      return null;
+    }
 
     const originalContentType = detectImageContentType(imageBuffer);
     if (!originalContentType.startsWith("image/")) return null;

@@ -23,6 +23,7 @@ interface Product {
     name: string;
     producer: string;
     quantity: number;
+    hasPhoto?: boolean;
     group?: string;
     subGroup?: string;
     category?: string;
@@ -351,6 +352,7 @@ useEffect(() => {
                             <ProductCardImage
                                 productCode={code}
                                 articleHint={item.article}
+                                hasKnownPhoto={item.hasPhoto !== false}
                                 className="w-full h-full transition-transform duration-200 group-hover:scale-[1.02]"
                                 onClick={() => onImageOpen(code, item.article)}
                                 loadingMode={imageLoadingMode}

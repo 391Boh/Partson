@@ -7,6 +7,7 @@ import { getInformationPath, informationSections } from "app/inform/section-conf
 import { buildGroupItemPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
+import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
 export type SitemapChangeFrequency =
   | "always"
@@ -38,6 +39,11 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   if (!Number.isFinite(numeric) || numeric <= 0) return fallbackValue;
   return Math.floor(numeric);
 };
+
+const SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS = parsePositiveInt(
+  process.env.SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS,
+  15000
+);
 
 const collectGroupListingPaths = (
   groups: Array<{
@@ -156,7 +162,11 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
     },
   ];
 
-  const facets = await getCatalogSeoFacets().catch(() => null);
+  const facets = await resolveWithTimeout(
+    () => getCatalogSeoFacets(),
+    null,
+    SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS
+  );
   if (!facets) return entries;
 
   for (const producer of facets.producers.slice(0, maxManufacturerPages)) {

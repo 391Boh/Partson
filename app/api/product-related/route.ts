@@ -18,7 +18,7 @@ export async function GET(request: Request) {
       { items },
       {
         headers: {
-          "cache-control": "public, max-age=120, s-maxage=120, stale-while-revalidate=600",
+          "cache-control": "public, max-age=300, s-maxage=300, stale-while-revalidate=1800",
         },
       }
     );

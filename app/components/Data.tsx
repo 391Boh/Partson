@@ -16,6 +16,7 @@ import { Search } from "lucide-react";
 import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
 import ProductCard from "app/components/ProductCard";
+import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import { fetchCatalogImageBatch } from "app/lib/product-image-batch-client";
 import {
   buildProductImageBatchKey,
@@ -28,6 +29,8 @@ interface DataProps {
   selectedCars: string[];
   selectedCategories: string[];
   sortOrder: "none" | "asc" | "desc";
+  initialPagePayload?: CatalogPagePayload | null;
+  initialQuerySignature?: string | null;
 }
 
 export interface Product {
@@ -59,10 +62,12 @@ const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 20;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 45;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60;
-const BACKGROUND_PAGE_PREFETCH_DEPTH = 3;
-const IMAGE_PRIORITY_ITEMS_COUNT = ITEMS_PER_PAGE;
-const IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT = ITEMS_PER_PAGE;
+const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
+const IMAGE_PRIORITY_ITEMS_COUNT = 8;
+const IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT = Math.min(ITEMS_PER_PAGE, 6);
 const IMAGE_DEEP_RECOVERY_BATCH_COUNT = Math.min(ITEMS_PER_PAGE, 6);
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = Math.min(ITEMS_PER_PAGE, 8);
+const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = ITEMS_PER_PAGE * 2;
 const LOAD_MORE_SCROLL_BUFFER_PX = 980;
 const LOAD_MORE_OBSERVER_ROOT_MARGIN = "0px 0px 1100px 0px";
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 220;
@@ -701,6 +706,8 @@ function useCatalogData(params: {
   subcategoryFromURL: string | null;
   producerFromURL: string | null;
   sortOrder: "none" | "asc" | "desc";
+  initialPagePayload?: CatalogPagePayload | null;
+  initialQuerySignature?: string | null;
 }) {
   const {
     selectedCars,
@@ -711,6 +718,8 @@ function useCatalogData(params: {
     subcategoryFromURL,
     producerFromURL,
     sortOrder,
+    initialPagePayload,
+    initialQuerySignature,
   } = params;
 
   const { addToCart, cartItems, removeFromCart } = useCart();
@@ -748,15 +757,15 @@ function useCatalogData(params: {
   const isRefetching = loading && page === 1;
   const querySignature = useMemo(
     () =>
-      JSON.stringify({
-        q: normalizedSearch,
-        filter: searchFilter,
-        cars: selectedCars,
-        cats: effectiveSelectedCategories,
+      buildCatalogQuerySignature({
+        normalizedSearch,
+        searchFilter,
+        selectedCars,
+        selectedCategories: effectiveSelectedCategories,
         group: groupFromURL,
-        subcat: subcategoryFromURL,
+        subcategory: subcategoryFromURL,
         producer: producerFromURL,
-        sort: effectiveServerSortOrder,
+        sortOrder: effectiveServerSortOrder,
       }),
     [
       normalizedSearch,
@@ -770,6 +779,7 @@ function useCatalogData(params: {
     ]
   );
   const activeQuerySignatureRef = useRef(querySignature);
+  const hasPrimedInitialPayloadRef = useRef(false);
   const firstPageReadySignatureRef = useRef<string | null>(null);
   const pagingRequestedRef = useRef(false);
   const nextCursorByPageRef = useRef<Record<number, string>>({ 1: "" });
@@ -1536,6 +1546,16 @@ function useCatalogData(params: {
     if (typeof window !== "undefined") {
       const cacheKey = buildCacheKey(1, trimmed);
 
+      if (
+        !hasPrimedInitialPayloadRef.current &&
+        initialPagePayload &&
+        initialQuerySignature === querySignature
+      ) {
+        writePageToMemory(cacheKey, initialPagePayload, MEMORY_CACHE_TTL_MS_FIRST_PAGE);
+        writePageToSession(cacheKey, initialPagePayload);
+        hasPrimedInitialPayloadRef.current = true;
+      }
+
       const memoryHit = readPageFromMemory(cacheKey);
       if (memoryHit) {
         applyResolvedPagePrices(memoryHit.items, memoryHit.prices);
@@ -1607,6 +1627,8 @@ function useCatalogData(params: {
     fetchCatalogPagePrices,
     fetchCatalogPageImages,
     querySignature,
+    initialPagePayload,
+    initialQuerySignature,
     normalizedSearch,
     buildCacheKey,
     hideNextPageLoader,
@@ -1833,9 +1855,6 @@ function useCatalogData(params: {
 
         const targetPage = page + depth;
         const targetCursor = canUseCursorPagination ? upcomingCursor : "";
-        if (canUseCursorPagination && !targetCursor) {
-          return;
-        }
 
         const targetCacheKey = buildCacheKey(targetPage, normalizedSearch, targetCursor);
         const memoryHit = readPageFromMemory(targetCacheKey);
@@ -2134,6 +2153,18 @@ function useCatalogData(params: {
     showNextPageLoader,
   ]);
 
+  const prefetchVisibleCatalogImages = useCallback(
+    (items: Product[]) => {
+      if (items.length === 0) return;
+
+      void fetchCatalogPageImages(items, {
+        prefetchedImages: pageImagesRef.current,
+        querySignatureSnapshot: activeQuerySignatureRef.current,
+      });
+    },
+    [fetchCatalogPageImages]
+  );
+
   return {
     filteredData,
     quantities,
@@ -2155,6 +2186,7 @@ function useCatalogData(params: {
     handleImageOpen,
     handleImageClose,
     loadNextPage,
+    prefetchVisibleCatalogImages,
     isLoadingNextPage,
     isRefetching,
     hasLoadedOnce,
@@ -2170,6 +2202,8 @@ const Data: React.FC<DataProps> = ({
   selectedCars,
   selectedCategories,
   sortOrder,
+  initialPagePayload = null,
+  initialQuerySignature = null,
 }) => {
   const searchParams = useSearchParams();
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -2210,6 +2244,7 @@ const Data: React.FC<DataProps> = ({
     handleImageOpen,
     handleImageClose,
     loadNextPage,
+    prefetchVisibleCatalogImages,
     isLoadingNextPage,
     isRefetching,
     hasLoadedOnce,
@@ -2224,6 +2259,8 @@ const Data: React.FC<DataProps> = ({
     subcategoryFromURL,
     producerFromURL,
     sortOrder,
+    initialPagePayload,
+    initialQuerySignature,
   });
 
   const requestNextPageOnScroll = useCallback(() => {
@@ -2234,10 +2271,22 @@ const Data: React.FC<DataProps> = ({
     loadNextPage();
   }, [loadNextPage]);
 
-  const sortedData = useMemo(() => {
+  const sortedEntries = useMemo(() => {
+    if (sortOrder === "none") {
+      return filteredData.map((item, index) => ({
+        item,
+        index,
+        code: item.code,
+        priceKey: getProductPriceStateKey(item),
+        priceUAH: null as number | null,
+      }));
+    }
+
     const entries = filteredData.map((item, index) => ({
       item,
       index,
+      code: item.code,
+      priceKey: getProductPriceStateKey(item),
       priceUAH: getResolvedProductPriceUAH(item, prices, euroRate),
     }));
 
@@ -2246,19 +2295,25 @@ const Data: React.FC<DataProps> = ({
       const bHasPrice = b.priceUAH != null ? 0 : 1;
       if (aHasPrice !== bHasPrice) return aHasPrice - bHasPrice;
 
-      if (sortOrder === "asc" && a.priceUAH != null && b.priceUAH != null) {
-        if (a.priceUAH !== b.priceUAH) return a.priceUAH - b.priceUAH;
-      }
+      if (a.priceUAH != null && b.priceUAH != null) {
+        if (sortOrder === "asc" && a.priceUAH !== b.priceUAH) {
+          return a.priceUAH - b.priceUAH;
+        }
 
-      if (sortOrder === "desc" && a.priceUAH != null && b.priceUAH != null) {
-        if (a.priceUAH !== b.priceUAH) return b.priceUAH - a.priceUAH;
+        if (sortOrder === "desc" && a.priceUAH !== b.priceUAH) {
+          return b.priceUAH - a.priceUAH;
+        }
       }
 
       return a.index - b.index;
     });
 
-    return entries.map(({ item }) => item);
+    return entries;
   }, [filteredData, prices, euroRate, sortOrder]);
+  const sortedData = useMemo(
+    () => sortedEntries.map(({ item }) => item),
+    [sortedEntries]
+  );
   const sortedDataSignature = useMemo(
     () => sortedData.map((item) => getProductStableListKey(item)).join("|"),
     [sortedData]
@@ -2280,6 +2335,26 @@ const Data: React.FC<DataProps> = ({
     shouldKeepStableGrid && lastStableSortedData.length > 0
       ? lastStableSortedData
       : sortedData;
+  const visibleSortedEntries = useMemo(() => {
+    if (visibleSortedData === sortedData) {
+      return sortedEntries;
+    }
+
+    return visibleSortedData.map((item, index) => ({
+      item,
+      index,
+      code: item.code,
+      priceKey: getProductPriceStateKey(item),
+      priceUAH: getResolvedProductPriceUAH(item, prices, euroRate),
+    }));
+  }, [visibleSortedData, sortedData, sortedEntries, prices, euroRate]);
+  const visibleCatalogImageCandidates = useMemo(
+    () =>
+      visibleSortedData
+        .filter((item) => item.hasPhoto !== false)
+        .slice(0, VISIBLE_IMAGE_PREFETCH_MAX_ITEMS),
+    [visibleSortedData]
+  );
   const shouldShowInitialSkeleton =
     (filterLoading || loading) && visibleSortedData.length === 0;
   const isEmptyState =
@@ -2302,6 +2377,31 @@ const Data: React.FC<DataProps> = ({
     if (rawSearchQuery.trim()) return `Оновлюю результати для: ${rawSearchQuery.trim()}`;
     return "Оновлюю каталог";
   }, [groupFromURL, producerFromURL, rawSearchQuery, subcategoryFromURL]);
+
+  useEffect(() => {
+    if (visibleCatalogImageCandidates.length === 0) return;
+
+    const nextChunk = visibleCatalogImageCandidates
+      .filter((item) => {
+        const key = buildProductImageBatchKey(item.code, item.article);
+        if (!key) return false;
+        if (pageImages[key]) return false;
+        if (pageImagePending[key]) return false;
+        if (pageImageMissing[key]) return false;
+        return true;
+      })
+      .slice(0, VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE);
+
+    if (nextChunk.length === 0) return;
+
+    prefetchVisibleCatalogImages(nextChunk);
+  }, [
+    pageImageMissing,
+    pageImagePending,
+    pageImages,
+    prefetchVisibleCatalogImages,
+    visibleCatalogImageCandidates,
+  ]);
 
   // Keep filter/loading transitions in sync with the current query signature.
   const filterSignature = useMemo(
@@ -2492,15 +2592,16 @@ const Data: React.FC<DataProps> = ({
         {shouldShowCatalogGrid && (
           <div className="relative">
             <div className={CATALOG_GRID_CLASS}>
-              {visibleSortedData.map((item, index) => {
+              {visibleSortedEntries.map((entry, index) => {
+                const { item, priceKey } = entry;
+                const priceUAH =
+                  entry.priceUAH ?? getResolvedProductPriceUAH(item, prices, euroRate);
                 if (!item?.code) return null;
 
                 const code = item.code;
                 const qty = quantities[code] ?? 1;
                 const cartQty = cartMap[code] ?? 0;
 
-                const priceKey = getProductPriceStateKey(item);
-                const priceUAH = getResolvedProductPriceUAH(item, prices, euroRate);
                 const priceStatus =
                   priceUAH != null
                     ? "ready"
@@ -2536,7 +2637,7 @@ const Data: React.FC<DataProps> = ({
                     priceUAH={priceUAH}
                     priceStatus={priceStatus}
                     imageLoadingMode={shouldPrioritizeImage ? "eager" : "lazy"}
-                    imageFetchPriority={shouldPrioritizeImage ? "high" : "auto"}
+                    imageFetchPriority={shouldPrioritizeImage ? "high" : "low"}
                     prefetchedImageSrc={
                       (imageBatchKey ? pageImages[imageBatchKey] : null) ?? null
                     }
@@ -2545,7 +2646,7 @@ const Data: React.FC<DataProps> = ({
                       !hasPhoto ||
                       Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
                     }
-                    batchImageOnly
+                    batchImageOnly={!shouldPrioritizeImage}
                     isFlipped={flippedCard === code}
                     motionEnabled={shouldAnimateList}
                     onAddToCart={handleAddToCart}

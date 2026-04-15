@@ -5,8 +5,8 @@ import CatalogHubHero from "app/components/CatalogHubHero";
 import GroupsDirectoryClient, {
   type GroupsDirectoryItem,
 } from "app/groups/GroupsDirectoryClient";
-import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
+import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
@@ -17,6 +17,8 @@ const catalogShellClass = "page-shell-inline";
 
 const groupsDescription =
   "Категорії, групи та підгрупи автозапчастин у каталозі PartsON. Обирайте потрібний розділ для швидкого підбору і купівлі автозапчастин з доставкою по Україні.";
+const GROUPS_TREE_TIMEOUT_MS = 1600;
+const EMPTY_DATASET = { groups: [], labels: [] };
 
 const buildGroupsPageDescription = (
   groupCount: number,
@@ -38,10 +40,11 @@ const buildGroupsPageDescription = (
 };
 
 export async function generateMetadata(): Promise<Metadata> {
-  const [dataset, seoFacets] = await Promise.all([
-    getProductTreeDataset().catch(() => ({ groups: [], labels: [] })),
-    getCatalogSeoFacets().catch(() => null),
-  ]);
+  const dataset = await resolveWithTimeout(
+    () => getProductTreeDataset().catch(() => EMPTY_DATASET),
+    EMPTY_DATASET,
+    GROUPS_TREE_TIMEOUT_MS
+  );
 
   const totalGroups = dataset.groups.length;
   const totalSubgroups = dataset.groups.reduce((sum, group) => sum + group.subgroups.length, 0);
@@ -51,8 +54,7 @@ export async function generateMetadata(): Promise<Metadata> {
       group.subgroups.reduce((innerSum, subgroup) => innerSum + subgroup.children.length, 0),
     0
   );
-  const indexedProductCount =
-    seoFacets?.groups.reduce((sum, group) => sum + group.productCount, 0) ?? 0;
+  const indexedProductCount = 0;
   const description = buildGroupsPageDescription(
     totalGroups,
     totalSubgroups,
@@ -82,7 +84,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function GroupsPage() {
   const siteUrl = getSiteUrl();
-  const dataset = await getProductTreeDataset().catch(() => ({ groups: [], labels: [] }));
+  const dataset = await resolveWithTimeout(
+    () => getProductTreeDataset().catch(() => EMPTY_DATASET),
+    EMPTY_DATASET,
+    GROUPS_TREE_TIMEOUT_MS
+  );
 
   const clientGroups: GroupsDirectoryItem[] = dataset.groups.map((group) => ({
     label: group.label,

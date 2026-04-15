@@ -190,7 +190,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <button
               onClick={() => setShowPastOrders(false)}
-              className="soft-secondary-button w-full px-3 py-2 text-sm font-semibold sm:w-auto sm:px-4 sm:py-2.5"
+              className="soft-secondary-button w-full px-3 py-2 text-sm font-semibold transition-[transform,box-shadow,border-color,background-color] duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-white hover:shadow-[0_14px_28px_rgba(14,165,233,0.12)] sm:w-auto sm:px-4 sm:py-2.5"
             >
               Назад
             </button>
@@ -263,32 +263,32 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                   <button
                     key={order.id}
                     type="button"
-                    className="soft-surface-card app-panel-card-hover rounded-[18px] p-3 text-left text-slate-700 sm:rounded-[20px] sm:p-3.5"
+                    className="group soft-surface-card app-panel-card-hover rounded-[18px] border border-sky-100/70 p-3 text-left text-slate-700 transition-[transform,box-shadow,border-color,background-color] duration-200 hover:border-sky-200/90 hover:bg-white/95 hover:shadow-[0_22px_42px_rgba(14,165,233,0.12)] sm:rounded-[20px] sm:p-3.5"
                     onClick={() => toggleExpandOrder(order.id)}
                   >
-                    <div className="flex flex-col items-start gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                      <div className="min-w-0">
+                    <div className="flex w-full flex-col items-start gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                      <div className="min-w-0 flex-1">
                         <div className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-sky-50/80 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
                           <CalendarClock size={13} />
                           {order.createdAt?.seconds
                             ? dateFormatter.format(new Date(order.createdAt.seconds * 1000))
                             : 'Дата уточнюється'}
                         </div>
-                        <h4 className="mt-2.5 truncate text-[15px] font-bold text-slate-800 sm:mt-3 sm:text-base">
+                        <h4 className="mt-2.5 break-words text-[15px] font-bold text-slate-800 sm:mt-3 sm:text-base">
                           Замовлення #{order.orderId || order.id}
                         </h4>
-                        <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] text-slate-500 sm:mt-2 sm:gap-2 sm:text-xs">
-                          <span className="soft-chip px-3 py-1">
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 sm:mt-2 sm:gap-2 sm:text-xs">
+                          <span className="soft-chip min-h-8 px-3 py-1">
                             <Boxes size={13} className="mr-1.5" />
                             {order.cartItems?.length || 0} позицій
                           </span>
-                          <span className="soft-chip px-3 py-1 text-emerald-700">
+                          <span className="soft-chip min-h-8 px-3 py-1 text-emerald-700">
                             <ShoppingCart size={13} className="mr-1.5" />
                             {currencyFormatter.format(Number(order.totalAmount || order.total || 0))} грн
                           </span>
                         </div>
                       </div>
-                      <span className="soft-icon-button h-8 w-8 shrink-0 self-end p-0 sm:h-9 sm:w-9 sm:self-auto">
+                      <span className={`soft-icon-button h-8 w-8 shrink-0 self-end p-0 transition-[transform,box-shadow,background-color,border-color,color] duration-200 group-hover:-translate-y-0.5 group-hover:border-sky-200 group-hover:bg-white group-hover:text-sky-700 group-hover:shadow-[0_12px_22px_rgba(14,165,233,0.12)] sm:h-9 sm:w-9 sm:self-start ${isExpanded ? 'border-sky-200 bg-white text-sky-700 shadow-[0_10px_18px_rgba(14,165,233,0.12)]' : ''}`}>
                         {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                       </span>
                     </div>
@@ -300,9 +300,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                             {order.cartItems?.map((item: PastOrderItem, idx: number) => (
                               <li
                                 key={idx}
-                                className="flex items-center justify-between gap-2 rounded-[13px] border border-white/70 bg-white/75 px-2.5 py-1.5 sm:gap-3 sm:rounded-[14px] sm:px-3 sm:py-2"
+                                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[13px] border border-white/70 bg-white/75 px-2.5 py-1.5 sm:gap-3 sm:rounded-[14px] sm:px-3 sm:py-2"
                               >
-                                <span className="min-w-0 truncate text-slate-700">{item.name}</span>
+                                <span className="min-w-0 break-words text-slate-700">{item.name}</span>
                                 <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">
                                   {item.quantity} шт.
                                 </span>
@@ -311,8 +311,8 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                           </ul>
                         </div>
 
-                        <div className="grid gap-1.5 text-[11px] text-slate-600 sm:grid-cols-2 sm:gap-2 sm:text-xs">
-                          <div className="soft-chip justify-start gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2">
+                        <div className="grid gap-1.5 text-[11px] text-slate-600 sm:grid-cols-2 sm:gap-2 sm:text-xs xl:grid-cols-3">
+                          <div className="soft-chip min-h-10 justify-start gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2">
                             <ShoppingCart size={15} />
                             <span>
                               Сума:{' '}
@@ -322,19 +322,19 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                             </span>
                           </div>
                           {order.deliveryMethod && (
-                            <div className="soft-chip justify-start gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2">
+                            <div className="soft-chip min-h-10 justify-start gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2">
                               <Truck size={15} />
                               <span>{order.deliveryMethod}</span>
                             </div>
                           )}
                           {order.warehouse && (
-                            <div className="soft-chip justify-start gap-1.5 px-2.5 py-1.5 sm:col-span-2 sm:px-3 sm:py-2">
+                            <div className="soft-chip min-h-10 justify-start gap-1.5 px-2.5 py-1.5 sm:col-span-2 sm:px-3 sm:py-2 xl:col-span-2">
                               <PackageCheck size={15} />
                               <span>{order.warehouse}</span>
                             </div>
                           )}
                           {order.paymentMethod && (
-                            <div className="soft-chip justify-start gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2">
+                            <div className="soft-chip min-h-10 justify-start gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2">
                               <CreditCard size={15} />
                               <span>{order.paymentMethod}</span>
                             </div>
@@ -394,10 +394,10 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
 
             <button
               onClick={() => setIsOrdering(true)}
-              className={`flex items-center justify-center gap-1.5 rounded-[14px] px-2.5 py-2 text-sm font-semibold transition sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
+              className={`flex items-center justify-center gap-1.5 rounded-[14px] border px-2.5 py-2 text-sm font-semibold transition-[transform,box-shadow,filter,background-color,border-color] duration-200 sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
                 hasItems
-                  ? 'soft-segment hover:bg-white/70 hover:text-slate-800'
-                  : 'soft-segment cursor-not-allowed opacity-60'
+                  ? 'border-sky-200/50 bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-500 text-white shadow-[0_16px_30px_rgba(14,165,233,0.28)] hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_20px_38px_rgba(37,99,235,0.3)]'
+                  : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-70'
               }`}
               disabled={!hasItems}
             >
@@ -500,13 +500,6 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                 </div>
               ))}
             </div>
-
-            <button
-              onClick={() => setIsOrdering(true)}
-              className="soft-primary-button w-full py-2.25 text-sm font-semibold sm:py-2.5"
-            >
-              Оформити замовлення
-            </button>
           </>
         ) : (
           <div className="soft-panel-hero mt-1 flex flex-col items-center gap-2 rounded-[18px] px-3.5 py-4 text-center text-slate-600 sm:gap-2.5 sm:rounded-[20px] sm:px-4 sm:py-5">

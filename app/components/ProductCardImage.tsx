@@ -12,21 +12,34 @@ import {
   writeProductImageSuccess,
 } from "app/lib/product-image-client";
 import { fetchCatalogImageBatch } from "app/lib/product-image-batch-client";
+import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import {
   buildProductImageBatchKey,
   buildProductImagePath,
 } from "app/lib/product-image-path";
 
-const FINAL_RETRY_DELAY_MS = 520;
-const BATCH_WARMUP_WINDOW_MS = 12;
-const BATCH_WAIT_TIMEOUT_MS = 220;
+const FINAL_RETRY_DELAY_MS = 180;
+const BATCH_WARMUP_WINDOW_MS = 4;
+const BATCH_WAIT_TIMEOUT_MS = 140;
 const BATCH_READY_TTL_MS = 1000 * 60 * 3;
 const BATCH_MISSING_TTL_MS = 1000 * 25;
 const BATCH_MAX_ITEMS = 16;
 
+const normalizeSrcPath = (value: string) => {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "";
+
+  try {
+    return new URL(trimmed, window.location.href).pathname.toLowerCase();
+  } catch {
+    return trimmed.toLowerCase();
+  }
+};
+
 interface Props {
   productCode: string;
   articleHint?: string;
+  hasKnownPhoto?: boolean;
   prefetchedSrc?: string | null;
   batchPending?: boolean;
   batchMissing?: boolean;
@@ -173,6 +186,7 @@ const queueBatchWarmItem = (item: QueuedBatchWarmItem) => {
 const ProductCardImage: React.FC<Props> = ({
   productCode,
   articleHint,
+  hasKnownPhoto = true,
   prefetchedSrc,
   batchPending = false,
   batchMissing = false,
@@ -247,12 +261,12 @@ const ProductCardImage: React.FC<Props> = ({
       );
       if (cachedSuccess) {
         setRequestSrc(cachedSuccess);
-        setStatus("loading");
+        setStatus("loaded");
         setFinalRetryQueued(false);
         return;
       }
 
-      if (readProductImageMissing(normalizedCode, normalizedArticle)) {
+      if (!hasKnownPhoto) {
         setRequestSrc("");
         setStatus("missing");
         setFinalRetryQueued(false);
@@ -263,7 +277,7 @@ const ProductCardImage: React.FC<Props> = ({
       const warmResult = batchKey ? batchWarmResultCache.get(batchKey) : null;
       if (warmResult?.status === "ready" && warmResult.src) {
         setRequestSrc(warmResult.src);
-        setStatus("loading");
+        setStatus("loaded");
         setFinalRetryQueued(false);
         return;
       }
@@ -315,7 +329,7 @@ const ProductCardImage: React.FC<Props> = ({
     );
     if (cachedSuccess) {
       setRequestSrc(cachedSuccess);
-      setStatus("loading");
+      setStatus("loaded");
       setFinalRetryQueued(false);
       return;
     }
@@ -331,7 +345,7 @@ const ProductCardImage: React.FC<Props> = ({
     const warmResult = batchKey ? batchWarmResultCache.get(batchKey) : null;
     if (warmResult?.status === "ready" && warmResult.src) {
       setRequestSrc(warmResult.src);
-      setStatus("loading");
+      setStatus("loaded");
       setFinalRetryQueued(false);
       return;
     }
@@ -364,7 +378,7 @@ const ProductCardImage: React.FC<Props> = ({
 
       if (result.status === "ready" && result.src) {
         setRequestSrc(result.src);
-        setStatus("loading");
+        setStatus("loaded");
         return;
       }
 
@@ -427,6 +441,17 @@ const ProductCardImage: React.FC<Props> = ({
       const nextSrc = currentTarget.currentSrc || currentTarget.src || requestSrc;
       const normalizedNextSrc = (nextSrc || "").trim();
       const isInlineImage = normalizedNextSrc.startsWith("data:image/");
+      const loadedPath = normalizeSrcPath(normalizedNextSrc);
+
+      if (
+        loadedPath &&
+        loadedPath === PRODUCT_IMAGE_FALLBACK_PATH.toLowerCase()
+      ) {
+        writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
+        setRequestSrc("");
+        setStatus("missing");
+        return;
+      }
 
       if (normalizedNextSrc) {
         setRequestSrc(normalizedNextSrc);
@@ -461,7 +486,7 @@ const ProductCardImage: React.FC<Props> = ({
       batchWarmResultCache.delete(batchKey);
     }
 
-    if (batchOnly) {
+    if (!hasKnownPhoto) {
       writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
       setRequestSrc("");
       setStatus("missing");
@@ -474,14 +499,38 @@ const ProductCardImage: React.FC<Props> = ({
       return;
     }
 
+    if (
+      requestSrc &&
+      requestSrc !== finalRetrySrc &&
+      finalRetrySrc &&
+      !finalRetryQueued
+    ) {
+      setFinalRetryQueued(true);
+      setRequestSrc(finalRetrySrc);
+      setStatus("retrying");
+      return;
+    }
+
     writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
     setRequestSrc("");
     setStatus("missing");
-  }, [batchKey, batchOnly, normalizedArticle, normalizedCode, recoverySrc, requestSrc]);
+  }, [
+    batchKey,
+    finalRetryQueued,
+    finalRetrySrc,
+    hasKnownPhoto,
+    normalizedArticle,
+    normalizedCode,
+    recoverySrc,
+    requestSrc,
+  ]);
 
   const canOpen = Boolean(onClick) && status === "loaded";
   const showLoadingSkeleton = status === "loading" || status === "retrying";
   const showPlaceholder = status === "missing";
+  // Для перших карток каталогу пріоритезуємо fetchPriority та decode
+  const isHighPriority = fetchPriority === "high" || loadingMode === "eager";
+  const imageDecodingMode = isHighPriority ? "sync" : "async";
 
   return (
     <div
@@ -498,21 +547,16 @@ const ProductCardImage: React.FC<Props> = ({
       `}
     >
       {showPlaceholder && (
-        <div className="absolute inset-0 overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#edf3f8_58%,#e2e8f0_100%)]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.82)_0%,rgba(255,255,255,0)_58%)]" />
-          <div className="absolute inset-x-5 top-4 h-px bg-gradient-to-r from-transparent via-slate-300/70 to-transparent" />
-          <div className="absolute inset-x-6 bottom-4 h-px bg-gradient-to-r from-transparent via-slate-200/80 to-transparent" />
-          <div className="relative flex h-full select-none flex-col items-center justify-center px-3 text-center">
-            <ImageOff
-              size={30}
-              strokeWidth={1.7}
-              className="mb-2.5 text-slate-400/90"
-              aria-hidden="true"
-            />
-            <span className="max-w-[118px] text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500">
-              Зображення відсутнє
-            </span>
-          </div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#edf3f8_58%,#e2e8f0_100%)] px-2 text-center">
+          <div className="absolute inset-x-2 top-2 h-px bg-gradient-to-r from-transparent via-slate-300/70 to-transparent" />
+          <ImageOff
+            className="relative h-5 w-5 text-slate-400/90 sm:h-6 sm:w-6"
+            strokeWidth={1.7}
+            aria-hidden="true"
+          />
+          <span className="relative mt-1.5 text-[8.5px] font-bold uppercase tracking-[0.16em] leading-tight text-slate-500">
+            Зображення відсутнє
+          </span>
         </div>
       )}
 
@@ -528,8 +572,10 @@ const ProductCardImage: React.FC<Props> = ({
           src={requestSrc}
           alt="product"
           loading={loadingMode}
-          decoding="async"
+          decoding={imageDecodingMode}
           fetchPriority={fetchPriority}
+          width={360}
+          height={360}
           draggable={false}
           onLoad={handleLoad}
           onError={handleError}

@@ -17,10 +17,12 @@ import ProductPurchasePanelClient from "app/components/ProductPurchasePanelClien
 import {
   buildCatalogCategoryPath,
   buildCatalogProducerPath,
+  buildGroupItemPath,
   buildGroupPath,
   buildManufacturerPath,
 } from "app/lib/catalog-links";
 import { getProductImagePath, PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image";
+import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import {
   buildProductPath,
   buildVisibleProductName,
@@ -830,7 +832,8 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         )
       : Promise.resolve<number | null>(null);
   const initialPriceUah = await initialPriceUahPromise;
-  const productGroup = (product.group || product.category || "").trim();
+  const productCategory = (product.category || "").trim();
+  const productGroup = (product.group || productCategory || "").trim();
   const productSubgroup = (product.subGroup || "").trim();
   const visibleProductName = buildVisibleProductName(product.name);
   const visibleProductGroup = buildVisibleProductName(productGroup);
@@ -852,7 +855,22 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   });
 
   const siteUrl = getSiteUrl();
-  const groupLandingPath = productGroup ? buildGroupPath(productGroup) : null;
+  const groupLandingPath = productGroup
+    ? (() => {
+        const hasParentGroup =
+          Boolean(productCategory) &&
+          productCategory.toLowerCase() !== productGroup.toLowerCase();
+
+        if (hasParentGroup) {
+          return buildGroupItemPath(
+            buildPlainSeoSlug(productCategory),
+            buildPlainSeoSlug(productGroup)
+          );
+        }
+
+        return buildGroupPath(productGroup);
+      })()
+    : null;
   const producerLandingPath = product.producer
     ? buildManufacturerPath(product.producer)
     : null;

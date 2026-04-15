@@ -8,6 +8,7 @@ import {
   fetchCatalogProductsPage,
   type CatalogProduct,
 } from "app/lib/catalog-server";
+import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import {
   buildProductGroupLabel,
@@ -90,6 +91,65 @@ const findProductBySlugs = (
 
   return prefixMatchedProduct;
 };
+
+const getProductRouteIndex = unstable_cache(
+  async () => {
+    const entries = await getAllProductSitemapEntries().catch(() => []);
+    const direct = new Map<string, string>();
+    const prefix = new Map<string, string>();
+
+    for (const entry of entries) {
+      const code = (entry.code || "").trim() || (entry.article || "").trim();
+      if (!code) continue;
+
+      const groupSlug = buildProductGroupSlug(entry);
+      const canonicalNameSlug = buildProductNameSlug(entry);
+      const legacyPlainNameSlug = buildLegacyProductNameSlug(entry);
+      const legacyGroupSlug = buildSeoSlug(buildProductGroupLabel(entry));
+      const legacyNameSlug = buildSeoSlug(buildLegacyProductSeoName(entry));
+
+      const directKeys = [
+        `${groupSlug}::${canonicalNameSlug}`,
+        `${groupSlug}::${legacyPlainNameSlug}`,
+        `${legacyGroupSlug}::${legacyNameSlug}`,
+      ];
+
+      for (const key of directKeys) {
+        if (!key.includes("::")) continue;
+        if (!direct.has(key)) {
+          direct.set(key, code);
+        }
+      }
+
+      const prefixCandidates = [
+        `${groupSlug}::${canonicalNameSlug}`,
+        `${groupSlug}::${legacyPlainNameSlug}`,
+      ];
+
+      for (const fullKey of prefixCandidates) {
+        const separatorIndex = fullKey.indexOf("::");
+        if (separatorIndex === -1) continue;
+        const fullNameSlug = fullKey.slice(separatorIndex + 2);
+        const fullGroupSlug = fullKey.slice(0, separatorIndex);
+        const parts = fullNameSlug.split("-").filter(Boolean);
+
+        for (let length = parts.length - 1; length >= 2; length -= 1) {
+          const prefixKey = `${fullGroupSlug}::${parts.slice(0, length).join("-")}`;
+          if (!prefix.has(prefixKey)) {
+            prefix.set(prefixKey, code);
+          }
+        }
+      }
+    }
+
+    return { direct, prefix };
+  },
+  ["product-route:index-v1"],
+  {
+    revalidate: 60 * 60,
+    tags: ["product-route", "product-sitemap"],
+  }
+);
 
 const collectFacetCandidates = cache(async (groupSlug: string) => {
   const dataset = await getProductTreeDataset().catch(() => null);
@@ -206,6 +266,14 @@ const resolveProductBySeoRouteUncached = async (
   const nameSlug = normalizeSlug(rawNameSlug);
 
   if (!groupSlug || !nameSlug) return null;
+
+  const indexedRoutes = await getProductRouteIndex().catch(() => null);
+  const routeKey = `${groupSlug}::${nameSlug}`;
+  const indexedCode =
+    indexedRoutes?.direct.get(routeKey) || indexedRoutes?.prefix.get(routeKey) || null;
+  if (indexedCode) {
+    return { code: indexedCode };
+  }
 
   const facetCandidates = await collectFacetCandidates(groupSlug);
   for (const candidate of facetCandidates) {

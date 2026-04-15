@@ -1,8 +1,9 @@
 ﻿import "server-only";
 
 import { oneCRequest } from "app/api/_lib/oneC";
+import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 
-export const PRODUCT_IMAGE_FALLBACK_PATH = "/Car-parts-fullwidth.png";
+export { PRODUCT_IMAGE_FALLBACK_PATH };
 
 type ProductImageLookupOptions = {
   timeoutMs?: number;

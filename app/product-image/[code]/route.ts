@@ -5,7 +5,8 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 
-import { fetchProductImageBase64, PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image";
+import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
+import { fetchProductImageBase64 } from "app/lib/product-image";
 import { findCatalogProductByCode } from "app/lib/catalog-server";
 
 export const runtime = "nodejs";
@@ -22,11 +23,11 @@ const safeDecode = (value: string) => {
   }
 };
 
-const fallbackRedirect = (request: Request) => {
+const fallbackRedirect = (request: Request, cacheControl?: string) => {
   const response = NextResponse.redirect(new URL(PRODUCT_IMAGE_FALLBACK_PATH, request.url), 307);
   response.headers.set(
     "cache-control",
-    "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400"
+    cacheControl || "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400"
   );
   return response;
 };
@@ -40,68 +41,77 @@ const fallbackNotFound = (cacheControl?: string) =>
     },
   });
 const FAST_IMAGE_LOOKUP_OPTIONS = {
-  timeoutMs: 2200,
-  retries: 1,
-  retryDelayMs: 120,
+  timeoutMs: 900,
+  retries: 0,
+  retryDelayMs: 90,
   cacheTtlMs: 1000 * 60 * 60,
   missCacheTtlMs: 1000 * 60 * 20,
 };
+const FULL_IMAGE_LOOKUP_OPTIONS = {
+  timeoutMs: 1700,
+  retries: 1,
+  retryDelayMs: 120,
+  cacheTtlMs: 1000 * 60 * 60,
+  missCacheTtlMs: 1000 * 30,
+  allowUrlDownload: true,
+  skipMissCache: true,
+};
 const CATALOG_IMAGE_LOOKUP_OPTIONS = {
-  timeoutMs: 950,
+  timeoutMs: 520,
   retries: 0,
-  retryDelayMs: 80,
+  retryDelayMs: 60,
   cacheTtlMs: 1000 * 60 * 60 * 2,
   missCacheTtlMs: 1000 * 30,
   allowUrlDownload: true,
 };
 const CATALOG_IMAGE_RETRY_LOOKUP_OPTIONS = {
-  timeoutMs: 1450,
+  timeoutMs: 600,
   retries: 0,
-  retryDelayMs: 90,
+  retryDelayMs: 70,
   cacheTtlMs: 1000 * 60 * 20,
   missCacheTtlMs: 1000 * 45,
   allowUrlDownload: true,
   skipMissCache: true,
 };
 const CATALOG_IMAGE_FINAL_LOOKUP_OPTIONS = {
-  timeoutMs: 1750,
+  timeoutMs: 700,
   retries: 0,
-  retryDelayMs: 100,
+  retryDelayMs: 80,
   cacheTtlMs: 1000 * 60 * 20,
   missCacheTtlMs: 1000 * 18,
   allowUrlDownload: true,
   skipMissCache: true,
 };
 const CATALOG_IMAGE_RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 1650,
+  timeoutMs: 600,
   retries: 0,
-  retryDelayMs: 100,
+  retryDelayMs: 80,
   cacheTtlMs: 1000 * 60 * 60,
   missCacheTtlMs: 1000 * 45,
   allowUrlDownload: true,
 };
 const CATALOG_IMAGE_RETRY_RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 1900,
+  timeoutMs: 700,
   retries: 0,
-  retryDelayMs: 110,
+  retryDelayMs: 90,
   cacheTtlMs: 1000 * 60 * 10,
   missCacheTtlMs: 1000 * 60,
   allowUrlDownload: true,
   skipMissCache: true,
 };
 const CATALOG_IMAGE_FINAL_RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 2050,
+  timeoutMs: 800,
   retries: 0,
-  retryDelayMs: 120,
+  retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 12,
   missCacheTtlMs: 1000 * 18,
   allowUrlDownload: true,
   skipMissCache: true,
 };
 const STRICT_IMAGE_LOOKUP_OPTIONS = {
-  timeoutMs: 1650,
-  retries: 1,
-  retryDelayMs: 80,
+  timeoutMs: 600,
+  retries: 0,
+  retryDelayMs: 60,
   cacheTtlMs: 1000 * 60 * 20,
   missCacheTtlMs: 1000 * 60 * 5,
   allowUrlDownload: true,
@@ -116,12 +126,12 @@ const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
   cacheTtlMs: 1000 * 60 * 10,
 };
 const OPTIMIZED_IMAGE_CACHE_TTL_MS = 1000 * 60 * 60;
-const CATALOG_IMAGE_MAX_WIDTH = 360;
-const CATALOG_IMAGE_MAX_HEIGHT = 360;
-const CATALOG_IMAGE_QUALITY = 70;
-const FULL_IMAGE_MAX_WIDTH = 1280;
-const FULL_IMAGE_MAX_HEIGHT = 1280;
-const FULL_IMAGE_QUALITY = 82;
+const CATALOG_IMAGE_MAX_WIDTH = 320;
+const CATALOG_IMAGE_MAX_HEIGHT = 320;
+const CATALOG_IMAGE_QUALITY = 58;
+const FULL_IMAGE_MAX_WIDTH = 1120;
+const FULL_IMAGE_MAX_HEIGHT = 1120;
+const FULL_IMAGE_QUALITY = 70;
 const CATALOG_ROUTE_MISS_CACHE_TTL_MS = 1000 * 8;
 const CATALOG_ROUTE_RETRY_MISS_CACHE_TTL_MS = 1000 * 18;
 let fallbackImageHashPromise: Promise<string | null> | null = null;
@@ -373,12 +383,11 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     "public, max-age=3, s-maxage=3, stale-while-revalidate=8";
   const articleHint = safeDecode(requestUrl.searchParams.get("article") || "").trim();
   const allowDeepCatalogRecovery = catalogMode && (retryAttempt > 0 || !articleHint);
-  const allowCatalogProductFallback = !catalogMode || retryAttempt < 2;
   const lookupOptions = strictMode
     ? STRICT_IMAGE_LOOKUP_OPTIONS
     : catalogMode
       ? getCatalogLookupOptions(retryAttempt)
-      : FAST_IMAGE_LOOKUP_OPTIONS;
+      : FULL_IMAGE_LOOKUP_OPTIONS;
 
   const resolvedParams = await context.params;
   const rawCode = resolvedParams?.code || "";
@@ -386,9 +395,10 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   pruneRouteMissCache();
 
   if (!normalizedCode) {
-    return strictMode || catalogMode
-      ? fallbackNotFound(catalogMode ? catalogMissCacheControl : undefined)
-      : fallbackRedirect(request);
+    if (strictMode || catalogMode) {
+      return fallbackNotFound(catalogMissCacheControl);
+    }
+    return fallbackRedirect(request);
   }
 
   const lookupKeys: string[] = [];
@@ -416,7 +426,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     : 0;
 
   if (routeMissTtlMs > 0 && (routeMissCache.get(routeMissCacheKey) || 0) > Date.now()) {
-    return fallbackNotFound(catalogMode ? catalogMissCacheControl : undefined);
+    return fallbackNotFound(catalogMissCacheControl);
   }
 
   let imageBase64 = await getFirstResolvedImageBase64(
@@ -424,45 +434,44 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     lookupOptions
   ).catch(() => null);
 
-  if (!imageBase64 && !strictMode && allowDeepCatalogRecovery) {
+  // Для strict-запиту не робимо глибоких fallback: віддаємо 404,
+  // щоб клієнт швидко переключився на власну заглушку без логотипа.
+  if (!imageBase64 && strictMode) {
+    if (routeMissTtlMs > 0) {
+      routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
+    }
+    return fallbackNotFound(catalogMissCacheControl);
+  }
+
+  // Для каталожних запитів робимо один короткий recovery, щоб не втрачати реальні фото.
+  if (!imageBase64 && catalogMode && allowDeepCatalogRecovery) {
     imageBase64 = await getFirstResolvedImageBase64(
       lookupKeys,
       getCatalogRecoveryLookupOptions(retryAttempt)
     ).catch(() => null);
   }
 
-  if (!imageBase64 && !strictMode && allowCatalogProductFallback && (!catalogMode || allowDeepCatalogRecovery)) {
+  // Для повноформатної сторінки товару робимо надійний fallback по знайденому товару,
+  // якщо первинний ключ не спрацював.
+  if (!imageBase64 && !catalogMode && !strictMode) {
     try {
       const product = await getFirstResolvedCatalogProduct(
         lookupKeys,
-        {
-          ...IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS,
-          timeoutMs:
-            catalogMode && retryAttempt > 0
-              ? 900
-              : catalogMode
-                ? 650
-                : IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS.timeoutMs,
-          cacheTtlMs: catalogMode ? 1000 * 60 * 5 : IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS.cacheTtlMs,
-        }
+        IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS
       );
+
       const recoveryKeys = Array.from(
         new Set(
-          [(product?.article || "").trim(), (product?.code || "").trim()].filter(
-            Boolean
-          )
+          [(product?.article || "").trim(), (product?.code || "").trim()].filter(Boolean)
         )
       ).filter(
-        (value) =>
-          !lookupKeys.some((item) => item.toLowerCase() === value.toLowerCase())
+        (value) => !lookupKeys.some((item) => item.toLowerCase() === value.toLowerCase())
       );
 
       if (recoveryKeys.length > 0) {
         imageBase64 = await getFirstResolvedImageBase64(
           recoveryKeys,
-          catalogMode
-            ? getCatalogRecoveryLookupOptions(retryAttempt)
-            : lookupOptions
+          FULL_IMAGE_LOOKUP_OPTIONS
         ).catch(() => null);
       }
     } catch {
@@ -474,9 +483,10 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     if (routeMissTtlMs > 0) {
       routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
     }
-    return strictMode || catalogMode
-      ? fallbackNotFound(catalogMode ? catalogMissCacheControl : undefined)
-      : fallbackRedirect(request);
+    if (strictMode || catalogMode) {
+      return fallbackNotFound(catalogMissCacheControl);
+    }
+    return fallbackRedirect(request);
   }
 
   try {
@@ -485,9 +495,10 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       if (routeMissTtlMs > 0) {
         routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
       }
-      return strictMode || catalogMode
-        ? fallbackNotFound(catalogMode ? catalogMissCacheControl : undefined)
-        : fallbackRedirect(request);
+      if (strictMode || catalogMode) {
+        return fallbackNotFound(catalogMissCacheControl);
+      }
+      return fallbackRedirect(request);
     }
 
     const fallbackHash = await getFallbackImageHash();
@@ -496,9 +507,10 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       if (routeMissTtlMs > 0) {
         routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
       }
-      return strictMode || catalogMode
-        ? fallbackNotFound(catalogMode ? catalogMissCacheControl : undefined)
-        : fallbackRedirect(request);
+      if (strictMode || catalogMode) {
+        return fallbackNotFound(catalogMissCacheControl);
+      }
+      return fallbackRedirect(request);
     }
 
     routeMissCache.delete(routeMissCacheKey);
@@ -514,15 +526,16 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       status: 200,
       headers: {
         "content-type": optimizedImage.contentType,
-        "cache-control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+        "cache-control": "public, max-age=21600, s-maxage=21600, stale-while-revalidate=604800",
       },
     });
   } catch {
     if (routeMissTtlMs > 0) {
       routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
     }
-    return strictMode || catalogMode
-      ? fallbackNotFound(catalogMode ? catalogMissCacheControl : undefined)
-      : fallbackRedirect(request);
+    if (strictMode || catalogMode) {
+      return fallbackNotFound(catalogMissCacheControl);
+    }
+    return fallbackRedirect(request);
   }
 }

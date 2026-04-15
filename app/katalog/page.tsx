@@ -1,14 +1,63 @@
 import type { Metadata } from "next";
 
 import KatalogPageShell from "app/katalog/KatalogPageShell";
+import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import {
   buildCatalogCategoryPath,
   buildCatalogProducerPath,
   buildGroupPath,
   buildManufacturerPath,
 } from "app/lib/catalog-links";
+import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
 import { buildPageMetadata } from "app/lib/seo-metadata";
+import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getSiteUrl } from "app/lib/site-url";
+
+const INITIAL_CATALOG_PAGE_LIMIT = 10;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS = 1200;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 900;
+
+type InitialCatalogPagePayload = {
+  items: Array<{
+    code: string;
+    article: string;
+    name: string;
+    producer: string;
+    quantity: number;
+    priceEuro?: number | null;
+    group?: string;
+    subGroup?: string;
+    category?: string;
+    hasPhoto?: boolean;
+  }>;
+  prices: Record<string, number | null>;
+  images: Record<string, string>;
+  hasMore: boolean;
+  nextCursor: string;
+  serviceUnavailable?: boolean;
+  message?: string;
+};
+
+const buildInlinePrices = (
+  items: Array<{ code?: string; article?: string; priceEuro?: number | null }>
+) => {
+  const prices: Record<string, number | null> = {};
+
+  for (const item of items) {
+    const price = item?.priceEuro;
+    if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) {
+      continue;
+    }
+
+    const code = typeof item.code === "string" ? item.code.trim() : "";
+    const article = typeof item.article === "string" ? item.article.trim() : "";
+
+    if (code && prices[code] === undefined) prices[code] = price;
+    if (article && prices[article] === undefined) prices[article] = price;
+  }
+
+  return prices;
+};
 
 interface KatalogPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -325,13 +374,65 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   );
   const siteUrl = getSiteUrl();
   const state = resolveCatalogSeoState(resolvedSearchParams);
+  const initialQuerySignature = buildCatalogQuerySignature({
+    normalizedSearch: state.searchQuery,
+    searchFilter: state.searchFilter || "all",
+    selectedCars: [],
+    selectedCategories: [],
+    group: state.group || null,
+    subcategory: state.subcategory || null,
+    producer: state.producer || null,
+    sortOrder: "none",
+  });
+  const shouldUseTighterInitialTimeout = Boolean(
+    state.searchQuery || state.group || state.subcategory || state.producer
+  );
+  const initialCatalogTimeoutMs = shouldUseTighterInitialTimeout
+    ? INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED
+    : INITIAL_CATALOG_SSR_TIMEOUT_MS;
+  const initialPagePayload: InitialCatalogPagePayload | null = await resolveWithTimeout(
+    () =>
+      fetchCatalogProductsByQuery({
+        page: 1,
+        limit: INITIAL_CATALOG_PAGE_LIMIT,
+        selectedCars: [],
+        selectedCategories: [],
+        searchQuery: state.searchQuery,
+        searchFilter:
+          state.searchFilter === "article" ||
+          state.searchFilter === "name" ||
+          state.searchFilter === "code" ||
+          state.searchFilter === "producer"
+            ? state.searchFilter
+            : "all",
+        group: state.group || null,
+        subcategory: state.subcategory || null,
+        producer: state.producer || null,
+        sortOrder: "none",
+        timeoutMs: Math.max(700, initialCatalogTimeoutMs - 150),
+        retries: 0,
+        retryDelayMs: 120,
+        cacheTtlMs: 1000 * 20,
+      }).then((result) => ({
+        items: result.items,
+        prices: buildInlinePrices(result.items),
+        images: {},
+        hasMore: result.hasMore,
+        nextCursor: result.nextCursor,
+      })),
+    null,
+    initialCatalogTimeoutMs
+  );
   const collectionJsonLd = buildCatalogCollectionJsonLd(siteUrl, state);
   const breadcrumbJsonLd = buildCatalogBreadcrumbJsonLd(siteUrl, state);
 
   return (
     <>
       <h1 className="sr-only">{state.title}</h1>
-      <KatalogPageShell />
+      <KatalogPageShell
+        initialPagePayload={initialPagePayload}
+        initialQuerySignature={initialQuerySignature}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}

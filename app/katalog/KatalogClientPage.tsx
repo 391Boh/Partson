@@ -4,13 +4,32 @@ import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../../firebase';
+import type { User } from 'firebase/auth';
 import type { PersistedCarSelection } from 'app/components/Auto';
+import Data from 'app/components/Data';
 
-type DataComponentType = typeof import('app/components/Data').default;
 type FilterSidebarComponentType = typeof import('app/components/filtrtion').default;
+
+type InitialCatalogPagePayload = {
+  items: Array<{
+    code: string;
+    article: string;
+    name: string;
+    producer: string;
+    quantity: number;
+    priceEuro?: number | null;
+    group?: string;
+    subGroup?: string;
+    category?: string;
+    hasPhoto?: boolean;
+  }>;
+  prices?: Record<string, number | null>;
+  images?: Record<string, string>;
+  hasMore?: boolean;
+  nextCursor?: string;
+  serviceUnavailable?: boolean;
+  message?: string;
+};
 
 const STORAGE_KEYS = {
   cars: 'partson:selectedCars',
@@ -63,17 +82,50 @@ const CatalogFilterLoading = () => (
   </div>
 );
 
-const Data = dynamic(() => import('app/components/Data'), {
-  ssr: false,
-  loading: () => <CatalogGridLoading />,
-}) as DataComponentType;
-
 const FilterSidebar = dynamic(() => import('app/components/filtrtion'), {
   ssr: false,
   loading: () => <CatalogFilterLoading />,
 }) as FilterSidebarComponentType;
 
-const Katalog: React.FC = () => {
+const loadCatalogFirebaseDeps = (() => {
+  let promise: Promise<{
+    auth: typeof import('../../firebase').auth;
+    db: typeof import('../../firebase').db;
+    onAuthStateChanged: typeof import('firebase/auth').onAuthStateChanged;
+    doc: typeof import('firebase/firestore').doc;
+    getDoc: typeof import('firebase/firestore').getDoc;
+    setDoc: typeof import('firebase/firestore').setDoc;
+  }> | null = null;
+
+  return () => {
+    if (promise) return promise;
+
+    promise = Promise.all([
+      import('../../firebase'),
+      import('firebase/auth'),
+      import('firebase/firestore'),
+    ]).then(([firebaseModule, authModule, firestoreModule]) => ({
+      auth: firebaseModule.auth,
+      db: firebaseModule.db,
+      onAuthStateChanged: authModule.onAuthStateChanged,
+      doc: firestoreModule.doc,
+      getDoc: firestoreModule.getDoc,
+      setDoc: firestoreModule.setDoc,
+    }));
+
+    return promise;
+  };
+})();
+
+interface KatalogProps {
+  initialPagePayload?: InitialCatalogPagePayload | null;
+  initialQuerySignature?: string | null;
+}
+
+const Katalog: React.FC<KatalogProps> = ({
+  initialPagePayload = null,
+  initialQuerySignature = null,
+}) => {
   const [selectedCars, setSelectedCars] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
@@ -299,58 +351,64 @@ const Katalog: React.FC = () => {
     skipRemoteLoadRef.current = true;
   }, []);
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setFirebaseUser(user);
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
 
-      if (!user) {
-        setCarsLoaded(true);
-        return;
-      }
+    void loadCatalogFirebaseDeps().then(({ auth, db, doc, getDoc, onAuthStateChanged }) => {
+      if (cancelled) return;
 
-      setCarsLoaded(false);
+      unsubscribe = onAuthStateChanged(auth, (user) => {
+        setFirebaseUser(user);
 
-      if (skipRemoteLoadRef.current) {
-        skipRemoteLoadRef.current = false;
-        setCarsLoaded(true);
-        return;
-      }
+        if (!user) {
+          setCarsLoaded(true);
+          return;
+        }
 
-      const extractCars = (value: unknown) =>
-        Array.isArray(value)
-          ? (value as unknown[]).filter(
-              (car): car is string => typeof car === 'string' && car.trim() !== ''
-            )
-          : [];
+        setCarsLoaded(false);
 
-      const extractSelection = (value: unknown): PersistedCarSelection | null => {
-        if (!value || typeof value !== 'object') return null;
-        const record = value as Record<string, unknown>;
-        const brand =
-          typeof record.brand === 'string' && record.brand.trim() ? record.brand : '';
-        const model =
-          typeof record.model === 'string' && record.model.trim() ? record.model : '';
-        const label =
-          typeof record.label === 'string' && record.label.trim() ? record.label : '';
-        const year =
-          typeof record.year === 'number' && Number.isFinite(record.year)
-            ? record.year
-            : null;
-        const volume =
-          typeof record.volume === 'string' && record.volume.trim()
-            ? record.volume
-            : null;
-        const power =
-          typeof record.power === 'string' && record.power.trim() ? record.power : null;
-        const gearbox =
-          typeof record.gearbox === 'string' && record.gearbox.trim()
-            ? record.gearbox
-            : null;
-        const drive =
-          typeof record.drive === 'string' && record.drive.trim() ? record.drive : null;
+        if (skipRemoteLoadRef.current) {
+          skipRemoteLoadRef.current = false;
+          setCarsLoaded(true);
+          return;
+        }
 
-        if (!brand || !model || !label) return null;
-        return { brand, model, year, volume, power, gearbox, drive, label };
-      };
+        const extractCars = (value: unknown) =>
+          Array.isArray(value)
+            ? (value as unknown[]).filter(
+                (car): car is string => typeof car === 'string' && car.trim() !== ''
+              )
+            : [];
+
+        const extractSelection = (value: unknown): PersistedCarSelection | null => {
+          if (!value || typeof value !== 'object') return null;
+          const record = value as Record<string, unknown>;
+          const brand =
+            typeof record.brand === 'string' && record.brand.trim() ? record.brand : '';
+          const model =
+            typeof record.model === 'string' && record.model.trim() ? record.model : '';
+          const label =
+            typeof record.label === 'string' && record.label.trim() ? record.label : '';
+          const year =
+            typeof record.year === 'number' && Number.isFinite(record.year)
+              ? record.year
+              : null;
+          const volume =
+            typeof record.volume === 'string' && record.volume.trim()
+              ? record.volume
+              : null;
+          const power =
+            typeof record.power === 'string' && record.power.trim() ? record.power : null;
+          const gearbox =
+            typeof record.gearbox === 'string' && record.gearbox.trim()
+              ? record.gearbox
+              : null;
+          const drive =
+            typeof record.drive === 'string' && record.drive.trim() ? record.drive : null;
+
+          if (!brand || !model || !label) return null;
+          return { brand, model, year, volume, power, gearbox, drive, label };
+        };
 
         const loadCars = async () => {
           try {
@@ -397,10 +455,14 @@ const Katalog: React.FC = () => {
         }
       };
 
-      loadCars();
+        void loadCars();
+      });
     });
 
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -410,8 +472,12 @@ const Katalog: React.FC = () => {
       return;
     }
 
+    let cancelled = false;
     const timer = window.setTimeout(async () => {
       try {
+        const { db, doc, setDoc } = await loadCatalogFirebaseDeps();
+        if (cancelled) return;
+
         const docRef = doc(db, 'users', firebaseUser.uid);
         const avtoPayload = { cars: selectedCars, selection: selectedCarSelection };
         await setDoc(
@@ -428,7 +494,10 @@ const Katalog: React.FC = () => {
       }
     }, 400);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [carsLoaded, firebaseUser, selectedCarSelection, selectedCars]);
 
   useEffect(() => {
@@ -581,6 +650,8 @@ const Katalog: React.FC = () => {
           selectedCars={selectedCars}
           selectedCategories={selectedCategories}
           sortOrder={sortOrder}
+          initialPagePayload={initialPagePayload}
+          initialQuerySignature={initialQuerySignature}
         />
       </div>
     </section>

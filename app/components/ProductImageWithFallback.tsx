@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { ImageOff, Maximize2 } from "lucide-react";
 
 import ImageModal from "app/components/ImageModal";
@@ -57,6 +57,7 @@ export default function ProductImageWithFallback({
   const isLoaded = !showPlaceholder && loadedSrc === candidateSrc;
   const showPlaceholderOverlay = !showPlaceholder && !isLoaded;
   const canOpen = zoomEnabled && isLoaded;
+  const preferImmediateDecode = loading === "eager" && fetchPriority === "high";
 
   const applyLoadedCandidate = useCallback(
     (element: HTMLImageElement | null) => {
@@ -86,24 +87,35 @@ export default function ProductImageWithFallback({
     setFailedSrc(candidateSrc);
   };
 
-  useEffect(() => {
-    setLoadedSrc("");
-    setFailedSrc("");
+  useLayoutEffect(() => {
     setLightboxOpen(false);
-  }, [candidateSrc]);
 
-  useEffect(() => {
-    if (!candidateSrc) return;
-
-    const element = imageRef.current;
-    if (!element || !element.complete) return;
-
-    if (element.naturalWidth > 0 && element.naturalHeight > 0) {
-      applyLoadedCandidate(element);
+    if (!candidateSrc) {
+      setLoadedSrc("");
+      setFailedSrc("");
       return;
     }
 
-    setFailedSrc(candidateSrc);
+    const element = imageRef.current;
+    if (!element) {
+      setLoadedSrc("");
+      setFailedSrc("");
+      return;
+    }
+
+    if (element.complete) {
+      if (element.naturalWidth > 0 && element.naturalHeight > 0) {
+        applyLoadedCandidate(element);
+        return;
+      }
+
+      setLoadedSrc("");
+      setFailedSrc(candidateSrc);
+      return;
+    }
+
+    setLoadedSrc("");
+    setFailedSrc("");
   }, [applyLoadedCandidate, candidateSrc]);
 
   const renderPlaceholder = (overlay = false) => (
@@ -143,7 +155,7 @@ export default function ProductImageWithFallback({
         className={`${className ?? ""} group relative overflow-hidden rounded-xl bg-[image:linear-gradient(160deg,#f8fafc,#f1f5f9)]`}
       >
         {showPlaceholderOverlay ? (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[image:linear-gradient(160deg,#f8fafc,#f1f5f9)]">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[image:linear-gradient(160deg,#f8fafc,#f1f5f9)]/92">
             {renderPlaceholder(true)}
           </div>
         ) : null}
@@ -154,14 +166,16 @@ export default function ProductImageWithFallback({
           src={candidateSrc}
           alt={alt}
           loading={loading}
-          decoding={decoding}
+          decoding={preferImmediateDecode ? "sync" : decoding}
           fetchPriority={fetchPriority}
           onLoad={handleImageLoad}
           onError={handleImageError}
           width={width}
           height={height}
-          className={`h-full w-full object-contain transition-[opacity,transform,filter] duration-300 ${
-            isLoaded ? "opacity-100 blur-0 scale-100" : "opacity-0 blur-sm scale-[1.02]"
+          className={`h-full w-full object-contain transition-[opacity,transform] ${
+            preferImmediateDecode ? "duration-100" : "duration-180"
+          } ${
+            isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.01]"
           }`}
         />
 

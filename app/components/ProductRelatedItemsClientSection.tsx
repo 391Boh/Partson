@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import AnalogProductThumb from "app/components/AnalogProductThumb";
+import { fetchCatalogImageBatch } from "app/lib/product-image-batch-client";
+import {
+  readProductImageMissing,
+  readProductImageSuccess,
+} from "app/lib/product-image-client";
+import { buildProductImageBatchKey } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 
 type RelatedItem = {
@@ -28,8 +34,9 @@ type ProductRelatedItemsClientSectionProps = {
 const formatStockLabel = (quantity: number) =>
   quantity > 0 ? `В наявності ${quantity} шт.` : "Під замовлення";
 
-const RELATED_ITEMS_CACHE_PREFIX = "partson:v1:product-related:";
+const RELATED_ITEMS_CACHE_PREFIX = "partson:v3:product-related:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
+const RELATED_IMAGE_PREFETCH_LIMIT = 12;
 
 const buildDirectProductPath = (item: RelatedItem) => {
   const productCode = (item.code || item.article || "").trim();
@@ -43,17 +50,6 @@ const buildDirectProductPath = (item: RelatedItem) => {
     subGroup: item.subGroup,
     category: item.category,
   });
-};
-
-const buildProductImagePath = (code: string, articleHint?: string) => {
-  const normalizedCode = (code || "").trim();
-  const basePath = `/product-image/${encodeURIComponent(normalizedCode)}`;
-
-  const normalizedArticle = (articleHint || "").trim();
-  if (!normalizedArticle) return basePath;
-  if (normalizedArticle.toLowerCase() === normalizedCode.toLowerCase()) return basePath;
-
-  return `${basePath}?article=${encodeURIComponent(normalizedArticle)}`;
 };
 
 const Skeleton = () => (
@@ -79,6 +75,8 @@ const Skeleton = () => (
   </section>
 );
 
+type RelatedImageMap = Record<string, string | null>;
+
 export default function ProductRelatedItemsClientSection({
   product,
   initialItems = null,
@@ -89,11 +87,11 @@ export default function ProductRelatedItemsClientSection({
       Array.isArray(initialItems)
         ? initialItems
             .filter((item) => Boolean((item.code || item.article || "").trim()))
-            .slice(0, 4)
         : null,
     [initialItems]
   );
   const [items, setItems] = useState<RelatedItem[] | null>(normalizedInitialItems);
+  const [imageMap, setImageMap] = useState<RelatedImageMap>({});
 
   const requestUrl = useMemo(() => {
     const lookupArticle = articleLabel;
@@ -202,7 +200,7 @@ export default function ProductRelatedItemsClientSection({
         });
         const payload = (await response.json()) as { items?: RelatedItem[] };
         if (cancelled) return;
-        const nextItems = Array.isArray(payload.items) ? payload.items.slice(0, 4) : [];
+        const nextItems = Array.isArray(payload.items) ? payload.items : [];
         writeCachedItems(nextItems);
         setItems(nextItems);
       } catch {
@@ -217,6 +215,96 @@ export default function ProductRelatedItemsClientSection({
       cancelled = true;
     };
   }, [cacheKey, normalizedInitialItems, requestUrl]);
+
+  const imageRequests = useMemo(() => {
+    if (!items || items.length === 0) return [];
+
+    const seen = new Set<string>();
+
+    return items.reduce<Array<{ key: string; code: string; article?: string }>>((acc, item) => {
+      const code = (item.code || "").trim();
+      const article = (item.article || articleLabel || "").trim();
+      const key = buildProductImageBatchKey(code, article);
+
+      if (!code || !key || seen.has(key)) return acc;
+
+      seen.add(key);
+      acc.push({
+        key,
+        code,
+        article: article || undefined,
+      });
+      return acc;
+    }, []).slice(0, RELATED_IMAGE_PREFETCH_LIMIT);
+  }, [articleLabel, items]);
+
+  useEffect(() => {
+    if (!items || items.length === 0 || imageRequests.length === 0) {
+      setImageMap({});
+      return;
+    }
+
+    const cachedMap: RelatedImageMap = {};
+    const pendingItems: Array<{ code: string; article?: string }> = [];
+
+    for (const request of imageRequests) {
+      const cachedSrc = readProductImageSuccess(request.code, request.article);
+      if (cachedSrc) {
+        cachedMap[request.key] = cachedSrc;
+        continue;
+      }
+
+      if (readProductImageMissing(request.code, request.article)) {
+        cachedMap[request.key] = null;
+        continue;
+      }
+
+      pendingItems.push({ code: request.code, article: request.article });
+    }
+
+    setImageMap(cachedMap);
+
+    if (pendingItems.length === 0) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const loadImages = async () => {
+      try {
+        const results = await fetchCatalogImageBatch(pendingItems, {
+          signal: controller.signal,
+        });
+        if (cancelled) return;
+
+        setImageMap((current) => {
+          const nextMap: RelatedImageMap = { ...current };
+          for (const result of results) {
+            nextMap[result.key] = result.status === "ready" && result.src ? result.src : null;
+          }
+          return nextMap;
+        });
+      } catch {
+        if (cancelled) return;
+
+        setImageMap((current) => {
+          const nextMap: RelatedImageMap = { ...current };
+          for (const request of imageRequests) {
+            if (!(request.key in nextMap)) {
+              nextMap[request.key] = null;
+            }
+          }
+          return nextMap;
+        });
+      }
+    };
+
+    void loadImages();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [imageRequests, items]);
 
   if (!articleLabel && !(product.code || "").trim()) return null;
   if (items === null) return <Skeleton />;
@@ -244,6 +332,10 @@ export default function ProductRelatedItemsClientSection({
       <div className="mt-3 grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
         {items.map((item) => {
           const visibleItemName = buildVisibleProductName(item.name);
+          const imageKey = buildProductImageBatchKey(item.code, item.article || articleLabel);
+          const hasImageResult = Object.prototype.hasOwnProperty.call(imageMap, imageKey);
+          let imageSrc: string | null | undefined = imageMap[imageKey];
+          if (!hasImageResult) imageSrc = undefined;
           return (
             <Link
               key={`${item.code}-${item.article}-${item.name}`}
@@ -254,8 +346,10 @@ export default function ProductRelatedItemsClientSection({
               <div className="flex items-start gap-3">
                 <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[16px] border border-slate-200 bg-slate-50">
                   <AnalogProductThumb
-                    src={buildProductImagePath(item.code, item.article || articleLabel)}
+                    src={imageSrc ?? undefined}
                     alt={visibleItemName}
+                    disableDirectFetch
+                    pending={!hasImageResult}
                   />
                 </div>
                 <div className="min-w-0 flex-1">

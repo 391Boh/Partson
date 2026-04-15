@@ -933,6 +933,52 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   }, [userId, loading]);
 
   useEffect(() => {
+    if (!isAdmin) {
+      setTotalNotifications(0);
+      return;
+    }
+
+    let unreadMessages = 0;
+    let unreadOrders = 0;
+    let unreadCalls = 0;
+
+    const syncTotal = () => {
+      setTotalNotifications(unreadMessages + unreadOrders + unreadCalls);
+    };
+
+    const unsubscribeMessages = onSnapshot(collection(db, "messages"), (snapshot) => {
+      unreadMessages = snapshot.docs.reduce((count, snapshotDoc) => {
+        const data = snapshotDoc.data() as Record<string, unknown>;
+        if (data?.sender !== "user") return count;
+        return data?.readByAdmin === true ? count : count + 1;
+      }, 0);
+      syncTotal();
+    });
+
+    const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
+      unreadOrders = snapshot.docs.reduce((count, snapshotDoc) => {
+        const data = snapshotDoc.data() as Record<string, unknown>;
+        return data?.read === true ? count : count + 1;
+      }, 0);
+      syncTotal();
+    });
+
+    const unsubscribeCalls = onSnapshot(collection(db, "zvyaz"), (snapshot) => {
+      unreadCalls = snapshot.docs.reduce((count, snapshotDoc) => {
+        const data = snapshotDoc.data() as Record<string, unknown>;
+        return data?.read === true ? count : count + 1;
+      }, 0);
+      syncTotal();
+    });
+
+    return () => {
+      unsubscribeMessages();
+      unsubscribeOrders();
+      unsubscribeCalls();
+    };
+  }, [isAdmin]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
 
     const handleOpenChat = (event: Event) => {

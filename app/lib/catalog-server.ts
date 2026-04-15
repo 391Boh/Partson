@@ -103,6 +103,15 @@ const ALLGOODS_SORT_PRICE_FIELD = "\u0421\u043e\u0440\u0442\u0438\u0440\u043e\u0
 const ALLGOODS_INCLUDE_DESCRIPTION_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435";
 const INFO_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443";
 const INFO_DESC_FIELDS = ["\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", "\u041e\u043f\u0438\u0441"];
+const ALLGOODS_DESC_FIELDS = [
+  "\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435",
+  "\u041e\u043f\u0438\u0441",
+  "Description",
+  "description",
+  "\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435\u041d\u043e\u043c\u0435\u043d\u043a\u043b\u0430\u0442\u0443\u0440\u044b",
+  "\u041d\u043e\u043c\u0435\u043d\u043a\u043b\u0430\u0442\u0443\u0440\u0430\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435",
+  "\u0422\u0435\u043a\u0441\u0442\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u044f",
+];
 
 const PRIVAT_URL =
   "https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5";
@@ -247,6 +256,120 @@ const parseAllgoodsPayload = (payload: string) => {
       nextCursor: "",
     };
   }
+};
+
+const fetchAllgoodsProductsByExactLookup = async (
+  lookupValue: string,
+  options?: {
+    limit?: number;
+    timeoutMs?: number;
+    retries?: number;
+    retryDelayMs?: number;
+    cacheTtlMs?: number;
+    includeDescription?: boolean;
+  }
+) => {
+  const normalized = (lookupValue || "").trim();
+  if (!normalized) return [] as CatalogProduct[];
+
+  const limit =
+    Number.isFinite(options?.limit) && (options?.limit || 0) > 0
+      ? Math.min(Math.floor(options?.limit as number), 24)
+      : 8;
+
+  const requestBodies: Array<Record<string, unknown>> = [
+    {
+      [ALLGOODS_LIMIT_FIELD]: limit,
+      [ALLGOODS_CODE_FIELD]: normalized,
+      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: options?.includeDescription === true,
+    },
+    {
+      [ALLGOODS_LIMIT_FIELD]: limit,
+      [ALLGOODS_ARTICLE_FIELD]: normalized,
+      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: options?.includeDescription === true,
+    },
+  ];
+
+  const target = normalizeFacetValue(normalized);
+  const seenBodies = new Set<string>();
+  const merged: CatalogProduct[] = [];
+  const seenProducts = new Set<string>();
+
+  for (const body of requestBodies) {
+    const serializedBody = JSON.stringify(body);
+    if (seenBodies.has(serializedBody)) continue;
+    seenBodies.add(serializedBody);
+
+    const response = await oneCRequest("allgoods", {
+      method: "POST",
+      body,
+      timeoutMs: options?.timeoutMs,
+      retries: options?.retries ?? 0,
+      retryDelayMs: options?.retryDelayMs ?? 100,
+      cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 3,
+      cacheKey: JSON.stringify({
+        endpoint: "allgoods",
+        body,
+        timeoutMs: options?.timeoutMs ?? null,
+        retries: options?.retries ?? 0,
+        retryDelayMs: options?.retryDelayMs ?? 100,
+      }),
+    }).catch(() => null);
+
+    if (!response || response.status < 200 || response.status >= 300) continue;
+
+    const parsed = parseAllgoodsPayload(response.text).items;
+    for (const item of parsed) {
+      const codeKey = normalizeFacetValue(item.code);
+      const articleKey = normalizeFacetValue(item.article);
+      const matches =
+        (target && codeKey === target) ||
+        (target && articleKey === target) ||
+        (target && articleKey.includes(target));
+      if (!matches) continue;
+
+      const dedupeKey = codeKey || articleKey || `${item.name}:${item.producer}`;
+      if (!dedupeKey || seenProducts.has(dedupeKey)) continue;
+      seenProducts.add(dedupeKey);
+      merged.push(item);
+    }
+  }
+
+  return merged.slice(0, limit);
+};
+
+export const fetchAllgoodsProductsByNameQuery = async (
+  query: string,
+  options?: {
+    limit?: number;
+    page?: number;
+    timeoutMs?: number;
+    retries?: number;
+    retryDelayMs?: number;
+    cacheTtlMs?: number;
+  }
+) => {
+  const normalizedQuery = (query || "").replace(/\s+/g, " ").trim();
+  if (!normalizedQuery) return [] as CatalogProduct[];
+
+  return fetchAllgoodsProductsPage({
+    page:
+      Number.isFinite(options?.page) && (options?.page || 0) > 0
+        ? Math.floor(options?.page as number)
+        : 1,
+    limit:
+      Number.isFinite(options?.limit) && (options?.limit || 0) > 0
+        ? Math.min(Math.floor(options?.limit as number), 60)
+        : 48,
+    body: {
+      [ALLGOODS_NAME_FIELD]: normalizedQuery,
+      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: false,
+    },
+    timeoutMs: options?.timeoutMs,
+    retries: options?.retries ?? 0,
+    retryDelayMs: options?.retryDelayMs ?? 100,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 5,
+  }).catch(() => []);
 };
 
 const sortCatalogProductsByPricePriority = (
@@ -486,6 +609,50 @@ const safeDecode = (value: string) => {
 
 const normalizeFacetValue = (value: string | null | undefined) =>
   maybeFixMojibake((value || "").replace(/\s+/g, " ").trim()).toLowerCase();
+
+const normalizeDescriptionText = (value: string) => {
+  const normalized = maybeFixMojibake(value).replace(/\r\n?/g, "\n").trim();
+  return normalized || null;
+};
+
+const readDescriptionFromRecord = (record: Record<string, unknown>, depth = 0): string | null => {
+  if (depth > 4) return null;
+
+  for (const key of ALLGOODS_DESC_FIELDS) {
+    const value = record[key];
+    if (typeof value !== "string") continue;
+    const normalized = normalizeDescriptionText(value);
+    if (normalized) return normalized;
+  }
+
+  for (const [key, value] of Object.entries(record)) {
+    const normalizedKey = key.trim().toLowerCase();
+    if (
+      typeof value === "string" &&
+      (normalizedKey.includes("\u043e\u043f\u0438\u0441") || normalizedKey.includes("desc"))
+    ) {
+      const normalized = normalizeDescriptionText(value);
+      if (normalized) return normalized;
+    }
+
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const nestedRecord = asRecord(entry);
+        if (!nestedRecord) continue;
+        const nestedDescription = readDescriptionFromRecord(nestedRecord, depth + 1);
+        if (nestedDescription) return nestedDescription;
+      }
+      continue;
+    }
+
+    const nestedRecord = asRecord(value);
+    if (!nestedRecord) continue;
+    const nestedDescription = readDescriptionFromRecord(nestedRecord, depth + 1);
+    if (nestedDescription) return nestedDescription;
+  }
+
+  return null;
+};
 
 const parseLoosePayloadText = (input: string): unknown => {
   let current: unknown = (input || "").trim();
@@ -1000,6 +1167,7 @@ export const findCatalogProductByCode = async (
     retries?: number;
     retryDelayMs?: number;
     cacheTtlMs?: number;
+    exactOnly?: boolean;
   }
 ) => {
   const normalizedInput = safeDecode(inputCode || "").trim();
@@ -1017,6 +1185,24 @@ export const findCatalogProductByCode = async (
     Number.isFinite(options?.pageSize) && (options?.pageSize || 0) > 0
       ? Math.floor(options?.pageSize as number)
       : 80;
+
+  const allgoodsExact = await fetchAllgoodsProductsByExactLookup(normalizedInput, {
+    limit: Math.min(lookupLimit, 8),
+    timeoutMs: options?.timeoutMs,
+    retries: 0,
+    retryDelayMs: options?.retryDelayMs ?? 100,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 30,
+  }).catch(() => []);
+
+  if (allgoodsExact.length > 0) {
+    const exact = allgoodsExact.find((item) => item.code.trim().toLowerCase() === targetCode);
+    if (exact) return exact;
+    const byArticle = allgoodsExact.find(
+      (item) => item.article.trim().toLowerCase() === targetCode
+    );
+    if (byArticle) return byArticle;
+    return allgoodsExact[0] || null;
+  }
 
   // Fast path: query getdata by code aliases.
   const lookupBody: Record<string, unknown> = {
@@ -1390,13 +1576,86 @@ export const fetchProductDescription = async (
   const normalized = (articleOrCode || "").trim();
   if (!normalized) return null;
 
+  const timeoutMs = options?.timeoutMs;
+  const retries = options?.retries ?? 1;
+  const retryDelayMs = options?.retryDelayMs ?? 200;
+  const cacheTtlMs = options?.cacheTtlMs ?? 1000 * 60 * 30;
+
+  const allgoodsBodies: Array<Record<string, unknown>> = [
+    {
+      [ALLGOODS_LIMIT_FIELD]: 1,
+      [ALLGOODS_CODE_FIELD]: normalized,
+      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: true,
+    },
+    {
+      [ALLGOODS_LIMIT_FIELD]: 1,
+      [ALLGOODS_ARTICLE_FIELD]: normalized,
+      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: true,
+    },
+  ];
+
+  const normalizedLookup = normalizeFacetValue(normalized);
+  const seenBodies = new Set<string>();
+
+  for (const body of allgoodsBodies) {
+    const serializedBody = JSON.stringify(body);
+    if (seenBodies.has(serializedBody)) continue;
+    seenBodies.add(serializedBody);
+
+    const response = await oneCRequest("allgoods", {
+      method: "POST",
+      body,
+      timeoutMs,
+      retries,
+      retryDelayMs,
+      cacheTtlMs,
+      cacheKey: JSON.stringify({
+        endpoint: "allgoods",
+        body,
+        timeoutMs: timeoutMs ?? null,
+        retries,
+        retryDelayMs,
+      }),
+    }).catch(() => null);
+
+    if (!response || response.status < 200 || response.status >= 300) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(response.text) as { items?: unknown[] } | unknown[];
+      const records = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.items)
+          ? parsed.items
+          : [];
+      const normalizedRecords = records
+        .map((entry) => asRecord(entry))
+        .filter((entry): entry is Record<string, unknown> => entry != null);
+
+      const matchedRecord =
+        normalizedRecords.find((record) => {
+          const recordCode = normalizeFacetValue(readFirstString(record, CODE_FIELDS));
+          const recordArticle = normalizeFacetValue(readFirstString(record, ARTICLE_FIELDS));
+          return recordCode === normalizedLookup || recordArticle === normalizedLookup;
+        }) ?? normalizedRecords[0] ?? null;
+
+      if (!matchedRecord) continue;
+
+      const description = readDescriptionFromRecord(matchedRecord);
+      if (description) return description;
+    } catch {
+      // Fall through to getinfo below.
+    }
+  }
+
   const response = await oneCRequest("getinfo", {
     method: "POST",
     body: { [INFO_ARTICLE_FIELD]: normalized },
-    timeoutMs: options?.timeoutMs,
-    retries: options?.retries ?? 1,
-    retryDelayMs: options?.retryDelayMs ?? 200,
-    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 30,
+    timeoutMs,
+    retries,
+    retryDelayMs,
+    cacheTtlMs,
   });
 
   if (response.status < 200 || response.status >= 300) return null;
@@ -1406,8 +1665,8 @@ export const fetchProductDescription = async (
     for (const key of INFO_DESC_FIELDS) {
       const value = payload?.[key];
       if (typeof value !== "string") continue;
-      const trimmed = value.trim();
-      if (trimmed) return trimmed;
+      const normalizedDescription = normalizeDescriptionText(value);
+      if (normalizedDescription) return normalizedDescription;
     }
   } catch {
     return null;
@@ -1524,6 +1783,11 @@ export const fetchCatalogProductsByArticle = async (
   options?: {
     limit?: number;
     page?: number;
+    timeoutMs?: number;
+    retries?: number;
+    retryDelayMs?: number;
+    cacheTtlMs?: number;
+    exactOnly?: boolean;
   }
 ) => {
   const normalizedArticle = (article || "").trim();
@@ -1535,6 +1799,32 @@ export const fetchCatalogProductsByArticle = async (
   const limit = Number.isFinite(options?.limit) && (options?.limit || 0) > 0
     ? Math.floor(options?.limit as number)
     : 36;
+
+  const allgoodsMatches = await fetchAllgoodsProductsByExactLookup(normalizedArticle, {
+    limit,
+    timeoutMs: options?.timeoutMs,
+    retries: 0,
+    retryDelayMs: options?.retryDelayMs ?? 100,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 3,
+  }).catch(() => []);
+
+  if (options?.exactOnly) {
+    const target = normalizeFacetValue(normalizedArticle);
+    return allgoodsMatches
+      .filter((item) => {
+        const itemArticle = normalizeFacetValue(item.article);
+        const itemCode = normalizeFacetValue(item.code);
+        const itemName = normalizeFacetValue(item.name);
+
+        return (
+          (target && itemArticle === target) ||
+          (target && itemArticle.includes(target)) ||
+          (target && itemCode === target) ||
+          (target && itemName.includes(target))
+        );
+      })
+      .slice(0, limit);
+  }
 
   const body: Record<string, unknown> = {
     [PAGE_FIELD]: page,
@@ -1551,21 +1841,42 @@ export const fetchCatalogProductsByArticle = async (
   const response = await oneCRequest("getdata", {
     method: "POST",
     body,
-    retries: 1,
-    retryDelayMs: 200,
-    cacheTtlMs: 1000 * 60 * 3,
+    timeoutMs: options?.timeoutMs,
+    retries: options?.retries ?? 1,
+    retryDelayMs: options?.retryDelayMs ?? 200,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 3,
   });
 
   if (response.status < 200 || response.status >= 300) return [];
 
   const enriched = await enrichProductsWithAllgoodsPrices(parseItemsFromText(response.text), {
-    cacheTtlMs: 1000 * 60 * 3,
+    timeoutMs: options?.timeoutMs,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 3,
     maxKeys: limit * 2,
   });
 
   const target = normalizeFacetValue(normalizedArticle);
   const seen = new Set<string>();
   const filtered: CatalogProduct[] = [];
+
+  for (const item of allgoodsMatches) {
+    const itemArticle = normalizeFacetValue(item.article);
+    const itemCode = normalizeFacetValue(item.code);
+    const itemName = normalizeFacetValue(item.name);
+
+    const matches =
+      (target && itemArticle === target) ||
+      (target && itemArticle.includes(target)) ||
+      (target && itemCode === target) ||
+      (target && itemName.includes(target));
+
+    if (!matches) continue;
+
+    const dedupeKey = itemCode || itemArticle || `${item.name}:${item.producer}`;
+    if (!dedupeKey || seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    filtered.push(item);
+  }
 
   for (const item of enriched) {
     const itemArticle = normalizeFacetValue(item.article);
@@ -1685,6 +1996,10 @@ export const fetchCatalogProductsByHeaderSearchQuery = async (
   options?: {
     page?: number;
     limit?: number;
+    timeoutMs?: number;
+    retries?: number;
+    retryDelayMs?: number;
+    cacheTtlMs?: number;
   }
 ) => {
   const normalizedQuery = (query || "").replace(/\s+/g, " ").trim();
@@ -1716,9 +2031,10 @@ export const fetchCatalogProductsByHeaderSearchQuery = async (
     const response = await oneCRequest("getdata", {
       method: "POST",
       body: makeBody(keys),
-      retries: 1,
-      retryDelayMs: 200,
-      cacheTtlMs: 1000 * 60 * 2,
+      timeoutMs: options?.timeoutMs,
+      retries: options?.retries ?? 1,
+      retryDelayMs: options?.retryDelayMs ?? 200,
+      cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 2,
     });
     if (response.status < 200 || response.status >= 300) return [];
     return parseItemsFromText(response.text);

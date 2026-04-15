@@ -5,14 +5,6 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import Hero from "./hero";
 import { auth } from "../../firebase";
 
-type AuthModalComponentProps = {
-  isOpen: boolean;
-  user: User | null;
-  initialMode?: "login" | "register";
-  initialAccountTab?: "profile" | "vins" | "security" | null;
-  onClose: () => void;
-};
-
 type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
 
 const HomeDeferredStackPlaceholder = () => (
@@ -28,16 +20,7 @@ const HomeDeferredStackPlaceholder = () => (
 
 export default function HomePageContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authInitialMode, setAuthInitialMode] = useState<"login" | "register">(
-    "login"
-  );
-  const [authInitialTab, setAuthInitialTab] = useState<
-    "profile" | "vins" | "security" | null
-  >(null);
   const [user, setUser] = useState<User | null>(null);
-  const [AuthModalComponent, setAuthModalComponent] =
-    useState<ComponentType<AuthModalComponentProps> | null>(null);
   const [HomeDeferredStackComponent, setHomeDeferredStackComponent] =
     useState<ComponentType | null>(null);
   const [shouldLoadDeferredHome, setShouldLoadDeferredHome] = useState(false);
@@ -130,48 +113,33 @@ export default function HomePageContent() {
   }, [HomeDeferredStackComponent, shouldLoadDeferredHome]);
 
   const openLoginModal = useCallback(() => {
-    setAuthInitialMode("login");
-    setAuthInitialTab(null);
-    setAuthModalOpen(true);
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+      new CustomEvent("openAuthModal", {
+        detail: {
+          initialMode: "login",
+          initialAccountTab: null,
+        },
+      })
+    );
   }, []);
 
   const openRegisterModal = useCallback(() => {
-    setAuthInitialMode("register");
-    setAuthInitialTab(null);
-    setAuthModalOpen(true);
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+      new CustomEvent("openAuthModal", {
+        detail: {
+          initialMode: "register",
+          initialAccountTab: null,
+        },
+      })
+    );
   }, []);
 
   const openVinModal = useCallback(() => {
-    setAuthInitialTab("vins");
-    setAuthInitialMode("login");
-    setAuthModalOpen(true);
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new Event("openAccountVin"));
   }, []);
-
-  const closeAuthModal = useCallback(() => {
-    setAuthInitialTab(null);
-    setAuthModalOpen(false);
-  }, []);
-
-  useEffect(() => {
-    if (!authModalOpen || AuthModalComponent) return;
-
-    let cancelled = false;
-    void import("./AuthModal")
-      .then((module) => {
-        if (!cancelled) {
-          setAuthModalComponent(() => module.default);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          console.error("Failed to load AuthModal:", error);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [AuthModalComponent, authModalOpen]);
 
   return (
     <div className="home-static relative min-h-screen bg-blue-100 text-white">
@@ -192,16 +160,6 @@ export default function HomePageContent() {
         <HomeDeferredStackPlaceholder />
       ) : (
         <div className="h-6 w-full" />
-      )}
-
-      {authModalOpen && AuthModalComponent && (
-        <AuthModalComponent
-          isOpen={authModalOpen}
-          user={user}
-          initialMode={authInitialMode}
-          initialAccountTab={authInitialTab}
-          onClose={closeAuthModal}
-        />
       )}
     </div>
   );

@@ -23,7 +23,7 @@ export type CatalogImageBatchResponseItem = {
 };
 
 const CATALOG_IMAGE_BATCH_ROUTE = "/api/catalog-image-batch";
-const MAX_BATCH_ITEMS = 20;
+const MAX_BATCH_ITEMS = 48;
 
 const normalizeBatchItems = (items: CatalogImageBatchRequestItem[]) => {
   const seen = new Set<string>();

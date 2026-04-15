@@ -254,6 +254,11 @@ export const getProductEntriesBySitemapId = async (id: string) => {
   return (await getProductSitemapEntryBatchesWithCache())[numericId] ?? [];
 };
 
+export const getAllProductSitemapEntries = async () => {
+  const batches = await getProductSitemapEntryBatchesWithCache();
+  return batches.flat();
+};
+
 export const getProductCodesBySitemapId = async (id: string) => {
   const entries = await getProductEntriesBySitemapId(id);
   return normalizeProductCodes(entries.map((entry) => entry.code));
