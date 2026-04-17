@@ -19,6 +19,50 @@ interface YearRange {
   end: number;
 }
 
+type AnyRecord = Record<string, unknown>;
+
+const maybeFixMojibake = (input: string) => {
+  const value = input.trim();
+  if (!value || !/(?:Р.|С.){2,}/.test(value)) return value;
+
+  try {
+    const decoded = decodeURIComponent(escape(value));
+    return decoded.trim() || value;
+  } catch {
+    return value;
+  }
+};
+
+const stripHtmlTags = (value: string) => value.replace(/<[^>]*>/g, " ");
+
+const sanitizeErrorText = (value: string) => {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "";
+
+  const looksLikeHtml =
+    /<\s*html|<\s*!doctype|<\s*script|<\s*meta|<\s*body/i.test(trimmed);
+  if (looksLikeHtml) return "";
+
+  const noTags = stripHtmlTags(trimmed).replace(/\s+/g, " ").trim();
+  if (!noTags) return "";
+
+  return noTags.length > 240 ? `${noTags.slice(0, 240)}...` : noTags;
+};
+
+const isValidModelLabel = (value: string, selectedBrand?: string) => {
+  const normalized = (value || "").replace(/\s+/g, " ").trim();
+  if (normalized.length < 2 || normalized.length > 90) return false;
+  if (/[<>]/.test(normalized)) return false;
+  if (/<!doctype|<html|<script|webpack|__next|application\/ld\+json/i.test(normalized)) {
+    return false;
+  }
+
+  const brand = (selectedBrand || "").trim().toLowerCase();
+  if (brand && normalized.toLowerCase() === brand) return false;
+
+  return true;
+};
+
 const AUTO_ENDPOINT = "/api/proxy?endpoint=getauto";
 const LABEL_SEARCH_MODEL = "\u041f\u043e\u0448\u0443\u043a \u043c\u043e\u0434\u0435\u043b\u0456...";
 const LABEL_NO_MODELS = "\u041c\u043e\u0434\u0435\u043b\u0456 \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e.";
@@ -37,14 +81,91 @@ const LABEL_NEXT_YEAR = "\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0438\u0439 
 const LABEL_CLEAR_YEAR = "\u0421\u043a\u0438\u043d\u0443\u0442\u0438";
 const LABEL_AVAILABLE = "\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u043e";
 
-const normalizeModel = (item: unknown) => {
+const MODEL_FIELD_KEYS = [
+  AUTO_FIELDS.model,
+  "model",
+  "Model",
+  "MODEL",
+  "\u041c\u043e\u0434\u0435\u043b\u044c",
+  "\u041c\u043e\u0434\u0435\u043b\u044c\u044c",
+] as const;
+
+const YEAR_START_FIELD_KEYS = [
+  AUTO_FIELDS.yearStart,
+  "yearStart",
+  "YearStart",
+  "startYear",
+  "\u0420\u0456\u043a\u041f\u043e\u0447\u0430\u0442\u043e\u043a",
+  "\u0413\u043e\u0434\u041d\u0430\u0447\u0430\u043b\u0430",
+] as const;
+
+const YEAR_END_FIELD_KEYS = [
+  AUTO_FIELDS.yearEnd,
+  "yearEnd",
+  "YearEnd",
+  "endYear",
+  "\u0420\u0456\u043a\u041a\u0456\u043d\u0435\u0446\u044c",
+  "\u0413\u043e\u0434\u041a\u043e\u043d\u0446\u0430",
+] as const;
+
+const isPlausibleYear = (value: number | null) =>
+  value != null && value >= 1900 && value <= 2100;
+
+const readFirstValueByKeys = (
+  record: AnyRecord,
+  keys: readonly string[]
+) => {
+  for (const key of keys) {
+    if (key in record) return record[key];
+  }
+  return undefined;
+};
+
+const findValueByKeyPattern = (
+  record: AnyRecord,
+  patterns: readonly string[]
+) => {
+  for (const [rawKey, rawValue] of Object.entries(record)) {
+    const key = maybeFixMojibake(rawKey).toLowerCase();
+    if (patterns.some((pattern) => key.includes(pattern))) {
+      return rawValue;
+    }
+  }
+  return undefined;
+};
+
+const normalizeModel = (item: unknown, selectedBrand?: string) => {
   if (!item || typeof item !== "object") return null;
-  const record = item as Record<string, unknown>;
-  const raw =
-    record[AUTO_FIELDS.model] ?? record.model ?? record.Model ?? null;
-  if (raw == null) return null;
-  const value = typeof raw === "string" ? raw.trim() : String(raw);
-  return value ? value : null;
+  const record = item as AnyRecord;
+
+  const direct = readFirstValueByKeys(record, MODEL_FIELD_KEYS);
+  if (direct != null) {
+    const value = typeof direct === "string" ? direct.trim() : String(direct);
+    if (isValidModelLabel(value, selectedBrand)) return value;
+  }
+
+  const modelByPattern = findValueByKeyPattern(record, [
+    "model",
+    "модел",
+    "модель",
+    "рџрѕрґрµр»",
+  ]);
+  if (modelByPattern != null) {
+    const value =
+      typeof modelByPattern === "string"
+        ? maybeFixMojibake(modelByPattern).trim()
+        : String(modelByPattern);
+    if (isValidModelLabel(value, selectedBrand)) return value;
+  }
+
+  const normalizedBrand = (selectedBrand || "").trim().toLowerCase();
+  const candidate = Object.values(record)
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean)
+    .filter((value) => value.toLowerCase() !== normalizedBrand)
+    .find((value) => isValidModelLabel(value, selectedBrand));
+
+  return candidate || null;
 };
 
 const toNumber = (value: unknown) => {
@@ -53,21 +174,126 @@ const toNumber = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const extractYearRange = (record: AnyRecord) => {
+  const startDirect = toNumber(
+    readFirstValueByKeys(record, YEAR_START_FIELD_KEYS) ??
+      findValueByKeyPattern(record, ["yearstart", "startyear", "почат", "начал"])
+  );
+  const endDirect = toNumber(
+    readFirstValueByKeys(record, YEAR_END_FIELD_KEYS) ??
+      findValueByKeyPattern(record, ["yearend", "endyear", "кінец", "конец"])
+  );
+
+  if (isPlausibleYear(startDirect)) {
+    const safeEnd = isPlausibleYear(endDirect) ? endDirect : null;
+    return { start: startDirect, end: safeEnd };
+  }
+
+  const yearCandidates = Object.values(record)
+    .map((value) => toNumber(value))
+    .filter((value): value is number => isPlausibleYear(value));
+
+  if (yearCandidates.length === 0) return { start: null, end: null };
+  if (yearCandidates.length === 1) return { start: yearCandidates[0], end: null };
+
+  const sorted = [...yearCandidates].sort((a, b) => a - b);
+  return { start: sorted[0], end: sorted[sorted.length - 1] };
+};
+
+const normalizeAutoRows = (payload: unknown): unknown[] => {
+  if (Array.isArray(payload)) return payload;
+
+  if (typeof payload === "string") {
+    const normalized = payload.trim();
+    if (!normalized) return [];
+    try {
+      const parsed = JSON.parse(normalized);
+      return normalizeAutoRows(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!payload || typeof payload !== "object") return [];
+
+  const record = payload as AnyRecord;
+  const candidateKeys = ["items", "data", "result", "rows", "value"];
+  for (const key of candidateKeys) {
+    const value = record[key];
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string") {
+      const nested = normalizeAutoRows(value);
+      if (nested.length > 0) return nested;
+    }
+    if (value && typeof value === "object") {
+      const nested = normalizeAutoRows(value);
+      if (nested.length > 0) return nested;
+    }
+  }
+
+  return [];
+};
+
+const fetchAutoRowsByBrand = async (selectedBrand: string) => {
+  const candidateBodies: Array<Record<string, string>> = [
+    { [AUTO_FIELDS.brand]: selectedBrand, brand: selectedBrand },
+    { brand: selectedBrand },
+    { Brand: selectedBrand },
+    { "\u041c\u0430\u0440\u043a\u0430": selectedBrand },
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const body of candidateBodies) {
+    try {
+      const res = await fetch(AUTO_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const jsonText = await res.text();
+      if (!res.ok) {
+        lastError = new Error(
+          extractErrorMessage(jsonText) ||
+            "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0435\u043b\u0456"
+        );
+        continue;
+      }
+
+      const parsed = JSON.parse(jsonText);
+      const rows = normalizeAutoRows(parsed);
+      if (rows.length > 0) return rows;
+    } catch (error) {
+      lastError =
+        error instanceof Error
+          ? error
+          : new Error("\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0435\u043b\u0456");
+    }
+  }
+
+  if (lastError) throw lastError;
+  return [];
+};
+
 const extractErrorMessage = (text: string) => {
   try {
     const parsed = JSON.parse(text);
     if (parsed && typeof parsed === "object") {
-      return (
+      const safeMessage = sanitizeErrorText(
         (parsed.error as string) ||
         (parsed.details as string) ||
         (parsed.message as string) ||
-        text
+        ""
       );
+      if (safeMessage) return safeMessage;
     }
   } catch {
     // fallthrough
   }
-  return text || "Помилка сервісу";
+
+  const safeFallback = sanitizeErrorText(text);
+  return safeFallback || "Помилка сервісу 1С. Спробуйте ще раз трохи пізніше.";
 };
 
   const CarModels: React.FC<Props> = ({
@@ -151,25 +377,11 @@ const extractErrorMessage = (text: string) => {
     setHasYearData(false);
     setYearLoading(false);
 
-    fetch(AUTO_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [AUTO_FIELDS.brand]: selectedBrand }),
-    })
-      .then(async (res) => {
-        const jsonText = await res.text();
-        if (!res.ok) {
-          throw new Error(
-            extractErrorMessage(jsonText) ||
-              "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0435\u043b\u0456"
-          );
-        }
-        const data = JSON.parse(jsonText);
-        if (!Array.isArray(data))
-          throw new Error("\u041d\u0435\u043e\u0447\u0456\u043a\u0443\u0432\u0430\u043d\u0430 \u0432\u0456\u0434\u043f\u043e\u0432\u0456\u0434\u044c \u0434\u043b\u044f \u043c\u043e\u0434\u0435\u043b\u0435\u0439");
+    fetchAutoRowsByBrand(selectedBrand)
+      .then((data) => {
         const nextModels = data
-          .map((item) => normalizeModel(item))
-          .filter(Boolean) as string[];
+          .map((item) => normalizeModel(item, selectedBrand))
+          .filter((value): value is string => Boolean(value && isValidModelLabel(value, selectedBrand)));
         const uniqueModels = Array.from(new Set(nextModels));
 
         const nextYearMap: Record<string, YearRange[]> = {};
@@ -179,10 +391,9 @@ const extractErrorMessage = (text: string) => {
         data.forEach((item) => {
           if (!item || typeof item !== "object") return;
           const record = item as Record<string, unknown>;
-          const model = normalizeModel(record);
+          const model = normalizeModel(record, selectedBrand);
           if (!model) return;
-          const start = toNumber(record[AUTO_FIELDS.yearStart]);
-          const endRaw = toNumber(record[AUTO_FIELDS.yearEnd]);
+          const { start, end: endRaw } = extractYearRange(record);
           if (start == null) return;
           const end =
             endRaw == null || endRaw === 0 ? new Date().getFullYear() : endRaw;

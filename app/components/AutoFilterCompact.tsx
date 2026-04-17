@@ -782,6 +782,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
                     value={brandSearch}
                     onChange={(event) => setBrandSearch(event.target.value)}
                     placeholder="Пошук марки..."
+                    data-search="true"
                     className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-200"
                   />
                   {selectedBrand && (
@@ -842,7 +843,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
               <div
                 ref={brandPagesRef}
                 onScroll={handleBrandPagesScroll}
-                className="h-[240px] overflow-x-auto overflow-y-hidden rounded-lg border border-slate-200 bg-slate-50 snap-x snap-mandatory"
+                className="no-scrollbar h-[240px] overflow-x-auto overflow-y-hidden rounded-lg border border-slate-200 bg-slate-50 snap-x snap-mandatory"
               >
                 <div className="flex h-full w-full">
                   {brandPages.map((page, pageIndex) => (

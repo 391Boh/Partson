@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ImageOff } from "lucide-react";
 
 import {
@@ -20,10 +20,11 @@ import {
 
 const FINAL_RETRY_DELAY_MS = 180;
 const BATCH_WARMUP_WINDOW_MS = 4;
-const BATCH_WAIT_TIMEOUT_MS = 140;
+const BATCH_WAIT_TIMEOUT_MS = 260;
+const BATCH_WAIT_TIMEOUT_MS_LAZY = 220;
 const BATCH_READY_TTL_MS = 1000 * 60 * 3;
 const BATCH_MISSING_TTL_MS = 1000 * 25;
-const BATCH_MAX_ITEMS = 16;
+const BATCH_MAX_ITEMS = 24;
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
@@ -231,9 +232,11 @@ const ProductCardImage: React.FC<Props> = ({
     primarySrc ? "loading" : "missing"
   );
   const [finalRetryQueued, setFinalRetryQueued] = useState(false);
+  const lastSuccessfulSrcRef = useRef("");
 
   useEffect(() => {
     if (normalizedPrefetchedSrc) {
+      lastSuccessfulSrcRef.current = normalizedPrefetchedSrc;
       setRequestSrc(normalizedPrefetchedSrc);
       setStatus("loaded");
       setFinalRetryQueued(true);
@@ -260,6 +263,7 @@ const ProductCardImage: React.FC<Props> = ({
         normalizedArticle
       );
       if (cachedSuccess) {
+        lastSuccessfulSrcRef.current = cachedSuccess;
         setRequestSrc(cachedSuccess);
         setStatus("loaded");
         setFinalRetryQueued(false);
@@ -276,6 +280,7 @@ const ProductCardImage: React.FC<Props> = ({
       pruneBatchWarmResultCache();
       const warmResult = batchKey ? batchWarmResultCache.get(batchKey) : null;
       if (warmResult?.status === "ready" && warmResult.src) {
+        lastSuccessfulSrcRef.current = warmResult.src;
         setRequestSrc(warmResult.src);
         setStatus("loaded");
         setFinalRetryQueued(false);
@@ -303,6 +308,13 @@ const ProductCardImage: React.FC<Props> = ({
     }
 
     if (batchPending) {
+      if (lastSuccessfulSrcRef.current) {
+        setRequestSrc(lastSuccessfulSrcRef.current);
+        setStatus("loaded");
+        setFinalRetryQueued(false);
+        return;
+      }
+
       setRequestSrc("");
       setStatus("loading");
       setFinalRetryQueued(false);
@@ -310,6 +322,13 @@ const ProductCardImage: React.FC<Props> = ({
     }
 
     if (batchMissing) {
+      if (hasKnownPhoto && primarySrc) {
+        setRequestSrc(primarySrc);
+        setStatus("retrying");
+        setFinalRetryQueued(true);
+        return;
+      }
+
       setRequestSrc("");
       setStatus("missing");
       setFinalRetryQueued(false);
@@ -328,6 +347,7 @@ const ProductCardImage: React.FC<Props> = ({
       normalizedArticle
     );
     if (cachedSuccess) {
+      lastSuccessfulSrcRef.current = cachedSuccess;
       setRequestSrc(cachedSuccess);
       setStatus("loaded");
       setFinalRetryQueued(false);
@@ -344,6 +364,7 @@ const ProductCardImage: React.FC<Props> = ({
     pruneBatchWarmResultCache();
     const warmResult = batchKey ? batchWarmResultCache.get(batchKey) : null;
     if (warmResult?.status === "ready" && warmResult.src) {
+      lastSuccessfulSrcRef.current = warmResult.src;
       setRequestSrc(warmResult.src);
       setStatus("loaded");
       setFinalRetryQueued(false);
@@ -351,23 +372,36 @@ const ProductCardImage: React.FC<Props> = ({
     }
 
     if (warmResult?.status === "missing") {
+      if (hasKnownPhoto && primarySrc) {
+        setRequestSrc(primarySrc);
+        setStatus("retrying");
+        setFinalRetryQueued(true);
+        return;
+      }
+
       setRequestSrc("");
       setStatus("missing");
       setFinalRetryQueued(false);
       return;
     }
 
-    setRequestSrc("");
-    setStatus("loading");
+    if (lastSuccessfulSrcRef.current) {
+      setRequestSrc(lastSuccessfulSrcRef.current);
+      setStatus("retrying");
+    } else {
+      setRequestSrc("");
+      setStatus("loading");
+    }
     setFinalRetryQueued(false);
 
     if (!batchKey) {
-      if (batchOnly) {
+      if (!primarySrc || !hasKnownPhoto) {
         setRequestSrc("");
         setStatus("missing");
         return;
       }
       setRequestSrc(primarySrc);
+      setStatus("loading");
       return;
     }
 
@@ -377,8 +411,16 @@ const ProductCardImage: React.FC<Props> = ({
       settled = true;
 
       if (result.status === "ready" && result.src) {
+        lastSuccessfulSrcRef.current = result.src;
         setRequestSrc(result.src);
         setStatus("loaded");
+        return;
+      }
+
+      if (hasKnownPhoto && primarySrc) {
+        setRequestSrc(primarySrc);
+        setStatus("retrying");
+        setFinalRetryQueued(true);
         return;
       }
 
@@ -392,18 +434,19 @@ const ProductCardImage: React.FC<Props> = ({
       article: normalizedArticle || undefined,
     });
 
+    const fallbackWaitMs = loadingMode === "eager" ? BATCH_WAIT_TIMEOUT_MS : BATCH_WAIT_TIMEOUT_MS_LAZY;
     const fallbackTimerId = window.setTimeout(() => {
       if (settled) return;
       settled = true;
       unsubscribe();
-      if (batchOnly) {
+      if (!primarySrc || !hasKnownPhoto) {
         setRequestSrc("");
         setStatus("missing");
         return;
       }
       setRequestSrc(primarySrc);
       setStatus("loading");
-    }, BATCH_WAIT_TIMEOUT_MS);
+    }, fallbackWaitMs);
 
     return () => {
       unsubscribe();
@@ -415,9 +458,11 @@ const ProductCardImage: React.FC<Props> = ({
     batchMissing,
     batchOnly,
     batchPending,
+    hasKnownPhoto,
     normalizedCode,
     normalizedPrefetchedSrc,
     primarySrc,
+    loadingMode,
   ]);
 
   useEffect(() => {
@@ -454,6 +499,7 @@ const ProductCardImage: React.FC<Props> = ({
       }
 
       if (normalizedNextSrc) {
+        lastSuccessfulSrcRef.current = normalizedNextSrc;
         setRequestSrc(normalizedNextSrc);
         if (!isInlineImage) {
           writeProductImageSuccess(
@@ -526,11 +572,10 @@ const ProductCardImage: React.FC<Props> = ({
   ]);
 
   const canOpen = Boolean(onClick) && status === "loaded";
-  const showLoadingSkeleton = status === "loading" || status === "retrying";
+  const showLoadingSkeleton =
+    (status === "loading" || status === "retrying") && !requestSrc;
   const showPlaceholder = status === "missing";
-  // Для перших карток каталогу пріоритезуємо fetchPriority та decode
-  const isHighPriority = fetchPriority === "high" || loadingMode === "eager";
-  const imageDecodingMode = isHighPriority ? "sync" : "async";
+  const imageDecodingMode = "async";
 
   return (
     <div

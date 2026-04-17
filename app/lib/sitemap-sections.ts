@@ -3,11 +3,13 @@ import "server-only";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 
+import { brands } from "app/components/brandsData";
 import { getInformationPath, informationSections } from "app/inform/section-config";
 import { buildGroupItemPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import { buildSeoSlug } from "app/lib/seo-slug";
 
 export type SitemapChangeFrequency =
   | "always"
@@ -162,23 +164,36 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
     },
   ];
 
+  const seenPaths = new Set<string>(entries.map((entry) => entry.path));
+  const pushUniqueEntry = (path: string, lastModified: string) => {
+    if (!path || seenPaths.has(path)) return;
+    seenPaths.add(path);
+    entries.push({
+      path,
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.82,
+    });
+  };
+
   const facets = await resolveWithTimeout(
     () => getCatalogSeoFacets(),
     null,
     SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS
   );
-  if (!facets) return entries;
 
-  for (const producer of facets.producers.slice(0, maxManufacturerPages)) {
-    entries.push({
-      path: buildManufacturerPath(producer.slug),
-      lastModified: facets.generatedAt,
-      changeFrequency: "weekly",
-      priority: 0.82,
-    });
+  if (facets?.producers?.length) {
+    for (const producer of facets.producers.slice(0, maxManufacturerPages)) {
+      pushUniqueEntry(buildManufacturerPath(producer.slug), facets.generatedAt);
+    }
   }
 
-  return entries;
+  // Fallback source: keep sitemap complete even if SEO facets are empty or timed out.
+  for (const brand of brands.slice(0, maxManufacturerPages)) {
+    pushUniqueEntry(buildManufacturerPath(buildSeoSlug(brand.name)), now);
+  }
+
+  return entries.slice(0, maxManufacturerPages + 1);
 };
 
 const getGroupsSitemapEntriesCached = unstable_cache(

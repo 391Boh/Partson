@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { getProductImagePath } from "app/lib/product-image";
 import { buildProductPath } from "app/lib/product-url";
 import {
   getProductEntriesBySitemapId,
@@ -75,12 +76,17 @@ export default async function sitemap(props: {
             category: entry.category ?? undefined,
           })
         : `/product/${encodeURIComponent(normalizedCode)}`;
+      const productImages =
+        entry.hasPhoto === false
+          ? undefined
+          : [`${siteUrl}${getProductImagePath(normalizedCode, entry.article)}`];
 
       return {
         url: `${siteUrl}${productPath}`,
         lastModified,
         changeFrequency: "weekly" as const,
         priority: 0.65,
+        images: productImages,
       };
     })
     .filter((item): item is NonNullable<typeof item> => item !== null);

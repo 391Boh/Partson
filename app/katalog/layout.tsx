@@ -2,11 +2,18 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 const katalogDescription =
-  "Каталог автозапчастин PartsON з пошуком за кодом, артикулом, виробником та актуальною наявністю.";
+  "Каталог автозапчастин PartsON у Львові з пошуком за кодом, артикулом, виробником та актуальною наявністю. Магазин на вул. Перфецького, 8.";
 
 export const metadata: Metadata = {
   title: "Каталог автозапчастин",
   description: katalogDescription,
+  keywords: [
+    "каталог автозапчастин",
+    "автозапчастини львів",
+    "магазин запчастин",
+    "магазин автозапчастин перфецького",
+    "доставка автозапчастин львів",
+  ],
   alternates: {
     canonical: "/katalog",
   },

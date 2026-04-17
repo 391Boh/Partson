@@ -1,7 +1,7 @@
 "use client";
 
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
-const CATALOG_ITEMS_PER_PAGE = 10;
+const CATALOG_ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v4";
 
 type CatalogSearchFilter = "all" | "article" | "name" | "code" | "producer";

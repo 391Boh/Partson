@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ProductNode } from "app/components/FlipCard";
 import {
@@ -120,16 +120,25 @@ addCategoryIcon("\u041a\u0443\u0437\u043e\u0432\u043d\u0456 \u0435\u043b\u0435\u
 addCategoryIcon("\u0414\u0430\u0442\u0447\u0438\u043a\u0438 \u0442\u0430 \u0435\u043b\u0435\u043a\u0442\u0440\u043e\u043d\u0456\u043a\u0430", "datchyky_ta_elektronika.png");
 addCategoryIcon("\u0420\u0456\u0434\u0438\u043d\u0438 \u0442\u0430 \u043c\u0430\u0441\u0442\u0438\u043b\u0430", "ridyny_ta_mastyla.png");
 
-const nodeMatchesQuery = (node: ProductNode, query: string): boolean => {
-  if (!query) return true;
-  if (normalizeNodeName(node).toLowerCase().includes(query)) return true;
+const nodeSearchTextCache = new WeakMap<ProductNode, string>();
+
+const getNodeSearchText = (node: ProductNode): string => {
+  const cached = nodeSearchTextCache.get(node);
+  if (cached) return cached;
 
   const children = node.children ?? [];
+  let text = normalizeNodeName(node).toLowerCase();
   for (const child of children) {
-    if (nodeMatchesQuery(child, query)) return true;
+    text += ` ${getNodeSearchText(child)}`;
   }
 
-  return false;
+  nodeSearchTextCache.set(node, text);
+  return text;
+};
+
+const nodeMatchesQuery = (node: ProductNode, query: string): boolean => {
+  if (!query) return true;
+  return getNodeSearchText(node).includes(query);
 };
 
 const readFirstString = (
@@ -328,6 +337,7 @@ const Category: React.FC<CategoryProps> = ({
 }) => {
   const [localSearchTerm, setLocalSearchTerm] = useState("");
   const searchTerm = controlledSearchTerm ?? localSearchTerm;
+  const deferredSearchTerm = useDeferredValue(searchTerm);
   const setSearchTerm = onSearchTermChange ?? setLocalSearchTerm;
   const [treeData, setTreeData] = useState<ProductNode[]>([]);
   const [loading, setLoading] = useState(false);
@@ -466,13 +476,13 @@ const Category: React.FC<CategoryProps> = ({
   );
 
   const filteredCategoryItems = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
+    const query = deferredSearchTerm.trim().toLowerCase();
     if (!query) return categoryItems;
 
     return categoryItems.filter((item) =>
       nodeMatchesQuery(item.node, query)
     );
-  }, [categoryItems, searchTerm]);
+  }, [categoryItems, deferredSearchTerm]);
 
   const activeCategoryNode = useMemo(() => {
     if (!activeCategory) return null;
@@ -499,7 +509,7 @@ const Category: React.FC<CategoryProps> = ({
   }, [activeCategoryNode]);
 
   const filteredGroupItems = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
+    const query = deferredSearchTerm.trim().toLowerCase();
     if (!query) return groupItems;
 
     if (activeCategory && activeCategory.toLowerCase().includes(query)) {
@@ -507,7 +517,7 @@ const Category: React.FC<CategoryProps> = ({
     }
 
     return groupItems.filter((group) => nodeMatchesQuery(group, query));
-  }, [groupItems, searchTerm, activeCategory]);
+  }, [groupItems, deferredSearchTerm, activeCategory]);
 
   const activeGroupNode = useMemo(() => {
     if (!activeGroup) return null;
@@ -538,7 +548,7 @@ const Category: React.FC<CategoryProps> = ({
   }, [activeGroupNode]);
 
   const filteredSubgroupItems = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
+    const query = deferredSearchTerm.trim().toLowerCase();
     if (!query) return subgroupItems;
 
     const categoryMatch =
@@ -550,20 +560,17 @@ const Category: React.FC<CategoryProps> = ({
     return subgroupItems.filter((item) =>
       `${item.label} ${item.trail}`.toLowerCase().includes(query)
     );
-  }, [subgroupItems, searchTerm, activeCategory, activeGroup]);
+  }, [subgroupItems, deferredSearchTerm, activeCategory, activeGroup]);
 
-  const searchQuery = searchTerm.trim().toLowerCase();
+  const searchQuery = deferredSearchTerm.trim().toLowerCase();
   const isSearchMode = searchQuery.length > 0;
+  const allLeafPaths = useMemo(() => collectLeafPaths(toProductNodes(treeData)), [treeData]);
   const searchResults = useMemo<SearchResult[]>(() => {
     if (!isSearchMode) return [];
-
-    const normalizedProducts = toProductNodes(treeData);
-    if (normalizedProducts.length === 0) return [];
-
-    const leafPaths = collectLeafPaths(normalizedProducts);
+    if (allLeafPaths.length === 0) return [];
     const unique = new Map<string, SearchResult>();
 
-    for (const path of leafPaths) {
+    for (const path of allLeafPaths) {
       if (!Array.isArray(path) || path.length === 0) continue;
       const label = path[path.length - 1] ?? "";
       const trail = path.slice(0, -1).join(" / ");
@@ -586,7 +593,7 @@ const Category: React.FC<CategoryProps> = ({
         a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
       )
       .slice(0, 20);
-  }, [isSearchMode, searchQuery, treeData]);
+  }, [allLeafPaths, isSearchMode, searchQuery]);
 
   const step = activeGroup ? "subgroup" : activeCategory ? "group" : "category";
   const activeTrail = [

@@ -54,6 +54,7 @@ const FILE_NAME_LIKE_REGEX =
 const imageMissCache = new Map<string, number>();
 const imageBase64Cache = new Map<string, { expiresAt: number; value: string }>();
 const imageInFlightCache = new Map<string, Promise<string | null>>();
+const IMAGE_URL_DOWNLOAD_TIMEOUT_MS = 1200;
 
 const safeDecode = (value: string) => {
   try {
@@ -241,6 +242,8 @@ const fetchImageUrlAsBase64 = async (rawUrl: string) => {
   if (!resolvedUrl) return null;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), IMAGE_URL_DOWNLOAD_TIMEOUT_MS);
     const headers: Record<string, string> = {};
     const authHeader = (process.env.ONEC_AUTH_HEADER || "").trim();
     if (authHeader) headers.Authorization = authHeader;
@@ -248,6 +251,9 @@ const fetchImageUrlAsBase64 = async (rawUrl: string) => {
     const response = await fetch(resolvedUrl, {
       headers,
       cache: "no-store",
+      signal: controller.signal,
+    }).finally(() => {
+      clearTimeout(timeoutId);
     });
 
     if (!response.ok) return null;

@@ -2,15 +2,17 @@
 
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle } from "lucide-react";
+import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle, Copy, Check } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
+import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
 
 const MOTION_EASE_OUT = [0.22, 1, 0.36, 1] as const;
 const MOTION_EASE_LINEAR = [0, 0, 1, 1] as const;
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
+const ARTICLE_COPY_FEEDBACK_MS = 1200;
 const safBackface = {
     backfaceVisibility: "hidden" as const,
     WebkitBackfaceVisibility: "hidden" as const,
@@ -126,6 +128,61 @@ const ProductCard: React.FC<Props> = ({
     );
     const article = item.article || "-";
     const producer = item.producer || "-";
+    const producerPath = useMemo(() => {
+        const normalizedProducer = (producer || "").trim();
+        if (!normalizedProducer || normalizedProducer === "-") return "";
+
+        const manufacturerPath = buildManufacturerPath(normalizedProducer);
+        const query = new URLSearchParams({ producer: normalizedProducer }).toString();
+        return `${manufacturerPath}?${query}`;
+    }, [producer]);
+    const [articleCopied, setArticleCopied] = useState(false);
+    const articleCopyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleCopyArticle = useMemo(
+        () => async (event: React.MouseEvent) => {
+            event.stopPropagation();
+
+            const normalizedArticle = (article || "").trim();
+            if (!normalizedArticle || normalizedArticle === "-") return;
+
+            let copied = false;
+            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                copied = await navigator.clipboard
+                    .writeText(normalizedArticle)
+                    .then(() => true)
+                    .catch(() => false);
+            }
+
+            if (!copied && typeof document !== "undefined") {
+                try {
+                    const textarea = document.createElement("textarea");
+                    textarea.value = normalizedArticle;
+                    textarea.setAttribute("readonly", "");
+                    textarea.style.position = "absolute";
+                    textarea.style.left = "-9999px";
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    copied = document.execCommand("copy");
+                    document.body.removeChild(textarea);
+                } catch {
+                    copied = false;
+                }
+            }
+
+            if (!copied) return;
+
+            setArticleCopied(true);
+            if (articleCopyTimerRef.current) {
+                clearTimeout(articleCopyTimerRef.current);
+            }
+            articleCopyTimerRef.current = setTimeout(() => {
+                setArticleCopied(false);
+                articleCopyTimerRef.current = null;
+            }, ARTICLE_COPY_FEEDBACK_MS);
+        },
+        [article]
+    );
     const descriptionRequestUrl = useMemo(() => {
         const params = new URLSearchParams();
 
@@ -171,6 +228,14 @@ const ProductCard: React.FC<Props> = ({
         }
         prevCartQty.current = cartQty;
     }, [cartQty]);
+
+    useEffect(() => {
+        return () => {
+            if (articleCopyTimerRef.current) {
+                clearTimeout(articleCopyTimerRef.current);
+            }
+        };
+    }, []);
 
     // ================== РћРџРРЎ (BACK) ==================
 const [description, setDescription] = useState<string | null>(null);
@@ -381,14 +446,42 @@ useEffect(() => {
                             <span className="text-slate-500">{"\u041A\u043E\u0434:"}</span>
                             <span className="font-medium text-slate-700">{code || "-"}</span>
                         </div>
-                        <div className="flex w-full items-center justify-between px-1 py-0.5 rounded hover:bg-slate-100/70 transition-colors">
+                          <button
+                              type="button"
+                              onClick={handleCopyArticle}
+                              className="group/copy flex w-full items-center justify-between px-1 py-0.5 rounded hover:bg-slate-100/70 transition-colors text-left"
+                              aria-label="Скопіювати артикул"
+                          >
                             <span className="text-slate-500">Артикул:</span>
-                            <span className="font-medium text-slate-700">{article}</span>
-                        </div>
-                        <div className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
-                            <span className="text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
-                            <span className="font-medium text-slate-700">{producer}</span>
-                        </div>
+                              <span className="inline-flex items-center gap-1.5 font-medium text-slate-700">
+                                  {articleCopied ? (
+                                      <Check size={13} className="text-emerald-600" aria-hidden="true" />
+                                  ) : (
+                                      <Copy
+                                          size={13}
+                                          className="text-slate-400 opacity-0 transition-opacity duration-150 group-hover/copy:opacity-100 group-focus-within/copy:opacity-100"
+                                          aria-hidden="true"
+                                      />
+                                  )}
+                                  <span>{article}</span>
+                              </span>
+                          </button>
+                          {producerPath ? (
+                              <SmartLink
+                                  href={producerPath}
+                                  prefetchOnViewport
+                                  onClick={(event) => event.stopPropagation()}
+                                  className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors no-underline"
+                              >
+                                  <span className="text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
+                                  <span className="font-medium text-blue-700 hover:text-blue-800">{producer}</span>
+                              </SmartLink>
+                          ) : (
+                              <div className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
+                                  <span className="text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
+                                  <span className="font-medium text-slate-700">{producer}</span>
+                              </div>
+                          )}
                     </div>
 
                     {/* Р¦С–РЅР° */}

@@ -1,4 +1,4 @@
-﻿import { cache, type CSSProperties } from "react";
+import { Suspense, cache, type CSSProperties } from "react";
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
 import dynamic from "next/dynamic";
@@ -8,12 +8,14 @@ import { notFound, redirect } from "next/navigation";
 import {
   fetchCatalogProductsByArticle,
   fetchEuroRate,
+  fetchPriceEuro,
   findCatalogProductByCode,
   toPriceUah,
 } from "app/lib/catalog-server";
+import ProductDescriptionClientCard from "app/components/ProductDescriptionClientCard";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import OpenChatButton from "app/components/OpenChatButton";
-import ProductPurchasePanelClient from "app/components/ProductPurchasePanelClient";
+import ProductRelatedItemsSection from "app/components/ProductRelatedItemsSection";
 import {
   buildCatalogCategoryPath,
   buildCatalogProducerPath,
@@ -21,8 +23,9 @@ import {
   buildGroupPath,
   buildManufacturerPath,
 } from "app/lib/catalog-links";
-import { getProductImagePath, PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image";
-import { buildPlainSeoSlug } from "app/lib/seo-slug";
+import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
+import { getProductImagePath } from "app/lib/product-image";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import {
   buildProductPath,
   buildVisibleProductName,
@@ -31,57 +34,54 @@ import {
   INTERNAL_PRODUCT_ROUTE_RESOLUTION_PARAM,
 } from "app/lib/product-url";
 import { resolveProductCodeFromSeoRoute } from "app/lib/product-route-resolver";
-import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getSiteUrl } from "app/lib/site-url";
+import { buildPlainSeoSlug } from "app/lib/seo-slug";
+import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+
+const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 1450;
+const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 900;
+const PRODUCT_PAGE_SEO_PRICE_LOOKUP_TIMEOUT_MS = 650;
+const PRODUCT_PAGE_SEO_PRICE_REQUEST_TIMEOUT_MS = 500;
+const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 350;
+const PRODUCT_PAGE_SEO_PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
+const PRODUCT_PAGE_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
 
 export const revalidate = 900;
 
-const ProductDescriptionClientCard = dynamic(
-  () => import("app/components/ProductDescriptionClientCard"),
+const ProductPurchasePanelClient = dynamic(
+  () => import("app/components/ProductPurchasePanelClient"),
   {
     loading: () => (
       <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[24px] sm:p-4">
-        <div className="flex items-end justify-between gap-2.5 border-b border-slate-100 pb-2.5">
-          <div className="min-w-0">
-            <div className="h-3 w-16 animate-pulse rounded-full bg-sky-100" />
-            <div className="mt-2 h-6 w-56 animate-pulse rounded-full bg-slate-100" />
-          </div>
-          <div className="h-6 w-28 animate-pulse rounded-full bg-slate-100" />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="h-[76px] animate-pulse rounded-[16px] bg-slate-100" />
+          <div className="h-[76px] animate-pulse rounded-[16px] bg-slate-100" />
         </div>
-        <div className="mt-3 space-y-2">
-          <div className="h-4 w-full animate-pulse rounded-full bg-slate-100" />
-          <div className="h-4 w-[92%] animate-pulse rounded-full bg-slate-100" />
-          <div className="h-4 w-[84%] animate-pulse rounded-full bg-slate-100" />
-          <div className="h-4 w-[76%] animate-pulse rounded-full bg-slate-100" />
-        </div>
+        <div className="mt-2.5 h-4 w-3/4 animate-pulse rounded-full bg-slate-100" />
+        <div className="mt-2.5 h-12 animate-pulse rounded-2xl bg-slate-100" />
       </section>
     ),
   }
 );
 
-const ProductRelatedItemsClientSection = dynamic(
-  () => import("app/components/ProductRelatedItemsClientSection"),
-  {
-    loading: () => (
-      <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
-        <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-2.5">
-          <div>
-            <div className="h-3 w-16 animate-pulse rounded-full bg-sky-100" />
-            <div className="mt-2 h-6 w-52 animate-pulse rounded-full bg-slate-100" />
-          </div>
-          <div className="h-6 w-24 animate-pulse rounded-full bg-slate-100" />
-        </div>
-        <div className="mt-3 grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div
-              key={index}
-              className="h-[156px] animate-pulse rounded-[18px] border border-slate-200 bg-slate-100"
-            />
-          ))}
-        </div>
-      </section>
-    ),
-  }
+const ProductRelatedItemsFallback = () => (
+  <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
+    <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-2.5">
+      <div>
+        <div className="h-3 w-16 animate-pulse rounded-full bg-sky-100" />
+        <div className="mt-2 h-6 w-52 animate-pulse rounded-full bg-slate-100" />
+      </div>
+      <div className="h-6 w-24 animate-pulse rounded-full bg-slate-100" />
+    </div>
+    <div className="mt-3 grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div
+          key={index}
+          className="h-[156px] animate-pulse rounded-[18px] border border-slate-200 bg-slate-100"
+        />
+      ))}
+    </div>
+  </section>
 );
 
 interface ProductPageParams {
@@ -103,57 +103,128 @@ const pageBackground: CSSProperties = {
     "radial-gradient(circle at 10% 10%, rgba(14,165,233,0.16), transparent 38%), radial-gradient(circle at 90% 15%, rgba(59,130,246,0.15), transparent 33%), linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
 };
 
-const buildProductSeoTitle = (options: {
-  visibleName: string;
-  producer: string;
-  article: string;
-  group: string;
-  subGroup: string;
-}) => {
-  const visibleGroup = buildVisibleProductName(options.group);
-  const visibleSubGroup = buildVisibleProductName(options.subGroup);
-  const categoryLabel = visibleSubGroup || visibleGroup;
-  const titleLead = [`Купити ${options.visibleName}`, options.producer || null]
-    .filter(Boolean)
-    .join(" ");
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-  if (options.article) {
-    return `${titleLead} — артикул ${options.article}`;
+const buildPureProductName = (
+  value: string,
+  hints?: {
+    producer?: string;
+    article?: string;
+    group?: string;
+    subGroup?: string;
+  }
+) => {
+  const baseName = buildVisibleProductName(value);
+  if (!baseName) return "Товар";
+
+  const loweredBaseName = baseName.toLowerCase();
+  const buyPrefixIndex = loweredBaseName.indexOf("купити ");
+  const articleMarkerIndex = loweredBaseName.indexOf(" артикул ");
+  const categoryMarkerIndex = loweredBaseName.indexOf(" у категор");
+
+  // Handles common SEO heading pattern: "Купити <NAME> артикул <...> у категорії <...>".
+  if (buyPrefixIndex !== -1) {
+    const nameStart = buyPrefixIndex + "купити ".length;
+    const stopCandidates = [articleMarkerIndex, categoryMarkerIndex].filter(
+      (index) => index > nameStart
+    );
+    const nameEnd = stopCandidates.length > 0 ? Math.min(...stopCandidates) : baseName.length;
+    const extracted = baseName.slice(nameStart, nameEnd).replace(/\s{2,}/g, " ").trim();
+    if (extracted) {
+      return extracted;
+    }
   }
 
-  if (categoryLabel) {
-    return `${titleLead} — ${categoryLabel}`;
+  let cleaned = baseName
+    .replace(/^купити\s+/iu, "")
+    .replace(/\s*\|\s*.+$/u, "")
+    .replace(/\s+[—-]\s*(артикул|код|виробник)\b.*$/iu, "")
+    .replace(/\s+артикул\s+[^\s,;|/]+/giu, "")
+    .replace(/\s+у\s+категорі[їи]\s+.+$/iu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  const normalizedArticle = (hints?.article || "").trim();
+  if (normalizedArticle) {
+    const articleRegex = new RegExp(
+      `(?:\\s*[—-]?\\s*артикул\\s*)?${escapeRegExp(normalizedArticle)}\\b`,
+      "iu"
+    );
+    cleaned = cleaned.replace(articleRegex, "").replace(/\s{2,}/g, " ").trim();
   }
 
-  return titleLead;
+  const normalizedProducer = (hints?.producer || "").trim();
+  if (normalizedProducer) {
+    const producerTailRegex = new RegExp(
+      `(?:\\s*[-/,]?\\s*)${escapeRegExp(normalizedProducer)}$`,
+      "iu"
+    );
+    cleaned = cleaned.replace(producerTailRegex, "").replace(/\s{2,}/g, " ").trim();
+  }
+
+  const categoryLabel = buildVisibleProductName(
+    (hints?.subGroup || hints?.group || "").trim()
+  );
+  if (categoryLabel && categoryLabel !== "Товар") {
+    const categoryTailRegex = new RegExp(
+      `\\s*(?:у\\s+категорі[їи]\\s+)?${escapeRegExp(categoryLabel)}$`,
+      "iu"
+    );
+    cleaned = cleaned.replace(categoryTailRegex, "").replace(/\s{2,}/g, " ").trim();
+  }
+
+  return cleaned || baseName;
 };
 
-const buildProductSeoDescription = (options: {
-  visibleName: string;
-  producer: string;
-  article: string;
-  code: string;
-  group: string;
-  subGroup: string;
-  quantity: number;
-}) => {
-  const visibleGroup = buildVisibleProductName(options.group);
-  const visibleSubGroup = buildVisibleProductName(options.subGroup);
-  const categoryLabel = visibleSubGroup || visibleGroup || "каталог автозапчастин";
-  const stockLabel =
-    options.quantity > 0
-      ? `В наявності ${options.quantity} шт.`
-      : "Доступно під замовлення.";
+const buildFrontendProductHeading = (
+  value: string,
+  hints?: {
+    producer?: string;
+    article?: string;
+    group?: string;
+    subGroup?: string;
+  }
+) => {
+  const baseName = buildVisibleProductName(value);
+  if (!baseName) return "Товар";
 
-  return [
-    `Купити ${options.visibleName}${options.producer ? ` від ${options.producer}` : ""}${options.article ? `, артикул ${options.article}` : ""}.`,
-    `Категорія: ${categoryLabel}.`,
-    stockLabel,
-    options.code ? `Код товару: ${options.code}.` : null,
-    "Підбір за кодом і артикулом, доставка по Україні в магазині PartsON.",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  let cleaned = baseName;
+
+  // Strip common SEO wrapper from UI heading only.
+  cleaned = cleaned.replace(/^\s*купити\s+/iu, "").trim();
+
+  const markerMatch = cleaned.match(/\s+(артикул|у\s+категорі[їи])\b/iu);
+  if (markerMatch && typeof markerMatch.index === "number") {
+    cleaned = cleaned.slice(0, markerMatch.index).trim();
+  }
+
+  const normalizedArticle = (hints?.article || "").trim();
+  if (normalizedArticle) {
+    cleaned = cleaned
+      .replace(new RegExp(`\\b${escapeRegExp(normalizedArticle)}\\b`, "iu"), "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  const normalizedProducer = (hints?.producer || "").trim();
+  if (normalizedProducer) {
+    cleaned = cleaned
+      .replace(new RegExp(`\\b${escapeRegExp(normalizedProducer)}\\b$`, "iu"), "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  const categoryLabel = buildVisibleProductName(
+    (hints?.subGroup || hints?.group || "").trim()
+  );
+  if (categoryLabel && categoryLabel !== "Товар") {
+    cleaned = cleaned
+      .replace(new RegExp(`\\b${escapeRegExp(categoryLabel)}\\b$`, "iu"), "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  return cleaned || buildPureProductName(value, hints);
 };
 
 const normalizeView = (view: string | string[] | undefined) => {
@@ -463,7 +534,12 @@ const findCatalogProductByArticleFast = async (value: string) => {
   if (!normalized) return null;
 
   const byArticle = await fetchCatalogProductsByArticle(normalized, {
-    limit: 12,
+    limit: 6,
+    timeoutMs: 700,
+    retries: 0,
+    retryDelayMs: 100,
+    cacheTtlMs: 1000 * 20,
+    exactOnly: true,
   });
   if (byArticle.length === 0) return null;
 
@@ -477,21 +553,21 @@ const findCatalogProductByArticleFast = async (value: string) => {
 };
 
 const FAST_PRODUCT_CATALOG_LOOKUP_OPTIONS = {
-  lookupLimit: 32,
-  fallbackPages: 3,
-  pageSize: 60,
-  timeoutMs: 1800,
+  lookupLimit: 18,
+  fallbackPages: 1,
+  pageSize: 36,
+  timeoutMs: 1100,
   retries: 0,
-  retryDelayMs: 120,
+  retryDelayMs: 100,
   cacheTtlMs: 1000 * 20,
 };
 const DEEP_PRODUCT_CATALOG_LOOKUP_OPTIONS = {
-  lookupLimit: 40,
-  fallbackPages: 4,
-  pageSize: 60,
-  timeoutMs: 2200,
+  lookupLimit: 28,
+  fallbackPages: 2,
+  pageSize: 40,
+  timeoutMs: 1600,
   retries: 0,
-  retryDelayMs: 120,
+  retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 10,
 };
 const getCatalogProductUncached = async (code: string) => {
@@ -584,6 +660,77 @@ const getFirstResolvedNonNull = async <T,>(promises: Array<Promise<T | null>>) =
   return null;
 };
 
+const toPositiveNumberOrNull = (value: unknown) => {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+};
+
+const normalizeProductSeoLookupKeys = (rawLookupKeys: string) =>
+  Array.from(
+    new Set(
+      rawLookupKeys
+        .split("\n")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 3);
+
+const lookupProductSeoPriceEuroUncached = async (rawLookupKeys: string) => {
+  const lookupKeys = normalizeProductSeoLookupKeys(rawLookupKeys);
+  if (lookupKeys.length === 0) return null;
+
+  return resolveWithTimeout(
+    () =>
+      getFirstResolvedNonNull(
+        lookupKeys.map((lookupKey) =>
+          fetchPriceEuro(lookupKey, {
+            timeoutMs: PRODUCT_PAGE_SEO_PRICE_REQUEST_TIMEOUT_MS,
+            retries: 0,
+            retryDelayMs: 100,
+            cacheTtlMs: PRODUCT_PAGE_SEO_PRICE_CACHE_TTL_MS,
+          }).then(toPositiveNumberOrNull)
+        )
+      ),
+    null,
+    PRODUCT_PAGE_SEO_PRICE_LOOKUP_TIMEOUT_MS
+  );
+};
+
+const lookupProductSeoPriceEuroCached = unstable_cache(
+  lookupProductSeoPriceEuroUncached,
+  ["product-page:seo-price-euro-v1"],
+  {
+    revalidate: 60 * 10,
+    tags: ["product-seo-price"],
+  }
+);
+
+const getProductSeoEuroRate = cache(async () =>
+  resolveWithTimeout(() => fetchEuroRate(), 50, PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS)
+);
+
+const resolveProductSeoPrice = cache(
+  async (
+    inlinePriceEuro: number | null | undefined,
+    rawLookupKeys: string
+  ): Promise<{ priceEuro: number | null; priceUah: number | null }> => {
+    const inlinePrice = toPositiveNumberOrNull(inlinePriceEuro);
+    const priceEuro = inlinePrice ?? (await lookupProductSeoPriceEuroCached(rawLookupKeys));
+
+    if (priceEuro == null) {
+      return { priceEuro: null, priceUah: null };
+    }
+
+    const euroRate = await getProductSeoEuroRate();
+    const priceUah = toPriceUah(priceEuro, euroRate);
+
+    return {
+      priceEuro,
+      priceUah,
+    };
+  }
+);
+
 const buildCanonicalProductPath = (
   product: {
     code: string;
@@ -632,15 +779,48 @@ const extractLookupTokensFromSeoNameSlug = (rawNameSlug: string) => {
   return Array.from(tokens);
 };
 
+const extractPrimaryLookupTokenFromSeoNameSlug = (rawNameSlug: string) => {
+  const normalized = decodeURIComponent(rawNameSlug || "").trim().toLowerCase();
+  if (!normalized) return "";
+
+  const parts = normalized.split("-").map((entry) => entry.trim()).filter(Boolean);
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const token = parts[index];
+    if (token.length < 5) continue;
+    if (!/\d/.test(token)) continue;
+    return token;
+  }
+
+  return "";
+};
+
+type ResolvedProductRouteData = {
+  code: string;
+  isSeoRoute: boolean;
+  product: Awaited<ReturnType<typeof getCatalogProductUncached>> | null;
+};
+
 const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
   const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
   if (routeSlugs) {
-    const lookupTokens = extractLookupTokensFromSeoNameSlug(routeSlugs.nameSlug);
+    const primaryLookupToken = extractPrimaryLookupTokenFromSeoNameSlug(
+      routeSlugs.nameSlug
+    );
+    const lookupTokens = [
+      primaryLookupToken,
+      ...extractLookupTokensFromSeoNameSlug(routeSlugs.nameSlug),
+    ].filter((token, index, array) => Boolean(token) && array.indexOf(token) === index);
+
     for (const token of lookupTokens) {
       const matchedProduct = await getFirstResolvedNonNull([
         findCatalogProductByCode(
           token,
-          FAST_PRODUCT_CATALOG_LOOKUP_OPTIONS
+          {
+            ...FAST_PRODUCT_CATALOG_LOOKUP_OPTIONS,
+            timeoutMs: 700,
+            lookupLimit: 8,
+            exactOnly: true,
+          }
         ).catch(() => null),
         findCatalogProductByArticleFast(token).catch(() => null),
       ]);
@@ -650,6 +830,7 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
       return {
         code: matchedCode,
         isSeoRoute: true,
+        product: matchedProduct,
       };
     }
 
@@ -661,18 +842,21 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
       return {
         code: resolvedCode,
         isSeoRoute: true,
+        product: null,
       };
     }
 
     return {
       code: "",
       isSeoRoute: false,
+      product: null,
     };
   }
 
   return {
     code: extractProductCodeFromParam(rawCode || ""),
     isSeoRoute: false,
+    product: null,
   };
 };
 
@@ -684,6 +868,43 @@ const resolveProductCodeFromRouteParamCached = unstable_cache(
 
 const resolveProductCodeFromRouteParam = cache(async (rawCode: string) =>
   resolveProductCodeFromRouteParamCached(rawCode)
+);
+
+const getResolvedProductRouteDataUncached = async (
+  rawCode: string
+): Promise<ResolvedProductRouteData> => {
+  const resolvedRoute = await resolveProductCodeFromRouteParam(rawCode);
+  if (!resolvedRoute.code) {
+    return {
+      code: "",
+      isSeoRoute: resolvedRoute.isSeoRoute,
+      product: null,
+    };
+  }
+
+  if (resolvedRoute.product) {
+    return {
+      code: resolvedRoute.code,
+      isSeoRoute: resolvedRoute.isSeoRoute,
+      product: resolvedRoute.product,
+    };
+  }
+
+  return {
+    code: resolvedRoute.code,
+    isSeoRoute: resolvedRoute.isSeoRoute,
+    product: await getCatalogProduct(resolvedRoute.code),
+  };
+};
+
+const getResolvedProductRouteDataCached = unstable_cache(
+  getResolvedProductRouteDataUncached,
+  ["product-page:resolved-route-product"],
+  { revalidate: 900 }
+);
+
+const getResolvedProductRouteData = cache(async (rawCode: string) =>
+  getResolvedProductRouteDataCached(rawCode)
 );
 
 export async function generateMetadata({
@@ -698,53 +919,105 @@ export async function generateMetadata({
   const decodedParam = decodeURIComponent(rawCode || "").trim();
   const routeSlugs = extractProductRouteSlugsFromParam(decodedParam);
   const fallbackCode = extractProductCodeFromParam(decodedParam);
-  const rawTitleSource = routeSlugs?.nameSlug || fallbackCode || decodedParam || "Товар";
-  const visibleProductName = buildVisibleProductName(rawTitleSource.replace(/-/g, " "));
-  const resolvedRoute = await resolveProductCodeFromRouteParam(rawCode || "");
-  const resolvedCode = resolvedRoute.code;
-  const product = resolvedCode
-    ? await resolveWithTimeout(() => getCatalogProduct(resolvedCode), null, 180)
-    : null;
-  const canonicalPath = product
-    ? buildCanonicalProductPath(product, resolvedCode || fallbackCode || decodedParam)
-    : `/product/${encodeURIComponent(decodedParam || fallbackCode || "")}`;
-  const productImageUrl = `${getSiteUrl()}${PRODUCT_IMAGE_FALLBACK_PATH}`;
-  const resolvedVisibleProductName = product
-    ? buildVisibleProductName(product.name)
-    : visibleProductName;
-  const seoTitle = product
-    ? buildProductSeoTitle({
-        visibleName: resolvedVisibleProductName,
-        producer: product.producer,
-        article: product.article,
-        group: product.group || product.category || "",
-        subGroup: product.subGroup || "",
-      })
-    : `Купити ${visibleProductName}`;
-  const description = product
-    ? buildProductSeoDescription({
-        visibleName: resolvedVisibleProductName,
-        producer: product.producer,
-        article: product.article,
-        code: product.code || resolvedCode,
-        group: product.group || product.category || "",
-        subGroup: product.subGroup || "",
-        quantity: product.quantity,
-      })
-    : `Купити ${visibleProductName} в PartsON. Підбір автозапчастин за кодом і артикулом з доставкою по Україні.`;
+  const routeData = await resolveWithTimeout(
+    () => getResolvedProductRouteData(rawCode || ""),
+    { code: "", isSeoRoute: false, product: null },
+    1200
+  );
+
+  const routeProduct = routeData.product;
+  const resolvedCode = (routeData.code || fallbackCode || "").trim();
+  const fallbackTitleSource =
+    routeSlugs?.nameSlug || resolvedCode || decodedParam || "Товар";
+  const seoVisibleProductName = buildVisibleProductName(
+    (routeProduct?.name || fallbackTitleSource).replace(/-/g, " ")
+  );
+  const productProducer = (routeProduct?.producer || "").trim();
+  const productArticle = (routeProduct?.article || "").trim();
+  const productGroup = (routeProduct?.group || routeProduct?.category || "").trim();
+  const productSubGroup = (routeProduct?.subGroup || "").trim();
+  const categoryLabel = buildVisibleProductName(productSubGroup || productGroup);
+  const canonicalPath = routeProduct
+    ? buildCanonicalProductPath(routeProduct, resolvedCode || fallbackCode)
+    : `/product/${encodeURIComponent(decodedParam || resolvedCode || fallbackCode || "")}`;
+
+  const productImagePath = routeProduct
+    ? getProductImagePath(routeProduct.code || resolvedCode, routeProduct.article)
+    : PRODUCT_IMAGE_FALLBACK_PATH;
+  const productImageUrl = `${getSiteUrl()}${productImagePath}`;
+  const metadataLookupKeys = Array.from(
+    new Set(
+      [productArticle, routeProduct?.code, resolvedCode, fallbackCode]
+        .map((value) => (value || "").trim())
+        .filter(Boolean)
+    )
+  );
+  const seoPrice = await resolveProductSeoPrice(
+    routeProduct?.priceEuro ?? null,
+    metadataLookupKeys.join("\n")
+  );
+  const shouldIndexProduct = !isModalView && seoPrice.priceUah != null;
+
+  const seoTitle = [
+    seoVisibleProductName
+      ? `Купити ${seoVisibleProductName}`
+      : "Купити автозапчастину",
+    productProducer ? `виробник ${productProducer}` : null,
+    productArticle ? `артикул ${productArticle}` : null,
+    categoryLabel ? `категорія ${categoryLabel}` : null,
+    resolvedCode ? `код ${resolvedCode}` : null,
+    "ціна",
+    "доставка",
+    "PartsON",
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
+  const description = [
+    `Купити ${seoVisibleProductName}${productProducer ? ` від ${productProducer}` : ""}${productArticle ? `, артикул ${productArticle}` : ""}.`,
+    categoryLabel ? `Категорія: ${categoryLabel}.` : null,
+    resolvedCode ? `Код товару: ${resolvedCode}.` : null,
+    "Доставка по Україні, підбір за кодом, артикулом і VIN в PartsON.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const normalizedName = seoVisibleProductName.toLowerCase();
+  const seoNameParts = normalizedName
+    .split(/\s+/)
+    .map((part) => part.replace(/[^\p{L}\p{N}-]+/gu, "").trim())
+    .filter((part) => part.length >= 3)
+    .slice(0, 8);
   const keywords = Array.from(
     new Set(
       [
-        resolvedVisibleProductName,
-        product?.producer,
-        product?.article,
-        buildVisibleProductName(product?.subGroup || ""),
-        buildVisibleProductName(product?.group || product?.category || ""),
-        fallbackCode,
+        seoVisibleProductName,
+        resolvedCode,
+        productArticle,
+        productProducer,
+        categoryLabel,
+        resolvedCode ? `${seoVisibleProductName} ${resolvedCode}` : null,
+        productArticle ? `${seoVisibleProductName} ${productArticle}` : null,
+        productProducer ? `${seoVisibleProductName} ${productProducer}` : null,
+        categoryLabel ? `купити ${seoVisibleProductName} ${categoryLabel}` : null,
+        productArticle ? `${productArticle} купити` : null,
+        resolvedCode ? `${resolvedCode} купити` : null,
+        resolvedCode ? `${resolvedCode} ціна` : null,
+        categoryLabel ? `${categoryLabel} купити` : null,
+        categoryLabel ? `${categoryLabel} ціна` : null,
+        productProducer ? `${productProducer} запчастини` : null,
+        productProducer ? `${productProducer} купити` : null,
+        productArticle ? `${productArticle} PartsON` : null,
+        resolvedCode ? `${resolvedCode} PartsON` : null,
         "автозапчастини",
         "купити автозапчастини",
         "каталог автозапчастин",
+        "ціна автозапчастин",
+        "наявність автозапчастин",
+        "підбір запчастин за кодом",
+        "запчастини за артикулом",
         "PartsON",
+        ...seoNameParts,
       ]
         .map((entry) => (entry || "").trim())
         .filter(Boolean)
@@ -761,21 +1034,28 @@ export async function generateMetadata({
     openGraph: {
       type: "website",
       url: canonicalPath,
-      title: `${seoTitle} | PartsON`,
+      title: seoTitle,
       description,
-      images: [{ url: productImageUrl, alt: `Фото товару ${resolvedVisibleProductName}` }],
+      images: [{
+        url: productImageUrl,
+        alt: `Фото товару ${seoVisibleProductName}`,
+        width: 1200,
+        height: 1200,
+      }],
+      siteName: "PartsON",
+      locale: "uk_UA",
     },
     twitter: {
       card: "summary_large_image",
-      title: `${seoTitle} | PartsON`,
+      title: seoTitle,
       description,
       images: [productImageUrl],
     },
     robots: {
-      index: !isModalView,
+      index: shouldIndexProduct,
       follow: true,
       googleBot: {
-        index: !isModalView,
+        index: shouldIndexProduct,
         follow: true,
         "max-image-preview": "large",
         "max-snippet": -1,
@@ -787,13 +1067,30 @@ export async function generateMetadata({
 
 export default async function ProductPage({ params, searchParams }: ProductPageProps) {
   const { code: rawCode } = await params;
-  const { code: resolvedCode, isSeoRoute } = await resolveProductCodeFromRouteParam(
-    rawCode || ""
+  const fallbackCodeFromRoute = extractProductCodeFromParam(rawCode || "");
+  const routeData = await resolveWithTimeout(
+    () => getResolvedProductRouteData(rawCode || ""),
+    {
+      code: fallbackCodeFromRoute,
+      isSeoRoute: false,
+      product: null,
+    },
+    PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS
   );
+  const resolvedCode = (routeData.code || fallbackCodeFromRoute || "").trim();
+  const isSeoRoute = routeData.isSeoRoute;
+  const product = routeData.product
+    ? routeData.product
+    : resolvedCode
+      ? await resolveWithTimeout(
+          () => getCatalogProduct(resolvedCode),
+          null,
+          PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
+        )
+      : null;
   if (!resolvedCode) notFound();
 
-  const [product, normalizedSearchParams] = await Promise.all([
-    getCatalogProduct(resolvedCode),
+  const [normalizedSearchParams] = await Promise.all([
     searchParams ?? Promise.resolve({} as ProductPageSearchParams),
   ]);
   if (!product) notFound();
@@ -823,19 +1120,21 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     : Array.from(
         new Set([product.article.trim(), product.code.trim(), resolvedCode].filter(Boolean))
       );
-  const initialPriceUahPromise =
-    typeof product.priceEuro === "number" &&
-    Number.isFinite(product.priceEuro) &&
-    product.priceEuro > 0
-      ? resolveWithTimeout(() => fetchEuroRate(), 50, 180).then((rate) =>
-          toPriceUah(product.priceEuro ?? null, rate)
-        )
-      : Promise.resolve<number | null>(null);
-  const initialPriceUah = await initialPriceUahPromise;
+  const productSeoPrice = await resolveProductSeoPrice(
+    product.priceEuro ?? null,
+    lookupKeys.join("\n")
+  );
+  const initialPriceUah = productSeoPrice.priceUah;
+  const shouldEmitProductStructuredData = !isModalView && initialPriceUah != null;
   const productCategory = (product.category || "").trim();
   const productGroup = (product.group || productCategory || "").trim();
   const productSubgroup = (product.subGroup || "").trim();
-  const visibleProductName = buildVisibleProductName(product.name);
+  const visibleProductName = buildPureProductName(product.name, {
+    producer: product.producer,
+    article: product.article,
+    group: productGroup,
+    subGroup: productSubgroup,
+  });
   const visibleProductGroup = buildVisibleProductName(productGroup);
   const visibleProductSubgroup = buildVisibleProductName(productSubgroup);
   const fallbackDescription = buildProductFallbackDescription({
@@ -868,14 +1167,15 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           );
         }
 
-        return buildGroupPath(productGroup);
+        const path = buildGroupPath(productGroup);
+        return path !== "/groups" ? path : buildCatalogCategoryPath(productGroup);
       })()
     : null;
   const producerLandingPath = product.producer
     ? buildManufacturerPath(product.producer)
     : null;
   const categoryCatalogPath = productSubgroup
-    ? buildCatalogCategoryPath(productGroup || productSubgroup, productSubgroup)
+    ? buildCatalogCategoryPath(productSubgroup)
     : productGroup
       ? buildCatalogCategoryPath(productGroup)
       : "/katalog";
@@ -883,26 +1183,33 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     ? buildCatalogProducerPath(product.producer, productGroup || undefined)
     : null;
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
-  const productImagePath = getProductImagePath(
-    product.code || resolvedCode,
-    product.article
-  );
-  const fallbackImagePath = PRODUCT_IMAGE_FALLBACK_PATH;
-  const productImageUrl = `${siteUrl}${productImagePath}`;
-  const jsonLd = buildProductJsonLd({
-    name: product.name,
-    visibleName: visibleProductName,
-    description: schemaDescription,
-    code: product.code,
-    article: product.article,
-    producer: product.producer,
-    group: productGroup,
-    subGroup: productSubgroup,
-    quantity: product.quantity,
-    priceUah: null,
-    canonicalUrl,
-    imageUrls: [productImageUrl],
-  });
+  const fallbackImagePath = PRODUCT_PAGE_LOGO_FALLBACK_PATH;
+  const productHasKnownPhoto = product.hasPhoto !== false;
+  const productFullImagePath = productHasKnownPhoto
+    ? getProductImagePath(product.code || resolvedCode, product.article)
+    : PRODUCT_PAGE_LOGO_FALLBACK_PATH;
+  const productDisplayImagePath = productHasKnownPhoto
+    ? buildProductImagePath(product.code || resolvedCode, product.article, {
+        catalog: true,
+      })
+    : PRODUCT_PAGE_LOGO_FALLBACK_PATH;
+  const productImageUrl = `${siteUrl}${productFullImagePath}`;
+  const jsonLd = shouldEmitProductStructuredData
+    ? buildProductJsonLd({
+        name: product.name,
+        visibleName: visibleProductName,
+        description: schemaDescription,
+        code: product.code,
+        article: product.article,
+        producer: product.producer,
+        group: productGroup,
+        subGroup: productSubgroup,
+        quantity: product.quantity,
+        priceUah: initialPriceUah,
+        canonicalUrl,
+        imageUrls: [productImageUrl],
+      })
+    : null;
   const itemPageJsonLd = buildProductItemPageJsonLd({
     siteUrl,
     canonicalUrl,
@@ -926,7 +1233,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     producer: product.producer,
     group: productGroup,
     subGroup: productSubgroup,
-    hasPrice: false,
+    hasPrice: initialPriceUah != null,
     quantity: product.quantity,
   });
   const contentGridClass = isModalView
@@ -957,17 +1264,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       ? { href: categoryCatalogPath, label: visibleProductSubgroup }
       : null,
   ].filter(Boolean) as Array<{ href: string; label: string }>;
-  const productMetaItems = [
-    {
-      label: "Виробник",
-      value: product.producer || "Без бренду",
-      href: producerLandingPath,
-    },
-    {
-      label: "Категорія",
-      value: visibleProductSubgroup || visibleProductGroup || "Автозапчастини",
-      href: categoryCatalogPath,
-    },
+  const productMetaItems: Array<{ label: string; value: string; href?: string | null }> = [
     {
       label: "Артикул",
       value: product.article || "-",
@@ -976,14 +1273,25 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       label: "Код товару",
       value: product.code || resolvedCode,
     },
+    {
+      label: "Виробник",
+      value: product.producer || "-",
+      href: product.producer ? producerLandingPath : null,
+    },
   ];
-  const keywordButtonHref = producerCatalogPath || categoryCatalogPath || "/katalog";
+  const keywordButtonHref =
+    producerLandingPath || producerCatalogPath || categoryCatalogPath || "/katalog";
   const keywordButtonLabel = producerCatalogPath
     ? `Більше від ${product.producer}`
     : visibleProductSubgroup || visibleProductGroup
       ? `До категорії ${visibleProductSubgroup || visibleProductGroup}`
       : "До каталогу";
-  const productHeadingText = visibleProductName;
+  const productHeadingText = buildFrontendProductHeading(product.name, {
+    producer: product.producer,
+    article: product.article,
+    group: productGroup,
+    subGroup: productSubgroup,
+  });
   const keywordPhrases = Array.from(
     new Set(
       [
@@ -1037,6 +1345,12 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       className={isModalView ? "min-h-screen select-none bg-white text-slate-900" : "min-h-screen select-none text-slate-900"}
       style={isModalView ? undefined : pageBackground}
     >
+      <link
+        rel="preload"
+        as="image"
+        href={productDisplayImagePath}
+        fetchPriority="high"
+      />
       <div
         className={
           isModalView
@@ -1112,14 +1426,17 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <section className="space-y-2.5 xl:sticky xl:top-[calc(var(--header-height,4rem)+0.9rem)]">
               <div className="overflow-hidden rounded-[20px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-2 shadow-[0_18px_38px_rgba(15,23,42,0.08)] sm:rounded-[24px] sm:p-2.5">
                 <ProductImageWithFallback
-                  src={productImagePath}
+                  src={productDisplayImagePath}
                   fallbackSrc={fallbackImagePath}
                   alt={`Фото товару ${product.name}`}
                   width={640}
                   height={640}
                   loading="eager"
-                  decoding="async"
+                  decoding="sync"
                   fetchPriority="high"
+                  zoomEnabled={false}
+                  productCode={product.code || resolvedCode}
+                  articleHint={product.article}
                   className={productImageClass}
                 />
               </div>
@@ -1149,7 +1466,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               />
 
               {!isModalView && (
-                <ProductRelatedItemsClientSection product={product} />
+                <Suspense fallback={<ProductRelatedItemsFallback />}>
+                  <ProductRelatedItemsSection product={product} />
+                </Suspense>
               )}
             </section>
           </div>

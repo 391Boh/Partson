@@ -27,6 +27,7 @@ type InitialCatalogPagePayload = {
   images?: Record<string, string>;
   hasMore?: boolean;
   nextCursor?: string;
+  cursorField?: string;
   serviceUnavailable?: boolean;
   message?: string;
 };
@@ -43,41 +44,14 @@ const SESSION_KEYS = {
 const FILTER_TOP_GAP = 14;
 const FILTER_RESULTS_GAP = 32;
 
-const CatalogGridLoading = () => (
-  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
-    {Array.from({ length: 8 }).map((_, index) => (
-      <div
-        key={`catalog-grid-loading-${index}`}
-        className="rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)]"
-      >
-        <div className="h-28 animate-pulse rounded-[16px] bg-slate-100/90" />
-        <div className="mt-3 h-3 w-2/3 animate-pulse rounded-full bg-slate-200/80" />
-        <div className="mt-2 h-3 w-1/2 animate-pulse rounded-full bg-slate-100/90" />
-        <div className="mt-4 h-10 animate-pulse rounded-[14px] border border-slate-200/75 bg-slate-100/80" />
-      </div>
-    ))}
-  </div>
-);
-
 const CatalogFilterLoading = () => (
-  <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.06)] sm:p-5">
-    <div className="flex items-center gap-4">
-      <div className="h-9 w-9 shrink-0 animate-pulse rounded-full border border-sky-100 bg-sky-50" />
-      <div className="min-w-0">
-        <div className="h-3 w-24 animate-pulse rounded-full bg-sky-100/90" />
-        <div className="mt-2 h-3 w-40 animate-pulse rounded-full bg-slate-100/90" />
-      </div>
-    </div>
-    <div className="mt-5 space-y-3">
-      <div className="h-36 animate-pulse rounded-[18px] border border-slate-200/80 bg-slate-100/85" />
-      <div className="grid gap-2 sm:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div
-            key={`catalog-filter-loading-${index}`}
-            className="h-[58px] animate-pulse rounded-[16px] border border-slate-200/80 bg-slate-100/80"
-          />
-        ))}
-      </div>
+  <div
+    className="rounded-[18px] border border-slate-200/80 bg-white/95 px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.05)]"
+    role="status"
+    aria-label="Завантаження фільтрів каталогу"
+  >
+    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+      <div className="h-full w-1/3 animate-pulse rounded-full bg-sky-500" />
     </div>
   </div>
 );

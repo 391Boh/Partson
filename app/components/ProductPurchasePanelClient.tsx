@@ -214,7 +214,7 @@ export default function ProductPurchasePanelClient(
   const isLoading = priceUah === undefined;
   const hasPrice = typeof priceUah === "number" && Number.isFinite(priceUah) && priceUah > 0;
   const helperText = isLoading
-    ? "Показуємо актуальну ціну та кнопку замовлення."
+    ? "Уточнюємо актуальну ціну. Запит менеджеру вже доступний."
     : hasPrice
       ? "Замовлення доступне одразу зі сторінки."
       : "Надішліть запит менеджеру для уточнення ціни.";
@@ -245,19 +245,15 @@ export default function ProductPurchasePanelClient(
       <p className="mt-2.5 text-[12px] leading-5 text-slate-200">{helperText}</p>
 
       <div className="mt-2.5 flex items-center gap-2">
-        {isLoading ? (
-          <div className="h-12 w-full animate-pulse rounded-2xl bg-white/12" aria-hidden="true" />
-        ) : (
-          <ProductPageActions
-            code={product.code || resolvedCode}
-            article={product.article}
-            name={product.name}
-            producer={product.producer}
-            priceUah={priceUah ?? null}
-            quantity={product.quantity}
-            compact
-          />
-        )}
+        <ProductPageActions
+          code={product.code || resolvedCode}
+          article={product.article}
+          name={product.name}
+          producer={product.producer}
+          priceUah={priceUah ?? null}
+          quantity={product.quantity}
+          compact
+        />
       </div>
     </div>
   );

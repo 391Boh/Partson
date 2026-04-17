@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { FC, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -285,6 +285,12 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   }, []);
   const [categoryResetSignal, setCategoryResetSignal] = useState(0);
   const [producerSearchTerm, setProducerSearchTerm] = useState('');
+  const deferredProducerSearchTerm = useDeferredValue(producerSearchTerm);
+  const filteredProducerBrands = useMemo(() => {
+    const query = deferredProducerSearchTerm.trim().toLowerCase();
+    if (!query) return brands;
+    return brands.filter((brand) => brand.name.toLowerCase().includes(query));
+  }, [deferredProducerSearchTerm]);
 
   useEffect(() => {
     if (tabParam === 'category' || tabParam === 'auto' || tabParam === 'producer') {
@@ -457,7 +463,14 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
         const delta = Math.abs(nextScrollY - lastKnownScrollY);
         lastKnownScrollY = nextScrollY;
 
+        const activeElement = document.activeElement as HTMLElement | null;
+        const isEditingField =
+          activeElement != null &&
+          (activeElement.matches("input, textarea, select, [contenteditable='true']") ||
+            activeElement.closest("[data-search='true']") != null);
+
         if (collapsed) return;
+        if (isEditingField) return;
         if (nextScrollY < 20) return;
         if (delta < 12) return;
 
@@ -664,11 +677,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             </div>
             <div className="catalog-filter-scroll overflow-x-auto overflow-y-hidden rounded-lg border border-white/72 bg-white/62 px-3 py-2 pb-3 pr-2 backdrop-blur-xl">
               <div className="grid min-w-max grid-flow-col grid-rows-2 gap-3">
-                {brands
-                  .filter((b) =>
-                    b.name.toLowerCase().includes(producerSearchTerm.toLowerCase())
-                  )
-                  .map((b) => (
+                {filteredProducerBrands.map((b) => (
                     <button
                       key={b.name}
                       type="button"

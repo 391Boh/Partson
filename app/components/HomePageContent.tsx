@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import Hero from "./hero";
 import { auth } from "../../firebase";
 
@@ -20,7 +20,6 @@ const HomeDeferredStackPlaceholder = () => (
 
 export default function HomePageContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [HomeDeferredStackComponent, setHomeDeferredStackComponent] =
     useState<ComponentType | null>(null);
   const [shouldLoadDeferredHome, setShouldLoadDeferredHome] = useState(false);
@@ -28,10 +27,8 @@ export default function HomePageContent() {
 
   useEffect(() => {
     setIsAuthenticated(Boolean(auth.currentUser));
-    setUser(auth.currentUser);
     const unsubscribe = onAuthStateChanged(auth, (authUser) => {
       setIsAuthenticated(Boolean(authUser));
-      setUser(authUser);
     });
     return () => unsubscribe();
   }, []);

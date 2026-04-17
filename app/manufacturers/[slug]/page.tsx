@@ -2,7 +2,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound, permanentRedirect } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import { brands } from "app/components/brandsData";
@@ -17,13 +17,16 @@ import {
 } from "app/lib/brand-logo";
 import {
   findSeoProducerBySlug,
-  getCatalogSeoFacets,
 } from "app/lib/catalog-seo";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { buildSeoSlug } from "app/lib/seo-slug";
+import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 21600;
+export const dynamicParams = true;
+const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 96;
+const MANUFACTURER_FACET_LOOKUP_TIMEOUT_MS = 900;
 
 interface ManufacturerPageParams {
   slug: string;
@@ -31,6 +34,7 @@ interface ManufacturerPageParams {
 
 interface ManufacturerPageProps {
   params: Promise<ManufacturerPageParams>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 type ManufacturerPageData = {
@@ -55,6 +59,21 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
 
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
+
+const decodeSafe = (value: string) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const pickFirstSearchParamValue = (
+  value: string | string[] | undefined
+) => (Array.isArray(value) ? value[0] || "" : value || "");
+
+const buildProducerFallbackLabelFromSlug = (slug: string) =>
+  normalizeValue(decodeSafe(slug).replace(/-/g, " "));
 
 const buildManufacturerTitle = (label: string) =>
   `${normalizeValue(label)} - виробник автозапчастин`;
@@ -92,36 +111,62 @@ const findBrandMeta = (label: string) => {
 
 const getManufacturerBySlug = cache(
   async (slug: string): Promise<ManufacturerPageData | null> => {
-    const producer = await findSeoProducerBySlug(slug);
-    if (!producer) return null;
+    const fallbackBrand =
+      brands.find((brand) => buildSeoSlug(brand.name) === slug) || null;
+    const producer = fallbackBrand
+      ? null
+      : await resolveWithTimeout(
+          () => findSeoProducerBySlug(slug),
+          null,
+          MANUFACTURER_FACET_LOOKUP_TIMEOUT_MS
+        );
+    if (!producer && !fallbackBrand) return null;
 
-    const brandMeta = findBrandMeta(producer.label);
+    const label = producer?.label || fallbackBrand?.name || "";
+    const canonicalSlug =
+      producer?.slug || (fallbackBrand ? buildSeoSlug(fallbackBrand.name) : "");
+    if (!label || !canonicalSlug) return null;
+
+    const brandMeta = findBrandMeta(label);
     const logoMap = await getBrandLogoMap().catch(() => new Map<string, string>());
-    const logoPath = resolveProducerLogo(producer.label, logoMap) || brandMeta?.logo || null;
+    const logoPath =
+      resolveProducerLogo(label, logoMap) ||
+      brandMeta?.logo ||
+      fallbackBrand?.logo ||
+      null;
     const description =
       brandMeta?.description ||
-      `Сторінка бренду ${producer.label} з переходом у каталог PartsON, добіркою популярних груп і швидким доступом до товарів виробника.`;
+      fallbackBrand?.description ||
+      `Сторінка бренду ${label} з переходом у каталог PartsON, добіркою популярних груп і швидким доступом до товарів виробника.`;
 
     return {
-      label: producer.label,
-      slug: producer.slug,
+      label,
+      slug: canonicalSlug,
       description,
       logoPath,
-      initials: getProducerInitials(producer.label),
-      productCount: producer.productCount,
-      topGroups: producer.topGroups,
+      initials: getProducerInitials(label),
+      productCount: producer?.productCount ?? 0,
+      topGroups: producer?.topGroups ?? [],
     };
   }
 );
 
 export async function generateStaticParams() {
-  try {
-    const facets = await getCatalogSeoFacets();
-    const limit = parsePositiveInt(process.env.SEO_MANUFACTURER_STATIC_PARAMS_LIMIT, 4000);
-    return facets.producers.slice(0, limit).map((producer) => ({ slug: producer.slug }));
-  } catch {
-    return [];
-  }
+  const fromBrands = brands.map((brand) => ({ slug: buildSeoSlug(brand.name) }));
+  const limit = parsePositiveInt(
+    process.env.SEO_MANUFACTURER_STATIC_PARAMS_LIMIT,
+    MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT
+  );
+  const seen = new Set<string>();
+
+  return fromBrands
+    .filter((entry) => {
+      const normalizedSlug = (entry.slug || "").trim();
+      if (!normalizedSlug || seen.has(normalizedSlug)) return false;
+      seen.add(normalizedSlug);
+      return true;
+    })
+    .slice(0, limit);
 }
 
 export async function generateMetadata({
@@ -156,6 +201,8 @@ export async function generateMetadata({
       `${producer.label} автозапчастини`,
       `каталог ${producer.label}`,
       `купити ${producer.label}`,
+      "автозапчастини львів",
+      "магазин запчастин",
       "виробники автозапчастин",
     ],
     openGraphTitle: `${title} | PartsON`,
@@ -168,11 +215,23 @@ export async function generateMetadata({
 
 export default async function ManufacturerDetailPage({
   params,
+  searchParams,
 }: ManufacturerPageProps) {
   const { slug } = await params;
+  const resolvedSearchParams = await (
+    searchParams ?? Promise.resolve({} as Record<string, string | string[] | undefined>)
+  );
   const producer = await getManufacturerBySlug(slug);
 
-  if (!producer) notFound();
+  if (!producer) {
+    const producerHint = normalizeValue(
+      pickFirstSearchParamValue(resolvedSearchParams.producer)
+    );
+    const fallbackProducer =
+      producerHint || buildProducerFallbackLabelFromSlug(slug);
+
+    permanentRedirect(buildCatalogProducerPath(fallbackProducer));
+  }
   if (slug !== producer.slug) {
     permanentRedirect(buildManufacturerPath(producer.slug));
   }

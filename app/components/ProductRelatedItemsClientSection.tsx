@@ -34,9 +34,11 @@ type ProductRelatedItemsClientSectionProps = {
 const formatStockLabel = (quantity: number) =>
   quantity > 0 ? `В наявності ${quantity} шт.` : "Під замовлення";
 
-const RELATED_ITEMS_CACHE_PREFIX = "partson:v3:product-related:";
+const RELATED_ITEMS_CACHE_PREFIX = "partson:v4:product-related:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
-const RELATED_IMAGE_PREFETCH_LIMIT = 12;
+const RELATED_IMAGE_PREFETCH_LIMIT = 6;
+const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1100;
+const RELATED_IMAGE_DEEP_RECOVERY_DELAY_MS = 550;
 
 const buildDirectProductPath = (item: RelatedItem) => {
   const productCode = (item.code || item.article || "").trim();
@@ -191,12 +193,17 @@ export default function ProductRelatedItemsClientSection({
     }
 
     let cancelled = false;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, RELATED_ITEMS_REQUEST_TIMEOUT_MS);
 
     const loadItems = async () => {
       try {
         const response = await fetch(requestUrl, {
           method: "GET",
           headers: { Accept: "application/json" },
+          signal: controller.signal,
         });
         const payload = (await response.json()) as { items?: RelatedItem[] };
         if (cancelled) return;
@@ -213,6 +220,8 @@ export default function ProductRelatedItemsClientSection({
 
     return () => {
       cancelled = true;
+      controller.abort();
+      window.clearTimeout(timeoutId);
     };
   }, [cacheKey, normalizedInitialItems, requestUrl]);
 
@@ -245,7 +254,7 @@ export default function ProductRelatedItemsClientSection({
     }
 
     const cachedMap: RelatedImageMap = {};
-    const pendingItems: Array<{ code: string; article?: string }> = [];
+    const pendingItems: Array<{ key: string; code: string; article?: string }> = [];
 
     for (const request of imageRequests) {
       const cachedSrc = readProductImageSuccess(request.code, request.article);
@@ -259,7 +268,11 @@ export default function ProductRelatedItemsClientSection({
         continue;
       }
 
-      pendingItems.push({ code: request.code, article: request.article });
+      pendingItems.push({
+        key: request.key,
+        code: request.code,
+        article: request.article,
+      });
     }
 
     setImageMap(cachedMap);
@@ -271,16 +284,90 @@ export default function ProductRelatedItemsClientSection({
 
     const loadImages = async () => {
       try {
-        const results = await fetchCatalogImageBatch(pendingItems, {
+        const requestPayload = pendingItems.map((item) => ({
+          code: item.code,
+          article: item.article,
+        }));
+        const results = await fetchCatalogImageBatch(requestPayload, {
           signal: controller.signal,
         });
         if (cancelled) return;
 
+        const unresolvedItems = new Map(pendingItems.map((item) => [item.key, item]));
+        const readyImages: RelatedImageMap = {};
+        for (const result of results) {
+          if (!result.key) continue;
+          if (result.status === "ready" && result.src) {
+            readyImages[result.key] = result.src;
+            unresolvedItems.delete(result.key);
+          }
+        }
+
+        setImageMap((current) => {
+          if (Object.keys(readyImages).length === 0) return current;
+          return { ...current, ...readyImages };
+        });
+
+        const deepRecoveryItems = Array.from(unresolvedItems.values()).filter((item) =>
+          Boolean((item.article || "").trim())
+        );
+
+        if (deepRecoveryItems.length === 0) {
+          setImageMap((current) => {
+            const nextMap: RelatedImageMap = { ...current };
+            for (const item of unresolvedItems.values()) {
+              nextMap[item.key] = null;
+            }
+            return nextMap;
+          });
+          return;
+        }
+
+        await new Promise<void>((resolve) => {
+          const timerId = window.setTimeout(
+            resolve,
+            RELATED_IMAGE_DEEP_RECOVERY_DELAY_MS
+          );
+          controller.signal.addEventListener(
+            "abort",
+            () => {
+              window.clearTimeout(timerId);
+              resolve();
+            },
+            { once: true }
+          );
+        });
+        if (cancelled) return;
+
+        const deepResults = await fetchCatalogImageBatch(
+          deepRecoveryItems.map((item) => ({
+            code: item.code,
+            article: item.article,
+          })),
+          {
+            deep: true,
+            signal: controller.signal,
+          }
+        ).catch(() => []);
+        if (cancelled) return;
+
+        const recoveredKeys = new Set<string>();
         setImageMap((current) => {
           const nextMap: RelatedImageMap = { ...current };
-          for (const result of results) {
-            nextMap[result.key] = result.status === "ready" && result.src ? result.src : null;
+          for (const result of deepResults) {
+            if (!result.key) continue;
+            if (result.status === "ready" && result.src) {
+              nextMap[result.key] = result.src;
+              recoveredKeys.add(result.key);
+            }
           }
+
+          for (const item of unresolvedItems.values()) {
+            if (!recoveredKeys.has(item.key)) {
+              nextMap[item.key] = null;
+            }
+          }
+
           return nextMap;
         });
       } catch {

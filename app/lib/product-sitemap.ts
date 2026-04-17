@@ -64,6 +64,7 @@ export type ProductSitemapEntry = {
   group?: string;
   subGroup?: string;
   category?: string;
+  hasPhoto?: boolean;
 };
 
 const normalizeProductCodes = (codes: string[]) => {
@@ -108,6 +109,7 @@ const toProductSitemapEntry = (product: CatalogProduct): ProductSitemapEntry | n
     group: product.group,
     subGroup: product.subGroup,
     category: product.category,
+    hasPhoto: product.hasPhoto,
   };
 };
 
@@ -228,7 +230,7 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
 const getProductSitemapEntryBatchesWithCache = unstable_cache(
   buildProductSitemapEntryBatches,
   [
-    `product-sitemap-entries-v18-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_BATCHES ?? "all"}-${PRODUCT_SITEMAP_QUERY_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ?? "none"}-${PRODUCT_SITEMAP_MAX_SOURCE_PAGES ?? "all"}`,
+    `product-sitemap-entries-v19-priced-canonical-images-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_BATCHES ?? "all"}-${PRODUCT_SITEMAP_QUERY_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ?? "none"}-${PRODUCT_SITEMAP_MAX_SOURCE_PAGES ?? "all"}`,
   ],
   {
     revalidate: 60 * 60,

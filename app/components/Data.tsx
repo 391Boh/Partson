@@ -49,7 +49,7 @@ export interface Product {
 
 // --- Constants ---
 // Keep pages small to avoid overloading 1C and shorten perceived waits.
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
 const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v4";
@@ -60,19 +60,26 @@ const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
 const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 45;
 const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 20;
-const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 45;
-const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60;
+const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 90;
+const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
-const IMAGE_PRIORITY_ITEMS_COUNT = 8;
-const IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT = Math.min(ITEMS_PER_PAGE, 6);
-const IMAGE_DEEP_RECOVERY_BATCH_COUNT = Math.min(ITEMS_PER_PAGE, 6);
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = Math.min(ITEMS_PER_PAGE, 8);
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 850;
+const IMAGE_PRIORITY_ITEMS_COUNT = 6;
+const IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT = 8;
+const IMAGE_DEEP_RECOVERY_BATCH_COUNT = ITEMS_PER_PAGE;
+const IMAGE_DEEP_RECOVERY_DELAY_MS = 650;
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 8;
 const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = ITEMS_PER_PAGE * 2;
-const LOAD_MORE_SCROLL_BUFFER_PX = 980;
-const LOAD_MORE_OBSERVER_ROOT_MARGIN = "0px 0px 1100px 0px";
-const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 220;
-const INITIAL_SKELETON_COUNT = ITEMS_PER_PAGE;
-const APPEND_SKELETON_COUNT = 4;
+const LOAD_MORE_SCROLL_BUFFER_PX = 560;
+const LOAD_MORE_OBSERVER_ROOT_MARGIN = "0px 0px 700px 0px";
+const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 120;
+// Temporary safety fallback: virtualization is disabled until deep-scroll
+// range calculations are fully stabilized across all desktop zoom/layout modes.
+const VIRTUAL_WINDOW_THRESHOLD_ITEMS = 1000000;
+const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
+const VIRTUAL_OVERSCAN_ROWS = 6;
+const SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT = 1;
+const SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS = 420;
 const DEFAULT_EURO_RATE = 50;
 const EURO_RATE_CACHE_KEY = "partson:v1:euro-rate";
 const EURO_RATE_CACHE_TTL_MS = 1000 * 60 * 30;
@@ -192,6 +199,20 @@ const readFirstBoolean = (
     }
   }
   return fallback;
+};
+
+const sanitizeUiErrorMessage = (value: string | null | undefined) => {
+  const raw = (value || "").trim();
+  if (!raw) return "";
+
+  const looksLikeHtml =
+    /<\s*html|<\s*!doctype|<\s*script|<\s*meta|<\s*body/i.test(raw);
+  if (looksLikeHtml) return "";
+
+  const stripped = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  if (!stripped) return "";
+
+  return stripped.length > 220 ? `${stripped.slice(0, 220)}...` : stripped;
 };
 
 const toPriceUAH = (euro: number | null | undefined, euroRate: number) => {
@@ -424,42 +445,23 @@ const mergeUniqueProducts = (current: Product[], incoming: Product[]) => {
 const CATALOG_GRID_CLASS =
   "mx-auto mt-2 grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4";
 
-const CatalogSkeletonCard = () => (
-  <div className="relative h-[320px] overflow-hidden rounded-xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-2.5 shadow-sm">
-    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.08),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(148,163,184,0.08),transparent_36%)]" />
-    <div className="relative flex h-full flex-col">
-      <div className="mb-2 flex h-20 w-full gap-2 rounded-xl border border-slate-200/70 bg-white/70 p-1.5">
-        <div className="h-full w-2/5 animate-pulse rounded-lg bg-slate-200" />
-        <div className="flex w-3/5 flex-col justify-center gap-2">
-          <div className="h-4 w-full animate-pulse rounded-full bg-slate-200" />
-          <div className="h-4 w-4/5 animate-pulse rounded-full bg-slate-200/90" />
-          <div className="h-4 w-2/3 animate-pulse rounded-full bg-slate-200/80" />
-        </div>
-      </div>
-
-      <div className="mt-3 flex flex-col gap-2">
-        <div className="h-3 w-4/5 animate-pulse rounded-full bg-slate-200/85" />
-        <div className="h-3 w-3/4 animate-pulse rounded-full bg-slate-200/85" />
-        <div className="h-3 w-2/3 animate-pulse rounded-full bg-slate-200/80" />
-      </div>
-
-      <div className="mt-5 flex justify-end">
-        <div className="flex min-h-[36px] min-w-[156px] items-center justify-between gap-2 rounded-full border border-sky-100 bg-white/85 px-3 py-1 shadow-sm">
-          <div className="h-3 w-10 animate-pulse rounded-full bg-slate-200/80" />
-          <div className="h-4 w-20 animate-pulse rounded-full bg-sky-100" />
-        </div>
-      </div>
-
-      <div className="mt-auto flex items-end justify-between gap-3 border-t border-slate-200 pt-3">
-        <div className="space-y-2">
-          <div className="h-3 w-24 animate-pulse rounded-full bg-slate-200/85" />
-          <div className="h-8 w-24 animate-pulse rounded-full bg-slate-200" />
-        </div>
-        <div className="flex gap-2">
-          <div className="h-10 w-10 animate-pulse rounded-xl bg-slate-200/90" />
-          <div className="h-10 w-10 animate-pulse rounded-xl bg-sky-100" />
-        </div>
-      </div>
+const CatalogTransitionLoader = ({
+  label = "Оновлюю каталог",
+  compact = false,
+}: {
+  label?: string;
+  compact?: boolean;
+}) => (
+  <div
+    className={`col-span-full flex w-full items-center justify-center ${
+      compact ? "min-h-12" : "min-h-24"
+    }`}
+    role="status"
+    aria-label={label}
+  >
+    <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white/95 px-4 py-2 text-sm font-semibold text-slate-600 shadow-[0_10px_22px_rgba(15,23,42,0.06)]">
+      <span className="h-3 w-3 animate-pulse rounded-full bg-sky-500" />
+      <span>{label}</span>
     </div>
   </div>
 );
@@ -470,6 +472,7 @@ type CatalogPagePayload = {
   images?: Record<string, string>;
   hasMore?: boolean;
   nextCursor?: string;
+  cursorField?: string;
   serviceUnavailable?: boolean;
   message?: string;
 };
@@ -734,10 +737,8 @@ function useCatalogData(params: {
     () => (hasUrlCategoryFilter ? [] : selectedCategories),
     [hasUrlCategoryFilter, selectedCategories]
   );
-  const effectiveServerSortOrder =
-    selectedCars.length === 0 ? sortOrder : "none";
-  const canUseCursorPagination =
-    selectedCars.length === 0 && sortOrder === "none";
+  const effectiveServerSortOrder = sortOrder;
+  const canUseCursorPagination = selectedCars.length === 0;
   const [data, setData] = useState<Product[]>([]);
   const [prices, setPrices] = useState<Record<string, number | null>>({});
   const [pageImages, setPageImages] = useState<Record<string, string>>({});
@@ -783,6 +784,7 @@ function useCatalogData(params: {
   const firstPageReadySignatureRef = useRef<string | null>(null);
   const pagingRequestedRef = useRef(false);
   const nextCursorByPageRef = useRef<Record<number, string>>({ 1: "" });
+  const nextCursorFieldByPageRef = useRef<Record<number, string>>({ 1: "" });
   const pricesRef = useRef<Record<string, number | null>>({});
   const pageImagesRef = useRef<Record<string, string>>({});
   const pageImagePendingRef = useRef<Record<string, true>>({});
@@ -1259,17 +1261,20 @@ function useCatalogData(params: {
             return;
           }
 
-          void fetchCatalogImageBatch(
-            deepRecoveryItems.map((item) => ({
-              code: item.code,
-              article: item.article,
-            })),
-            {
-              deep: true,
-              signal: options?.signal,
-            }
-          )
-            .then((deepResults) => {
+          const runDeepRecovery = () => {
+            if (options?.signal?.aborted) return;
+
+            void fetchCatalogImageBatch(
+              deepRecoveryItems.map((item) => ({
+                code: item.code,
+                article: item.article,
+              })),
+              {
+                deep: true,
+                signal: options?.signal,
+              }
+            )
+              .then((deepResults) => {
               if (
                 options?.querySignatureSnapshot &&
                 activeQuerySignatureRef.current !== options.querySignatureSnapshot
@@ -1304,6 +1309,9 @@ function useCatalogData(params: {
             .catch(() => {
               // Keep the fast missing placeholder when deep recovery fails.
             });
+          };
+
+          window.setTimeout(runDeepRecovery, IMAGE_DEEP_RECOVERY_DELAY_MS);
         })
         .catch((error) => {
           if (
@@ -1412,12 +1420,13 @@ function useCatalogData(params: {
 
   // РєР»СЋС‡ РєРµС€Сѓ
   const buildCacheKey = useCallback(
-    (pageNum: number, trimmed: string, cursor = "") =>
+    (pageNum: number, trimmed: string, cursor = "", cursorField = "") =>
       JSON.stringify({
         endpoint: CATALOG_PAGE_CACHE_VERSION,
         page: pageNum,
         limit: ITEMS_PER_PAGE,
         cursor,
+        cursorField,
         q: trimmed,
         filter: searchFilter,
         cars: selectedCars,
@@ -1439,8 +1448,13 @@ function useCatalogData(params: {
   );
 
   const fetchCatalogPagePayload = useCallback(
-    async (pageNum: number, signal?: AbortSignal, cursor = "") => {
-      const cacheKey = buildCacheKey(pageNum, normalizedSearch, cursor);
+    async (
+      pageNum: number,
+      signal?: AbortSignal,
+      cursor = "",
+      cursorField = ""
+    ) => {
+      const cacheKey = buildCacheKey(pageNum, normalizedSearch, cursor, cursorField);
       const existing = inFlightPageRequests.get(cacheKey);
       if (existing) {
         return await awaitWithAbortSignal(existing, signal);
@@ -1454,6 +1468,7 @@ function useCatalogData(params: {
             page: pageNum,
             limit: ITEMS_PER_PAGE,
             cursor,
+            cursorField,
             selectedCars,
             selectedCategories: effectiveSelectedCategories,
             searchQuery: normalizedSearch,
@@ -1471,6 +1486,7 @@ function useCatalogData(params: {
           images?: Record<string, string>;
           hasMore?: boolean;
           nextCursor?: string;
+          cursorField?: string;
           serviceUnavailable?: boolean;
           message?: string;
         };
@@ -1497,6 +1513,10 @@ function useCatalogData(params: {
           images: normalizePageImageMap(raw?.images),
           hasMore: normalizePageHasMore(raw?.hasMore, itemsArray.length),
           nextCursor: normalizePageCursor(raw?.nextCursor),
+          cursorField:
+            typeof raw?.cursorField === "string" && raw.cursorField.trim()
+              ? raw.cursorField.trim()
+              : undefined,
           serviceUnavailable: raw?.serviceUnavailable === true,
           message:
             typeof raw?.message === "string" && raw.message.trim()
@@ -1530,6 +1550,7 @@ function useCatalogData(params: {
     firstPageReadySignatureRef.current = null;
     pagingRequestedRef.current = false;
     nextCursorByPageRef.current = { 1: "" };
+    nextCursorFieldByPageRef.current = { 1: "" };
     priceLoadingKeysRef.current.clear();
     priceRetryCooldownUntilRef.current = {};
     setPage(1);
@@ -1538,9 +1559,7 @@ function useCatalogData(params: {
     setFlippedCard(null);
     setSelectedImage(null);
     setError(null);
-    setLoading(true);
     hideNextPageLoader(true);
-    setFilterLoading(true);
 
     const trimmed = normalizedSearch;
     if (typeof window !== "undefined") {
@@ -1574,6 +1593,7 @@ function useCatalogData(params: {
         });
         setData(mergeUniqueProducts([], memoryHit.items));
         nextCursorByPageRef.current[2] = memoryHit.nextCursor || "";
+        nextCursorFieldByPageRef.current[2] = memoryHit.cursorField || "";
         setHasMore(
           typeof memoryHit.hasMore === "boolean"
             ? memoryHit.hasMore
@@ -1607,6 +1627,7 @@ function useCatalogData(params: {
         });
         setData(mergeUniqueProducts([], sessionHit.items));
         nextCursorByPageRef.current[2] = sessionHit.nextCursor || "";
+        nextCursorFieldByPageRef.current[2] = sessionHit.cursorField || "";
         setHasMore(
           typeof sessionHit.hasMore === "boolean"
             ? sessionHit.hasMore
@@ -1620,7 +1641,15 @@ function useCatalogData(params: {
         hideNextPageLoader(true);
         return;
       }
+
+      // No immediate cache hit for this filter/query, so show transitional loading now.
+      setLoading(true);
+      setFilterLoading(true);
+      return;
     }
+
+    setLoading(true);
+    setFilterLoading(true);
     // Без cache показуємо чистий стан, щоб не змішувати товари старого та нового фільтра.
   }, [
     applyResolvedPagePrices,
@@ -1654,7 +1683,11 @@ function useCatalogData(params: {
       canUseCursorPagination && page > 1
         ? nextCursorByPageRef.current[page] ?? ""
         : "";
-    const cacheKey = buildCacheKey(page, trimmed, requestCursor);
+    const requestCursorField =
+      canUseCursorPagination && page > 1
+        ? nextCursorFieldByPageRef.current[page] ?? ""
+        : "";
+    const cacheKey = buildCacheKey(page, trimmed, requestCursor, requestCursorField);
 
     const applyCachedItems = (payload: CatalogPagePayload) => {
       const items = payload.items;
@@ -1670,6 +1703,7 @@ function useCatalogData(params: {
         page === 1 ? MEMORY_CACHE_TTL_MS_FIRST_PAGE : MEMORY_CACHE_TTL_MS_NEXT_PAGES;
       const uniqueIncoming = mergeUniqueProducts([], items);
       startTransition(() => {
+        let pageIntroducedNewItems = page === 1;
         if (payload.prices && Object.keys(payload.prices).length > 0) {
           setPrices((prev) => {
             let didChange = false;
@@ -1684,28 +1718,52 @@ function useCatalogData(params: {
             return didChange ? next : prev;
           });
         }
-        setPageImages((prev) =>
-          page === 1 ? { ...(payload.images ?? {}) } : { ...prev, ...(payload.images ?? {}) }
-        );
+        setPageImages((prev) => {
+          const incomingImages = payload.images ?? {};
+          if (page === 1) {
+            return Object.keys(incomingImages).length > 0
+              ? { ...prev, ...incomingImages }
+              : prev;
+          }
+
+          return { ...prev, ...incomingImages };
+        });
         setData((prev) => {
           const prevSafe = Array.isArray(prev) ? prev : [];
           if (page === 1) return uniqueIncoming;
-          return mergeUniqueProducts(prevSafe, uniqueIncoming);
+
+          const merged = mergeUniqueProducts(prevSafe, uniqueIncoming);
+          pageIntroducedNewItems = merged.length > prevSafe.length;
+          return merged;
         });
         if (payload.nextCursor) {
           nextCursorByPageRef.current[page + 1] = payload.nextCursor;
+          nextCursorFieldByPageRef.current[page + 1] = payload.cursorField || "";
         } else {
           delete nextCursorByPageRef.current[page + 1];
+          delete nextCursorFieldByPageRef.current[page + 1];
         }
         if (page === 1) {
           firstPageReadySignatureRef.current = currentQuerySignature;
         }
-        setHasMore(
+        const payloadHasMore =
           typeof payload.hasMore === "boolean"
             ? payload.hasMore
-            : items.length === ITEMS_PER_PAGE
+            : items.length === ITEMS_PER_PAGE;
+        const shouldStopPaginationOnDuplicatePage =
+          page > 1 &&
+          items.length > 0 &&
+          !pageIntroducedNewItems &&
+          !payload.nextCursor;
+
+        setHasMore(
+          shouldStopPaginationOnDuplicatePage ? false : payloadHasMore
         );
-        setError(payload.serviceUnavailable ? payload.message || "Каталог тимчасово недоступний." : null);
+        setError(
+          payload.serviceUnavailable
+            ? sanitizeUiErrorMessage(payload.message) || "Каталог тимчасово недоступний."
+            : null
+        );
         setHasLoadedOnce(true);
         setFilterLoading(false);
         setLoading(false);
@@ -1768,7 +1826,46 @@ function useCatalogData(params: {
 
       let payload: CatalogPagePayload = { items: [], prices: {}, images: {} };
       try {
-        payload = await fetchCatalogPagePayload(page, controller.signal, requestCursor);
+        payload = await fetchCatalogPagePayload(
+          page,
+          controller.signal,
+          requestCursor,
+          requestCursorField
+        );
+
+        const shouldSoftRetryServiceUnavailable =
+          page === 1 && payload.serviceUnavailable && payload.items.length === 0;
+        if (shouldSoftRetryServiceUnavailable) {
+          for (
+            let attempt = 1;
+            attempt <= SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT;
+            attempt += 1
+          ) {
+            const retryDelayMs = SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS * attempt;
+            await awaitWithAbortSignal(
+              new Promise<void>((resolve) => {
+                const timer = setTimeout(resolve, retryDelayMs);
+                if (controller.signal.aborted) {
+                  clearTimeout(timer);
+                  resolve();
+                }
+              }),
+              controller.signal
+            );
+
+            const retryPayload = await fetchCatalogPagePayload(
+              page,
+              controller.signal,
+              requestCursor,
+              requestCursorField
+            );
+            payload = retryPayload;
+
+            const stillUnavailable =
+              retryPayload.serviceUnavailable && retryPayload.items.length === 0;
+            if (!stillUnavailable) break;
+          }
+        }
       } catch (err) {
         if (cancelled) return;
         if (err instanceof Error && err.name === "AbortError") {
@@ -1837,7 +1934,9 @@ function useCatalogData(params: {
 
     const prefetchDepth =
       sortOrder === "none"
-        ? BACKGROUND_PAGE_PREFETCH_DEPTH
+        ? selectedCars.length === 0
+          ? BACKGROUND_PAGE_PREFETCH_DEPTH
+          : 1
         : selectedCars.length === 0
           ? 1
           : 0;
@@ -1849,20 +1948,31 @@ function useCatalogData(params: {
     const prefetchUpcomingPages = async () => {
       let upcomingCursor =
         canUseCursorPagination ? nextCursorByPageRef.current[page + 1] ?? "" : "";
+      let upcomingCursorField =
+        canUseCursorPagination ? nextCursorFieldByPageRef.current[page + 1] ?? "" : "";
 
       for (let depth = 1; depth <= prefetchDepth; depth += 1) {
         if (cancelled) return;
 
         const targetPage = page + depth;
         const targetCursor = canUseCursorPagination ? upcomingCursor : "";
+        const targetCursorField = canUseCursorPagination ? upcomingCursorField : "";
 
-        const targetCacheKey = buildCacheKey(targetPage, normalizedSearch, targetCursor);
+        const targetCacheKey = buildCacheKey(
+          targetPage,
+          normalizedSearch,
+          targetCursor,
+          targetCursorField
+        );
         const memoryHit = readPageFromMemory(targetCacheKey);
 
         if (memoryHit) {
           if (canUseCursorPagination && memoryHit.nextCursor) {
             nextCursorByPageRef.current[targetPage + 1] = memoryHit.nextCursor;
+            nextCursorFieldByPageRef.current[targetPage + 1] =
+              memoryHit.cursorField || "";
             upcomingCursor = memoryHit.nextCursor;
+            upcomingCursorField = memoryHit.cursorField || "";
           }
           if (memoryHit.items.length === 0) return;
           continue;
@@ -1872,7 +1982,8 @@ function useCatalogData(params: {
           const payload = await fetchCatalogPagePayload(
             targetPage,
             controller.signal,
-            targetCursor
+            targetCursor,
+            targetCursorField
           );
           if (cancelled) return;
           if (payload.items.length === 0) return;
@@ -1886,10 +1997,15 @@ function useCatalogData(params: {
           writePageToSession(targetCacheKey, payload);
           if (canUseCursorPagination && payload.nextCursor) {
             nextCursorByPageRef.current[targetPage + 1] = payload.nextCursor;
+            nextCursorFieldByPageRef.current[targetPage + 1] =
+              payload.cursorField || "";
             upcomingCursor = payload.nextCursor;
+            upcomingCursorField = payload.cursorField || "";
           } else if (canUseCursorPagination) {
             delete nextCursorByPageRef.current[targetPage + 1];
+            delete nextCursorFieldByPageRef.current[targetPage + 1];
             upcomingCursor = "";
+            upcomingCursorField = "";
           }
           fetchCatalogPagePrices(payload.items, {
             prefetchedPrices: payload.prices,
@@ -1911,10 +2027,13 @@ function useCatalogData(params: {
       }
     };
 
-    void prefetchUpcomingPages();
+    const timerId = window.setTimeout(() => {
+      void prefetchUpcomingPages();
+    }, BACKGROUND_PAGE_PREFETCH_DELAY_MS);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timerId);
       abortControllerSafely(controller);
     };
   }, [
@@ -2016,40 +2135,56 @@ function useCatalogData(params: {
     return Array.from(map.values());
   }, [safeData]);
 
+  const searchableUniqueData = useMemo(
+    () =>
+      uniqueData.map((item) => ({
+        item,
+        codeLower: (item.code || "").toLowerCase(),
+        articleLower: (item.article || "").toLowerCase(),
+        nameLower: (item.name || "").toLowerCase(),
+        producerLower: (item.producer || "").toLowerCase(),
+      })),
+    [uniqueData]
+  );
+
   // --- Р›РѕРєР°Р»СЊРЅРёР№ С„С–Р»СЊС‚СЂ ---
   const filteredData = useMemo(() => {
     const q = normalizedSearchLower;
+    const selectedCategorySet =
+      effectiveSelectedCategories.length > 0
+        ? new Set(effectiveSelectedCategories)
+        : null;
+    const producerQuery = (producerFromURL || "").toLowerCase();
 
-    return uniqueData.filter((item) => {
-      const code = item.code?.toLowerCase() || "";
-      const art = item.article?.toLowerCase() || "";
-      const name = item.name?.toLowerCase() || "";
-      const producer = item.producer?.toLowerCase() || "";
+    return searchableUniqueData
+      .filter(({ item, codeLower, articleLower, nameLower, producerLower }) => {
+        const producerMatch = !producerQuery || producerLower.includes(producerQuery);
 
-      const producerQuery = (producerFromURL || "").toLowerCase();
-      const producerMatch = !producerQuery || producer.includes(producerQuery);
+        const match =
+          searchFilter === "article"
+            ? articleLower.includes(q)
+            : searchFilter === "name"
+              ? nameLower.includes(q)
+              : searchFilter === "code"
+                ? codeLower.includes(q)
+                : searchFilter === "producer"
+                  ? producerLower.includes(q)
+                  : codeLower.includes(q) ||
+                    articleLower.includes(q) ||
+                    nameLower.includes(q) ||
+                    producerLower.includes(q);
 
-      const match =
-        searchFilter === "article"
-          ? art.includes(q)
-          : searchFilter === "name"
-          ? name.includes(q)
-          : searchFilter === "code"
-          ? code.includes(q)
-          : searchFilter === "producer"
-          ? producer.includes(q)
-          : code.includes(q) || art.includes(q) || name.includes(q) || producer.includes(q);
+        const catMatch =
+          selectedCategorySet == null ||
+          selectedCategorySet.has(item.subGroup || "") ||
+          selectedCategorySet.has(item.group || "") ||
+          selectedCategorySet.has(item.category || "");
 
-      const catMatch =
-        effectiveSelectedCategories.length === 0 ||
-        effectiveSelectedCategories.includes(item.subGroup || "") ||
-        effectiveSelectedCategories.includes(item.group || "") ||
-        effectiveSelectedCategories.includes(item.category || "");
-
-      return match && catMatch && producerMatch;
-    });
+        return match && catMatch && producerMatch;
+      })
+      .map(({ item }) => item);
   }, [
-    uniqueData,
+    searchableUniqueData,
     normalizedSearchLower,
     searchFilter,
     effectiveSelectedCategories,
@@ -2132,7 +2267,14 @@ function useCatalogData(params: {
     const nextPage = page + 1;
     const nextCursor =
       canUseCursorPagination ? nextCursorByPageRef.current[nextPage] ?? "" : "";
-    const nextCacheKey = buildCacheKey(nextPage, normalizedSearch, nextCursor);
+    const nextCursorField =
+      canUseCursorPagination ? nextCursorFieldByPageRef.current[nextPage] ?? "" : "";
+    const nextCacheKey = buildCacheKey(
+      nextPage,
+      normalizedSearch,
+      nextCursor,
+      nextCursorField
+    );
     const hasPreparedNextPage =
       readPageFromMemory(nextCacheKey) != null ||
       inFlightPageRequests.has(nextCacheKey);
@@ -2207,9 +2349,8 @@ const Data: React.FC<DataProps> = ({
 }) => {
   const searchParams = useSearchParams();
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const catalogGridRef = useRef<HTMLDivElement | null>(null);
   const currentSearchParams = searchParams ?? new URLSearchParams();
-  const hasLoadMoreScrollIntentRef = useRef(false);
-  const lastCatalogScrollYRef = useRef(0);
 
   const rawSearchQuery = currentSearchParams.get("search") || "";
   const searchFilter =
@@ -2221,7 +2362,20 @@ const Data: React.FC<DataProps> = ({
   const producerFromURL = (currentSearchParams.get("producer") || "").trim() || null;
   const lastFilterSignatureRef = useRef<string | null>(null);
   const lastStableSortedSignatureRef = useRef("");
+  const softTransitionStartedAtRef = useRef(0);
+  const softTransitionHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lastStableSortedData, setLastStableSortedData] = useState<Product[]>([]);
+  const [isSoftTransitioning, setIsSoftTransitioning] = useState(false);
+  const [virtualWindowRange, setVirtualWindowRange] = useState({
+    startIndex: 0,
+    endIndex: 0,
+    topSpacerPx: 0,
+    bottomSpacerPx: 0,
+  });
+  const [virtualRowHeightPx, setVirtualRowHeightPx] = useState(
+    VIRTUAL_ROW_ESTIMATED_HEIGHT_PX
+  );
+  const [viewportWidth, setViewportWidth] = useState(0);
 
   const {
     filteredData,
@@ -2264,10 +2418,6 @@ const Data: React.FC<DataProps> = ({
   });
 
   const requestNextPageOnScroll = useCallback(() => {
-    if (typeof window !== "undefined") {
-      hasLoadMoreScrollIntentRef.current = false;
-      lastCatalogScrollYRef.current = window.scrollY;
-    }
     loadNextPage();
   }, [loadNextPage]);
 
@@ -2330,7 +2480,7 @@ const Data: React.FC<DataProps> = ({
     setLastStableSortedData(sortedData);
   }, [sortedData, sortedDataSignature]);
   const shouldKeepStableGrid =
-    sortedData.length > 0 && (filterLoading || isRefetching);
+    (filterLoading || isRefetching) && lastStableSortedData.length > 0;
   const visibleSortedData =
     shouldKeepStableGrid && lastStableSortedData.length > 0
       ? lastStableSortedData
@@ -2364,19 +2514,82 @@ const Data: React.FC<DataProps> = ({
     sortedData.length === 0 &&
     !error;
   const showEmptyState = isEmptyState && !isRefetching;
-  const showInlineSkeletons =
+  const showInlineLoader =
     visibleSortedData.length > 0 && ((loading && !isRefetching) || isLoadingNextPage);
   const shouldShowCatalogGrid =
     visibleSortedData.length > 0 || shouldShowInitialSkeleton;
-  const showFilterTransitionOverlay =
-    (filterLoading || isRefetching) && visibleSortedData.length > 0;
+  const gridColumnCount = useMemo(() => {
+    if (viewportWidth >= 1024) return 4;
+    if (viewportWidth >= 768) return 3;
+    if (viewportWidth >= 640) return 2;
+    return 1;
+  }, [viewportWidth]);
+  const shouldUseVirtualWindow =
+    visibleSortedEntries.length >= VIRTUAL_WINDOW_THRESHOLD_ITEMS && !shouldShowInitialSkeleton;
+  const virtualizedEntries = useMemo(() => {
+    if (!shouldUseVirtualWindow) return visibleSortedEntries;
+
+    const safeStart = Math.max(0, Math.min(virtualWindowRange.startIndex, visibleSortedEntries.length));
+    const safeEnd = Math.max(safeStart, Math.min(virtualWindowRange.endIndex, visibleSortedEntries.length));
+    return visibleSortedEntries.slice(safeStart, safeEnd);
+  }, [shouldUseVirtualWindow, virtualWindowRange.endIndex, virtualWindowRange.startIndex, visibleSortedEntries]);
+  const hasVirtualWindowMiss =
+    shouldUseVirtualWindow &&
+    visibleSortedEntries.length > 0 &&
+    virtualizedEntries.length === 0;
+  const entriesToRender = hasVirtualWindowMiss
+    ? visibleSortedEntries
+    : virtualizedEntries;
+  const effectiveVirtualWindowStartIndex = hasVirtualWindowMiss
+    ? 0
+    : shouldUseVirtualWindow
+      ? Math.max(0, Math.min(virtualWindowRange.startIndex, visibleSortedEntries.length))
+      : 0;
+  const shouldUseSoftTransition = filterLoading || isRefetching;
+  const showFilterTransitionOverlay = false;
+  const shouldDimCatalogGrid = false;
   const filterTransitionLabel = useMemo(() => {
+    if (isLoadingNextPage) return "Підвантажую наступну сторінку";
     if (subcategoryFromURL) return `Оновлюю підгрупу: ${subcategoryFromURL}`;
     if (groupFromURL) return `Оновлюю групу: ${groupFromURL}`;
     if (producerFromURL) return `Оновлюю виробника: ${producerFromURL}`;
     if (rawSearchQuery.trim()) return `Оновлюю результати для: ${rawSearchQuery.trim()}`;
     return "Оновлюю каталог";
-  }, [groupFromURL, producerFromURL, rawSearchQuery, subcategoryFromURL]);
+  }, [groupFromURL, isLoadingNextPage, producerFromURL, rawSearchQuery, subcategoryFromURL]);
+
+  useEffect(() => {
+    if (shouldUseSoftTransition) {
+      if (softTransitionHideTimerRef.current) {
+        clearTimeout(softTransitionHideTimerRef.current);
+        softTransitionHideTimerRef.current = null;
+      }
+
+      if (!isSoftTransitioning) {
+        softTransitionStartedAtRef.current = Date.now();
+        setIsSoftTransitioning(true);
+      }
+      return;
+    }
+
+    if (!isSoftTransitioning) return;
+
+    const elapsedMs = Date.now() - softTransitionStartedAtRef.current;
+    const minVisibleMs = 70;
+    const hideDelayMs = Math.max(0, minVisibleMs - elapsedMs);
+
+    softTransitionHideTimerRef.current = setTimeout(() => {
+      setIsSoftTransitioning(false);
+      softTransitionHideTimerRef.current = null;
+    }, hideDelayMs);
+  }, [isSoftTransitioning, shouldUseSoftTransition]);
+
+  useEffect(() => {
+    return () => {
+      if (softTransitionHideTimerRef.current) {
+        clearTimeout(softTransitionHideTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (visibleCatalogImageCandidates.length === 0) return;
@@ -2427,16 +2640,25 @@ const Data: React.FC<DataProps> = ({
   );
 
   useEffect(() => {
-    const prev = lastFilterSignatureRef.current;
-    if (prev && prev !== filterSignature) setFilterLoading(true);
     lastFilterSignatureRef.current = filterSignature;
   }, [filterSignature, setFilterLoading]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    hasLoadMoreScrollIntentRef.current = false;
-    lastCatalogScrollYRef.current = window.scrollY;
+    setViewportWidth(window.innerWidth);
   }, [filterSignature]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleResize = () => {
+      setViewportWidth(window.innerWidth);
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize, { passive: true });
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     if (!loading) {
@@ -2449,15 +2671,6 @@ const Data: React.FC<DataProps> = ({
     if (loading || shouldShowInitialSkeleton || !hasMore || sortedData.length === 0) return;
 
     const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      const movedDown = currentScrollY > lastCatalogScrollYRef.current;
-      if (movedDown && currentScrollY > 24) {
-        hasLoadMoreScrollIntentRef.current = true;
-      }
-      lastCatalogScrollYRef.current = currentScrollY;
-
-      if (!hasLoadMoreScrollIntentRef.current) return;
-
       const scrolledBottom = window.scrollY + window.innerHeight;
       const distanceToBottom =
         document.documentElement.scrollHeight - scrolledBottom;
@@ -2482,7 +2695,6 @@ const Data: React.FC<DataProps> = ({
       (entries) => {
         const entry = entries[0];
         if (!entry?.isIntersecting) return;
-        if (!hasLoadMoreScrollIntentRef.current) return;
         requestNextPageOnScroll();
       },
       {
@@ -2495,6 +2707,128 @@ const Data: React.FC<DataProps> = ({
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [hasMore, loading, requestNextPageOnScroll, shouldShowInitialSkeleton, sortedData.length]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (loading || shouldShowInitialSkeleton || !hasMore || sortedData.length === 0) return;
+
+    const maybeLoadMore = () => {
+      const scrolledBottom = window.scrollY + window.innerHeight;
+      const distanceToBottom =
+        document.documentElement.scrollHeight - scrolledBottom;
+      if (distanceToBottom <= Math.floor(LOAD_MORE_SCROLL_BUFFER_PX * 0.65)) {
+        requestNextPageOnScroll();
+      }
+    };
+
+    maybeLoadMore();
+    window.addEventListener("resize", maybeLoadMore, { passive: true });
+    return () => window.removeEventListener("resize", maybeLoadMore);
+  }, [hasMore, loading, requestNextPageOnScroll, shouldShowInitialSkeleton, sortedData.length]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (!shouldUseVirtualWindow) {
+      setVirtualRowHeightPx(VIRTUAL_ROW_ESTIMATED_HEIGHT_PX);
+      setVirtualWindowRange({
+        startIndex: 0,
+        endIndex: visibleSortedEntries.length,
+        topSpacerPx: 0,
+        bottomSpacerPx: 0,
+      });
+      return;
+    }
+
+    let rafId = 0;
+    const updateRange = () => {
+      const grid = catalogGridRef.current;
+      if (!grid) return;
+
+      const firstCard = grid.querySelector<HTMLElement>("[data-catalog-card='1']");
+      if (firstCard) {
+        const cardRect = firstCard.getBoundingClientRect();
+        const gridStyle = window.getComputedStyle(grid);
+        const rowGap = Number.parseFloat(gridStyle.rowGap || "0") || 0;
+        const measuredRowHeight = cardRect.height + rowGap;
+
+        if (
+          Number.isFinite(measuredRowHeight) &&
+          measuredRowHeight >= 220 &&
+          measuredRowHeight <= 520 &&
+          Math.abs(measuredRowHeight - virtualRowHeightPx) > 1
+        ) {
+          setVirtualRowHeightPx(measuredRowHeight);
+        }
+      }
+
+      const totalItems = visibleSortedEntries.length;
+      const columns = Math.max(1, gridColumnCount);
+      const totalRows = Math.ceil(totalItems / columns);
+      const rect = grid.getBoundingClientRect();
+      const gridTop = window.scrollY + rect.top;
+      const viewportTop = window.scrollY;
+      const viewportBottom = viewportTop + window.innerHeight;
+      const rowHeight = Math.max(1, virtualRowHeightPx);
+      const overscanPx = VIRTUAL_OVERSCAN_ROWS * rowHeight;
+
+      const rawStartRow = Math.floor(
+        (viewportTop - gridTop - overscanPx) / rowHeight
+      );
+      const rawEndRow = Math.ceil(
+        (viewportBottom - gridTop + overscanPx) / rowHeight
+      );
+
+      const startRow = Math.max(0, Math.min(totalRows, rawStartRow));
+      const endRow = Math.max(startRow + 1, Math.min(totalRows, rawEndRow));
+
+      const startIndex = Math.max(0, Math.min(totalItems, startRow * columns));
+      const endIndex = Math.max(startIndex, Math.min(totalItems, endRow * columns));
+      const topSpacerPx = startRow * rowHeight;
+      const bottomSpacerPx = Math.max(
+        0,
+        (totalRows - endRow) * rowHeight
+      );
+
+      setVirtualWindowRange((prev) => {
+        if (
+          prev.startIndex === startIndex &&
+          prev.endIndex === endIndex &&
+          prev.topSpacerPx === topSpacerPx &&
+          prev.bottomSpacerPx === bottomSpacerPx
+        ) {
+          return prev;
+        }
+
+        return { startIndex, endIndex, topSpacerPx, bottomSpacerPx };
+      });
+    };
+
+    const scheduleUpdate = () => {
+      if (rafId) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = 0;
+        updateRange();
+      });
+    };
+
+    updateRange();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate, { passive: true });
+
+    return () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+    };
+  }, [
+    gridColumnCount,
+    shouldUseVirtualWindow,
+    virtualRowHeightPx,
+    visibleSortedEntries.length,
+  ]);
 
   const handleSendRequest = useCallback(() => {
     const query = rawSearchQuery.trim();
@@ -2591,8 +2925,23 @@ const Data: React.FC<DataProps> = ({
 
         {shouldShowCatalogGrid && (
           <div className="relative">
-            <div className={CATALOG_GRID_CLASS}>
-              {visibleSortedEntries.map((entry, index) => {
+            <div
+              ref={catalogGridRef}
+              className={`${CATALOG_GRID_CLASS} transition-[opacity,transform,filter] duration-300 ease-out ${
+                shouldDimCatalogGrid ? "opacity-[0.88]" : "opacity-100"
+              }`}
+            >
+              {!hasVirtualWindowMiss && shouldUseVirtualWindow && virtualWindowRange.topSpacerPx > 0 && (
+                <div
+                  aria-hidden="true"
+                  style={{
+                    gridColumn: "1 / -1",
+                    height: `${virtualWindowRange.topSpacerPx}px`,
+                  }}
+                />
+              )}
+
+              {entriesToRender.map((entry, index) => {
                 const { item, priceKey } = entry;
                 const priceUAH =
                   entry.priceUAH ?? getResolvedProductPriceUAH(item, prices, euroRate);
@@ -2601,6 +2950,7 @@ const Data: React.FC<DataProps> = ({
                 const code = item.code;
                 const qty = quantities[code] ?? 1;
                 const cartQty = cartMap[code] ?? 0;
+                const absoluteIndex = effectiveVirtualWindowStartIndex + index;
 
                 const priceStatus =
                   priceUAH != null
@@ -2608,7 +2958,7 @@ const Data: React.FC<DataProps> = ({
                     : Object.prototype.hasOwnProperty.call(prices, priceKey)
                       ? "request"
                       : "loading";
-                const shouldPrioritizeImage = index < IMAGE_PRIORITY_ITEMS_COUNT;
+                const shouldPrioritizeImage = absoluteIndex < IMAGE_PRIORITY_ITEMS_COUNT;
                 const imageBatchKey = buildProductImageBatchKey(item.code, item.article);
                 const hasPhoto = item.hasPhoto !== false;
                 const normalizedGroup =
@@ -2628,46 +2978,58 @@ const Data: React.FC<DataProps> = ({
                 });
 
                 return (
-                  <ProductCard
+                  <div
                     key={code || `item-${index}`}
-                    item={item}
-                    productHref={productHref}
-                    qty={qty}
-                    cartQty={cartQty}
-                    priceUAH={priceUAH}
-                    priceStatus={priceStatus}
-                    imageLoadingMode={shouldPrioritizeImage ? "eager" : "lazy"}
-                    imageFetchPriority={shouldPrioritizeImage ? "high" : "low"}
-                    prefetchedImageSrc={
-                      (imageBatchKey ? pageImages[imageBatchKey] : null) ?? null
-                    }
-                    batchImagePending={Boolean(imageBatchKey && pageImagePending[imageBatchKey])}
-                    batchImageMissing={
-                      !hasPhoto ||
-                      Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
-                    }
-                    batchImageOnly={!shouldPrioritizeImage}
-                    isFlipped={flippedCard === code}
-                    motionEnabled={shouldAnimateList}
-                    onAddToCart={handleAddToCart}
-                    onRequestPrice={handleRequestPriceForItem}
-                    onRemoveFromCart={handleRemoveFromCart}
-                    onQtyChange={handleQtyChange}
-                    onFlip={handleFlip}
-                    onImageOpen={handleImageOpen}
-                  />
+                    data-catalog-card="1"
+                  >
+                    <ProductCard
+                      item={item}
+                      productHref={productHref}
+                      qty={qty}
+                      cartQty={cartQty}
+                      priceUAH={priceUAH}
+                      priceStatus={priceStatus}
+                      imageLoadingMode={shouldPrioritizeImage ? "eager" : "lazy"}
+                      imageFetchPriority={shouldPrioritizeImage ? "high" : "low"}
+                      prefetchedImageSrc={
+                        (imageBatchKey ? pageImages[imageBatchKey] : null) ?? null
+                      }
+                      batchImagePending={Boolean(imageBatchKey && pageImagePending[imageBatchKey])}
+                      batchImageMissing={
+                        !hasPhoto ||
+                        Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
+                      }
+                      batchImageOnly={!shouldPrioritizeImage}
+                      isFlipped={flippedCard === code}
+                      motionEnabled={shouldAnimateList}
+                      onAddToCart={handleAddToCart}
+                      onRequestPrice={handleRequestPriceForItem}
+                      onRemoveFromCart={handleRemoveFromCart}
+                      onQtyChange={handleQtyChange}
+                      onFlip={handleFlip}
+                      onImageOpen={handleImageOpen}
+                    />
+                  </div>
                 );
               })}
 
-              {shouldShowInitialSkeleton &&
-                Array.from({ length: INITIAL_SKELETON_COUNT }, (_, index) => (
-                  <CatalogSkeletonCard key={`catalog-skeleton-initial-${index}`} />
-                ))}
+              {!hasVirtualWindowMiss && shouldUseVirtualWindow && virtualWindowRange.bottomSpacerPx > 0 && (
+                <div
+                  aria-hidden="true"
+                  style={{
+                    gridColumn: "1 / -1",
+                    height: `${virtualWindowRange.bottomSpacerPx}px`,
+                  }}
+                />
+              )}
 
-              {showInlineSkeletons &&
-                Array.from({ length: APPEND_SKELETON_COUNT }, (_, index) => (
-                  <CatalogSkeletonCard key={`catalog-skeleton-append-${index}`} />
-                ))}
+              {shouldShowInitialSkeleton && (
+                <CatalogTransitionLoader label={filterTransitionLabel} />
+              )}
+
+              {showInlineLoader && (
+                <CatalogTransitionLoader label="Підвантажую товари" compact />
+              )}
             </div>
 
             {showFilterTransitionOverlay && (

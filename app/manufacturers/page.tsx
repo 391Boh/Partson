@@ -5,7 +5,6 @@ import CatalogHubHero from "app/components/CatalogHubHero";
 import { brands } from "app/components/brandsData";
 import { getProducerInitials } from "app/lib/brand-logo";
 import { buildManufacturerPath } from "app/lib/catalog-links";
-import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
@@ -57,17 +56,12 @@ const clientProducers: ManufacturerListItem[] = brands
   .sort((left, right) => left.label.localeCompare(right.label, "uk", { sensitivity: "base" }));
 
 export async function generateMetadata(): Promise<Metadata> {
-  const seoFacets = await getCatalogSeoFacets().catch(() => null);
-  const indexedBrands = seoFacets?.producers.length ?? 0;
-  const indexedProducts =
-    seoFacets?.producers.reduce((sum, producer) => sum + producer.productCount, 0) ?? 0;
-
   return buildPageMetadata({
     title: "Виробники автозапчастин і бренди у каталозі PartsON",
     description: buildManufacturersPageDescription(
       clientProducers.length,
-      indexedBrands,
-      indexedProducts
+      0,
+      0
     ),
     canonicalPath: "/manufacturers",
     keywords: [
@@ -88,9 +82,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ManufacturersPage() {
   const siteUrl = getSiteUrl();
-  const seoFacets = await getCatalogSeoFacets().catch(() => null);
   const featuredManufacturers =
-    seoFacets?.producers.slice(0, 2).map((producer) => producer.label) || ["Bosch", "Brembo"];
+    clientProducers.slice(0, 2).map((producer) => producer.label) || ["Bosch", "Brembo"];
   const manufacturersStructuredData = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",

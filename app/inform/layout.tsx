@@ -5,7 +5,7 @@ import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 
 const infoDescription =
-  "Доставка, оплата, контакти та інформація про магазин автозапчастин PartsON.";
+  "Доставка, оплата, контакти та інформація про магазин автозапчастин PartsON у Львові (вул. Перфецького, 8).";
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Інформація для клієнтів",
@@ -13,8 +13,10 @@ export const metadata: Metadata = buildPageMetadata({
   canonicalPath: "/inform",
   keywords: [
     "доставка автозапчастин",
+    "доставка автозапчастин львів",
     "оплата автозапчастин",
     "контакти магазину автозапчастин",
+    "магазин автозапчастин перфецького",
     "інформація для клієнтів",
   ],
   openGraphTitle: "Інформація для клієнтів | PartsON",

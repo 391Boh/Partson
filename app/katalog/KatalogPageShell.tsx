@@ -1,8 +1,4 @@
-"use client";
-
-import dynamic from "next/dynamic";
-
-import PageLoadingShell from "app/components/PageLoadingShell";
+import KatalogClientPage from "app/katalog/KatalogClientPage";
 
 type InitialCatalogPagePayload = {
   items: Array<{
@@ -24,13 +20,6 @@ type InitialCatalogPagePayload = {
   serviceUnavailable?: boolean;
   message?: string;
 };
-
-const KatalogClientPage = dynamic(() => import("app/katalog/KatalogClientPage"), {
-  ssr: false,
-  loading: () => (
-    <PageLoadingShell label="Завантаження каталогу..." cardsCount={6} />
-  ),
-});
 
 export default function KatalogPageShell(props: {
   initialPagePayload?: InitialCatalogPagePayload | null;

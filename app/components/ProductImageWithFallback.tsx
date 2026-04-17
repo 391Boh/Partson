@@ -1,9 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { ImageOff, Maximize2 } from "lucide-react";
 
 import ImageModal from "app/components/ImageModal";
+import {
+  clearProductImageMissing,
+  readProductImageSuccess,
+  writeProductImageSuccess,
+} from "app/lib/product-image-client";
 
 interface ProductImageWithFallbackProps {
   src: string;
@@ -16,6 +21,8 @@ interface ProductImageWithFallbackProps {
   decoding?: "sync" | "async" | "auto";
   fetchPriority?: "high" | "low" | "auto";
   zoomEnabled?: boolean;
+  productCode?: string;
+  articleHint?: string;
 }
 
 const normalizeSrcPath = (value: string) => {
@@ -40,6 +47,8 @@ export default function ProductImageWithFallback({
   decoding = "async",
   fetchPriority = "auto",
   zoomEnabled = true,
+  productCode,
+  articleHint,
 }: ProductImageWithFallbackProps) {
   const noPhotoLabel = "\u0417\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f \u0432\u0456\u0434\u0441\u0443\u0442\u043d\u0454";
   const openPhotoTitle = "\u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0438 \u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f";
@@ -47,35 +56,51 @@ export default function ProductImageWithFallback({
 
   const candidateSrc = (src || "").trim();
   const normalizedFallbackPath = useMemo(() => normalizeSrcPath(fallbackSrc), [fallbackSrc]);
+  const normalizedProductCode = (productCode || "").trim();
+  const normalizedArticleHint = (articleHint || "").trim();
 
   const [loadedSrc, setLoadedSrc] = useState("");
   const [failedSrc, setFailedSrc] = useState("");
+  const [cachedPreviewSrc, setCachedPreviewSrc] = useState("");
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
 
-  const showPlaceholder = !candidateSrc || failedSrc === candidateSrc;
-  const isLoaded = !showPlaceholder && loadedSrc === candidateSrc;
+  const activeSrc = cachedPreviewSrc || candidateSrc;
+  const showPlaceholder = !activeSrc || failedSrc === activeSrc;
+  const isLoaded = !showPlaceholder && loadedSrc === activeSrc;
   const showPlaceholderOverlay = !showPlaceholder && !isLoaded;
   const canOpen = zoomEnabled && isLoaded;
   const preferImmediateDecode = loading === "eager" && fetchPriority === "high";
 
   const applyLoadedCandidate = useCallback(
     (element: HTMLImageElement | null) => {
-      if (!element || !candidateSrc) return;
+      if (!element || !activeSrc) return;
 
       const loadedPath = normalizeSrcPath(
-        element.currentSrc || element.src || candidateSrc
+        element.currentSrc || element.src || activeSrc
       );
 
       if (normalizedFallbackPath && loadedPath === normalizedFallbackPath) {
-        setFailedSrc(candidateSrc);
+        setFailedSrc(activeSrc);
         return;
       }
 
-      setLoadedSrc(candidateSrc);
+      if (normalizedProductCode) {
+        writeProductImageSuccess(
+          normalizedProductCode,
+          normalizedArticleHint || undefined,
+          element.currentSrc || element.src || activeSrc
+        );
+        clearProductImageMissing(
+          normalizedProductCode,
+          normalizedArticleHint || undefined
+        );
+      }
+
+      setLoadedSrc(activeSrc);
       setFailedSrc("");
     },
-    [candidateSrc, normalizedFallbackPath]
+    [activeSrc, normalizedArticleHint, normalizedFallbackPath, normalizedProductCode]
   );
 
   const handleImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
@@ -83,14 +108,28 @@ export default function ProductImageWithFallback({
   };
 
   const handleImageError = () => {
-    if (!candidateSrc) return;
-    setFailedSrc(candidateSrc);
+    if (!activeSrc) return;
+    setFailedSrc(activeSrc);
   };
 
   useLayoutEffect(() => {
     setLightboxOpen(false);
 
-    if (!candidateSrc) {
+    if (normalizedProductCode) {
+      const cached = readProductImageSuccess(
+        normalizedProductCode,
+        normalizedArticleHint || undefined
+      );
+      setCachedPreviewSrc(cached || "");
+    } else {
+      setCachedPreviewSrc("");
+    }
+  }, [normalizedArticleHint, normalizedProductCode]);
+
+  useLayoutEffect(() => {
+    setLightboxOpen(false);
+
+    if (!activeSrc) {
       setLoadedSrc("");
       setFailedSrc("");
       return;
@@ -98,7 +137,7 @@ export default function ProductImageWithFallback({
 
     const element = imageRef.current;
     if (!element) {
-      setLoadedSrc("");
+      setLoadedSrc(cachedPreviewSrc ? activeSrc : "");
       setFailedSrc("");
       return;
     }
@@ -110,13 +149,13 @@ export default function ProductImageWithFallback({
       }
 
       setLoadedSrc("");
-      setFailedSrc(candidateSrc);
+      setFailedSrc(activeSrc);
       return;
     }
 
     setLoadedSrc("");
     setFailedSrc("");
-  }, [applyLoadedCandidate, candidateSrc]);
+  }, [activeSrc, applyLoadedCandidate, cachedPreviewSrc]);
 
   const renderPlaceholder = (overlay = false) => (
     <div
@@ -163,7 +202,7 @@ export default function ProductImageWithFallback({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           ref={imageRef}
-          src={candidateSrc}
+          src={activeSrc}
           alt={alt}
           loading={loading}
           decoding={preferImmediateDecode ? "sync" : decoding}
@@ -193,7 +232,7 @@ export default function ProductImageWithFallback({
       </div>
 
       {lightboxOpen && canOpen ? (
-        <ImageModal src={candidateSrc} onClose={() => setLightboxOpen(false)} />
+        <ImageModal src={activeSrc} onClose={() => setLightboxOpen(false)} />
       ) : null}
     </>
   );

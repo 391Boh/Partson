@@ -101,6 +101,7 @@ const ALLGOODS_GROUP_FIELD = "\u0413\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SUBGROUP_FIELD = "\u041f\u043e\u0434\u0433\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SORT_PRICE_FIELD = "\u0421\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u043a\u0430\u041f\u043e\u0426\u0435\u043d\u0435";
 const ALLGOODS_INCLUDE_DESCRIPTION_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435";
+const ALLGOODS_SORT_WINDOW_MAX_LIMIT = 2500;
 const INFO_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443";
 const INFO_DESC_FIELDS = ["\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", "\u041e\u043f\u0438\u0441"];
 const ALLGOODS_DESC_FIELDS = [
@@ -236,18 +237,25 @@ const parseAllgoodsPayload = (payload: string) => {
   try {
     const parsed = JSON.parse(payload) as Record<string, unknown>;
     const records = Array.isArray(parsed?.items) ? parsed.items : [];
-    const nextCursor =
-      typeof parsed?.next_cursor === "string" ? parsed.next_cursor.trim() : "";
+    const nextCursor = [
+      parsed?.next_cursor,
+      parsed?.nextCursor,
+      parsed?.cursor,
+      parsed?.[ALLGOODS_CURSOR_FIELD],
+    ].find((value) => typeof value === "string" && value.trim()) as string | undefined;
     const hasMore =
       parsed?.has_more === true ||
       parsed?.has_more === 1 ||
+      parsed?.hasMore === true ||
+      parsed?.hasMore === 1 ||
       parsed?.has_more === "true" ||
+      parsed?.hasMore === "true" ||
       Boolean(nextCursor && records.length > 0);
 
     return {
       items: records.map(normalizeProduct),
       hasMore,
-      nextCursor,
+      nextCursor: typeof nextCursor === "string" ? nextCursor.trim() : "",
     };
   } catch {
     return {
@@ -256,6 +264,21 @@ const parseAllgoodsPayload = (payload: string) => {
       nextCursor: "",
     };
   }
+};
+
+const deriveAllgoodsFallbackCursor = (items: CatalogProduct[]) => {
+  if (!Array.isArray(items) || items.length === 0) return "";
+
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    const code = (item?.code || "").trim();
+    if (code) return code;
+
+    const article = (item?.article || "").trim();
+    if (article) return article;
+  }
+
+  return "";
 };
 
 const fetchAllgoodsProductsByExactLookup = async (
@@ -372,30 +395,6 @@ export const fetchAllgoodsProductsByNameQuery = async (
   }).catch(() => []);
 };
 
-const sortCatalogProductsByPricePriority = (
-  items: CatalogProduct[],
-  sortOrder: "asc" | "desc"
-) =>
-  items
-    .map((item, index) => ({
-      item,
-      index,
-      price: typeof item.priceEuro === "number" && item.priceEuro > 0 ? item.priceEuro : null,
-    }))
-    .sort((a, b) => {
-      const aHasPrice = a.price != null ? 0 : 1;
-      const bHasPrice = b.price != null ? 0 : 1;
-      if (aHasPrice !== bHasPrice) return aHasPrice - bHasPrice;
-
-      if (a.price != null && b.price != null) {
-        if (sortOrder === "asc" && a.price !== b.price) return a.price - b.price;
-        if (sortOrder === "desc" && a.price !== b.price) return b.price - a.price;
-      }
-
-      return a.index - b.index;
-    })
-    .map(({ item }) => item);
-
 const extractResponseErrorDetails = (responseText: string) => {
   try {
     const parsed = JSON.parse(responseText) as { details?: unknown; error?: unknown };
@@ -428,73 +427,13 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       ? Math.min(Math.floor(options.limit as number), 500)
       : 10;
   const requestBodyBase = { ...(options.body || {}) };
-  const isPriceSorted = typeof requestBodyBase[ALLGOODS_SORT_PRICE_FIELD] === "string";
+  const isPriceSorted =
+    typeof requestBodyBase[ALLGOODS_SORT_PRICE_FIELD] === "string";
   const requestedCursor =
     typeof options.cursor === "string" ? options.cursor.trim() : "";
 
   if (!Object.prototype.hasOwnProperty.call(requestBodyBase, ALLGOODS_INCLUDE_DESCRIPTION_FIELD)) {
     requestBodyBase[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = false;
-  }
-
-  if (isPriceSorted) {
-    const start = (page - 1) * limit;
-    const sortDirection =
-      String(requestBodyBase[ALLGOODS_SORT_PRICE_FIELD]).toUpperCase() === "ASC"
-        ? "asc"
-        : "desc";
-    let requestedLimit = Math.min(Math.max(page * limit + 1, limit * 8), 500);
-    let parsed = {
-      items: [] as CatalogProduct[],
-      hasMore: false,
-      nextCursor: "",
-    };
-
-    while (true) {
-      const response = await oneCRequest("allgoods", {
-        method: "POST",
-        body: {
-          ...requestBodyBase,
-          [ALLGOODS_LIMIT_FIELD]: requestedLimit,
-        },
-        timeoutMs: options.timeoutMs,
-        retries: options.retries ?? 1,
-        retryDelayMs: options.retryDelayMs ?? 250,
-        cacheTtlMs:
-          options.cacheTtlMs ??
-          (page === 1 ? 1000 * 20 : 1000 * 15),
-      });
-
-      if (response.status < 200 || response.status >= 300) {
-        const details = extractResponseErrorDetails(response.text);
-        throw new Error(
-          details
-            ? `Catalog allgoods failed: ${response.status} ${details}`
-            : `Catalog allgoods failed: ${response.status}`
-        );
-      }
-
-      parsed = parseAllgoodsPayload(response.text);
-      const pricedCount = parsed.items.reduce(
-        (count, item) => (typeof item.priceEuro === "number" && item.priceEuro > 0 ? count + 1 : count),
-        0
-      );
-
-      if (pricedCount >= start + limit || !parsed.hasMore || requestedLimit >= 500) {
-        break;
-      }
-
-      requestedLimit = Math.min(
-        500,
-        Math.max(requestedLimit + limit * 6, Math.ceil(requestedLimit * 1.5))
-      );
-    }
-
-    const sortedItems = sortCatalogProductsByPricePriority(parsed.items, sortDirection);
-    return {
-      items: sortedItems.slice(start, start + limit),
-      hasMore: sortedItems.length > start + limit || parsed.hasMore,
-      nextCursor: "",
-    };
   }
 
   if (requestedCursor) {
@@ -521,10 +460,13 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     }
 
     const parsed = parseAllgoodsPayload(response.text);
+    const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
+    const hasMoreFromWindow =
+      isPriceSorted && !parsed.nextCursor && parsed.items.length >= limit;
     return {
       items: parsed.items.slice(0, limit),
-      hasMore: parsed.hasMore,
-      nextCursor: parsed.nextCursor,
+      hasMore: parsed.hasMore || hasMoreFromWindow || Boolean(resolvedCursor),
+      nextCursor: resolvedCursor,
     };
   }
 
@@ -557,15 +499,80 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     }
 
     const parsed = parseAllgoodsPayload(response.text);
+    const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
     if (currentPage === page) {
+      const hasMoreFromWindow =
+        isPriceSorted && !parsed.nextCursor && parsed.items.length >= limit;
       return {
         items: parsed.items.slice(0, limit),
-        hasMore: parsed.hasMore,
-        nextCursor: parsed.nextCursor,
+        hasMore:
+          parsed.hasMore ||
+          hasMoreFromWindow ||
+          Boolean(resolvedCursor && parsed.items.length >= limit),
+        nextCursor: resolvedCursor,
       };
     }
 
-    if (!parsed.hasMore || !parsed.nextCursor || parsed.items.length < limit) {
+    if (isPriceSorted && !parsed.nextCursor && parsed.items.length >= limit) {
+      const start = (page - 1) * limit;
+      const targetCount = start + limit + 1;
+      let requestedLimit = Math.min(
+        ALLGOODS_SORT_WINDOW_MAX_LIMIT,
+        Math.max(limit * 2, targetCount)
+      );
+      let windowItems = parsed.items;
+      let windowLikelyHasMore = windowItems.length >= requestedLimit;
+
+      while (
+        windowItems.length < targetCount &&
+        requestedLimit < ALLGOODS_SORT_WINDOW_MAX_LIMIT
+      ) {
+        requestedLimit = Math.min(
+          ALLGOODS_SORT_WINDOW_MAX_LIMIT,
+          Math.max(requestedLimit + limit * 6, Math.ceil(requestedLimit * 1.5))
+        );
+
+        const windowResponse = await oneCRequest("allgoods", {
+          method: "POST",
+          body: {
+            ...requestBodyBase,
+            [ALLGOODS_LIMIT_FIELD]: requestedLimit,
+          },
+          timeoutMs: options.timeoutMs,
+          retries: options.retries ?? 1,
+          retryDelayMs: options.retryDelayMs ?? 250,
+          cacheTtlMs: options.cacheTtlMs,
+        });
+
+        if (windowResponse.status < 200 || windowResponse.status >= 300) {
+          const details = extractResponseErrorDetails(windowResponse.text);
+          throw new Error(
+            details
+              ? `Catalog allgoods failed: ${windowResponse.status} ${details}`
+              : `Catalog allgoods failed: ${windowResponse.status}`
+          );
+        }
+
+        const windowParsed = parseAllgoodsPayload(windowResponse.text);
+        windowItems = windowParsed.items;
+        windowLikelyHasMore =
+          windowParsed.hasMore || windowItems.length >= requestedLimit;
+
+        if (windowItems.length < requestedLimit) {
+          break;
+        }
+      }
+
+      return {
+        items: windowItems.slice(start, start + limit),
+        hasMore:
+          windowItems.length > start + limit ||
+          (windowItems.length >= targetCount && windowLikelyHasMore),
+        nextCursor: "",
+      };
+    }
+
+    if (!parsed.hasMore || !resolvedCursor || parsed.items.length < limit) {
       return {
         items: [] as CatalogProduct[],
         hasMore: false,
@@ -573,7 +580,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       };
     }
 
-    cursor = parsed.nextCursor;
+    cursor = resolvedCursor;
   }
 
   return {
@@ -1925,7 +1932,10 @@ export const findAnalogProductsByArticleInName = async (
   }
 ) => {
   const limit = options?.limit && options.limit > 0 ? options.limit : 6;
-  const maxPages = options?.maxPages && options.maxPages > 0 ? options.maxPages : 3;
+  const maxPages =
+    Number.isFinite(options?.maxPages) && (options?.maxPages as number) >= 0
+      ? Math.floor(options?.maxPages as number)
+      : 3;
   const pageSize = options?.pageSize && options.pageSize > 0 ? options.pageSize : 80;
 
   const targetCode = normalizeFacetValue(product.code);
@@ -2000,6 +2010,7 @@ export const fetchCatalogProductsByHeaderSearchQuery = async (
     retries?: number;
     retryDelayMs?: number;
     cacheTtlMs?: number;
+    preferLookupFields?: boolean;
   }
 ) => {
   const normalizedQuery = (query || "").replace(/\s+/g, " ").trim();
@@ -2040,9 +2051,19 @@ export const fetchCatalogProductsByHeaderSearchQuery = async (
     return parseItemsFromText(response.text);
   };
 
+  const lookupFields = [...ARTICLE_FIELDS, ...CODE_FIELDS];
+
+  if (options?.preferLookupFields) {
+    const primary = await run(lookupFields);
+    if (primary.length > 0) return primary.slice(0, limit);
+
+    const fallback = await run([...NAME_FIELDS]);
+    return fallback.slice(0, limit);
+  }
+
   const primary = await run([...NAME_FIELDS]);
   if (primary.length > 0) return primary.slice(0, limit);
 
-  const fallback = await run([...ARTICLE_FIELDS, ...CODE_FIELDS]);
+  const fallback = await run(lookupFields);
   return fallback.slice(0, limit);
 };

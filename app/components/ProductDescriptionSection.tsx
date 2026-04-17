@@ -12,28 +12,37 @@ type ProductDescriptionSectionProps = {
 };
 
 const resolveInitialDescription = async (lookupKeys: string[]) => {
-  const settled = await Promise.allSettled(
-    lookupKeys
-      .map((lookupKey) => (lookupKey || "").trim())
-      .filter(Boolean)
-      .slice(0, 3)
-      .map((lookupKey) =>
-        fetchProductDescription(lookupKey, {
-          timeoutMs: PRODUCT_DESCRIPTION_TIMEOUT_MS,
-          retries: 0,
-          retryDelayMs: 100,
-          cacheTtlMs: 1000 * 60 * 30,
-        })
-      )
+  const normalizedKeys = Array.from(
+    new Set(
+      lookupKeys
+        .map((lookupKey) => (lookupKey || "").trim())
+        .filter(Boolean)
+        .slice(0, 3)
+    )
   );
 
-  for (const result of settled) {
-    if (result.status !== "fulfilled") continue;
-    const value = typeof result.value === "string" ? result.value.trim() : "";
-    if (value) return value;
-  }
+  if (normalizedKeys.length === 0) return null;
 
-  return null;
+  const tasks = normalizedKeys.map((lookupKey) =>
+    fetchProductDescription(lookupKey, {
+      timeoutMs: PRODUCT_DESCRIPTION_TIMEOUT_MS,
+      retries: 0,
+      retryDelayMs: 100,
+      cacheTtlMs: 1000 * 60 * 30,
+    }).then((value) => {
+      const normalizedValue = typeof value === "string" ? value.trim() : "";
+      if (!normalizedValue) {
+        throw new Error("EMPTY_DESCRIPTION");
+      }
+      return normalizedValue;
+    })
+  );
+
+  try {
+    return await Promise.any(tasks);
+  } catch {
+    return null;
+  }
 };
 
 export default async function ProductDescriptionSection({

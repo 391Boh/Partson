@@ -1,6 +1,23 @@
 import { NextResponse } from "next/server";
 
 import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
+import type { CatalogProduct } from "app/lib/catalog-server";
+
+type CatalogPageApiPayload = {
+  items: CatalogProduct[];
+  prices: Record<string, number>;
+  images: Record<string, string>;
+  hasMore: boolean;
+  nextCursor: string;
+  cursorField?: string;
+  serviceUnavailable?: boolean;
+  message?: string;
+  stale?: boolean;
+};
+
+const ROUTE_SUCCESS_CACHE_TTL_MS = 1000 * 60 * 2;
+const routeSuccessCache = new Map<string, { expiresAt: number; value: CatalogPageApiPayload }>();
+const routeInFlightRequests = new Map<string, Promise<CatalogPageApiPayload>>();
 
 const toTrimmedString = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -14,6 +31,62 @@ const toPositiveInt = (value: unknown, fallback: number) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.floor(parsed);
+};
+
+const buildRouteCacheKey = (body: Record<string, unknown>) =>
+  JSON.stringify({
+    page: toPositiveInt(body.page, 1),
+    limit: toPositiveInt(body.limit, 10),
+    cursor: toTrimmedString(body.cursor),
+    cursorField: toTrimmedString(body.cursorField),
+    selectedCars: toStringArray(body.selectedCars),
+    selectedCategories: toStringArray(body.selectedCategories),
+    searchQuery: toTrimmedString(body.searchQuery),
+    searchFilter:
+      body.searchFilter === "article" ||
+      body.searchFilter === "name" ||
+      body.searchFilter === "code" ||
+      body.searchFilter === "producer"
+        ? body.searchFilter
+        : "all",
+    group: toTrimmedString(body.group),
+    subcategory: toTrimmedString(body.subcategory),
+    producer: toTrimmedString(body.producer),
+    sortOrder:
+      body.sortOrder === "asc" || body.sortOrder === "desc"
+        ? body.sortOrder
+        : "none",
+  });
+
+const pruneRouteSuccessCache = () => {
+  const now = Date.now();
+  for (const [key, entry] of routeSuccessCache.entries()) {
+    if (!entry || entry.expiresAt <= now) {
+      routeSuccessCache.delete(key);
+    }
+  }
+};
+
+const sanitizeCatalogErrorMessage = (value: string | null | undefined) => {
+  const raw = (value || "").trim();
+  if (!raw) return "";
+
+  if (/<\s*html|<\s*!doctype|<\s*script|<\s*body/i.test(raw)) {
+    return "";
+  }
+
+  const stripped = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  if (!stripped) return "";
+
+  if (
+    /catalog\s+getdata\s+failed|request\s+timeout|timed?\s*out|timeout after/i.test(
+      stripped
+    )
+  ) {
+    return "Каталог тимчасово перевантажений. Спробуйте ще раз через кілька секунд.";
+  }
+
+  return stripped.length > 220 ? `${stripped.slice(0, 220)}...` : stripped;
 };
 
 const buildInlinePrices = (
@@ -42,43 +115,108 @@ const buildInlinePrices = (
 };
 
 export async function POST(request: Request) {
+  let body: Record<string, unknown> = {};
+  let routeCacheKey = "";
+
   try {
-    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    routeCacheKey = buildRouteCacheKey(body);
+    pruneRouteSuccessCache();
 
-    const result = await fetchCatalogProductsByQuery({
-      page: toPositiveInt(body.page, 1),
-      limit: toPositiveInt(body.limit, 10),
-      cursor: toTrimmedString(body.cursor),
-      selectedCars: toStringArray(body.selectedCars),
-      selectedCategories: toStringArray(body.selectedCategories),
-      searchQuery: toTrimmedString(body.searchQuery),
-      searchFilter:
-        body.searchFilter === "article" ||
-        body.searchFilter === "name" ||
-        body.searchFilter === "code" ||
-        body.searchFilter === "producer"
-          ? body.searchFilter
-          : "all",
-      group: toTrimmedString(body.group),
-      subcategory: toTrimmedString(body.subcategory),
-      producer: toTrimmedString(body.producer),
-      sortOrder:
-        body.sortOrder === "asc" || body.sortOrder === "desc"
-          ? body.sortOrder
-          : "none",
-      retries: 1,
-      retryDelayMs: 200,
-      cacheTtlMs: 1000 * 20,
-    });
+    const cacheHit = routeSuccessCache.get(routeCacheKey);
+    if (cacheHit && cacheHit.expiresAt > Date.now()) {
+      return NextResponse.json(cacheHit.value);
+    }
 
-    return NextResponse.json({
-      items: result.items,
-      prices: buildInlinePrices(result.items),
-      images: {},
-      hasMore: result.hasMore,
-      nextCursor: result.nextCursor,
-    });
+    const normalizedSearchQuery = toTrimmedString(body.searchQuery);
+    const normalizedGroup = toTrimmedString(body.group);
+    const normalizedSubcategory = toTrimmedString(body.subcategory);
+    const normalizedProducer = toTrimmedString(body.producer);
+    const hasTightFilterContext = Boolean(
+      normalizedSearchQuery ||
+        normalizedGroup ||
+        normalizedSubcategory ||
+        normalizedProducer
+    );
+
+    const timeoutMs = hasTightFilterContext ? 2200 : 2600;
+    const retries = hasTightFilterContext ? 1 : 1;
+    const retryDelayMs = hasTightFilterContext ? 120 : 150;
+    const cacheTtlMs = hasTightFilterContext ? 1000 * 20 : 1000 * 45;
+
+    let inFlight = routeInFlightRequests.get(routeCacheKey);
+    if (!inFlight) {
+      inFlight = fetchCatalogProductsByQuery({
+        page: toPositiveInt(body.page, 1),
+        limit: toPositiveInt(body.limit, 10),
+        cursor: toTrimmedString(body.cursor),
+        cursorField: toTrimmedString(body.cursorField),
+        selectedCars: toStringArray(body.selectedCars),
+        selectedCategories: toStringArray(body.selectedCategories),
+        searchQuery: normalizedSearchQuery,
+        searchFilter:
+          body.searchFilter === "article" ||
+          body.searchFilter === "name" ||
+          body.searchFilter === "code" ||
+          body.searchFilter === "producer"
+            ? body.searchFilter
+            : "all",
+        group: normalizedGroup,
+        subcategory: normalizedSubcategory,
+        producer: normalizedProducer,
+        sortOrder:
+          body.sortOrder === "asc" || body.sortOrder === "desc"
+            ? body.sortOrder
+            : "none",
+        timeoutMs,
+        retries,
+        retryDelayMs,
+        cacheTtlMs,
+      })
+        .then((result) => ({
+          items: result.items,
+          prices: buildInlinePrices(result.items),
+          images: {},
+          hasMore: result.hasMore,
+          nextCursor: result.nextCursor,
+          cursorField: result.cursorField || "",
+        }))
+        .finally(() => {
+          routeInFlightRequests.delete(routeCacheKey);
+        });
+
+      routeInFlightRequests.set(routeCacheKey, inFlight);
+    }
+
+    const payload = await inFlight;
+
+    if (routeCacheKey) {
+      routeSuccessCache.set(routeCacheKey, {
+        expiresAt: Date.now() + ROUTE_SUCCESS_CACHE_TTL_MS,
+        value: payload,
+      });
+    }
+
+    return NextResponse.json(payload);
   } catch (error) {
+    if (!routeCacheKey) {
+      routeCacheKey = buildRouteCacheKey(body);
+    }
+    pruneRouteSuccessCache();
+    const staleHit = routeSuccessCache.get(routeCacheKey);
+    if (staleHit && staleHit.expiresAt > Date.now()) {
+      return NextResponse.json({
+        ...staleHit.value,
+        stale: true,
+        serviceUnavailable: false,
+        message: "",
+      });
+    }
+
+    const normalizedMessage = sanitizeCatalogErrorMessage(
+      error instanceof Error ? error.message : ""
+    );
+
     return NextResponse.json(
       {
         items: [],
@@ -87,7 +225,7 @@ export async function POST(request: Request) {
         hasMore: false,
         nextCursor: "",
         serviceUnavailable: true,
-        message: error instanceof Error ? error.message : "Каталог тимчасово недоступний.",
+        message: normalizedMessage || "Каталог тимчасово недоступний.",
       },
       { status: 503 }
     );

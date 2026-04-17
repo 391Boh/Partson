@@ -15,42 +15,42 @@ import { buildProductImageBatchKey } from "app/lib/product-image-path";
 export const runtime = "nodejs";
 
 const MAX_BATCH_ITEMS = 48;
-const BATCH_CONCURRENCY = 6;
+const BATCH_CONCURRENCY = 8;
 const OPTIMIZED_IMAGE_CACHE_TTL_MS = 1000 * 60 * 60;
 const CATALOG_IMAGE_MAX_WIDTH = 320;
 const CATALOG_IMAGE_MAX_HEIGHT = 320;
-const CATALOG_IMAGE_QUALITY = 62;
+const CATALOG_IMAGE_QUALITY = 58;
 
 const PRIMARY_LOOKUP_OPTIONS = {
-  timeoutMs: 950,
+  timeoutMs: 760,
   retries: 0,
   retryDelayMs: 80,
   cacheTtlMs: 1000 * 60 * 60 * 2,
   missCacheTtlMs: 1000 * 30,
-  allowUrlDownload: true,
-  batchConcurrency: 6,
+  allowUrlDownload: false,
+  batchConcurrency: 8,
   maxKeys: MAX_BATCH_ITEMS * 4,
 };
 const RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 1450,
+  timeoutMs: 1050,
   retries: 0,
   retryDelayMs: 90,
   cacheTtlMs: 1000 * 60 * 20,
   missCacheTtlMs: 1000 * 45,
   allowUrlDownload: true,
   skipMissCache: true,
-  batchConcurrency: 5,
+  batchConcurrency: 6,
   maxKeys: MAX_BATCH_ITEMS * 4,
 };
 const DEEP_RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 1750,
+  timeoutMs: 1350,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 20,
   missCacheTtlMs: 1000 * 18,
   allowUrlDownload: true,
   skipMissCache: true,
-  batchConcurrency: 5,
+  batchConcurrency: 6,
   maxKeys: MAX_BATCH_ITEMS * 4,
 };
 const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
@@ -80,6 +80,7 @@ const optimizedCatalogDataUriCache = new Map<
   string,
   { expiresAt: number; value: string }
 >();
+const optimizedCatalogDataUriInFlight = new Map<string, Promise<string | null>>();
 let fallbackImageHashPromise: Promise<string | null> | null = null;
 
 const getFallbackImageHash = async () => {
@@ -199,39 +200,51 @@ const optimizeCatalogImageToDataUri = async (imageBase64: string) => {
       return cached.value;
     }
 
-    const originalDataUri = `data:${originalContentType};base64,${imageBuffer.toString("base64")}`;
-
-    let optimizedDataUri = originalDataUri;
-    try {
-      const transformed = await sharp(imageBuffer, {
-        failOn: "none",
-        animated: false,
-      })
-        .rotate()
-        .resize({
-          width: CATALOG_IMAGE_MAX_WIDTH,
-          height: CATALOG_IMAGE_MAX_HEIGHT,
-          fit: "inside",
-          withoutEnlargement: true,
-        })
-        .webp({
-          quality: CATALOG_IMAGE_QUALITY,
-          effort: 4,
-        })
-        .toBuffer();
-
-      if (transformed.length > 0 && transformed.length < imageBuffer.length) {
-        optimizedDataUri = `data:image/webp;base64,${transformed.toString("base64")}`;
-      }
-    } catch {
-      optimizedDataUri = originalDataUri;
+    const inFlight = optimizedCatalogDataUriInFlight.get(cacheKey);
+    if (inFlight) {
+      return await inFlight;
     }
 
-    optimizedCatalogDataUriCache.set(cacheKey, {
-      expiresAt: Date.now() + OPTIMIZED_IMAGE_CACHE_TTL_MS,
-      value: optimizedDataUri,
+    const optimizationPromise = (async () => {
+      const originalDataUri = `data:${originalContentType};base64,${imageBuffer.toString("base64")}`;
+
+      let optimizedDataUri = originalDataUri;
+      try {
+        const transformed = await sharp(imageBuffer, {
+          failOn: "none",
+          animated: false,
+        })
+          .rotate()
+          .resize({
+            width: CATALOG_IMAGE_MAX_WIDTH,
+            height: CATALOG_IMAGE_MAX_HEIGHT,
+            fit: "inside",
+            withoutEnlargement: true,
+          })
+          .webp({
+            quality: CATALOG_IMAGE_QUALITY,
+            effort: 2,
+          })
+          .toBuffer();
+
+        if (transformed.length > 0 && transformed.length < imageBuffer.length) {
+          optimizedDataUri = `data:image/webp;base64,${transformed.toString("base64")}`;
+        }
+      } catch {
+        optimizedDataUri = originalDataUri;
+      }
+
+      optimizedCatalogDataUriCache.set(cacheKey, {
+        expiresAt: Date.now() + OPTIMIZED_IMAGE_CACHE_TTL_MS,
+        value: optimizedDataUri,
+      });
+      return optimizedDataUri;
+    })().finally(() => {
+      optimizedCatalogDataUriInFlight.delete(cacheKey);
     });
-    return optimizedDataUri;
+
+    optimizedCatalogDataUriInFlight.set(cacheKey, optimizationPromise);
+    return await optimizationPromise;
   } catch {
     return null;
   }

@@ -68,21 +68,40 @@ const toNumber = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const stripHtmlTags = (value: string) => value.replace(/<[^>]*>/g, " ");
+
+const sanitizeErrorText = (value: string) => {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "";
+
+  const looksLikeHtml =
+    /<\s*html|<\s*!doctype|<\s*script|<\s*meta|<\s*body/i.test(trimmed);
+  if (looksLikeHtml) return "";
+
+  const noTags = stripHtmlTags(trimmed).replace(/\s+/g, " ").trim();
+  if (!noTags) return "";
+
+  return noTags.length > 240 ? `${noTags.slice(0, 240)}...` : noTags;
+};
+
 const extractErrorMessage = (text: string) => {
   try {
     const parsed = JSON.parse(text);
     if (parsed && typeof parsed === "object") {
-      return (
+      const safeMessage = sanitizeErrorText(
         (parsed.error as string) ||
         (parsed.details as string) ||
         (parsed.message as string) ||
-        text
+        ""
       );
+      if (safeMessage) return safeMessage;
     }
   } catch {
     // ignore
   }
-  return text || "Помилка сервісу";
+
+  const safeFallback = sanitizeErrorText(text);
+  return safeFallback || "Помилка сервісу 1С. Спробуйте ще раз трохи пізніше.";
 };
 
 const toStringValue = (value: unknown) => {

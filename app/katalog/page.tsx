@@ -13,9 +13,9 @@ import { buildPageMetadata } from "app/lib/seo-metadata";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getSiteUrl } from "app/lib/site-url";
 
-const INITIAL_CATALOG_PAGE_LIMIT = 10;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS = 1200;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 900;
+const INITIAL_CATALOG_PAGE_LIMIT = 12;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS = 650;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 260;
 
 type InitialCatalogPagePayload = {
   items: Array<{
@@ -34,6 +34,7 @@ type InitialCatalogPagePayload = {
   images: Record<string, string>;
   hasMore: boolean;
   nextCursor: string;
+  cursorField?: string;
   serviceUnavailable?: boolean;
   message?: string;
 };
@@ -409,7 +410,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         subcategory: state.subcategory || null,
         producer: state.producer || null,
         sortOrder: "none",
-        timeoutMs: Math.max(700, initialCatalogTimeoutMs - 150),
+        timeoutMs: Math.max(220, initialCatalogTimeoutMs - 70),
         retries: 0,
         retryDelayMs: 120,
         cacheTtlMs: 1000 * 20,
@@ -419,6 +420,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         images: {},
         hasMore: result.hasMore,
         nextCursor: result.nextCursor,
+        cursorField: result.cursorField || "",
       })),
     null,
     initialCatalogTimeoutMs
