@@ -130,10 +130,14 @@ const toProductSitemapEntry = (product: CatalogProduct): ProductSitemapEntry | n
   };
 };
 
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
+async function withTimeoutFallback<T>(
+  promise: Promise<T>,
+  ms: number,
+  fallback: T
+): Promise<T> {
+  return new Promise((resolve) => {
     const timer = setTimeout(() => {
-      reject(new Error(`Operation timed out after ${ms}ms`));
+      resolve(fallback);
     }, ms);
 
     promise
@@ -141,9 +145,9 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
         clearTimeout(timer);
         resolve(result);
       })
-      .catch((error) => {
+      .catch(() => {
         clearTimeout(timer);
-        reject(error);
+        resolve(fallback);
       });
   });
 }
@@ -180,25 +184,33 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
     seenRequestStates.add(requestState);
     sourcePageCount += 1;
 
-    let pageResult: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>>;
+    const fallbackPageResult: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>> = {
+      items: [],
+      hasMore: false,
+      nextCursor: "",
+      cursorField: null,
+    };
 
-    try {
-      pageResult = await withTimeout(
-        fetchCatalogProductsByQuery({
-          page,
-          limit: PRODUCT_SITEMAP_QUERY_PAGE_SIZE,
-          cursor,
-          timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
-          retries: 2,
-          retryDelayMs: 180,
-          cacheTtlMs: 1000 * 60,
-        }),
-        PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000
-      );
-    } catch (error) {
+    const pageResult = await withTimeoutFallback(
+      fetchCatalogProductsByQuery({
+        page,
+        limit: PRODUCT_SITEMAP_QUERY_PAGE_SIZE,
+        cursor,
+        timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
+        retries: 2,
+        retryDelayMs: 180,
+        cacheTtlMs: 1000 * 60,
+      }),
+      PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000,
+      fallbackPageResult
+    );
+
+    if (pageResult.items.length === 0 && fallbackPageResult !== pageResult) {
+      // Normal empty page, continue to the shared termination logic below.
+    } else if (pageResult.items.length === 0) {
       logProductSitemapFailure(
         `Failed to fetch product sitemap source page for state "${requestState}"`,
-        error
+        `Operation timed out after ${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000}ms`
       );
       break;
     }
