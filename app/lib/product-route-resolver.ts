@@ -44,7 +44,7 @@ const PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES = parsePositiveInt(
 );
 const PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS = parsePositiveInt(
   process.env.PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS,
-  900
+  1200
 );
 
 const normalizeSlug = (value: string) => decodeURIComponent(value || "").trim();
@@ -443,7 +443,7 @@ const resolveProductBySeoRouteUncached = async (
 const resolveProductByNameSlugCached = unstable_cache(
   async (nameSlug: string) => resolveProductByNameSlugUncached(nameSlug),
   [
-    `product-route-name-v4-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS}`,
+    `product-route-name-v5-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS}`,
   ],
   {
     revalidate: 60 * 60,
@@ -455,7 +455,7 @@ const resolveProductBySeoRouteCached = unstable_cache(
   async (groupSlug: string, nameSlug: string) =>
     resolveProductBySeoRouteUncached(groupSlug, nameSlug),
   [
-    `product-route-v8-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS}`,
+    `product-route-v9-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS}`,
   ],
   {
     revalidate: 60 * 60,

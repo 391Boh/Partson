@@ -42,9 +42,9 @@ import { getSiteUrl } from "app/lib/site-url";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
-const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 2200;
-const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1300;
-const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 1200;
+const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 3000;
+const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 2200;
+const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 1600;
 const PRODUCT_PAGE_SEO_PRICE_LOOKUP_TIMEOUT_MS = 650;
 const PRODUCT_PAGE_SEO_PRICE_REQUEST_TIMEOUT_MS = 500;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 350;
@@ -906,19 +906,26 @@ const buildUniqueLookupTokens = (rawNameSlug: string) =>
     ...extractLookupTokensFromSeoNameSlug(rawNameSlug),
   ].filter((token, index, array) => Boolean(token) && array.indexOf(token) === index);
 
-const findCatalogProductByLookupToken = async (token: string) =>
-  getFirstResolvedNonNull([
+const findCatalogProductByLookupToken = async (token: string) => {
+  const fastMatch = await getFirstResolvedNonNull([
     findCatalogProductByCode(
       token,
       {
         ...FAST_PRODUCT_CATALOG_LOOKUP_OPTIONS,
-        timeoutMs: 700,
+        timeoutMs: 850,
         lookupLimit: 8,
         exactOnly: true,
       }
     ).catch(() => null),
     findCatalogProductByArticleFast(token).catch(() => null),
   ]);
+
+  if (fastMatch) {
+    return fastMatch;
+  }
+
+  return getCatalogProduct(token).catch(() => null);
+};
 
 const resolveProductFromSeoNameSlug = async (rawNameSlug: string) => {
   const lookupTokens = buildUniqueLookupTokens(rawNameSlug);
@@ -1020,7 +1027,7 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
 
 const resolveProductCodeFromRouteParamCached = unstable_cache(
   resolveProductCodeFromRouteParamUncached,
-  ["product-page:resolve-route-v10-short-name-article"],
+  ["product-page:resolve-route-v11-short-name-article"],
   { revalidate: 900 }
 );
 
@@ -1062,7 +1069,7 @@ const getResolvedProductRouteDataUncached = async (
 
 const getResolvedProductRouteDataCached = unstable_cache(
   getResolvedProductRouteDataUncached,
-  ["product-page:resolved-route-product-v10-short-name-article"],
+  ["product-page:resolved-route-product-v11-short-name-article"],
   { revalidate: 900 }
 );
 

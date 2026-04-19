@@ -18,7 +18,7 @@ type CatalogPageApiPayload = {
 const ROUTE_SUCCESS_CACHE_TTL_MS = 1000 * 60 * 2;
 const ROUTE_SUCCESS_STALE_TTL_MS = 1000 * 60 * 12;
 const ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS = 1000 * 60 * 6;
-const CATALOG_ROUTE_RESPONSE_TIMEOUT_MS = 5200;
+const CATALOG_ROUTE_RESPONSE_TIMEOUT_MS = 6500;
 
 type RouteSuccessCacheEntry = {
   freshUntil: number;
@@ -198,7 +198,7 @@ export async function POST(request: Request) {
         normalizedProducer
     );
 
-    const timeoutMs = hasTightFilterContext ? 2400 : 3000;
+    const timeoutMs = hasTightFilterContext ? 2800 : 3600;
     const retries = 0;
     const retryDelayMs = hasTightFilterContext ? 80 : 150;
     const cacheTtlMs = hasTightFilterContext ? 1000 * 20 : 1000 * 45;
