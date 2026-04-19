@@ -51,12 +51,13 @@ export default async function LegacySeoProductRoute({
   params,
   searchParams,
 }: LegacySeoProductRouteProps) {
-  const { code, nameSlug } = await params;
+  const { code } = await params;
   const normalizedSearchParams = (await searchParams) || {};
+  const normalizedCode = (code || "").trim();
 
   redirect(
-    `/product/${encodeURIComponent((code || "").trim())}--${encodeURIComponent(
-      (nameSlug || "").trim()
-    )}${buildSearchParamsString(normalizedSearchParams)}`
+    `/product/${encodeURIComponent(normalizedCode)}${buildSearchParamsString(
+      normalizedSearchParams
+    )}`
   );
 }

@@ -218,31 +218,68 @@ export default function ProductPurchasePanelClient(
     : hasPrice
       ? "Замовлення доступне одразу зі сторінки."
       : "Надішліть запит менеджеру для уточнення ціни.";
+  const statusCardClass = isInStock
+    ? "rounded-[18px] border border-emerald-200/90 bg-[linear-gradient(180deg,rgba(240,253,244,0.99),rgba(220,252,231,0.9))] px-3 py-2.5 shadow-[0_10px_22px_rgba(16,185,129,0.07)]"
+    : "rounded-[18px] border border-amber-200/90 bg-[linear-gradient(180deg,rgba(255,251,235,0.99),rgba(254,243,199,0.9))] px-3 py-2.5 shadow-[0_10px_22px_rgba(245,158,11,0.07)]";
+  const statusLabelClass = isInStock ? "text-emerald-700" : "text-amber-700";
+  const statusValueClass = isInStock ? "text-emerald-950" : "text-amber-950";
+  const priceCardClass = isLoading
+    ? "rounded-[16px] border border-sky-200/90 bg-[linear-gradient(180deg,rgba(240,249,255,0.99),rgba(224,242,254,0.92))] px-3 py-2.5 shadow-[0_10px_24px_rgba(14,165,233,0.08)]"
+    : hasPrice
+      ? "rounded-[16px] border border-cyan-200/90 bg-[linear-gradient(180deg,rgba(236,254,255,0.99),rgba(207,250,254,0.92))] px-3 py-2.5 shadow-[0_12px_28px_rgba(6,182,212,0.1)]"
+      : "rounded-[16px] border border-rose-200/90 bg-[linear-gradient(180deg,rgba(255,241,242,0.99),rgba(255,228,230,0.92))] px-3 py-2.5 shadow-[0_10px_24px_rgba(244,63,94,0.08)]";
+  const priceLabelClass = isLoading
+    ? "text-sky-700"
+    : hasPrice
+      ? "text-cyan-800"
+      : "text-rose-700";
+  const priceValueClass = isLoading
+    ? "text-sky-950"
+    : hasPrice
+      ? "text-cyan-950"
+      : "text-rose-950";
+  const panelIndicatorClass = isInStock
+    ? "bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.16)]"
+    : "bg-amber-400 shadow-[0_0_0_4px_rgba(251,191,36,0.16)]";
 
   return (
-    <div className="rounded-[20px] border border-white/14 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.08))] p-2.5 shadow-[0_22px_40px_rgba(15,23,42,0.2)] backdrop-blur-md sm:p-3">
+    <div className="rounded-[22px] border border-cyan-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,252,255,0.97),rgba(237,250,255,0.93))] p-3 shadow-[0_20px_40px_rgba(14,165,233,0.1)]">
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-800">
+            Замовлення
+          </p>
+          <p className="mt-0.5 text-[12px] font-medium leading-5 text-slate-500">
+            Ціна та наявність
+          </p>
+        </div>
+        <span className={`h-2.5 w-2.5 rounded-full ${panelIndicatorClass}`} />
+      </div>
+
       <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-[16px] border border-white/12 bg-white/7 px-3 py-2.5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-300/90">
+        <div className={statusCardClass}>
+          <p className={`text-[10px] font-bold uppercase tracking-[0.1em] ${statusLabelClass}`}>
             Статус
           </p>
-          <p className="mt-1 text-[13px] font-extrabold leading-5 text-white sm:text-[14px]">
+          <p className={`mt-1 text-[13px] font-extrabold leading-5 ${statusValueClass} sm:text-[14px]`}>
             {isInStock
               ? `В наявності${product.quantity > 0 ? ` · ${product.quantity} шт.` : ""}`
               : "Під замовлення"}
           </p>
         </div>
-        <div className="rounded-[16px] border border-white/12 bg-white/7 px-3 py-2.5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-300/90">
+        <div className={priceCardClass}>
+          <p className={`text-[10px] font-bold uppercase tracking-[0.1em] ${priceLabelClass}`}>
             Ціна
           </p>
-          <p className="mt-1 text-[14px] font-black leading-5 text-white sm:text-[15px]">
+          <p className={`mt-1 text-[14px] font-black leading-5 ${priceValueClass} sm:text-[15px]`}>
             {isLoading ? "Завантажуємо" : formatPriceUah(priceUah ?? null)}
           </p>
         </div>
       </div>
 
-      <p className="mt-2.5 text-[12px] leading-5 text-slate-200">{helperText}</p>
+      <p className="mt-2.5 rounded-[16px] border border-white/90 bg-white/78 px-3 py-2 text-[12px] leading-5 text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+        {helperText}
+      </p>
 
       <div className="mt-2.5 flex items-center gap-2">
         <ProductPageActions

@@ -105,8 +105,12 @@ export const extractProductRouteSlugsFromParam = (value: string) => {
 };
 
 export const buildProductPath = (input: ProductPathInput) => {
-  const groupSlug = encodeURIComponent(buildProductGroupSlug(input));
-  const nameSlug = encodeURIComponent(buildProductNameSlug(input));
+  const groupSlug = buildProductGroupSlug(input);
+  const nameSlug = buildProductNameSlug(input);
 
-  return `/product/${groupSlug}${PRODUCT_ROUTE_SEGMENT_SEPARATOR}${nameSlug}`;
+  if (!groupSlug) {
+    return `/product/${encodeURIComponent(nameSlug)}`;
+  }
+
+  return `/product/${encodeURIComponent(groupSlug)}${PRODUCT_ROUTE_SEGMENT_SEPARATOR}${encodeURIComponent(nameSlug)}`;
 };

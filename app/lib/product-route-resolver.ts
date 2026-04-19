@@ -48,6 +48,28 @@ const normalizeSlug = (value: string) => decodeURIComponent(value || "").trim();
 const toProductRouteKey = (item: ProductRouteFacetCandidate) =>
   `${(item.group || "").trim().toLowerCase()}::${(item.subGroup || "").trim().toLowerCase()}`;
 
+const setUniqueRouteCode = (
+  map: Map<string, string>,
+  duplicates: Set<string>,
+  rawKey: string,
+  rawCode: string
+) => {
+  const key = normalizeSlug(rawKey).toLowerCase();
+  const code = normalizeSlug(rawCode);
+  if (!key || !code || duplicates.has(key)) return;
+
+  const existing = map.get(key);
+  if (!existing) {
+    map.set(key, code);
+    return;
+  }
+
+  if (existing.toLowerCase() === code.toLowerCase()) return;
+
+  map.delete(key);
+  duplicates.add(key);
+};
+
 const findProductBySlugs = (
   items: CatalogProduct[],
   groupSlug: string,
@@ -92,11 +114,48 @@ const findProductBySlugs = (
   return prefixMatchedProduct;
 };
 
+const findProductByNameSlug = (items: CatalogProduct[], nameSlug: string) => {
+  let prefixMatchedProduct: CatalogProduct | null = null;
+
+  for (const item of items) {
+    const itemCode = item.code.trim() || item.article.trim();
+    if (!itemCode) continue;
+
+    const currentNameSlug = buildProductNameSlug(item);
+    const legacyPlainNameSlug = buildLegacyProductNameSlug(item);
+    const legacyNameSlug = buildSeoSlug(buildLegacyProductSeoName(item));
+    const matchesCurrent = currentNameSlug === nameSlug;
+    const matchesCurrentLegacyPlain = legacyPlainNameSlug === nameSlug;
+    const matchesLegacy = legacyNameSlug === nameSlug;
+
+    if (matchesCurrent || matchesCurrentLegacyPlain || matchesLegacy) {
+      return item;
+    }
+
+    const matchesCanonicalPrefix = currentNameSlug.startsWith(`${nameSlug}-`);
+    const matchesLegacyPrefix =
+      legacyPlainNameSlug.startsWith(`${nameSlug}-`) ||
+      legacyNameSlug.startsWith(`${nameSlug}-`);
+
+    if (!matchesCanonicalPrefix && !matchesLegacyPrefix) continue;
+
+    if (!prefixMatchedProduct) {
+      prefixMatchedProduct = item;
+    }
+  }
+
+  return prefixMatchedProduct;
+};
+
 const getProductRouteIndex = unstable_cache(
   async () => {
     const entries = await getAllProductSitemapEntries().catch(() => []);
     const direct = new Map<string, string>();
     const prefix = new Map<string, string>();
+    const directNameOnly = new Map<string, string>();
+    const prefixNameOnly = new Map<string, string>();
+    const directNameOnlyDuplicates = new Set<string>();
+    const prefixNameOnlyDuplicates = new Set<string>();
 
     for (const entry of entries) {
       const code = (entry.code || "").trim() || (entry.article || "").trim();
@@ -121,10 +180,16 @@ const getProductRouteIndex = unstable_cache(
         }
       }
 
+      for (const key of [canonicalNameSlug, legacyPlainNameSlug, legacyNameSlug]) {
+        setUniqueRouteCode(directNameOnly, directNameOnlyDuplicates, key, code);
+      }
+
       const prefixCandidates = [
         `${groupSlug}::${canonicalNameSlug}`,
         `${groupSlug}::${legacyPlainNameSlug}`,
       ];
+
+      const nameOnlyPrefixCandidates = [canonicalNameSlug, legacyPlainNameSlug, legacyNameSlug];
 
       for (const fullKey of prefixCandidates) {
         const separatorIndex = fullKey.indexOf("::");
@@ -140,11 +205,20 @@ const getProductRouteIndex = unstable_cache(
           }
         }
       }
+
+      for (const fullNameSlug of nameOnlyPrefixCandidates) {
+        const parts = fullNameSlug.split("-").filter(Boolean);
+
+        for (let length = parts.length - 1; length >= 2; length -= 1) {
+          const prefixKey = parts.slice(0, length).join("-");
+          setUniqueRouteCode(prefixNameOnly, prefixNameOnlyDuplicates, prefixKey, code);
+        }
+      }
     }
 
-    return { direct, prefix };
+    return { direct, prefix, directNameOnly, prefixNameOnly };
   },
-  ["product-route:index-v1"],
+  ["product-route:index-v3-name-fallback"],
   {
     revalidate: 60 * 60,
     tags: ["product-route", "product-sitemap"],
@@ -258,6 +332,48 @@ const scanGlobalCatalog = async (groupSlug: string, nameSlug: string) => {
   return null;
 };
 
+const scanGlobalCatalogByNameSlug = async (nameSlug: string) => {
+  for (let page = 1; page <= PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES; page += 1) {
+    const batch = await fetchCatalogProductsPage({
+      page,
+      limit: PRODUCT_ROUTE_LOOKUP_PAGE_SIZE,
+    });
+
+    if (batch.length === 0) break;
+
+    const matchedProduct = findProductByNameSlug(batch, nameSlug);
+    if (matchedProduct) return matchedProduct;
+
+    if (batch.length < PRODUCT_ROUTE_LOOKUP_PAGE_SIZE) break;
+  }
+
+  return null;
+};
+
+const resolveProductByNameSlugUncached = async (rawNameSlug: string) => {
+  const nameSlug = normalizeSlug(rawNameSlug);
+  if (!nameSlug) return null;
+
+  const indexedRoutes = await getProductRouteIndex().catch(() => null);
+  const indexedCode =
+    indexedRoutes?.directNameOnly.get(nameSlug.toLowerCase()) ||
+    indexedRoutes?.prefixNameOnly.get(nameSlug.toLowerCase()) ||
+    null;
+  if (indexedCode) {
+    return { code: indexedCode };
+  }
+
+  const fallbackProduct = await scanGlobalCatalogByNameSlug(nameSlug);
+  if (!fallbackProduct) return null;
+
+  const resolvedCode = fallbackProduct.code.trim() || fallbackProduct.article.trim();
+  if (!resolvedCode) return null;
+
+  return {
+    code: resolvedCode,
+  };
+};
+
 const resolveProductBySeoRouteUncached = async (
   rawGroupSlug: string,
   rawNameSlug: string
@@ -275,6 +391,14 @@ const resolveProductBySeoRouteUncached = async (
     return { code: indexedCode };
   }
 
+  const indexedNameOnlyCode =
+    indexedRoutes?.directNameOnly.get(nameSlug.toLowerCase()) ||
+    indexedRoutes?.prefixNameOnly.get(nameSlug.toLowerCase()) ||
+    null;
+  if (indexedNameOnlyCode) {
+    return { code: indexedNameOnlyCode };
+  }
+
   const facetCandidates = await collectFacetCandidates(groupSlug);
   for (const candidate of facetCandidates) {
     const matchedProduct = await scanFacetCandidate(candidate, groupSlug, nameSlug);
@@ -289,21 +413,35 @@ const resolveProductBySeoRouteUncached = async (
   }
 
   const fallbackProduct = await scanGlobalCatalog(groupSlug, nameSlug);
-  if (!fallbackProduct) return null;
+  if (fallbackProduct) {
+    const resolvedCode = fallbackProduct.code.trim() || fallbackProduct.article.trim();
+    if (resolvedCode) {
+      return {
+        code: resolvedCode,
+      };
+    }
+  }
 
-  const resolvedCode = fallbackProduct.code.trim() || fallbackProduct.article.trim();
-  if (!resolvedCode) return null;
+  return resolveProductByNameSlugUncached(nameSlug);
 
-  return {
-    code: resolvedCode,
-  };
 };
+
+const resolveProductByNameSlugCached = unstable_cache(
+  async (nameSlug: string) => resolveProductByNameSlugUncached(nameSlug),
+  [
+    `product-route-name-v1-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}`,
+  ],
+  {
+    revalidate: 60 * 60,
+    tags: ["product-route"],
+  }
+);
 
 const resolveProductBySeoRouteCached = unstable_cache(
   async (groupSlug: string, nameSlug: string) =>
     resolveProductBySeoRouteUncached(groupSlug, nameSlug),
   [
-    `product-route-v3-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}`,
+    `product-route-v5-name-fallback-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}`,
   ],
   {
     revalidate: 60 * 60,
@@ -317,3 +455,8 @@ export const resolveProductCodeFromSeoRoute = cache(
     return resolved?.code || null;
   }
 );
+
+export const resolveProductCodeFromNameSlug = cache(async (nameSlug: string) => {
+  const resolved = await resolveProductByNameSlugCached(nameSlug);
+  return resolved?.code || null;
+});

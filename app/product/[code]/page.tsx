@@ -33,7 +33,10 @@ import {
   extractProductRouteSlugsFromParam,
   INTERNAL_PRODUCT_ROUTE_RESOLUTION_PARAM,
 } from "app/lib/product-url";
-import { resolveProductCodeFromSeoRoute } from "app/lib/product-route-resolver";
+import {
+  resolveProductCodeFromNameSlug,
+  resolveProductCodeFromSeoRoute,
+} from "app/lib/product-route-resolver";
 import { getSiteUrl } from "app/lib/site-url";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
@@ -201,7 +204,13 @@ const buildFrontendProductHeading = (
   const normalizedArticle = (hints?.article || "").trim();
   if (normalizedArticle) {
     cleaned = cleaned
-      .replace(new RegExp(`\\b${escapeRegExp(normalizedArticle)}\\b`, "iu"), "")
+      .replace(
+        new RegExp(
+          `(?:\\s*[—-]?\\s*артикул\\s*)?${escapeRegExp(normalizedArticle)}\\b`,
+          "iu"
+        ),
+        ""
+      )
       .replace(/\s{2,}/g, " ")
       .trim();
   }
@@ -761,19 +770,21 @@ const extractLookupTokensFromSeoNameSlug = (rawNameSlug: string) => {
   if (parts.length === 0) return [] as string[];
 
   const tokens = new Set<string>();
+  const addLookupToken = (token: string, minLength = 3) => {
+    if (token.length < minLength) return;
+    if (!/\d/.test(token)) return;
+    tokens.add(token);
+  };
 
   for (const part of parts) {
-    if (part.length < 5) continue;
-    if (!/\d/.test(part)) continue;
-    tokens.add(part);
+    addLookupToken(part);
   }
 
   for (let tailSize = 2; tailSize <= 4; tailSize += 1) {
     if (parts.length < tailSize) continue;
-    const merged = parts.slice(-tailSize).join("");
-    if (merged.length < 6) continue;
-    if (!/\d/.test(merged)) continue;
-    tokens.add(merged);
+    const tailParts = parts.slice(-tailSize);
+    addLookupToken(tailParts.join(""), 5);
+    addLookupToken(tailParts.join("-"), 5);
   }
 
   return Array.from(tokens);
@@ -784,9 +795,18 @@ const extractPrimaryLookupTokenFromSeoNameSlug = (rawNameSlug: string) => {
   if (!normalized) return "";
 
   const parts = normalized.split("-").map((entry) => entry.trim()).filter(Boolean);
+  for (let tailSize = Math.min(4, parts.length); tailSize >= 2; tailSize -= 1) {
+    const tailParts = parts.slice(-tailSize);
+    const isNumericCodeTail = tailParts.every((part) => /^\d+$/.test(part));
+    if (!isNumericCodeTail) continue;
+
+    const hyphenatedCode = tailParts.join("-");
+    if (hyphenatedCode.length >= 5) return hyphenatedCode;
+  }
+
   for (let index = parts.length - 1; index >= 0; index -= 1) {
     const token = parts[index];
-    if (token.length < 5) continue;
+    if (token.length < 3) continue;
     if (!/\d/.test(token)) continue;
     return token;
   }
@@ -800,37 +820,53 @@ type ResolvedProductRouteData = {
   product: Awaited<ReturnType<typeof getCatalogProductUncached>> | null;
 };
 
+const buildUniqueLookupTokens = (rawNameSlug: string) =>
+  [
+    extractPrimaryLookupTokenFromSeoNameSlug(rawNameSlug),
+    ...extractLookupTokensFromSeoNameSlug(rawNameSlug),
+  ].filter((token, index, array) => Boolean(token) && array.indexOf(token) === index);
+
+const findCatalogProductByLookupToken = async (token: string) =>
+  getFirstResolvedNonNull([
+    findCatalogProductByCode(
+      token,
+      {
+        ...FAST_PRODUCT_CATALOG_LOOKUP_OPTIONS,
+        timeoutMs: 700,
+        lookupLimit: 8,
+        exactOnly: true,
+      }
+    ).catch(() => null),
+    findCatalogProductByArticleFast(token).catch(() => null),
+  ]);
+
+const resolveProductFromSeoNameSlug = async (rawNameSlug: string) => {
+  const lookupTokens = buildUniqueLookupTokens(rawNameSlug);
+
+  for (const token of lookupTokens) {
+    const matchedProduct = await findCatalogProductByLookupToken(token);
+    const matchedCode = (matchedProduct?.code || matchedProduct?.article || "").trim();
+    if (!matchedCode) continue;
+
+    return {
+      code: matchedCode,
+      product: matchedProduct,
+    };
+  }
+
+  return null;
+};
+
 const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
+  const decodedParam = decodeURIComponent(rawCode || "").trim();
   const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
   if (routeSlugs) {
-    const primaryLookupToken = extractPrimaryLookupTokenFromSeoNameSlug(
-      routeSlugs.nameSlug
-    );
-    const lookupTokens = [
-      primaryLookupToken,
-      ...extractLookupTokensFromSeoNameSlug(routeSlugs.nameSlug),
-    ].filter((token, index, array) => Boolean(token) && array.indexOf(token) === index);
-
-    for (const token of lookupTokens) {
-      const matchedProduct = await getFirstResolvedNonNull([
-        findCatalogProductByCode(
-          token,
-          {
-            ...FAST_PRODUCT_CATALOG_LOOKUP_OPTIONS,
-            timeoutMs: 700,
-            lookupLimit: 8,
-            exactOnly: true,
-          }
-        ).catch(() => null),
-        findCatalogProductByArticleFast(token).catch(() => null),
-      ]);
-      const matchedCode = (matchedProduct?.code || matchedProduct?.article || "").trim();
-      if (!matchedCode) continue;
-
+    const matchedProductRoute = await resolveProductFromSeoNameSlug(routeSlugs.nameSlug);
+    if (matchedProductRoute) {
       return {
-        code: matchedCode,
+        code: matchedProductRoute.code,
         isSeoRoute: true,
-        product: matchedProduct,
+        product: matchedProductRoute.product,
       };
     }
 
@@ -846,6 +882,17 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
       };
     }
 
+    const resolvedCodeByNameSlug = await resolveProductCodeFromNameSlug(
+      routeSlugs.nameSlug
+    );
+    if (resolvedCodeByNameSlug) {
+      return {
+        code: resolvedCodeByNameSlug,
+        isSeoRoute: true,
+        product: null,
+      };
+    }
+
     return {
       code: "",
       isSeoRoute: false,
@@ -853,8 +900,39 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
     };
   }
 
+  const directCode = extractProductCodeFromParam(rawCode || "");
+  const directProduct = directCode
+    ? await findCatalogProductByLookupToken(directCode)
+    : null;
+  const directProductCode = (directProduct?.code || directProduct?.article || "").trim();
+  if (directProductCode) {
+    return {
+      code: directProductCode,
+      isSeoRoute: false,
+      product: directProduct,
+    };
+  }
+
+  const matchedProductRoute = await resolveProductFromSeoNameSlug(decodedParam);
+  if (matchedProductRoute) {
+    return {
+      code: matchedProductRoute.code,
+      isSeoRoute: true,
+      product: matchedProductRoute.product,
+    };
+  }
+
+  const resolvedCodeByNameSlug = await resolveProductCodeFromNameSlug(decodedParam);
+  if (resolvedCodeByNameSlug) {
+    return {
+      code: resolvedCodeByNameSlug,
+      isSeoRoute: true,
+      product: null,
+    };
+  }
+
   return {
-    code: extractProductCodeFromParam(rawCode || ""),
+    code: directCode,
     isSeoRoute: false,
     product: null,
   };
@@ -862,7 +940,7 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
 
 const resolveProductCodeFromRouteParamCached = unstable_cache(
   resolveProductCodeFromRouteParamUncached,
-  ["product-page:resolve-route"],
+  ["product-page:resolve-route-v7-name-fallback"],
   { revalidate: 900 }
 );
 
@@ -899,7 +977,7 @@ const getResolvedProductRouteDataUncached = async (
 
 const getResolvedProductRouteDataCached = unstable_cache(
   getResolvedProductRouteDataUncached,
-  ["product-page:resolved-route-product"],
+  ["product-page:resolved-route-product-v7-name-fallback"],
   { revalidate: 900 }
 );
 
@@ -1078,7 +1156,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS
   );
   const resolvedCode = (routeData.code || fallbackCodeFromRoute || "").trim();
-  const isSeoRoute = routeData.isSeoRoute;
   const product = routeData.product
     ? routeData.product
     : resolvedCode
@@ -1107,7 +1184,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
   if (
     !isSeoResolvedInternally &&
-    isSeoRoute &&
     currentRouteParam !== canonicalRouteParam
   ) {
     redirect(`${canonicalPath}${buildSearchParamsString(normalizedSearchParams)}`);
@@ -1264,21 +1340,43 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       ? { href: categoryCatalogPath, label: visibleProductSubgroup }
       : null,
   ].filter(Boolean) as Array<{ href: string; label: string }>;
-  const productMetaItems: Array<{ label: string; value: string; href?: string | null }> = [
-    {
-      label: "Артикул",
-      value: product.article || "-",
-    },
-    {
-      label: "Код товару",
-      value: product.code || resolvedCode,
-    },
-    {
-      label: "Виробник",
-      value: product.producer || "-",
-      href: product.producer ? producerLandingPath : null,
-    },
-  ];
+  const normalizedProductArticle = (product.article || "").trim();
+  const normalizedProductCode = (product.code || resolvedCode || "").trim();
+  const hasDistinctProductCode =
+    Boolean(normalizedProductArticle) &&
+    Boolean(normalizedProductCode) &&
+    normalizedProductArticle.toLowerCase() !== normalizedProductCode.toLowerCase();
+  const productIdentifierLabel = normalizedProductArticle
+    ? hasDistinctProductCode
+      ? "Артикул"
+      : "Артикул / код"
+    : normalizedProductCode
+      ? "Код товару"
+      : "Ідентифікатор";
+  const productIdentifierValue =
+    normalizedProductArticle || normalizedProductCode || "-";
+  const productIdentifierHint = hasDistinctProductCode
+    ? `Код товару: ${normalizedProductCode}`
+    : null;
+  const productHeaderInfoItems = [
+    product.producer
+      ? {
+          label: "Виробник",
+          value: product.producer,
+          href: producerLandingPath,
+        }
+      : null,
+    visibleProductSubgroup || visibleProductGroup
+      ? {
+          label: "Категорія",
+          value: visibleProductSubgroup || visibleProductGroup,
+          href: categoryCatalogPath,
+        }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; value: string; href?: string | null }>;
+  const productHeaderMetaGridClass = productHeaderInfoItems.length > 0
+    ? "mt-4 grid gap-2.5 xl:max-w-[880px] xl:grid-cols-[minmax(236px,0.95fr)_minmax(0,1.15fr)]"
+    : "mt-4 max-w-[430px]";
   const keywordButtonHref =
     producerLandingPath || producerCatalogPath || categoryCatalogPath || "/katalog";
   const keywordButtonLabel = producerCatalogPath
@@ -1339,28 +1437,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         : "Зараз товар доступний під замовлення. Точний термін постачання уточнюється менеджером після заявки.",
     },
   ];
-  const heroChips = [
-    product.producer
-      ? { label: product.producer, href: producerLandingPath || undefined }
-      : null,
-    visibleProductSubgroup || visibleProductGroup
-      ? {
-          label: visibleProductSubgroup || visibleProductGroup,
-          href: categoryCatalogPath,
-        }
-      : null,
-    {
-      label: isInStock
-        ? product.quantity > 0
-          ? `В наявності ${product.quantity} шт.`
-          : "В наявності"
-        : "Під замовлення",
-    },
-    initialPriceUah != null
-      ? { label: `від ${initialPriceUah.toLocaleString("uk-UA")} грн` }
-      : null,
-  ].filter(Boolean) as Array<{ label: string; href?: string }>;
-
   return (
     <div
       className={isModalView ? "min-h-screen select-none bg-white text-slate-900" : "min-h-screen select-none text-slate-900"}
@@ -1380,13 +1456,15 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         }
       >
         <article
-          className={`overflow-hidden border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(248,252,255,0.95),rgba(255,255,255,0.98))] shadow-[0_28px_68px_rgba(14,165,233,0.12)] backdrop-blur-xl ${
+          className={`overflow-hidden border border-white/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,252,255,0.96),rgba(255,255,255,0.98))] shadow-[0_28px_68px_rgba(14,165,233,0.11)] backdrop-blur-xl ${
             isModalView ? "rounded-2xl" : "rounded-[24px] sm:rounded-[26px]"
           }`}
         >
-          <header className="relative block h-auto min-h-0 border-b border-white/80 bg-[radial-gradient(circle_at_top_left,rgba(165,243,252,0.46),transparent_36%),radial-gradient(circle_at_86%_18%,rgba(191,219,254,0.34),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,252,255,0.95),rgba(236,248,255,0.92))] px-3 py-3 sm:px-4 sm:py-4">
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.2),transparent_42%,rgba(34,211,238,0.08))]" />
-            <div className="pointer-events-none absolute left-5 right-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
+          <header className="relative m-2.5 block h-auto min-h-0 overflow-hidden rounded-[24px] border border-cyan-100/95 bg-[linear-gradient(135deg,rgba(255,255,255,0.99),rgba(241,249,255,0.97)_52%,rgba(236,253,245,0.9))] px-3 py-3.5 shadow-[0_24px_60px_rgba(14,165,233,0.16),0_8px_22px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.86)] ring-1 ring-white/80 sm:m-3.5 sm:rounded-[28px] sm:px-5 sm:py-5">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(125,211,252,0.26),transparent_30%),radial-gradient(circle_at_92%_12%,rgba(134,239,172,0.18),transparent_28%)]" />
+            <div className="pointer-events-none absolute left-6 right-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-transparent via-white/90 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-5 bottom-[-18px] h-10 rounded-[999px] bg-cyan-400/10 blur-2xl" />
             <div className="relative">
               {!isModalView && (
                 <nav
@@ -1403,59 +1481,62 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   ))}
                 </nav>
               )}
-              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_340px]">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_324px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_348px]">
                 <div className="min-w-0">
-                  <div className="flex flex-wrap gap-2">
-                    {heroChips.map((chip) =>
-                      chip.href ? (
-                        <Link
-                          key={`${chip.label}:${chip.href}`}
-                          href={chip.href}
-                          className="inline-flex rounded-full border border-cyan-200/80 bg-white/88 px-3 py-1 text-[11px] font-semibold text-cyan-800 shadow-[0_10px_20px_rgba(8,145,178,0.08)] transition hover:border-cyan-300 hover:bg-cyan-50"
-                        >
-                          {chip.label}
-                        </Link>
-                      ) : (
-                        <span
-                          key={chip.label}
-                          className="inline-flex rounded-full border border-slate-200 bg-white/88 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-[0_10px_20px_rgba(15,23,42,0.04)]"
-                        >
-                          {chip.label}
-                        </span>
-                      )
-                    )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-800 shadow-[0_10px_22px_rgba(8,145,178,0.08)]">
+                      Картка товару
+                    </span>
                   </div>
 
-                  <h1 className="font-display-italic mt-3 max-w-none break-words text-[clamp(1rem,2.5vw,1.85rem)] font-black leading-[1.04] tracking-[-0.03em] text-slate-950 [overflow-wrap:anywhere] [text-wrap:pretty] sm:text-[clamp(1.18rem,2vw,2rem)] xl:max-w-[42ch]">
+                  <h1 className="font-display-italic mt-3 max-w-none break-words text-[clamp(1.16rem,2.6vw,2.18rem)] font-black leading-[1.08] tracking-normal text-slate-950 [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[44ch]">
                     {productHeadingText}
                   </h1>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:max-w-[760px]">
-                    {productMetaItems.map((item) => (
-                      <div
-                        key={item.label}
-                        className="rounded-[18px] border border-white/80 bg-white/72 px-3 py-2.5 shadow-[0_12px_26px_rgba(14,165,233,0.08)]"
-                      >
-                        <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500 sm:text-[10px]">
-                          {item.label}
+                  <div className={productHeaderMetaGridClass}>
+                    <div className="rounded-[22px] border border-cyan-100/90 bg-[linear-gradient(160deg,rgba(255,255,255,0.99),rgba(236,254,255,0.92),rgba(240,253,244,0.82))] px-4 py-3.5 shadow-[0_16px_34px_rgba(14,165,233,0.09)]">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-800 sm:text-[11px]">
+                        {productIdentifierLabel}
+                      </p>
+                      <p className="mt-2 font-mono text-[17px] font-black leading-6 tracking-normal text-slate-950 [overflow-wrap:anywhere] sm:text-[19px]">
+                        {productIdentifierValue}
+                      </p>
+                      {productIdentifierHint ? (
+                        <p className="mt-1.5 text-[12px] font-medium leading-5 text-slate-500 sm:text-[13px]">
+                          {productIdentifierHint}
                         </p>
-                        {item.href ? (
-                          <Link
-                            href={item.href}
-                            className="mt-1 block text-[13px] font-extrabold leading-5 text-slate-900 transition hover:text-cyan-800 [overflow-wrap:anywhere] sm:text-[14px]"
+                      ) : null}
+                    </div>
+
+                    {productHeaderInfoItems.length > 0 ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {productHeaderInfoItems.map((item) => (
+                          <div
+                            key={item.label}
+                            className="rounded-[20px] border border-white/90 bg-white/82 px-3.5 py-3 shadow-[0_12px_28px_rgba(14,165,233,0.07)] backdrop-blur-sm"
                           >
-                            {item.value}
-                          </Link>
-                        ) : (
-                          <p className="mt-1 text-[13px] font-extrabold leading-5 text-slate-900 [overflow-wrap:anywhere] sm:text-[14px]">
-                            {item.value}
-                          </p>
-                        )}
+                            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500 sm:text-[10px]">
+                              {item.label}
+                            </p>
+                            {item.href ? (
+                              <Link
+                                href={item.href}
+                                className="mt-1.5 block text-[13px] font-extrabold leading-5 text-slate-900 transition hover:text-cyan-800 [overflow-wrap:anywhere] sm:text-[14px]"
+                              >
+                                {item.value}
+                              </Link>
+                            ) : (
+                              <p className="mt-1.5 text-[13px] font-extrabold leading-5 text-slate-900 [overflow-wrap:anywhere] sm:text-[14px]">
+                                {item.value}
+                              </p>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : null}
                   </div>
                 </div>
                 <div className="xl:pl-2">
-                  <div className="rounded-[28px] border border-white/80 bg-white/72 p-1.5 shadow-[0_18px_38px_rgba(14,165,233,0.12)] backdrop-blur-sm">
+                  <div className="rounded-[28px] border border-white/90 bg-white/76 p-1.5 shadow-[0_18px_40px_rgba(14,165,233,0.11)] backdrop-blur-sm">
                     <ProductPurchasePanelClient
                       lookupKeys={lookupKeys}
                       isModalView={isModalView}
@@ -1472,7 +1553,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
           <div className={contentGridClass}>
             <section className="space-y-2.5 xl:sticky xl:top-[calc(var(--header-height,4rem)+0.9rem)]">
-              <div className="overflow-hidden rounded-[22px] border border-white/80 bg-[linear-gradient(160deg,rgba(255,255,255,0.96),rgba(240,249,255,0.94),rgba(248,250,252,0.95))] p-2.5 shadow-[0_20px_42px_rgba(14,165,233,0.1)] sm:rounded-[24px]">
+              <div className="overflow-hidden rounded-[22px] border border-white/90 bg-[linear-gradient(160deg,rgba(255,255,255,0.98),rgba(240,249,255,0.94),rgba(248,250,252,0.96))] p-2.5 shadow-[0_18px_40px_rgba(14,165,233,0.09)] sm:rounded-[24px]">
                 <ProductImageWithFallback
                   src={productDisplayImagePath}
                   fallbackSrc={fallbackImagePath}
@@ -1489,7 +1570,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 />
               </div>
 
-              <section className="rounded-[22px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(240,249,255,0.92))] p-3 shadow-[0_16px_32px_rgba(14,165,233,0.08)] sm:rounded-[24px]">
+              <section className="rounded-[22px] border border-white/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(240,249,255,0.9),rgba(236,253,245,0.72))] p-3 shadow-[0_14px_30px_rgba(14,165,233,0.07)] sm:rounded-[24px]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-800">
@@ -1569,7 +1650,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-800">
                       Поширені питання
                     </p>
-                    <h2 className="font-display-italic mt-1 text-[1.05rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.22rem]">
+                    <h2 className="font-display-italic mt-1 text-[1.05rem] font-black tracking-normal text-slate-900 sm:text-[1.22rem]">
                       Що варто знати перед замовленням
                     </h2>
                   </div>
