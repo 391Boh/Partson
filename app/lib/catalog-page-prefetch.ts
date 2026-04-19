@@ -2,7 +2,7 @@
 
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_ITEMS_PER_PAGE = 12;
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v4";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v6-stable-scroll";
 
 type CatalogSearchFilter = "all" | "article" | "name" | "code" | "producer";
 
@@ -42,6 +42,7 @@ const buildCatalogPageCacheKey = (params: {
     page: params.page,
     limit: CATALOG_ITEMS_PER_PAGE,
     cursor: "",
+    cursorField: "",
     q: params.searchQuery,
     filter: params.searchFilter,
     cars: [],

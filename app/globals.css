@@ -46,7 +46,7 @@
     --soft-radius-panel: 18px;
     --soft-radius-surface: 16px;
     --soft-radius-control: 16px;
-    --desktop-page-zoom: 0.86;
+    --desktop-page-zoom: 0.82;
     --font-ui-stack: "Exo 2", "Montserrat", "Segoe UI Variable", "Segoe UI", sans-serif;
     --font-display-stack: "Exo 2", "Montserrat", "Segoe UI Variable", "Segoe UI", sans-serif;
     --font-geist-sans: var(--font-ui-stack);
@@ -206,13 +206,6 @@
   transition: opacity 180ms ease, transform 180ms ease, visibility 180ms ease;
 }
 
-.catalog-image-modal-open .catalog-filter-shell {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-10px);
-  visibility: hidden;
-}
-
 @keyframes routeFadeIn {
   from {
     opacity: 0.7;
@@ -326,12 +319,26 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .page-shell-inline {
-    --page-shell-inline-padding: clamp(0.75rem, 1.2vw, 1rem);
+    --page-shell-inline-padding: clamp(1.15rem, 2vw, 1.8rem);
     width: 100%;
-    max-width: 1560px;
+    max-width: 1420px;
     margin-inline: auto;
     padding-left: max(var(--page-shell-inline-padding), env(safe-area-inset-left));
     padding-right: max(var(--page-shell-inline-padding), env(safe-area-inset-right));
+  }
+
+  @media (min-width: 1024px) {
+    .page-shell-inline {
+      --page-shell-inline-padding: clamp(1.75rem, 3.4vw, 3.5rem);
+      max-width: 1360px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .page-shell-inline {
+      --page-shell-inline-padding: clamp(1.75rem, 3.4vw, 3.5rem);
+      max-width: 1360px;
+    }
   }
 
   .details-summary-reset::-webkit-details-marker {

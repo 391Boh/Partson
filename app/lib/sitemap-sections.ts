@@ -5,8 +5,10 @@ import { unstable_cache } from "next/cache";
 
 import { brands } from "app/components/brandsData";
 import { getInformationPath, informationSections } from "app/inform/section-config";
+import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
 import { buildGroupItemPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
+import { getCategoryIconPath } from "app/lib/category-icons";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -25,6 +27,11 @@ export interface SitemapPathEntry {
   lastModified?: string;
   changeFrequency?: SitemapChangeFrequency;
   priority?: number;
+  images?: Array<{
+    loc: string;
+    title?: string;
+    caption?: string;
+  }>;
 }
 
 export const PAGE_SITEMAP_SECTION_PATHS = [
@@ -42,24 +49,34 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   return Math.floor(numeric);
 };
 
+const parseOptionalPositiveInt = (value: string | undefined) => {
+  if (value == null || value.trim() === "") return null;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return Math.floor(numeric);
+};
+
 const SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS = parsePositiveInt(
   process.env.SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS,
-  15000
+  4000
 );
 
 const collectGroupListingPaths = (
   groups: Array<{
+    label: string;
     slug: string;
     subgroups: Array<{
+      label: string;
       slug: string;
       children: Array<{
+        label: string;
         slug: string;
       }>;
     }>;
   }>
 ) => {
-  const subgroupPaths: string[] = [];
-  const childPaths: string[] = [];
+  const subgroupPaths: Array<{ path: string; label: string; iconLabel: string }> = [];
+  const childPaths: Array<{ path: string; label: string; iconLabel: string }> = [];
   const seenSubgroupPaths = new Set<string>();
   const seenChildPaths = new Set<string>();
 
@@ -74,7 +91,11 @@ const collectGroupListingPaths = (
       const subgroupPath = buildGroupItemPath(groupSlug, subgroupSlug);
       if (!seenSubgroupPaths.has(subgroupPath)) {
         seenSubgroupPaths.add(subgroupPath);
-        subgroupPaths.push(subgroupPath);
+        subgroupPaths.push({
+          path: subgroupPath,
+          label: subgroup.label || group.label,
+          iconLabel: group.label,
+        });
       }
 
       for (const child of Array.isArray(subgroup.children) ? subgroup.children : []) {
@@ -84,7 +105,11 @@ const collectGroupListingPaths = (
         const childPath = buildGroupItemPath(groupSlug, childSlug);
         if (seenChildPaths.has(childPath)) continue;
         seenChildPaths.add(childPath);
-        childPaths.push(childPath);
+        childPaths.push({
+          path: childPath,
+          label: child.label || subgroup.label || group.label,
+          iconLabel: group.label,
+        });
       }
     }
   }
@@ -122,26 +147,47 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.84,
+      images: [
+        {
+          loc: getCategoryIconPath(group.label),
+          title: group.label,
+          caption: `Іконка категорії ${group.label}`,
+        },
+      ],
     });
   }
 
   const { subgroupPaths, childPaths } = collectGroupListingPaths(dataset.groups);
 
-  for (const path of subgroupPaths.slice(0, maxGroupListingPages)) {
+  for (const entry of subgroupPaths.slice(0, maxGroupListingPages)) {
     entries.push({
-      path,
+      path: entry.path,
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.8,
+      images: [
+        {
+          loc: getCategoryIconPath(entry.iconLabel),
+          title: entry.label,
+          caption: `Іконка категорії ${entry.iconLabel}`,
+        },
+      ],
     });
   }
 
-  for (const path of childPaths.slice(0, maxCategoryLeafPages)) {
+  for (const entry of childPaths.slice(0, maxCategoryLeafPages)) {
     entries.push({
-      path,
+      path: entry.path,
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.78,
+      images: [
+        {
+          loc: getCategoryIconPath(entry.iconLabel),
+          title: entry.label,
+          caption: `Іконка категорії ${entry.iconLabel}`,
+        },
+      ],
     });
   }
 
@@ -150,9 +196,8 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
 
 const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
   const now = new Date().toISOString();
-  const maxManufacturerPages = parsePositiveInt(
-    process.env.SITEMAP_MAX_MANUFACTURER_PAGES,
-    6000
+  const maxManufacturerPages = parseOptionalPositiveInt(
+    process.env.SITEMAP_MAX_MANUFACTURER_PAGES
   );
 
   const entries: SitemapPathEntry[] = [
@@ -165,7 +210,11 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
   ];
 
   const seenPaths = new Set<string>(entries.map((entry) => entry.path));
-  const pushUniqueEntry = (path: string, lastModified: string) => {
+  const pushUniqueEntry = (
+    path: string,
+    lastModified: string,
+    image?: { loc: string; title?: string; caption?: string } | null
+  ) => {
     if (!path || seenPaths.has(path)) return;
     seenPaths.add(path);
     entries.push({
@@ -173,9 +222,26 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
       lastModified,
       changeFrequency: "weekly",
       priority: 0.82,
+      images: image ? [image] : undefined,
     });
   };
+  const logoMap = await getBrandLogoMap().catch(() => new Map<string, string>());
+  const getBrandListLogo = (label: string) =>
+    brands.find(
+      (brand) => brand.name.localeCompare(label, "uk", { sensitivity: "base" }) === 0
+    )?.logo ?? null;
+  const buildProducerImage = (label: string) => {
+    const logo = resolveProducerLogo(label, logoMap) || getBrandListLogo(label);
+    return logo
+      ? {
+          loc: logo,
+          title: label,
+          caption: `Логотип виробника ${label}`,
+        }
+      : null;
+  };
 
+  // Keep sitemap generation bounded in build/runtime; brands fallback guarantees coverage.
   const facets = await resolveWithTimeout(
     () => getCatalogSeoFacets(),
     null,
@@ -183,17 +249,37 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
   );
 
   if (facets?.producers?.length) {
-    for (const producer of facets.producers.slice(0, maxManufacturerPages)) {
-      pushUniqueEntry(buildManufacturerPath(producer.slug), facets.generatedAt);
+    for (const producer of facets.producers) {
+      pushUniqueEntry(
+        buildManufacturerPath(producer.slug),
+        facets.generatedAt,
+        buildProducerImage(producer.label)
+      );
+      if (maxManufacturerPages != null && entries.length >= maxManufacturerPages + 1) {
+        break;
+      }
     }
   }
 
   // Fallback source: keep sitemap complete even if SEO facets are empty or timed out.
-  for (const brand of brands.slice(0, maxManufacturerPages)) {
-    pushUniqueEntry(buildManufacturerPath(buildSeoSlug(brand.name)), now);
+  for (const brand of brands) {
+    pushUniqueEntry(
+      buildManufacturerPath(buildSeoSlug(brand.name)),
+      now,
+      brand.logo
+        ? {
+            loc: brand.logo,
+            title: brand.name,
+            caption: `Логотип виробника ${brand.name}`,
+          }
+        : buildProducerImage(brand.name)
+    );
+    if (maxManufacturerPages != null && entries.length >= maxManufacturerPages + 1) {
+      break;
+    }
   }
 
-  return entries.slice(0, maxManufacturerPages + 1);
+  return entries;
 };
 
 const getGroupsSitemapEntriesCached = unstable_cache(
@@ -207,7 +293,7 @@ const getGroupsSitemapEntriesCached = unstable_cache(
 
 const getManufacturersSitemapEntriesCached = unstable_cache(
   buildManufacturersSitemapEntries,
-  ["manufacturers-sitemap-v1"],
+  ["manufacturers-sitemap-v2"],
   {
     revalidate: SITEMAP_REVALIDATE_SECONDS,
     tags: ["manufacturers-sitemap"],

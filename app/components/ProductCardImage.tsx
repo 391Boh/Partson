@@ -191,7 +191,7 @@ const ProductCardImage: React.FC<Props> = ({
   prefetchedSrc,
   batchPending = false,
   batchMissing = false,
-  batchOnly = false,
+  batchOnly = true,
   className = "",
   onClick,
   loadingMode = "lazy",
@@ -301,8 +301,48 @@ const ProductCardImage: React.FC<Props> = ({
         return;
       }
 
+      if (batchPending) {
+        setRequestSrc("");
+        setStatus("loading");
+        setFinalRetryQueued(false);
+        return;
+      }
+
+      if (batchKey) {
+        let settled = false;
+        const finishWithResult = (result: BatchWarmResult) => {
+          if (settled) return;
+          settled = true;
+
+          if (result.status === "ready" && result.src) {
+            lastSuccessfulSrcRef.current = result.src;
+            setRequestSrc(result.src);
+            setStatus("loaded");
+            return;
+          }
+
+          setRequestSrc("");
+          setStatus("missing");
+        };
+
+        const unsubscribe = subscribeToBatchWarmResult(batchKey, finishWithResult);
+        queueBatchWarmItem({
+          code: normalizedCode,
+          article: normalizedArticle || undefined,
+        });
+
+        setRequestSrc("");
+        setStatus("loading");
+        setFinalRetryQueued(false);
+
+        return () => {
+          settled = true;
+          unsubscribe();
+        };
+      }
+
       setRequestSrc("");
-      setStatus("loading");
+      setStatus("missing");
       setFinalRetryQueued(false);
       return;
     }

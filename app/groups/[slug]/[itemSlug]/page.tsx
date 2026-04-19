@@ -1,11 +1,13 @@
 import { cache } from "react";
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import SmartLink from "app/components/SmartLink";
 import { buildCatalogCategoryPath, buildGroupItemPath } from "app/lib/catalog-links";
+import { getCategoryIconPath } from "app/lib/category-icons";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
@@ -152,6 +154,7 @@ export async function generateMetadata({ params }: GroupItemPageProps): Promise<
   }
 
   const title = buildGroupItemTitle(item);
+  const categoryIconPath = getCategoryIconPath(item.groupLabel);
 
   return buildPageMetadata({
     title,
@@ -165,8 +168,13 @@ export async function generateMetadata({ params }: GroupItemPageProps): Promise<
     ],
     openGraphTitle: `${title} | PartsON`,
     image: {
-      url: "/Car-parts-fullwidth.png",
+      url: categoryIconPath,
+      width: 512,
+      height: 512,
       alt: `${title} | PartsON`,
+    },
+    icons: {
+      icon: [{ url: categoryIconPath, type: "image/png" }],
     },
   });
 }
@@ -183,11 +191,13 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   const pagePath = buildGroupItemPath(item.groupSlug, item.itemSlug);
   const groupPagePath = buildGroupPagePath(item.groupSlug);
   const canonicalPageUrl = `${siteUrl}${pagePath}`;
+  const categoryIconPath = getCategoryIconPath(item.groupLabel);
+  const categoryIconUrl = `${siteUrl}${categoryIconPath}`;
   const visibleLabel = buildVisibleProductName(item.label);
   const visibleGroupLabel = buildVisibleProductName(item.groupLabel);
   const visibleParentLabel = buildVisibleProductName(item.parentSubgroupLabel);
   const pageDescription = item.parentSubgroupLabel
-    ? `Кінцева категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel}. Сторінка дає чистий SEO-URL і веде прямо в каталог цієї категорії.`
+    ? `Кінцева категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel}. Сторінка веде прямо в каталог цієї категорії та допомагає швидко перейти до потрібних товарів.`
     : `Підгрупа ${visibleLabel} у групі ${visibleGroupLabel} з прямим переходом у каталог автозапчастин і навігацією по суміжних розділах.`;
   const pageStats =
     item.children.length > 0
@@ -200,6 +210,12 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     name: buildGroupItemTitle(item),
     url: canonicalPageUrl,
     description: buildGroupItemDescription(item),
+    image: categoryIconUrl,
+    primaryImageOfPage: {
+      "@type": "ImageObject",
+      url: categoryIconUrl,
+      name: `Іконка категорії ${visibleGroupLabel}`,
+    },
     isPartOf: {
       "@type": "WebSite",
       name: "PartsON",
@@ -284,36 +300,50 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
       </Link>
 
       <section className="mt-4 overflow-hidden rounded-[28px] border border-slate-200/90 bg-[radial-gradient(circle_at_top_left,rgba(186,230,253,0.22),transparent_34%),linear-gradient(160deg,#ffffff_0%,#f8fbff_55%,#eef6ff_100%)] p-5 shadow-[0_20px_44px_rgba(15,23,42,0.08)]">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex rounded-full border border-sky-200 bg-sky-50/90 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-sky-800">
-            {item.parentSubgroupLabel ? "Кінцева категорія" : "Підгрупа"}
-          </span>
-          <span className="inline-flex rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-600">
-            {pageStats}
-          </span>
-        </div>
+        <div className="flex items-start gap-4">
+          <div className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] border border-sky-100 bg-white/95 shadow-[0_14px_28px_rgba(14,165,233,0.10)]">
+            <Image
+              src={categoryIconPath}
+              alt={`Іконка категорії ${visibleGroupLabel}`}
+              width={48}
+              height={48}
+              className="h-12 w-12 object-contain"
+              unoptimized
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex rounded-full border border-sky-200 bg-sky-50/90 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-sky-800">
+                {item.parentSubgroupLabel ? "Кінцева категорія" : "Підгрупа"}
+              </span>
+              <span className="inline-flex rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-600">
+                {pageStats}
+              </span>
+            </div>
 
-        <h1 className="font-display-italic mt-4 text-3xl tracking-[-0.048em] text-slate-900 sm:text-[2.2rem]">
-          {visibleLabel}
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
-          {pageDescription}
-        </p>
+            <h1 className="font-display-italic mt-4 text-3xl tracking-[-0.048em] text-slate-900 sm:text-[2.2rem]">
+              {visibleLabel}
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
+              {pageDescription}
+            </p>
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          <CatalogPrefetchLink
-            href={item.catalogPath}
-            prefetchCatalogOnViewport
-            className="inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
-          >
-            Перейти в каталог
-          </CatalogPrefetchLink>
-          <SmartLink
-            href={groupPagePath}
-            className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
-          >
-            До групи {visibleGroupLabel}
-          </SmartLink>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <CatalogPrefetchLink
+                href={item.catalogPath}
+                prefetchCatalogOnViewport
+                className="inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >
+                Перейти в каталог
+              </CatalogPrefetchLink>
+              <SmartLink
+                href={groupPagePath}
+                className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+              >
+                До групи {visibleGroupLabel}
+              </SmartLink>
+            </div>
+          </div>
         </div>
       </section>
 

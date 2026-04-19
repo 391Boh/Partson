@@ -8,6 +8,11 @@ interface SitemapXmlPathEntry {
   lastModified?: string | Date;
   changeFrequency?: SitemapChangeFrequency;
   priority?: number;
+  images?: Array<{
+    loc: string;
+    title?: string;
+    caption?: string;
+  }>;
 }
 
 interface SitemapXmlIndexEntry {
@@ -30,6 +35,7 @@ const toIsoDate = (value: string | Date | undefined) => {
 };
 
 export const buildUrlSetXml = (siteUrl: string, entries: SitemapXmlPathEntry[]) => {
+  const hasImages = entries.some((entry) => (entry.images ?? []).length > 0);
   const xmlEntries = entries.map((entry) => {
     const lines = [
       "  <url>",
@@ -44,6 +50,18 @@ export const buildUrlSetXml = (siteUrl: string, entries: SitemapXmlPathEntry[]) 
     if (typeof entry.priority === "number") {
       lines.push(`    <priority>${entry.priority.toFixed(2)}</priority>`);
     }
+    for (const image of entry.images ?? []) {
+      if (!image.loc) continue;
+      lines.push("    <image:image>");
+      lines.push(`      <image:loc>${escapeXml(toAbsoluteSitePath(siteUrl, image.loc))}</image:loc>`);
+      if (image.title) {
+        lines.push(`      <image:title>${escapeXml(image.title)}</image:title>`);
+      }
+      if (image.caption) {
+        lines.push(`      <image:caption>${escapeXml(image.caption)}</image:caption>`);
+      }
+      lines.push("    </image:image>");
+    }
 
     lines.push("  </url>");
     return lines.join("\n");
@@ -51,7 +69,9 @@ export const buildUrlSetXml = (siteUrl: string, entries: SitemapXmlPathEntry[]) 
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    hasImages
+      ? '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">'
+      : '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ...xmlEntries,
     "</urlset>",
   ].join("\n");

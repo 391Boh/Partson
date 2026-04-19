@@ -895,6 +895,13 @@ export const fetchCatalogProductsByQuery = async (options: {
   const sortOrder = options.sortOrder || "none";
   const cursor = typeof options.cursor === "string" ? options.cursor.trim() : "";
   const cursorField = typeof options.cursorField === "string" ? options.cursorField.trim() : "";
+  const hasStructuredFilter = Boolean(
+    selectedCategories.length > 0 || group || subcategory || producer
+  );
+  const shouldEnrichInlinePrices =
+    !hasStructuredFilter && !searchQuery && page === 1;
+  // allgoods supports structured filters (group/subgroup/producer) and gives
+  // stable cursor pagination for complete result sets, including price sorting.
   const canUseAllgoods = selectedCars.length === 0;
 
   const baseBody: Record<string, unknown> = {
@@ -1011,6 +1018,16 @@ export const fetchCatalogProductsByQuery = async (options: {
 
       if (effectiveAllgoodsSearchKeys.length === 0) {
         const pageResult = await runAllgoods();
+        const shouldFallbackToLegacyPagedSource =
+          sortOrder !== "none" &&
+          page > 1 &&
+          !cursor &&
+          pageResult.items.length === 0;
+
+        if (shouldFallbackToLegacyPagedSource) {
+          throw new Error("allgoods empty sorted page fallback");
+        }
+
         return {
           ...pageResult,
           cursorField: null,
@@ -1069,13 +1086,16 @@ export const fetchCatalogProductsByQuery = async (options: {
           : `Catalog getdata failed: ${response.status}`
       );
     }
-    const items = await enrichProductsWithAllgoodsPrices(parseItemsFromText(response.text), {
-      timeoutMs: options.timeoutMs,
-      cacheTtlMs:
-        options.cacheTtlMs ??
-        (page === 1 ? 1000 * 20 : 1000 * 15),
-      maxKeys: limit * 2,
-    });
+    const parsedItems = parseItemsFromText(response.text);
+    const items = shouldEnrichInlinePrices
+      ? await enrichProductsWithAllgoodsPrices(parsedItems, {
+          timeoutMs: options.timeoutMs,
+          cacheTtlMs:
+            options.cacheTtlMs ??
+            (page === 1 ? 1000 * 20 : 1000 * 15),
+          maxKeys: limit,
+        })
+      : parsedItems;
     return {
       items,
       hasMore: items.length >= limit,

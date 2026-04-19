@@ -52,7 +52,7 @@ export interface Product {
 const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v4";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v6-stable-scroll";
 const PRICE_CACHE_PREFIX = "partson:v8:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -62,19 +62,20 @@ const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 20;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 90;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
-const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
-const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 850;
+const BACKGROUND_PAGE_PREFETCH_DEPTH = 0;
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 220;
 const IMAGE_PRIORITY_ITEMS_COUNT = 6;
-const IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT = 8;
-const IMAGE_DEEP_RECOVERY_BATCH_COUNT = ITEMS_PER_PAGE;
+const IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT = 4;
+const IMAGE_DEEP_RECOVERY_BATCH_COUNT = 0;
 const IMAGE_DEEP_RECOVERY_DELAY_MS = 650;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 8;
-const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = ITEMS_PER_PAGE * 2;
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 4;
+const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = ITEMS_PER_PAGE;
 const LOAD_MORE_SCROLL_BUFFER_PX = 560;
 const LOAD_MORE_OBSERVER_ROOT_MARGIN = "0px 0px 700px 0px";
-const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 120;
-// Temporary safety fallback: virtualization is disabled until deep-scroll
-// range calculations are fully stabilized across all desktop zoom/layout modes.
+const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 80;
+const NEXT_PAGE_REQUEST_COOLDOWN_MS = 260;
+// Keep the old safety fallback for grid windowing; card-level content visibility
+// gives smoother long-scroll performance without changing scroll geometry.
 const VIRTUAL_WINDOW_THRESHOLD_ITEMS = 1000000;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
 const VIRTUAL_OVERSCAN_ROWS = 6;
@@ -366,8 +367,16 @@ const getResolvedProductPriceUAH = (
   return toPriceUAH(resolvedEuro, euroRate);
 };
 
-const getProductStableListKey = (item: Pick<Product, "code" | "article">) =>
-  `${(item.code || "").trim()}::${(item.article || "").trim()}`;
+const getProductStableListKey = (
+  item: Pick<Product, "code" | "article" | "name" | "producer">
+) => {
+  const code = (item.code || "").trim();
+  const article = (item.article || "").trim();
+  const name = (item.name || "").trim().toLowerCase();
+  const producer = (item.producer || "").trim().toLowerCase();
+
+  return `${code || "-"}::${article || "-"}::${name || "-"}::${producer || "-"}`;
+};
 
 const normalizeProduct = (raw: unknown): Product => {
   const record =
@@ -415,12 +424,15 @@ const normalizeProduct = (raw: unknown): Product => {
 };
 
 const getProductIdentity = (item: Product) => {
-  const code = typeof item.code === "string" ? item.code.trim() : "";
-  if (code) return `code:${code}`;
-  const article = typeof item.article === "string" ? item.article.trim() : "";
-  if (article) return `article:${article}`;
-  const name = typeof item.name === "string" ? item.name.trim().toLowerCase() : "";
-  return name ? `name:${name}` : "";
+  const hasAnyIdentityPart = Boolean(
+    (item.code || "").trim() ||
+      (item.article || "").trim() ||
+      (item.name || "").trim() ||
+      (item.producer || "").trim()
+  );
+
+  if (!hasAnyIdentityPart) return "";
+  return `stable:${getProductStableListKey(item)}`;
 };
 
 const mergeUniqueProducts = (current: Product[], incoming: Product[]) => {
@@ -780,9 +792,10 @@ function useCatalogData(params: {
     ]
   );
   const activeQuerySignatureRef = useRef(querySignature);
-  const hasPrimedInitialPayloadRef = useRef(false);
+  const primedInitialPayloadSignatureRef = useRef<string | null>(null);
   const firstPageReadySignatureRef = useRef<string | null>(null);
   const pagingRequestedRef = useRef(false);
+  const duplicatePageStreakRef = useRef(0);
   const nextCursorByPageRef = useRef<Record<number, string>>({ 1: "" });
   const nextCursorFieldByPageRef = useRef<Record<number, string>>({ 1: "" });
   const pricesRef = useRef<Record<string, number | null>>({});
@@ -793,6 +806,7 @@ function useCatalogData(params: {
   const priceRetryCooldownUntilRef = useRef<Record<string, number>>({});
   const nextPageLoaderShownAtRef = useRef(0);
   const nextPageLoaderHideTimerRef = useRef<number | null>(null);
+  const lastNextPageRequestAtRef = useRef(0);
 
   useEffect(() => {
     pricesRef.current = prices;
@@ -1454,7 +1468,21 @@ function useCatalogData(params: {
       cursor = "",
       cursorField = ""
     ) => {
-      const cacheKey = buildCacheKey(pageNum, normalizedSearch, cursor, cursorField);
+      const useSortedProgressiveWindow =
+        effectiveServerSortOrder !== "none" && pageNum > 1;
+      const requestPage = useSortedProgressiveWindow ? 1 : pageNum;
+      const requestLimit = useSortedProgressiveWindow
+        ? ITEMS_PER_PAGE * pageNum
+        : ITEMS_PER_PAGE;
+      const requestCursor = useSortedProgressiveWindow ? "" : cursor;
+      const requestCursorField = useSortedProgressiveWindow ? "" : cursorField;
+
+      const cacheKey = buildCacheKey(
+        pageNum,
+        normalizedSearch,
+        requestCursor,
+        requestCursorField
+      );
       const existing = inFlightPageRequests.get(cacheKey);
       if (existing) {
         return await awaitWithAbortSignal(existing, signal);
@@ -1465,10 +1493,10 @@ function useCatalogData(params: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            page: pageNum,
-            limit: ITEMS_PER_PAGE,
-            cursor,
-            cursorField,
+            page: requestPage,
+            limit: requestLimit,
+            cursor: requestCursor,
+            cursorField: requestCursorField,
             selectedCars,
             selectedCategories: effectiveSelectedCategories,
             searchQuery: normalizedSearch,
@@ -1549,6 +1577,8 @@ function useCatalogData(params: {
     activeQuerySignatureRef.current = querySignature;
     firstPageReadySignatureRef.current = null;
     pagingRequestedRef.current = false;
+    duplicatePageStreakRef.current = 0;
+    lastNextPageRequestAtRef.current = 0;
     nextCursorByPageRef.current = { 1: "" };
     nextCursorFieldByPageRef.current = { 1: "" };
     priceLoadingKeysRef.current.clear();
@@ -1566,13 +1596,13 @@ function useCatalogData(params: {
       const cacheKey = buildCacheKey(1, trimmed);
 
       if (
-        !hasPrimedInitialPayloadRef.current &&
         initialPagePayload &&
-        initialQuerySignature === querySignature
+        initialQuerySignature === querySignature &&
+        primedInitialPayloadSignatureRef.current !== querySignature
       ) {
         writePageToMemory(cacheKey, initialPagePayload, MEMORY_CACHE_TTL_MS_FIRST_PAGE);
         writePageToSession(cacheKey, initialPagePayload);
-        hasPrimedInitialPayloadRef.current = true;
+        primedInitialPayloadSignatureRef.current = querySignature;
       }
 
       const memoryHit = readPageFromMemory(cacheKey);
@@ -1750,14 +1780,32 @@ function useCatalogData(params: {
           typeof payload.hasMore === "boolean"
             ? payload.hasMore
             : items.length === ITEMS_PER_PAGE;
-        const shouldStopPaginationOnDuplicatePage =
+        const shouldOptimisticallyKeepLoadingSortedPages =
+          sortOrder !== "none" && items.length === ITEMS_PER_PAGE;
+        const resolvedHasMore =
+          payloadHasMore || shouldOptimisticallyKeepLoadingSortedPages;
+        const isDuplicatePageChunk =
           page > 1 &&
           items.length > 0 &&
           !pageIntroducedNewItems &&
           !payload.nextCursor;
 
+        // Price-sorted pages can legally overlap when backend has no stable cursor.
+        // Do not stop infinite scroll on duplicate chunks in this mode.
+        const isCursorlessSortedMode =
+          sortOrder !== "none" && !payload.nextCursor;
+
+        if (isDuplicatePageChunk && !isCursorlessSortedMode) {
+          duplicatePageStreakRef.current += 1;
+        } else {
+          duplicatePageStreakRef.current = 0;
+        }
+
+        const shouldStopPaginationOnDuplicatePage =
+          !isCursorlessSortedMode && duplicatePageStreakRef.current >= 2;
+
         setHasMore(
-          shouldStopPaginationOnDuplicatePage ? false : payloadHasMore
+          shouldStopPaginationOnDuplicatePage ? false : resolvedHasMore
         );
         setError(
           payload.serviceUnavailable
@@ -1817,7 +1865,7 @@ function useCatalogData(params: {
       };
     }
 
-    if (!inFlightPageRequests.has(cacheKey)) {
+    if (page === 1 && !inFlightPageRequests.has(cacheKey)) {
       setLoading(true);
     }
 
@@ -1834,7 +1882,7 @@ function useCatalogData(params: {
         );
 
         const shouldSoftRetryServiceUnavailable =
-          page === 1 && payload.serviceUnavailable && payload.items.length === 0;
+          payload.serviceUnavailable && payload.items.length === 0;
         if (shouldSoftRetryServiceUnavailable) {
           for (
             let attempt = 1;
@@ -1927,6 +1975,7 @@ function useCatalogData(params: {
     fetchCatalogPageImages,
     hideNextPageLoader,
     scheduleCatalogBackgroundTask,
+    sortOrder,
   ]);
 
   useEffect(() => {
@@ -2128,9 +2177,9 @@ function useCatalogData(params: {
   const uniqueData = useMemo(() => {
     const map = new Map<string, Product>();
     for (const it of safeData) {
-      if (it.code && !map.has(it.code)) {
-        map.set(it.code, it);
-      }
+      const stableKey = getProductStableListKey(it);
+      if (!stableKey || map.has(stableKey)) continue;
+      map.set(stableKey, it);
     }
     return Array.from(map.values());
   }, [safeData]);
@@ -2255,42 +2304,26 @@ function useCatalogData(params: {
 
   const handleImageClose = useCallback(() => setSelectedImage(null), []);
 
-  useEffect(() => {
-    if (!loading) {
-      pagingRequestedRef.current = false;
-      hideNextPageLoader();
-    }
-  }, [hideNextPageLoader, loading]);
-
   const loadNextPage = useCallback(() => {
-    if (loading || !hasMore || pagingRequestedRef.current) return;
-    const nextPage = page + 1;
-    const nextCursor =
-      canUseCursorPagination ? nextCursorByPageRef.current[nextPage] ?? "" : "";
-    const nextCursorField =
-      canUseCursorPagination ? nextCursorFieldByPageRef.current[nextPage] ?? "" : "";
-    const nextCacheKey = buildCacheKey(
-      nextPage,
-      normalizedSearch,
-      nextCursor,
-      nextCursorField
-    );
-    const hasPreparedNextPage =
-      readPageFromMemory(nextCacheKey) != null ||
-      inFlightPageRequests.has(nextCacheKey);
+    if (loading || isLoadingNextPage || !hasMore || pagingRequestedRef.current) return;
 
+    if (typeof window !== "undefined") {
+      const nowMs = Date.now();
+      if (nowMs - lastNextPageRequestAtRef.current < NEXT_PAGE_REQUEST_COOLDOWN_MS) {
+        return;
+      }
+
+      lastNextPageRequestAtRef.current = nowMs;
+    }
+
+    const nextPage = page + 1;
     pagingRequestedRef.current = true;
     showNextPageLoader();
-    if (!hasPreparedNextPage) {
-      setLoading(true);
-    }
     setPage(nextPage);
   }, [
-    buildCacheKey,
-    canUseCursorPagination,
     hasMore,
+    isLoadingNextPage,
     loading,
-    normalizedSearch,
     page,
     showNextPageLoader,
   ]);
@@ -2427,6 +2460,7 @@ const Data: React.FC<DataProps> = ({
         item,
         index,
         code: item.code,
+        stableKey: getProductStableListKey(item),
         priceKey: getProductPriceStateKey(item),
         priceUAH: null as number | null,
       }));
@@ -2436,6 +2470,7 @@ const Data: React.FC<DataProps> = ({
       item,
       index,
       code: item.code,
+      stableKey: getProductStableListKey(item),
       priceKey: getProductPriceStateKey(item),
       priceUAH: getResolvedProductPriceUAH(item, prices, euroRate),
     }));
@@ -2494,6 +2529,7 @@ const Data: React.FC<DataProps> = ({
       item,
       index,
       code: item.code,
+      stableKey: getProductStableListKey(item),
       priceKey: getProductPriceStateKey(item),
       priceUAH: getResolvedProductPriceUAH(item, prices, euroRate),
     }));
@@ -2515,7 +2551,7 @@ const Data: React.FC<DataProps> = ({
     !error;
   const showEmptyState = isEmptyState && !isRefetching;
   const showInlineLoader =
-    visibleSortedData.length > 0 && ((loading && !isRefetching) || isLoadingNextPage);
+    visibleSortedData.length > 0 && loading && !isRefetching;
   const shouldShowCatalogGrid =
     visibleSortedData.length > 0 || shouldShowInitialSkeleton;
   const gridColumnCount = useMemo(() => {
@@ -2942,7 +2978,7 @@ const Data: React.FC<DataProps> = ({
               )}
 
               {entriesToRender.map((entry, index) => {
-                const { item, priceKey } = entry;
+                const { item, priceKey, stableKey } = entry;
                 const priceUAH =
                   entry.priceUAH ?? getResolvedProductPriceUAH(item, prices, euroRate);
                 if (!item?.code) return null;
@@ -2979,7 +3015,7 @@ const Data: React.FC<DataProps> = ({
 
                 return (
                   <div
-                    key={code || `item-${index}`}
+                    key={stableKey || `${code || "item"}-${index}`}
                     data-catalog-card="1"
                   >
                     <ProductCard
@@ -2999,7 +3035,7 @@ const Data: React.FC<DataProps> = ({
                         !hasPhoto ||
                         Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
                       }
-                      batchImageOnly={!shouldPrioritizeImage}
+                      batchImageOnly
                       isFlipped={flippedCard === code}
                       motionEnabled={shouldAnimateList}
                       onAddToCart={handleAddToCart}
@@ -3044,7 +3080,17 @@ const Data: React.FC<DataProps> = ({
         )}
 
         {!shouldShowInitialSkeleton && hasMore && visibleSortedData.length > 0 && (
-          <div ref={loadMoreSentinelRef} className="h-6 w-full" aria-hidden="true" />
+          <div
+            ref={loadMoreSentinelRef}
+            className="flex h-8 w-full items-center justify-center"
+            aria-live="polite"
+          >
+            {isLoadingNextPage ? (
+              <span className="text-[12px] font-medium text-slate-400">
+                Підвантажую товари
+              </span>
+            ) : null}
+          </div>
         )}
 
         {showEmptyState && (

@@ -85,160 +85,6 @@ const getFilterDisplayLabel = (value: string) => {
   return stripParentheticalMeta(trimmed);
 };
 
-interface FilterAutoPanelProps {
-  selectedCars: string[];
-  handleCarChange: (car: string) => void;
-  selectedCarSelection?: PersistedCarSelection | null;
-  onSelectedCarSelectionChange?: (selection: PersistedCarSelection | null) => void;
-  selectedVin?: string | null;
-  onVinSelect?: (vin: string | null) => void;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const FilterAutoPanel: FC<FilterAutoPanelProps> = ({
-  selectedCars,
-  handleCarChange,
-  selectedCarSelection,
-  onSelectedCarSelectionChange,
-  selectedVin,
-  onVinSelect,
-}) => {
-  const normalizedSelectionLabel = selectedCarSelection?.label?.trim() ?? '';
-  const tableCars = useMemo(() => {
-    const entries = selectedCars
-      .filter((car): car is string => typeof car === 'string')
-      .map((car) => car.trim())
-      .filter(Boolean);
-    if (normalizedSelectionLabel && !entries.includes(normalizedSelectionLabel)) {
-      entries.push(normalizedSelectionLabel);
-    }
-    return entries.filter((car, index) => entries.indexOf(car) === index);
-  }, [normalizedSelectionLabel, selectedCars]);
-
-  const hasSelection = tableCars.length > 0 || Boolean(selectedVin);
-  const [isPickerOpen, setIsPickerOpen] = useState(() => !hasSelection);
-  const previousHasSelectionRef = useRef(hasSelection);
-
-  useEffect(() => {
-    const hadSelection = previousHasSelectionRef.current;
-    previousHasSelectionRef.current = hasSelection;
-    if (hasSelection || !hadSelection || typeof window === 'undefined') return;
-
-    const frameId = window.requestAnimationFrame(() => {
-      setIsPickerOpen(true);
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [hasSelection]);
-
-  const toggleLabel = isPickerOpen
-    ? 'Сховати вибір авто'
-    : hasSelection
-      ? 'Змінити авто / VIN'
-      : 'Додати авто';
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="rounded-2xl border border-slate-200 bg-white/90 p-3 text-slate-700 shadow-sm">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[12px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {hasSelection ? 'Обране' : 'Авто / VIN'}
-          </span>
-          {tableCars.length > 0 && (
-            <span className="text-[12px] font-medium text-slate-400">
-              {tableCars.length} {tableCars.length === 1 ? 'авто' : 'авто'}
-            </span>
-          )}
-        </div>
-        <div className="mt-3 flex flex-col gap-2">
-          {tableCars.length > 0 &&
-            tableCars.map((car) => (
-              <div
-                key={car}
-                className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700"
-              >
-                <span className="truncate">{car}</span>
-                <button
-                  type="button"
-                  onClick={() => handleCarChange(car)}
-                  aria-label={`Видалити ${car}`}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-700 active:scale-95"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    className="h-3.5 w-3.5 pointer-events-none"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                  >
-                    <path d="M3 6h18" />
-                    <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
-                    <path d="M6 6v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6" />
-                    <path d="M10 11v6" />
-                    <path d="M14 11v6" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-          {selectedVin && (
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
-              <span className="truncate">VIN {selectedVin}</span>
-              <button
-                type="button"
-                onClick={() => onVinSelect?.(null)}
-                aria-label="Видалити VIN"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 transition hover:border-emerald-300 hover:text-emerald-800 active:scale-95"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  className="h-3.5 w-3.5 pointer-events-none"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                >
-                  <path d="M3 6h18" />
-                  <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
-                  <path d="M6 6v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6" />
-                  <path d="M10 11v6" />
-                  <path d="M14 11v6" />
-                </svg>
-              </button>
-            </div>
-          )}
-          {tableCars.length === 0 && !selectedVin && (
-            <p className="text-[12px] text-slate-400">
-              Додайте авто або VIN, щоб користуватись фільтрами.
-            </p>
-          )}
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={() => setIsPickerOpen((prev) => !prev)}
-        className="flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-[13px] font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-200 active:scale-[0.98]"
-      >
-        <Car size={14} className="text-slate-500" />
-        <span>{toggleLabel}</span>
-      </button>
-      {isPickerOpen && (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2">
-          <Auto
-            selectedCars={selectedCars}
-            handleCarChange={handleCarChange}
-            initialSelection={selectedCarSelection}
-            onSelectionChange={onSelectedCarSelectionChange}
-            onVinSelect={onVinSelect}
-          />
-        </div>
-      )}
-    </div>
-  );
-};
-
 const FilterSidebar: FC<FilterSidebarProps> = ({
   selectedCars,
   handleCarChange,
@@ -271,9 +117,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const [localSortOrder, setLocalSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
   const [collapsed, setCollapsed] = useState(false);
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
-  const collapseFilter = useCallback(() => {
-    setCollapsed((prev) => (prev ? prev : true));
-  }, []);
   const handleHeaderToggle = useCallback((event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
     if (!target) return;
@@ -474,7 +317,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
         if (nextScrollY < 20) return;
         if (delta < 12) return;
 
-        collapseFilter();
+        setCollapsed(true);
       });
     };
 
@@ -486,7 +329,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       }
       window.removeEventListener('scroll', handleScroll);
     };
-  }, [collapseFilter, collapsed]);
+  }, [collapsed]);
 
   const handleAutoPicked = useCallback(() => {
     if (!hasPartSelection) {
@@ -683,7 +526,18 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                       type="button"
                       onClick={() => {
                         const nextParams = new URLSearchParams(currentSearchParams.toString());
-                        nextParams.set('producer', b.name);
+                        const isSameProducer = producerParam === b.name;
+                        if (isSameProducer) {
+                          nextParams.delete('producer');
+                        } else {
+                          nextParams.set('producer', b.name);
+                        }
+                        // Keep producer filtering deterministic and avoid stale mixed contexts.
+                        nextParams.delete('group');
+                        nextParams.delete('subcategory');
+                        nextParams.delete('search');
+                        nextParams.delete('filter');
+                        nextParams.delete('reset');
                         nextParams.set('tab', 'producer');
                         router.replace(
                           nextParams.toString()

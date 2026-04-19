@@ -1,12 +1,18 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 
-import { type CatalogProduct, fetchCatalogProductsPage } from "app/lib/catalog-server";
+import { type CatalogProduct, fetchCatalogProductsByQuery } from "app/lib/catalog-server";
 import { buildSeoSlug } from "app/lib/seo-slug";
 
-const FACET_PAGE_SIZE = 120;
-const FACET_MAX_PAGES = 220;
-const FACET_MAX_ITEMS = 30000;
+const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackValue;
+  return Math.floor(numeric);
+};
+
+const FACET_PAGE_SIZE = parsePositiveInt(process.env.SEO_FACET_PAGE_SIZE, 120);
+const FACET_MAX_PAGES = parsePositiveInt(process.env.SEO_FACET_MAX_PAGES, 1200);
+const FACET_MAX_ITEMS = parsePositiveInt(process.env.SEO_FACET_MAX_ITEMS, 250000);
 
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
@@ -19,6 +25,7 @@ interface FacetCounterEntry {
 }
 
 type FacetCounterMap = Map<string, FacetCounterEntry>;
+type NestedFacetCounterMap = Map<string, FacetCounterMap>;
 
 export interface SeoFacetItem {
   label: string;
@@ -30,8 +37,14 @@ export interface SeoGroupFacet extends SeoFacetItem {
   subgroups: SeoFacetItem[];
 }
 
+export interface SeoProducerGroupFacet extends SeoFacetItem {
+  subgroups: SeoFacetItem[];
+}
+
 export interface SeoProducerFacet extends SeoFacetItem {
-  topGroups: SeoFacetItem[];
+  groupsCount: number;
+  categoriesCount: number;
+  topGroups: SeoProducerGroupFacet[];
 }
 
 interface CatalogSeoFacets {
@@ -98,6 +111,24 @@ const registerNestedFacetProduct = (
   map.set(parentKey, nested);
 };
 
+const registerDoubleNestedFacetProduct = (
+  map: Map<string, NestedFacetCounterMap>,
+  firstLabel: string,
+  secondLabel: string,
+  thirdLabel: string,
+  productKey: string
+) => {
+  const firstKey = buildSeoSlug(normalizeValue(firstLabel));
+  const secondKey = buildSeoSlug(normalizeValue(secondLabel));
+  if (!firstKey || !secondKey) return;
+
+  const secondLevel = map.get(firstKey) || new Map<string, FacetCounterMap>();
+  const nested = secondLevel.get(secondKey) || new Map<string, FacetCounterEntry>();
+  registerFacetProduct(nested, thirdLabel, productKey);
+  secondLevel.set(secondKey, nested);
+  map.set(firstKey, secondLevel);
+};
+
 const toFacetList = (source: FacetCounterMap): SeoFacetItem[] =>
   Array.from(source.entries())
     .map(([slug, entry]) => ({
@@ -142,14 +173,23 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
   const producerCounts = new Map<string, FacetCounterEntry>();
   const groupSubgroupCounts = new Map<string, FacetCounterMap>();
   const producerGroupCounts = new Map<string, FacetCounterMap>();
+  const producerGroupSubgroupCounts = new Map<string, NestedFacetCounterMap>();
 
   let totalItems = 0;
 
+  let cursor = "";
+  let cursorField = "";
+  let cursorModeActive = false;
+
   for (let page = 1; page <= FACET_MAX_PAGES; page += 1) {
-    const batch = await fetchCatalogProductsPage({
-      page,
+    const batchResult = await fetchCatalogProductsByQuery({
+      page: cursorModeActive ? 1 : page,
       limit: FACET_PAGE_SIZE,
+      cursor: cursor || undefined,
+      cursorField: cursorField || undefined,
+      sortOrder: "none",
     });
+    const batch = batchResult.items;
 
     if (batch.length === 0) break;
 
@@ -178,12 +218,32 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
         registerNestedFacetProduct(producerGroupCounts, producer, group, productKey);
       }
 
+      if (producer && group && subgroup) {
+        registerDoubleNestedFacetProduct(
+          producerGroupSubgroupCounts,
+          producer,
+          group,
+          subgroup,
+          productKey
+        );
+      }
+
       totalItems += 1;
       if (totalItems >= FACET_MAX_ITEMS) break;
     }
 
     if (totalItems >= FACET_MAX_ITEMS) break;
-    if (batch.length < FACET_PAGE_SIZE) break;
+
+    const nextCursor = (batchResult.nextCursor || "").trim();
+    if (nextCursor && nextCursor !== cursor) {
+      cursor = nextCursor;
+      cursorField = (batchResult.cursorField || "").trim();
+      cursorModeActive = true;
+    } else if (cursorModeActive) {
+      break;
+    }
+
+    if (!batchResult.hasMore) break;
   }
 
   const groups = toFacetList(groupCounts).map((groupFacet) => {
@@ -196,8 +256,26 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
   const producers = toFacetList(producerCounts).map((producerFacet) => {
     const groupMap =
       producerGroupCounts.get(producerFacet.slug) || new Map<string, FacetCounterEntry>();
-    const topGroups = toFacetList(groupMap).slice(0, 25);
-    return { ...producerFacet, topGroups };
+    const producerSubgroupMap =
+      producerGroupSubgroupCounts.get(producerFacet.slug) ||
+      new Map<string, FacetCounterMap>();
+    const producerGroups = toFacetList(groupMap).map((groupFacet) => {
+      const subgroupMap =
+        producerSubgroupMap.get(groupFacet.slug) || new Map<string, FacetCounterEntry>();
+      const subgroups = toFacetList(subgroupMap);
+      return { ...groupFacet, subgroups };
+    });
+    const topGroups = producerGroups.slice(0, 25);
+    const categoriesCount = producerGroups.reduce(
+      (sum, groupFacet) => sum + groupFacet.subgroups.length,
+      0
+    );
+    return {
+      ...producerFacet,
+      groupsCount: producerGroups.length,
+      categoriesCount,
+      topGroups,
+    };
   });
 
   return {
@@ -209,7 +287,7 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
 
 const collectSeoFacetsWithRevalidate = unstable_cache(
   buildCatalogSeoFacets,
-  ["catalog-seo-facets-v5"],
+  ["catalog-seo-facets-v7"],
   {
     revalidate: 60 * 60 * 6,
     tags: ["catalog-seo-facets"],

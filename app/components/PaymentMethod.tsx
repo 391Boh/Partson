@@ -15,7 +15,7 @@ type LiqPayCallbackData = {
 };
 type LiqPayInstance = {
   on: (
-    event: 'liqpay.callback' | 'liqpay.close',
+    event: 'liqpay.callback',
     callback: (data?: LiqPayCallbackData) => void,
   ) => LiqPayInstance;
 };
@@ -65,9 +65,7 @@ const PaymentMethod: React.FC<Props> = ({
     const orderData = { name, phone, amount, orderId, paymentMethod, deliveryMethod };
     try {
       setIsConfirming(true);
-      console.log('Починаємо підтвердження замовлення...', orderData);
       await onPaymentConfirmed(orderData);
-      console.log('Підтвердження замовлення пройшло, викликаємо onConfirm');
       onConfirm();
     } catch (error) {
       console.error('Помилка під час підтвердження замовлення:', error);
@@ -206,9 +204,6 @@ const PaymentMethod: React.FC<Props> = ({
             if (liqpayData?.status === 'failure') {
               setPaymentError('Оплата не пройшла. Спробуйте ще раз або оберіть інший спосіб.');
             }
-          })
-          .on('liqpay.close', () => {
-            console.log('Вікно LiqPay закрито');
           });
 
         alreadyInitiated.current = true;

@@ -16,7 +16,12 @@ const isProduction = process.env.NODE_ENV === "production";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   outputFileTracingRoot: path.resolve(process.cwd()),
-  allowedDevOrigins: ["192.168.192.80"],
+  allowedDevOrigins: [
+    "localhost",
+    "127.0.0.1",
+    "192.168.0.100",
+    "192.168.192.80",
+  ],
   images: {
     qualities: [75, 100],
     localPatterns: [

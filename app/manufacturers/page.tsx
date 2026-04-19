@@ -26,16 +26,16 @@ const buildManufacturersPageDescription = (
     totalBrands > 0
       ? `${totalBrands.toLocaleString("uk-UA")} брендів`
       : "бренди та виробники автозапчастин";
-  const indexedSummary =
+  const coverageSummary =
     indexedBrands > 0
-      ? ` Окремими SEO-маршрутами вже охоплено ${indexedBrands.toLocaleString("uk-UA")} виробників`
-      : "";
-  const productSummary =
-    indexedProducts > 0
-      ? ` і щонайменше ${indexedProducts.toLocaleString("uk-UA")} товарних позицій за брендами.`
+      ? ` Окремими SEO-маршрутами вже охоплено ${indexedBrands.toLocaleString("uk-UA")} виробників${
+          indexedProducts > 0
+            ? ` і щонайменше ${indexedProducts.toLocaleString("uk-UA")} товарних позицій за брендами`
+            : ""
+        }.`
       : ".";
 
-  return `Каталог виробників автозапчастин PartsON: ${brandSummary} з переходом до сторінок брендів, фільтрованого каталогу і купівлі автозапчастин з доставкою по Україні.${indexedSummary}${productSummary}`;
+  return `Каталог виробників автозапчастин PartsON: ${brandSummary} з переходом до сторінок брендів, фільтрованого каталогу і купівлі автозапчастин з доставкою по Україні${coverageSummary}`;
 };
 
 type ManufacturerListItem = {
@@ -82,8 +82,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ManufacturersPage() {
   const siteUrl = getSiteUrl();
-  const featuredManufacturers =
-    clientProducers.slice(0, 2).map((producer) => producer.label) || ["Bosch", "Brembo"];
+  const featuredManufacturers = clientProducers.slice(0, 2);
   const manufacturersStructuredData = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
@@ -96,7 +95,7 @@ export default async function ManufacturersPage() {
         "@type": "ListItem",
         position: index + 1,
         name: producer.label,
-        url: `${siteUrl}${buildManufacturerPath(producer.label)}`,
+        url: `${siteUrl}${buildManufacturerPath(producer.slug)}`,
       })),
     },
   };
@@ -156,8 +155,8 @@ export default async function ManufacturersPage() {
                 accent: true,
               },
               ...featuredManufacturers.map((manufacturer) => ({
-                href: buildManufacturerPath(manufacturer),
-                label: manufacturer,
+                href: buildManufacturerPath(manufacturer.slug),
+                label: manufacturer.label,
                 icon: Factory,
                 prefetchOnViewport: true,
               })),

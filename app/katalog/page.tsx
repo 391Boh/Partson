@@ -15,7 +15,7 @@ import { getSiteUrl } from "app/lib/site-url";
 
 const INITIAL_CATALOG_PAGE_LIMIT = 12;
 const INITIAL_CATALOG_SSR_TIMEOUT_MS = 650;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 260;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 180;
 
 type InitialCatalogPagePayload = {
   items: Array<{
@@ -139,7 +139,12 @@ const resolveCatalogSeoState = (
   let description =
     "Каталог автозапчастин PartsON у Львові з пошуком за кодом, артикулом, виробником, актуальною наявністю та доставкою по Україні.";
 
-  if (producer && group) {
+  if (producer && group && subcategory) {
+    canonicalPath = buildCatalogProducerPath(producer, group, subcategory);
+    title = `${producer}: ${subcategory} - ${group} | Каталог автозапчастин`;
+    description =
+      `Підбір автозапчастин ${producer} у категорії ${subcategory} групи ${group} в каталозі PartsON у Львові з актуальною наявністю та доставкою по Україні.`;
+  } else if (producer && group) {
     canonicalPath = buildCatalogProducerPath(producer, group);
     title = `${producer}: ${group} - каталог автозапчастин`;
     description =
@@ -214,7 +219,34 @@ const buildCatalogBreadcrumbJsonLd = (siteUrl: string, state: CatalogSeoState) =
     },
   ];
 
-  if (producer && group) {
+  if (producer && group && subcategory) {
+    itemListElement.push(
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Виробники",
+        item: `${siteUrl}/manufacturers`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: producer,
+        item: `${siteUrl}${buildManufacturerLandingPath(producer)}`,
+      },
+      {
+        "@type": "ListItem",
+        position: 4,
+        name: group,
+        item: `${siteUrl}${buildCatalogProducerPath(producer, group)}`,
+      },
+      {
+        "@type": "ListItem",
+        position: 5,
+        name: subcategory,
+        item: currentUrl,
+      }
+    );
+  } else if (producer && group) {
     itemListElement.push(
       {
         "@type": "ListItem",

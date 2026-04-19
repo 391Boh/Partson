@@ -658,9 +658,9 @@ const Category: React.FC<CategoryProps> = ({
     selectedCategories.forEach((existing) => handleCategoryChange(existing));
   };
 
-  const pushSelection = (group: string, subcategory?: string | null) => {
-    if (!group) return;
-    clearSelectedCategories();
+  const buildSelectionHref = (group: string, subcategory?: string | null) => {
+    if (!group) return null;
+
     const nextParams = new URLSearchParams(currentSearchParams.toString());
     nextParams.set("group", group);
     if (subcategory) {
@@ -670,10 +670,19 @@ const Category: React.FC<CategoryProps> = ({
     }
     nextParams.delete("reset");
     nextParams.delete("search");
+
+    return `/katalog?${nextParams.toString()}`;
+  };
+
+  const pushSelection = (group: string, subcategory?: string | null) => {
+    if (!group) return;
+    clearSelectedCategories();
+    const href = buildSelectionHref(group, subcategory);
+    if (!href) return;
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem("catalogScrollTarget", "results");
     }
-    router.replace(`/katalog?${nextParams.toString()}`, { scroll: false });
+    router.replace(href, { scroll: false });
   };
 
   const headerLabelMap = {

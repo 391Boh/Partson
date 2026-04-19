@@ -89,6 +89,15 @@ const sanitizeCatalogErrorMessage = (value: string | null | undefined) => {
   return stripped.length > 220 ? `${stripped.slice(0, 220)}...` : stripped;
 };
 
+const isRetryableCatalogError = (error: unknown) => {
+  if (!(error instanceof Error)) return false;
+  const normalized = (error.message || "").toLowerCase();
+
+  return /timeout|timed?\s*out|getdata failed|allgoods failed|fetch failed|503|502/.test(
+    normalized
+  );
+};
+
 const buildInlinePrices = (
   items: Array<{ code?: string; article?: string; priceEuro?: number | null }>
 ) => {
@@ -139,48 +148,76 @@ export async function POST(request: Request) {
         normalizedProducer
     );
 
-    const timeoutMs = hasTightFilterContext ? 2200 : 2600;
-    const retries = hasTightFilterContext ? 1 : 1;
-    const retryDelayMs = hasTightFilterContext ? 120 : 150;
+    const timeoutMs = hasTightFilterContext ? 1400 : 2600;
+    const retries = hasTightFilterContext ? 0 : 1;
+    const retryDelayMs = hasTightFilterContext ? 80 : 150;
     const cacheTtlMs = hasTightFilterContext ? 1000 * 20 : 1000 * 45;
+
+    const queryBase = {
+      page: toPositiveInt(body.page, 1),
+      limit: toPositiveInt(body.limit, 10),
+      cursor: toTrimmedString(body.cursor),
+      cursorField: toTrimmedString(body.cursorField),
+      selectedCars: toStringArray(body.selectedCars),
+      selectedCategories: toStringArray(body.selectedCategories),
+      searchQuery: normalizedSearchQuery,
+      searchFilter:
+        body.searchFilter === "article" ||
+        body.searchFilter === "name" ||
+        body.searchFilter === "code" ||
+        body.searchFilter === "producer"
+          ? body.searchFilter
+          : "all",
+      group: normalizedGroup,
+      subcategory: normalizedSubcategory,
+      producer: normalizedProducer,
+      sortOrder:
+        body.sortOrder === "asc" || body.sortOrder === "desc"
+          ? body.sortOrder
+          : "none",
+    } as const;
+
+    const toApiPayload = (result: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>>) => ({
+      items: result.items,
+      prices: buildInlinePrices(result.items),
+      images: {},
+      hasMore: result.hasMore,
+      nextCursor: result.nextCursor,
+      cursorField: result.cursorField || "",
+    });
+
+    const runQuery = (runtime: {
+      timeoutMs: number;
+      retries: number;
+      retryDelayMs: number;
+      cacheTtlMs: number;
+    }) =>
+      fetchCatalogProductsByQuery({
+        ...queryBase,
+        timeoutMs: runtime.timeoutMs,
+        retries: runtime.retries,
+        retryDelayMs: runtime.retryDelayMs,
+        cacheTtlMs: runtime.cacheTtlMs,
+      });
 
     let inFlight = routeInFlightRequests.get(routeCacheKey);
     if (!inFlight) {
-      inFlight = fetchCatalogProductsByQuery({
-        page: toPositiveInt(body.page, 1),
-        limit: toPositiveInt(body.limit, 10),
-        cursor: toTrimmedString(body.cursor),
-        cursorField: toTrimmedString(body.cursorField),
-        selectedCars: toStringArray(body.selectedCars),
-        selectedCategories: toStringArray(body.selectedCategories),
-        searchQuery: normalizedSearchQuery,
-        searchFilter:
-          body.searchFilter === "article" ||
-          body.searchFilter === "name" ||
-          body.searchFilter === "code" ||
-          body.searchFilter === "producer"
-            ? body.searchFilter
-            : "all",
-        group: normalizedGroup,
-        subcategory: normalizedSubcategory,
-        producer: normalizedProducer,
-        sortOrder:
-          body.sortOrder === "asc" || body.sortOrder === "desc"
-            ? body.sortOrder
-            : "none",
-        timeoutMs,
-        retries,
-        retryDelayMs,
-        cacheTtlMs,
-      })
-        .then((result) => ({
-          items: result.items,
-          prices: buildInlinePrices(result.items),
-          images: {},
-          hasMore: result.hasMore,
-          nextCursor: result.nextCursor,
-          cursorField: result.cursorField || "",
-        }))
+      inFlight = runQuery({ timeoutMs, retries, retryDelayMs, cacheTtlMs })
+        .catch(async (error) => {
+          if (!isRetryableCatalogError(error)) {
+            throw error;
+          }
+
+          const relaxedRuntime = {
+            timeoutMs: hasTightFilterContext ? 3000 : 3800,
+            retries: 1,
+            retryDelayMs: hasTightFilterContext ? 160 : 220,
+            cacheTtlMs: hasTightFilterContext ? 1000 * 35 : 1000 * 60,
+          };
+
+          return await runQuery(relaxedRuntime);
+        })
+        .then((result) => toApiPayload(result))
         .finally(() => {
           routeInFlightRequests.delete(routeCacheKey);
         });

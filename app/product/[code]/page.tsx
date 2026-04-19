@@ -100,7 +100,7 @@ interface ProductPageProps {
 
 const pageBackground: CSSProperties = {
   backgroundImage:
-    "radial-gradient(circle at 10% 10%, rgba(14,165,233,0.16), transparent 38%), radial-gradient(circle at 90% 15%, rgba(59,130,246,0.15), transparent 33%), linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
+    "radial-gradient(circle at 10% 10%, rgba(103,232,249,0.22), transparent 34%), radial-gradient(circle at 90% 15%, rgba(191,219,254,0.22), transparent 30%), linear-gradient(180deg, #f8fcff 0%, #eef6ff 52%, #f8fafc 100%)",
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1339,6 +1339,27 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         : "Зараз товар доступний під замовлення. Точний термін постачання уточнюється менеджером після заявки.",
     },
   ];
+  const heroChips = [
+    product.producer
+      ? { label: product.producer, href: producerLandingPath || undefined }
+      : null,
+    visibleProductSubgroup || visibleProductGroup
+      ? {
+          label: visibleProductSubgroup || visibleProductGroup,
+          href: categoryCatalogPath,
+        }
+      : null,
+    {
+      label: isInStock
+        ? product.quantity > 0
+          ? `В наявності ${product.quantity} шт.`
+          : "В наявності"
+        : "Під замовлення",
+    },
+    initialPriceUah != null
+      ? { label: `від ${initialPriceUah.toLocaleString("uk-UA")} грн` }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; href?: string }>;
 
   return (
     <div
@@ -1359,22 +1380,23 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         }
       >
         <article
-          className={`overflow-hidden border border-slate-200/80 bg-white/95 shadow-[0_22px_52px_rgba(15,23,42,0.12)] backdrop-blur-sm ${
+          className={`overflow-hidden border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(248,252,255,0.95),rgba(255,255,255,0.98))] shadow-[0_28px_68px_rgba(14,165,233,0.12)] backdrop-blur-xl ${
             isModalView ? "rounded-2xl" : "rounded-[24px] sm:rounded-[26px]"
           }`}
         >
-          <header className="relative block h-auto min-h-0 border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-900 px-3 py-3 text-white sm:px-4 sm:py-3.5">
-            <div className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_15%_20%,rgba(56,189,248,0.24),transparent_45%),radial-gradient(circle_at_86%_18%,rgba(34,211,238,0.2),transparent_40%)]" />
+          <header className="relative block h-auto min-h-0 border-b border-white/80 bg-[radial-gradient(circle_at_top_left,rgba(165,243,252,0.46),transparent_36%),radial-gradient(circle_at_86%_18%,rgba(191,219,254,0.34),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,252,255,0.95),rgba(236,248,255,0.92))] px-3 py-3 sm:px-4 sm:py-4">
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.2),transparent_42%,rgba(34,211,238,0.08))]" />
+            <div className="pointer-events-none absolute left-5 right-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
             <div className="relative">
               {!isModalView && (
                 <nav
                   aria-label="Навігація по сторінці товару"
-                  className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-300 sm:text-[12px]"
+                  className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500 sm:text-[12px]"
                 >
                   {breadcrumbItems.map((item, index) => (
                     <span key={item.href} className="inline-flex items-center gap-2">
-                      {index > 0 ? <span className="text-slate-500">/</span> : null}
-                      <Link href={item.href} className="transition hover:text-white">
+                      {index > 0 ? <span className="text-slate-300">/</span> : null}
+                      <Link href={item.href} className="transition hover:text-cyan-800">
                         {item.label}
                       </Link>
                     </span>
@@ -1382,49 +1404,75 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 </nav>
               )}
               <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_340px]">
-              <div className="min-w-0">
-                <h1 className="font-display-italic max-w-none break-words text-[clamp(1rem,2.5vw,1.85rem)] font-black leading-[1.04] tracking-[-0.03em] text-white [overflow-wrap:anywhere] [text-wrap:pretty] sm:text-[clamp(1.18rem,2vw,2rem)] xl:max-w-[42ch]">
-                  {productHeadingText}
-                </h1>
-                <div className="mt-3 grid gap-1.5 sm:grid-cols-2 xl:max-w-[760px]">
-                  {productMetaItems.map((item) => (
-                    <div key={item.label} className="rounded-[16px] border border-white/12 bg-white/7 px-2.5 py-2">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-300 sm:text-[10px]">
-                        {item.label}
-                      </p>
-                      {item.href ? (
+                <div className="min-w-0">
+                  <div className="flex flex-wrap gap-2">
+                    {heroChips.map((chip) =>
+                      chip.href ? (
                         <Link
-                          href={item.href}
-                          className="mt-1 block text-[13px] font-extrabold leading-5 text-white underline decoration-white/30 underline-offset-4 transition hover:decoration-white [overflow-wrap:anywhere] sm:text-[14px]"
+                          key={`${chip.label}:${chip.href}`}
+                          href={chip.href}
+                          className="inline-flex rounded-full border border-cyan-200/80 bg-white/88 px-3 py-1 text-[11px] font-semibold text-cyan-800 shadow-[0_10px_20px_rgba(8,145,178,0.08)] transition hover:border-cyan-300 hover:bg-cyan-50"
                         >
-                          {item.value}
+                          {chip.label}
                         </Link>
                       ) : (
-                        <p className="mt-1 text-[13px] font-extrabold leading-5 text-white [overflow-wrap:anywhere] sm:text-[14px]">
-                          {item.value}
+                        <span
+                          key={chip.label}
+                          className="inline-flex rounded-full border border-slate-200 bg-white/88 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-[0_10px_20px_rgba(15,23,42,0.04)]"
+                        >
+                          {chip.label}
+                        </span>
+                      )
+                    )}
+                  </div>
+
+                  <h1 className="font-display-italic mt-3 max-w-none break-words text-[clamp(1rem,2.5vw,1.85rem)] font-black leading-[1.04] tracking-[-0.03em] text-slate-950 [overflow-wrap:anywhere] [text-wrap:pretty] sm:text-[clamp(1.18rem,2vw,2rem)] xl:max-w-[42ch]">
+                    {productHeadingText}
+                  </h1>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:max-w-[760px]">
+                    {productMetaItems.map((item) => (
+                      <div
+                        key={item.label}
+                        className="rounded-[18px] border border-white/80 bg-white/72 px-3 py-2.5 shadow-[0_12px_26px_rgba(14,165,233,0.08)]"
+                      >
+                        <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500 sm:text-[10px]">
+                          {item.label}
                         </p>
-                      )}
-                    </div>
-                  ))}
+                        {item.href ? (
+                          <Link
+                            href={item.href}
+                            className="mt-1 block text-[13px] font-extrabold leading-5 text-slate-900 transition hover:text-cyan-800 [overflow-wrap:anywhere] sm:text-[14px]"
+                          >
+                            {item.value}
+                          </Link>
+                        ) : (
+                          <p className="mt-1 text-[13px] font-extrabold leading-5 text-slate-900 [overflow-wrap:anywhere] sm:text-[14px]">
+                            {item.value}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="xl:pl-2">
+                  <div className="rounded-[28px] border border-white/80 bg-white/72 p-1.5 shadow-[0_18px_38px_rgba(14,165,233,0.12)] backdrop-blur-sm">
+                    <ProductPurchasePanelClient
+                      lookupKeys={lookupKeys}
+                      isModalView={isModalView}
+                      initialPriceUah={initialPriceUah}
+                      resolvedCode={resolvedCode}
+                      product={product}
+                      isInStock={isInStock}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="xl:pl-2">
-                <ProductPurchasePanelClient
-                  lookupKeys={lookupKeys}
-                  isModalView={isModalView}
-                  initialPriceUah={initialPriceUah}
-                  resolvedCode={resolvedCode}
-                  product={product}
-                  isInStock={isInStock}
-                />
-              </div>
             </div>
-          </div>
           </header>
 
           <div className={contentGridClass}>
             <section className="space-y-2.5 xl:sticky xl:top-[calc(var(--header-height,4rem)+0.9rem)]">
-              <div className="overflow-hidden rounded-[20px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-2 shadow-[0_18px_38px_rgba(15,23,42,0.08)] sm:rounded-[24px] sm:p-2.5">
+              <div className="overflow-hidden rounded-[22px] border border-white/80 bg-[linear-gradient(160deg,rgba(255,255,255,0.96),rgba(240,249,255,0.94),rgba(248,250,252,0.95))] p-2.5 shadow-[0_20px_42px_rgba(14,165,233,0.1)] sm:rounded-[24px]">
                 <ProductImageWithFallback
                   src={productDisplayImagePath}
                   fallbackSrc={fallbackImagePath}
@@ -1441,10 +1489,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 />
               </div>
 
-              <section className="rounded-[20px] border border-slate-200 bg-[image:linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)] p-3 shadow-[0_16px_32px_rgba(15,23,42,0.05)] sm:rounded-[24px]">
+              <section className="rounded-[22px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(240,249,255,0.92))] p-3 shadow-[0_16px_32px_rgba(14,165,233,0.08)] sm:rounded-[24px]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-800">
                       Потрібна допомога?
                     </p>
                     <p className="mt-1 text-[13px] leading-5 text-slate-600 sm:text-sm sm:leading-6">
@@ -1474,16 +1522,16 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           </div>
 
           {!isModalView && (
-            <section className="border-t border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.72),rgba(255,255,255,0.96))] px-3 py-3.5 sm:px-4 sm:py-4">
+            <section className="border-t border-white/80 bg-[linear-gradient(180deg,rgba(248,252,255,0.78),rgba(255,255,255,0.95))] px-3 py-3.5 sm:px-4 sm:py-4">
               <div className="space-y-3">
-                <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(186,230,253,0.22),transparent_38%),linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_16px_34px_rgba(15,23,42,0.06)] sm:rounded-[26px]">
+                <section className="overflow-hidden rounded-[24px] border border-white/80 bg-[radial-gradient(circle_at_top_left,rgba(165,243,252,0.28),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.97),rgba(248,252,255,0.94))] shadow-[0_18px_38px_rgba(14,165,233,0.1)] sm:rounded-[26px]">
                   <div className="flex flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 max-w-4xl">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-sky-700/90">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-800">
                           Часто шукають
                         </p>
-                        <span className="inline-flex rounded-full border border-sky-200 bg-white/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-sky-700">
+                        <span className="inline-flex rounded-full border border-cyan-200 bg-white/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-cyan-800">
                           {keywordPhrases.length} запитів
                         </span>
                       </div>
@@ -1495,19 +1543,19 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     <div className="flex w-full shrink-0 xl:w-auto xl:justify-end">
                       <Link
                         href={keywordButtonHref}
-                        className="inline-flex h-10 w-full items-center justify-center rounded-full border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition hover:border-sky-300 hover:text-sky-800 hover:shadow-[0_14px_28px_rgba(14,165,233,0.12)] sm:w-auto"
+                        className="inline-flex h-10 w-full items-center justify-center rounded-full border border-slate-200 bg-white/92 px-4 text-sm font-semibold text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition hover:border-cyan-300 hover:text-cyan-800 hover:shadow-[0_14px_28px_rgba(14,165,233,0.12)] sm:w-auto"
                       >
                         {keywordButtonLabel}
                       </Link>
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-100 px-4 py-4 sm:px-5">
+                  <div className="border-t border-white/80 px-4 py-4 sm:px-5">
                     <div className="flex flex-wrap gap-2 sm:gap-2.5">
                       {keywordPhrases.map((phrase) => (
                         <span
                           key={phrase}
-                          className="inline-flex min-h-9 items-center rounded-full border border-sky-100 bg-white/92 px-3 py-1.5 text-[12px] font-semibold leading-5 text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] sm:text-[13px]"
+                          className="inline-flex min-h-9 items-center rounded-full border border-cyan-100 bg-white/92 px-3 py-1.5 text-[12px] font-semibold leading-5 text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] sm:text-[13px]"
                         >
                           {phrase}
                         </span>
@@ -1516,9 +1564,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   </div>
                 </section>
 
-                <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_16px_34px_rgba(15,23,42,0.06)] sm:rounded-[26px]">
-                  <div className="border-b border-slate-100 px-4 py-4 sm:px-5">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-sky-700/90">
+                <div className="overflow-hidden rounded-[24px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,252,255,0.94))] shadow-[0_18px_38px_rgba(14,165,233,0.1)] sm:rounded-[26px]">
+                  <div className="border-b border-white/80 px-4 py-4 sm:px-5">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-800">
                       Поширені питання
                     </p>
                     <h2 className="font-display-italic mt-1 text-[1.05rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.22rem]">
@@ -1530,7 +1578,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     {faqItems.map((item) => (
                       <div
                         key={item.question}
-                        className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3.5"
+                        className="rounded-[22px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(240,249,255,0.9))] px-4 py-3.5 shadow-[0_10px_22px_rgba(14,165,233,0.08)]"
                       >
                         <h3 className="text-[15px] font-extrabold text-slate-900 not-italic">
                           {item.question}

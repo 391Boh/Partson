@@ -50,6 +50,7 @@ type BuildPageMetadataOptions = {
   type?: "website" | "article";
   index?: boolean;
   follow?: boolean;
+  icons?: Metadata["icons"];
 };
 
 export const buildPageMetadata = ({
@@ -65,6 +66,7 @@ export const buildPageMetadata = ({
   type = "website",
   index = true,
   follow = true,
+  icons,
 }: BuildPageMetadataOptions): Metadata => ({
   title,
   description,
@@ -98,6 +100,7 @@ export const buildPageMetadata = ({
     description: twitterDescription ?? openGraphDescription ?? description,
     images: [image.url],
   },
+  icons,
   robots: {
     index,
     follow,

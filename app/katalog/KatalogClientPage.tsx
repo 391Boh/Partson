@@ -1,14 +1,12 @@
 ﻿'use client';
 
-import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import type { PersistedCarSelection } from 'app/components/Auto';
 import Data from 'app/components/Data';
-
-type FilterSidebarComponentType = typeof import('app/components/filtrtion').default;
+import FilterSidebar from 'app/components/filtrtion';
 
 type InitialCatalogPagePayload = {
   items: Array<{
@@ -43,23 +41,6 @@ const SESSION_KEYS = {
 
 const FILTER_TOP_GAP = 14;
 const FILTER_RESULTS_GAP = 32;
-
-const CatalogFilterLoading = () => (
-  <div
-    className="rounded-[18px] border border-slate-200/80 bg-white/95 px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.05)]"
-    role="status"
-    aria-label="Завантаження фільтрів каталогу"
-  >
-    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-      <div className="h-full w-1/3 animate-pulse rounded-full bg-sky-500" />
-    </div>
-  </div>
-);
-
-const FilterSidebar = dynamic(() => import('app/components/filtrtion'), {
-  ssr: false,
-  loading: () => <CatalogFilterLoading />,
-}) as FilterSidebarComponentType;
 
 const loadCatalogFirebaseDeps = (() => {
   let promise: Promise<{
@@ -124,10 +105,10 @@ const Katalog: React.FC<KatalogProps> = ({
   const handledRequestRef = useRef<string | null>(null);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const [filterHeight, setFilterHeight] = useState(0);
-  const measureFilterShell = useCallback((nextHeight?: number) => {
+  const measureFilterShell = (nextHeight?: number) => {
     if (typeof nextHeight !== 'number' || !Number.isFinite(nextHeight)) return;
     setFilterHeight((prev) => (prev === nextHeight ? prev : nextHeight));
-  }, []);
+  };
 
   const groupParam = currentSearchParams.get('group');
   const subcategoryParam = currentSearchParams.get('subcategory');
@@ -324,6 +305,13 @@ const Katalog: React.FC<KatalogProps> = ({
     window.sessionStorage.removeItem(SESSION_KEYS.skipRemoteLoad);
     skipRemoteLoadRef.current = true;
   }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.body.classList.remove('catalog-image-modal-open');
+    setPortalRoot(document.body);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
@@ -516,11 +504,6 @@ const Katalog: React.FC<KatalogProps> = ({
     setPendingRequestMessage(requestMessage);
   }, [firebaseUser, requestMessage]);
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    setPortalRoot(document.body);
-  }, []);
-
   const handleConfirmRequest = () => {
     if (!pendingRequestMessage || !firebaseUser) return;
     if (typeof window !== 'undefined') {
@@ -596,28 +579,25 @@ const Katalog: React.FC<KatalogProps> = ({
   const catalogTopOffset =
     filterHeight > 0 ? filterHeight + FILTER_TOP_GAP + FILTER_RESULTS_GAP : 136;
 
+  const fixedFilterLayer = (
+    <div
+      className="catalog-filter-shell pointer-events-none fixed inset-x-0 z-40"
+      style={{ top: `calc(var(--header-height, 4rem) + ${FILTER_TOP_GAP}px)` }}
+    >
+      <div className="pointer-events-auto page-shell-inline -mt-px">
+        {filterSidebar}
+      </div>
+    </div>
+  );
+
   return (
     <section className="w-full pb-6">
-      {portalRoot
-        ? createPortal(
-          <div
-            className="catalog-filter-shell pointer-events-none fixed inset-x-0 z-40"
-            style={{ top: `calc(var(--header-height, 4rem) + ${FILTER_TOP_GAP}px)` }}
-          >
-            <div
-              className="pointer-events-auto page-shell-inline -mt-px"
-            >
-              {filterSidebar}
-            </div>
-          </div>
-          ,
-          portalRoot
-        )
-        : null}
+      {portalRoot ? createPortal(fixedFilterLayer, portalRoot) : fixedFilterLayer}
       <div
         className="page-shell-inline"
         style={{
           paddingTop: catalogTopOffset,
+          transition: 'padding-top 180ms ease',
         }}
       >
         <Data

@@ -1,10 +1,13 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { ChevronRight, FolderTree, Layers3 } from "lucide-react";
 
+import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import CatalogHubHero from "app/components/CatalogHubHero";
 import GroupsDirectoryClient, {
   type GroupsDirectoryItem,
 } from "app/groups/GroupsDirectoryClient";
+import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildVisibleProductName } from "app/lib/product-url";
@@ -19,6 +22,11 @@ const groupsDescription =
   "Категорії, групи та підгрупи автозапчастин у каталозі PartsON. Обирайте потрібний розділ для швидкого підбору і купівлі автозапчастин з доставкою по Україні.";
 const GROUPS_TREE_TIMEOUT_MS = 1600;
 const EMPTY_DATASET = { groups: [], labels: [] };
+const EMPTY_SEO_FACETS: Awaited<ReturnType<typeof getCatalogSeoFacets>> = {
+  groups: [],
+  producers: [],
+  generatedAt: "",
+};
 
 const buildGroupsPageDescription = (
   groupCount: number,
@@ -39,27 +47,81 @@ const buildGroupsPageDescription = (
   return `Категорії та групи автозапчастин PartsON: ${countSummary} для швидкого підбору, переходу в каталог і купівлі автозапчастин з доставкою по Україні.${indexedSummary}`;
 };
 
-export async function generateMetadata(): Promise<Metadata> {
-  const dataset = await resolveWithTimeout(
-    () => getProductTreeDataset().catch(() => EMPTY_DATASET),
-    EMPTY_DATASET,
-    GROUPS_TREE_TIMEOUT_MS
-  );
+const getGroupsPageData = cache(async () => {
+  const [dataset, seoFacets] = await Promise.all([
+    resolveWithTimeout(
+      () => getProductTreeDataset().catch(() => EMPTY_DATASET),
+      EMPTY_DATASET,
+      GROUPS_TREE_TIMEOUT_MS
+    ),
+    resolveWithTimeout(
+      () => getCatalogSeoFacets().catch(() => EMPTY_SEO_FACETS),
+      EMPTY_SEO_FACETS,
+      GROUPS_TREE_TIMEOUT_MS
+    ),
+  ]);
 
-  const totalGroups = dataset.groups.length;
-  const totalSubgroups = dataset.groups.reduce((sum, group) => sum + group.subgroups.length, 0);
-  const totalThirdLevelItems = dataset.groups.reduce(
-    (sum, group) =>
-      sum +
-      group.subgroups.reduce((innerSum, subgroup) => innerSum + subgroup.children.length, 0),
+  const groupLookup = buildSeoGroupLookup(seoFacets.groups);
+  const clientGroups: GroupsDirectoryItem[] = dataset.groups.map((group) => {
+    const counts = resolveGroupSeoCounts(group, groupLookup);
+
+    return {
+      label: group.label,
+      slug: group.slug,
+      productCount: counts.productCount,
+      subgroupsCount: counts.subgroupsCount,
+      subgroups: group.subgroups.map((subgroup) => ({
+        label: subgroup.label,
+        slug: subgroup.slug,
+        productCount: counts.subgroupProductCounts.get(subgroup.slug) ?? 0,
+        children: (Array.isArray(subgroup.children) ? subgroup.children : []).map((child) => ({
+          label: child.label,
+          slug: child.slug,
+        })),
+      })),
+    };
+  });
+
+  const totalGroups = clientGroups.length;
+  const totalSubgroups = clientGroups.reduce(
+    (sum, group) => sum + group.subgroupsCount,
     0
   );
-  const indexedProductCount = 0;
+  const totalThirdLevelItems = clientGroups.reduce(
+    (sum, group) =>
+      sum +
+      group.subgroups.reduce(
+        (innerSum, subgroup) => innerSum + subgroup.children.length,
+        0
+      ),
+    0
+  );
+  const totalProductCount = clientGroups.reduce(
+    (sum, group) => sum + group.productCount,
+    0
+  );
+
+  return {
+    clientGroups,
+    totalGroups,
+    totalSubgroups,
+    totalThirdLevelItems,
+    totalProductCount,
+  };
+});
+
+export async function generateMetadata(): Promise<Metadata> {
+  const {
+    totalGroups,
+    totalSubgroups,
+    totalThirdLevelItems,
+    totalProductCount,
+  } = await getGroupsPageData();
   const description = buildGroupsPageDescription(
     totalGroups,
     totalSubgroups,
     totalThirdLevelItems,
-    indexedProductCount
+    totalProductCount
   );
 
   return buildPageMetadata({
@@ -84,39 +146,22 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function GroupsPage() {
   const siteUrl = getSiteUrl();
-  const dataset = await resolveWithTimeout(
-    () => getProductTreeDataset().catch(() => EMPTY_DATASET),
-    EMPTY_DATASET,
-    GROUPS_TREE_TIMEOUT_MS
-  );
+  const {
+    clientGroups,
+    totalGroups,
+    totalSubgroups,
+    totalThirdLevelItems,
+    totalProductCount,
+  } = await getGroupsPageData();
 
-  const clientGroups: GroupsDirectoryItem[] = dataset.groups.map((group) => ({
-    label: group.label,
-    slug: group.slug,
-    subgroups: group.subgroups.map((subgroup) => ({
-      label: subgroup.label,
-      slug: subgroup.slug,
-      children: (Array.isArray(subgroup.children) ? subgroup.children : []).map((child) => ({
-        label: child.label,
-        slug: child.slug,
-      })),
-    })),
-  }));
-
-  const hasResolvedGroups = clientGroups.length > 0;
-  const totalSubgroups = clientGroups.reduce((sum, group) => sum + group.subgroups.length, 0);
-  const totalThirdLevelItems = clientGroups.reduce(
-    (sum, group) =>
-      sum + group.subgroups.reduce((innerSum, subgroup) => innerSum + subgroup.children.length, 0),
-    0
-  );
+  const hasResolvedGroups = totalGroups > 0;
 
   const featuredGroups = [...clientGroups]
-    .sort((left, right) => right.subgroups.length - left.subgroups.length)
+    .sort((left, right) => right.subgroupsCount - left.subgroupsCount)
     .slice(0, 2);
 
   const totalGroupsLabel = hasResolvedGroups
-    ? clientGroups.length.toLocaleString("uk-UA")
+    ? totalGroups.toLocaleString("uk-UA")
     : "оновлюється";
 
   const groupsStructuredData: Record<string, unknown> = {
@@ -172,8 +217,10 @@ export default async function GroupsPage() {
             description="Сторінка груп товарів PartsON для швидкого переходу в потрібний розділ каталогу автозапчастин."
             highlights={[
               `${totalGroupsLabel} груп у структурі`,
-              "Швидкі переходи до підгруп",
-              "Охайна навігація без зайвих кроків",
+              `${totalSubgroups.toLocaleString("uk-UA")} підгруп у каталозі`,
+              totalProductCount > 0
+                ? `${totalProductCount.toLocaleString("uk-UA")} товарів у групах`
+                : "Охайна навігація без зайвих кроків",
             ]}
             stats={[
               {
@@ -187,8 +234,11 @@ export default async function GroupsPage() {
                 icon: FolderTree,
               },
               {
-                label: "Кінцеві групи",
-                value: totalThirdLevelItems.toLocaleString("uk-UA"),
+                label: "Товари",
+                value:
+                  totalProductCount > 0
+                    ? totalProductCount.toLocaleString("uk-UA")
+                    : totalThirdLevelItems.toLocaleString("uk-UA"),
                 icon: ChevronRight,
               },
             ]}
@@ -213,7 +263,11 @@ export default async function GroupsPage() {
       </div>
 
       {hasResolvedGroups ? (
-        <GroupsDirectoryClient items={clientGroups} totalSubgroups={totalSubgroups} />
+        <GroupsDirectoryClient
+          items={clientGroups}
+          totalSubgroups={totalSubgroups}
+          totalProductCount={totalProductCount}
+        />
       ) : (
         <section className="relative pb-2 pt-0 sm:pb-3">
           <div className={catalogShellClass}>

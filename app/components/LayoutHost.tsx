@@ -76,7 +76,7 @@ const normalizeAdminToken = (value: string) =>
 const normalizeEmail = (value: unknown) =>
   typeof value === "string" ? value.trim().toLowerCase() : "";
 
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v4";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v6-stable-scroll";
 
 const ADMIN_EMAIL_VALUES = new Set(
   (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
@@ -553,7 +553,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
         const body: Record<string, unknown> = {
           page: 1,
-          limit: 10,
+          limit: 12,
           selectedCars,
           selectedCategories: [],
           searchQuery: "",
@@ -567,12 +567,17 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         const cacheKey = JSON.stringify({
           endpoint: CATALOG_PAGE_CACHE_VERSION,
           page: 1,
+          limit: 12,
+          cursor: "",
+          cursorField: "",
           q: "",
           filter: "all",
           cars: selectedCars,
           cats: [],
           group: null,
           subcat: null,
+          producer: null,
+          sort: "none",
         });
 
         try {

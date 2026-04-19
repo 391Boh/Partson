@@ -201,8 +201,25 @@ const AboutTab = () => (
 );
 
 const LocationTab = () => (
-  <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-    <div className="grid gap-4 content-start">
+  <div className="grid grid-cols-1 gap-4">
+    <InfoCard title="Як знайти магазин PartsON" icon={Navigation} accent="cyan" featured>
+      <div className="space-y-3">
+        <p>
+          Магазин автозапчастин <strong className="font-semibold text-slate-700">PartsON</strong>{" "}
+          розташований у Львові за адресою <strong className="font-semibold text-slate-700">{ADDRESS}</strong>.
+          Тут можна швидко отримати консультацію, уточнити наявність деталей, погодити
+          самовивіз замовлення та одразу побудувати маршрут до магазину.
+        </p>
+        <p>
+          На сторінці локації зібрані карта проїзду, графік роботи, контакти для
+          швидкого зв&apos;язку та інформація для клієнтів, які планують приїзд у магазин
+          або хочуть заздалегідь зорієнтуватися по вулиці, входу та способу отримання замовлення.
+        </p>
+      </div>
+    </InfoCard>
+
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+      <div className="grid gap-4 content-start">
       <InfoCard title="Адреса" icon={MapPin} accent="sky" featured>
         <ul className="space-y-3">
           <Li icon={MapPin} cls="text-sky-500">{ADDRESS}</Li>
@@ -248,17 +265,25 @@ const LocationTab = () => (
           </a>
         </div>
       </InfoCard>
-    </div>
+      </div>
 
-    <div className="overflow-hidden rounded-2xl border border-slate-200/80 shadow-[0_4px_24px_rgba(15,23,42,0.10)] min-h-[320px] lg:min-h-0">
-      <iframe
-        title="PartsON — Карта Львів"
-        src={MAPS_EMBED_URL}
-        className="h-full min-h-[320px] w-full border-0 lg:min-h-[520px]"
-        loading="lazy"
-        allowFullScreen
-        referrerPolicy="no-referrer-when-downgrade"
-      />
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 shadow-[0_4px_24px_rgba(15,23,42,0.10)] min-h-[320px] lg:min-h-0">
+        <iframe
+          title="PartsON — Карта Львів"
+          src={MAPS_EMBED_URL}
+          className="h-full min-h-[320px] w-full border-0 lg:min-h-[520px]"
+          loading="lazy"
+          allowFullScreen
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+        <div className="border-t border-slate-200/80 bg-white/95 px-4 py-3.5">
+          <p className="text-[13px] leading-relaxed text-slate-600">
+            Карта допоможе швидко побудувати маршрут до магазину PartsON на вулиці
+            Перфецького, 8 у Львові, перевірити локацію для самовивозу та зорієнтуватися
+            перед візитом у магазин автозапчастин.
+          </p>
+        </div>
+      </div>
     </div>
   </div>
 );

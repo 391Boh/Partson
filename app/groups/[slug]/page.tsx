@@ -1,19 +1,30 @@
 import { cache } from "react";
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
+import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import {
   buildCatalogCategoryPath,
   buildGroupItemPath,
 } from "app/lib/catalog-links";
+import { getCategoryIconPath } from "app/lib/category-icons";
+import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
+import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
+const GROUP_SEO_TIMEOUT_MS = 1200;
+const EMPTY_SEO_FACETS: Awaited<ReturnType<typeof getCatalogSeoFacets>> = {
+  groups: [],
+  producers: [],
+  generatedAt: "",
+};
 
 interface GroupPageParams {
   slug: string;
@@ -27,9 +38,12 @@ type GroupPageData = {
   label: string;
   slug: string;
   legacySlug?: string;
+  productCount: number;
+  subgroupsCount: number;
   subgroups: Array<{
     label: string;
     slug: string;
+    productCount: number;
     children: Array<{
       label: string;
       slug: string;
@@ -44,19 +58,31 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
 };
 
 const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null> => {
-  const dataset = await getProductTreeDataset().catch(() => null);
+  const [dataset, seoFacets] = await Promise.all([
+    getProductTreeDataset().catch(() => null),
+    resolveWithTimeout(
+      () => getCatalogSeoFacets().catch(() => EMPTY_SEO_FACETS),
+      EMPTY_SEO_FACETS,
+      GROUP_SEO_TIMEOUT_MS
+    ),
+  ]);
   const group = dataset?.groups.find(
     (item) => item.slug === slug || item.legacySlug === slug
   );
   if (!group) return null;
 
+  const counts = resolveGroupSeoCounts(group, buildSeoGroupLookup(seoFacets.groups));
+
   return {
     label: group.label,
     slug: group.slug,
     legacySlug: group.legacySlug,
+    productCount: counts.productCount,
+    subgroupsCount: counts.subgroupsCount,
     subgroups: group.subgroups.map((subgroup) => ({
       label: subgroup.label,
       slug: subgroup.slug,
+      productCount: counts.subgroupProductCounts.get(subgroup.slug) ?? 0,
       children: (Array.isArray(subgroup.children) ? subgroup.children : []).map((child) => ({
         label: child.label,
         slug: child.slug,
@@ -68,8 +94,55 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
 const buildGroupTitle = (label: string) =>
   `Каталог автозапчастин ${buildVisibleProductName(label)}`;
 
-const buildGroupDescription = (label: string) =>
-  `Каталог автозапчастин групи ${buildVisibleProductName(label)} в PartsON з підгрупами, швидким переходом у потрібний розділ і доставкою по Україні.`;
+const buildGroupDescription = (
+  label: string,
+  productCount: number,
+  subgroupsCount: number
+) => {
+  const visibleLabel = buildVisibleProductName(label);
+  const productLabel =
+    productCount > 0
+      ? `${productCount.toLocaleString("uk-UA")} товарних позицій`
+      : "товари групи";
+  const subgroupLabel =
+    subgroupsCount > 0
+      ? ` і ${subgroupsCount.toLocaleString("uk-UA")} підгруп`
+      : "";
+
+  return `Каталог автозапчастин групи ${visibleLabel} в PartsON: ${productLabel}${subgroupLabel}. Швидкий перехід у потрібний розділ і доставка по Україні.`;
+};
+
+const buildGroupHeroDescription = (
+  label: string,
+  productCount: number,
+  subgroupsCount: number,
+  hasSubgroups: boolean
+) => {
+  const visibleLabel = buildVisibleProductName(label);
+
+  if (hasSubgroups) {
+    return `У групі ${visibleLabel} зібрано ${productCount.toLocaleString("uk-UA")} товарів і ${subgroupsCount.toLocaleString("uk-UA")} підгруп для швидкого переходу в потрібний розділ каталогу автозапчастин.`;
+  }
+
+  if (productCount > 0) {
+    return `У групі ${visibleLabel} доступний прямий перехід до каталогу з ${productCount.toLocaleString("uk-UA")} товарними позиціями та швидкою навігацією по суміжних напрямках.`;
+  }
+
+  return `Сторінка групи ${visibleLabel} веде прямо у відповідний розділ каталогу автозапчастин і допомагає швидко перейти до потрібних товарів.`;
+};
+
+const buildGroupHeroDetails = (
+  label: string,
+  hasSubgroups: boolean
+) => {
+  const visibleLabel = buildVisibleProductName(label);
+
+  if (hasSubgroups) {
+    return `Оберіть підгрупу для точнішого підбору або відкрийте весь каталог групи ${visibleLabel} одним кліком.`;
+  }
+
+  return `Цей розділ зібраний як окрема сторінка групи ${visibleLabel}, щоб відкривати каталог без зайвих параметрів у посиланні.`;
+};
 
 const buildGroupPagePath = (slug: string) => `/groups/${encodeURIComponent(slug)}`;
 
@@ -97,8 +170,13 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
     };
   }
 
-  const description = buildGroupDescription(group.label);
+  const description = buildGroupDescription(
+    group.label,
+    group.productCount,
+    group.subgroupsCount
+  );
   const canonicalPath = buildGroupPagePath(group.slug);
+  const categoryIconPath = getCategoryIconPath(group.label);
 
   return buildPageMetadata({
     title: buildGroupTitle(group.label),
@@ -113,8 +191,13 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
     ],
     openGraphTitle: `Каталог автозапчастин ${group.label} | PartsON`,
     image: {
-      url: "/Car-parts-fullwidth.png",
+      url: categoryIconPath,
+      width: 512,
+      height: 512,
       alt: `Каталог автозапчастин ${group.label} | PartsON`,
+    },
+    icons: {
+      icon: [{ url: categoryIconPath, type: "image/png" }],
     },
   });
 }
@@ -131,17 +214,24 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   const pagePath = buildGroupPagePath(group.slug);
   const catalogLink = buildCatalogCategoryPath(group.label);
   const canonicalPageUrl = `${siteUrl}${pagePath}`;
+  const categoryIconPath = getCategoryIconPath(group.label);
+  const categoryIconUrl = `${siteUrl}${categoryIconPath}`;
   const visibleGroupLabel = buildVisibleProductName(group.label);
   const hasSubgroups = group.subgroups.length > 0;
-  const description = buildGroupDescription(group.label);
+  const description = buildGroupDescription(
+    group.label,
+    group.productCount,
+    group.subgroupsCount
+  );
   const pageTitle = buildGroupTitle(group.label);
-  const pageDescription = hasSubgroups
-    ? `На цій сторінці зібрані основні підгрупи для категорії ${visibleGroupLabel}. Використовуйте її як швидкий перехід у каталог автозапчастин або для навігації по суміжних товарних напрямках.`
-    : `Це окрема SEO-сторінка групи ${visibleGroupLabel}. Вона веде у відповідний розділ каталогу і дає чистий постійний URL без довгих query-параметрів.`;
+  const pageDescription = buildGroupHeroDescription(
+    group.label,
+    group.productCount,
+    group.subgroupsCount,
+    hasSubgroups
+  );
+  const pageDetails = buildGroupHeroDetails(group.label, hasSubgroups);
   const pageBadge = hasSubgroups ? "Група каталогу" : "Окрема група";
-  const pageStats = hasSubgroups
-    ? `${group.subgroups.length} підгруп у розділі`
-    : "Прямий перехід у каталог";
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -149,6 +239,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
     name: pageTitle,
     url: canonicalPageUrl,
     description,
+    image: categoryIconUrl,
     isPartOf: {
       "@type": "WebSite",
       name: "PartsON",
@@ -197,6 +288,11 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
     url: canonicalPageUrl,
     description,
     inLanguage: "uk-UA",
+    primaryImageOfPage: {
+      "@type": "ImageObject",
+      url: categoryIconUrl,
+      name: `Іконка категорії ${visibleGroupLabel}`,
+    },
     isPartOf: {
       "@type": "WebSite",
       name: "PartsON",
@@ -240,36 +336,60 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
       </Link>
 
       <section className="mt-4 overflow-hidden rounded-[28px] border border-slate-200/90 bg-[radial-gradient(circle_at_top_left,rgba(186,230,253,0.22),transparent_34%),linear-gradient(160deg,#ffffff_0%,#f8fbff_55%,#eef6ff_100%)] p-5 shadow-[0_20px_44px_rgba(15,23,42,0.08)]">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex rounded-full border border-sky-200 bg-sky-50/90 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-sky-800">
-            {pageBadge}
-          </span>
-          <span className="inline-flex rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-600">
-            {pageStats}
-          </span>
-        </div>
+        <div className="flex items-start gap-4">
+          <div className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] border border-sky-100 bg-white/95 shadow-[0_14px_28px_rgba(14,165,233,0.10)]">
+            <Image
+              src={categoryIconPath}
+              alt={`Іконка категорії ${visibleGroupLabel}`}
+              width={48}
+              height={48}
+              className="h-12 w-12 object-contain"
+              unoptimized
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex rounded-full border border-sky-200 bg-sky-50/90 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-sky-800">
+                {pageBadge}
+              </span>
+              {group.productCount > 0 ? (
+                <span className="inline-flex rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-600">
+                  {group.productCount.toLocaleString("uk-UA")} товарів
+                </span>
+              ) : null}
+              {group.subgroupsCount > 0 ? (
+                <span className="inline-flex rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-600">
+                  {group.subgroupsCount.toLocaleString("uk-UA")} підгруп
+                </span>
+              ) : null}
+            </div>
 
-        <h1 className="font-display-italic mt-4 text-3xl tracking-[-0.048em] text-slate-900 sm:text-[2.2rem]">
-          {pageTitle}
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
-          {pageDescription}
-        </p>
+            <h1 className="font-display-italic mt-4 text-3xl tracking-[-0.048em] text-slate-900 sm:text-[2.2rem]">
+              {pageTitle}
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
+              {pageDescription}
+            </p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 sm:text-[15px]">
+              {pageDetails}
+            </p>
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          <CatalogPrefetchLink
-            href={catalogLink}
-            prefetchCatalogOnViewport
-            className="inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
-          >
-            Перейти в каталог
-          </CatalogPrefetchLink>
-          <Link
-            href="/groups"
-            className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
-          >
-            Усі групи
-          </Link>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <CatalogPrefetchLink
+                href={catalogLink}
+                prefetchCatalogOnViewport
+                className="inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >
+                Перейти в каталог
+              </CatalogPrefetchLink>
+              <Link
+                href="/groups"
+                className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+              >
+                Усі групи
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -282,9 +402,16 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                   <h2 className="font-display-italic text-base font-[720] tracking-[-0.04em] text-slate-800">
                     {buildVisibleProductName(subgroup.label)}
                   </h2>
-                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                    {subgroup.children.length} підгруп
-                  </span>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    {subgroup.productCount > 0 ? (
+                      <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
+                        {subgroup.productCount.toLocaleString("uk-UA")} товарів
+                      </span>
+                    ) : null}
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+                      {subgroup.children.length} підгруп
+                    </span>
+                  </div>
                 </div>
                 <ul className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   {subgroup.children.map((child) => (
@@ -309,7 +436,14 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                   className="flex items-center justify-between rounded-[22px] px-4 py-3.5 text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-800"
                 >
                   <span className="font-medium">{buildVisibleProductName(subgroup.label)}</span>
-                  <span className="text-slate-400">&rarr;</span>
+                  <span className="flex items-center gap-3">
+                    {subgroup.productCount > 0 ? (
+                      <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
+                        {subgroup.productCount.toLocaleString("uk-UA")} товарів
+                      </span>
+                    ) : null}
+                    <span className="text-slate-400">&rarr;</span>
+                  </span>
                 </CatalogPrefetchLink>
               </div>
             )

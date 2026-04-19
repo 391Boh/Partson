@@ -104,6 +104,72 @@ const extractErrorMessage = (text: string) => {
   return safeFallback || "Помилка сервісу 1С. Спробуйте ще раз трохи пізніше.";
 };
 
+const normalizeAutoRows = (payload: unknown): unknown[] => {
+  if (Array.isArray(payload)) return payload;
+
+  if (typeof payload === "string") {
+    const normalized = payload.trim();
+    if (!normalized) return [];
+    try {
+      const parsed = JSON.parse(normalized);
+      return normalizeAutoRows(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!payload || typeof payload !== "object") return [];
+
+  const record = payload as Record<string, unknown>;
+  const candidateKeys = ["items", "data", "result", "rows", "value"];
+  for (const key of candidateKeys) {
+    const value = record[key];
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string") {
+      const nested = normalizeAutoRows(value);
+      if (nested.length > 0) return nested;
+    }
+    if (value && typeof value === "object") {
+      const nested = normalizeAutoRows(value);
+      if (nested.length > 0) return nested;
+    }
+  }
+
+  return [];
+};
+
+const fetchAutoRows = async (candidateBodies: Array<Record<string, unknown>>) => {
+  let lastError: Error | null = null;
+
+  for (const body of candidateBodies) {
+    try {
+      const res = await fetch(AUTO_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const jsonText = await res.text();
+      if (!res.ok) {
+        lastError = new Error(extractErrorMessage(jsonText));
+        continue;
+      }
+
+      const parsed = JSON.parse(jsonText);
+      const rows = normalizeAutoRows(parsed);
+      if (rows.length > 0) return rows;
+    } catch (error) {
+      lastError =
+        error instanceof Error
+          ? error
+          : new Error("Не вдалося завантажити дані авто");
+    }
+  }
+
+  if (lastError) throw lastError;
+  return [];
+};
+
 const toStringValue = (value: unknown) => {
   if (value == null) return null;
   const text = typeof value === "string" ? value.trim() : String(value);
@@ -208,25 +274,28 @@ const CarModifications: React.FC<Props> = ({
       };
     }
 
-    fetch(AUTO_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    fetchAutoRows([
+      {
         [AUTO_FIELDS.brand]: selectedBrand,
         [AUTO_FIELDS.model]: selectedModel,
-      }),
-    })
-      .then(async (res) => {
-        const jsonText = await res.text();
-        if (!res.ok) {
-          throw new Error(
-            extractErrorMessage(jsonText) ||
-              "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u0440\u043e\u043a\u0438"
-          );
+      },
+      {
+        brand: selectedBrand,
+        model: selectedModel,
+      },
+      {
+        Brand: selectedBrand,
+        Model: selectedModel,
+      },
+      {
+        "Марка": selectedBrand,
+        "Модель": selectedModel,
+      },
+    ])
+      .then((data) => {
+        if (!Array.isArray(data) || data.length === 0) {
+          throw new Error("Не вдалося отримати роки для вибраної моделі");
         }
-        const data = JSON.parse(jsonText);
-        if (!Array.isArray(data))
-          throw new Error("\u041d\u0435\u043e\u0447\u0456\u043a\u0443\u0432\u0430\u043d\u0430 \u0432\u0456\u0434\u043f\u043e\u0432\u0456\u0434\u044c \u0434\u043b\u044f \u0440\u043e\u043a\u0456\u0432");
 
         const currentYear = new Date().getFullYear();
         const years = new Set<number>();
@@ -289,22 +358,28 @@ const CarModifications: React.FC<Props> = ({
       if (v === "" || v === undefined || v === null) delete body[key];
     });
 
-    fetch(AUTO_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-      .then(async (res) => {
-        const jsonText = await res.text();
-        if (!res.ok) {
-          throw new Error(
-            extractErrorMessage(jsonText) ||
-              "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0438\u0444\u0456\u043a\u0430\u0446\u0456\u0457"
-          );
+    fetchAutoRows([
+      body,
+      {
+        brand: selectedBrand,
+        model: selectedModel,
+        year: selectedYear,
+      },
+      {
+        Brand: selectedBrand,
+        Model: selectedModel,
+        Year: selectedYear,
+      },
+      {
+        "Марка": selectedBrand,
+        "Модель": selectedModel,
+        "Рік": selectedYear,
+      },
+    ])
+      .then((data) => {
+        if (!Array.isArray(data) || data.length === 0) {
+          throw new Error("Не вдалося отримати модифікації для вибраного авто");
         }
-        const data = JSON.parse(jsonText);
-        if (!Array.isArray(data))
-          throw new Error("\u041d\u0435\u043e\u0447\u0456\u043a\u0443\u0432\u0430\u043d\u0430 \u0432\u0456\u0434\u043f\u043e\u0432\u0456\u0434\u044c \u0434\u043b\u044f \u043c\u043e\u0434\u0438\u0444\u0456\u043a\u0430\u0446\u0456\u0439");
 
         const uniqueMap = new Map<string, Modification>();
         data.forEach((item) => {

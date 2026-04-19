@@ -75,14 +75,24 @@ export const buildManufacturerPath = (
 
 export const buildCatalogProducerPath = (
   producer: string | null | undefined,
-  group?: string | null
+  group?: string | null,
+  subcategory?: string | null
 ) => {
   const normalizedProducer = normalizeFacetValue(producer);
   const normalizedGroup = normalizeFacetValue(group);
+  const normalizedSubcategory = normalizeFacetValue(subcategory);
 
   const params = new URLSearchParams({ tab: "producer" });
   if (normalizedProducer) params.set("producer", normalizedProducer);
   if (normalizedGroup) params.set("group", normalizedGroup);
+
+  const canUseSubcategory =
+    normalizedSubcategory &&
+    (!normalizedGroup || !isSameFacetValue(normalizedSubcategory, normalizedGroup));
+
+  if (canUseSubcategory) {
+    params.set("subcategory", normalizedSubcategory);
+  }
 
   return `/katalog?${params.toString()}`;
 };

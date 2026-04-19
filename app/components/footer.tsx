@@ -56,13 +56,13 @@ export default function Footer() {
       />
 
       <div className="page-shell-inline relative z-10">
-        <div className="grid grid-cols-1 gap-x-14 gap-y-8 md:grid-cols-4 lg:gap-x-20">
+        <div className="grid grid-cols-1 gap-x-14 gap-y-8 md:grid-cols-3 lg:gap-x-20">
           <Link
             href="/"
             onClick={handleBrandClick}
             className="relative block md:border-r md:border-slate-200/40 md:pr-4"
           >
-            <div className="flex flex-col items-center gap-2 text-center">
+            <div className="flex flex-col items-center gap-2 text-center md:items-start md:text-left">
               <Image
                 src="/Car-parts.png"
                 alt="PartsON"
@@ -83,6 +83,33 @@ export default function Footer() {
                 <p className="mt-1 text-sm leading-6 text-slate-700">
                   Інтернет-магазин автозапчастин
                 </p>
+              </div>
+
+              <div className="mt-4 w-full">
+                <h3 className="mb-3 text-base font-semibold text-slate-900">Ми в соцмережах</h3>
+                <div className="flex flex-wrap items-center justify-center gap-3 md:justify-start">
+                  <button
+                    type="button"
+                    aria-label="Facebook"
+                    className="inline-flex h-10 w-10 cursor-default items-center justify-center rounded-xl border border-sky-200/80 bg-transparent text-[#1877F2] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#1877F2] hover:bg-sky-50/60"
+                  >
+                    <SiFacebook size={24} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Instagram"
+                    className="inline-flex h-10 w-10 cursor-default items-center justify-center rounded-xl border border-rose-200/80 bg-transparent text-[#E4405F] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#E4405F] hover:bg-rose-50/60"
+                  >
+                    <SiInstagram size={24} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Telegram"
+                    className="inline-flex h-10 w-10 cursor-default items-center justify-center rounded-xl border border-cyan-200/80 bg-transparent text-[#229ED9] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#229ED9] hover:bg-sky-50/60"
+                  >
+                    <SiTelegram size={24} />
+                  </button>
+                </div>
               </div>
             </div>
           </Link>
@@ -153,32 +180,6 @@ export default function Footer() {
             </ul>
           </div>
 
-          <div className="relative md:pl-8">
-            <h3 className="mb-3 text-lg font-semibold text-slate-900">Ми в соцмережах</h3>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                aria-label="Facebook"
-                className="inline-flex h-10 w-10 cursor-default items-center justify-center rounded-xl border border-sky-200/80 bg-transparent text-[#1877F2] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#1877F2] hover:bg-sky-50/60"
-              >
-                <SiFacebook size={24} />
-              </button>
-              <button
-                type="button"
-                aria-label="Instagram"
-                className="inline-flex h-10 w-10 cursor-default items-center justify-center rounded-xl border border-rose-200/80 bg-transparent text-[#E4405F] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#E4405F] hover:bg-rose-50/60"
-              >
-                <SiInstagram size={24} />
-              </button>
-              <button
-                type="button"
-                aria-label="Telegram"
-                className="inline-flex h-10 w-10 cursor-default items-center justify-center rounded-xl border border-cyan-200/80 bg-transparent text-[#229ED9] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#229ED9] hover:bg-sky-50/60"
-              >
-                <SiTelegram size={24} />
-              </button>
-            </div>
-          </div>
         </div>
 
         <div className="mt-10 border-t border-slate-300 pt-5 text-center text-sm text-slate-500">
