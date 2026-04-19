@@ -443,7 +443,7 @@ const resolveProductBySeoRouteUncached = async (
 const resolveProductByNameSlugCached = unstable_cache(
   async (nameSlug: string) => resolveProductByNameSlugUncached(nameSlug),
   [
-    `product-route-name-v3-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS}`,
+    `product-route-name-v4-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS}`,
   ],
   {
     revalidate: 60 * 60,
@@ -455,7 +455,7 @@ const resolveProductBySeoRouteCached = unstable_cache(
   async (groupSlug: string, nameSlug: string) =>
     resolveProductBySeoRouteUncached(groupSlug, nameSlug),
   [
-    `product-route-v7-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS}`,
+    `product-route-v8-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS}`,
   ],
   {
     revalidate: 60 * 60,
@@ -466,11 +466,26 @@ const resolveProductBySeoRouteCached = unstable_cache(
 export const resolveProductCodeFromSeoRoute = cache(
   async (groupSlug: string, nameSlug: string) => {
     const resolved = await resolveProductBySeoRouteCached(groupSlug, nameSlug);
-    return resolved?.code || null;
+    if (resolved?.code) {
+      return resolved.code;
+    }
+
+    const uncachedResolved = await resolveProductBySeoRouteUncached(
+      groupSlug,
+      nameSlug
+    ).catch(() => null);
+    return uncachedResolved?.code || null;
   }
 );
 
 export const resolveProductCodeFromNameSlug = cache(async (nameSlug: string) => {
   const resolved = await resolveProductByNameSlugCached(nameSlug);
-  return resolved?.code || null;
+  if (resolved?.code) {
+    return resolved.code;
+  }
+
+  const uncachedResolved = await resolveProductByNameSlugUncached(nameSlug).catch(
+    () => null
+  );
+  return uncachedResolved?.code || null;
 });

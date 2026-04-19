@@ -11,7 +11,12 @@ import { getSiteUrl } from "app/lib/site-url";
 export const revalidate = 3600;
 
 export async function generateSitemaps() {
-  return getProductSitemapIds();
+  try {
+    return await getProductSitemapIds();
+  } catch (error) {
+    console.error("Failed to generate product sitemap ids", error);
+    return [];
+  }
 }
 
 function normalize(value?: string | null): string {
