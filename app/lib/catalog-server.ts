@@ -823,6 +823,7 @@ export const fetchCatalogProductsPage = async (options: {
   retries?: number;
   retryDelayMs?: number;
   cacheTtlMs?: number;
+  includePriceEnrichment?: boolean;
 }) => {
   const page = Number.isFinite(options.page) && options.page > 0 ? options.page : 1;
   const limit = Number.isFinite(options.limit) && options.limit && options.limit > 0
@@ -848,7 +849,12 @@ export const fetchCatalogProductsPage = async (options: {
   });
 
   if (response.status < 200 || response.status >= 300) return [];
-  return await enrichProductsWithAllgoodsPrices(parseItemsFromText(response.text), {
+  const parsedItems = parseItemsFromText(response.text);
+  if (options.includePriceEnrichment === false) {
+    return parsedItems;
+  }
+
+  return await enrichProductsWithAllgoodsPrices(parsedItems, {
     timeoutMs: options.timeoutMs,
     cacheTtlMs: options.cacheTtlMs,
     maxKeys: limit * 2,
@@ -960,7 +966,6 @@ export const fetchCatalogProductsByQuery = async (options: {
   };
 
   if (group && !subcategory) {
-    for (const key of SUBGROUP_FIELDS) baseBody[key] = group;
     for (const key of GROUP_FIELDS) baseBody[key] = group;
   } else if (subcategory) {
     for (const key of GROUP_FIELDS) baseBody[key] = group;
@@ -1152,7 +1157,6 @@ export const fetchCatalogProductsByFacet = async (options: {
   }
 
   if (group && !subGroup) {
-    for (const key of SUBGROUP_FIELDS) body[key] = group;
     for (const key of GROUP_FIELDS) body[key] = group;
   } else if (subGroup) {
     for (const key of GROUP_FIELDS) body[key] = group;
@@ -1224,6 +1228,25 @@ export const findCatalogProductByCode = async (
       ? Math.floor(options?.pageSize as number)
       : 80;
 
+  const enrichLookupCandidate = async (candidate: CatalogProduct | null) => {
+    if (!candidate) return null;
+    if (
+      typeof candidate.priceEuro === "number" &&
+      Number.isFinite(candidate.priceEuro) &&
+      candidate.priceEuro > 0
+    ) {
+      return candidate;
+    }
+
+    const enriched = await enrichProductsWithAllgoodsPrices([candidate], {
+      timeoutMs: options?.timeoutMs,
+      cacheTtlMs: options?.cacheTtlMs ?? 1000 * 30,
+      maxKeys: 2,
+    }).catch(() => [candidate]);
+
+    return enriched[0] || candidate;
+  };
+
   const allgoodsExact = await fetchAllgoodsProductsByExactLookup(normalizedInput, {
     limit: Math.min(lookupLimit, 8),
     timeoutMs: options?.timeoutMs,
@@ -1239,7 +1262,7 @@ export const findCatalogProductByCode = async (
       (item) => item.article.trim().toLowerCase() === targetCode
     );
     if (byArticle) return byArticle;
-    return allgoodsExact[0] || null;
+    return options?.exactOnly ? null : allgoodsExact[0] || null;
   }
 
   // Fast path: query getdata by code aliases.
@@ -1261,21 +1284,18 @@ export const findCatalogProductByCode = async (
   });
 
   if (lookupResponse.status >= 200 && lookupResponse.status < 300) {
-    const candidates = await enrichProductsWithAllgoodsPrices(
-      parseItemsFromText(lookupResponse.text),
-      {
-        timeoutMs: options?.timeoutMs,
-        cacheTtlMs: options?.cacheTtlMs ?? 1000 * 30,
-        maxKeys: lookupLimit * 2,
-      }
-    );
+    const candidates = parseItemsFromText(lookupResponse.text);
     const exact = candidates.find((item) => item.code.trim().toLowerCase() === targetCode);
-    if (exact) return exact;
+    if (exact) return enrichLookupCandidate(exact);
+
     const byArticle = candidates.find(
       (item) => item.article.trim().toLowerCase() === targetCode
     );
-    if (byArticle) return byArticle;
-    if (candidates.length > 0) return candidates[0];
+    if (byArticle) return enrichLookupCandidate(byArticle);
+
+    if (!options?.exactOnly && candidates.length > 0) {
+      return enrichLookupCandidate(candidates[0] || null);
+    }
   }
 
   // Fallback: scan first pages in case backend ignores search fields.
@@ -1287,6 +1307,7 @@ export const findCatalogProductByCode = async (
       retries: options?.retries ?? 1,
       retryDelayMs: options?.retryDelayMs ?? 200,
       cacheTtlMs: options?.cacheTtlMs ?? 1000 * 20,
+      includePriceEnrichment: false,
     });
     if (batch.length === 0) break;
 
@@ -1725,7 +1746,11 @@ export const collectCatalogProductCodes = async (options?: {
   const codes = new Set<string>();
 
   for (let page = 1; page <= maxPages; page += 1) {
-    const batch = await fetchCatalogProductsPage({ page, limit: pageSize });
+    const batch = await fetchCatalogProductsPage({
+      page,
+      limit: pageSize,
+      includePriceEnrichment: false,
+    });
     if (batch.length === 0) break;
 
     for (const item of batch) {
@@ -1808,7 +1833,11 @@ export const findSimilarProductsBySubgroup = async (
 
   const fallbackBatch: CatalogProduct[] = [];
   for (let page = 1; page <= maxPages; page += 1) {
-    const batch = await fetchCatalogProductsPage({ page, limit: pageSize });
+    const batch = await fetchCatalogProductsPage({
+      page,
+      limit: pageSize,
+      includePriceEnrichment: false,
+    });
     if (batch.length === 0) break;
     fallbackBatch.push(...batch);
   }
@@ -1846,22 +1875,49 @@ export const fetchCatalogProductsByArticle = async (
     cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 3,
   }).catch(() => []);
 
-  if (options?.exactOnly) {
-    const target = normalizeFacetValue(normalizedArticle);
-    return allgoodsMatches
-      .filter((item) => {
-        const itemArticle = normalizeFacetValue(item.article);
-        const itemCode = normalizeFacetValue(item.code);
-        const itemName = normalizeFacetValue(item.name);
+  const target = normalizeFacetValue(normalizedArticle);
+  const matchesExactArticleLookup = (item: CatalogProduct) => {
+    const itemArticle = normalizeFacetValue(item.article);
+    const itemCode = normalizeFacetValue(item.code);
+    const itemName = normalizeFacetValue(item.name);
 
-        return (
-          (target && itemArticle === target) ||
-          (target && itemArticle.includes(target)) ||
-          (target && itemCode === target) ||
-          (target && itemName.includes(target))
-        );
-      })
-      .slice(0, limit);
+    return (
+      (target && itemArticle === target) ||
+      (target && itemArticle.includes(target)) ||
+      (target && itemCode === target) ||
+      (target && itemName.includes(target))
+    );
+  };
+
+  const dedupeKeyForArticleLookup = (item: CatalogProduct) => {
+    const itemArticle = normalizeFacetValue(item.article);
+    const itemCode = normalizeFacetValue(item.code);
+    return itemCode || itemArticle || `${item.name}:${item.producer}`;
+  };
+
+  const filteredExactMatches: CatalogProduct[] = [];
+  const seenExactMatches = new Set<string>();
+  const appendExactMatches = (items: CatalogProduct[]) => {
+    for (const item of items) {
+      if (!matchesExactArticleLookup(item)) continue;
+
+      const dedupeKey = dedupeKeyForArticleLookup(item);
+      if (!dedupeKey || seenExactMatches.has(dedupeKey)) continue;
+      seenExactMatches.add(dedupeKey);
+      filteredExactMatches.push(item);
+
+      if (filteredExactMatches.length >= limit) {
+        break;
+      }
+    }
+  };
+
+  appendExactMatches(allgoodsMatches);
+
+  if (options?.exactOnly) {
+    if (filteredExactMatches.length >= limit) {
+      return filteredExactMatches.slice(0, limit);
+    }
   }
 
   const body: Record<string, unknown> = {
@@ -1893,7 +1949,11 @@ export const fetchCatalogProductsByArticle = async (
     maxKeys: limit * 2,
   });
 
-  const target = normalizeFacetValue(normalizedArticle);
+  if (options?.exactOnly) {
+    appendExactMatches(enriched);
+    return filteredExactMatches.slice(0, limit);
+  }
+
   const seen = new Set<string>();
   const filtered: CatalogProduct[] = [];
 
@@ -2024,7 +2084,11 @@ export const findAnalogProductsByArticleInName = async (
 
   const fallbackBatch: CatalogProduct[] = [...directBatch];
   for (let page = 1; page <= maxPages; page += 1) {
-    const batch = await fetchCatalogProductsPage({ page, limit: pageSize });
+    const batch = await fetchCatalogProductsPage({
+      page,
+      limit: pageSize,
+      includePriceEnrichment: false,
+    });
     if (batch.length === 0) break;
     fallbackBatch.push(...batch);
   }

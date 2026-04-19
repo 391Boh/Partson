@@ -56,6 +56,23 @@ const PRODUCT_SITEMAP_MAX_SOURCE_PAGES = parseOptionalPositiveInt(
   process.env.PRODUCT_SITEMAP_MAX_SOURCE_PAGES
 );
 
+const formatLoggedError = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message.trim();
+  }
+
+  if (typeof error === "string") {
+    return error.trim();
+  }
+
+  return "";
+};
+
+const logProductSitemapFailure = (message: string, error: unknown) => {
+  const formattedError = formatLoggedError(error);
+  console.warn(formattedError ? `${message}: ${formattedError}` : message);
+};
+
 export type ProductSitemapEntry = {
   code: string;
   article?: string;
@@ -163,18 +180,28 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
     seenRequestStates.add(requestState);
     sourcePageCount += 1;
 
-    const pageResult: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>> = await withTimeout(
-      fetchCatalogProductsByQuery({
-        page,
-        limit: PRODUCT_SITEMAP_QUERY_PAGE_SIZE,
-        cursor,
-        timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
-        retries: 2,
-        retryDelayMs: 180,
-        cacheTtlMs: 1000 * 60,
-      }),
-      PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000
-    );
+    let pageResult: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>>;
+
+    try {
+      pageResult = await withTimeout(
+        fetchCatalogProductsByQuery({
+          page,
+          limit: PRODUCT_SITEMAP_QUERY_PAGE_SIZE,
+          cursor,
+          timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
+          retries: 2,
+          retryDelayMs: 180,
+          cacheTtlMs: 1000 * 60,
+        }),
+        PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000
+      );
+    } catch (error) {
+      logProductSitemapFailure(
+        `Failed to fetch product sitemap source page for state "${requestState}"`,
+        error
+      );
+      break;
+    }
 
     for (const product of pageResult.items) {
       const entry = toProductSitemapEntry(product);
@@ -238,8 +265,17 @@ const getProductSitemapEntryBatchesWithCache = unstable_cache(
   }
 );
 
+const getProductSitemapEntryBatchesSafe = async () => {
+  try {
+    return await getProductSitemapEntryBatchesWithCache();
+  } catch (error) {
+    logProductSitemapFailure("Failed to resolve cached product sitemap entry batches", error);
+    return [] as ProductSitemapEntry[][];
+  }
+};
+
 export const getProductSitemapIds = async () => {
-  const batches = await getProductSitemapEntryBatchesWithCache();
+  const batches = await getProductSitemapEntryBatchesSafe();
 
   return batches.map((_, index) => ({
     id: String(index),
@@ -253,11 +289,11 @@ export const getProductEntriesBySitemapId = async (id: string) => {
     return [];
   }
 
-  return (await getProductSitemapEntryBatchesWithCache())[numericId] ?? [];
+  return (await getProductSitemapEntryBatchesSafe())[numericId] ?? [];
 };
 
 export const getAllProductSitemapEntries = async () => {
-  const batches = await getProductSitemapEntryBatchesWithCache();
+  const batches = await getProductSitemapEntryBatchesSafe();
   return batches.flat();
 };
 

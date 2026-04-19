@@ -42,6 +42,10 @@ const PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES = parsePositiveInt(
   process.env.PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES,
   40
 );
+const PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS = parsePositiveInt(
+  process.env.PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS,
+  900
+);
 
 const normalizeSlug = (value: string) => decodeURIComponent(value || "").trim();
 
@@ -319,6 +323,11 @@ const scanGlobalCatalog = async (groupSlug: string, nameSlug: string) => {
     const batch = await fetchCatalogProductsPage({
       page,
       limit: PRODUCT_ROUTE_LOOKUP_PAGE_SIZE,
+      timeoutMs: PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS,
+      retries: 0,
+      retryDelayMs: 100,
+      cacheTtlMs: 1000 * 60 * 5,
+      includePriceEnrichment: false,
     });
 
     if (batch.length === 0) break;
@@ -337,6 +346,11 @@ const scanGlobalCatalogByNameSlug = async (nameSlug: string) => {
     const batch = await fetchCatalogProductsPage({
       page,
       limit: PRODUCT_ROUTE_LOOKUP_PAGE_SIZE,
+      timeoutMs: PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS,
+      retries: 0,
+      retryDelayMs: 100,
+      cacheTtlMs: 1000 * 60 * 5,
+      includePriceEnrichment: false,
     });
 
     if (batch.length === 0) break;
@@ -429,7 +443,7 @@ const resolveProductBySeoRouteUncached = async (
 const resolveProductByNameSlugCached = unstable_cache(
   async (nameSlug: string) => resolveProductByNameSlugUncached(nameSlug),
   [
-    `product-route-name-v2-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}`,
+    `product-route-name-v3-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS}`,
   ],
   {
     revalidate: 60 * 60,
@@ -441,7 +455,7 @@ const resolveProductBySeoRouteCached = unstable_cache(
   async (groupSlug: string, nameSlug: string) =>
     resolveProductBySeoRouteUncached(groupSlug, nameSlug),
   [
-    `product-route-v6-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}`,
+    `product-route-v7-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS}`,
   ],
   {
     revalidate: 60 * 60,

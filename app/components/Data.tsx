@@ -1672,12 +1672,14 @@ function useCatalogData(params: {
         return;
       }
 
-      // No immediate cache hit for this filter/query, so show transitional loading now.
+      // No immediate cache hit for this filter/query, so clear stale products first.
+      setData([]);
       setLoading(true);
       setFilterLoading(true);
       return;
     }
 
+    setData([]);
     setLoading(true);
     setFilterLoading(true);
     // Без cache показуємо чистий стан, щоб не змішувати товари старого та нового фільтра.
@@ -2450,6 +2452,28 @@ const Data: React.FC<DataProps> = ({
     initialQuerySignature,
   });
 
+  const filterSignature = useMemo(
+    () =>
+      JSON.stringify({
+        search: rawSearchQuery.trim(),
+        searchFilter,
+        groupFromURL,
+        subcategoryFromURL,
+        producerFromURL,
+        selectedCategories,
+        selectedCars,
+      }),
+    [
+      rawSearchQuery,
+      searchFilter,
+      groupFromURL,
+      subcategoryFromURL,
+      producerFromURL,
+      selectedCategories,
+      selectedCars,
+    ]
+  );
+
   const requestNextPageOnScroll = useCallback(() => {
     loadNextPage();
   }, [loadNextPage]);
@@ -2503,6 +2527,7 @@ const Data: React.FC<DataProps> = ({
     () => sortedData.map((item) => getProductStableListKey(item)).join("|"),
     [sortedData]
   );
+  const lastStableFilterSignatureRef = useRef("");
 
   // Disable list/card animations for fastest scroll on all devices.
   const shouldAnimateList = false;
@@ -2512,10 +2537,13 @@ const Data: React.FC<DataProps> = ({
     if (lastStableSortedSignatureRef.current === sortedDataSignature) return;
 
     lastStableSortedSignatureRef.current = sortedDataSignature;
+    lastStableFilterSignatureRef.current = filterSignature;
     setLastStableSortedData(sortedData);
-  }, [sortedData, sortedDataSignature]);
+  }, [filterSignature, sortedData, sortedDataSignature]);
   const shouldKeepStableGrid =
-    (filterLoading || isRefetching) && lastStableSortedData.length > 0;
+    (filterLoading || isRefetching) &&
+    lastStableSortedData.length > 0 &&
+    lastStableFilterSignatureRef.current === filterSignature;
   const visibleSortedData =
     shouldKeepStableGrid && lastStableSortedData.length > 0
       ? lastStableSortedData
@@ -2653,28 +2681,6 @@ const Data: React.FC<DataProps> = ({
   ]);
 
   // Keep filter/loading transitions in sync with the current query signature.
-  const filterSignature = useMemo(
-    () =>
-      JSON.stringify({
-        search: rawSearchQuery.trim(),
-        searchFilter,
-        groupFromURL,
-        subcategoryFromURL,
-        producerFromURL,
-        selectedCategories,
-        selectedCars,
-      }),
-    [
-      rawSearchQuery,
-      searchFilter,
-      groupFromURL,
-      subcategoryFromURL,
-      producerFromURL,
-      selectedCategories,
-      selectedCars,
-    ]
-  );
-
   useEffect(() => {
     lastFilterSignatureRef.current = filterSignature;
   }, [filterSignature, setFilterLoading]);

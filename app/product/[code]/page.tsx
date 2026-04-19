@@ -44,12 +44,14 @@ import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
 const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 2200;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1300;
+const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 1200;
 const PRODUCT_PAGE_SEO_PRICE_LOOKUP_TIMEOUT_MS = 650;
 const PRODUCT_PAGE_SEO_PRICE_REQUEST_TIMEOUT_MS = 500;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 350;
 const PRODUCT_PAGE_SEO_PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRODUCT_PAGE_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
+const PRODUCT_PAGE_GROUP_LANDING_TIMEOUT_MS = 650;
 
 export const revalidate = 900;
 
@@ -669,11 +671,16 @@ const getCatalogProductUncached = async (code: string) => {
 
 const getCatalogProductCached = unstable_cache(
   getCatalogProductUncached,
-  ["product-page:catalog-product"],
+  ["product-page:catalog-product-v2"],
   { revalidate: 900 }
 );
 
-const getCatalogProduct = cache(async (code: string) => getCatalogProductCached(code));
+const getCatalogProduct = cache(async (code: string) => {
+  const cachedProduct = await getCatalogProductCached(code);
+  if (cachedProduct) return cachedProduct;
+
+  return getCatalogProductUncached(code);
+});
 
 const buildProductMetaDescription = (options: {
   name: string;
@@ -1013,13 +1020,18 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
 
 const resolveProductCodeFromRouteParamCached = unstable_cache(
   resolveProductCodeFromRouteParamUncached,
-  ["product-page:resolve-route-v8-short-name-article"],
+  ["product-page:resolve-route-v10-short-name-article"],
   { revalidate: 900 }
 );
 
-const resolveProductCodeFromRouteParam = cache(async (rawCode: string) =>
-  resolveProductCodeFromRouteParamCached(rawCode)
-);
+const resolveProductCodeFromRouteParam = cache(async (rawCode: string) => {
+  const cachedRouteData = await resolveProductCodeFromRouteParamCached(rawCode);
+  if (cachedRouteData.code) {
+    return cachedRouteData;
+  }
+
+  return resolveProductCodeFromRouteParamUncached(rawCode);
+});
 
 const getResolvedProductRouteDataUncached = async (
   rawCode: string
@@ -1050,13 +1062,18 @@ const getResolvedProductRouteDataUncached = async (
 
 const getResolvedProductRouteDataCached = unstable_cache(
   getResolvedProductRouteDataUncached,
-  ["product-page:resolved-route-product-v8-short-name-article"],
+  ["product-page:resolved-route-product-v10-short-name-article"],
   { revalidate: 900 }
 );
 
-const getResolvedProductRouteData = cache(async (rawCode: string) =>
-  getResolvedProductRouteDataCached(rawCode)
-);
+const getResolvedProductRouteData = cache(async (rawCode: string) => {
+  const cachedRouteData = await getResolvedProductRouteDataCached(rawCode);
+  if (cachedRouteData.code) {
+    return cachedRouteData;
+  }
+
+  return getResolvedProductRouteDataUncached(rawCode);
+});
 
 const canUseDirectProductCodeFallback = (rawCode: string) => {
   const decodedParam = decodeURIComponent(rawCode || "").trim();
@@ -1072,7 +1089,24 @@ const recoverProductRouteDataFromNameSlug = async (
   const decodedParam = decodeURIComponent(rawCode || "").trim();
   if (!decodedParam || extractProductRouteSlugsFromParam(decodedParam)) return null;
 
-  const recoveredCode = await resolveProductCodeFromNameSlug(decodedParam);
+  const recoveredRoute = await resolveWithTimeout(
+    () => resolveProductFromSeoNameSlug(decodedParam),
+    null,
+    PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS
+  );
+  if (recoveredRoute?.code) {
+    return {
+      code: recoveredRoute.code,
+      isSeoRoute: true,
+      product: recoveredRoute.product,
+    };
+  }
+
+  const recoveredCode = await resolveWithTimeout(
+    () => resolveProductCodeFromNameSlug(decodedParam),
+    null,
+    PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS
+  );
   if (!recoveredCode) return null;
 
   const recoveredProduct = await resolveWithTimeout(
@@ -1354,8 +1388,17 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   });
 
   const siteUrl = getSiteUrl();
+  const groupCatalogFallbackPath = productGroup
+    ? productCategory && productCategory.toLowerCase() !== productGroup.toLowerCase()
+      ? buildCatalogCategoryPath(productCategory, productGroup)
+      : buildCatalogCategoryPath(productGroup)
+    : null;
   const groupLandingPath = productGroup
-    ? await resolveProductGroupLandingPath(productCategory, productGroup)
+    ? await resolveWithTimeout(
+        () => resolveProductGroupLandingPath(productCategory, productGroup),
+        groupCatalogFallbackPath,
+        PRODUCT_PAGE_GROUP_LANDING_TIMEOUT_MS
+      )
     : null;
   const producerLandingPath = product.producer
     ? buildManufacturerPath(product.producer)

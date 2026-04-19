@@ -288,6 +288,13 @@ const ProductCardImage: React.FC<Props> = ({
       }
 
       if (warmResult?.status === "missing") {
+        if (primarySrc) {
+          setRequestSrc(primarySrc);
+          setStatus("retrying");
+          setFinalRetryQueued(false);
+          return;
+        }
+
         setRequestSrc("");
         setStatus("missing");
         setFinalRetryQueued(false);
@@ -295,6 +302,13 @@ const ProductCardImage: React.FC<Props> = ({
       }
 
       if (batchMissing) {
+        if (primarySrc) {
+          setRequestSrc(primarySrc);
+          setStatus("retrying");
+          setFinalRetryQueued(false);
+          return;
+        }
+
         setRequestSrc("");
         setStatus("missing");
         setFinalRetryQueued(false);
@@ -365,7 +379,7 @@ const ProductCardImage: React.FC<Props> = ({
       if (hasKnownPhoto && primarySrc) {
         setRequestSrc(primarySrc);
         setStatus("retrying");
-        setFinalRetryQueued(true);
+        setFinalRetryQueued(false);
         return;
       }
 
@@ -415,7 +429,7 @@ const ProductCardImage: React.FC<Props> = ({
       if (hasKnownPhoto && primarySrc) {
         setRequestSrc(primarySrc);
         setStatus("retrying");
-        setFinalRetryQueued(true);
+        setFinalRetryQueued(false);
         return;
       }
 
@@ -460,7 +474,7 @@ const ProductCardImage: React.FC<Props> = ({
       if (hasKnownPhoto && primarySrc) {
         setRequestSrc(primarySrc);
         setStatus("retrying");
-        setFinalRetryQueued(true);
+        setFinalRetryQueued(false);
         return;
       }
 

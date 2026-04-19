@@ -337,9 +337,7 @@ export async function POST(request: Request) {
     return !pickResolvedBase64(lookupKeys, primaryResolvedMap);
   });
 
-  const recoveryCandidates = unresolvedItems.filter(
-    (item) => deep || !(item.article || "").trim()
-  );
+  const recoveryCandidates = unresolvedItems;
   const recoveryProducts =
     recoveryCandidates.length > 0
       ? await resolveRecoveryProducts(recoveryCandidates)
