@@ -16,7 +16,17 @@ type CatalogPageApiPayload = {
 };
 
 const ROUTE_SUCCESS_CACHE_TTL_MS = 1000 * 60 * 2;
-const routeSuccessCache = new Map<string, { expiresAt: number; value: CatalogPageApiPayload }>();
+const ROUTE_SUCCESS_STALE_TTL_MS = 1000 * 60 * 12;
+const ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS = 1000 * 60 * 6;
+const CATALOG_ROUTE_RESPONSE_TIMEOUT_MS = 5200;
+
+type RouteSuccessCacheEntry = {
+  freshUntil: number;
+  staleUntil: number;
+  value: CatalogPageApiPayload;
+};
+
+const routeSuccessCache = new Map<string, RouteSuccessCacheEntry>();
 const routeInFlightRequests = new Map<string, Promise<CatalogPageApiPayload>>();
 
 const toTrimmedString = (value: unknown) =>
@@ -61,10 +71,57 @@ const buildRouteCacheKey = (body: Record<string, unknown>) =>
 const pruneRouteSuccessCache = () => {
   const now = Date.now();
   for (const [key, entry] of routeSuccessCache.entries()) {
-    if (!entry || entry.expiresAt <= now) {
+    if (!entry || entry.staleUntil <= now) {
       routeSuccessCache.delete(key);
     }
   }
+};
+
+const getRouteCacheEntry = (key: string) => {
+  const entry = routeSuccessCache.get(key);
+  if (!entry) return null;
+  if (entry.staleUntil <= Date.now()) {
+    routeSuccessCache.delete(key);
+    return null;
+  }
+  return entry;
+};
+
+const getFreshRouteCacheValue = (key: string) => {
+  const entry = getRouteCacheEntry(key);
+  if (!entry || entry.freshUntil <= Date.now()) return null;
+  return entry.value;
+};
+
+const getStaleRouteCacheValue = (key: string) => getRouteCacheEntry(key)?.value ?? null;
+
+const buildStaleCatalogPayload = (payload: CatalogPageApiPayload): CatalogPageApiPayload => ({
+  ...payload,
+  stale: true,
+  serviceUnavailable: false,
+  message: "",
+});
+
+const CATALOG_ROUTE_TIMEOUT_RESULT = Symbol("catalog-route-timeout");
+
+const awaitCatalogPayloadWithinBudget = async (
+  promise: Promise<CatalogPageApiPayload>,
+  timeoutMs: number
+) => {
+  const result = await Promise.race<
+    CatalogPageApiPayload | typeof CATALOG_ROUTE_TIMEOUT_RESULT
+  >([
+    promise,
+    new Promise<typeof CATALOG_ROUTE_TIMEOUT_RESULT>((resolve) => {
+      setTimeout(() => resolve(CATALOG_ROUTE_TIMEOUT_RESULT), timeoutMs);
+    }),
+  ]);
+
+  if (result === CATALOG_ROUTE_TIMEOUT_RESULT) {
+    return null;
+  }
+
+  return result;
 };
 
 const sanitizeCatalogErrorMessage = (value: string | null | undefined) => {
@@ -87,15 +144,6 @@ const sanitizeCatalogErrorMessage = (value: string | null | undefined) => {
   }
 
   return stripped.length > 220 ? `${stripped.slice(0, 220)}...` : stripped;
-};
-
-const isRetryableCatalogError = (error: unknown) => {
-  if (!(error instanceof Error)) return false;
-  const normalized = (error.message || "").toLowerCase();
-
-  return /timeout|timed?\s*out|getdata failed|allgoods failed|fetch failed|503|502/.test(
-    normalized
-  );
 };
 
 const buildInlinePrices = (
@@ -132,10 +180,12 @@ export async function POST(request: Request) {
     routeCacheKey = buildRouteCacheKey(body);
     pruneRouteSuccessCache();
 
-    const cacheHit = routeSuccessCache.get(routeCacheKey);
-    if (cacheHit && cacheHit.expiresAt > Date.now()) {
-      return NextResponse.json(cacheHit.value);
+    const cacheHit = getFreshRouteCacheValue(routeCacheKey);
+    if (cacheHit) {
+      return NextResponse.json(cacheHit);
     }
+
+    const staleCacheHit = getStaleRouteCacheValue(routeCacheKey);
 
     const normalizedSearchQuery = toTrimmedString(body.searchQuery);
     const normalizedGroup = toTrimmedString(body.group);
@@ -148,10 +198,13 @@ export async function POST(request: Request) {
         normalizedProducer
     );
 
-    const timeoutMs = hasTightFilterContext ? 1400 : 2600;
-    const retries = hasTightFilterContext ? 0 : 1;
+    const timeoutMs = hasTightFilterContext ? 2400 : 3000;
+    const retries = 0;
     const retryDelayMs = hasTightFilterContext ? 80 : 150;
     const cacheTtlMs = hasTightFilterContext ? 1000 * 20 : 1000 * 45;
+    const staleTtlMs = hasTightFilterContext
+      ? ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS
+      : ROUTE_SUCCESS_STALE_TTL_MS;
 
     const queryBase = {
       page: toPositiveInt(body.page, 1),
@@ -203,21 +256,18 @@ export async function POST(request: Request) {
     let inFlight = routeInFlightRequests.get(routeCacheKey);
     if (!inFlight) {
       inFlight = runQuery({ timeoutMs, retries, retryDelayMs, cacheTtlMs })
-        .catch(async (error) => {
-          if (!isRetryableCatalogError(error)) {
-            throw error;
+        .then((result) => toApiPayload(result))
+        .then((payload) => {
+          if (routeCacheKey) {
+            routeSuccessCache.set(routeCacheKey, {
+              freshUntil: Date.now() + ROUTE_SUCCESS_CACHE_TTL_MS,
+              staleUntil: Date.now() + Math.max(ROUTE_SUCCESS_CACHE_TTL_MS, staleTtlMs),
+              value: payload,
+            });
           }
 
-          const relaxedRuntime = {
-            timeoutMs: hasTightFilterContext ? 3000 : 3800,
-            retries: 1,
-            retryDelayMs: hasTightFilterContext ? 160 : 220,
-            cacheTtlMs: hasTightFilterContext ? 1000 * 35 : 1000 * 60,
-          };
-
-          return await runQuery(relaxedRuntime);
+          return payload;
         })
-        .then((result) => toApiPayload(result))
         .finally(() => {
           routeInFlightRequests.delete(routeCacheKey);
         });
@@ -225,13 +275,20 @@ export async function POST(request: Request) {
       routeInFlightRequests.set(routeCacheKey, inFlight);
     }
 
-    const payload = await inFlight;
+    if (staleCacheHit) {
+      void inFlight.catch(() => null);
+      return NextResponse.json(buildStaleCatalogPayload(staleCacheHit));
+    }
 
-    if (routeCacheKey) {
-      routeSuccessCache.set(routeCacheKey, {
-        expiresAt: Date.now() + ROUTE_SUCCESS_CACHE_TTL_MS,
-        value: payload,
-      });
+    const payload = await awaitCatalogPayloadWithinBudget(
+      inFlight,
+      CATALOG_ROUTE_RESPONSE_TIMEOUT_MS
+    );
+    if (!payload) {
+      void inFlight.catch(() => null);
+      throw new Error(
+        `Catalog route timed out after ${CATALOG_ROUTE_RESPONSE_TIMEOUT_MS}ms`
+      );
     }
 
     return NextResponse.json(payload);
@@ -240,14 +297,9 @@ export async function POST(request: Request) {
       routeCacheKey = buildRouteCacheKey(body);
     }
     pruneRouteSuccessCache();
-    const staleHit = routeSuccessCache.get(routeCacheKey);
-    if (staleHit && staleHit.expiresAt > Date.now()) {
-      return NextResponse.json({
-        ...staleHit.value,
-        stale: true,
-        serviceUnavailable: false,
-        message: "",
-      });
+    const staleHit = getStaleRouteCacheValue(routeCacheKey);
+    if (staleHit) {
+      return NextResponse.json(buildStaleCatalogPayload(staleHit));
     }
 
     const normalizedMessage = sanitizeCatalogErrorMessage(

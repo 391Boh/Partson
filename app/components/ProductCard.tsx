@@ -432,6 +432,8 @@ useEffect(() => {
                         <div className="w-3/5 h-full flex items-center">
                             <SmartLink
                                 href={productHref}
+                                prefetch={false}
+                                prefetchOnIntent={false}
                                 onClick={(event) => event.stopPropagation()}
                                 className="font-name-accent text-left text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 leading-[1.02] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
                             >

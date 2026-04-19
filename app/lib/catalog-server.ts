@@ -898,11 +898,18 @@ export const fetchCatalogProductsByQuery = async (options: {
   const hasStructuredFilter = Boolean(
     selectedCategories.length > 0 || group || subcategory || producer
   );
+  const compactSearchQuery = searchQuery.replace(/\s+/g, "");
+  const looksLikeIdentifierSearch =
+    Boolean(searchQuery) &&
+    !searchQuery.includes(" ") &&
+    /\d|[-_/\\.]/.test(compactSearchQuery);
+  const shouldPreferLegacyGetdata =
+    sortOrder === "none" && !cursor;
   const shouldEnrichInlinePrices =
     !hasStructuredFilter && !searchQuery && page === 1;
-  // allgoods supports structured filters (group/subgroup/producer) and gives
-  // stable cursor pagination for complete result sets, including price sorting.
-  const canUseAllgoods = selectedCars.length === 0;
+  // allgoods is noticeably heavier on 1C. Use it only when cursor-based
+  // continuation or explicit sorting actually needs it.
+  const canUseAllgoods = selectedCars.length === 0 && !shouldPreferLegacyGetdata;
 
   const baseBody: Record<string, unknown> = {
     selectedCars,
@@ -935,8 +942,12 @@ export const fetchCatalogProductsByQuery = async (options: {
     } else if (searchFilter === "producer") {
       primaryKeys = [...PRODUCER_FIELDS];
     } else {
-      primaryKeys = [...NAME_FIELDS];
-      fallbackKeys = [...ARTICLE_FIELDS, ...CODE_FIELDS];
+      primaryKeys = looksLikeIdentifierSearch
+        ? [...ARTICLE_FIELDS, ...CODE_FIELDS]
+        : [...NAME_FIELDS];
+      fallbackKeys = looksLikeIdentifierSearch
+        ? [...NAME_FIELDS]
+        : [...ARTICLE_FIELDS, ...CODE_FIELDS];
     }
   }
 

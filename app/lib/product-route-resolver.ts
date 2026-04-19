@@ -218,7 +218,7 @@ const getProductRouteIndex = unstable_cache(
 
     return { direct, prefix, directNameOnly, prefixNameOnly };
   },
-  ["product-route:index-v3-name-fallback"],
+  ["product-route:index-v4-short-name-article"],
   {
     revalidate: 60 * 60,
     tags: ["product-route", "product-sitemap"],
@@ -429,7 +429,7 @@ const resolveProductBySeoRouteUncached = async (
 const resolveProductByNameSlugCached = unstable_cache(
   async (nameSlug: string) => resolveProductByNameSlugUncached(nameSlug),
   [
-    `product-route-name-v1-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}`,
+    `product-route-name-v2-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}`,
   ],
   {
     revalidate: 60 * 60,
@@ -441,7 +441,7 @@ const resolveProductBySeoRouteCached = unstable_cache(
   async (groupSlug: string, nameSlug: string) =>
     resolveProductBySeoRouteUncached(groupSlug, nameSlug),
   [
-    `product-route-v5-name-fallback-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}`,
+    `product-route-v6-short-name-article-${PRODUCT_ROUTE_LOOKUP_PAGE_SIZE}-${PRODUCT_ROUTE_LOOKUP_MAX_PAGES}-${PRODUCT_ROUTE_LOOKUP_GLOBAL_MAX_PAGES}`,
   ],
   {
     revalidate: 60 * 60,

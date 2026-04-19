@@ -16,6 +16,7 @@ export type ProductPathInput = {
 };
 
 const normalizeValue = (value: string | null | undefined) => (value || "").trim();
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const containsSlugToken = (source: string, token: string) => {
   const normalizedSource = buildPlainSeoSlug(source);
@@ -64,21 +65,53 @@ export const buildLegacyProductSeoName = (input: ProductPathInput) => {
   return visibleName;
 };
 
-export const buildProductSeoName = (input: ProductPathInput) => {
-  const visibleName = buildLegacyProductSeoName(input);
+const buildCanonicalProductBaseName = (input: ProductPathInput) => {
+  const legacyName = buildLegacyProductSeoName(input);
   const article = normalizeValue(input.article);
   const code = normalizeValue(input.code);
   const producer = normalizeValue(input.producer);
-  const additions: string[] = [];
-  const stableToken = article || code;
+  const tokensToStrip = [article, code].filter(
+    (token, index, array) => Boolean(token) && array.indexOf(token) === index
+  );
 
-  if (stableToken && !containsSlugToken(visibleName, stableToken)) {
-    additions.push(stableToken);
-  } else if (!article && producer && !containsSlugToken(visibleName, producer)) {
-    additions.push(producer);
+  let cleaned = legacyName.replace(/\s{2,}/g, " ").trim();
+
+  for (const token of tokensToStrip) {
+    cleaned = cleaned
+      .replace(new RegExp(escapeRegExp(token), "giu"), " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
   }
 
-  return [visibleName, ...additions].filter(Boolean).join(" ").trim() || visibleName;
+  if (producer) {
+    cleaned = cleaned
+      .replace(
+        new RegExp(`(?:\\s*[-/,]?\\s*)${escapeRegExp(producer)}$`, "iu"),
+        ""
+      )
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  return cleaned || legacyName || article || code || producer || "Товар";
+};
+
+export const buildProductSeoName = (input: ProductPathInput) => {
+  const visibleName = buildCanonicalProductBaseName(input);
+  const article = normalizeValue(input.article);
+  const code = normalizeValue(input.code);
+  const producer = normalizeValue(input.producer);
+  const stableToken = article || code;
+
+  if (stableToken) {
+    return [visibleName, stableToken].filter(Boolean).join(" ").trim() || visibleName;
+  }
+
+  if (producer && !containsSlugToken(visibleName, producer)) {
+    return [visibleName, producer].filter(Boolean).join(" ").trim() || visibleName;
+  }
+
+  return visibleName;
 };
 
 export const buildLegacyProductNameSlug = (input: ProductPathInput) =>
@@ -105,12 +138,15 @@ export const extractProductRouteSlugsFromParam = (value: string) => {
 };
 
 export const buildProductPath = (input: ProductPathInput) => {
-  const groupSlug = buildProductGroupSlug(input);
   const nameSlug = buildProductNameSlug(input);
+  const fallbackSlug =
+    buildPlainSeoSlug(
+      normalizeValue(input.article) ||
+        normalizeValue(input.code) ||
+        buildLegacyProductSeoName(input) ||
+        "tovar"
+    ) || "tovar";
+  const routeSlug = nameSlug || fallbackSlug;
 
-  if (!groupSlug) {
-    return `/product/${encodeURIComponent(nameSlug)}`;
-  }
-
-  return `/product/${encodeURIComponent(groupSlug)}${PRODUCT_ROUTE_SEGMENT_SEPARATOR}${encodeURIComponent(nameSlug)}`;
+  return `/product/${encodeURIComponent(routeSlug)}`;
 };
