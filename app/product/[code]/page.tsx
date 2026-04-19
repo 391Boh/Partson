@@ -37,6 +37,7 @@ import {
   resolveProductCodeFromNameSlug,
   resolveProductCodeFromSeoRoute,
 } from "app/lib/product-route-resolver";
+import { getProductTreeDataset } from "app/lib/product-tree";
 import { getSiteUrl } from "app/lib/site-url";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
@@ -235,6 +236,77 @@ const buildFrontendProductHeading = (
 
   return cleaned || buildPureProductName(value, hints);
 };
+
+const resolveProductGroupLandingPath = cache(
+  async (productCategory: string, productGroup: string): Promise<string | null> => {
+    const normalizedCategory = productCategory.trim();
+    const normalizedGroup = productGroup.trim();
+
+    if (!normalizedGroup) return null;
+
+    const catalogFallbackPath =
+      normalizedCategory && normalizedCategory.toLowerCase() !== normalizedGroup.toLowerCase()
+        ? buildCatalogCategoryPath(normalizedCategory, normalizedGroup)
+        : buildCatalogCategoryPath(normalizedGroup);
+
+    const dataset = await getProductTreeDataset().catch(() => null);
+    if (!dataset) return catalogFallbackPath;
+
+    const normalizedCategorySlug = buildPlainSeoSlug(normalizedCategory);
+    const normalizedGroupSlug = buildPlainSeoSlug(normalizedGroup);
+
+    if (!normalizedGroupSlug) return catalogFallbackPath;
+
+    const directGroup = dataset.groups.find(
+      (entry) =>
+        entry.slug === normalizedGroupSlug || entry.legacySlug === normalizedGroupSlug
+    );
+    if (directGroup) {
+      return buildGroupPath(directGroup.slug);
+    }
+
+    const resolveNestedGroupPath = (parentGroupSlug: string) => {
+      const parentGroup = dataset.groups.find(
+        (entry) => entry.slug === parentGroupSlug || entry.legacySlug === parentGroupSlug
+      );
+      if (!parentGroup) return null;
+
+      const subgroup = parentGroup.subgroups.find(
+        (entry) => entry.slug === normalizedGroupSlug || entry.legacySlug === normalizedGroupSlug
+      );
+      if (subgroup) {
+        return buildGroupItemPath(parentGroup.slug, subgroup.slug);
+      }
+
+      for (const subgroupEntry of parentGroup.subgroups) {
+        const child = subgroupEntry.children.find(
+          (entry) => entry.slug === normalizedGroupSlug || entry.legacySlug === normalizedGroupSlug
+        );
+        if (child) {
+          return buildGroupItemPath(parentGroup.slug, child.slug);
+        }
+      }
+
+      return null;
+    };
+
+    if (normalizedCategorySlug) {
+      const categoryMatchPath = resolveNestedGroupPath(normalizedCategorySlug);
+      if (categoryMatchPath) {
+        return categoryMatchPath;
+      }
+    }
+
+    for (const parentGroup of dataset.groups) {
+      const nestedGroupPath = resolveNestedGroupPath(parentGroup.slug);
+      if (nestedGroupPath) {
+        return nestedGroupPath;
+      }
+    }
+
+    return catalogFallbackPath;
+  }
+);
 
 const normalizeView = (view: string | string[] | undefined) => {
   if (Array.isArray(view)) return (view[0] || "").trim().toLowerCase();
@@ -1231,21 +1303,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
   const siteUrl = getSiteUrl();
   const groupLandingPath = productGroup
-    ? (() => {
-        const hasParentGroup =
-          Boolean(productCategory) &&
-          productCategory.toLowerCase() !== productGroup.toLowerCase();
-
-        if (hasParentGroup) {
-          return buildGroupItemPath(
-            buildPlainSeoSlug(productCategory),
-            buildPlainSeoSlug(productGroup)
-          );
-        }
-
-        const path = buildGroupPath(productGroup);
-        return path !== "/groups" ? path : buildCatalogCategoryPath(productGroup);
-      })()
+    ? await resolveProductGroupLandingPath(productCategory, productGroup)
     : null;
   const producerLandingPath = product.producer
     ? buildManufacturerPath(product.producer)

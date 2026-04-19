@@ -61,6 +61,14 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   const [user, setUser] = useState<User | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const orderRef = useRef<HTMLDivElement>(null);
+  const openAuthModal = () => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(
+      new CustomEvent('openAuthModal', {
+        detail: { mode: 'login' },
+      })
+    );
+  };
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat('uk-UA', {
@@ -244,12 +252,13 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               <p>
                 Щоб переглянути свої замовлення, будь ласка, увійдіть у свій обліковий запис.
               </p>
-              <Link
-                href="/login"
+              <button
+                type="button"
+                onClick={openAuthModal}
                 className="soft-primary-button mt-3 inline-flex px-3.5 py-2 text-sm font-semibold sm:mt-4 sm:px-4 sm:py-2.5"
               >
                 Увійти
-              </Link>
+              </button>
             </div>
           ) : loadingOrders ? (
             <div className="py-6">
