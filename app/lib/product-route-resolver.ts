@@ -222,7 +222,7 @@ const getProductRouteIndex = unstable_cache(
 
     return { direct, prefix, directNameOnly, prefixNameOnly };
   },
-  ["product-route:index-v4-short-name-article"],
+  ["product-route:index-v5-short-name-article"],
   {
     revalidate: 60 * 60,
     tags: ["product-route", "product-sitemap"],

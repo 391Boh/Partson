@@ -911,8 +911,7 @@ export const fetchCatalogProductsByQuery = async (options: {
     /\d|[-_/\\.]/.test(compactSearchQuery);
   const shouldPreferLegacyGetdata =
     sortOrder === "none" && !cursor;
-  const shouldEnrichInlinePrices =
-    !hasStructuredFilter && !searchQuery && page === 1;
+  const shouldEnrichInlinePrices = false;
   // allgoods is noticeably heavier on 1C. Use it only when cursor-based
   // continuation or explicit sorting actually needs it.
   const canUseAllgoods = selectedCars.length === 0 && !shouldPreferLegacyGetdata;
@@ -1914,10 +1913,8 @@ export const fetchCatalogProductsByArticle = async (
 
   appendExactMatches(allgoodsMatches);
 
-  if (options?.exactOnly) {
-    if (filteredExactMatches.length >= limit) {
-      return filteredExactMatches.slice(0, limit);
-    }
+  if (options?.exactOnly && filteredExactMatches.length > 0) {
+    return filteredExactMatches.slice(0, limit);
   }
 
   const body: Record<string, unknown> = {

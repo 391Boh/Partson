@@ -42,9 +42,9 @@ import { getSiteUrl } from "app/lib/site-url";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
-const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 3000;
-const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 2200;
-const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 1600;
+const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 3400;
+const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 2600;
+const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 1800;
 const PRODUCT_PAGE_SEO_PRICE_LOOKUP_TIMEOUT_MS = 650;
 const PRODUCT_PAGE_SEO_PRICE_REQUEST_TIMEOUT_MS = 500;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 350;
@@ -671,7 +671,7 @@ const getCatalogProductUncached = async (code: string) => {
 
 const getCatalogProductCached = unstable_cache(
   getCatalogProductUncached,
-  ["product-page:catalog-product-v2"],
+  ["product-page:catalog-product-v3"],
   { revalidate: 900 }
 );
 
