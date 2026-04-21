@@ -49,6 +49,7 @@ const PRODUCT_ARRAY_KEYS = [
 
 const MAX_TREE_DEPTH = 8;
 const MAX_CHILDREN_PER_NODE = 250;
+const PRODUCT_TREE_SOURCE_TIMEOUT_MS = 8000;
 
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
@@ -311,6 +312,9 @@ const fetchDataset = async (): Promise<ProductTreeDataset> => {
   const response = await oneCRequest("getprod", {
     method: "POST",
     body: {},
+    timeoutMs: PRODUCT_TREE_SOURCE_TIMEOUT_MS,
+    retries: 0,
+    retryDelayMs: 100,
     cacheTtlMs: 1000 * 60 * 60 * 6,
   });
 
@@ -319,7 +323,7 @@ const fetchDataset = async (): Promise<ProductTreeDataset> => {
   return buildDataset(nodes);
 };
 
-const fetchDatasetCached = unstable_cache(fetchDataset, ["product-tree-v4"], {
+const fetchDatasetCached = unstable_cache(fetchDataset, ["product-tree-v5-fast-source"], {
   revalidate: 60 * 60 * 6,
   tags: ["product-tree"],
 });

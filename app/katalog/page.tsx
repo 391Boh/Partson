@@ -14,8 +14,8 @@ import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getSiteUrl } from "app/lib/site-url";
 
 const INITIAL_CATALOG_PAGE_LIMIT = 12;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS = 650;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 180;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS = 2600;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 900;
 
 type InitialCatalogPagePayload = {
   items: Array<{
@@ -46,15 +46,16 @@ const buildInlinePrices = (
 
   for (const item of items) {
     const price = item?.priceEuro;
-    if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) {
-      continue;
-    }
+    const resolvedPrice =
+      typeof price === "number" && Number.isFinite(price) && price > 0
+        ? price
+        : null;
 
     const code = typeof item.code === "string" ? item.code.trim() : "";
     const article = typeof item.article === "string" ? item.article.trim() : "";
 
-    if (code && prices[code] === undefined) prices[code] = price;
-    if (article && prices[article] === undefined) prices[article] = price;
+    if (code && prices[code] === undefined) prices[code] = resolvedPrice;
+    if (article && prices[article] === undefined) prices[article] = resolvedPrice;
   }
 
   return prices;
@@ -446,6 +447,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         retries: 0,
         retryDelayMs: 120,
         cacheTtlMs: 1000 * 20,
+        forceAllgoodsSource: true,
       }).then((result) => ({
         items: result.items,
         prices: buildInlinePrices(result.items),

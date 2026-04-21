@@ -42,7 +42,7 @@ const SmartLink = forwardRef<HTMLAnchorElement, SmartLinkProps>(function SmartLi
   const warmedRef = useRef(false);
   const prefetchableHref = getPrefetchableHref(href);
   const shouldViewportPrefetch = prefetchOnViewport && Boolean(prefetchableHref);
-  const effectivePrefetch = shouldViewportPrefetch ? true : undefined;
+  const effectivePrefetch = shouldViewportPrefetch ? true : false;
 
   const warmRoute = useCallback(() => {
     if (

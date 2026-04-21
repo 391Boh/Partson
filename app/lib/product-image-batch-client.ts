@@ -12,6 +12,7 @@ import { buildProductImageBatchKey } from "app/lib/product-image-path";
 export type CatalogImageBatchRequestItem = {
   code: string;
   article?: string;
+  hasPhoto?: boolean;
 };
 
 export type CatalogImageBatchResponseItem = {
@@ -129,6 +130,7 @@ const normalizeBatchItems = (items: CatalogImageBatchRequestItem[]) => {
     normalized.push({
       code,
       article: article || undefined,
+      hasPhoto: item.hasPhoto,
     });
 
     if (normalized.length >= MAX_BATCH_ITEMS) break;
@@ -150,6 +152,12 @@ export const fetchCatalogImageBatch = async (
   const missingItems: CatalogImageBatchRequestItem[] = [];
 
   for (const item of normalizedItems) {
+    if (item.hasPhoto === false) {
+      writeProductImageMissing(item.code, item.article);
+      cachedResults.push(buildMissingBatchResult(item));
+      continue;
+    }
+
     const cachedSrc = readProductImageSuccess(item.code, item.article);
     if (cachedSrc) {
       cachedResults.push({

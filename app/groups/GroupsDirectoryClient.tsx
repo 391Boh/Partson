@@ -6,11 +6,7 @@ import { ChevronRight, FolderTree, Search, X } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import SmartLink from "app/components/SmartLink";
-import {
-  buildCatalogCategoryPath,
-  buildGroupItemPath,
-  buildGroupPath,
-} from "app/lib/catalog-links";
+import { buildGroupItemPath, buildGroupPath } from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildVisibleProductName } from "app/lib/product-url";
 
@@ -207,11 +203,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
             >
               <div className="flex items-start justify-between gap-3">
                 <CatalogPrefetchLink
-                  href={
-                    subgroup.children.length > 0
-                      ? buildGroupItemPath(group.slug, subgroup.slug)
-                      : buildCatalogCategoryPath(group.label, subgroup.label)
-                  }
+                  href={buildGroupItemPath(group.slug, subgroup.slug)}
                   className="inline-flex min-w-0 items-center gap-2.5 text-sm font-[740] leading-5 text-slate-800 transition hover:text-cyan-700"
                 >
                   <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-200/80 bg-cyan-50/90 text-cyan-700 shadow-[0_10px_20px_rgba(34,211,238,0.12)]">

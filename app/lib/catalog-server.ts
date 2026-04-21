@@ -87,9 +87,12 @@ const PRICE_FIELDS = [
 ];
 const PHOTO_FIELDS = [
   "\u0415\u0441\u0442\u044c\u0424\u043e\u0442\u043e",
+  "\u0415\u0441\u0442\u044c\u0444\u043e\u0442\u043e",
   "\u0404\u0441\u0442\u044c\u0424\u043e\u0442\u043e",
+  "\u0404\u0441\u0442\u044c\u0444\u043e\u0442\u043e",
   "hasPhoto",
   "HasPhoto",
+  "has_photo",
 ];
 const ALLGOODS_LIMIT_FIELD = "\u041b\u0438\u043c\u0438\u0442";
 const ALLGOODS_CURSOR_FIELD = "\u041f\u043e\u0441\u043b\u0435\u041a\u043e\u0434\u0430";
@@ -183,8 +186,12 @@ const readFirstBoolean = (
     if (typeof value === "string") {
       const normalized = value.trim().toLowerCase();
       if (!normalized) continue;
-      if (["true", "1", "yes", "y", "так", "да"].includes(normalized)) return true;
-      if (["false", "0", "no", "n", "ні", "нет"].includes(normalized)) return false;
+      if (["true", "1", "yes", "y", "так", "да", "истина", "істина"].includes(normalized)) {
+        return true;
+      }
+      if (["false", "0", "no", "n", "ні", "нет", "ложь", "хибність"].includes(normalized)) {
+        return false;
+      }
     }
   }
   return fallback;
@@ -279,6 +286,19 @@ const deriveAllgoodsFallbackCursor = (items: CatalogProduct[]) => {
   }
 
   return "";
+};
+
+const isExactCatalogLookupMatch = (
+  item: CatalogProduct | null | undefined,
+  lookupValue: string
+) => {
+  const target = normalizeFacetValue(lookupValue);
+  if (!item || !target) return false;
+
+  return (
+    normalizeFacetValue(item.code) === target ||
+    normalizeFacetValue(item.article) === target
+  );
 };
 
 const fetchAllgoodsProductsByExactLookup = async (
@@ -393,6 +413,32 @@ export const fetchAllgoodsProductsByNameQuery = async (
     retryDelayMs: options?.retryDelayMs ?? 100,
     cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 5,
   }).catch(() => []);
+};
+
+export const fetchExactCatalogProductByLookup = async (
+  lookupValue: string,
+  options?: {
+    limit?: number;
+    timeoutMs?: number;
+    retries?: number;
+    retryDelayMs?: number;
+    cacheTtlMs?: number;
+    includeDescription?: boolean;
+  }
+) => {
+  const normalized = safeDecode(lookupValue || "").trim();
+  if (!normalized) return null;
+
+  const exactMatches = await fetchAllgoodsProductsByExactLookup(normalized, {
+    limit: options?.limit,
+    timeoutMs: options?.timeoutMs,
+    retries: options?.retries ?? 0,
+    retryDelayMs: options?.retryDelayMs ?? 100,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 30,
+    includeDescription: options?.includeDescription,
+  }).catch(() => []);
+
+  return exactMatches.find((item) => isExactCatalogLookupMatch(item, normalized)) ?? null;
 };
 
 const extractResponseErrorDetails = (responseText: string) => {
@@ -878,6 +924,9 @@ export const fetchCatalogProductsByQuery = async (options: {
   retries?: number;
   retryDelayMs?: number;
   cacheTtlMs?: number;
+  includePriceEnrichment?: boolean;
+  preferLegacySource?: boolean;
+  forceAllgoodsSource?: boolean;
 }): Promise<CatalogQueryPageResult> => {
   const page =
     Number.isFinite(options.page) && (options.page || 0) > 0
@@ -901,17 +950,18 @@ export const fetchCatalogProductsByQuery = async (options: {
   const sortOrder = options.sortOrder || "none";
   const cursor = typeof options.cursor === "string" ? options.cursor.trim() : "";
   const cursorField = typeof options.cursorField === "string" ? options.cursorField.trim() : "";
-  const hasStructuredFilter = Boolean(
-    selectedCategories.length > 0 || group || subcategory || producer
-  );
+  const forceAllgoodsSource = options.forceAllgoodsSource === true;
   const compactSearchQuery = searchQuery.replace(/\s+/g, "");
   const looksLikeIdentifierSearch =
     Boolean(searchQuery) &&
     !searchQuery.includes(" ") &&
     /\d|[-_/\\.]/.test(compactSearchQuery);
   const shouldPreferLegacyGetdata =
-    sortOrder === "none" && !cursor;
-  const shouldEnrichInlinePrices = false;
+    sortOrder === "none" &&
+    !cursor &&
+    !forceAllgoodsSource &&
+    (options.preferLegacySource === true || options.includePriceEnrichment !== true);
+  const shouldEnrichInlinePrices = options.includePriceEnrichment === true;
   // allgoods is noticeably heavier on 1C. Use it only when cursor-based
   // continuation or explicit sorting actually needs it.
   const canUseAllgoods = selectedCars.length === 0 && !shouldPreferLegacyGetdata;
@@ -1297,6 +1347,10 @@ export const findCatalogProductByCode = async (
     }
   }
 
+  if (options?.exactOnly) {
+    return null;
+  }
+
   // Fallback: scan first pages in case backend ignores search fields.
   for (let page = 1; page <= fallbackPages; page += 1) {
     const batch = await fetchCatalogProductsPage({
@@ -1338,61 +1392,23 @@ export const fetchPriceEuro = async (
   const retryDelayMs = options?.retryDelayMs ?? 200;
   const cacheTtlMs = options?.cacheTtlMs ?? 1000 * 60 * 3;
 
-  const allgoodsBodies: Array<Record<string, unknown>> = [
-    {
-      [ALLGOODS_LIMIT_FIELD]: 1,
-      [ALLGOODS_CODE_FIELD]: normalized,
-    },
-    {
-      [ALLGOODS_LIMIT_FIELD]: 1,
-      [ALLGOODS_ARTICLE_FIELD]: normalized,
-    },
-  ];
+  const exactProduct = await fetchExactCatalogProductByLookup(normalized, {
+    limit: 2,
+    timeoutMs,
+    retries,
+    retryDelayMs,
+    cacheTtlMs,
+  }).catch(() => null);
+  const exactPrice =
+    exactProduct &&
+    typeof exactProduct.priceEuro === "number" &&
+    Number.isFinite(exactProduct.priceEuro) &&
+    exactProduct.priceEuro > 0
+      ? exactProduct.priceEuro
+      : null;
 
-  const seenBodies = new Set<string>();
-  for (const body of allgoodsBodies) {
-    const serializedBody = JSON.stringify(body);
-    if (seenBodies.has(serializedBody)) continue;
-    seenBodies.add(serializedBody);
-
-    const response = await oneCRequest("allgoods", {
-      method: "POST",
-      body,
-      timeoutMs,
-      retries,
-      retryDelayMs,
-      cacheTtlMs,
-      cacheKey: JSON.stringify({
-        endpoint: "allgoods",
-        body,
-        timeoutMs: timeoutMs ?? null,
-        retries,
-        retryDelayMs,
-      }),
-    });
-
-    if (response.status < 200 || response.status >= 300) {
-      continue;
-    }
-
-    const { items } = parseAllgoodsPayload(response.text);
-    const directMatch = items.find((item) => {
-      const normalizedCode = normalizeFacetValue(item.code);
-      const normalizedArticle = normalizeFacetValue(item.article);
-      const target = normalizeFacetValue(normalized);
-      return normalizedCode === target || normalizedArticle === target;
-    });
-    const matchedItem = directMatch || items[0] || null;
-    if (!matchedItem) continue;
-
-    const price =
-      typeof matchedItem.priceEuro === "number" && Number.isFinite(matchedItem.priceEuro)
-        ? matchedItem.priceEuro
-        : Number.NaN;
-
-    if (Number.isFinite(price) && price > 0) {
-      return price;
-    }
+  if (exactPrice != null) {
+    return exactPrice;
   }
 
   const response = await oneCRequest("prices", {

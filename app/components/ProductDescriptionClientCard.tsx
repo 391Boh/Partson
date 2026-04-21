@@ -155,17 +155,17 @@ export default function ProductDescriptionClientCard({
   }, [cacheKey, normalizedInitialText, requestUrl]);
 
   return (
-    <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[24px] sm:p-4">
-      <div className="flex flex-wrap items-end justify-between gap-2.5 border-b border-slate-100 pb-2.5">
+    <section className="overflow-hidden rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(232,240,247,0.96),rgba(255,255,255,0.97))] p-3 shadow-[0_20px_44px_rgba(2,6,23,0.09)] sm:rounded-[24px] sm:p-4">
+      <div className="flex flex-wrap items-end justify-between gap-2.5 border-b border-slate-900/8 pb-2.5">
         <div className="min-w-0">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-sky-700">
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-900">
             Опис
           </p>
-          <h2 className="font-display-italic mt-1 text-[1.02rem] font-black tracking-[-0.04em] text-slate-900 sm:text-[1.14rem]">
+          <h2 className="font-display-italic mt-1 text-[1.02rem] font-black tracking-[-0.045em] text-slate-950 sm:text-[1.14rem]">
             Що варто знати про товар
           </h2>
         </div>
-        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-600">
+        <span className="inline-flex rounded-[12px] border border-slate-900/10 bg-slate-950 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-100">
           {hasCatalogDescription ? "Оригінальний опис" : "Каталожна довідка"}
         </span>
       </div>

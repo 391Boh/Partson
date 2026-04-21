@@ -1,28 +1,22 @@
-﻿"use client";
+﻿
+"use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ImageOff } from "lucide-react";
 
-import {
-  clearProductImageMissing,
-  clearProductImageSuccess,
-  readProductImageMissing,
-  readProductImageSuccess,
-  writeProductImageMissing,
-  writeProductImageSuccess,
-} from "app/lib/product-image-client";
-import { fetchCatalogImageBatch } from "app/lib/product-image-batch-client";
-import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
-import {
-  buildProductImageBatchKey,
-  buildProductImagePath,
-} from "app/lib/product-image-path";
 
-const FINAL_RETRY_DELAY_MS = 180;
-const BATCH_WARMUP_WINDOW_MS = 4;
-const BATCH_READY_TTL_MS = 1000 * 60 * 3;
-const BATCH_MISSING_TTL_MS = 1000 * 25;
-const BATCH_MAX_ITEMS = 24;
+import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
+import { buildProductImagePath } from "app/lib/product-image-path";
+import {
+  writeProductImageSuccess,
+  writeProductImageMissing,
+  clearProductImageSuccess,
+  clearProductImageMissing
+} from "app/lib/product-image-client";
+
+
+// Delay before final image retry (ms)
+const FINAL_RETRY_DELAY_MS = 400;
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
@@ -40,9 +34,7 @@ interface Props {
   articleHint?: string;
   hasKnownPhoto?: boolean;
   prefetchedSrc?: string | null;
-  batchPending?: boolean;
-  batchMissing?: boolean;
-  batchOnly?: boolean;
+  // batch props removed
   className?: string;
   onClick?: () => void;
   loadingMode?: "lazy" | "eager";
@@ -51,188 +43,83 @@ interface Props {
 
 type ImageStatus = "loading" | "retrying" | "loaded" | "missing";
 
-type BatchWarmResult = {
-  status: "ready" | "missing";
-  src?: string;
-  t: number;
-};
+// batch logic removed
 
-type QueuedBatchWarmItem = {
-  code: string;
-  article?: string;
-};
-
-const batchWarmResultCache = new Map<string, BatchWarmResult>();
-const batchWarmListeners = new Map<
-  string,
-  Set<(result: BatchWarmResult) => void>
->();
-const pendingBatchWarmItems = new Map<string, QueuedBatchWarmItem>();
-let batchWarmFlushTimer: number | null = null;
-let batchWarmInFlight = false;
-
-const pruneBatchWarmResultCache = () => {
-  const now = Date.now();
-  for (const [key, value] of batchWarmResultCache.entries()) {
-    const ttlMs =
-      value?.status === "missing" ? BATCH_MISSING_TTL_MS : BATCH_READY_TTL_MS;
-    if (!value || now - value.t > ttlMs) {
-      batchWarmResultCache.delete(key);
-    }
-  }
-};
-
-const emitBatchWarmResult = (key: string, result: BatchWarmResult) => {
-  batchWarmResultCache.set(key, result);
-  const listeners = batchWarmListeners.get(key);
-  if (!listeners || listeners.size === 0) return;
-  for (const listener of listeners) {
-    listener(result);
-  }
-};
-
-const subscribeToBatchWarmResult = (
-  key: string,
-  listener: (result: BatchWarmResult) => void
-) => {
-  const current = batchWarmListeners.get(key) ?? new Set();
-  current.add(listener);
-  batchWarmListeners.set(key, current);
-
-  return () => {
-    const next = batchWarmListeners.get(key);
-    if (!next) return;
-    next.delete(listener);
-    if (next.size === 0) {
-      batchWarmListeners.delete(key);
-    }
-  };
-};
-
-const flushPendingBatchWarmItems = async () => {
-  if (batchWarmInFlight || typeof window === "undefined") return;
-
-  batchWarmInFlight = true;
-
-  try {
-    pruneBatchWarmResultCache();
-
-    while (pendingBatchWarmItems.size > 0) {
-      const entries = Array.from(pendingBatchWarmItems.entries()).slice(
-        0,
-        BATCH_MAX_ITEMS
-      );
-      for (const [key] of entries) {
-        pendingBatchWarmItems.delete(key);
-      }
-
-      const results = await fetchCatalogImageBatch(
-        entries.map(([, item]) => ({
-          code: item.code,
-          article: item.article,
-        }))
-      ).catch(() => []);
-
-      const resultsByKey = new Map(results.map((result) => [result.key, result]));
-      for (const [key, item] of entries) {
-        const result = resultsByKey.get(key);
-        if (result?.status === "ready" && result.src) {
-          writeProductImageSuccess(item.code, item.article, result.src);
-          emitBatchWarmResult(key, {
-            status: "ready",
-            src: result.src,
-            t: Date.now(),
-          });
-          continue;
-        }
-
-        emitBatchWarmResult(key, {
-          status: "missing",
-          t: Date.now(),
-        });
-      }
-    }
-  } finally {
-    batchWarmInFlight = false;
-
-    if (pendingBatchWarmItems.size > 0) {
-      scheduleBatchWarmFlush();
-    }
-  }
-};
-
-function scheduleBatchWarmFlush() {
-  if (typeof window === "undefined") return;
-  if (batchWarmFlushTimer != null) return;
-
-  batchWarmFlushTimer = window.setTimeout(() => {
-    batchWarmFlushTimer = null;
-    void flushPendingBatchWarmItems();
-  }, BATCH_WARMUP_WINDOW_MS);
-}
-
-const queueBatchWarmItem = (item: QueuedBatchWarmItem) => {
-  const key = buildProductImageBatchKey(item.code, item.article);
-  if (!key) return;
-
-  pruneBatchWarmResultCache();
-  if (batchWarmResultCache.has(key)) return;
-
-  pendingBatchWarmItems.set(key, item);
-  scheduleBatchWarmFlush();
-};
 
 const ProductCardImage: React.FC<Props> = ({
   productCode,
   articleHint,
   hasKnownPhoto = true,
   prefetchedSrc,
-  batchPending = false,
-  batchMissing = false,
-  batchOnly = true,
   className = "",
   onClick,
-  loadingMode = "lazy",
-  fetchPriority = "auto",
+  loadingMode = "eager",
+  fetchPriority = "high",
 }) => {
+  const [requestSrc, setRequestSrc] = useState("");
+  const [status, setStatus] = useState<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
   const normalizedCode = (productCode || "").trim();
   const normalizedArticle = (articleHint || "").trim();
   const normalizedPrefetchedSrc = (prefetchedSrc || "").trim();
 
   const primarySrc = useMemo(
-    () =>
-      buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true }),
+    () => buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true }),
     [normalizedArticle, normalizedCode]
   );
   const recoverySrc = useMemo(
-    () =>
-      buildProductImagePath(normalizedCode, normalizedArticle, {
-        catalog: true,
-        retryToken: 1,
-      }),
+    () => buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true, retryToken: 1 }),
     [normalizedArticle, normalizedCode]
   );
   const finalRetrySrc = useMemo(
-    () =>
-      buildProductImagePath(normalizedCode, normalizedArticle, {
-        catalog: true,
-        retryToken: 2,
-      }),
+    () => buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true, retryToken: 2 }),
     [normalizedArticle, normalizedCode]
-  );
-  const batchKey = useMemo(
-    () => buildProductImageBatchKey(normalizedCode, normalizedArticle),
-    [normalizedArticle, normalizedCode]
-  );
-
-  const [requestSrc, setRequestSrc] = useState(primarySrc);
-  const [status, setStatus] = useState<ImageStatus>(
-    primarySrc ? "loading" : "missing"
   );
   const [finalRetryQueued, setFinalRetryQueued] = useState(false);
   const lastSuccessfulSrcRef = useRef("");
 
+  const handleLoad = useCallback((event: React.SyntheticEvent<HTMLImageElement>) => {
+    const currentTarget = event.currentTarget;
+    const nextSrc = currentTarget.currentSrc || currentTarget.src || requestSrc;
+    const normalizedNextSrc = (nextSrc || "").trim();
+    const isInlineImage = normalizedNextSrc.startsWith("data:image/");
+    const loadedPath = normalizeSrcPath(normalizedNextSrc);
+
+    if (
+      loadedPath &&
+      loadedPath === PRODUCT_IMAGE_FALLBACK_PATH.toLowerCase()
+    ) {
+      writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
+      setRequestSrc("");
+      setStatus("missing");
+      return;
+    }
+
+    // Не оновлюємо src, якщо він вже співпадає
+    if (normalizedNextSrc && normalizedNextSrc !== requestSrc) {
+      lastSuccessfulSrcRef.current = normalizedNextSrc;
+      setRequestSrc(normalizedNextSrc);
+      if (!isInlineImage) {
+        writeProductImageSuccess(
+          normalizedCode,
+          normalizedArticle || undefined,
+          normalizedNextSrc
+        );
+      }
+      clearProductImageMissing(normalizedCode, normalizedArticle || undefined);
+    }
+
+    setFinalRetryQueued(true);
+    setStatus("loaded");
+  }, [normalizedArticle, normalizedCode, requestSrc]);
+
   useEffect(() => {
+    if (!hasKnownPhoto) {
+      writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
+      setRequestSrc("");
+      setStatus("missing");
+      setFinalRetryQueued(false);
+      return;
+    }
     if (normalizedPrefetchedSrc) {
       lastSuccessfulSrcRef.current = normalizedPrefetchedSrc;
       setRequestSrc(normalizedPrefetchedSrc);
@@ -240,297 +127,24 @@ const ProductCardImage: React.FC<Props> = ({
       setFinalRetryQueued(true);
       return;
     }
-
     if (!primarySrc) {
       setRequestSrc("");
       setStatus("missing");
       setFinalRetryQueued(false);
       return;
     }
-
-    if (batchOnly) {
-      if (typeof window === "undefined") {
-        setRequestSrc("");
-        setStatus("loading");
-        setFinalRetryQueued(false);
-        return;
-      }
-
-      const cachedSuccess = readProductImageSuccess(
-        normalizedCode,
-        normalizedArticle
-      );
-      if (cachedSuccess) {
-        lastSuccessfulSrcRef.current = cachedSuccess;
-        setRequestSrc(cachedSuccess);
-        setStatus("loaded");
-        setFinalRetryQueued(false);
-        return;
-      }
-
-      if (!hasKnownPhoto) {
-        setRequestSrc("");
-        setStatus("missing");
-        setFinalRetryQueued(false);
-        return;
-      }
-
-      pruneBatchWarmResultCache();
-      const warmResult = batchKey ? batchWarmResultCache.get(batchKey) : null;
-      if (warmResult?.status === "ready" && warmResult.src) {
-        lastSuccessfulSrcRef.current = warmResult.src;
-        setRequestSrc(warmResult.src);
-        setStatus("loaded");
-        setFinalRetryQueued(false);
-        return;
-      }
-
-      if (warmResult?.status === "missing") {
-        if (primarySrc) {
-          setRequestSrc(primarySrc);
-          setStatus("retrying");
-          setFinalRetryQueued(false);
-          return;
-        }
-
-        setRequestSrc("");
-        setStatus("missing");
-        setFinalRetryQueued(false);
-        return;
-      }
-
-      if (batchMissing) {
-        if (primarySrc) {
-          setRequestSrc(primarySrc);
-          setStatus("retrying");
-          setFinalRetryQueued(false);
-          return;
-        }
-
-        setRequestSrc("");
-        setStatus("missing");
-        setFinalRetryQueued(false);
-        return;
-      }
-
-      if (batchPending) {
-        if (hasKnownPhoto && primarySrc) {
-          setRequestSrc(primarySrc);
-          setStatus("loading");
-          setFinalRetryQueued(false);
-          return;
-        }
-
-        setRequestSrc("");
-        setStatus("loading");
-        setFinalRetryQueued(false);
-        return;
-      }
-
-      if (batchKey) {
-        let settled = false;
-        const finishWithResult = (result: BatchWarmResult) => {
-          if (settled) return;
-          settled = true;
-
-          if (result.status === "ready" && result.src) {
-            lastSuccessfulSrcRef.current = result.src;
-            setRequestSrc(result.src);
-            setStatus("loaded");
-            return;
-          }
-
-          if (hasKnownPhoto && primarySrc) {
-            setRequestSrc(primarySrc);
-            setStatus("retrying");
-            return;
-          }
-
-          setRequestSrc("");
-          setStatus("missing");
-        };
-
-        const unsubscribe = subscribeToBatchWarmResult(batchKey, finishWithResult);
-        queueBatchWarmItem({
-          code: normalizedCode,
-          article: normalizedArticle || undefined,
-        });
-
-        if (hasKnownPhoto && primarySrc) {
-          setRequestSrc(primarySrc);
-          setStatus("loading");
-        } else {
-          setRequestSrc("");
-          setStatus("loading");
-        }
-        setFinalRetryQueued(false);
-
-        return () => {
-          settled = true;
-          unsubscribe();
-        };
-      }
-
-      setRequestSrc("");
-      setStatus("missing");
-      setFinalRetryQueued(false);
-      return;
-    }
-
-    if (batchPending) {
-      if (lastSuccessfulSrcRef.current) {
-        setRequestSrc(lastSuccessfulSrcRef.current);
-        setStatus("loaded");
-        setFinalRetryQueued(false);
-        return;
-      }
-
-      if (hasKnownPhoto && primarySrc) {
-        setRequestSrc(primarySrc);
-        setStatus("loading");
-        setFinalRetryQueued(false);
-        return;
-      }
-
-      setRequestSrc("");
-      setStatus("loading");
-      setFinalRetryQueued(false);
-      return;
-    }
-
-    if (batchMissing) {
-      if (hasKnownPhoto && primarySrc) {
-        setRequestSrc(primarySrc);
-        setStatus("retrying");
-        setFinalRetryQueued(false);
-        return;
-      }
-
-      setRequestSrc("");
-      setStatus("missing");
-      setFinalRetryQueued(false);
-      return;
-    }
-
-    if (typeof window === "undefined") {
-      setRequestSrc(primarySrc);
-      setStatus("loading");
-      setFinalRetryQueued(false);
-      return;
-    }
-
-    const cachedSuccess = readProductImageSuccess(
-      normalizedCode,
-      normalizedArticle
-    );
-    if (cachedSuccess) {
-      lastSuccessfulSrcRef.current = cachedSuccess;
-      setRequestSrc(cachedSuccess);
-      setStatus("loaded");
-      setFinalRetryQueued(false);
-      return;
-    }
-
-    if (readProductImageMissing(normalizedCode, normalizedArticle)) {
-      setRequestSrc("");
-      setStatus("missing");
-      setFinalRetryQueued(false);
-      return;
-    }
-
-    pruneBatchWarmResultCache();
-    const warmResult = batchKey ? batchWarmResultCache.get(batchKey) : null;
-    if (warmResult?.status === "ready" && warmResult.src) {
-      lastSuccessfulSrcRef.current = warmResult.src;
-      setRequestSrc(warmResult.src);
-      setStatus("loaded");
-      setFinalRetryQueued(false);
-      return;
-    }
-
-    if (warmResult?.status === "missing") {
-      if (hasKnownPhoto && primarySrc) {
-        setRequestSrc(primarySrc);
-        setStatus("retrying");
-        setFinalRetryQueued(false);
-        return;
-      }
-
-      setRequestSrc("");
-      setStatus("missing");
-      setFinalRetryQueued(false);
-      return;
-    }
-
-    if (lastSuccessfulSrcRef.current) {
-      setRequestSrc(lastSuccessfulSrcRef.current);
-      setStatus("retrying");
-    } else if (hasKnownPhoto && primarySrc) {
-      setRequestSrc(primarySrc);
-      setStatus("loading");
-    } else {
-      setRequestSrc("");
-      setStatus("loading");
-    }
+    setRequestSrc(primarySrc);
+    setStatus("loading");
     setFinalRetryQueued(false);
-
-    if (!batchKey) {
-      if (!primarySrc || !hasKnownPhoto) {
-        setRequestSrc("");
-        setStatus("missing");
-        return;
-      }
-      setRequestSrc(primarySrc);
-      setStatus("loading");
-      return;
-    }
-
-    let settled = false;
-    const finishWithResult = (result: BatchWarmResult) => {
-      if (settled) return;
-      settled = true;
-
-      if (result.status === "ready" && result.src) {
-        lastSuccessfulSrcRef.current = result.src;
-        setRequestSrc(result.src);
-        setStatus("loaded");
-        return;
-      }
-
-      if (hasKnownPhoto && primarySrc) {
-        setRequestSrc(primarySrc);
-        setStatus("retrying");
-        setFinalRetryQueued(false);
-        return;
-      }
-
-      setRequestSrc("");
-      setStatus("missing");
-    };
-
-    const unsubscribe = subscribeToBatchWarmResult(batchKey, finishWithResult);
-    queueBatchWarmItem({
-      code: normalizedCode,
-      article: normalizedArticle || undefined,
-    });
-
-    return () => {
-      unsubscribe();
-    };
   }, [
-    batchKey,
-    normalizedArticle,
-    batchMissing,
-    batchOnly,
-    batchPending,
     hasKnownPhoto,
+    normalizedArticle,
     normalizedCode,
     normalizedPrefetchedSrc,
     primarySrc,
   ]);
-
   useEffect(() => {
-    if (batchOnly) return;
+    if (!hasKnownPhoto) return;
     if (status !== "missing") return;
     if (!finalRetrySrc) return;
     if (finalRetryQueued) return;
@@ -542,63 +156,21 @@ const ProductCardImage: React.FC<Props> = ({
     }, FINAL_RETRY_DELAY_MS);
 
     return () => window.clearTimeout(timeoutId);
-  }, [batchOnly, finalRetryQueued, finalRetrySrc, status]);
+  }, [finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
 
-  const handleLoad = useCallback(
-    (event: React.SyntheticEvent<HTMLImageElement>) => {
-      const currentTarget = event.currentTarget;
-      const nextSrc = currentTarget.currentSrc || currentTarget.src || requestSrc;
-      const normalizedNextSrc = (nextSrc || "").trim();
-      const isInlineImage = normalizedNextSrc.startsWith("data:image/");
-      const loadedPath = normalizeSrcPath(normalizedNextSrc);
-
-      if (
-        loadedPath &&
-        loadedPath === PRODUCT_IMAGE_FALLBACK_PATH.toLowerCase()
-      ) {
-        writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
-        setRequestSrc("");
-        setStatus("missing");
-        return;
-      }
-
-      if (normalizedNextSrc) {
-        lastSuccessfulSrcRef.current = normalizedNextSrc;
-        setRequestSrc(normalizedNextSrc);
-        if (!isInlineImage) {
-          writeProductImageSuccess(
-            normalizedCode,
-            normalizedArticle || undefined,
-            normalizedNextSrc
-          );
-        }
-
-        if (batchKey && !isInlineImage) {
-          batchWarmResultCache.set(batchKey, {
-            status: "ready",
-            src: normalizedNextSrc,
-            t: Date.now(),
-          });
-        }
-
-        clearProductImageMissing(normalizedCode, normalizedArticle || undefined);
-      }
-
-      setFinalRetryQueued(true);
-      setStatus("loaded");
-    },
-    [batchKey, normalizedArticle, normalizedCode, requestSrc]
-  );
 
   const handleError = useCallback(() => {
     clearProductImageSuccess(normalizedCode, normalizedArticle || undefined);
-    if (batchKey) {
-      batchWarmResultCache.delete(batchKey);
-    }
 
     if (!hasKnownPhoto) {
       writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
       setRequestSrc("");
+      setStatus("missing");
+      return;
+    }
+
+    // Якщо вже був фінальний ретрай, не пробуємо ще раз
+    if (finalRetryQueued) {
       setStatus("missing");
       return;
     }
@@ -612,20 +184,14 @@ const ProductCardImage: React.FC<Props> = ({
     if (
       requestSrc &&
       requestSrc !== finalRetrySrc &&
-      finalRetrySrc &&
-      !finalRetryQueued
+      finalRetrySrc
     ) {
       setFinalRetryQueued(true);
       setRequestSrc(finalRetrySrc);
       setStatus("retrying");
       return;
     }
-
-    writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
-    setRequestSrc("");
-    setStatus("missing");
   }, [
-    batchKey,
     finalRetryQueued,
     finalRetrySrc,
     hasKnownPhoto,
@@ -635,11 +201,12 @@ const ProductCardImage: React.FC<Props> = ({
     requestSrc,
   ]);
 
+
   const canOpen = Boolean(onClick) && status === "loaded";
-  const showLoadingSkeleton =
-    (status === "loading" || status === "retrying") && !requestSrc;
+  // Show skeleton until image is fully loaded (not just while requestSrc is empty)
+  const showLoadingSkeleton = status === "loading";
   const showPlaceholder = status === "missing";
-  const imageDecodingMode = "async";
+  const imageDecodingMode = fetchPriority === "high" ? "sync" : "async";
 
   return (
     <div
@@ -655,7 +222,8 @@ const ProductCardImage: React.FC<Props> = ({
         ${className}
       `}
     >
-      {showPlaceholder && (
+      {/* Якщо фото гарантовано немає — одразу плейсхолдер, <img> не рендеримо взагалі */}
+      {(!hasKnownPhoto || showPlaceholder) ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#edf3f8_58%,#e2e8f0_100%)] px-2 text-center">
           <div className="absolute inset-x-2 top-2 h-px bg-gradient-to-r from-transparent via-slate-300/70 to-transparent" />
           <ImageOff
@@ -667,29 +235,30 @@ const ProductCardImage: React.FC<Props> = ({
             Зображення відсутнє
           </span>
         </div>
-      )}
-
-      {showLoadingSkeleton && (
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200" />
-      )}
-
-      {requestSrc && !showPlaceholder && (
-        // We serve already-optimized same-origin thumbnails from `/product-image`,
-        // so a plain img avoids an extra client-side optimization hop here.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={requestSrc}
-          alt="product"
-          loading={loadingMode}
-          decoding={imageDecodingMode}
-          fetchPriority={fetchPriority}
-          width={360}
-          height={360}
-          draggable={false}
-          onLoad={handleLoad}
-          onError={handleError}
-          className="relative z-[1] h-full w-full object-contain"
-        />
+      ) : (
+        <>
+          {/* Skeleton always present, fades out when image is loaded */}
+          <div
+            className={`absolute inset-0 transition-opacity duration-300 pointer-events-none bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 ${showLoadingSkeleton ? 'opacity-100' : 'opacity-0'}`}
+            aria-hidden="true"
+          />
+          {requestSrc && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={requestSrc}
+              alt="product"
+              loading={loadingMode}
+              decoding={imageDecodingMode}
+              fetchPriority={fetchPriority}
+              width={360}
+              height={360}
+              draggable={false}
+              onLoad={handleLoad}
+              onError={handleError}
+              className={`relative z-[1] h-full w-full object-contain transition-opacity duration-300 ${showLoadingSkeleton ? 'opacity-0' : 'opacity-100'}`}
+            />
+          )}
+        </>
       )}
     </div>
   );

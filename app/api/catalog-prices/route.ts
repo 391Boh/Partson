@@ -22,6 +22,8 @@ const normalizeStateKey = (value: unknown) =>
 
 export async function POST(request: Request) {
   try {
+    const requestUrl = new URL(request.url);
+    const mode = requestUrl.searchParams.get("mode") === "full" ? "full" : "fast";
     const body = (await request.json().catch(() => ({}))) as {
       items?: PriceBatchItem[];
     };
@@ -46,17 +48,18 @@ export async function POST(request: Request) {
       new Set(normalizedItems.flatMap((item) => item.lookupKeys))
     );
 
+    const isFullMode = mode === "full";
     const lookupPrices = await fetchPriceEuroMapByLookupKeys(allLookupKeys, {
-      sourceTimeoutMs: 1800,
+      sourceTimeoutMs: isFullMode ? 900 : 650,
       sourceCacheTtlMs: 1000 * 20,
-      timeoutMs: 2200,
+      timeoutMs: isFullMode ? 950 : 650,
       retries: 0,
-      retryDelayMs: 120,
+      retryDelayMs: 80,
       cacheTtlMs: 1000 * 60 * 5,
-      includeDirectLookup: true,
+      includeDirectLookup: isFullMode,
       includePricesPost: true,
-      directConcurrency: 6,
-      maxKeys: 120,
+      directConcurrency: 12,
+      maxKeys: isFullMode ? 72 : 48,
     }).catch(() => ({} as Record<string, number>));
 
     const prices: Record<string, number | null> = {};

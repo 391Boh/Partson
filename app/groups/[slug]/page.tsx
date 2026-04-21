@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
-import { getCatalogSeoFacets } from "app/lib/catalog-seo";
+import { getCatalogSeoFacetsWithTimeout } from "app/lib/catalog-seo";
 import {
   buildCatalogCategoryPath,
   buildGroupItemPath,
@@ -14,17 +14,11 @@ import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
-import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
-const GROUP_SEO_TIMEOUT_MS = 1200;
-const EMPTY_SEO_FACETS: Awaited<ReturnType<typeof getCatalogSeoFacets>> = {
-  groups: [],
-  producers: [],
-  generatedAt: "",
-};
+const GROUP_PAGE_SEO_FACETS_TIMEOUT_MS = 220;
 
 interface GroupPageParams {
   slug: string;
@@ -47,6 +41,7 @@ type GroupPageData = {
     children: Array<{
       label: string;
       slug: string;
+      productCount: number;
     }>;
   }>;
 };
@@ -60,11 +55,7 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
 const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null> => {
   const [dataset, seoFacets] = await Promise.all([
     getProductTreeDataset().catch(() => null),
-    resolveWithTimeout(
-      () => getCatalogSeoFacets().catch(() => EMPTY_SEO_FACETS),
-      EMPTY_SEO_FACETS,
-      GROUP_SEO_TIMEOUT_MS
-    ),
+    getCatalogSeoFacetsWithTimeout(GROUP_PAGE_SEO_FACETS_TIMEOUT_MS),
   ]);
   const group = dataset?.groups.find(
     (item) => item.slug === slug || item.legacySlug === slug
@@ -86,6 +77,7 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
       children: (Array.isArray(subgroup.children) ? subgroup.children : []).map((child) => ({
         label: child.label,
         slug: child.slug,
+        productCount: counts.childProductCounts.get(child.slug) ?? 0,
       })),
     })),
   };
@@ -421,8 +413,13 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                         className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800"
                       >
                         <span>{buildVisibleProductName(child.label)}</span>
-                        <span className="text-slate-400">
-                          &rarr;
+                        <span className="flex shrink-0 items-center gap-2">
+                          {child.productCount > 0 ? (
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+                              {child.productCount.toLocaleString("uk-UA")}
+                            </span>
+                          ) : null}
+                          <span className="text-slate-400">&rarr;</span>
                         </span>
                       </CatalogPrefetchLink>
                     </li>

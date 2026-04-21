@@ -5,7 +5,7 @@ import type { CatalogProduct } from "app/lib/catalog-server";
 
 type CatalogPageApiPayload = {
   items: CatalogProduct[];
-  prices: Record<string, number>;
+  prices: Record<string, number | null>;
   images: Record<string, string>;
   hasMore: boolean;
   nextCursor: string;
@@ -45,6 +45,7 @@ const toPositiveInt = (value: unknown, fallback: number) => {
 
 const buildRouteCacheKey = (body: Record<string, unknown>) =>
   JSON.stringify({
+    source: "allgoods-photo-price-flag:v1",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -149,22 +150,23 @@ const sanitizeCatalogErrorMessage = (value: string | null | undefined) => {
 const buildInlinePrices = (
   items: Array<{ code?: string; article?: string; priceEuro?: number | null }>
 ) => {
-  const prices: Record<string, number> = {};
+  const prices: Record<string, number | null> = {};
 
   for (const item of items) {
     const price = item?.priceEuro;
-    if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) {
-      continue;
-    }
+    const resolvedPrice =
+      typeof price === "number" && Number.isFinite(price) && price > 0
+        ? price
+        : null;
 
     const code = typeof item.code === "string" ? item.code.trim() : "";
     const article = typeof item.article === "string" ? item.article.trim() : "";
 
     if (code && prices[code] === undefined) {
-      prices[code] = price;
+      prices[code] = resolvedPrice;
     }
     if (article && prices[article] === undefined) {
-      prices[article] = price;
+      prices[article] = resolvedPrice;
     }
   }
 
@@ -198,7 +200,7 @@ export async function POST(request: Request) {
         normalizedProducer
     );
 
-    const timeoutMs = hasTightFilterContext ? 2800 : 3600;
+      const timeoutMs = hasTightFilterContext ? 3200 : 5600;
     const retries = 0;
     const retryDelayMs = hasTightFilterContext ? 80 : 150;
     const cacheTtlMs = hasTightFilterContext ? 1000 * 20 : 1000 * 45;
@@ -251,6 +253,8 @@ export async function POST(request: Request) {
         retries: runtime.retries,
         retryDelayMs: runtime.retryDelayMs,
         cacheTtlMs: runtime.cacheTtlMs,
+        includePriceEnrichment: false,
+        forceAllgoodsSource: true,
       });
 
     let inFlight = routeInFlightRequests.get(routeCacheKey);

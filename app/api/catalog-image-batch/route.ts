@@ -15,32 +15,23 @@ import { buildProductImageBatchKey } from "app/lib/product-image-path";
 export const runtime = "nodejs";
 
 const MAX_BATCH_ITEMS = 48;
-const BATCH_CONCURRENCY = 8;
+const BATCH_CONCURRENCY = 10;
 const OPTIMIZED_IMAGE_CACHE_TTL_MS = 1000 * 60 * 60;
+const CATALOG_IMAGE_READY_CACHE_TTL_MS = 1000 * 60 * 60;
+const CATALOG_IMAGE_MISSING_CACHE_TTL_MS = 1000 * 3;
 const CATALOG_IMAGE_MAX_WIDTH = 320;
 const CATALOG_IMAGE_MAX_HEIGHT = 320;
 const CATALOG_IMAGE_QUALITY = 58;
 
 const PRIMARY_LOOKUP_OPTIONS = {
-  timeoutMs: 760,
-  retries: 0,
-  retryDelayMs: 80,
+  timeoutMs: 1200,
+  retries: 1,
+  retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 60 * 2,
-  missCacheTtlMs: 1000 * 30,
+  missCacheTtlMs: 1000 * 12,
   allowUrlDownload: false,
   batchConcurrency: 8,
-  maxKeys: MAX_BATCH_ITEMS * 4,
-};
-const RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 1050,
-  retries: 0,
-  retryDelayMs: 90,
-  cacheTtlMs: 1000 * 60 * 20,
-  missCacheTtlMs: 1000 * 45,
-  allowUrlDownload: true,
-  skipMissCache: true,
-  batchConcurrency: 6,
-  maxKeys: MAX_BATCH_ITEMS * 4,
+  maxKeys: MAX_BATCH_ITEMS * 2,
 };
 const DEEP_RECOVERY_LOOKUP_OPTIONS = {
   timeoutMs: 1350,
@@ -50,7 +41,7 @@ const DEEP_RECOVERY_LOOKUP_OPTIONS = {
   missCacheTtlMs: 1000 * 18,
   allowUrlDownload: true,
   skipMissCache: true,
-  batchConcurrency: 6,
+  batchConcurrency: 8,
   maxKeys: MAX_BATCH_ITEMS * 4,
 };
 const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
@@ -66,6 +57,7 @@ const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
 type CatalogImageBatchItem = {
   code: string;
   article?: string;
+  hasPhoto?: boolean;
 };
 
 type CatalogImageBatchResult = {
@@ -81,6 +73,10 @@ const optimizedCatalogDataUriCache = new Map<
   { expiresAt: number; value: string }
 >();
 const optimizedCatalogDataUriInFlight = new Map<string, Promise<string | null>>();
+const catalogImageResultCache = new Map<
+  string,
+  { expiresAt: number; result: CatalogImageBatchResult }
+>();
 let fallbackImageHashPromise: Promise<string | null> | null = null;
 
 const getFallbackImageHash = async () => {
@@ -102,6 +98,60 @@ const pruneOptimizedCatalogDataUriCache = () => {
       optimizedCatalogDataUriCache.delete(key);
     }
   }
+
+  for (const [key, entry] of catalogImageResultCache.entries()) {
+    if (!entry || entry.expiresAt <= now) {
+      catalogImageResultCache.delete(key);
+    }
+  }
+};
+
+const buildReadyResultCacheKey = (key: string) => `ready:${key}`;
+const buildMissingResultCacheKey = (key: string, deep: boolean) =>
+  `${deep ? "deep" : "fast"}:missing:${key}`;
+
+const getCachedCatalogImageResult = (key: string, deep: boolean) => {
+  pruneOptimizedCatalogDataUriCache();
+
+  const readyEntry = catalogImageResultCache.get(buildReadyResultCacheKey(key));
+  if (readyEntry && readyEntry.expiresAt > Date.now()) {
+    return { ...readyEntry.result };
+  }
+
+  const missingEntry = catalogImageResultCache.get(
+    buildMissingResultCacheKey(key, deep)
+  );
+  if (missingEntry && missingEntry.expiresAt > Date.now()) {
+    return { ...missingEntry.result };
+  }
+
+  return null;
+};
+
+const writeCatalogImageResultCache = (
+  result: CatalogImageBatchResult,
+  deep: boolean
+) => {
+  if (!result.key) return;
+
+  const isReady = result.status === "ready" && Boolean(result.src);
+  const cacheKey = isReady
+    ? buildReadyResultCacheKey(result.key)
+    : buildMissingResultCacheKey(result.key, deep);
+
+  if (isReady) {
+    catalogImageResultCache.delete(buildMissingResultCacheKey(result.key, true));
+    catalogImageResultCache.delete(buildMissingResultCacheKey(result.key, false));
+  } else {
+    catalogImageResultCache.delete(buildReadyResultCacheKey(result.key));
+  }
+
+  catalogImageResultCache.set(cacheKey, {
+    expiresAt:
+      Date.now() +
+      (isReady ? CATALOG_IMAGE_READY_CACHE_TTL_MS : CATALOG_IMAGE_MISSING_CACHE_TTL_MS),
+    result: { ...result },
+  });
 };
 
 const buildBufferHash = (buffer: Buffer) =>
@@ -149,6 +199,22 @@ const detectImageContentType = (buffer: Buffer) => {
   return "";
 };
 
+const readKnownBoolean = (value: unknown) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return value !== 0;
+  if (typeof value !== "string") return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (["true", "1", "yes", "y", "так", "да", "истина", "істина"].includes(normalized)) {
+    return true;
+  }
+  if (["false", "0", "no", "n", "ні", "нет", "ложь", "хибність"].includes(normalized)) {
+    return false;
+  }
+  return undefined;
+};
+
 const normalizeBatchItems = (payload: unknown) => {
   const source = Array.isArray((payload as { items?: unknown })?.items)
     ? ((payload as { items: unknown[] }).items ?? [])
@@ -162,6 +228,9 @@ const normalizeBatchItems = (payload: unknown) => {
     const record = entry as Record<string, unknown>;
     const code = typeof record.code === "string" ? record.code.trim() : "";
     const article = typeof record.article === "string" ? record.article.trim() : "";
+    const hasPhoto = readKnownBoolean(
+      record.hasPhoto ?? record.HasPhoto ?? record.has_photo
+    );
     const key = buildProductImageBatchKey(code, article);
 
     if (!code || !key || seen.has(key)) continue;
@@ -169,6 +238,7 @@ const normalizeBatchItems = (payload: unknown) => {
     items.push({
       code,
       article: article || undefined,
+      hasPhoto,
     });
 
     if (items.length >= MAX_BATCH_ITEMS) break;
@@ -255,6 +325,12 @@ const buildLookupKeys = (item: CatalogImageBatchItem) =>
     new Set([(item.code || "").trim(), (item.article || "").trim()].filter(Boolean))
   );
 
+const buildPrimaryLookupKeys = (item: CatalogImageBatchItem) => {
+  const article = (item.article || "").trim();
+  const code = (item.code || "").trim();
+  return Array.from(new Set([code, article].filter(Boolean)));
+};
+
 const pickResolvedBase64 = (
   lookupKeys: string[],
   resolvedMap: Record<string, string>
@@ -315,12 +391,52 @@ export async function POST(request: Request) {
       (payload as { deep?: unknown }).deep === true
   );
 
-  const lookupKeysByItemKey = new Map<string, string[]>();
+  const results = new Array<CatalogImageBatchResult | null>(items.length).fill(null);
+  const workEntries: Array<{
+    item: CatalogImageBatchItem;
+    index: number;
+    key: string;
+  }> = [];
+
+  for (const [index, item] of items.entries()) {
+    const key = buildProductImageBatchKey(item.code, item.article);
+    if (item.hasPhoto === false) {
+      const result: CatalogImageBatchResult = {
+        key,
+        code: item.code,
+        article: item.article,
+        status: "missing",
+      };
+      writeCatalogImageResultCache(result, deep);
+      results[index] = result;
+      continue;
+    }
+
+    const cached = getCachedCatalogImageResult(key, deep);
+    if (cached) {
+      results[index] = cached;
+      continue;
+    }
+
+    workEntries.push({ item, index, key });
+  }
+
+  if (workEntries.length === 0) {
+    return NextResponse.json(
+      { items: results.filter((item): item is CatalogImageBatchResult => Boolean(item)) },
+      {
+        headers: {
+          "cache-control": "private, no-store",
+        },
+      }
+    );
+  }
+
+  const primaryLookupKeysByItemKey = new Map<string, string[]>();
   const allLookupKeys = new Set<string>();
-  for (const item of items) {
-    const itemKey = buildProductImageBatchKey(item.code, item.article);
-    const lookupKeys = buildLookupKeys(item);
-    lookupKeysByItemKey.set(itemKey, lookupKeys);
+  for (const { item, key: itemKey } of workEntries) {
+    const lookupKeys = buildPrimaryLookupKeys(item);
+    primaryLookupKeysByItemKey.set(itemKey, lookupKeys);
     for (const lookupKey of lookupKeys) {
       allLookupKeys.add(lookupKey);
     }
@@ -331,22 +447,22 @@ export async function POST(request: Request) {
     PRIMARY_LOOKUP_OPTIONS
   ).catch(() => ({} as Record<string, string>));
 
-  const unresolvedItems = items.filter((item) => {
-    const itemKey = buildProductImageBatchKey(item.code, item.article);
-    const lookupKeys = lookupKeysByItemKey.get(itemKey) ?? [];
+  const unresolvedEntries = workEntries.filter(({ key }) => {
+    const lookupKeys = primaryLookupKeysByItemKey.get(key) ?? [];
     return !pickResolvedBase64(lookupKeys, primaryResolvedMap);
   });
 
-  const recoveryCandidates = unresolvedItems;
+  const recoveryCandidates = deep
+    ? unresolvedEntries.map(({ item }) => item)
+    : [];
   const recoveryProducts =
     recoveryCandidates.length > 0
       ? await resolveRecoveryProducts(recoveryCandidates)
       : new Map();
 
   const recoveryLookupKeys = new Set<string>();
-  for (const item of unresolvedItems) {
-    const itemKey = buildProductImageBatchKey(item.code, item.article);
-    const product = recoveryProducts.get(itemKey);
+  for (const { key } of unresolvedEntries) {
+    const product = recoveryProducts.get(key);
     if (!product) continue;
 
     for (const lookupKey of [(product.article || "").trim(), (product.code || "").trim()]) {
@@ -359,21 +475,19 @@ export async function POST(request: Request) {
     recoveryLookupKeys.size > 0
       ? await fetchProductImageBase64Batch(
           Array.from(recoveryLookupKeys),
-          deep ? DEEP_RECOVERY_LOOKUP_OPTIONS : RECOVERY_LOOKUP_OPTIONS
+          DEEP_RECOVERY_LOOKUP_OPTIONS
         ).catch(() => ({} as Record<string, string>))
       : ({} as Record<string, string>);
 
-  const results = new Array<CatalogImageBatchResult>(items.length);
   let cursor = 0;
-  const workerCount = Math.min(BATCH_CONCURRENCY, items.length);
+  const workerCount = Math.min(BATCH_CONCURRENCY, workEntries.length);
   const workers = Array.from({ length: workerCount }, async () => {
-    while (cursor < items.length) {
+    while (cursor < workEntries.length) {
       const currentIndex = cursor;
       cursor += 1;
 
-      const item = items[currentIndex];
-      const key = buildProductImageBatchKey(item.code, item.article);
-      const directLookupKeys = lookupKeysByItemKey.get(key) ?? [];
+      const { item, index, key } = workEntries[currentIndex];
+      const directLookupKeys = primaryLookupKeysByItemKey.get(key) ?? [];
 
       let imageBase64 = pickResolvedBase64(directLookupKeys, primaryResolvedMap);
       if (!imageBase64) {
@@ -389,40 +503,46 @@ export async function POST(request: Request) {
       }
 
       if (!imageBase64) {
-        results[currentIndex] = {
+        const result: CatalogImageBatchResult = {
           key,
           code: item.code,
           article: item.article,
           status: "missing",
         };
+        writeCatalogImageResultCache(result, deep);
+        results[index] = result;
         continue;
       }
 
       const src = await optimizeCatalogImageToDataUri(imageBase64);
       if (!src) {
-        results[currentIndex] = {
+        const result: CatalogImageBatchResult = {
           key,
           code: item.code,
           article: item.article,
           status: "missing",
         };
+        writeCatalogImageResultCache(result, deep);
+        results[index] = result;
         continue;
       }
 
-      results[currentIndex] = {
+      const result: CatalogImageBatchResult = {
         key,
         code: item.code,
         article: item.article,
         status: "ready",
         src,
       };
+      writeCatalogImageResultCache(result, deep);
+      results[index] = result;
     }
   });
 
   await Promise.allSettled(workers);
 
   return NextResponse.json(
-    { items: results.filter(Boolean) },
+    { items: results.filter((item): item is CatalogImageBatchResult => Boolean(item)) },
     {
       headers: {
         "cache-control": "private, no-store",

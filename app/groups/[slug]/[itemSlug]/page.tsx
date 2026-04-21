@@ -6,14 +6,17 @@ import { notFound, permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import SmartLink from "app/components/SmartLink";
+import { getCatalogSeoFacetsWithTimeout } from "app/lib/catalog-seo";
 import { buildCatalogCategoryPath, buildGroupItemPath } from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
+import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
+const GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS = 220;
 
 interface GroupItemPageParams {
   slug: string;
@@ -32,10 +35,12 @@ type GroupItemPageData = {
   itemSlug: string;
   parentSubgroupLabel: string;
   parentSubgroupSlug?: string;
+  productCount: number;
   catalogPath: string;
   children: Array<{
     label: string;
     slug: string;
+    productCount: number;
   }>;
 };
 
@@ -47,11 +52,15 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
 
 const getGroupItemBySlugs = cache(
   async (groupSlug: string, itemSlug: string): Promise<GroupItemPageData | null> => {
-    const dataset = await getProductTreeDataset().catch(() => null);
+    const [dataset, seoFacets] = await Promise.all([
+      getProductTreeDataset().catch(() => null),
+      getCatalogSeoFacetsWithTimeout(GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS),
+    ]);
     const group = dataset?.groups.find(
       (entry) => entry.slug === groupSlug || entry.legacySlug === groupSlug
     );
     if (!group) return null;
+    const counts = resolveGroupSeoCounts(group, buildSeoGroupLookup(seoFacets.groups));
 
     const subgroup = group.subgroups.find(
       (entry) => entry.slug === itemSlug || entry.legacySlug === itemSlug
@@ -65,8 +74,12 @@ const getGroupItemBySlugs = cache(
         itemSlug: subgroup.slug,
         parentSubgroupLabel: "",
         parentSubgroupSlug: undefined,
+        productCount: counts.subgroupProductCounts.get(subgroup.slug) ?? 0,
         catalogPath: buildCatalogCategoryPath(group.label, subgroup.label),
-        children: subgroup.children,
+        children: subgroup.children.map((child) => ({
+          ...child,
+          productCount: counts.childProductCounts.get(child.slug) ?? 0,
+        })),
       };
     }
 
@@ -84,6 +97,7 @@ const getGroupItemBySlugs = cache(
         itemSlug: child.slug,
         parentSubgroupLabel: entry.label,
         parentSubgroupSlug: entry.slug,
+        productCount: counts.childProductCounts.get(child.slug) ?? 0,
         catalogPath: buildCatalogCategoryPath(entry.label, child.label),
         children: [],
       };
@@ -200,8 +214,10 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     ? `Кінцева категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel}. Сторінка веде прямо в каталог цієї категорії та допомагає швидко перейти до потрібних товарів.`
     : `Підгрупа ${visibleLabel} у групі ${visibleGroupLabel} з прямим переходом у каталог автозапчастин і навігацією по суміжних розділах.`;
   const pageStats =
-    item.children.length > 0
-      ? `${item.children.length} підкатегорій у розділі`
+    item.productCount > 0
+      ? `${item.productCount.toLocaleString("uk-UA")} товарів у розділі`
+      : item.children.length > 0
+        ? `${item.children.length} підкатегорій у розділі`
       : "Прямий перехід у каталог";
 
   const jsonLd = {
@@ -360,7 +376,14 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                   className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800"
                 >
                   <span>{buildVisibleProductName(child.label)}</span>
-                  <span className="text-slate-400">&rarr;</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    {child.productCount > 0 ? (
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+                        {child.productCount.toLocaleString("uk-UA")}
+                      </span>
+                    ) : null}
+                    <span className="text-slate-400">&rarr;</span>
+                  </span>
                 </CatalogPrefetchLink>
               </li>
             ))}

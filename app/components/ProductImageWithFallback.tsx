@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { ImageOff, Maximize2 } from "lucide-react";
 
 import ImageModal from "app/components/ImageModal";
 import {
   clearProductImageMissing,
   readProductImageSuccess,
+  writeProductImageMissing,
   writeProductImageSuccess,
 } from "app/lib/product-image-client";
 
@@ -23,6 +24,7 @@ interface ProductImageWithFallbackProps {
   zoomEnabled?: boolean;
   productCode?: string;
   articleHint?: string;
+  hasKnownPhoto?: boolean;
 }
 
 const normalizeSrcPath = (value: string) => {
@@ -49,6 +51,7 @@ export default function ProductImageWithFallback({
   zoomEnabled = true,
   productCode,
   articleHint,
+  hasKnownPhoto = true,
 }: ProductImageWithFallbackProps) {
   const noPhotoLabel = "\u0417\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f \u0432\u0456\u0434\u0441\u0443\u0442\u043d\u0454";
   const openPhotoTitle = "\u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0438 \u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f";
@@ -61,12 +64,21 @@ export default function ProductImageWithFallback({
 
   const [loadedSrc, setLoadedSrc] = useState("");
   const [failedSrc, setFailedSrc] = useState("");
-  const [cachedPreviewSrc, setCachedPreviewSrc] = useState("");
+  const [cachedPreviewSrc, setCachedPreviewSrc] = useState(() => {
+    if (!hasKnownPhoto) return "";
+    if (typeof window === "undefined" || !normalizedProductCode) return "";
+    return (
+      readProductImageSuccess(
+        normalizedProductCode,
+        normalizedArticleHint || undefined
+      ) || ""
+    );
+  });
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
 
   const activeSrc = cachedPreviewSrc || candidateSrc;
-  const showPlaceholder = !activeSrc || failedSrc === activeSrc;
+  const showPlaceholder = !hasKnownPhoto || !activeSrc || failedSrc === activeSrc;
   const isLoaded = !showPlaceholder && loadedSrc === activeSrc;
   const showPlaceholderOverlay = !showPlaceholder && !isLoaded;
   const canOpen = zoomEnabled && isLoaded;
@@ -112,8 +124,19 @@ export default function ProductImageWithFallback({
     setFailedSrc(activeSrc);
   };
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     setLightboxOpen(false);
+
+    if (!hasKnownPhoto) {
+      if (normalizedProductCode) {
+        writeProductImageMissing(
+          normalizedProductCode,
+          normalizedArticleHint || undefined
+        );
+      }
+      setCachedPreviewSrc("");
+      return;
+    }
 
     if (normalizedProductCode) {
       const cached = readProductImageSuccess(
@@ -124,9 +147,9 @@ export default function ProductImageWithFallback({
     } else {
       setCachedPreviewSrc("");
     }
-  }, [normalizedArticleHint, normalizedProductCode]);
+  }, [hasKnownPhoto, normalizedArticleHint, normalizedProductCode]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     setLightboxOpen(false);
 
     if (!activeSrc) {

@@ -4,7 +4,7 @@ import { buildSitemapIndexXml, createSitemapXmlResponse } from "app/lib/sitemap-
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const siteUrl = getSiteUrl();

@@ -3,7 +3,7 @@ import { buildProductImageBatchKey } from "app/lib/product-image-path";
 export const PRODUCT_IMAGE_CLIENT_CACHE_PREFIX = "partson:v9:img:";
 export const PRODUCT_IMAGE_CLIENT_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_PREFIX = "partson:v3:img-miss:";
-export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_TTL_MS = 1000 * 60;
+export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_TTL_MS = 1000 * 5;
 
 export type ProductImageCacheRecord = {
   src: string;

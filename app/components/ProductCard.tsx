@@ -423,9 +423,7 @@ useEffect(() => {
                                 loadingMode={imageLoadingMode}
                                 fetchPriority={imageFetchPriority}
                                 prefetchedSrc={prefetchedImageSrc}
-                                batchPending={batchImagePending}
-                                batchMissing={batchImageMissing}
-                                batchOnly={batchImageOnly}
+                                // batch props removed
                             />
                         </div>
 
@@ -433,7 +431,7 @@ useEffect(() => {
                             <SmartLink
                                 href={productHref}
                                 prefetch={false}
-                                prefetchOnIntent={false}
+                                prefetchOnIntent
                                 onClick={(event) => event.stopPropagation()}
                                 className="font-name-accent text-left text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 leading-[1.02] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
                             >
@@ -471,7 +469,7 @@ useEffect(() => {
                           {producerPath ? (
                               <SmartLink
                                   href={producerPath}
-                                  prefetchOnViewport
+                                  prefetchOnIntent
                                   onClick={(event) => event.stopPropagation()}
                                   className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors no-underline"
                               >

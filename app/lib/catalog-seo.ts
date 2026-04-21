@@ -2,6 +2,8 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 
 import { type CatalogProduct, fetchCatalogProductsByQuery } from "app/lib/catalog-server";
+import { getProductTreeDataset } from "app/lib/product-tree";
+import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
@@ -10,9 +12,16 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   return Math.floor(numeric);
 };
 
+const parseOptionalPositiveInt = (value: string | undefined) => {
+  if (value == null || value.trim() === "") return null;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return Math.floor(numeric);
+};
+
 const FACET_PAGE_SIZE = parsePositiveInt(process.env.SEO_FACET_PAGE_SIZE, 120);
-const FACET_MAX_PAGES = parsePositiveInt(process.env.SEO_FACET_MAX_PAGES, 1200);
-const FACET_MAX_ITEMS = parsePositiveInt(process.env.SEO_FACET_MAX_ITEMS, 250000);
+const FACET_MAX_PAGES = parseOptionalPositiveInt(process.env.SEO_FACET_MAX_PAGES);
+const FACET_MAX_ITEMS = parseOptionalPositiveInt(process.env.SEO_FACET_MAX_ITEMS);
 
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
@@ -47,11 +56,17 @@ export interface SeoProducerFacet extends SeoFacetItem {
   topGroups: SeoProducerGroupFacet[];
 }
 
-interface CatalogSeoFacets {
+export interface CatalogSeoFacets {
   groups: SeoGroupFacet[];
   producers: SeoProducerFacet[];
   generatedAt: string;
 }
+
+export const EMPTY_CATALOG_SEO_FACETS: CatalogSeoFacets = {
+  groups: [],
+  producers: [],
+  generatedAt: "",
+};
 
 const sortByPopularityThenLabel = (a: SeoFacetItem, b: SeoFacetItem) => {
   if (b.productCount !== a.productCount) return b.productCount - a.productCount;
@@ -139,20 +154,65 @@ const toFacetList = (source: FacetCounterMap): SeoFacetItem[] =>
     .filter((item) => item.label && item.slug && item.productCount > 0)
     .sort(sortByPopularityThenLabel);
 
-const resolveGroupLabel = (product: CatalogProduct) =>
-  normalizeValue(product.group) || normalizeValue(product.category);
+type GroupHierarchyLookup = {
+  groups: Set<string>;
+  subgroups: Set<string>;
+};
 
-const resolveSubgroupLabel = (product: CatalogProduct) => {
-  const subgroup = normalizeValue(product.subGroup);
-  const category = normalizeValue(product.category);
-  const group = resolveGroupLabel(product);
+const normalizeHierarchyKey = (value: string | null | undefined) =>
+  normalizeValue(value).toLocaleLowerCase("uk-UA");
 
-  if (!group) return "";
-  if (subgroup && subgroup.toLowerCase() !== group.toLowerCase()) return subgroup;
-  if (category && category.toLowerCase() !== group.toLowerCase()) return category;
-  if (!subgroup) return "";
-  if (subgroup.toLowerCase() === group.toLowerCase()) return "";
-  return subgroup;
+const buildGroupHierarchyLookup = (
+  dataset: Awaited<ReturnType<typeof getProductTreeDataset>> | null
+): GroupHierarchyLookup => {
+  const groups = new Set<string>();
+  const subgroups = new Set<string>();
+
+  for (const group of dataset?.groups ?? []) {
+    const groupKey = normalizeHierarchyKey(group.label);
+    if (groupKey) groups.add(groupKey);
+
+    for (const subgroup of group.subgroups ?? []) {
+      const subgroupKey = normalizeHierarchyKey(subgroup.label);
+      if (subgroupKey) subgroups.add(subgroupKey);
+    }
+  }
+
+  return { groups, subgroups };
+};
+
+const resolveFacetGroupAndSubgroup = (
+  product: CatalogProduct,
+  lookup: GroupHierarchyLookup
+) => {
+  const rawGroup = normalizeValue(product.group);
+  const rawSubgroup = normalizeValue(product.subGroup);
+  const rawCategory = normalizeValue(product.category);
+
+  let group = rawGroup || rawCategory;
+  let subgroup = "";
+
+  if (rawSubgroup && rawSubgroup.toLowerCase() !== group.toLowerCase()) {
+    subgroup = rawSubgroup;
+  } else if (rawCategory && rawCategory.toLowerCase() !== group.toLowerCase()) {
+    subgroup = rawCategory;
+  }
+
+  // Some 1C rows come with swapped fields: group contains a subgroup,
+  // while category contains the real top-level group.
+  if (!rawSubgroup && rawGroup && rawCategory) {
+    const rawGroupKey = normalizeHierarchyKey(rawGroup);
+    const rawCategoryKey = normalizeHierarchyKey(rawCategory);
+    const looksSwapped =
+      lookup.subgroups.has(rawGroupKey) && lookup.groups.has(rawCategoryKey);
+
+    if (looksSwapped) {
+      group = rawCategory;
+      subgroup = rawGroup;
+    }
+  }
+
+  return { group, subgroup };
 };
 
 const resolveProductKey = (product: CatalogProduct) => {
@@ -176,15 +236,22 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
   const producerGroupSubgroupCounts = new Map<string, NestedFacetCounterMap>();
 
   let totalItems = 0;
+  const dataset = await getProductTreeDataset().catch(() => null);
+  const hierarchyLookup = buildGroupHierarchyLookup(dataset);
 
   let cursor = "";
   let cursorField = "";
   let cursorModeActive = false;
 
-  for (let page = 1; page <= FACET_MAX_PAGES; page += 1) {
+  for (let page = 1; ; page += 1) {
+    if (FACET_MAX_PAGES != null && page > FACET_MAX_PAGES) {
+      break;
+    }
+
     const batchResult = await fetchCatalogProductsByQuery({
       page: cursorModeActive ? 1 : page,
       limit: FACET_PAGE_SIZE,
+      forceAllgoodsSource: true,
       cursor: cursor || undefined,
       cursorField: cursorField || undefined,
       sortOrder: "none",
@@ -197,8 +264,10 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
       const productKey = resolveProductKey(product);
       if (!productKey) continue;
 
-      const group = resolveGroupLabel(product);
-      const subgroup = resolveSubgroupLabel(product);
+      const { group, subgroup } = resolveFacetGroupAndSubgroup(
+        product,
+        hierarchyLookup
+      );
       const producer = normalizeValue(product.producer);
 
 
@@ -229,10 +298,10 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
       }
 
       totalItems += 1;
-      if (totalItems >= FACET_MAX_ITEMS) break;
+      if (FACET_MAX_ITEMS != null && totalItems >= FACET_MAX_ITEMS) break;
     }
 
-    if (totalItems >= FACET_MAX_ITEMS) break;
+    if (FACET_MAX_ITEMS != null && totalItems >= FACET_MAX_ITEMS) break;
 
     const nextCursor = (batchResult.nextCursor || "").trim();
     if (nextCursor && nextCursor !== cursor) {
@@ -265,7 +334,7 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
       const subgroups = toFacetList(subgroupMap);
       return { ...groupFacet, subgroups };
     });
-    const topGroups = producerGroups.slice(0, 25);
+    const topGroups = producerGroups;
     const categoriesCount = producerGroups.reduce(
       (sum, groupFacet) => sum + groupFacet.subgroups.length,
       0
@@ -287,7 +356,7 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
 
 const collectSeoFacetsWithRevalidate = unstable_cache(
   buildCatalogSeoFacets,
-  ["catalog-seo-facets-v7"],
+  ["catalog-seo-facets-v10-hierarchy-swap-guard"],
   {
     revalidate: 60 * 60 * 6,
     tags: ["catalog-seo-facets"],
@@ -299,6 +368,13 @@ const collectSeoFacets = cache(async (): Promise<CatalogSeoFacets> =>
 );
 
 export const getCatalogSeoFacets = async () => collectSeoFacets();
+
+export const getCatalogSeoFacetsWithTimeout = async (timeoutMs = 250) =>
+  resolveWithTimeout(
+    () => getCatalogSeoFacets(),
+    EMPTY_CATALOG_SEO_FACETS,
+    timeoutMs
+  );
 
 const buildSlugLookupCandidates = (value: string) => {
   const normalized = normalizeValue(value);
@@ -320,9 +396,6 @@ export const findSeoProducerBySlug = cache(async (slug: string) => {
   const data = await getCatalogSeoFacets();
   return data.producers.find((producer) => slugCandidates.includes(producer.slug)) || null;
 });
-
-
-
 
 
 

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   fetchEuroRate,
-  fetchPriceEuro,
+  fetchPriceEuroMapByLookupKeys,
   toPriceUah,
 } from "app/lib/catalog-server";
 
@@ -14,39 +14,52 @@ export async function GET(request: Request) {
   const lookupKeys = normalizeLookupKeys(url.searchParams.getAll("lookup"));
 
   if (lookupKeys.length === 0) {
-    return NextResponse.json({ priceUah: null }, { status: 200 });
+    return NextResponse.json({ priceUah: null, hasPhoto: null }, { status: 200 });
   }
 
   try {
-    const [euroRate, priceCandidates] = await Promise.all([
-      fetchEuroRate(),
-      Promise.all(
-        lookupKeys.map((lookupKey) =>
-          fetchPriceEuro(lookupKey, {
-            timeoutMs: 1800,
-            retries: 0,
-            retryDelayMs: 120,
-            cacheTtlMs: 1000 * 30,
-          }).catch(() => null)
-        )
-      ),
-    ]);
+    const priceMapPromise = fetchPriceEuroMapByLookupKeys(lookupKeys, {
+      sourceTimeoutMs: 1300,
+      sourceCacheTtlMs: 1000 * 30,
+      timeoutMs: 1700,
+      retries: 0,
+      retryDelayMs: 120,
+      cacheTtlMs: 1000 * 60 * 3,
+      includeDirectLookup: true,
+      includePricesPost: true,
+      directConcurrency: 4,
+      maxKeys: 12,
+    }).catch(() => ({} as Record<string, number>));
+    const euroRatePromise = fetchEuroRate().catch(() => null);
 
-    const priceEuro = priceCandidates.find(
-      (value) => typeof value === "number" && Number.isFinite(value) && value > 0
-    );
+    const lookupPrices = await priceMapPromise;
+    const priceEuro = lookupKeys
+      .map((lookupKey) => lookupPrices[lookupKey.trim().toLowerCase()])
+      .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
+
+    const euroRate =
+      typeof priceEuro === "number" && Number.isFinite(priceEuro) && priceEuro > 0
+        ? await euroRatePromise
+        : null;
 
     const priceUah =
-      typeof priceEuro === "number" && Number.isFinite(priceEuro) && priceEuro > 0
+      typeof priceEuro === "number" && Number.isFinite(priceEuro) && priceEuro > 0 && euroRate != null
         ? toPriceUah(priceEuro, euroRate)
         : null;
 
     return NextResponse.json(
-      { priceUah },
+      {
+        priceUah,
+        priceEuro:
+          typeof priceEuro === "number" && Number.isFinite(priceEuro) && priceEuro > 0
+            ? priceEuro
+            : null,
+        hasPhoto: null,
+      },
       {
         status: 200,
         headers: {
-          "cache-control": "no-store",
+          "cache-control": "private, max-age=30, stale-while-revalidate=120",
         },
       }
     );
@@ -54,6 +67,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         priceUah: null,
+        hasPhoto: null,
         error: error instanceof Error ? error.message : "Failed to resolve product price",
       },
       { status: 200 }

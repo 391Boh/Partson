@@ -8,7 +8,6 @@ import { notFound, redirect } from "next/navigation";
 import {
   fetchCatalogProductsByArticle,
   fetchEuroRate,
-  fetchPriceEuro,
   findCatalogProductByCode,
   toPriceUah,
 } from "app/lib/catalog-server";
@@ -27,7 +26,9 @@ import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import { getProductImagePath } from "app/lib/product-image";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import {
+  buildLegacyProductNameSlug,
   buildProductPath,
+  buildProductNameSlug,
   buildVisibleProductName,
   extractProductCodeFromParam,
   extractProductRouteSlugsFromParam,
@@ -42,16 +43,13 @@ import { getSiteUrl } from "app/lib/site-url";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
-const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 3400;
-const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 2600;
-const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 1800;
-const PRODUCT_PAGE_SEO_PRICE_LOOKUP_TIMEOUT_MS = 650;
-const PRODUCT_PAGE_SEO_PRICE_REQUEST_TIMEOUT_MS = 500;
+const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 2200;
+const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1500;
+const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 950;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 350;
-const PRODUCT_PAGE_SEO_PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRODUCT_PAGE_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
-const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
-const PRODUCT_PAGE_GROUP_LANDING_TIMEOUT_MS = 650;
+const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 900;
+const PRODUCT_PAGE_GROUP_LANDING_TIMEOUT_MS = 140;
 
 export const revalidate = 900;
 
@@ -107,7 +105,7 @@ interface ProductPageProps {
 
 const pageBackground: CSSProperties = {
   backgroundImage:
-    "radial-gradient(circle at 10% 10%, rgba(103,232,249,0.22), transparent 34%), radial-gradient(circle at 90% 15%, rgba(191,219,254,0.22), transparent 30%), linear-gradient(180deg, #f8fcff 0%, #eef6ff 52%, #f8fafc 100%)",
+    "radial-gradient(circle at 0% 0%, rgba(14,165,233,0.22), transparent 24%), radial-gradient(circle at 100% 8%, rgba(248,113,113,0.14), transparent 22%), radial-gradient(circle at 58% 18%, rgba(34,211,238,0.12), transparent 26%), linear-gradient(180deg, #e8f0f5 0%, #f8fafc 40%, #e6eef4 100%)",
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -619,7 +617,7 @@ const findCatalogProductByArticleFast = async (value: string) => {
 
   const byArticle = await fetchCatalogProductsByArticle(normalized, {
     limit: 6,
-    timeoutMs: 700,
+    timeoutMs: 520,
     retries: 0,
     retryDelayMs: 100,
     cacheTtlMs: 1000 * 20,
@@ -637,19 +635,19 @@ const findCatalogProductByArticleFast = async (value: string) => {
 };
 
 const FAST_PRODUCT_CATALOG_LOOKUP_OPTIONS = {
-  lookupLimit: 18,
+  lookupLimit: 14,
   fallbackPages: 1,
-  pageSize: 36,
-  timeoutMs: 1100,
+  pageSize: 30,
+  timeoutMs: 900,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 20,
 };
 const DEEP_PRODUCT_CATALOG_LOOKUP_OPTIONS = {
-  lookupLimit: 28,
-  fallbackPages: 2,
-  pageSize: 40,
-  timeoutMs: 1600,
+  lookupLimit: 22,
+  fallbackPages: 1,
+  pageSize: 36,
+  timeoutMs: 1250,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 10,
@@ -754,62 +752,20 @@ const toPositiveNumberOrNull = (value: unknown) => {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
 };
 
-const normalizeProductSeoLookupKeys = (rawLookupKeys: string) =>
-  Array.from(
-    new Set(
-      rawLookupKeys
-        .split("\n")
-        .map((value) => value.trim())
-        .filter(Boolean)
-    )
-  ).slice(0, 3);
-
-const lookupProductSeoPriceEuroUncached = async (rawLookupKeys: string) => {
-  const lookupKeys = normalizeProductSeoLookupKeys(rawLookupKeys);
-  if (lookupKeys.length === 0) return null;
-
-  return resolveWithTimeout(
-    () =>
-      getFirstResolvedNonNull(
-        lookupKeys.map((lookupKey) =>
-          fetchPriceEuro(lookupKey, {
-            timeoutMs: PRODUCT_PAGE_SEO_PRICE_REQUEST_TIMEOUT_MS,
-            retries: 0,
-            retryDelayMs: 100,
-            cacheTtlMs: PRODUCT_PAGE_SEO_PRICE_CACHE_TTL_MS,
-          }).then(toPositiveNumberOrNull)
-        )
-      ),
-    null,
-    PRODUCT_PAGE_SEO_PRICE_LOOKUP_TIMEOUT_MS
-  );
-};
-
-const lookupProductSeoPriceEuroCached = unstable_cache(
-  lookupProductSeoPriceEuroUncached,
-  ["product-page:seo-price-euro-v1"],
-  {
-    revalidate: 60 * 10,
-    tags: ["product-seo-price"],
-  }
-);
-
 const getProductSeoEuroRate = cache(async () =>
   resolveWithTimeout(() => fetchEuroRate(), 50, PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS)
 );
 
 const resolveProductSeoPrice = cache(
   async (
-    inlinePriceEuro: number | null | undefined,
-    rawLookupKeys: string
+    inlinePriceEuro: number | null | undefined
   ): Promise<{ priceEuro: number | null; priceUah: number | null }> => {
     const inlinePrice = toPositiveNumberOrNull(inlinePriceEuro);
-    const priceEuro = inlinePrice ?? (await lookupProductSeoPriceEuroCached(rawLookupKeys));
-
-    if (priceEuro == null) {
+    if (inlinePrice == null) {
       return { priceEuro: null, priceUah: null };
     }
 
+    const priceEuro = inlinePrice;
     const euroRate = await getProductSeoEuroRate();
     const priceUah = toPriceUah(priceEuro, euroRate);
 
@@ -850,21 +806,27 @@ const extractLookupTokensFromSeoNameSlug = (rawNameSlug: string) => {
   if (parts.length === 0) return [] as string[];
 
   const tokens = new Set<string>();
-  const addLookupToken = (token: string, minLength = 3) => {
-    if (token.length < minLength) return;
-    if (!/\d/.test(token)) return;
-    tokens.add(token);
+  const addLookupToken = (
+    token: string,
+    options?: { minLength?: number; requireDigit?: boolean }
+  ) => {
+    const normalizedToken = token.replace(/^-+|-+$/g, "").trim();
+    const minLength = options?.minLength ?? 3;
+    if (normalizedToken.length < minLength) return;
+    if (options?.requireDigit && !/\d/.test(normalizedToken)) return;
+    tokens.add(normalizedToken);
   };
 
   for (const part of parts) {
-    addLookupToken(part);
+    addLookupToken(part, { requireDigit: true });
   }
 
-  for (let tailSize = 2; tailSize <= 4; tailSize += 1) {
+  for (let tailSize = 1; tailSize <= 4; tailSize += 1) {
     if (parts.length < tailSize) continue;
     const tailParts = parts.slice(-tailSize);
-    addLookupToken(tailParts.join(""), 5);
-    addLookupToken(tailParts.join("-"), 5);
+    const minLength = tailSize === 1 ? 3 : 5;
+    addLookupToken(tailParts.join(""), { minLength });
+    addLookupToken(tailParts.join("-"), { minLength });
   }
 
   return Array.from(tokens);
@@ -891,7 +853,36 @@ const extractPrimaryLookupTokenFromSeoNameSlug = (rawNameSlug: string) => {
     return token;
   }
 
+  for (let tailSize = Math.min(4, parts.length); tailSize >= 1; tailSize -= 1) {
+    const tailParts = parts.slice(-tailSize);
+    const lookupToken = tailParts.join(tailSize === 1 ? "" : "-");
+    if (lookupToken.length >= (tailSize === 1 ? 3 : 5)) {
+      return lookupToken;
+    }
+  }
+
   return "";
+};
+
+const doesProductMatchSeoNameSlug = (
+  product: NonNullable<Awaited<ReturnType<typeof getCatalogProductUncached>>>,
+  rawNameSlug: string
+) => {
+  const requestedSlug = decodeURIComponent(rawNameSlug || "").trim().toLowerCase();
+  if (!requestedSlug) return false;
+
+  const canonicalSlug = buildProductNameSlug(product).toLowerCase();
+  const legacySlug = buildLegacyProductNameSlug(product).toLowerCase();
+  const requestedParts = requestedSlug.split("-").filter(Boolean);
+  const canUsePrefixMatch = requestedParts.length >= 2 && requestedSlug.length >= 8;
+
+  return (
+    canonicalSlug === requestedSlug ||
+    legacySlug === requestedSlug ||
+    (canUsePrefixMatch &&
+      (canonicalSlug.startsWith(`${requestedSlug}-`) ||
+        legacySlug.startsWith(`${requestedSlug}-`)))
+  );
 };
 
 type ResolvedProductRouteData = {
@@ -933,7 +924,8 @@ const resolveProductFromSeoNameSlug = async (rawNameSlug: string) => {
   for (const token of lookupTokens) {
     const matchedProduct = await findCatalogProductByLookupToken(token);
     const matchedCode = (matchedProduct?.code || matchedProduct?.article || "").trim();
-    if (!matchedCode) continue;
+    if (!matchedProduct || !matchedCode) continue;
+    if (!doesProductMatchSeoNameSlug(matchedProduct, rawNameSlug)) continue;
 
     return {
       code: matchedCode,
@@ -1167,17 +1159,7 @@ export async function generateMetadata({
     ? getProductImagePath(routeProduct.code || resolvedCode, routeProduct.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const productImageUrl = `${getSiteUrl()}${productImagePath}`;
-  const metadataLookupKeys = Array.from(
-    new Set(
-      [productArticle, routeProduct?.code, resolvedCode, fallbackCode]
-        .map((value) => (value || "").trim())
-        .filter(Boolean)
-    )
-  );
-  const seoPrice = await resolveProductSeoPrice(
-    routeProduct?.priceEuro ?? null,
-    metadataLookupKeys.join("\n")
-  );
+  const seoPrice = await resolveProductSeoPrice(routeProduct?.priceEuro ?? null);
   const shouldIndexProduct = !isModalView && seoPrice.priceUah != null;
 
   const seoTitle = [
@@ -1361,11 +1343,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     : Array.from(
         new Set([product.article.trim(), product.code.trim(), resolvedCode].filter(Boolean))
       );
-  const productSeoPrice = await resolveProductSeoPrice(
-    product.priceEuro ?? null,
-    lookupKeys.join("\n")
-  );
-  const initialPriceUah = productSeoPrice.priceUah;
+  const inlineInitialPriceEuro = toPositiveNumberOrNull(product.priceEuro);
+  const pagePrice = await resolveProductSeoPrice(inlineInitialPriceEuro);
+  const initialPriceUah = pagePrice.priceUah;
   const shouldEmitProductStructuredData = !isModalView && initialPriceUah != null;
   const productCategory = (product.category || "").trim();
   const productGroup = (product.group || productCategory || "").trim();
@@ -1474,13 +1454,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   });
   const contentGridClass = isModalView
     ? "grid gap-2.5 p-2.5 sm:p-3"
-    : "grid gap-3 p-2.5 sm:gap-3.5 sm:p-3.5";
+    : "grid gap-3.5 p-2.5 sm:gap-4 sm:p-4";
   const heroProductImageClass = isModalView
-    ? "mx-auto h-[220px] w-full rounded-[22px] border border-slate-200/85 bg-slate-50 sm:h-[250px]"
-    : "mx-auto h-[220px] w-full rounded-[24px] border border-slate-200/85 bg-slate-50 sm:h-[250px] xl:h-[260px] 2xl:h-[276px]";
+    ? "mx-auto h-[220px] w-full rounded-[20px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.98))] sm:h-[250px]"
+    : "mx-auto h-[220px] w-full rounded-[22px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.98))] sm:h-[250px] xl:h-[260px] 2xl:h-[276px]";
   const descriptionTextClass = isModalView
     ? "mt-1.5 max-h-[172px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-sm leading-relaxed text-slate-700"
-    : "mt-2 max-h-[238px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-[14px] leading-6 text-slate-700 sm:text-[15px] sm:leading-[1.65]";
+    : "mt-2.5 max-h-[238px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-[14px] leading-[1.72] text-slate-700 sm:text-[15px]";
   const chatPrefillMessage = [
     "Потрібна консультація по товару:",
     product.name,
@@ -1535,7 +1515,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       : null,
   ].filter(Boolean) as Array<{ label: string; value: string; href?: string | null }>;
   const productHeaderMetaGridClass = productHeaderInfoItems.length > 0
-    ? "mt-4 grid gap-2.5 lg:grid-cols-[minmax(220px,0.92fr)_minmax(0,1.08fr)]"
+    ? "mt-4 grid gap-2.5 lg:grid-cols-[minmax(240px,0.9fr)_minmax(0,1.1fr)]"
     : "mt-4 max-w-[430px]";
   const keywordButtonHref =
     producerLandingPath || producerCatalogPath || categoryCatalogPath || "/katalog";
@@ -1616,25 +1596,26 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         }
       >
         <article
-          className={`overflow-hidden border border-white/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,252,255,0.96),rgba(255,255,255,0.98))] shadow-[0_28px_68px_rgba(14,165,233,0.11)] backdrop-blur-xl ${
+          className={`overflow-hidden border border-slate-900/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(241,245,249,0.96),rgba(255,255,255,0.98))] shadow-[0_32px_90px_rgba(2,6,23,0.14)] backdrop-blur-xl ${
             isModalView ? "rounded-2xl" : "rounded-[24px] sm:rounded-[26px]"
           }`}
         >
-          <header className="relative m-2.5 block h-auto min-h-0 overflow-hidden rounded-[24px] border border-cyan-100/95 bg-[linear-gradient(135deg,rgba(255,255,255,0.99),rgba(241,249,255,0.97)_52%,rgba(236,253,245,0.9))] px-3 py-3.5 shadow-[0_24px_60px_rgba(14,165,233,0.16),0_8px_22px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.86)] ring-1 ring-white/80 sm:m-3.5 sm:rounded-[28px] sm:px-5 sm:py-5">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(125,211,252,0.26),transparent_30%),radial-gradient(circle_at_92%_12%,rgba(134,239,172,0.18),transparent_28%)]" />
-            <div className="pointer-events-none absolute left-6 right-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent" />
-            <div className="pointer-events-none absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-transparent via-white/90 to-transparent" />
-            <div className="pointer-events-none absolute inset-x-5 bottom-[-18px] h-10 rounded-[999px] bg-cyan-400/10 blur-2xl" />
+          <header className="relative m-2.5 block h-auto min-h-0 overflow-hidden rounded-[22px] border border-slate-900/90 bg-[linear-gradient(140deg,rgba(2,6,23,0.98),rgba(15,23,42,0.98)_34%,rgba(8,47,73,0.96)_72%,rgba(8,145,178,0.88))] px-3 py-3.5 shadow-[0_30px_72px_rgba(2,6,23,0.38),0_14px_28px_rgba(14,165,233,0.16)] ring-1 ring-cyan-400/15 sm:m-3.5 sm:rounded-[26px] sm:px-5 sm:py-5">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_12%,rgba(34,211,238,0.24),transparent_24%),radial-gradient(circle_at_88%_10%,rgba(248,113,113,0.18),transparent_22%),linear-gradient(180deg,transparent,rgba(2,6,23,0.08))]" />
+            <div className="pointer-events-none absolute inset-y-6 left-0 w-[3px] rounded-full bg-gradient-to-b from-cyan-300 via-white/70 to-red-400/80" />
+            <div className="pointer-events-none absolute left-6 right-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-red-300/60" />
+            <div className="pointer-events-none absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-cyan-300/20 via-white/70 to-transparent" />
+            <div className="pointer-events-none absolute right-8 top-6 h-20 w-20 rounded-full border border-white/10 bg-white/5 blur-xl" />
             <div className="relative">
               {!isModalView && (
                 <nav
                   aria-label="Навігація по сторінці товару"
-                  className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500 sm:text-[12px]"
+                  className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-300 sm:text-[12px]"
                 >
                   {breadcrumbItems.map((item, index) => (
                     <span key={item.href} className="inline-flex items-center gap-2">
-                      {index > 0 ? <span className="text-slate-300">/</span> : null}
-                      <Link href={item.href} className="transition hover:text-cyan-800">
+                      {index > 0 ? <span className="text-slate-600">/</span> : null}
+                      <Link href={item.href} className="transition hover:text-cyan-200">
                         {item.label}
                       </Link>
                     </span>
@@ -1643,7 +1624,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               )}
               <div className="grid gap-4 xl:grid-cols-[minmax(220px,252px)_minmax(0,1fr)_324px] xl:items-start 2xl:grid-cols-[minmax(240px,268px)_minmax(0,1fr)_348px]">
                 <div className="order-2 min-w-0 xl:order-1">
-                  <div className="overflow-hidden rounded-[26px] border border-white/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,249,255,0.94),rgba(248,250,252,0.96))] p-2 shadow-[0_18px_40px_rgba(14,165,233,0.1)] backdrop-blur-sm">
+                  <div className="overflow-hidden rounded-[24px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(14,165,233,0.18),transparent_36%),linear-gradient(180deg,rgba(15,23,42,0.82),rgba(2,6,23,0.98))] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_20px_42px_rgba(2,6,23,0.32)] backdrop-blur-sm">
                     <ProductImageWithFallback
                       src={productDisplayImagePath}
                       fallbackSrc={fallbackImagePath}
@@ -1656,6 +1637,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                       zoomEnabled={false}
                       productCode={product.code || resolvedCode}
                       articleHint={product.article}
+                      hasKnownPhoto={productHasKnownPhoto}
                       className={heroProductImageClass}
                     />
                   </div>
@@ -1663,33 +1645,33 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
                 <div className="order-1 min-w-0 xl:order-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-800 shadow-[0_10px_22px_rgba(8,145,178,0.08)]">
+                    <span className="inline-flex rounded-[14px] border border-cyan-300/30 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100 shadow-[0_10px_26px_rgba(34,211,238,0.12)]">
                       Картка товару
                     </span>
                     <span
-                      className={`inline-flex rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] shadow-[0_10px_22px_rgba(15,23,42,0.06)] ${
+                      className={`inline-flex rounded-[14px] border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] shadow-[0_10px_26px_rgba(2,6,23,0.22)] ${
                         isInStock
-                          ? "border-emerald-200/90 bg-emerald-50/90 text-emerald-800"
-                          : "border-amber-200/90 bg-amber-50/90 text-amber-800"
+                          ? "border-emerald-300/35 bg-emerald-400/12 text-emerald-100"
+                          : "border-amber-300/35 bg-amber-400/12 text-amber-100"
                       }`}
                     >
                       {isInStock ? "В наявності" : "Під замовлення"}
                     </span>
                   </div>
 
-                  <h1 className="font-display-italic mt-3 max-w-none break-words text-[clamp(1.16rem,2.6vw,2.18rem)] font-black leading-[1.08] tracking-normal text-slate-950 [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[44ch]">
+                  <h1 className="font-display-italic mt-3 max-w-none break-words text-[clamp(1.26rem,2.8vw,2.42rem)] font-black leading-[0.98] tracking-[-0.048em] text-white [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[42ch]">
                     {productHeadingText}
                   </h1>
                   <div className={productHeaderMetaGridClass}>
-                    <div className="rounded-[22px] border border-cyan-100/90 bg-[linear-gradient(160deg,rgba(255,255,255,0.99),rgba(236,254,255,0.92),rgba(240,253,244,0.82))] px-4 py-3.5 shadow-[0_16px_34px_rgba(14,165,233,0.09)]">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-800 sm:text-[11px]">
+                    <div className="rounded-[20px] border border-cyan-400/18 bg-[linear-gradient(165deg,rgba(14,165,233,0.16),rgba(15,23,42,0.92)_30%,rgba(2,6,23,0.96))] px-4 py-3.5 shadow-[0_18px_36px_rgba(2,6,23,0.28)]">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200 sm:text-[11px]">
                         {productIdentifierLabel}
                       </p>
-                      <p className="mt-2 font-mono text-[17px] font-black leading-6 tracking-normal text-slate-950 [overflow-wrap:anywhere] sm:text-[19px]">
+                      <p className="mt-2 font-mono text-[17px] font-black leading-6 tracking-normal text-white [overflow-wrap:anywhere] sm:text-[19px]">
                         {productIdentifierValue}
                       </p>
                       {productIdentifierHint ? (
-                        <p className="mt-1.5 text-[12px] font-medium leading-5 text-slate-500 sm:text-[13px]">
+                        <p className="mt-1.5 text-[12px] font-medium leading-5 text-slate-300 sm:text-[13px]">
                           {productIdentifierHint}
                         </p>
                       ) : null}
@@ -1700,20 +1682,20 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                         {productHeaderInfoItems.map((item) => (
                           <div
                             key={item.label}
-                            className="rounded-[20px] border border-white/90 bg-white/82 px-3.5 py-3 shadow-[0_12px_28px_rgba(14,165,233,0.07)] backdrop-blur-sm"
+                            className="rounded-[18px] border border-white/10 bg-white/8 px-3.5 py-3 shadow-[0_12px_24px_rgba(2,6,23,0.16)] backdrop-blur-sm"
                           >
-                            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500 sm:text-[10px]">
+                            <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400 sm:text-[10px]">
                               {item.label}
                             </p>
                             {item.href ? (
                               <Link
                                 href={item.href}
-                                className="mt-1.5 block text-[13px] font-extrabold leading-5 text-slate-900 transition hover:text-cyan-800 [overflow-wrap:anywhere] sm:text-[14px]"
+                                className="mt-1.5 block text-[13px] font-extrabold leading-5 text-white transition hover:text-cyan-200 [overflow-wrap:anywhere] sm:text-[14px]"
                               >
                                 {item.value}
                               </Link>
                             ) : (
-                              <p className="mt-1.5 text-[13px] font-extrabold leading-5 text-slate-900 [overflow-wrap:anywhere] sm:text-[14px]">
+                              <p className="mt-1.5 text-[13px] font-extrabold leading-5 text-white [overflow-wrap:anywhere] sm:text-[14px]">
                                 {item.value}
                               </p>
                             )}
@@ -1724,11 +1706,12 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   </div>
                 </div>
                 <div className="order-3 xl:pl-1.5">
-                  <div className="rounded-[28px] border border-white/90 bg-white/76 p-1.5 shadow-[0_18px_40px_rgba(14,165,233,0.11)] backdrop-blur-sm">
+                  <div className="rounded-[26px] border border-cyan-400/16 bg-[linear-gradient(180deg,rgba(2,6,23,0.3),rgba(15,23,42,0.46),rgba(8,47,73,0.28))] p-1.5 shadow-[0_20px_44px_rgba(2,6,23,0.28)] backdrop-blur-sm">
                     <ProductPurchasePanelClient
                       lookupKeys={lookupKeys}
                       isModalView={isModalView}
                       initialPriceUah={initialPriceUah}
+                      hasKnownPrice={inlineInitialPriceEuro != null}
                       resolvedCode={resolvedCode}
                       product={product}
                       isInStock={isInStock}
@@ -1741,18 +1724,22 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
           <div className={contentGridClass}>
             <section className="space-y-2.5">
-              <section className="rounded-[22px] border border-white/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(240,249,255,0.9),rgba(236,253,245,0.72))] p-3 shadow-[0_14px_30px_rgba(14,165,233,0.07)] sm:rounded-[24px]">
+              <section className="rounded-[22px] border border-slate-900/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.98),rgba(8,47,73,0.96))] p-3 shadow-[0_16px_34px_rgba(2,6,23,0.16)] sm:rounded-[24px]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-800">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-300">
                       Потрібна допомога?
                     </p>
-                    <p className="mt-1 text-[13px] leading-5 text-slate-600 sm:text-sm sm:leading-6">
+                    <p className="mt-1 text-[13px] leading-5 text-slate-200 sm:text-sm sm:leading-6">
                       Якщо потрібна сумісність або аналог, менеджер швидко підбере варіант у чаті.
                     </p>
                   </div>
 
-                  <OpenChatButton message={chatPrefillMessage} title="Відкрити чат з менеджером" />
+                  <OpenChatButton
+                    message={chatPrefillMessage}
+                    title="Відкрити чат з менеджером"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] border border-cyan-300/30 bg-white/10 text-cyan-100 shadow-[0_14px_28px_rgba(8,145,178,0.24)] transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out hover:-translate-y-0.5 hover:border-cyan-200/45 hover:bg-white/16 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40"
+                  />
                 </div>
               </section>
 
@@ -1772,20 +1759,20 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           </div>
 
           {!isModalView && (
-            <section className="border-t border-white/80 bg-[linear-gradient(180deg,rgba(248,252,255,0.78),rgba(255,255,255,0.95))] px-3 py-3.5 sm:px-4 sm:py-4">
+            <section className="border-t border-slate-900/8 bg-[linear-gradient(180deg,rgba(226,232,240,0.34),rgba(255,255,255,0.95))] px-3 py-3.5 sm:px-4 sm:py-4">
               <div className="space-y-3">
-                <section className="overflow-hidden rounded-[24px] border border-white/80 bg-[radial-gradient(circle_at_top_left,rgba(165,243,252,0.28),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.97),rgba(248,252,255,0.94))] shadow-[0_18px_38px_rgba(14,165,233,0.1)] sm:rounded-[26px]">
+                <section className="overflow-hidden rounded-[24px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(227,238,245,0.96),rgba(232,250,255,0.82))] shadow-[0_20px_44px_rgba(2,6,23,0.1)] sm:rounded-[26px]">
                   <div className="flex flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 max-w-4xl">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-800">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-900">
                           Часто шукають
                         </p>
-                        <span className="inline-flex rounded-full border border-cyan-200 bg-white/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-cyan-800">
+                        <span className="inline-flex rounded-[12px] border border-slate-900/10 bg-slate-950 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-100">
                           {keywordPhrases.length} запитів
                         </span>
                       </div>
-                      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700 sm:text-[15px]">
                         {keywordSummaryText}
                       </p>
                     </div>
@@ -1793,7 +1780,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     <div className="flex w-full shrink-0 xl:w-auto xl:justify-end">
                       <Link
                         href={keywordButtonHref}
-                        className="inline-flex h-10 w-full items-center justify-center rounded-full border border-slate-200 bg-white/92 px-4 text-sm font-semibold text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition hover:border-cyan-300 hover:text-cyan-800 hover:shadow-[0_14px_28px_rgba(14,165,233,0.12)] sm:w-auto"
+                        className="inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-slate-900/10 bg-slate-950 px-4 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(2,6,23,0.14)] transition hover:border-cyan-400/30 hover:text-cyan-100 hover:shadow-[0_18px_32px_rgba(8,145,178,0.18)] sm:w-auto"
                       >
                         {keywordButtonLabel}
                       </Link>
@@ -1805,7 +1792,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                       {keywordPhrases.map((phrase) => (
                         <span
                           key={phrase}
-                          className="inline-flex min-h-9 items-center rounded-full border border-cyan-100 bg-white/92 px-3 py-1.5 text-[12px] font-semibold leading-5 text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] sm:text-[13px]"
+                          className="inline-flex min-h-9 items-center rounded-[14px] border border-slate-900/8 bg-white/88 px-3 py-1.5 text-[12px] font-semibold leading-5 text-slate-800 shadow-[0_10px_22px_rgba(15,23,42,0.05)] sm:text-[13px]"
                         >
                           {phrase}
                         </span>
@@ -1814,12 +1801,12 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   </div>
                 </section>
 
-                <div className="overflow-hidden rounded-[24px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,252,255,0.94))] shadow-[0_18px_38px_rgba(14,165,233,0.1)] sm:rounded-[26px]">
-                  <div className="border-b border-white/80 px-4 py-4 sm:px-5">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-800">
+                <div className="overflow-hidden rounded-[24px] border border-slate-900/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,244,248,0.96))] shadow-[0_20px_44px_rgba(2,6,23,0.1)] sm:rounded-[26px]">
+                  <div className="border-b border-slate-900/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(8,47,73,0.9))] px-4 py-4 sm:px-5">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-300">
                       Поширені питання
                     </p>
-                    <h2 className="font-display-italic mt-1 text-[1.05rem] font-black tracking-normal text-slate-900 sm:text-[1.22rem]">
+                    <h2 className="font-display-italic mt-1 text-[1.05rem] font-black tracking-[-0.04em] text-white sm:text-[1.22rem]">
                       Що варто знати перед замовленням
                     </h2>
                   </div>
@@ -1828,9 +1815,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     {faqItems.map((item) => (
                       <div
                         key={item.question}
-                        className="rounded-[22px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(240,249,255,0.9))] px-4 py-3.5 shadow-[0_10px_22px_rgba(14,165,233,0.08)]"
+                        className="rounded-[20px] border border-slate-900/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(236,243,248,0.94))] px-4 py-3.5 shadow-[0_12px_24px_rgba(2,6,23,0.06)]"
                       >
-                        <h3 className="text-[15px] font-extrabold text-slate-900 not-italic">
+                        <h3 className="text-[15px] font-extrabold text-slate-950 not-italic">
                           {item.question}
                         </h3>
                         <p className="mt-2 text-sm leading-6 text-slate-700">

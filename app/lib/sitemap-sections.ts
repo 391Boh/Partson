@@ -8,7 +8,6 @@ import { getInformationPath, informationSections } from "app/inform/section-conf
 import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
 import { buildGroupItemPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
-import { getCategoryIconPath } from "app/lib/category-icons";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -147,13 +146,6 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.84,
-      images: [
-        {
-          loc: getCategoryIconPath(group.label),
-          title: group.label,
-          caption: `Іконка категорії ${group.label}`,
-        },
-      ],
     });
   }
 
@@ -165,13 +157,6 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.8,
-      images: [
-        {
-          loc: getCategoryIconPath(entry.iconLabel),
-          title: entry.label,
-          caption: `Іконка категорії ${entry.iconLabel}`,
-        },
-      ],
     });
   }
 
@@ -181,13 +166,6 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.78,
-      images: [
-        {
-          loc: getCategoryIconPath(entry.iconLabel),
-          title: entry.label,
-          caption: `Іконка категорії ${entry.iconLabel}`,
-        },
-      ],
     });
   }
 
@@ -235,8 +213,8 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
     return logo
       ? {
           loc: logo,
-          title: label,
-          caption: `Логотип виробника ${label}`,
+          title: `${label} - виробник автозапчастин`,
+          caption: `Офіційний логотип бренду ${label} у каталозі автозапчастин PartsON`,
         }
       : null;
   };
@@ -269,8 +247,8 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
       brand.logo
         ? {
             loc: brand.logo,
-            title: brand.name,
-            caption: `Логотип виробника ${brand.name}`,
+            title: `${brand.name} - виробник автозапчастин`,
+            caption: `Офіційний логотип бренду ${brand.name} у каталозі автозапчастин PartsON`,
           }
         : buildProducerImage(brand.name)
     );

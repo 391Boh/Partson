@@ -45,7 +45,7 @@ const PRODUCT_SITEMAP_QUERY_PAGE_SIZE = Math.min(
 
 const PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS = parsePositiveInt(
   process.env.PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
-  8000
+  16000
 );
 
 const PRODUCT_SITEMAP_BUILD_TIMEOUT_MS = parseOptionalPositiveInt(
@@ -196,6 +196,7 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
         page,
         limit: PRODUCT_SITEMAP_QUERY_PAGE_SIZE,
         cursor,
+        includePriceEnrichment: true,
         timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
         retries: 2,
         retryDelayMs: 180,
@@ -208,10 +209,14 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
     if (pageResult.items.length === 0 && fallbackPageResult !== pageResult) {
       // Normal empty page, continue to the shared termination logic below.
     } else if (pageResult.items.length === 0) {
-      logProductSitemapFailure(
-        `Failed to fetch product sitemap source page for state "${requestState}"`,
-        `Operation timed out after ${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000}ms`
-      );
+      const message = `Failed to fetch product sitemap source page for state "${requestState}"`;
+      const timeoutMessage = `Operation timed out after ${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000}ms`;
+      logProductSitemapFailure(message, timeoutMessage);
+
+      if (batches.length === 0 && currentBatch.length === 0) {
+        throw new Error(`${message}: ${timeoutMessage}`);
+      }
+
       break;
     }
 
@@ -269,7 +274,7 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
 const getProductSitemapEntryBatchesWithCache = unstable_cache(
   buildProductSitemapEntryBatches,
   [
-    `product-sitemap-entries-v19-priced-canonical-images-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_BATCHES ?? "all"}-${PRODUCT_SITEMAP_QUERY_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ?? "none"}-${PRODUCT_SITEMAP_MAX_SOURCE_PAGES ?? "all"}`,
+    `product-sitemap-entries-v20-priced-canonical-images-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_BATCHES ?? "all"}-${PRODUCT_SITEMAP_QUERY_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ?? "none"}-${PRODUCT_SITEMAP_MAX_SOURCE_PAGES ?? "all"}`,
   ],
   {
     revalidate: 60 * 60,

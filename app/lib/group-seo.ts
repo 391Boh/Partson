@@ -83,12 +83,21 @@ export const resolveGroupSeoCounts = (
   const groupFacet = findFacetMatch(groupLookup, group);
   const subgroupLookup = buildFacetLookup<SeoFacetItem>(groupFacet?.subgroups ?? []);
   const subgroupProductCounts = new Map<string, number>();
+  const childProductCounts = new Map<string, number>();
 
   let subgroupProductsTotal = 0;
 
   for (const subgroup of group.subgroups) {
     const subgroupFacet = findFacetMatch(subgroupLookup, subgroup);
-    const productCount = toPositiveInt(subgroupFacet?.productCount);
+    let productCount = toPositiveInt(subgroupFacet?.productCount);
+
+    for (const child of subgroup.children ?? []) {
+      const childFacet = findFacetMatch(subgroupLookup, child);
+      const childProductCount = toPositiveInt(childFacet?.productCount);
+      childProductCounts.set(child.slug, childProductCount);
+      productCount += childProductCount;
+    }
+
     subgroupProductCounts.set(subgroup.slug, productCount);
     subgroupProductsTotal += productCount;
   }
@@ -103,5 +112,6 @@ export const resolveGroupSeoCounts = (
       group.subgroups.length
     ),
     subgroupProductCounts,
+    childProductCounts,
   };
 };

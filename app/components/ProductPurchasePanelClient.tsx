@@ -8,6 +8,7 @@ type ProductPurchasePanelClientProps = {
   lookupKeys: string[];
   isModalView: boolean;
   initialPriceUah?: number | null;
+  hasKnownPrice: boolean;
   resolvedCode: string;
   product: {
     code: string;
@@ -21,7 +22,7 @@ type ProductPurchasePanelClientProps = {
 
 const PRODUCT_PRICE_CACHE_PREFIX = "partson:v4:product-page-price:";
 const PRODUCT_PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
-const PRODUCT_PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 60 * 2;
+const PRODUCT_PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
 
 const formatPriceUah = (priceUah: number | null) => {
   if (priceUah == null) return "За запитом";
@@ -33,6 +34,7 @@ export default function ProductPurchasePanelClient(
 ) {
   const {
     initialPriceUah,
+    hasKnownPrice,
     isInStock,
     isModalView,
     lookupKeys,
@@ -50,10 +52,12 @@ export default function ProductPurchasePanelClient(
     return null;
   }, [initialPriceUah]);
   const [priceUah, setPriceUah] = useState<number | null | undefined>(
-    normalizedInitialPrice ?? undefined
+    normalizedInitialPrice ?? (hasKnownPrice ? undefined : null)
   );
 
   const requestUrl = useMemo(() => {
+    if (!hasKnownPrice && normalizedInitialPrice == null) return "";
+
     const params = new URLSearchParams();
 
     for (const key of lookupKeys) {
@@ -68,7 +72,7 @@ export default function ProductPurchasePanelClient(
 
     const serialized = params.toString();
     return serialized ? `/api/product-price?${serialized}` : "";
-  }, [isModalView, lookupKeys]);
+  }, [hasKnownPrice, isModalView, lookupKeys, normalizedInitialPrice]);
 
   const cacheKey = useMemo(
     () => (requestUrl ? `${PRODUCT_PRICE_CACHE_PREFIX}${requestUrl}` : ""),
@@ -77,7 +81,7 @@ export default function ProductPurchasePanelClient(
 
   useEffect(() => {
     if (!requestUrl) {
-      setPriceUah(normalizedInitialPrice);
+      setPriceUah(normalizedInitialPrice ?? null);
       return;
     }
 
@@ -219,37 +223,37 @@ export default function ProductPurchasePanelClient(
       ? "Замовлення доступне одразу зі сторінки."
       : "Надішліть запит менеджеру для уточнення ціни.";
   const statusCardClass = isInStock
-    ? "rounded-[18px] border border-emerald-200/90 bg-[linear-gradient(180deg,rgba(240,253,244,0.99),rgba(220,252,231,0.9))] px-3 py-2.5 shadow-[0_10px_22px_rgba(16,185,129,0.07)]"
-    : "rounded-[18px] border border-amber-200/90 bg-[linear-gradient(180deg,rgba(255,251,235,0.99),rgba(254,243,199,0.9))] px-3 py-2.5 shadow-[0_10px_22px_rgba(245,158,11,0.07)]";
-  const statusLabelClass = isInStock ? "text-emerald-700" : "text-amber-700";
-  const statusValueClass = isInStock ? "text-emerald-950" : "text-amber-950";
+    ? "rounded-[16px] border border-emerald-300/25 bg-[linear-gradient(160deg,rgba(6,78,59,0.34),rgba(2,6,23,0.94))] px-3 py-2.5 shadow-[0_16px_30px_rgba(2,6,23,0.26)]"
+    : "rounded-[16px] border border-amber-300/25 bg-[linear-gradient(160deg,rgba(146,64,14,0.28),rgba(2,6,23,0.94))] px-3 py-2.5 shadow-[0_16px_30px_rgba(2,6,23,0.26)]";
+  const statusLabelClass = isInStock ? "text-emerald-200" : "text-amber-200";
+  const statusValueClass = isInStock ? "text-white" : "text-white";
   const priceCardClass = isLoading
-    ? "rounded-[16px] border border-sky-200/90 bg-[linear-gradient(180deg,rgba(240,249,255,0.99),rgba(224,242,254,0.92))] px-3 py-2.5 shadow-[0_10px_24px_rgba(14,165,233,0.08)]"
+    ? "rounded-[16px] border border-sky-300/25 bg-[linear-gradient(160deg,rgba(14,165,233,0.24),rgba(15,23,42,0.94))] px-3 py-2.5 shadow-[0_16px_30px_rgba(2,6,23,0.26)]"
     : hasPrice
-      ? "rounded-[16px] border border-cyan-200/90 bg-[linear-gradient(180deg,rgba(236,254,255,0.99),rgba(207,250,254,0.92))] px-3 py-2.5 shadow-[0_12px_28px_rgba(6,182,212,0.1)]"
-      : "rounded-[16px] border border-rose-200/90 bg-[linear-gradient(180deg,rgba(255,241,242,0.99),rgba(255,228,230,0.92))] px-3 py-2.5 shadow-[0_10px_24px_rgba(244,63,94,0.08)]";
+      ? "rounded-[16px] border border-cyan-300/25 bg-[linear-gradient(160deg,rgba(6,182,212,0.24),rgba(15,23,42,0.94))] px-3 py-2.5 shadow-[0_16px_30px_rgba(2,6,23,0.26)]"
+      : "rounded-[16px] border border-rose-300/25 bg-[linear-gradient(160deg,rgba(225,29,72,0.26),rgba(15,23,42,0.94))] px-3 py-2.5 shadow-[0_16px_30px_rgba(2,6,23,0.26)]";
   const priceLabelClass = isLoading
-    ? "text-sky-700"
+    ? "text-sky-200"
     : hasPrice
-      ? "text-cyan-800"
-      : "text-rose-700";
+      ? "text-cyan-200"
+      : "text-rose-200";
   const priceValueClass = isLoading
-    ? "text-sky-950"
+    ? "text-white"
     : hasPrice
-      ? "text-cyan-950"
-      : "text-rose-950";
+      ? "text-white"
+      : "text-white";
   const panelIndicatorClass = isInStock
-    ? "bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.16)]"
-    : "bg-amber-400 shadow-[0_0_0_4px_rgba(251,191,36,0.16)]";
+    ? "bg-emerald-300 shadow-[0_0_0_4px_rgba(52,211,153,0.16)]"
+    : "bg-amber-300 shadow-[0_0_0_4px_rgba(251,191,36,0.16)]";
 
   return (
-    <div className="rounded-[22px] border border-cyan-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,252,255,0.97),rgba(237,250,255,0.93))] p-3 shadow-[0_20px_40px_rgba(14,165,233,0.1)]">
+    <div className="rounded-[22px] border border-cyan-400/18 bg-[linear-gradient(180deg,rgba(2,6,23,0.96),rgba(15,23,42,0.97),rgba(8,47,73,0.92))] p-3 text-white shadow-[0_24px_50px_rgba(2,6,23,0.35)]">
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-800">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200">
             Замовлення
           </p>
-          <p className="mt-0.5 text-[12px] font-medium leading-5 text-slate-500">
+          <p className="mt-0.5 text-[12px] font-medium leading-5 text-slate-300">
             Ціна та наявність
           </p>
         </div>
@@ -277,7 +281,7 @@ export default function ProductPurchasePanelClient(
         </div>
       </div>
 
-      <p className="mt-2.5 rounded-[16px] border border-white/90 bg-white/78 px-3 py-2 text-[12px] leading-5 text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+      <p className="mt-2.5 rounded-[16px] border border-white/10 bg-white/8 px-3 py-2 text-[12px] leading-5 text-slate-200 shadow-[0_8px_18px_rgba(2,6,23,0.18)]">
         {helperText}
       </p>
 

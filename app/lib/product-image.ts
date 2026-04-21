@@ -15,6 +15,11 @@ type ProductImageLookupOptions = {
   skipMissCache?: boolean;
 };
 
+type ProductImageBatchResponseMatch = {
+  resolved: Record<string, string>;
+  handledKeys: Set<string>;
+};
+
 const IMAGE_BASE64_FIELDS = [
   "image_base64",
   "imageBase64",
@@ -46,6 +51,49 @@ const IMAGE_URL_FIELDS = [
   "image_path",
 ];
 
+const IMAGE_BATCH_ENDPOINT_CANDIDATES = Array.from(
+  new Set(
+    [
+      (process.env.ONEC_IMAGE_BATCH_ENDPOINT || "").trim().toLowerCase(),
+      (process.env.ONEC_GETIMAGES_BATCH_ENDPOINT || "").trim().toLowerCase(),
+      "getimagesbatch",
+      "getimages_batch",
+      "getimagebatch",
+      "getphotosbatch",
+      "getphotobatch",
+      "getimagespack",
+    ].filter(Boolean)
+  )
+);
+
+const IMAGE_BATCH_RESULT_FIELDS = [
+  "items",
+  "results",
+  "data",
+  "images",
+  "Images",
+  "photos",
+  "Photos",
+];
+
+const IMAGE_BATCH_KEY_FIELDS = ["key", "Key", "imageKey", "ImageKey"];
+const IMAGE_BATCH_STATUS_FIELDS = ["status", "Status", "state", "State"];
+const IMAGE_BATCH_SUCCESS_FIELDS = [
+  "success",
+  "Success",
+  "found",
+  "Found",
+  "hasPhoto",
+  "HasPhoto",
+];
+const IMAGE_BATCH_CODE_FIELDS = ["code", "Code", "\u041a\u043e\u0434"];
+const IMAGE_BATCH_ARTICLE_FIELDS = [
+  "article",
+  "Article",
+  "\u0410\u0440\u0442\u0438\u043a\u0443\u043b",
+  "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443",
+];
+
 const DATA_URI_REGEX =
   /^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/_=\r\n\s-]+)$/i;
 const URL_LIKE_REGEX = /^(https?:)?\/\/|^\//i;
@@ -55,6 +103,9 @@ const imageMissCache = new Map<string, number>();
 const imageBase64Cache = new Map<string, { expiresAt: number; value: string }>();
 const imageInFlightCache = new Map<string, Promise<string | null>>();
 const IMAGE_URL_DOWNLOAD_TIMEOUT_MS = 1200;
+const IMAGE_BATCH_ENDPOINT_RETRY_TTL_MS = 1000 * 60 * 5;
+let resolvedImageBatchEndpoint: string | null | undefined;
+let lastImageBatchEndpointProbeAt = 0;
 
 const safeDecode = (value: string) => {
   try {
@@ -267,6 +318,257 @@ const fetchImageUrlAsBase64 = async (rawUrl: string) => {
   }
 };
 
+const readFirstStringField = (
+  record: Record<string, unknown>,
+  fields: string[]
+) => {
+  for (const field of fields) {
+    const value = record[field];
+    if (typeof value !== "string") continue;
+
+    const trimmed = safeTrim(value);
+    if (trimmed) return trimmed;
+  }
+
+  return "";
+};
+
+const readFirstBooleanField = (
+  record: Record<string, unknown>,
+  fields: string[]
+) => {
+  for (const field of fields) {
+    const value = record[field];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    if (typeof value !== "string") continue;
+
+    const normalized = safeTrim(value).toLowerCase();
+    if (!normalized) continue;
+    if (["true", "1", "yes", "y"].includes(normalized)) return true;
+    if (["false", "0", "no", "n"].includes(normalized)) return false;
+  }
+
+  return null;
+};
+
+const normalizeBatchStatus = (value: string) =>
+  safeTrim(value)
+    .toLowerCase()
+    .replace(/[-\s]+/g, "_");
+
+const isReadyBatchStatus = (value: string) =>
+  ["ready", "success", "found", "ok"].includes(normalizeBatchStatus(value));
+
+const isMissingBatchStatus = (value: string) =>
+  ["missing", "not_found", "miss", "empty"].includes(normalizeBatchStatus(value));
+
+const hasImageBatchEnvelope = (payload: unknown) => {
+  if (Array.isArray(payload)) return true;
+
+  const record = asRecord(payload);
+  if (!record) return false;
+
+  for (const field of IMAGE_BATCH_RESULT_FIELDS) {
+    if (Array.isArray(record[field])) return true;
+  }
+
+  return Boolean(
+    readFirstStringField(record, IMAGE_BATCH_KEY_FIELDS) ||
+      readFirstStringField(record, IMAGE_BATCH_CODE_FIELDS) ||
+      readFirstStringField(record, IMAGE_BATCH_ARTICLE_FIELDS) ||
+      readImageBase64(record)
+  );
+};
+
+const getImageBatchResultRecords = (payload: unknown) => {
+  if (Array.isArray(payload)) {
+    return payload
+      .map((entry) => asRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry));
+  }
+
+  const record = asRecord(payload);
+  if (!record) return [];
+
+  for (const field of IMAGE_BATCH_RESULT_FIELDS) {
+    const nested = record[field];
+    if (!Array.isArray(nested)) continue;
+
+    return nested
+      .map((entry) => asRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry));
+  }
+
+  if (
+    readFirstStringField(record, IMAGE_BATCH_KEY_FIELDS) ||
+    readFirstStringField(record, IMAGE_BATCH_CODE_FIELDS) ||
+    readFirstStringField(record, IMAGE_BATCH_ARTICLE_FIELDS) ||
+    readImageBase64(record)
+  ) {
+    return [record];
+  }
+
+  return [];
+};
+
+const parseImageBatchResponse = (
+  payload: unknown,
+  requestedKeys: Set<string>
+): ProductImageBatchResponseMatch | null => {
+  if (!hasImageBatchEnvelope(payload)) return null;
+
+  const records = getImageBatchResultRecords(payload);
+  const resolved: Record<string, string> = {};
+  const handledKeys = new Set<string>();
+
+  for (const record of records) {
+    const explicitKey = readFirstStringField(record, IMAGE_BATCH_KEY_FIELDS).toLowerCase();
+    const code = readFirstStringField(record, IMAGE_BATCH_CODE_FIELDS).toLowerCase();
+    const article = readFirstStringField(record, IMAGE_BATCH_ARTICLE_FIELDS).toLowerCase();
+    const matchedKey = [explicitKey, code, article].find(
+      (candidate) => candidate && requestedKeys.has(candidate)
+    );
+
+    if (!matchedKey) continue;
+
+    const imageBase64 = readImageBase64(record);
+    const status = readFirstStringField(record, IMAGE_BATCH_STATUS_FIELDS);
+    const success = readFirstBooleanField(record, IMAGE_BATCH_SUCCESS_FIELDS);
+
+    if (imageBase64 && (isReadyBatchStatus(status) || success !== false || !status)) {
+      resolved[matchedKey] = imageBase64;
+      handledKeys.add(matchedKey);
+      continue;
+    }
+
+    if (!imageBase64 && (isMissingBatchStatus(status) || success === false)) {
+      handledKeys.add(matchedKey);
+    }
+  }
+
+  return { resolved, handledKeys };
+};
+
+const buildImageMissCacheKey = (
+  lookupKey: string,
+  timeoutMs: number,
+  allowUrlDownload: boolean
+) => `${lookupKey.toLowerCase()}::${timeoutMs}::${allowUrlDownload ? "1" : "0"}`;
+
+const fetchProductImageBase64BatchFromEndpoint = async (
+  lookupKeys: string[],
+  options?: ProductImageLookupOptions
+): Promise<ProductImageBatchResponseMatch | null> => {
+  if (lookupKeys.length === 0) {
+    return {
+      resolved: {},
+      handledKeys: new Set<string>(),
+    };
+  }
+
+  const timeoutMs =
+    Number.isFinite(options?.timeoutMs) && (options?.timeoutMs || 0) > 0
+      ? Math.floor(options?.timeoutMs as number)
+      : 9000;
+  const retries =
+    Number.isFinite(options?.retries) && (options?.retries || 0) >= 0
+      ? Math.floor(options?.retries as number)
+      : 0;
+  const retryDelayMs =
+    Number.isFinite(options?.retryDelayMs) && (options?.retryDelayMs || 0) >= 0
+      ? Math.floor(options?.retryDelayMs as number)
+      : 250;
+  const cacheTtlMs =
+    Number.isFinite(options?.cacheTtlMs) && (options?.cacheTtlMs || 0) > 0
+      ? Math.floor(options?.cacheTtlMs as number)
+      : 1000 * 60 * 60;
+  const missCacheTtlMs =
+    Number.isFinite(options?.missCacheTtlMs) && (options?.missCacheTtlMs || 0) > 0
+      ? Math.floor(options?.missCacheTtlMs as number)
+      : 1000 * 60 * 20;
+  const allowUrlDownload = options?.allowUrlDownload !== false;
+  const skipMissCache = options?.skipMissCache === true;
+  const requestedKeys = new Set(lookupKeys.map((lookupKey) => lookupKey.toLowerCase()));
+  const requestItems = lookupKeys.map((lookupKey) => ({
+    key: lookupKey.toLowerCase(),
+    code: lookupKey,
+    article: lookupKey,
+  }));
+
+  const endpoints =
+    typeof resolvedImageBatchEndpoint === "string" && resolvedImageBatchEndpoint
+      ? [
+          resolvedImageBatchEndpoint,
+          ...IMAGE_BATCH_ENDPOINT_CANDIDATES.filter(
+            (endpoint) => endpoint !== resolvedImageBatchEndpoint
+          ),
+        ]
+      : resolvedImageBatchEndpoint === null &&
+          Date.now() - lastImageBatchEndpointProbeAt < IMAGE_BATCH_ENDPOINT_RETRY_TTL_MS
+        ? []
+        : IMAGE_BATCH_ENDPOINT_CANDIDATES;
+
+  for (const endpoint of endpoints) {
+    const response = await oneCRequest(endpoint, {
+      method: "POST",
+      body: { items: requestItems },
+      timeoutMs,
+      retries,
+      retryDelayMs,
+      cacheTtlMs,
+      cacheKey: JSON.stringify({
+        endpoint,
+        timeoutMs,
+        retries,
+        retryDelayMs,
+        items: requestItems.map((item) => [item.key, item.code]),
+      }),
+    }).catch(() => null);
+
+    if (!response || response.status < 200 || response.status >= 300) continue;
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(safeTrim(response.text || "")) as unknown;
+    } catch {
+      continue;
+    }
+
+    const parsed = parseImageBatchResponse(payload, requestedKeys);
+    if (!parsed) continue;
+
+    resolvedImageBatchEndpoint = endpoint;
+    lastImageBatchEndpointProbeAt = 0;
+
+    for (const [lookupKey, imageBase64] of Object.entries(parsed.resolved)) {
+      imageBase64Cache.set(lookupKey.toLowerCase(), {
+        value: imageBase64,
+        expiresAt: Date.now() + cacheTtlMs,
+      });
+    }
+
+    if (!skipMissCache) {
+      for (const handledKey of parsed.handledKeys) {
+        if (parsed.resolved[handledKey]) continue;
+        imageMissCache.set(
+          buildImageMissCacheKey(handledKey, timeoutMs, allowUrlDownload),
+          Date.now() + missCacheTtlMs
+        );
+      }
+    }
+
+    return parsed;
+  }
+
+  if (typeof resolvedImageBatchEndpoint !== "string") {
+    resolvedImageBatchEndpoint = null;
+    lastImageBatchEndpointProbeAt = Date.now();
+  }
+
+  return null;
+};
+
 export const fetchProductImageBase64 = async (
   codeOrArticle: string,
   options?: ProductImageLookupOptions
@@ -306,7 +608,11 @@ export const fetchProductImageBase64 = async (
     allowUrlDownload ? 1 : 0,
     skipMissCache ? 1 : 0,
   ].join("::");
-  const missCacheKey = `${normalized.toLowerCase()}::${timeoutMs}::${allowUrlDownload ? "1" : "0"}`;
+  const missCacheKey = buildImageMissCacheKey(
+    normalized,
+    timeoutMs,
+    allowUrlDownload
+  );
 
   const cachedPositive = imageBase64Cache.get(positiveCacheKey);
   if (cachedPositive && cachedPositive.expiresAt > Date.now() && cachedPositive.value) {
@@ -459,19 +765,39 @@ export const fetchProductImageBase64Batch = async (
   }
 
   const resolved = new Map<string, string>();
+  const batchResponse = await fetchProductImageBase64BatchFromEndpoint(
+    normalizedKeys,
+    options
+  ).catch(() => null);
+
+  if (batchResponse) {
+    for (const [lookupKey, imageBase64] of Object.entries(batchResponse.resolved)) {
+      if (!imageBase64) continue;
+      resolved.set(lookupKey.toLowerCase(), imageBase64);
+    }
+  }
+
+  const remainingKeys = normalizedKeys.filter(
+    (lookupKey) => !batchResponse?.handledKeys.has(lookupKey.toLowerCase())
+  );
+
+  if (remainingKeys.length === 0) {
+    return Object.fromEntries(resolved);
+  }
+
   let cursor = 0;
   const workerCount = Math.min(
     Number.isFinite(options?.batchConcurrency) && (options?.batchConcurrency || 0) > 0
       ? Math.floor(options?.batchConcurrency as number)
       : 4,
-    normalizedKeys.length
+    remainingKeys.length
   );
   const workers = Array.from({ length: workerCount }, async () => {
-    while (cursor < normalizedKeys.length) {
+    while (cursor < remainingKeys.length) {
       const currentIndex = cursor;
       cursor += 1;
 
-      const key = normalizedKeys[currentIndex];
+      const key = remainingKeys[currentIndex];
       const imageBase64 = await fetchProductImageBase64(key, options).catch(() => null);
       if (typeof imageBase64 === "string" && imageBase64) {
         resolved.set(key.toLowerCase(), imageBase64);

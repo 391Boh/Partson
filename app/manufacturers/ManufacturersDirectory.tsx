@@ -18,6 +18,9 @@ type ManufacturerItem = {
   initials: string;
   description: string | null;
   logoPath: string | null;
+  productCount: number;
+  groupsCount: number;
+  categoriesCount: number;
 };
 
 interface ManufacturersDirectoryProps {
@@ -100,6 +103,23 @@ const ManufacturerCard = memo(function ManufacturerCard({
               <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600 transition-colors duration-500 ease-out group-hover:text-slate-700 group-focus-visible:text-slate-700">
                 {buildManufacturerCardDescription(item)}
               </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {item.productCount > 0 ? (
+                  <span className="rounded-full border border-sky-100 bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
+                    {item.productCount.toLocaleString("uk-UA")} товарів
+                  </span>
+                ) : null}
+                {item.groupsCount > 0 ? (
+                  <span className="rounded-full border border-cyan-100 bg-cyan-50/90 px-2.5 py-1 text-[11px] font-semibold text-cyan-800">
+                    {item.groupsCount.toLocaleString("uk-UA")} груп
+                  </span>
+                ) : null}
+                {item.categoriesCount > 0 ? (
+                  <span className="rounded-full border border-slate-200 bg-slate-50/90 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                    {item.categoriesCount.toLocaleString("uk-UA")} категорій
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
 

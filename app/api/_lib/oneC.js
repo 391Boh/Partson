@@ -115,6 +115,12 @@ export function getOneCTimeoutMs(endpoint) {
       return 25000;
     case "prices":
     case "getimages":
+    case "getimagesbatch":
+    case "getimages_batch":
+    case "getimagebatch":
+    case "getphotosbatch":
+    case "getphotobatch":
+    case "getimagespack":
       return 18000;
     case "getprod":
     case "getauto":

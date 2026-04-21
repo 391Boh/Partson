@@ -2,14 +2,13 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { ChevronRight, FolderTree, Layers3 } from "lucide-react";
 
-import { getCatalogSeoFacets } from "app/lib/catalog-seo";
+import { getCatalogSeoFacetsWithTimeout } from "app/lib/catalog-seo";
 import CatalogHubHero from "app/components/CatalogHubHero";
 import GroupsDirectoryClient, {
   type GroupsDirectoryItem,
 } from "app/groups/GroupsDirectoryClient";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
-import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
@@ -20,13 +19,8 @@ const catalogShellClass = "page-shell-inline";
 
 const groupsDescription =
   "Категорії, групи та підгрупи автозапчастин у каталозі PartsON. Обирайте потрібний розділ для швидкого підбору і купівлі автозапчастин з доставкою по Україні.";
-const GROUPS_TREE_TIMEOUT_MS = 1600;
 const EMPTY_DATASET = { groups: [], labels: [] };
-const EMPTY_SEO_FACETS: Awaited<ReturnType<typeof getCatalogSeoFacets>> = {
-  groups: [],
-  producers: [],
-  generatedAt: "",
-};
+const GROUPS_PAGE_SEO_FACETS_TIMEOUT_MS = 220;
 
 const buildGroupsPageDescription = (
   groupCount: number,
@@ -49,16 +43,8 @@ const buildGroupsPageDescription = (
 
 const getGroupsPageData = cache(async () => {
   const [dataset, seoFacets] = await Promise.all([
-    resolveWithTimeout(
-      () => getProductTreeDataset().catch(() => EMPTY_DATASET),
-      EMPTY_DATASET,
-      GROUPS_TREE_TIMEOUT_MS
-    ),
-    resolveWithTimeout(
-      () => getCatalogSeoFacets().catch(() => EMPTY_SEO_FACETS),
-      EMPTY_SEO_FACETS,
-      GROUPS_TREE_TIMEOUT_MS
-    ),
+    getProductTreeDataset().catch(() => EMPTY_DATASET),
+    getCatalogSeoFacetsWithTimeout(GROUPS_PAGE_SEO_FACETS_TIMEOUT_MS),
   ]);
 
   const groupLookup = buildSeoGroupLookup(seoFacets.groups);
