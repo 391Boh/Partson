@@ -174,6 +174,9 @@ const readFirstNumber = (
   return fallback;
 };
 
+const hasAnyField = (source: Record<string, unknown>, keys: readonly string[]) =>
+  keys.some((key) => Object.prototype.hasOwnProperty.call(source, key));
+
 const readFirstBoolean = (
   source: Record<string, unknown>,
   keys: readonly string[],
@@ -204,7 +207,10 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
   const name = readFirstString(record, NAME_FIELDS) || code || article || "Товар";
   const producer = readFirstString(record, PRODUCER_FIELDS);
   const quantity = readFirstNumber(record, QTY_FIELDS, 0);
-  const priceEuro = readFirstNumber(record, PRICE_FIELDS, Number.NaN);
+  const hasPriceField = hasAnyField(record, PRICE_FIELDS);
+  const priceEuro = hasPriceField
+    ? readFirstNumber(record, PRICE_FIELDS, Number.NaN)
+    : Number.NaN;
   const group = readFirstString(record, GROUP_FIELDS);
   const subGroup = readFirstString(record, SUBGROUP_FIELDS);
   const category = readFirstString(record, CATEGORY_FIELDS);
@@ -217,7 +223,11 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
     name,
     producer,
     quantity: Number.isFinite(quantity) ? quantity : 0,
-    priceEuro: Number.isFinite(priceEuro) && priceEuro > 0 ? priceEuro : null,
+    priceEuro: hasPriceField
+      ? Number.isFinite(priceEuro) && priceEuro > 0
+        ? priceEuro
+        : null
+      : undefined,
     group,
     subGroup,
     category,

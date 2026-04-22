@@ -1,14 +1,10 @@
-import { cache } from "react";
 import type { Metadata } from "next";
 import { ChevronRight, FolderTree, Layers3 } from "lucide-react";
 
-import { getCatalogSeoFacetsWithTimeout } from "app/lib/catalog-seo";
 import CatalogHubHero from "app/components/CatalogHubHero";
-import GroupsDirectoryClient, {
-  type GroupsDirectoryItem,
-} from "app/groups/GroupsDirectoryClient";
-import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
-import { getProductTreeDataset } from "app/lib/product-tree";
+import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
+import GroupsDirectoryClient from "app/groups/GroupsDirectoryClient";
+import { getFastGroupsDirectoryData } from "app/lib/groups-directory-data";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
@@ -19,8 +15,6 @@ const catalogShellClass = "page-shell-inline";
 
 const groupsDescription =
   "Категорії, групи та підгрупи автозапчастин у каталозі PartsON. Обирайте потрібний розділ для швидкого підбору і купівлі автозапчастин з доставкою по Україні.";
-const EMPTY_DATASET = { groups: [], labels: [] };
-const GROUPS_PAGE_SEO_FACETS_TIMEOUT_MS = 220;
 
 const buildGroupsPageDescription = (
   groupCount: number,
@@ -41,68 +35,13 @@ const buildGroupsPageDescription = (
   return `Категорії та групи автозапчастин PartsON: ${countSummary} для швидкого підбору, переходу в каталог і купівлі автозапчастин з доставкою по Україні.${indexedSummary}`;
 };
 
-const getGroupsPageData = cache(async () => {
-  const [dataset, seoFacets] = await Promise.all([
-    getProductTreeDataset().catch(() => EMPTY_DATASET),
-    getCatalogSeoFacetsWithTimeout(GROUPS_PAGE_SEO_FACETS_TIMEOUT_MS),
-  ]);
-
-  const groupLookup = buildSeoGroupLookup(seoFacets.groups);
-  const clientGroups: GroupsDirectoryItem[] = dataset.groups.map((group) => {
-    const counts = resolveGroupSeoCounts(group, groupLookup);
-
-    return {
-      label: group.label,
-      slug: group.slug,
-      productCount: counts.productCount,
-      subgroupsCount: counts.subgroupsCount,
-      subgroups: group.subgroups.map((subgroup) => ({
-        label: subgroup.label,
-        slug: subgroup.slug,
-        productCount: counts.subgroupProductCounts.get(subgroup.slug) ?? 0,
-        children: (Array.isArray(subgroup.children) ? subgroup.children : []).map((child) => ({
-          label: child.label,
-          slug: child.slug,
-        })),
-      })),
-    };
-  });
-
-  const totalGroups = clientGroups.length;
-  const totalSubgroups = clientGroups.reduce(
-    (sum, group) => sum + group.subgroupsCount,
-    0
-  );
-  const totalThirdLevelItems = clientGroups.reduce(
-    (sum, group) =>
-      sum +
-      group.subgroups.reduce(
-        (innerSum, subgroup) => innerSum + subgroup.children.length,
-        0
-      ),
-    0
-  );
-  const totalProductCount = clientGroups.reduce(
-    (sum, group) => sum + group.productCount,
-    0
-  );
-
-  return {
-    clientGroups,
-    totalGroups,
-    totalSubgroups,
-    totalThirdLevelItems,
-    totalProductCount,
-  };
-});
-
 export async function generateMetadata(): Promise<Metadata> {
   const {
     totalGroups,
     totalSubgroups,
     totalThirdLevelItems,
     totalProductCount,
-  } = await getGroupsPageData();
+  } = await getFastGroupsDirectoryData();
   const description = buildGroupsPageDescription(
     totalGroups,
     totalSubgroups,
@@ -138,7 +77,8 @@ export default async function GroupsPage() {
     totalSubgroups,
     totalThirdLevelItems,
     totalProductCount,
-  } = await getGroupsPageData();
+    hasProductCounts,
+  } = await getFastGroupsDirectoryData();
 
   const hasResolvedGroups = totalGroups > 0;
 
@@ -190,7 +130,7 @@ export default async function GroupsPage() {
   };
 
   return (
-    <main className="relative bg-[image:radial-gradient(circle_at_8%_0%,rgba(56,189,248,0.22),transparent_38%),radial-gradient(circle_at_92%_2%,rgba(34,211,238,0.2),transparent_36%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] text-slate-900 select-none [&_input]:select-text [&_textarea]:select-text">
+    <main className={catalogPageBackgroundClass}>
       <div className="relative">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-sky-200/25 via-cyan-100/10 to-transparent" />
 
@@ -204,9 +144,9 @@ export default async function GroupsPage() {
             highlights={[
               `${totalGroupsLabel} груп у структурі`,
               `${totalSubgroups.toLocaleString("uk-UA")} підгруп у каталозі`,
-              totalProductCount > 0
+              hasProductCounts
                 ? `${totalProductCount.toLocaleString("uk-UA")} товарів у групах`
-                : "Охайна навігація без зайвих кроків",
+                : "Лічильники товарів догружаються з кешу",
             ]}
             stats={[
               {
@@ -220,9 +160,9 @@ export default async function GroupsPage() {
                 icon: FolderTree,
               },
               {
-                label: "Товари",
+                label: hasProductCounts ? "Товари" : "Категорії",
                 value:
-                  totalProductCount > 0
+                  hasProductCounts
                     ? totalProductCount.toLocaleString("uk-UA")
                     : totalThirdLevelItems.toLocaleString("uk-UA"),
                 icon: ChevronRight,
@@ -253,6 +193,7 @@ export default async function GroupsPage() {
           items={clientGroups}
           totalSubgroups={totalSubgroups}
           totalProductCount={totalProductCount}
+          hasProductCounts={hasProductCounts}
         />
       ) : (
         <section className="relative pb-2 pt-0 sm:pb-3">

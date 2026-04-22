@@ -4,6 +4,7 @@ import { ArrowRight, CarFront, Factory, Layers3 } from "lucide-react";
 
 import AutoBrandsDirectoryClient from "app/auto/AutoBrandsDirectoryClient";
 import CatalogHubHero from "app/components/CatalogHubHero";
+import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import { carBrands } from "app/components/carBrands";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
@@ -74,7 +75,7 @@ export default function AutoPage() {
   };
 
   return (
-    <main className="relative overflow-hidden bg-[radial-gradient(circle_at_8%_0%,rgba(56,189,248,0.22),transparent_38%),radial-gradient(circle_at_92%_2%,rgba(34,211,238,0.2),transparent_36%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] pb-6 pt-3 text-slate-900 sm:pb-8 lg:pb-10">
+    <main className={`${catalogPageBackgroundClass} overflow-hidden pb-6 pt-3 sm:pb-8 lg:pb-10`}>
       <Script
         id="auto-page-jsonld"
         type="application/ld+json"

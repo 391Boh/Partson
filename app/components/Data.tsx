@@ -51,7 +51,7 @@ export interface Product {
 const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v13-photo-price-flag";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v14-price-unknown-state";
 const PRICE_CACHE_PREFIX = "partson:v8:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -184,6 +184,9 @@ const readFirstNumber = (
   }
   return fallback;
 };
+
+const hasAnyField = (source: Record<string, unknown>, keys: readonly string[]) =>
+  keys.some((key) => Object.prototype.hasOwnProperty.call(source, key));
 
 const readFirstBoolean = (
   source: Record<string, unknown>,
@@ -407,7 +410,10 @@ const normalizeProduct = (raw: unknown): Product => {
     return trimmed;
   })();
   const quantity = readFirstNumber(record, QTY_FIELDS, 0);
-  const priceEuro = readFirstNumber(record, PRICE_VALUE_FIELDS, Number.NaN);
+  const hasPriceField = hasAnyField(record, PRICE_VALUE_FIELDS);
+  const priceEuro = hasPriceField
+    ? readFirstNumber(record, PRICE_VALUE_FIELDS, Number.NaN)
+    : Number.NaN;
 
   const group = readFirstString(record, GROUP_FIELDS);
   const subGroup = readFirstString(record, SUBGROUP_FIELDS);
@@ -427,7 +433,11 @@ const normalizeProduct = (raw: unknown): Product => {
     name,
     producer,
     quantity,
-    priceEuro: Number.isFinite(priceEuro) && priceEuro > 0 ? priceEuro : null,
+    priceEuro: hasPriceField
+      ? Number.isFinite(priceEuro) && priceEuro > 0
+        ? priceEuro
+        : null
+      : undefined,
     group,
     subGroup,
     category,

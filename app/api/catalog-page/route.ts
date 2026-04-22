@@ -45,7 +45,7 @@ const toPositiveInt = (value: unknown, fallback: number) => {
 
 const buildRouteCacheKey = (body: Record<string, unknown>) =>
   JSON.stringify({
-    source: "allgoods-photo-price-flag:v1",
+    source: "allgoods-photo-price-unknown-state:v2",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -154,6 +154,8 @@ const buildInlinePrices = (
 
   for (const item of items) {
     const price = item?.priceEuro;
+    if (price === undefined) continue;
+
     const resolvedPrice =
       typeof price === "number" && Number.isFinite(price) && price > 0
         ? price

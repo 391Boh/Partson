@@ -8,7 +8,7 @@ type ProductPurchasePanelClientProps = {
   lookupKeys: string[];
   isModalView: boolean;
   initialPriceUah?: number | null;
-  hasKnownPrice: boolean;
+  hasKnownNoPrice: boolean;
   resolvedCode: string;
   product: {
     code: string;
@@ -34,7 +34,7 @@ export default function ProductPurchasePanelClient(
 ) {
   const {
     initialPriceUah,
-    hasKnownPrice,
+    hasKnownNoPrice,
     isInStock,
     isModalView,
     lookupKeys,
@@ -52,11 +52,12 @@ export default function ProductPurchasePanelClient(
     return null;
   }, [initialPriceUah]);
   const [priceUah, setPriceUah] = useState<number | null | undefined>(
-    normalizedInitialPrice ?? (hasKnownPrice ? undefined : null)
+    normalizedInitialPrice ?? (hasKnownNoPrice ? null : undefined)
   );
 
   const requestUrl = useMemo(() => {
-    if (!hasKnownPrice && normalizedInitialPrice == null) return "";
+    if (normalizedInitialPrice != null) return "";
+    if (hasKnownNoPrice) return "";
 
     const params = new URLSearchParams();
 
@@ -72,7 +73,7 @@ export default function ProductPurchasePanelClient(
 
     const serialized = params.toString();
     return serialized ? `/api/product-price?${serialized}` : "";
-  }, [hasKnownPrice, isModalView, lookupKeys, normalizedInitialPrice]);
+  }, [hasKnownNoPrice, isModalView, lookupKeys, normalizedInitialPrice]);
 
   const cacheKey = useMemo(
     () => (requestUrl ? `${PRODUCT_PRICE_CACHE_PREFIX}${requestUrl}` : ""),

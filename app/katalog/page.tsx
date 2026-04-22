@@ -46,6 +46,8 @@ const buildInlinePrices = (
 
   for (const item of items) {
     const price = item?.priceEuro;
+    if (price === undefined) continue;
+
     const resolvedPrice =
       typeof price === "number" && Number.isFinite(price) && price > 0
         ? price

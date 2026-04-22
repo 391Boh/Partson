@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
-import { getCatalogSeoFacetsWithTimeout } from "app/lib/catalog-seo";
+import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import {
   buildCatalogCategoryPath,
   buildGroupItemPath,
@@ -18,7 +18,6 @@ import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
-const GROUP_PAGE_SEO_FACETS_TIMEOUT_MS = 220;
 
 interface GroupPageParams {
   slug: string;
@@ -55,7 +54,7 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
 const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null> => {
   const [dataset, seoFacets] = await Promise.all([
     getProductTreeDataset().catch(() => null),
-    getCatalogSeoFacetsWithTimeout(GROUP_PAGE_SEO_FACETS_TIMEOUT_MS),
+    getCatalogSeoFacets().catch(() => ({ groups: [], producers: [], generatedAt: "" })),
   ]);
   const group = dataset?.groups.find(
     (item) => item.slug === slug || item.legacySlug === slug
@@ -141,7 +140,8 @@ const buildGroupPagePath = (slug: string) => `/groups/${encodeURIComponent(slug)
 export async function generateStaticParams() {
   try {
     const dataset = await getProductTreeDataset();
-    const limit = parsePositiveInt(process.env.SEO_GROUP_STATIC_PARAMS_LIMIT, 4000);
+    const limit = parsePositiveInt(process.env.SEO_GROUP_STATIC_PARAMS_LIMIT, 0);
+    if (limit <= 0) return [];
     return dataset.groups.slice(0, limit).map((group) => ({ slug: group.slug }));
   } catch {
     return [];

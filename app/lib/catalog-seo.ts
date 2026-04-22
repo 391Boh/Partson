@@ -157,6 +157,7 @@ const toFacetList = (source: FacetCounterMap): SeoFacetItem[] =>
 type GroupHierarchyLookup = {
   groups: Set<string>;
   subgroups: Set<string>;
+  children: Set<string>;
 };
 
 const normalizeHierarchyKey = (value: string | null | undefined) =>
@@ -167,6 +168,7 @@ const buildGroupHierarchyLookup = (
 ): GroupHierarchyLookup => {
   const groups = new Set<string>();
   const subgroups = new Set<string>();
+  const children = new Set<string>();
 
   for (const group of dataset?.groups ?? []) {
     const groupKey = normalizeHierarchyKey(group.label);
@@ -175,13 +177,18 @@ const buildGroupHierarchyLookup = (
     for (const subgroup of group.subgroups ?? []) {
       const subgroupKey = normalizeHierarchyKey(subgroup.label);
       if (subgroupKey) subgroups.add(subgroupKey);
+
+      for (const child of subgroup.children ?? []) {
+        const childKey = normalizeHierarchyKey(child.label);
+        if (childKey) children.add(childKey);
+      }
     }
   }
 
-  return { groups, subgroups };
+  return { groups, subgroups, children };
 };
 
-const resolveFacetGroupAndSubgroup = (
+const resolveFacetHierarchy = (
   product: CatalogProduct,
   lookup: GroupHierarchyLookup
 ) => {
@@ -191,11 +198,20 @@ const resolveFacetGroupAndSubgroup = (
 
   let group = rawGroup || rawCategory;
   let subgroup = "";
+  let category = "";
 
   if (rawSubgroup && rawSubgroup.toLowerCase() !== group.toLowerCase()) {
     subgroup = rawSubgroup;
   } else if (rawCategory && rawCategory.toLowerCase() !== group.toLowerCase()) {
     subgroup = rawCategory;
+  }
+
+  if (
+    rawCategory &&
+    rawCategory.toLowerCase() !== group.toLowerCase() &&
+    rawCategory.toLowerCase() !== subgroup.toLowerCase()
+  ) {
+    category = rawCategory;
   }
 
   // Some 1C rows come with swapped fields: group contains a subgroup,
@@ -209,10 +225,12 @@ const resolveFacetGroupAndSubgroup = (
     if (looksSwapped) {
       group = rawCategory;
       subgroup = rawGroup;
+      category = "";
     }
   }
 
-  return { group, subgroup };
+  const leaf = category || subgroup;
+  return { group, subgroup, category, leaf };
 };
 
 const resolveProductKey = (product: CatalogProduct) => {
@@ -264,7 +282,7 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
       const productKey = resolveProductKey(product);
       if (!productKey) continue;
 
-      const { group, subgroup } = resolveFacetGroupAndSubgroup(
+      const { group, leaf } = resolveFacetHierarchy(
         product,
         hierarchyLookup
       );
@@ -275,8 +293,8 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
         registerFacetProduct(groupCounts, group, productKey);
       }
 
-      if (group && subgroup) {
-        registerNestedFacetProduct(groupSubgroupCounts, group, subgroup, productKey);
+      if (group && leaf) {
+        registerNestedFacetProduct(groupSubgroupCounts, group, leaf, productKey);
       }
 
       if (producer) {
@@ -287,12 +305,12 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
         registerNestedFacetProduct(producerGroupCounts, producer, group, productKey);
       }
 
-      if (producer && group && subgroup) {
+      if (producer && group && leaf) {
         registerDoubleNestedFacetProduct(
           producerGroupSubgroupCounts,
           producer,
           group,
-          subgroup,
+          leaf,
           productKey
         );
       }
@@ -356,7 +374,7 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
 
 const collectSeoFacetsWithRevalidate = unstable_cache(
   buildCatalogSeoFacets,
-  ["catalog-seo-facets-v10-hierarchy-swap-guard"],
+  ["catalog-seo-facets-v11-leaf-category-counts"],
   {
     revalidate: 60 * 60 * 6,
     tags: ["catalog-seo-facets"],
@@ -396,7 +414,6 @@ export const findSeoProducerBySlug = cache(async (slug: string) => {
   const data = await getCatalogSeoFacets();
   return data.producers.find((producer) => slugCandidates.includes(producer.slug)) || null;
 });
-
 
 
 

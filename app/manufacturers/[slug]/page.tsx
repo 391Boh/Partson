@@ -27,12 +27,11 @@ import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 21600;
 export const dynamicParams = true;
-const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 96;
+const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 0;
 const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
-const MANUFACTURER_FACET_LOOKUP_TIMEOUT_MS = 260;
-const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 480;
-const MANUFACTURER_FALLBACK_MAX_PAGES_DEFAULT = 1;
-const MANUFACTURER_FALLBACK_MAX_ITEMS_DEFAULT = 120;
+const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 2400;
+const MANUFACTURER_FALLBACK_MAX_PAGES_DEFAULT = 40;
+const MANUFACTURER_FALLBACK_MAX_ITEMS_DEFAULT = 4800;
 
 interface ManufacturerPageParams {
   slug: string;
@@ -185,6 +184,7 @@ const resolveSubgroupLabel = (item: {
 type GroupHierarchyLookup = {
   groups: Set<string>;
   subgroups: Set<string>;
+  children: Set<string>;
 };
 
 const normalizeHierarchyKey = (value: string | null | undefined) =>
@@ -195,6 +195,7 @@ const buildGroupHierarchyLookup = (
 ): GroupHierarchyLookup => {
   const groups = new Set<string>();
   const subgroups = new Set<string>();
+  const children = new Set<string>();
 
   for (const group of dataset?.groups ?? []) {
     const groupKey = normalizeHierarchyKey(group.label);
@@ -203,10 +204,15 @@ const buildGroupHierarchyLookup = (
     for (const subgroup of group.subgroups ?? []) {
       const subgroupKey = normalizeHierarchyKey(subgroup.label);
       if (subgroupKey) subgroups.add(subgroupKey);
+
+      for (const child of subgroup.children ?? []) {
+        const childKey = normalizeHierarchyKey(child.label);
+        if (childKey) children.add(childKey);
+      }
     }
   }
 
-  return { groups, subgroups };
+  return { groups, subgroups, children };
 };
 
 const resolveFacetGroupAndSubgroup = (
@@ -219,11 +225,20 @@ const resolveFacetGroupAndSubgroup = (
 
   let group = rawGroup || rawCategory;
   let subgroup = "";
+  let category = "";
 
   if (rawSubgroup && rawSubgroup.toLowerCase() !== group.toLowerCase()) {
     subgroup = rawSubgroup;
   } else if (rawCategory && rawCategory.toLowerCase() !== group.toLowerCase()) {
     subgroup = rawCategory;
+  }
+
+  if (
+    rawCategory &&
+    rawCategory.toLowerCase() !== group.toLowerCase() &&
+    rawCategory.toLowerCase() !== subgroup.toLowerCase()
+  ) {
+    category = rawCategory;
   }
 
   if (!rawSubgroup && rawGroup && rawCategory) {
@@ -235,10 +250,11 @@ const resolveFacetGroupAndSubgroup = (
     if (looksSwapped) {
       group = rawCategory;
       subgroup = rawGroup;
+      category = "";
     }
   }
 
-  return { group, subgroup };
+  return { group, subgroup: category || subgroup };
 };
 
 const collectProducerFallbackStats = cache(async (producerLabel: string) => {
@@ -408,11 +424,7 @@ const getManufacturerBySlug = cache(
   async (slug: string): Promise<ManufacturerPageData | null> => {
     const fallbackBrand =
       brands.find((brand) => buildSeoSlug(brand.name) === slug) || null;
-    const producer = await resolveWithTimeout(
-      () => findSeoProducerBySlug(slug),
-      null,
-      MANUFACTURER_FACET_LOOKUP_TIMEOUT_MS
-    );
+    const producer = await findSeoProducerBySlug(slug).catch(() => null);
     if (!producer && !fallbackBrand) return null;
 
     const label = producer?.label || fallbackBrand?.name || "";
@@ -470,7 +482,6 @@ const getManufacturerBySlug = cache(
       topGroupsProducts
     );
     const shouldUseFallbackCounts =
-      Boolean(producer) &&
       !(productCount > 0 && groupsCount > 0 && (categoriesCount > 0 || topGroups.length > 0));
     const fallbackCounts = shouldUseFallbackCounts
       ? await resolveWithTimeout<

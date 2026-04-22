@@ -1711,7 +1711,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                       lookupKeys={lookupKeys}
                       isModalView={isModalView}
                       initialPriceUah={initialPriceUah}
-                      hasKnownPrice={inlineInitialPriceEuro != null}
+                      hasKnownNoPrice={product.priceEuro === null}
                       resolvedCode={resolvedCode}
                       product={product}
                       isInStock={isInStock}

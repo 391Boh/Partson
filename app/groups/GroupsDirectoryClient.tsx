@@ -1,10 +1,24 @@
 "use client";
 
 import Image from "next/image";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { ChevronRight, FolderTree, Search, X } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
+import {
+  directoryActionIconClass,
+  directoryBadgeClass,
+  directoryCardClass,
+  directoryDescriptionClass,
+  directoryHeaderClass,
+  directoryIconTileClass,
+  directoryMetricAccentClass,
+  directoryMetricClass,
+  directoryPanelClass,
+  directoryPrimaryButtonClass,
+  directorySearchInputClass,
+  directoryTitleClass,
+} from "app/components/catalog-directory-styles";
 import SmartLink from "app/components/SmartLink";
 import { buildGroupItemPath, buildGroupPath } from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
@@ -30,7 +44,15 @@ interface GroupsDirectoryClientProps {
   items: GroupsDirectoryItem[];
   totalSubgroups: number;
   totalProductCount: number;
+  hasProductCounts: boolean;
 }
+
+type GroupCountsApiPayload = {
+  clientGroups?: GroupsDirectoryItem[];
+  totalSubgroups?: number;
+  totalProductCount?: number;
+  hasProductCounts?: boolean;
+};
 
 const normalize = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -131,18 +153,12 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
 
   return (
     <article
-      className="group relative isolate overflow-hidden rounded-[30px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_right,rgba(103,232,249,0.2),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(191,219,254,0.18),transparent_30%),linear-gradient(160deg,rgba(255,255,255,0.98),rgba(248,250,252,0.98),rgba(241,245,249,0.96))] p-4 ring-1 ring-white/70 shadow-[0_20px_44px_rgba(15,23,42,0.08)] transition-[box-shadow,border-color,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-cyan-300/80 hover:shadow-[0_28px_64px_rgba(14,165,233,0.18)]"
+      className={`${directoryCardClass} p-4`}
       style={{ contentVisibility: "auto", containIntrinsicSize: "360px" }}
     >
-      <div className="pointer-events-none absolute inset-[1px] rounded-[29px] bg-[linear-gradient(135deg,rgba(255,255,255,0.34),rgba(34,211,238,0.12),rgba(255,255,255,0))] opacity-0 transition duration-500 ease-out group-hover:opacity-100" />
-      <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-cyan-300/20 blur-3xl transition-[background-color,opacity] duration-500 ease-out group-hover:bg-cyan-300/35 group-hover:opacity-100" />
-      <div className="pointer-events-none absolute left-5 right-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent transition duration-500 ease-out group-hover:via-cyan-400/90" />
-
       <div className="relative z-[1]">
-        <div className="flex items-start gap-4">
-          <div className="relative inline-flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] border border-cyan-100/90 bg-[linear-gradient(160deg,rgba(255,255,255,0.99),rgba(236,254,255,0.92))] shadow-[0_16px_30px_rgba(14,165,233,0.14)] transition-[border-color,box-shadow,background] duration-500 ease-out group-hover:border-cyan-200/90 group-hover:shadow-[0_18px_38px_rgba(34,211,238,0.22)]">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.7),transparent_58%)]" />
-            <div className="pointer-events-none absolute inset-[6px] rounded-[16px] border border-white/70" />
+        <div className="flex items-start gap-3">
+          <div className={directoryIconTileClass}>
             <Image
               src={getCategoryIconPath(visibleGroupLabel)}
               alt={visibleGroupLabel}
@@ -156,17 +172,17 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <span className="inline-flex rounded-full border border-cyan-200/80 bg-white/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-800 shadow-[0_8px_18px_rgba(34,211,238,0.12)]">
+                <span className="inline-flex rounded-md border border-teal-200/70 bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-teal-800">
                   Група
                 </span>
                 {hasSubgroups ? (
-                  <span className="font-display mt-3 block text-[21px] font-[780] italic leading-[1.02] tracking-[-0.05em] text-slate-900">
+                  <span className="mt-2 block text-lg font-extrabold leading-tight tracking-normal text-slate-950">
                     {visibleGroupLabel}
                   </span>
                 ) : (
                   <SmartLink
                     href={buildGroupPath(group.slug)}
-                    className="font-display mt-3 block text-[21px] font-[780] italic leading-[1.02] tracking-[-0.05em] text-slate-900 transition hover:text-cyan-700"
+                    className="mt-2 block text-lg font-extrabold leading-tight tracking-normal text-slate-950 transition hover:text-teal-700"
                   >
                     {visibleGroupLabel}
                   </SmartLink>
@@ -179,11 +195,11 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
 
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
                 {group.productCount > 0 ? (
-                  <span className="rounded-full border border-sky-100 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-sky-800 shadow-[0_10px_20px_rgba(14,165,233,0.08)]">
+                  <span className="rounded-md border border-slate-200 bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
                     {group.productCount.toLocaleString("uk-UA")} товарів
                   </span>
                 ) : null}
-                <span className="rounded-full border border-cyan-100 bg-cyan-50/90 px-2.5 py-1 text-[11px] font-semibold text-cyan-800 shadow-[0_10px_20px_rgba(8,145,178,0.08)]">
+                <span className="rounded-md border border-teal-200/70 bg-teal-50 px-2.5 py-1 text-[11px] font-semibold text-teal-800">
                   {hasSubgroups
                     ? `${group.subgroupsCount.toLocaleString("uk-UA")} підгруп`
                     : "окрема сторінка"}
@@ -199,14 +215,14 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
           {group.subgroups.map((subgroup) => (
             <div
               key={subgroup.slug}
-              className="rounded-[22px] border border-white/80 bg-white/84 p-3.5 shadow-[0_12px_28px_rgba(15,23,42,0.05)] transition-[border-color,box-shadow,transform] duration-300 ease-out hover:border-cyan-200/80 hover:shadow-[0_16px_32px_rgba(14,165,233,0.12)]"
+              className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 transition hover:border-teal-200 hover:bg-white"
             >
               <div className="flex items-start justify-between gap-3">
                 <CatalogPrefetchLink
                   href={buildGroupItemPath(group.slug, subgroup.slug)}
-                  className="inline-flex min-w-0 items-center gap-2.5 text-sm font-[740] leading-5 text-slate-800 transition hover:text-cyan-700"
+                  className="inline-flex min-w-0 items-center gap-2.5 text-sm font-bold leading-5 text-slate-800 transition hover:text-teal-700"
                 >
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-200/80 bg-cyan-50/90 text-cyan-700 shadow-[0_10px_20px_rgba(34,211,238,0.12)]">
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-teal-200/80 bg-teal-50 text-teal-700">
                     <ChevronRight size={14} strokeWidth={2.3} />
                   </span>
                   <span className="truncate">{buildVisibleProductName(subgroup.label)}</span>
@@ -214,12 +230,12 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
 
                 <div className="flex shrink-0 flex-wrap justify-end gap-2">
                   {subgroup.productCount > 0 ? (
-                    <span className="rounded-full border border-sky-100 bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
+                    <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
                       {subgroup.productCount.toLocaleString("uk-UA")} товарів
                     </span>
                   ) : null}
                   {subgroup.children.length > 0 ? (
-                    <span className="rounded-full border border-slate-200 bg-slate-50/90 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                    <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
                       {subgroup.children.length} підгрупи
                     </span>
                   ) : null}
@@ -232,7 +248,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                     <CatalogPrefetchLink
                       key={child.slug}
                       href={buildGroupItemPath(group.slug, child.slug)}
-                      className="flex items-center justify-between rounded-[16px] border border-sky-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(240,249,255,0.96))] px-3 py-2.5 text-[13px] font-medium text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition-[border-color,background-color,transform,color,box-shadow] duration-300 ease-out hover:-translate-y-0.5 hover:border-cyan-200 hover:bg-cyan-50/95 hover:text-cyan-800 hover:shadow-[0_12px_22px_rgba(14,165,233,0.1)]"
+                      className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2.5 text-[13px] font-medium text-slate-700 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800"
                     >
                       <span>{buildVisibleProductName(child.label)}</span>
                       <ChevronRight size={14} strokeWidth={2.1} />
@@ -247,7 +263,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
         <div className="relative z-[1] mt-4">
           <SmartLink
             href={buildGroupPath(group.slug)}
-            className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50/90 px-4 py-2.5 text-sm font-[720] text-cyan-900 shadow-[0_12px_24px_rgba(8,145,178,0.1)] transition hover:border-cyan-300 hover:bg-cyan-100 hover:shadow-[0_16px_28px_rgba(8,145,178,0.16)]"
+            className={directoryPrimaryButtonClass}
           >
             <ChevronRight size={16} strokeWidth={2.3} />
             Перейти до каталогу
@@ -262,14 +278,65 @@ export default function GroupsDirectoryClient({
   items,
   totalSubgroups,
   totalProductCount,
+  hasProductCounts,
 }: GroupsDirectoryClientProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [directoryData, setDirectoryData] = useState({
+    items,
+    totalSubgroups,
+    totalProductCount,
+    hasProductCounts,
+  });
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const normalizedQuery = normalize(deferredSearchTerm);
+  const directoryItems = directoryData.items;
+
+  useEffect(() => {
+    if (directoryData.hasProductCounts) return;
+
+    const controller = new AbortController();
+
+    fetch("/api/group-counts", {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: GroupCountsApiPayload | null) => {
+        if (!payload || !Array.isArray(payload.clientGroups)) return;
+        if (payload.clientGroups.length === 0) return;
+
+        const nextTotalSubgroups = Number(payload.totalSubgroups);
+        const nextTotalProductCount = Number(payload.totalProductCount);
+
+        setDirectoryData({
+          items: payload.clientGroups,
+          totalSubgroups:
+            Number.isFinite(nextTotalSubgroups) && nextTotalSubgroups > 0
+              ? nextTotalSubgroups
+              : totalSubgroups,
+          totalProductCount:
+            Number.isFinite(nextTotalProductCount) && nextTotalProductCount > 0
+              ? nextTotalProductCount
+              : totalProductCount,
+          hasProductCounts:
+            payload.hasProductCounts === true ||
+            (Number.isFinite(nextTotalProductCount) && nextTotalProductCount > 0),
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    directoryData.hasProductCounts,
+    totalProductCount,
+    totalSubgroups,
+  ]);
 
   const filteredGroups = useMemo(
-    () => filterGroups(items, normalizedQuery),
-    [items, normalizedQuery]
+    () => filterGroups(directoryItems, normalizedQuery),
+    [directoryItems, normalizedQuery]
   );
 
   const visibleSubgroups = useMemo(
@@ -293,19 +360,19 @@ export default function GroupsDirectoryClient({
         style={{ contentVisibility: "auto", containIntrinsicSize: "1280px 2200px" }}
       >
         <div id="groups-directory" className="space-y-4">
-          <div className="overflow-hidden rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,252,255,0.93),rgba(237,248,255,0.9))] shadow-[0_24px_56px_rgba(14,165,233,0.12)] backdrop-blur-xl">
-            <div className="border-b border-white/80 px-4 py-3.5 sm:px-5 sm:py-4">
+          <div className={directoryPanelClass}>
+            <div className={directoryHeaderClass}>
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)] lg:items-end">
               <div className="max-w-3xl">
-                <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-cyan-50/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-800">
+                <div className={directoryBadgeClass}>
                   <FolderTree size={14} strokeWidth={2.1} />
                   Пошук по групах
                 </div>
-                <h2 className="font-display mt-3 text-[22px] font-[760] italic tracking-[-0.04em] text-slate-900 sm:text-[26px]">
+                <h2 className={directoryTitleClass}>
                   Єдина сітка груп і категорій каталогу
                 </h2>
-                <p className="mt-2 text-sm leading-5.5 text-slate-600 sm:text-[14px]">
-                  Та сама мова інтерфейсу, що і в марок авто та брендів: чистий пошук, преміальні картки й швидкий перехід у потрібну гілку каталогу.
+                <p className={directoryDescriptionClass}>
+                  Оберіть групу або кінцеву категорію, щоб перейти в каталог із готовим фільтром запчастин.
                 </p>
               </div>
 
@@ -313,7 +380,7 @@ export default function GroupsDirectoryClient({
                 <label className="relative block">
                   <Search
                     size={16}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-teal-600"
                   />
                   <input
                     type="text"
@@ -324,7 +391,7 @@ export default function GroupsDirectoryClient({
                     }}
                     placeholder="Група або категорія"
                     aria-label="Пошук по групах і категоріях"
-                    className="w-full rounded-2xl border border-sky-200/80 bg-white/92 px-10 py-3 text-[16px] font-medium text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_24px_rgba(14,165,233,0.08)] outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-200/80 sm:text-sm"
+                    className={directorySearchInputClass}
                     data-search="true"
                   />
                   {searchTerm ? (
@@ -332,7 +399,7 @@ export default function GroupsDirectoryClient({
                       type="button"
                       onClick={() => setSearchTerm("")}
                       aria-label="Очистити пошук"
-                      className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-sky-100 bg-white text-slate-500 transition hover:bg-sky-50 hover:text-slate-900"
+                      className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
                     >
                       <X size={16} />
                     </button>
@@ -340,27 +407,24 @@ export default function GroupsDirectoryClient({
                 </label>
 
                 <div className="mt-2 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
-                  <span className="inline-flex rounded-full border border-slate-200 bg-white/88 px-3 py-1 shadow-[0_10px_20px_rgba(15,23,42,0.04)]">
-                    Знайдено: {(normalizedQuery ? filteredGroups.length : items.length).toLocaleString("uk-UA")} груп
+                  <span className={directoryMetricClass}>
+                    Знайдено: {(normalizedQuery ? filteredGroups.length : directoryItems.length).toLocaleString("uk-UA")} груп
                   </span>
-                  <span className="inline-flex rounded-full border border-cyan-100 bg-cyan-50/90 px-3 py-1 text-cyan-800 shadow-[0_10px_20px_rgba(8,145,178,0.08)]">
-                    {(normalizedQuery ? visibleSubgroups : totalSubgroups).toLocaleString("uk-UA")} підгруп
+                  <span className={directoryMetricAccentClass}>
+                    {(normalizedQuery ? visibleSubgroups : directoryData.totalSubgroups).toLocaleString("uk-UA")} підгруп
                   </span>
-                  <span className="inline-flex rounded-full border border-sky-100 bg-sky-50/90 px-3 py-1 text-sky-800 shadow-[0_10px_20px_rgba(14,165,233,0.08)]">
-                    {(normalizedQuery ? visibleProductCount : totalProductCount).toLocaleString("uk-UA")} товарів
-                  </span>
+                  {directoryData.hasProductCounts ? (
+                    <span className={directoryMetricClass}>
+                      {(normalizedQuery ? visibleProductCount : directoryData.totalProductCount).toLocaleString("uk-UA")} товарів
+                    </span>
+                  ) : (
+                    <span className="inline-flex rounded-md border border-amber-200/70 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 shadow-[0_8px_18px_rgba(245,158,11,0.06)]">
+                      Лічильники товарів оновлюються
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span className="inline-flex rounded-full border border-slate-200 bg-white/88 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-[0_10px_20px_rgba(15,23,42,0.04)]">
-                  Групи, підгрупи та фінальні категорії
-                </span>
-                <span className="inline-flex rounded-full border border-cyan-100 bg-cyan-50/90 px-3 py-1 text-[11px] font-semibold text-cyan-800 shadow-[0_10px_20px_rgba(8,145,178,0.08)]">
-                  Миттєвий перехід у каталог
-                </span>
-              </div>
             </div>
           </div>
 
@@ -386,7 +450,7 @@ export default function GroupsDirectoryClient({
               </div>
             </>
           ) : (
-            <div className="rounded-[22px] border border-dashed border-sky-200 bg-white/72 px-4 py-7 text-sm text-slate-600 shadow-[0_14px_28px_rgba(14,165,233,0.06)]">
+            <div className="rounded-lg border border-dashed border-slate-300 bg-white/72 px-4 py-7 text-sm text-slate-600 shadow-[0_14px_28px_rgba(15,23,42,0.05)]">
               Нічого не знайдено. Спробуй іншу назву групи або підгрупи.
             </div>
           )}

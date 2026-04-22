@@ -5,18 +5,35 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
+import {
+  directoryCardClass,
+  directoryHeaderClass,
+  directoryMetricAccentClass,
+  directoryMetricClass,
+  directoryPanelClass,
+  directoryPrimaryButtonClass,
+  directorySecondaryButtonClass,
+} from "app/components/catalog-directory-styles";
 import SmartLink from "app/components/SmartLink";
-import { getCatalogSeoFacetsWithTimeout } from "app/lib/catalog-seo";
-import { buildCatalogCategoryPath, buildGroupItemPath } from "app/lib/catalog-links";
+import {
+  getCatalogSeoFacets,
+  type SeoProducerFacet,
+} from "app/lib/catalog-seo";
+import {
+  buildCatalogCategoryPath,
+  buildCatalogProducerPath,
+  buildGroupItemPath,
+  buildManufacturerPath,
+} from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
+import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
-const GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS = 220;
 
 interface GroupItemPageParams {
   slug: string;
@@ -36,7 +53,15 @@ type GroupItemPageData = {
   parentSubgroupLabel: string;
   parentSubgroupSlug?: string;
   productCount: number;
+  producersCount: number;
   catalogPath: string;
+  producerSplit: Array<{
+    label: string;
+    slug: string;
+    productCount: number;
+    catalogPath: string;
+    manufacturerPath: string;
+  }>;
   children: Array<{
     label: string;
     slug: string;
@@ -50,11 +75,82 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   return Math.floor(numeric);
 };
 
+const normalizeValue = (value: string | null | undefined) =>
+  (value || "").replace(/\s+/g, " ").trim();
+
+const normalizeLookupKey = (value: string | null | undefined) =>
+  normalizeValue(value).toLocaleLowerCase("uk-UA");
+
+const buildFacetLookupKeys = (value: string | null | undefined) => {
+  const normalized = normalizeValue(value);
+  if (!normalized) return [] as string[];
+
+  return Array.from(
+    new Set([
+      normalizeLookupKey(normalized),
+      normalizeLookupKey(buildPlainSeoSlug(normalized)),
+    ])
+  );
+};
+
+const facetMatches = (
+  candidate: { label: string; slug?: string },
+  targetKeys: Set<string>
+) =>
+  [
+    ...buildFacetLookupKeys(candidate.label),
+    normalizeLookupKey(candidate.slug),
+  ].some((key) => key && targetKeys.has(key));
+
+const buildGroupItemProducerSplit = (options: {
+  producers: SeoProducerFacet[];
+  groupLabel: string;
+  itemLabels: string[];
+}) => {
+  const groupKeys = new Set(buildFacetLookupKeys(options.groupLabel));
+  const itemKeys = new Set(options.itemLabels.flatMap((label) => buildFacetLookupKeys(label)));
+  if (groupKeys.size === 0 || itemKeys.size === 0) return [];
+
+  return options.producers
+    .map((producer) => {
+      const matchedGroup = (producer.topGroups ?? []).find((group) =>
+        facetMatches(group, groupKeys)
+      );
+      if (!matchedGroup) return null;
+
+      const productCount = (matchedGroup.subgroups ?? []).reduce((sum, subgroup) => {
+        if (!facetMatches(subgroup, itemKeys)) return sum;
+        const value = Number(subgroup.productCount);
+        return Number.isFinite(value) && value > 0 ? sum + Math.floor(value) : sum;
+      }, 0);
+      if (productCount <= 0) return null;
+
+      return {
+        label: producer.label,
+        slug: producer.slug,
+        productCount,
+        catalogPath: buildCatalogProducerPath(
+          producer.label,
+          options.groupLabel,
+          options.itemLabels[0]
+        ),
+        manufacturerPath: buildManufacturerPath(producer.slug || producer.label),
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    .sort((left, right) => {
+      if (right.productCount !== left.productCount) {
+        return right.productCount - left.productCount;
+      }
+      return left.label.localeCompare(right.label, "uk", { sensitivity: "base" });
+    });
+};
+
 const getGroupItemBySlugs = cache(
   async (groupSlug: string, itemSlug: string): Promise<GroupItemPageData | null> => {
     const [dataset, seoFacets] = await Promise.all([
       getProductTreeDataset().catch(() => null),
-      getCatalogSeoFacetsWithTimeout(GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS),
+      getCatalogSeoFacets().catch(() => ({ groups: [], producers: [], generatedAt: "" })),
     ]);
     const group = dataset?.groups.find(
       (entry) => entry.slug === groupSlug || entry.legacySlug === groupSlug
@@ -66,6 +162,20 @@ const getGroupItemBySlugs = cache(
       (entry) => entry.slug === itemSlug || entry.legacySlug === itemSlug
     );
     if (subgroup) {
+      const children = subgroup.children.map((child) => ({
+        ...child,
+        productCount: counts.childProductCounts.get(child.slug) ?? 0,
+      }));
+      const producerSplit = buildGroupItemProducerSplit({
+        producers: seoFacets.producers,
+        groupLabel: group.label,
+        itemLabels: [subgroup.label, ...children.map((child) => child.label)],
+      });
+      const producerProductCount = producerSplit.reduce(
+        (sum, producer) => sum + producer.productCount,
+        0
+      );
+
       return {
         groupLabel: group.label,
         groupSlug: group.slug,
@@ -74,12 +184,14 @@ const getGroupItemBySlugs = cache(
         itemSlug: subgroup.slug,
         parentSubgroupLabel: "",
         parentSubgroupSlug: undefined,
-        productCount: counts.subgroupProductCounts.get(subgroup.slug) ?? 0,
+        productCount: Math.max(
+          counts.subgroupProductCounts.get(subgroup.slug) ?? 0,
+          producerProductCount
+        ),
+        producersCount: producerSplit.length,
         catalogPath: buildCatalogCategoryPath(group.label, subgroup.label),
-        children: subgroup.children.map((child) => ({
-          ...child,
-          productCount: counts.childProductCounts.get(child.slug) ?? 0,
-        })),
+        producerSplit,
+        children,
       };
     }
 
@@ -88,6 +200,15 @@ const getGroupItemBySlugs = cache(
         (candidate) => candidate.slug === itemSlug || candidate.legacySlug === itemSlug
       );
       if (!child) continue;
+      const producerSplit = buildGroupItemProducerSplit({
+        producers: seoFacets.producers,
+        groupLabel: group.label,
+        itemLabels: [child.label],
+      });
+      const producerProductCount = producerSplit.reduce(
+        (sum, producer) => sum + producer.productCount,
+        0
+      );
 
       return {
         groupLabel: group.label,
@@ -97,8 +218,13 @@ const getGroupItemBySlugs = cache(
         itemSlug: child.slug,
         parentSubgroupLabel: entry.label,
         parentSubgroupSlug: entry.slug,
-        productCount: counts.childProductCounts.get(child.slug) ?? 0,
+        productCount: Math.max(
+          counts.childProductCounts.get(child.slug) ?? 0,
+          producerProductCount
+        ),
+        producersCount: producerSplit.length,
         catalogPath: buildCatalogCategoryPath(entry.label, child.label),
+        producerSplit,
         children: [],
       };
     }
@@ -132,7 +258,8 @@ const buildGroupItemTitle = (item: GroupItemPageData) => {
 export async function generateStaticParams() {
   try {
     const dataset = await getProductTreeDataset();
-    const limit = parsePositiveInt(process.env.SEO_GROUP_ITEM_STATIC_PARAMS_LIMIT, 12000);
+    const limit = parsePositiveInt(process.env.SEO_GROUP_ITEM_STATIC_PARAMS_LIMIT, 0);
+    if (limit <= 0) return [];
 
     return dataset.groups
       .flatMap((group) => [
@@ -219,6 +346,12 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
       : item.children.length > 0
         ? `${item.children.length} підкатегорій у розділі`
       : "Прямий перехід у каталог";
+  const producerProductsTotal = item.producerSplit.reduce(
+    (sum, producer) => sum + producer.productCount,
+    0
+  );
+  const topProducerSplit = item.producerSplit.slice(0, 24);
+  const hasProducerSplit = topProducerSplit.length > 0;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -335,6 +468,11 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               <span className="inline-flex rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-600">
                 {pageStats}
               </span>
+              {item.producersCount > 0 ? (
+                <span className="inline-flex rounded-full border border-cyan-100 bg-cyan-50/90 px-3 py-1 text-[11px] font-semibold text-cyan-800">
+                  {item.producersCount.toLocaleString("uk-UA")} виробників
+                </span>
+              ) : null}
             </div>
 
             <h1 className="font-display-italic mt-4 text-3xl tracking-[-0.048em] text-slate-900 sm:text-[2.2rem]">
@@ -361,6 +499,114 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
             </div>
           </div>
         </div>
+      </section>
+
+      <section className={`${directoryPanelClass} mt-8`}>
+        <div className={directoryHeaderClass}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+                Розподіл за виробниками
+              </p>
+              <h2 className="font-display mt-1 text-xl font-[780] tracking-normal text-slate-950 sm:text-2xl">
+                Виробники у категорії {visibleLabel}
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                Лічильники рахуються по товарах цієї кінцевої категорії і допомагають одразу перейти до потрібного бренду у каталозі.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className={directoryMetricAccentClass}>
+                {item.producersCount.toLocaleString("uk-UA")} виробників
+              </span>
+              <span className={directoryMetricClass}>
+                {(producerProductsTotal || item.productCount).toLocaleString("uk-UA")} товарів
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {hasProducerSplit ? (
+          <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
+            {topProducerSplit.map((producer, index) => {
+              const share =
+                producerProductsTotal > 0
+                  ? Math.round((producer.productCount / producerProductsTotal) * 100)
+                  : 0;
+
+              return (
+                <article
+                  key={producer.slug || producer.label}
+                  className={`${directoryCardClass} p-4`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-teal-700">
+                        Виробник #{index + 1}
+                      </p>
+                      <Link
+                        href={producer.manufacturerPath}
+                        className="mt-1.5 block truncate text-base font-extrabold text-slate-950 transition hover:text-teal-800"
+                      >
+                        {producer.label}
+                      </Link>
+                    </div>
+                    <span className="shrink-0 rounded-md border border-amber-200/70 bg-amber-50 px-3 py-1 text-[11px] font-bold text-amber-800">
+                      {share > 0 ? `${share}%` : "бренд"}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-teal-600"
+                      style={{ width: `${Math.max(share, share > 0 ? 6 : 0)}%` }}
+                    />
+                  </div>
+
+                  <div className="mt-4 flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-2xl font-black tracking-normal text-slate-950">
+                        {producer.productCount.toLocaleString("uk-UA")}
+                      </p>
+                      <p className="text-xs font-semibold text-slate-500">
+                        товарів у розділі
+                      </p>
+                    </div>
+                    <CatalogPrefetchLink
+                      href={producer.catalogPath}
+                      prefetchCatalogOnViewport
+                      className="inline-flex rounded-lg bg-teal-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-teal-800"
+                    >
+                      В каталог
+                    </CatalogPrefetchLink>
+                  </div>
+
+                  <Link
+                    href={producer.manufacturerPath}
+                    className="mt-3 inline-flex text-xs font-bold text-slate-500 transition hover:text-teal-800"
+                  >
+                    Сторінка виробника
+                  </Link>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-4 sm:p-5">
+            <div className="rounded-lg border border-dashed border-slate-300 bg-white/80 px-4 py-5 text-sm leading-6 text-slate-600">
+              Для цієї категорії ще немає готового розподілу за виробниками. Перейдіть у каталог, щоб побачити актуальні товари і фільтри.
+              <div className="mt-3">
+                <CatalogPrefetchLink
+                  href={item.catalogPath}
+                  prefetchCatalogOnViewport
+                  className={directoryPrimaryButtonClass}
+                >
+                  Перейти в каталог
+                </CatalogPrefetchLink>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       {item.children.length > 0 ? (
