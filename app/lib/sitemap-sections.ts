@@ -8,6 +8,7 @@ import { getInformationPath, informationSections } from "app/inform/section-conf
 import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
 import { buildGroupItemPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
+import { getCategoryIconPath } from "app/lib/category-icons";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -59,6 +60,16 @@ const SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS = parsePositiveInt(
   process.env.SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS,
   4000
 );
+
+const buildCategorySitemapImage = (label: string, fallbackLabel?: string) => {
+  const resolvedLabel = (label || fallbackLabel || "Автозапчастини").trim();
+
+  return {
+    loc: getCategoryIconPath(resolvedLabel),
+    title: `${resolvedLabel} - категорія автозапчастин PartsON`,
+    caption: `Категорія ${resolvedLabel} у каталозі автозапчастин PartsON`,
+  };
+};
 
 const collectGroupListingPaths = (
   groups: Array<{
@@ -134,6 +145,13 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.88,
+      images: [
+        {
+          loc: "/Car-parts-fullwidth.png",
+          title: "Категорії та групи автозапчастин PartsON",
+          caption: "Групи, підгрупи та кінцеві категорії автозапчастин у PartsON",
+        },
+      ],
     },
   ];
 
@@ -146,6 +164,7 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.84,
+      images: [buildCategorySitemapImage(group.label)],
     });
   }
 
@@ -156,7 +175,8 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
       path: entry.path,
       lastModified: now,
       changeFrequency: "weekly",
-      priority: 0.8,
+      priority: 0.81,
+      images: [buildCategorySitemapImage(entry.iconLabel, entry.label)],
     });
   }
 
@@ -165,7 +185,8 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
       path: entry.path,
       lastModified: now,
       changeFrequency: "weekly",
-      priority: 0.78,
+      priority: 0.82,
+      images: [buildCategorySitemapImage(entry.iconLabel, entry.label)],
     });
   }
 
@@ -184,6 +205,13 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.88,
+      images: [
+        {
+          loc: "/Car-parts-fullwidth.png",
+          title: "Виробники автозапчастин PartsON",
+          caption: "Каталог брендів і виробників автозапчастин з переходом до товарів",
+        },
+      ],
     },
   ];
 
@@ -262,7 +290,7 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
 
 const getGroupsSitemapEntriesCached = unstable_cache(
   buildGroupsSitemapEntries,
-  ["groups-sitemap-v2"],
+  ["groups-sitemap-v3-category-images"],
   {
     revalidate: SITEMAP_REVALIDATE_SECONDS,
     tags: ["groups-sitemap"],
@@ -304,18 +332,39 @@ export const getOtherPagesSitemapEntries = cache(async (): Promise<SitemapPathEn
       lastModified: now,
       changeFrequency: "daily",
       priority: 1,
+      images: [
+        {
+          loc: "/Car-parts-fullwidth.png",
+          title: "PartsON - інтернет-магазин автозапчастин у Львові",
+          caption: "Каталог автозапчастин PartsON з підбором за кодом, авто і виробником",
+        },
+      ],
     },
     {
       path: "/auto",
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.9,
+      images: [
+        {
+          loc: "/Car-parts-fullwidth.png",
+          title: "Підбір автозапчастин по авто | PartsON",
+          caption: "Підбір запчастин за маркою, моделлю та модифікацією авто",
+        },
+      ],
     },
     {
       path: "/katalog",
       lastModified: now,
       changeFrequency: "daily",
       priority: 0.86,
+      images: [
+        {
+          loc: "/Car-parts-fullwidth.png",
+          title: "Каталог автозапчастин PartsON",
+          caption: "Пошук автозапчастин за кодом, артикулом, назвою, групою та виробником",
+        },
+      ],
     },
   ];
 });

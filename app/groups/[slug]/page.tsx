@@ -179,6 +179,10 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
       `${group.label} автозапчастини`,
       `купити ${group.label}`,
       `каталог ${group.label}`,
+      `запчастини ${group.label} львів`,
+      `${group.label} доставка україна`,
+      `підбір ${group.label}`,
+      `ціна ${group.label}`,
       "групи автозапчастин",
     ],
     openGraphTitle: `Каталог автозапчастин ${group.label} | PartsON`,
@@ -228,10 +232,16 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
+    "@id": `${canonicalPageUrl}#collection-page`,
     name: pageTitle,
     url: canonicalPageUrl,
     description,
     image: categoryIconUrl,
+    inLanguage: "uk-UA",
+    about: {
+      "@type": "Thing",
+      name: group.label,
+    },
     isPartOf: {
       "@type": "WebSite",
       name: "PartsON",

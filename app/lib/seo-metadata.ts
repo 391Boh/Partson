@@ -11,8 +11,14 @@ const BASE_KEYWORDS = [
   "PartsON",
   "автозапчастини",
   "автозапчастини львів",
+  "автозапчастини україна",
   "каталог автозапчастин",
+  "онлайн каталог автозапчастин",
   "купити автозапчастини",
+  "підбір автозапчастин",
+  "підбір автозапчастин за vin",
+  "пошук запчастин за артикулом",
+  "пошук запчастин за кодом",
   "магазин запчастин",
   "магазин зачастин",
   "магазин автозапчастин",
@@ -76,6 +82,10 @@ export const buildPageMetadata = ({
   publisher: "PartsON",
   alternates: {
     canonical: canonicalPath,
+    languages: {
+      "uk-UA": canonicalPath,
+      uk: canonicalPath,
+    },
   },
   keywords: mergeKeywords(BASE_KEYWORDS, keywords),
   openGraph: {
@@ -101,6 +111,12 @@ export const buildPageMetadata = ({
     images: [image.url],
   },
   icons,
+  other: {
+    "geo.region": "UA-46",
+    "geo.placename": "Львів",
+    "business:contact_data:locality": "Львів",
+    "business:contact_data:country_name": "Україна",
+  },
   robots: {
     index,
     follow,

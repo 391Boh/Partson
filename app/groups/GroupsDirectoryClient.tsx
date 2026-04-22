@@ -6,7 +6,6 @@ import { ChevronRight, FolderTree, Search, X } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import {
-  directoryActionIconClass,
   directoryBadgeClass,
   directoryCardClass,
   directoryDescriptionClass,
@@ -106,40 +105,6 @@ const filterGroups = (groups: GroupsDirectoryItem[], query: string) => {
   });
 };
 
-const estimateGroupCardWeight = (group: GroupsDirectoryItem) => {
-  const subgroupWeight = group.subgroups.reduce((sum, subgroup) => {
-    const childrenWeight = subgroup.children.length * 0.7;
-    const productWeight = subgroup.productCount > 0 ? 0.35 : 0;
-
-    return sum + 1 + childrenWeight + productWeight;
-  }, 0);
-
-  return 1.4 + subgroupWeight + (group.productCount > 0 ? 0.45 : 0);
-};
-
-const distributeGroupsIntoColumns = (
-  groups: GroupsDirectoryItem[],
-  columnCount: number
-) => {
-  const columns = Array.from({ length: columnCount }, () => ({
-    items: [] as GroupsDirectoryItem[],
-    weight: 0,
-  }));
-
-  groups.forEach((group) => {
-    const lightestColumnIndex = columns.reduce(
-      (lightestIndex, column, index, source) =>
-        column.weight < source[lightestIndex].weight ? index : lightestIndex,
-      0
-    );
-
-    columns[lightestColumnIndex].items.push(group);
-    columns[lightestColumnIndex].weight += estimateGroupCardWeight(group);
-  });
-
-  return columns.map((column) => column.items);
-};
-
 function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
   const hasSubgroups = group.subgroups.length > 0;
   const visibleGroupLabel = buildVisibleProductName(group.label);
@@ -153,18 +118,17 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
 
   return (
     <article
-      className={`${directoryCardClass} p-4`}
-      style={{ contentVisibility: "auto", containIntrinsicSize: "360px" }}
+      className={`${directoryCardClass} border-l-4 border-l-teal-100 p-3.5 hover:border-l-teal-300`}
     >
       <div className="relative z-[1]">
         <div className="flex items-start gap-3">
-          <div className={directoryIconTileClass}>
+          <div className={`${directoryIconTileClass} h-14 w-14`}>
             <Image
               src={getCategoryIconPath(visibleGroupLabel)}
               alt={visibleGroupLabel}
               width={48}
               height={48}
-              className="relative z-[1] h-11 w-11 object-contain"
+              className="relative z-[1] h-10 w-10 object-contain"
               unoptimized
             />
           </div>
@@ -188,7 +152,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                   </SmartLink>
                 )}
 
-                <p className="mt-2 text-sm leading-6 text-slate-600">
+                <p className="mt-1.5 text-sm leading-5 text-slate-600">
                   {groupHint}
                 </p>
               </div>
@@ -211,18 +175,18 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
       </div>
 
       {hasSubgroups ? (
-        <div className="relative z-[1] mt-4 space-y-3">
+        <div className="relative z-[1] mt-3 space-y-2.5">
           {group.subgroups.map((subgroup) => (
             <div
               key={subgroup.slug}
-              className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 transition hover:border-teal-200 hover:bg-white"
+              className="rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 transition hover:border-teal-200 hover:bg-white"
             >
               <div className="flex items-start justify-between gap-3">
                 <CatalogPrefetchLink
                   href={buildGroupItemPath(group.slug, subgroup.slug)}
-                  className="inline-flex min-w-0 items-center gap-2.5 text-sm font-bold leading-5 text-slate-800 transition hover:text-teal-700"
+                  className="inline-flex min-w-0 items-center gap-2 text-sm font-bold leading-5 text-slate-800 transition hover:text-teal-700"
                 >
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-teal-200/80 bg-teal-50 text-teal-700">
+                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-teal-200 bg-teal-50 text-teal-700">
                     <ChevronRight size={14} strokeWidth={2.3} />
                   </span>
                   <span className="truncate">{buildVisibleProductName(subgroup.label)}</span>
@@ -243,12 +207,12 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
               </div>
 
               {subgroup.children.length > 0 ? (
-                <div className="mt-3 grid grid-cols-1 gap-2 pl-0 sm:grid-cols-2">
+                <div className="mt-2 grid grid-cols-1 gap-1.5 pl-0 sm:grid-cols-2">
                   {subgroup.children.map((child) => (
                     <CatalogPrefetchLink
                       key={child.slug}
                       href={buildGroupItemPath(group.slug, child.slug)}
-                      className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2.5 text-[13px] font-medium text-slate-700 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800"
+                      className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-2.5 py-2 text-[13px] font-medium text-slate-700 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800"
                     >
                       <span>{buildVisibleProductName(child.label)}</span>
                       <ChevronRight size={14} strokeWidth={2.1} />
@@ -348,11 +312,6 @@ export default function GroupsDirectoryClient({
     () => filteredGroups.reduce((sum, group) => sum + group.productCount, 0),
     [filteredGroups]
   );
-  const desktopColumns = useMemo(
-    () => distributeGroupsIntoColumns(filteredGroups, 2),
-    [filteredGroups]
-  );
-
   return (
     <section className="relative pb-2 pt-0 sm:pb-3">
       <div
@@ -430,22 +389,9 @@ export default function GroupsDirectoryClient({
 
           {filteredGroups.length > 0 ? (
             <>
-              <div className="space-y-4 lg:hidden">
+              <div className="grid grid-cols-1 gap-3">
                 {filteredGroups.map((group) => (
                   <GroupCategoryCard key={group.slug} group={group} />
-                ))}
-              </div>
-
-              <div className="hidden lg:grid lg:grid-cols-2 lg:gap-4 xl:gap-5">
-                {desktopColumns.map((column, columnIndex) => (
-                  <div
-                    key={`groups-column:${columnIndex}`}
-                    className="space-y-4 xl:space-y-5"
-                  >
-                    {column.map((group) => (
-                      <GroupCategoryCard key={group.slug} group={group} />
-                    ))}
-                  </div>
                 ))}
               </div>
             </>

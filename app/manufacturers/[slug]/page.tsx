@@ -128,6 +128,11 @@ const buildManufacturerKeywords = (label: string) => {
         `купити ${normalizedLabel}`,
         `купити запчастини ${normalizedLabel}`,
         `${normalizedLabel} виробник`,
+        `${normalizedLabel} львів`,
+        `${normalizedLabel} доставка україна`,
+        `${normalizedLabel} ціна`,
+        `оригінальні запчастини ${normalizedLabel}`,
+        `аналоги ${normalizedLabel}`,
         `бренд ${normalizedLabel}`,
         "виробники автозапчастин",
         "бренди автозапчастин",
@@ -610,9 +615,11 @@ export default async function ManufacturerDetailPage({
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
+    "@id": `${canonicalPageUrl}#collection-page`,
     name: pageTitle,
     url: canonicalPageUrl,
     description: pageDescription,
+    inLanguage: "uk-UA",
     isPartOf: {
       "@type": "WebSite",
       name: "PartsON",

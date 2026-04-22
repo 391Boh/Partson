@@ -30,50 +30,50 @@ const normalize = (value: string | null | undefined) =>
 const buildBrandHref = (name: string) =>
   `/katalog?tab=auto&brand=${encodeURIComponent(name)}`;
 
-function AutoBrandCard({ brand, index }: { brand: CarBrand; index: number }) {
+function AutoBrandCard({ brand }: { brand: CarBrand }) {
   return (
     <SmartLink
       href={buildBrandHref(brand.name)}
-      className={directoryCardClass}
+      className={`${directoryCardClass} border-l-4 border-l-sky-100 hover:border-l-teal-300`}
       aria-label={`Відкрити каталог запчастин для ${brand.name}`}
     >
-      <div className="flex h-full flex-col p-4">
+      <div className="flex h-full flex-col p-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <div className={directoryIconTileClass}>
+            <div className={`${directoryIconTileClass} h-14 w-14`}>
               <Image
                 src={brand.logo}
                 alt={brand.name}
                 width={52}
                 height={52}
-                className="relative z-[1] h-11 w-11 object-contain transition duration-300 group-hover:scale-[1.04]"
+                className="relative z-[1] h-10 w-10 object-contain transition duration-300 group-hover:scale-[1.04]"
                 unoptimized
               />
             </div>
 
             <div className="min-w-0">
               <span className="inline-flex rounded-md border border-teal-200/70 bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-teal-800">
-                Марка #{index + 1}
+                Марка
               </span>
-              <p className="mt-2 truncate text-lg font-extrabold leading-tight text-slate-950">
+              <p className="mt-1.5 truncate text-[17px] font-extrabold leading-tight text-slate-950">
                 {brand.name}
               </p>
-              <p className="mt-1.5 line-clamp-2 text-sm leading-5 text-slate-600">
-                Підбір запчастин за маркою авто з готовим переходом у каталог.
+              <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-slate-600">
+                Готовий авто-фільтр у каталозі.
               </p>
             </div>
           </div>
 
-          <span className={directoryActionIconClass}>
+          <span className={`${directoryActionIconClass} h-8 w-8 rounded-md`}>
             <ArrowRight size={16} strokeWidth={2.3} />
           </span>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-2.5">
           <span className="text-xs font-semibold text-slate-500">
             Auto / каталог
           </span>
-          <span className="rounded-md border border-amber-200/70 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-amber-800">
+          <span className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-sky-800">
             Підібрати
           </span>
         </div>
@@ -174,9 +174,9 @@ export default function AutoBrandsDirectoryClient({
 
           <div className="px-4 py-4 sm:px-5 sm:py-5">
             {filteredItems.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                {filteredItems.map((brand, index) => (
-                  <AutoBrandCard key={brand.id} brand={brand} index={index} />
+              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                {filteredItems.map((brand) => (
+                  <AutoBrandCard key={brand.id} brand={brand} />
                 ))}
               </div>
             ) : (

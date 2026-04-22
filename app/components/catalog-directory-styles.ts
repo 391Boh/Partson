@@ -35,7 +35,7 @@ export const directoryActionIconClass =
   "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-teal-800 shadow-[0_10px_20px_rgba(15,23,42,0.05)] transition group-hover:border-teal-200 group-hover:bg-teal-50";
 
 export const directoryPrimaryButtonClass =
-  "inline-flex items-center justify-center rounded-lg border border-teal-700 bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_26px_rgba(13,148,136,0.18)] transition hover:border-teal-800 hover:bg-teal-800";
+  "inline-flex items-center justify-center rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-semibold text-teal-900 shadow-[0_10px_22px_rgba(13,148,136,0.1)] transition hover:border-teal-300 hover:bg-teal-100";
 
 export const directorySecondaryButtonClass =
   "inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-[0_10px_22px_rgba(15,23,42,0.05)] transition hover:border-teal-200 hover:text-teal-800";

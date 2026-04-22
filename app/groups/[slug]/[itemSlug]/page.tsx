@@ -304,8 +304,13 @@ export async function generateMetadata({ params }: GroupItemPageProps): Promise<
     keywords: [
       item.label,
       `${item.label} автозапчастини`,
+      `купити ${item.label}`,
+      `${item.label} львів`,
+      `${item.label} ціна`,
+      `${item.label} доставка україна`,
       item.groupLabel,
       `каталог ${item.label}`,
+      `виробники ${item.label}`,
     ],
     openGraphTitle: `${title} | PartsON`,
     image: {
@@ -356,10 +361,16 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
+    "@id": `${canonicalPageUrl}#collection-page`,
     name: buildGroupItemTitle(item),
     url: canonicalPageUrl,
     description: buildGroupItemDescription(item),
     image: categoryIconUrl,
+    inLanguage: "uk-UA",
+    about: [
+      { "@type": "Thing", name: item.groupLabel },
+      { "@type": "Thing", name: item.label },
+    ],
     primaryImageOfPage: {
       "@type": "ImageObject",
       url: categoryIconUrl,
@@ -486,7 +497,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               <CatalogPrefetchLink
                 href={item.catalogPath}
                 prefetchCatalogOnViewport
-                className="inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+                className={directoryPrimaryButtonClass}
               >
                 Перейти в каталог
               </CatalogPrefetchLink>
@@ -527,55 +538,38 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         </div>
 
         {hasProducerSplit ? (
-          <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
-            {topProducerSplit.map((producer, index) => {
-              const share =
-                producerProductsTotal > 0
-                  ? Math.round((producer.productCount / producerProductsTotal) * 100)
-                  : 0;
-
+          <div className="grid gap-2.5 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-4">
+            {topProducerSplit.map((producer) => {
               return (
                 <article
                   key={producer.slug || producer.label}
-                  className={`${directoryCardClass} p-4`}
+                  className={`${directoryCardClass} border-l-4 border-l-teal-100 p-3 hover:border-l-teal-300`}
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-teal-700">
-                        Виробник #{index + 1}
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                        Виробник
                       </p>
                       <Link
                         href={producer.manufacturerPath}
-                        className="mt-1.5 block truncate text-base font-extrabold text-slate-950 transition hover:text-teal-800"
+                        className="mt-1 block truncate text-[15px] font-extrabold text-slate-950 transition hover:text-teal-800"
                       >
                         {producer.label}
                       </Link>
                     </div>
-                    <span className="shrink-0 rounded-md border border-amber-200/70 bg-amber-50 px-3 py-1 text-[11px] font-bold text-amber-800">
-                      {share > 0 ? `${share}%` : "бренд"}
+                    <span className="shrink-0 rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-bold text-teal-800">
+                      {producer.productCount.toLocaleString("uk-UA")}
                     </span>
                   </div>
 
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-teal-600"
-                      style={{ width: `${Math.max(share, share > 0 ? 6 : 0)}%` }}
-                    />
-                  </div>
-
-                  <div className="mt-4 flex items-end justify-between gap-3">
-                    <div>
-                      <p className="text-2xl font-black tracking-normal text-slate-950">
-                        {producer.productCount.toLocaleString("uk-UA")}
-                      </p>
-                      <p className="text-xs font-semibold text-slate-500">
-                        товарів у розділі
-                      </p>
-                    </div>
+                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+                    <p className="text-xs font-semibold text-slate-500">
+                      товарів у розділі
+                    </p>
                     <CatalogPrefetchLink
                       href={producer.catalogPath}
                       prefetchCatalogOnViewport
-                      className="inline-flex rounded-lg bg-teal-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-teal-800"
+                      className="inline-flex rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-900 transition hover:border-teal-300 hover:bg-teal-100"
                     >
                       В каталог
                     </CatalogPrefetchLink>
@@ -583,7 +577,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
 
                   <Link
                     href={producer.manufacturerPath}
-                    className="mt-3 inline-flex text-xs font-bold text-slate-500 transition hover:text-teal-800"
+                    className="mt-2 inline-flex text-xs font-bold text-slate-500 transition hover:text-teal-800"
                   >
                     Сторінка виробника
                   </Link>

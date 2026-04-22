@@ -55,6 +55,11 @@ export async function generateMetadata(): Promise<Metadata> {
       "каталог виробників",
       "каталог брендів",
       "автозапчастини за виробником",
+      "запчастини за брендом",
+      "бренди запчастин україна",
+      "виробники запчастин львів",
+      "каталог брендів запчастин",
+      "купити запчастини виробника",
       "автозапчастини львів",
     ],
     openGraphTitle: "Виробники автозапчастин і бренди у каталозі PartsON | PartsON",
@@ -73,9 +78,21 @@ export default async function ManufacturersPage() {
   const manufacturersStructuredData = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
+    "@id": `${siteUrl}/manufacturers#collection-page`,
     name: "Виробники автозапчастин і бренди у каталозі PartsON",
     description: pageDescription,
     url: `${siteUrl}/manufacturers`,
+    inLanguage: "uk-UA",
+    isPartOf: {
+      "@type": "WebSite",
+      name: "PartsON",
+      url: siteUrl,
+    },
+    about: [
+      { "@type": "Thing", name: "виробники автозапчастин" },
+      { "@type": "Thing", name: "бренди автозапчастин" },
+      { "@type": "Thing", name: "каталог запчастин за виробником" },
+    ],
     mainEntity: {
       "@type": "ItemList",
       itemListElement: clientProducers.slice(0, 48).map((producer, index) => ({

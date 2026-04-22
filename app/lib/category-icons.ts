@@ -62,7 +62,7 @@ addCategoryIcon("Привід та коробка передач", "pryvid_ta_ko
 addCategoryIcon("Система охолодження", "systema_okholodzhennia.png");
 addCategoryIcon("Освітлення", "osvitlennia.png");
 addCategoryIcon("Інше", "inshe.png");
-addCategoryIcon("Електроніка", "elektronika.png");
+addCategoryIcon("Електроніка", "datchyky_ta_elektronika.png");
 addCategoryIcon("Кузовні елементи", "kuzovni_elementy.png");
 addCategoryIcon("Датчики та електроніка", "datchyky_ta_elektronika.png");
 addCategoryIcon("Рідини та мастила", "ridyny_ta_mastyla.png");

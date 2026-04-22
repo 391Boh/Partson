@@ -85,12 +85,12 @@ const ManufacturerCard = memo(function ManufacturerCard({
     <SmartLink
       href={buildManufacturerPath(item.slug)}
       aria-label={`Відкрити сторінку бренду ${item.label}`}
-      className={`${directoryCardClass} animate-fadeIn`}
+      className={`${directoryCardClass} border-l-4 border-l-teal-100 hover:border-l-teal-300 animate-fadeIn`}
     >
-      <div className="flex h-full flex-col p-4">
+      <div className="flex h-full flex-col p-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <div className={directoryIconTileClass}>
+            <div className={`${directoryIconTileClass} h-14 w-14`}>
               {item.logoPath ? (
                 <Image
                   src={item.logoPath}
@@ -99,7 +99,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
                   height={52}
                   sizes="52px"
                   loading="eager"
-                  className="relative z-[1] h-11 w-11 object-contain transition duration-300 group-hover:scale-[1.04]"
+                  className="relative z-[1] h-10 w-10 object-contain transition duration-300 group-hover:scale-[1.04]"
                 />
               ) : (
                 <span className="relative z-[1]">{item.initials}</span>
@@ -111,42 +111,42 @@ const ManufacturerCard = memo(function ManufacturerCard({
                 Виробник
               </span>
 
-              <p className="mt-2 truncate text-lg font-extrabold leading-tight text-slate-950">
+              <p className="mt-1.5 truncate text-[17px] font-extrabold leading-tight text-slate-950">
                 {item.label}
               </p>
-              <p className="mt-1.5 line-clamp-2 text-sm leading-5 text-slate-600">
+              <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-slate-600">
                 {buildManufacturerCardDescription(item)}
               </p>
             </div>
           </div>
 
-          <span className={directoryActionIconClass}>
+          <span className={`${directoryActionIconClass} h-8 w-8 rounded-md`}>
             <ArrowRight size={16} strokeWidth={2.3} />
           </span>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3">
+        <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2.5">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+            <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
               Товари
             </p>
-            <p className="mt-1 text-sm font-extrabold text-slate-900">
+            <p className="mt-0.5 text-sm font-extrabold text-slate-900">
               {item.productCount > 0 ? item.productCount.toLocaleString("uk-UA") : "-"}
             </p>
           </div>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+            <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
               Групи
             </p>
-            <p className="mt-1 text-sm font-extrabold text-slate-900">
+            <p className="mt-0.5 text-sm font-extrabold text-slate-900">
               {item.groupsCount > 0 ? item.groupsCount.toLocaleString("uk-UA") : "-"}
             </p>
           </div>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+            <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
               Катег.
             </p>
-            <p className="mt-1 text-sm font-extrabold text-slate-900">
+            <p className="mt-0.5 text-sm font-extrabold text-slate-900">
               {item.categoriesCount > 0
                 ? item.categoriesCount.toLocaleString("uk-UA")
                 : "-"}
@@ -277,7 +277,7 @@ export default function ManufacturersDirectory({
 
           <div className="px-4 py-4 sm:px-5 sm:py-5">
             {filteredItems.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2 xl:gap-5">
+              <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3 xl:gap-3">
                 {filteredItems.map((item) => (
                   <ManufacturerCard key={item.slug} item={item} />
                 ))}

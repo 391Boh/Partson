@@ -59,6 +59,12 @@ export async function generateMetadata(): Promise<Metadata> {
       "підгрупи автозапчастин",
       "підбір запчастин",
       "каталог груп автозапчастин",
+      "каталог запчастин по групах",
+      "деталі двигуна",
+      "деталі підвіски",
+      "гальмівна система",
+      "паливна система",
+      "кузовні елементи",
       "автозапчастини львів",
     ],
     openGraphTitle: "Категорії та групи автозапчастин у каталозі PartsON | PartsON",
@@ -93,9 +99,21 @@ export default async function GroupsPage() {
   const groupsStructuredData: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
+    "@id": `${siteUrl}/groups#collection-page`,
     name: "Категорії та групи автозапчастин у каталозі PartsON",
     description: groupsDescription,
     url: `${siteUrl}/groups`,
+    inLanguage: "uk-UA",
+    isPartOf: {
+      "@type": "WebSite",
+      name: "PartsON",
+      url: siteUrl,
+    },
+    about: [
+      { "@type": "Thing", name: "групи автозапчастин" },
+      { "@type": "Thing", name: "категорії автозапчастин" },
+      { "@type": "Thing", name: "підбір запчастин" },
+    ],
   };
 
   if (hasResolvedGroups) {

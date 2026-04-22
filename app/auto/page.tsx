@@ -13,7 +13,7 @@ export const revalidate = 21600;
 
 const title = "Підбір автозапчастин по авто за маркою, моделлю і модифікацією";
 const description =
-  "Підбір автозапчастин по марці, моделі та модифікації авто. Оберіть свій автомобіль і відкрийте каталог PartsON для швидкого підбору та купівлі автозапчастин з доставкою по Україні.";
+  "Підбір автозапчастин по марці, моделі та модифікації авто в PartsON. Оберіть автомобіль і відкрийте каталог запчастин з готовим авто-фільтром, доставкою по Львову та Україні.";
 
 export const metadata: Metadata = buildPageMetadata({
   title,
@@ -27,6 +27,10 @@ export const metadata: Metadata = buildPageMetadata({
     "запчастини по авто",
     "підбір по марці авто",
     "запчастини по моделі авто",
+    "каталог запчастин по авто",
+    "підбір деталей по автомобілю",
+    "запчастини audi bmw volkswagen toyota",
+    "автозапчастини по vin",
     "автозапчастини львів",
   ],
   openGraphTitle: `${title} | PartsON`,
@@ -41,9 +45,21 @@ export default function AutoPage() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
+    "@id": `${siteUrl}/auto#collection-page`,
     name: title,
     description,
     url: `${siteUrl}/auto`,
+    inLanguage: "uk-UA",
+    isPartOf: {
+      "@type": "WebSite",
+      name: "PartsON",
+      url: siteUrl,
+    },
+    about: [
+      { "@type": "Thing", name: "підбір автозапчастин по авто" },
+      { "@type": "Thing", name: "марки авто" },
+      { "@type": "Thing", name: "каталог автозапчастин" },
+    ],
     mainEntity: {
       "@type": "ItemList",
       itemListElement: carBrands.slice(0, 24).map((brand, index) => ({
