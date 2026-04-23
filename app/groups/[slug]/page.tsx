@@ -5,7 +5,9 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
-import { getCatalogSeoFacets } from "app/lib/catalog-seo";
+import {
+  getCatalogSeoFacetsWithTimeout,
+} from "app/lib/catalog-seo";
 import {
   buildCatalogCategoryPath,
   buildGroupItemPath,
@@ -15,9 +17,13 @@ import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
+import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
+const GROUP_STATIC_PARAMS_LIMIT_DEFAULT = 200;
+const GROUP_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
+const GROUP_PAGE_SEO_FACETS_TIMEOUT_MS = 2500;
 
 interface GroupPageParams {
   slug: string;
@@ -54,12 +60,31 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
 const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null> => {
   const [dataset, seoFacets] = await Promise.all([
     getProductTreeDataset().catch(() => null),
-    getCatalogSeoFacets().catch(() => ({ groups: [], producers: [], generatedAt: "" })),
+    getCatalogSeoFacetsWithTimeout(GROUP_PAGE_SEO_FACETS_TIMEOUT_MS),
   ]);
   const group = dataset?.groups.find(
     (item) => item.slug === slug || item.legacySlug === slug
   );
-  if (!group) return null;
+  if (!group) {
+    const seoGroup = seoFacets.groups.find(
+      (item) => item.slug === slug || buildPlainSeoSlug(item.label) === slug
+    );
+    if (!seoGroup) return null;
+
+    return {
+      label: seoGroup.label,
+      slug: seoGroup.slug,
+      legacySlug: undefined,
+      productCount: seoGroup.productCount,
+      subgroupsCount: seoGroup.subgroups.length,
+      subgroups: seoGroup.subgroups.map((subgroup) => ({
+        label: subgroup.label,
+        slug: subgroup.slug,
+        productCount: subgroup.productCount,
+        children: [],
+      })),
+    };
+  }
 
   const counts = resolveGroupSeoCounts(group, buildSeoGroupLookup(seoFacets.groups));
 
@@ -138,11 +163,29 @@ const buildGroupHeroDetails = (
 const buildGroupPagePath = (slug: string) => `/groups/${encodeURIComponent(slug)}`;
 
 export async function generateStaticParams() {
+  const limit = parsePositiveInt(
+    process.env.SEO_GROUP_STATIC_PARAMS_LIMIT,
+    GROUP_STATIC_PARAMS_LIMIT_DEFAULT
+  );
+  if (limit <= 0) return [];
+
+  const dataset = await getProductTreeDataset().catch(() => null);
+  const treeParams =
+    dataset?.groups
+      .filter((group) => group.slug)
+      .map((group) => ({ slug: group.slug })) ?? [];
+  if (treeParams.length > 0) {
+    return treeParams.slice(0, limit);
+  }
+
   try {
-    const dataset = await getProductTreeDataset();
-    const limit = parsePositiveInt(process.env.SEO_GROUP_STATIC_PARAMS_LIMIT, 0);
-    if (limit <= 0) return [];
-    return dataset.groups.slice(0, limit).map((group) => ({ slug: group.slug }));
+    const seoFacets = await getCatalogSeoFacetsWithTimeout(
+      GROUP_STATIC_PARAMS_FALLBACK_TIMEOUT_MS
+    );
+    return seoFacets.groups
+      .filter((group) => group.slug)
+      .map((group) => ({ slug: group.slug }))
+      .slice(0, limit);
   } catch {
     return [];
   }

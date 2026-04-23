@@ -27,7 +27,8 @@ import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 21600;
 export const dynamicParams = true;
-const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 0;
+const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 300;
+const MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS = 1800;
 const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
 const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 2400;
 const MANUFACTURER_FALLBACK_MAX_PAGES_DEFAULT = 40;
@@ -39,7 +40,6 @@ interface ManufacturerPageParams {
 
 interface ManufacturerPageProps {
   params: Promise<ManufacturerPageParams>;
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 type ManufacturerPageData = {
@@ -86,10 +86,6 @@ const decodeSafe = (value: string) => {
     return value;
   }
 };
-
-const pickFirstSearchParamValue = (
-  value: string | string[] | undefined
-) => (Array.isArray(value) ? value[0] || "" : value || "");
 
 const buildProducerFallbackLabelFromSlug = (slug: string) =>
   normalizeValue(decodeSafe(slug).replace(/-/g, " "));
@@ -429,7 +425,11 @@ const getManufacturerBySlug = cache(
   async (slug: string): Promise<ManufacturerPageData | null> => {
     const fallbackBrand =
       brands.find((brand) => buildSeoSlug(brand.name) === slug) || null;
-    const producer = await findSeoProducerBySlug(slug).catch(() => null);
+    const producer = await resolveWithTimeout(
+      () => findSeoProducerBySlug(slug),
+      null,
+      MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS
+    ).catch(() => null);
     if (!producer && !fallbackBrand) return null;
 
     const label = producer?.label || fallbackBrand?.name || "";
@@ -580,22 +580,12 @@ export async function generateMetadata({
 
 export default async function ManufacturerDetailPage({
   params,
-  searchParams,
 }: ManufacturerPageProps) {
   const { slug } = await params;
-  const resolvedSearchParams = await (
-    searchParams ?? Promise.resolve({} as Record<string, string | string[] | undefined>)
-  );
   const producer = await getManufacturerBySlug(slug);
 
   if (!producer) {
-    const producerHint = normalizeValue(
-      pickFirstSearchParamValue(resolvedSearchParams.producer)
-    );
-    const fallbackProducer =
-      producerHint || buildProducerFallbackLabelFromSlug(slug);
-
-    permanentRedirect(buildCatalogProducerPath(fallbackProducer));
+    permanentRedirect(buildCatalogProducerPath(buildProducerFallbackLabelFromSlug(slug)));
   }
   if (slug !== producer.slug) {
     permanentRedirect(buildManufacturerPath(producer.slug));

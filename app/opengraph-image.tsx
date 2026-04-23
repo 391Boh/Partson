@@ -1,5 +1,7 @@
 import { ImageResponse } from "next/og";
 
+import { getOgFonts } from "app/lib/og-fonts";
+
 export const runtime = "nodejs";
 
 export const alt = "PartsON - Магазин автозапчастин";
@@ -9,7 +11,9 @@ export const size = {
 };
 export const contentType = "image/png";
 
-export default function OpenGraphImage() {
+export default async function OpenGraphImage() {
+  const fonts = await getOgFonts();
+
   return new ImageResponse(
     (
       <div
@@ -23,7 +27,7 @@ export default function OpenGraphImage() {
           background:
             "radial-gradient(circle at 10% 15%, rgba(56, 189, 248, 0.35), transparent 35%), radial-gradient(circle at 90% 8%, rgba(14, 165, 233, 0.32), transparent 32%), linear-gradient(135deg, #0f172a 0%, #1e3a8a 52%, #0369a1 100%)",
           color: "#f8fafc",
-          fontFamily: "Inter, Segoe UI, Arial, sans-serif",
+          fontFamily: "Montserrat, Arial, sans-serif",
         }}
       >
         <div
@@ -96,6 +100,9 @@ export default function OpenGraphImage() {
         </div>
       </div>
     ),
-    size
+    {
+      ...size,
+      fonts,
+    }
   );
 }

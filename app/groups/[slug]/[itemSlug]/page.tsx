@@ -16,7 +16,7 @@ import {
 } from "app/components/catalog-directory-styles";
 import SmartLink from "app/components/SmartLink";
 import {
-  getCatalogSeoFacets,
+  getCatalogSeoFacetsWithTimeout,
   type SeoProducerFacet,
 } from "app/lib/catalog-seo";
 import {
@@ -34,6 +34,9 @@ import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
+const GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT = 750;
+const GROUP_ITEM_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
+const GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS = 2500;
 
 interface GroupItemPageParams {
   slug: string;
@@ -150,12 +153,47 @@ const getGroupItemBySlugs = cache(
   async (groupSlug: string, itemSlug: string): Promise<GroupItemPageData | null> => {
     const [dataset, seoFacets] = await Promise.all([
       getProductTreeDataset().catch(() => null),
-      getCatalogSeoFacets().catch(() => ({ groups: [], producers: [], generatedAt: "" })),
+      getCatalogSeoFacetsWithTimeout(GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS),
     ]);
     const group = dataset?.groups.find(
       (entry) => entry.slug === groupSlug || entry.legacySlug === groupSlug
     );
-    if (!group) return null;
+    if (!group) {
+      const groupRouteKeys = new Set([normalizeLookupKey(groupSlug)]);
+      const itemRouteKeys = new Set([normalizeLookupKey(itemSlug)]);
+      const seoGroup = seoFacets.groups.find((entry) =>
+        facetMatches(entry, groupRouteKeys)
+      );
+      const seoSubgroup = seoGroup?.subgroups.find((entry) =>
+        facetMatches(entry, itemRouteKeys)
+      );
+      if (!seoGroup || !seoSubgroup) return null;
+
+      const producerSplit = buildGroupItemProducerSplit({
+        producers: seoFacets.producers,
+        groupLabel: seoGroup.label,
+        itemLabels: [seoSubgroup.label],
+      });
+      const producerProductCount = producerSplit.reduce(
+        (sum, producer) => sum + producer.productCount,
+        0
+      );
+
+      return {
+        groupLabel: seoGroup.label,
+        groupSlug: seoGroup.slug,
+        groupLegacySlug: undefined,
+        label: seoSubgroup.label,
+        itemSlug: seoSubgroup.slug,
+        parentSubgroupLabel: "",
+        parentSubgroupSlug: undefined,
+        productCount: Math.max(seoSubgroup.productCount, producerProductCount),
+        producersCount: producerSplit.length,
+        catalogPath: buildCatalogCategoryPath(seoGroup.label, seoSubgroup.label),
+        producerSplit,
+        children: [],
+      };
+    }
     const counts = resolveGroupSeoCounts(group, buildSeoGroupLookup(seoFacets.groups));
 
     const subgroup = group.subgroups.find(
@@ -229,7 +267,44 @@ const getGroupItemBySlugs = cache(
       };
     }
 
-    return null;
+    const groupKeys = new Set([
+      ...buildFacetLookupKeys(group.label),
+      normalizeLookupKey(group.slug),
+      normalizeLookupKey(group.legacySlug),
+    ]);
+    const itemRouteKeys = new Set([normalizeLookupKey(itemSlug)]);
+    const seoGroup = seoFacets.groups.find((entry) =>
+      facetMatches(entry, groupKeys)
+    );
+    const seoSubgroup = seoGroup?.subgroups.find((entry) =>
+      facetMatches(entry, itemRouteKeys)
+    );
+    if (!seoGroup || !seoSubgroup) return null;
+
+    const producerSplit = buildGroupItemProducerSplit({
+      producers: seoFacets.producers,
+      groupLabel: seoGroup.label,
+      itemLabels: [seoSubgroup.label],
+    });
+    const producerProductCount = producerSplit.reduce(
+      (sum, producer) => sum + producer.productCount,
+      0
+    );
+
+    return {
+      groupLabel: seoGroup.label,
+      groupSlug: group.slug,
+      groupLegacySlug: group.legacySlug,
+      label: seoSubgroup.label,
+      itemSlug: seoSubgroup.slug,
+      parentSubgroupLabel: "",
+      parentSubgroupSlug: undefined,
+      productCount: Math.max(seoSubgroup.productCount, producerProductCount),
+      producersCount: producerSplit.length,
+      catalogPath: buildCatalogCategoryPath(seoGroup.label, seoSubgroup.label),
+      producerSplit,
+      children: [],
+    };
   }
 );
 
@@ -256,24 +331,42 @@ const buildGroupItemTitle = (item: GroupItemPageData) => {
 };
 
 export async function generateStaticParams() {
-  try {
-    const dataset = await getProductTreeDataset();
-    const limit = parsePositiveInt(process.env.SEO_GROUP_ITEM_STATIC_PARAMS_LIMIT, 0);
-    if (limit <= 0) return [];
+  const limit = parsePositiveInt(
+    process.env.SEO_GROUP_ITEM_STATIC_PARAMS_LIMIT,
+    GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT
+  );
+  if (limit <= 0) return [];
 
-    return dataset.groups
-      .flatMap((group) => [
-        ...group.subgroups.map((subgroup) => ({
+  const dataset = await getProductTreeDataset().catch(() => null);
+  const treeParams =
+    dataset?.groups.flatMap((group) => [
+      ...group.subgroups.map((subgroup) => ({
+        slug: group.slug,
+        itemSlug: subgroup.slug,
+      })),
+      ...group.subgroups.flatMap((subgroup) =>
+        subgroup.children.map((child) => ({
+          slug: group.slug,
+          itemSlug: child.slug,
+        }))
+      ),
+    ]) ?? [];
+  if (treeParams.length > 0) {
+    return treeParams.slice(0, limit);
+  }
+
+  try {
+    const seoFacets = await getCatalogSeoFacetsWithTimeout(
+      GROUP_ITEM_STATIC_PARAMS_FALLBACK_TIMEOUT_MS
+    );
+    return seoFacets.groups
+      .flatMap((group) =>
+        (Array.isArray(group.subgroups) ? group.subgroups : []).map((subgroup) => ({
           slug: group.slug,
           itemSlug: subgroup.slug,
-        })),
-        ...group.subgroups.flatMap((subgroup) =>
-          subgroup.children.map((child) => ({
-            slug: group.slug,
-            itemSlug: child.slug,
-          }))
-        ),
-      ])
+        }))
+      )
+      .filter((entry) => entry.slug && entry.itemSlug)
       .slice(0, limit);
   } catch {
     return [];

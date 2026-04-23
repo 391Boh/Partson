@@ -1,5 +1,7 @@
 import { ImageResponse } from "next/og";
 
+import { getOgFonts } from "app/lib/og-fonts";
+
 export const runtime = "nodejs";
 
 export const alt = "PartsON - Каталог автозапчастин";
@@ -9,7 +11,9 @@ export const size = {
 };
 export const contentType = "image/png";
 
-export default function TwitterImage() {
+export default async function TwitterImage() {
+  const fonts = await getOgFonts();
+
   return new ImageResponse(
     (
       <div
@@ -23,7 +27,7 @@ export default function TwitterImage() {
           background:
             "radial-gradient(circle at 12% 16%, rgba(34, 211, 238, 0.28), transparent 36%), radial-gradient(circle at 86% 10%, rgba(56, 189, 248, 0.28), transparent 34%), linear-gradient(135deg, #082f49 0%, #0f172a 56%, #1d4ed8 100%)",
           color: "#f8fafc",
-          fontFamily: "Inter, Segoe UI, Arial, sans-serif",
+          fontFamily: "Montserrat, Arial, sans-serif",
         }}
       >
         <div
@@ -77,6 +81,9 @@ export default function TwitterImage() {
         </div>
       </div>
     ),
-    size
+    {
+      ...size,
+      fonts,
+    }
   );
 }
