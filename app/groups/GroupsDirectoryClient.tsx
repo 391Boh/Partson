@@ -8,6 +8,8 @@ import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import {
   directoryBadgeClass,
   directoryCardClass,
+  directoryCompactMetricAccentClass,
+  directoryCompactMetricClass,
   directoryDescriptionClass,
   directoryHeaderClass,
   directoryIconTileClass,
@@ -157,15 +159,16 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                 </p>
               </div>
 
-              <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                 {group.productCount > 0 ? (
-                  <span className="rounded-md border border-slate-200 bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                    {group.productCount.toLocaleString("uk-UA")} товарів
+                  <span className={directoryCompactMetricClass}>
+                    <span>{group.productCount.toLocaleString("uk-UA")}</span>
+                    <span className="font-semibold text-slate-500">тов.</span>
                   </span>
                 ) : null}
-                <span className="rounded-md border border-teal-200/70 bg-teal-50 px-2.5 py-1 text-[11px] font-semibold text-teal-800">
+                <span className={directoryCompactMetricAccentClass}>
                   {hasSubgroups
-                    ? `${group.subgroupsCount.toLocaleString("uk-UA")} підгруп`
+                    ? `${group.subgroupsCount.toLocaleString("uk-UA")} підгр.`
                     : "окрема сторінка"}
                 </span>
               </div>
@@ -192,15 +195,16 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                   <span className="truncate">{buildVisibleProductName(subgroup.label)}</span>
                 </CatalogPrefetchLink>
 
-                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                   {subgroup.productCount > 0 ? (
-                    <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                      {subgroup.productCount.toLocaleString("uk-UA")} товарів
+                    <span className={directoryCompactMetricClass}>
+                      <span>{subgroup.productCount.toLocaleString("uk-UA")}</span>
+                      <span className="font-semibold text-slate-500">тов.</span>
                     </span>
                   ) : null}
                   {subgroup.children.length > 0 ? (
-                    <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                      {subgroup.children.length} підгрупи
+                    <span className={directoryCompactMetricAccentClass}>
+                      {subgroup.children.length} підгр.
                     </span>
                   ) : null}
                 </div>

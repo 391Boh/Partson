@@ -25,11 +25,23 @@ export const directoryMetricClass =
 export const directoryMetricAccentClass =
   "inline-flex rounded-md border border-teal-200/70 bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800 shadow-[0_8px_18px_rgba(13,148,136,0.06)]";
 
+export const directoryCompactMetricClass =
+  "inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-200 bg-white/90 px-2.5 py-1 text-[11px] font-bold leading-none text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)]";
+
+export const directoryCompactMetricAccentClass =
+  "inline-flex shrink-0 items-center gap-1.5 rounded-md border border-teal-200/70 bg-teal-50 px-2.5 py-1 text-[11px] font-bold leading-none text-teal-800 shadow-[0_8px_18px_rgba(13,148,136,0.06)]";
+
 export const directoryCardClass =
   "group relative isolate flex h-full flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.07)] transition-[border-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-px hover:border-teal-300/80 hover:shadow-[0_20px_44px_rgba(13,148,136,0.13)] focus-visible:border-teal-300 focus-visible:shadow-[0_20px_44px_rgba(13,148,136,0.13)] focus-visible:outline-none";
 
+export const directoryHeroClass =
+  "overflow-hidden rounded-lg border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.18),transparent_34%),linear-gradient(160deg,#ffffff_0%,#f8fbff_55%,#eefcf8_100%)] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.07)] sm:p-5";
+
 export const directoryIconTileClass =
   "relative inline-flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-[linear-gradient(145deg,#ffffff,#f0fdfa_62%,#eff6ff)] text-sm font-extrabold text-slate-700 shadow-[0_12px_24px_rgba(15,23,42,0.07)]";
+
+export const directoryListCardClass =
+  "rounded-lg border border-slate-200/90 bg-white/95 shadow-[0_12px_30px_rgba(15,23,42,0.045)] transition hover:border-teal-200 hover:bg-teal-50/35 hover:shadow-[0_16px_34px_rgba(13,148,136,0.08)]";
 
 export const directoryActionIconClass =
   "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-teal-800 shadow-[0_10px_20px_rgba(15,23,42,0.05)] transition group-hover:border-teal-200 group-hover:bg-teal-50";

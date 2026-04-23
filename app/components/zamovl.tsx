@@ -19,6 +19,7 @@ import OrderConfirmation from "./OrderConfirmation";
 
 type DeliveryMethodType = ComponentProps<typeof DeliveryMethod>["deliveryMethod"];
 type PaymentMethodType = ComponentProps<typeof PaymentMethod>["paymentMethod"];
+type PaymentConfirmationPayload = Record<string, unknown>;
 
 interface CityOrWarehouse {
   Description: string;
@@ -64,6 +65,9 @@ const Zamovl: React.FC<ZamovlProps> = ({
 
   const [orderId] = useState(() => `${Date.now()}`);
   const [confirmedAmount, setConfirmedAmount] = useState<number | null>(null);
+  const [confirmedPaymentMethod, setConfirmedPaymentMethod] =
+    useState<PaymentMethodType>("");
+  const [confirmedPaymentStatus, setConfirmedPaymentStatus] = useState("");
 
   useEffect(() => {
     const auth = getAuth();
@@ -96,8 +100,17 @@ const Zamovl: React.FC<ZamovlProps> = ({
     return () => unsubscribe();
   }, []);
 
-  const handleSubmitOrder = async () => {
+  const handleSubmitOrder = async (paymentData?: PaymentConfirmationPayload) => {
     const db = getFirestore();
+    const isCardPayment = paymentMethod === "Картка";
+    const isCardPaid = isCardPayment && paymentData?.paymentStatus === "paid";
+    const resolvedPaymentStatus =
+      paymentMethod === "Готівка"
+        ? "cash_on_delivery"
+        : isCardPaid
+          ? "paid"
+          : "pending";
+    const resolvedPaymentProvider = isCardPayment ? "liqpay" : "cash";
 
     const normalizedCartItems = cartItems.map((item) => ({
       name: item.name,
@@ -122,10 +135,23 @@ const Zamovl: React.FC<ZamovlProps> = ({
         cartItems: normalizedCartItems,
         totalAmount,
         orderId,
+        paymentStatus: resolvedPaymentStatus,
+        paymentProvider: resolvedPaymentProvider,
+        liqpayStatus:
+          typeof paymentData?.liqpayStatus === "string" ? paymentData.liqpayStatus : null,
+        liqpayTransactionId:
+          typeof paymentData?.liqpayTransactionId === "string"
+            ? paymentData.liqpayTransactionId
+            : null,
+        liqpayPaymentId:
+          typeof paymentData?.liqpayPaymentId === "string" ? paymentData.liqpayPaymentId : null,
+        paidAt: isCardPaid ? Timestamp.now() : null,
         createdAt: Timestamp.now(),
       });
 
       setConfirmedAmount(totalAmount);
+      setConfirmedPaymentMethod(paymentMethod);
+      setConfirmedPaymentStatus(resolvedPaymentStatus);
       onClearCart();
       setCurrentStep(3);
     } catch (error) {
@@ -189,6 +215,8 @@ const Zamovl: React.FC<ZamovlProps> = ({
             phone={phone}
             orderId={orderId}
             totalAmount={confirmedAmount ?? totalAmount}
+            paymentMethod={confirmedPaymentMethod || paymentMethod}
+            paymentStatus={confirmedPaymentStatus}
             onClose={onCloseAll}
           />
         );

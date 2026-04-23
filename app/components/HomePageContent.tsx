@@ -1,11 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
-import { onAuthStateChanged } from "firebase/auth";
+import type { Auth } from "firebase/auth";
 import Hero from "./hero";
-import { auth } from "../../firebase";
 
 type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
+
+type HomeAuthDeps = {
+  auth: Auth;
+  onAuthStateChanged: typeof import("firebase/auth").onAuthStateChanged;
+};
+
+let homeAuthDepsPromise: Promise<HomeAuthDeps> | null = null;
+
+const loadHomeAuthDeps = () => {
+  homeAuthDepsPromise ??= Promise.all([
+    import("../../firebase"),
+    import("firebase/auth"),
+  ]).then(([firebaseModule, authModule]) => ({
+    auth: firebaseModule.auth,
+    onAuthStateChanged: authModule.onAuthStateChanged,
+  }));
+
+  return homeAuthDepsPromise;
+};
 
 const HomeDeferredStackPlaceholder = () => (
   <section className="relative w-full py-2">
@@ -26,11 +44,25 @@ export default function HomePageContent() {
   const deferredHomeSentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    setIsAuthenticated(Boolean(auth.currentUser));
-    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
-      setIsAuthenticated(Boolean(authUser));
-    });
-    return () => unsubscribe();
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+
+    void loadHomeAuthDeps()
+      .then(({ auth, onAuthStateChanged }) => {
+        if (cancelled) return;
+        setIsAuthenticated(Boolean(auth.currentUser));
+        unsubscribe = onAuthStateChanged(auth, (authUser) => {
+          setIsAuthenticated(Boolean(authUser));
+        });
+      })
+      .catch((error) => {
+        console.error("Failed to load home auth deps:", error);
+      });
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, []);
 
   useEffect(() => {

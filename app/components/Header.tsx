@@ -8,11 +8,10 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import type { Auth, User as FirebaseUser } from 'firebase/auth';
 import { useCart } from 'app/context/CartContext';
 import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { createPortal } from 'react-dom';
-import { auth } from '../../firebase';
 
 type AppRouterInstance = ReturnType<typeof useRouter>;
 
@@ -66,6 +65,25 @@ type SearchBarComponentProps = {
 
 type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
 
+type HeaderAuthDeps = {
+  auth: Auth;
+  onAuthStateChanged: typeof import('firebase/auth').onAuthStateChanged;
+};
+
+let headerAuthDepsPromise: Promise<HeaderAuthDeps> | null = null;
+
+const loadHeaderAuthDeps = () => {
+  headerAuthDepsPromise ??= Promise.all([
+    import('../../firebase'),
+    import('firebase/auth'),
+  ]).then(([firebaseModule, authModule]) => ({
+    auth: firebaseModule.auth,
+    onAuthStateChanged: authModule.onAuthStateChanged,
+  }));
+
+  return headerAuthDepsPromise;
+};
+
 const Header: React.FC = () => {
   const { cartItems } = useCart();
   const logoFallbackPath = '/favicon-192x192.png';
@@ -115,11 +133,25 @@ const Header: React.FC = () => {
 
   // AUTH LISTENER
   useEffect(() => {
-    setUser(auth.currentUser ?? null);
-    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
-      setUser(authUser ?? null);
-    });
-    return () => unsubscribe();
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+
+    void loadHeaderAuthDeps()
+      .then(({ auth, onAuthStateChanged }) => {
+        if (cancelled) return;
+        setUser(auth.currentUser ?? null);
+        unsubscribe = onAuthStateChanged(auth, (authUser) => {
+          setUser(authUser ?? null);
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to load header auth deps:', error);
+      });
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, []);
 
   useEffect(() => {

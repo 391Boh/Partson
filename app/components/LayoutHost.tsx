@@ -2,21 +2,11 @@
 
 import type { ComponentType, ReactNode } from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { db } from "../../firebase";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  doc,
-  getDoc,
-  setDoc,
-} from "firebase/firestore";
+import type { Auth } from "firebase/auth";
+import type { Firestore } from "firebase/firestore";
 import Header from "./Header";
-import ChatButton from "./ChatButton";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Shield } from "lucide-react";
+import { MessageCircle, Shield } from "lucide-react";
 
 interface LayoutHostProps {
   children: ReactNode;
@@ -35,8 +25,49 @@ type TelegramChatComponentProps = {
   onPrefillSent?: () => void;
 };
 
+type ChatButtonComponentProps = {
+  onClick: () => void;
+  unreadCount: number;
+};
+
 type RouteViewState = {
   isEmbeddedProductView: boolean;
+};
+
+type LayoutFirebaseDeps = {
+  auth: Auth;
+  db: Firestore;
+  collection: typeof import("firebase/firestore").collection;
+  doc: typeof import("firebase/firestore").doc;
+  getDoc: typeof import("firebase/firestore").getDoc;
+  onAuthStateChanged: typeof import("firebase/auth").onAuthStateChanged;
+  onSnapshot: typeof import("firebase/firestore").onSnapshot;
+  query: typeof import("firebase/firestore").query;
+  setDoc: typeof import("firebase/firestore").setDoc;
+  where: typeof import("firebase/firestore").where;
+};
+
+let layoutFirebaseDepsPromise: Promise<LayoutFirebaseDeps> | null = null;
+
+const loadLayoutFirebaseDeps = () => {
+  layoutFirebaseDepsPromise ??= Promise.all([
+    import("../../firebase"),
+    import("firebase/auth"),
+    import("firebase/firestore"),
+  ]).then(([firebaseModule, authModule, firestoreModule]) => ({
+    auth: firebaseModule.auth,
+    db: firebaseModule.db,
+    collection: firestoreModule.collection,
+    doc: firestoreModule.doc,
+    getDoc: firestoreModule.getDoc,
+    onAuthStateChanged: authModule.onAuthStateChanged,
+    onSnapshot: firestoreModule.onSnapshot,
+    query: firestoreModule.query,
+    setDoc: firestoreModule.setDoc,
+    where: firestoreModule.where,
+  }));
+
+  return layoutFirebaseDepsPromise;
 };
 
 const normalizeStoredId = (value: unknown) =>
@@ -218,6 +249,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     useState<ComponentType<AdminChatPanelComponentProps> | null>(null);
   const [TelegramChatComponent, setTelegramChatComponent] =
     useState<ComponentType<TelegramChatComponentProps> | null>(null);
+  const [ChatButtonComponent, setChatButtonComponent] =
+    useState<ComponentType<ChatButtonComponentProps> | null>(null);
+  const [firebaseDeps, setFirebaseDeps] = useState<LayoutFirebaseDeps | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -235,8 +269,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const pathnameValue = usePathname();
   const pathname = pathnameValue ?? "";
   const warmupStartedRef = useRef(false);
-  const auth = getAuth();
   const isDevelopment = process.env.NODE_ENV !== "production";
+  const enableAggressiveWarmup =
+    process.env.NEXT_PUBLIC_ENABLE_AGGRESSIVE_WARMUP === "1";
   const { isEmbeddedProductView } = routeViewState;
   const openChat = useCallback(() => {
     setIsChatOpen(true);
@@ -256,6 +291,80 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       return nextState;
     });
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || firebaseDeps) return;
+
+    let cancelled = false;
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    const loadDeps = () => {
+      void loadLayoutFirebaseDeps()
+        .then((deps) => {
+          if (!cancelled) {
+            setFirebaseDeps(deps);
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to load layout Firebase deps:", error);
+        });
+    };
+
+    let idleId: number | null = null;
+    let timeoutId: number | null = null;
+
+    if (typeof win.requestIdleCallback === "function") {
+      idleId = win.requestIdleCallback(loadDeps, { timeout: 900 });
+    } else {
+      timeoutId = window.setTimeout(loadDeps, 350);
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId != null) win.cancelIdleCallback?.(idleId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+    };
+  }, [firebaseDeps]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || ChatButtonComponent) return;
+
+    let cancelled = false;
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    const loadChatButton = () => {
+      void import("./ChatButton")
+        .then((module) => {
+          if (!cancelled) {
+            setChatButtonComponent(() => module.default);
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to load chat button chunk:", error);
+        });
+    };
+
+    let idleId: number | null = null;
+    let timeoutId: number | null = null;
+
+    if (typeof win.requestIdleCallback === "function") {
+      idleId = win.requestIdleCallback(loadChatButton, { timeout: 1400 });
+    } else {
+      timeoutId = window.setTimeout(loadChatButton, 700);
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId != null) win.cancelIdleCallback?.(idleId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+    };
+  }, [ChatButtonComponent]);
 
   useEffect(() => {
     syncRouteViewState({
@@ -502,6 +611,8 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     const runWarmup = async () => {
       if (document.visibilityState === "hidden") return;
+      if (!enableAggressiveWarmup) return;
+
       preloadAllChunks();
       void warmRoutes();
       if (isDevelopment) return;
@@ -630,7 +741,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     let preloadAllTimer: number | null = null;
     let loadListener: (() => void) | null = null;
 
-    if (!shouldUseLightWarmup) {
+    if (!shouldUseLightWarmup && enableAggressiveWarmup) {
       initialWarmupFrameId = window.requestAnimationFrame(() => {
         PRIMARY_WARMUP_ROUTES.slice(0, 5).forEach((route) => router.prefetch(route));
         preloadCriticalChunks();
@@ -641,7 +752,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     const scheduleWarmup = () => {
       if (shouldUseLightWarmup) return;
 
-      preloadAllTimer = window.setTimeout(preloadAllChunks, 2500);
+      if (enableAggressiveWarmup) {
+        preloadAllTimer = window.setTimeout(preloadAllChunks, 2500);
+      }
 
       if (typeof idle === "function") {
         idleId = idle(() => void runWarmup(), { timeout: 2000 });
@@ -672,10 +785,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         ).cancelIdleCallback?.(idleId);
       }
     };
-  }, [isDevelopment, router]);
+  }, [enableAggressiveWarmup, isDevelopment, router]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!firebaseDeps) return;
+
+    const { auth, db, doc, getDoc, onAuthStateChanged, setDoc } = firebaseDeps;
 
     const currentUser = auth.currentUser;
     if (currentUser) {
@@ -800,11 +916,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     });
 
     return () => unsubscribe();
-  }, [auth]);
+  }, [firebaseDeps]);
 
   useEffect(() => {
     if (!userId || typeof window === "undefined") return;
+    if (!firebaseDeps) return;
 
+    const { db, doc, setDoc } = firebaseDeps;
     const presenceRef = doc(db, "chatPresence", userId);
     let presenceSyncAllowed = true;
 
@@ -857,11 +975,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       window.removeEventListener("pagehide", markHidden);
       void syncPresence(false);
     };
-  }, [userId]);
+  }, [firebaseDeps, userId]);
 
   useEffect(() => {
     if (!authUserUid || typeof window === "undefined") return;
+    if (!firebaseDeps) return;
 
+    const { db, doc, setDoc } = firebaseDeps;
     const userRef = doc(db, "users", authUserUid);
     let presenceSyncAllowed = true;
 
@@ -914,15 +1034,14 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       window.removeEventListener("pagehide", markHidden);
       void syncPresence(false);
     };
-  }, [authUserUid]);
+  }, [authUserUid, firebaseDeps]);
 
   useEffect(() => {
     if (loading || !userId) return;
+    if (!firebaseDeps) return;
 
-    const q = query(
-      collection(db, "messages"),
-      where("userId", "==", userId)
-    );
+    const { collection, db, onSnapshot, query, where } = firebaseDeps;
+    const q = query(collection(db, "messages"), where("userId", "==", userId));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const unreadMessages = snapshot.docs.filter((messageDoc) => {
@@ -935,13 +1054,16 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     });
 
     return () => unsubscribe();
-  }, [userId, loading]);
+  }, [firebaseDeps, userId, loading]);
 
   useEffect(() => {
     if (!isAdmin) {
       setTotalNotifications(0);
       return;
     }
+    if (!firebaseDeps) return;
+
+    const { collection, db, onSnapshot } = firebaseDeps;
 
     let unreadMessages = 0;
     let unreadOrders = 0;
@@ -981,7 +1103,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       unsubscribeOrders();
       unsubscribeCalls();
     };
-  }, [isAdmin]);
+  }, [firebaseDeps, isAdmin]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1047,12 +1169,19 @@ export default function LayoutHost({ children }: LayoutHostProps) {
             </button>
           )}
 
-          {!isChatOpen && (
-            <ChatButton
+          {!isChatOpen && ChatButtonComponent ? (
+            <ChatButtonComponent onClick={openChat} unreadCount={userUnreadCount} />
+          ) : !isChatOpen ? (
+            <button
+              type="button"
               onClick={openChat}
-              unreadCount={userUnreadCount}
-            />
-          )}
+              aria-label="Відкрити чат"
+              className="relative z-20 mr-2 inline-flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border border-white/18 bg-sky-800 text-white shadow-[0_18px_38px_rgba(8,47,73,0.26)] transition hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
+            >
+              <MessageCircle size={30} strokeWidth={2.2} aria-hidden="true" />
+              {renderBadge(userUnreadCount)}
+            </button>
+          ) : null}
 
           {isAdmin && AdminChatPanelComponent && (
             <AdminChatPanelComponent

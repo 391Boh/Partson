@@ -7,6 +7,21 @@ import { permanentRedirect } from "next/navigation";
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import { brands } from "app/components/brandsData";
 import {
+  catalogPageBackgroundClass,
+  directoryBadgeClass,
+  directoryCompactMetricAccentClass,
+  directoryCompactMetricClass,
+  directoryDescriptionClass,
+  directoryHeaderClass,
+  directoryHeroClass,
+  directoryIconTileClass,
+  directoryListCardClass,
+  directoryPanelClass,
+  directoryPrimaryButtonClass,
+  directorySecondaryButtonClass,
+  directoryTitleClass,
+} from "app/components/catalog-directory-styles";
+import {
   buildCatalogProducerPath,
   buildManufacturerPath,
 } from "app/lib/catalog-links";
@@ -33,6 +48,10 @@ const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
 const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 2400;
 const MANUFACTURER_FALLBACK_MAX_PAGES_DEFAULT = 40;
 const MANUFACTURER_FALLBACK_MAX_ITEMS_DEFAULT = 4800;
+const isProductionBuildPhase =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
+  process.env.npm_lifecycle_event === "build";
 
 interface ManufacturerPageParams {
   slug: string;
@@ -487,6 +506,7 @@ const getManufacturerBySlug = cache(
       topGroupsProducts
     );
     const shouldUseFallbackCounts =
+      !isProductionBuildPhase &&
       !(productCount > 0 && groupsCount > 0 && (categoriesCount > 0 || topGroups.length > 0));
     const fallbackCounts = shouldUseFallbackCounts
       ? await resolveWithTimeout<
@@ -656,7 +676,8 @@ export default async function ManufacturerDetailPage({
   };
 
   return (
-    <main className="page-shell-inline py-5 sm:py-7">
+    <main className={`${catalogPageBackgroundClass} min-h-screen py-5 sm:py-7`}>
+      <div className="page-shell-inline">
       <div className="space-y-4 sm:space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <nav className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
@@ -673,59 +694,54 @@ export default async function ManufacturerDetailPage({
 
           <Link
             href="/manufacturers"
-            className="inline-flex items-center rounded-full border border-cyan-200/80 bg-white/90 px-4 py-2 text-sm font-semibold text-cyan-900 shadow-[0_10px_24px_rgba(14,165,233,0.08)] transition hover:border-cyan-300 hover:bg-cyan-50 hover:shadow-[0_14px_28px_rgba(14,165,233,0.14)]"
+            className={directorySecondaryButtonClass}
           >
             &larr; Усі виробники
           </Link>
         </div>
 
-        <section className="relative overflow-hidden rounded-[32px] border border-white/80 bg-[radial-gradient(circle_at_top_left,rgba(165,243,252,0.42),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(191,219,254,0.34),transparent_32%),linear-gradient(165deg,rgba(255,255,255,0.98),rgba(248,252,255,0.95),rgba(236,248,255,0.92))] shadow-[0_28px_68px_rgba(14,165,233,0.14)] backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),transparent_42%,rgba(34,211,238,0.08))]" />
-          <div className="pointer-events-none absolute left-6 right-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
-
-          <div className="relative px-5 py-5 sm:px-6 sm:py-6">
+        <section className={directoryHeroClass}>
+          <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex rounded-full border border-cyan-200/80 bg-cyan-50/90 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-800 shadow-[0_10px_20px_rgba(8,145,178,0.08)]">
+              <span className={directoryBadgeClass}>
                 Сторінка бренду
               </span>
-              <span className="inline-flex rounded-full border border-slate-200 bg-white/88 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-[0_10px_20px_rgba(15,23,42,0.04)]">
-                {producer.productCount.toLocaleString("uk-UA")} товарів
+              <span className={directoryCompactMetricClass}>
+                {producer.productCount.toLocaleString("uk-UA")} тов.
               </span>
               {producer.groupsCount > 0 ? (
-                <span className="inline-flex rounded-full border border-slate-200 bg-white/88 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-[0_10px_20px_rgba(15,23,42,0.04)]">
+                <span className={directoryCompactMetricClass}>
                   {producer.groupsCount.toLocaleString("uk-UA")} груп
                 </span>
               ) : null}
               {producer.categoriesCount > 0 ? (
-                <span className="inline-flex rounded-full border border-cyan-100 bg-cyan-50/90 px-3 py-1 text-[11px] font-semibold text-cyan-800 shadow-[0_10px_20px_rgba(8,145,178,0.08)]">
-                  {producer.categoriesCount.toLocaleString("uk-UA")} категорій
+                <span className={directoryCompactMetricAccentClass}>
+                  {producer.categoriesCount.toLocaleString("uk-UA")} кат.
                 </span>
               ) : null}
             </div>
 
             <div className="mt-5 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
               <div className="flex min-w-0 items-start gap-4">
-                <div className="relative inline-flex h-[90px] w-[90px] shrink-0 items-center justify-center overflow-hidden rounded-[26px] border border-cyan-100/90 bg-[linear-gradient(160deg,rgba(255,255,255,0.99),rgba(236,254,255,0.92))] shadow-[0_18px_36px_rgba(14,165,233,0.16)]">
-                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.7),transparent_58%)]" />
-                  <div className="pointer-events-none absolute inset-[7px] rounded-[20px] border border-white/70" />
+                <div className={directoryIconTileClass}>
                   {producer.logoPath ? (
                     <Image
                       src={producer.logoPath}
                       alt={producer.label}
                       width={68}
                       height={68}
-                      className="relative z-[1] h-14 w-14 object-contain"
+                      className="relative z-[1] h-12 w-12 object-contain"
                       unoptimized
                     />
                   ) : (
-                    <span className="relative z-[1] text-xl font-[780] italic text-slate-700">
+                    <span className="relative z-[1] text-xl font-[780] text-slate-700">
                       {producer.initials}
                     </span>
                   )}
                 </div>
 
                 <div className="min-w-0">
-                  <h1 className="font-display text-3xl font-[780] italic tracking-[-0.05em] text-slate-900 sm:text-[2.35rem]">
+                  <h1 className="font-display text-3xl font-[780] tracking-normal text-slate-950 sm:text-[2.35rem]">
                     {producer.label}
                   </h1>
                   <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
@@ -738,13 +754,13 @@ export default async function ManufacturerDetailPage({
                 <CatalogPrefetchLink
                   href={catalogPath}
                   prefetchCatalogOnViewport
-                  className="inline-flex items-center justify-center rounded-2xl border border-cyan-300/80 bg-[linear-gradient(135deg,rgba(8,145,178,0.96),rgba(14,165,233,0.92))] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_36px_rgba(14,165,233,0.22)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_44px_rgba(14,165,233,0.3)]"
+                  className={directoryPrimaryButtonClass}
                 >
                   Перейти в каталог бренду
                 </CatalogPrefetchLink>
                 <Link
                   href="/manufacturers"
-                  className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white/90 px-5 py-3 text-sm font-semibold text-slate-700 shadow-[0_12px_28px_rgba(15,23,42,0.06)] transition hover:border-cyan-200 hover:text-cyan-800 hover:shadow-[0_16px_34px_rgba(14,165,233,0.12)]"
+                  className={directorySecondaryButtonClass}
                 >
                   Усі виробники
                 </Link>
@@ -752,25 +768,25 @@ export default async function ManufacturerDetailPage({
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <span className="inline-flex rounded-full border border-slate-200 bg-white/88 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-[0_10px_20px_rgba(15,23,42,0.04)]">
+              <span className={directoryCompactMetricClass}>
                 Каталог бренду з SEO-маршрутом
               </span>
-              <span className="inline-flex rounded-full border border-cyan-100 bg-cyan-50/90 px-3 py-1 text-[11px] font-semibold text-cyan-800 shadow-[0_10px_20px_rgba(8,145,178,0.08)]">
+              <span className={directoryCompactMetricAccentClass}>
                 Плавна навігація по групах і категоріях
               </span>
             </div>
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,252,255,0.93),rgba(237,248,255,0.9))] shadow-[0_24px_56px_rgba(14,165,233,0.12)] backdrop-blur-xl">
-          <div className="border-b border-white/80 px-4 py-4 sm:px-5">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-800">
+        <section className={directoryPanelClass}>
+          <div className={directoryHeaderClass}>
+            <p className={directoryBadgeClass}>
               Структура каталогу бренду
             </p>
-            <h2 className="font-display mt-1 text-[1.12rem] font-[780] italic tracking-[-0.05em] text-slate-900 sm:text-[1.34rem]">
+            <h2 className={directoryTitleClass}>
               Категорії {producer.label} за групами
             </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            <p className={directoryDescriptionClass}>
               Спочатку відкрийте потрібну групу, а далі переходьте в конкретну категорію бренду вже з готовим фільтром виробника.
             </p>
           </div>
@@ -780,33 +796,30 @@ export default async function ManufacturerDetailPage({
               {producer.topGroups.map((group) => (
                 <article
                   key={group.slug}
-                  className="group relative isolate overflow-hidden rounded-[28px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_right,rgba(103,232,249,0.18),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(191,219,254,0.16),transparent_30%),linear-gradient(160deg,rgba(255,255,255,0.98),rgba(248,250,252,0.98),rgba(241,245,249,0.96))] shadow-[0_18px_40px_rgba(15,23,42,0.08)] ring-1 ring-white/70 transition-[box-shadow,border-color,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-cyan-300/80 hover:shadow-[0_26px_58px_rgba(14,165,233,0.16)]"
+                  className={directoryListCardClass}
                 >
-                  <div className="pointer-events-none absolute inset-[1px] rounded-[27px] bg-[linear-gradient(135deg,rgba(255,255,255,0.28),rgba(34,211,238,0.1),rgba(255,255,255,0))] opacity-0 transition duration-500 ease-out group-hover:opacity-100" />
-                  <div className="pointer-events-none absolute left-5 right-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent" />
-
-                  <div className="relative z-[1]">
-                    <div className="flex flex-col gap-4 border-b border-white/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="flex flex-col gap-3 border-b border-slate-200/75 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-800">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
                           Група
                         </p>
                         <CatalogPrefetchLink
                           href={buildCatalogProducerPath(producer.label, group.label)}
                           prefetchCatalogOnViewport
-                          className="font-display mt-2 inline-flex text-[19px] font-[760] italic tracking-[-0.04em] text-slate-900 transition hover:text-cyan-700"
+                          className="font-display mt-1 inline-flex text-[18px] font-[760] tracking-normal text-slate-950 transition hover:text-teal-700"
                         >
                           {normalizeValue(group.label)}
                         </CatalogPrefetchLink>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
-                        <span className="inline-flex rounded-full border border-slate-200 bg-white/88 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-[0_10px_20px_rgba(15,23,42,0.04)]">
-                          {group.productCount.toLocaleString("uk-UA")} товарів
+                        <span className={directoryCompactMetricClass}>
+                          {group.productCount.toLocaleString("uk-UA")} тов.
                         </span>
                         {group.subgroups.length > 0 ? (
-                          <span className="inline-flex rounded-full border border-cyan-100 bg-cyan-50/90 px-3 py-1 text-[11px] font-semibold text-cyan-800 shadow-[0_10px_20px_rgba(8,145,178,0.08)]">
-                            {group.subgroups.length.toLocaleString("uk-UA")} категорій
+                          <span className={directoryCompactMetricAccentClass}>
+                            {group.subgroups.length.toLocaleString("uk-UA")} кат.
                           </span>
                         ) : null}
                       </div>
@@ -823,11 +836,11 @@ export default async function ManufacturerDetailPage({
                               subgroup.label
                             )}
                             prefetchCatalogOnViewport
-                            className="flex items-center justify-between rounded-[18px] border border-white/80 bg-white/86 px-4 py-3.5 text-sm text-slate-700 shadow-[0_10px_22px_rgba(15,23,42,0.05)] transition-[border-color,box-shadow,transform,color] duration-300 ease-out hover:-translate-y-0.5 hover:border-cyan-200 hover:text-cyan-800 hover:shadow-[0_16px_30px_rgba(14,165,233,0.12)]"
+                            className="flex items-center justify-between rounded-lg border border-slate-200/90 bg-white/90 px-3.5 py-3 text-sm text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition hover:border-teal-200 hover:bg-teal-50/45 hover:text-teal-800"
                           >
                             <span className="pr-3 font-medium">{normalizeValue(subgroup.label)}</span>
-                            <span className="shrink-0 rounded-full border border-cyan-100 bg-cyan-50/90 px-2.5 py-1 text-[11px] font-semibold text-cyan-800">
-                              {subgroup.productCount.toLocaleString("uk-UA")}
+                            <span className={directoryCompactMetricAccentClass}>
+                              {subgroup.productCount.toLocaleString("uk-UA")} тов.
                             </span>
                           </CatalogPrefetchLink>
                         ))}
@@ -837,7 +850,7 @@ export default async function ManufacturerDetailPage({
                         <CatalogPrefetchLink
                           href={buildCatalogProducerPath(producer.label, group.label)}
                           prefetchCatalogOnViewport
-                          className="inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50/90 px-4 py-2.5 text-sm font-semibold text-cyan-900 shadow-[0_12px_24px_rgba(8,145,178,0.1)] transition hover:border-cyan-300 hover:bg-cyan-100 hover:shadow-[0_16px_28px_rgba(8,145,178,0.16)]"
+                          className={directoryPrimaryButtonClass}
                         >
                           Переглянути товари цієї групи
                         </CatalogPrefetchLink>
@@ -852,13 +865,14 @@ export default async function ManufacturerDetailPage({
               <CatalogPrefetchLink
                 href={catalogPath}
                 prefetchCatalogOnViewport
-                className="inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50/90 px-4 py-2.5 text-sm font-semibold text-cyan-900 shadow-[0_12px_24px_rgba(8,145,178,0.1)] transition hover:border-cyan-300 hover:bg-cyan-100 hover:shadow-[0_16px_28px_rgba(8,145,178,0.16)]"
+                className={directoryPrimaryButtonClass}
               >
                 Переглянути всі товари бренду
               </CatalogPrefetchLink>
             </div>
           )}
         </section>
+      </div>
       </div>
 
       <script

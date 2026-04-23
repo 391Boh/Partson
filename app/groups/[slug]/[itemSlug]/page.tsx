@@ -7,9 +7,12 @@ import { notFound, permanentRedirect } from "next/navigation";
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import {
   directoryCardClass,
+  directoryCompactMetricAccentClass,
+  directoryCompactMetricClass,
   directoryHeaderClass,
-  directoryMetricAccentClass,
-  directoryMetricClass,
+  directoryHeroClass,
+  directoryIconTileClass,
+  directoryListCardClass,
   directoryPanelClass,
   directoryPrimaryButtonClass,
   directorySecondaryButtonClass,
@@ -19,6 +22,10 @@ import {
   getCatalogSeoFacetsWithTimeout,
   type SeoProducerFacet,
 } from "app/lib/catalog-seo";
+import {
+  fetchCatalogProductsByQuery,
+  type CatalogProduct,
+} from "app/lib/catalog-server";
 import {
   buildCatalogCategoryPath,
   buildCatalogProducerPath,
@@ -36,7 +43,14 @@ import { getSiteUrl } from "app/lib/site-url";
 export const revalidate = 3600;
 const GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT = 750;
 const GROUP_ITEM_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
-const GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS = 2500;
+const GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS = 6000;
+const GROUP_ITEM_PRODUCER_SPLIT_PAGE_SIZE = 220;
+const GROUP_ITEM_PRODUCER_SPLIT_MAX_PAGES = 2;
+const GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS = 1100;
+const isProductionBuildPhase =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
+  process.env.npm_lifecycle_event === "build";
 
 interface GroupItemPageParams {
   slug: string;
@@ -72,6 +86,8 @@ type GroupItemPageData = {
   }>;
 };
 
+type GroupItemProducerEntry = GroupItemPageData["producerSplit"][number];
+
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return fallbackValue;
@@ -105,11 +121,25 @@ const facetMatches = (
     normalizeLookupKey(candidate.slug),
   ].some((key) => key && targetKeys.has(key));
 
+const buildProductDedupeKey = (item: CatalogProduct) => {
+  const code = normalizeLookupKey(item.code);
+  const article = normalizeLookupKey(item.article);
+  const producer = normalizeLookupKey(item.producer);
+  const name = normalizeLookupKey(item.name);
+
+  if (code) return producer ? `code:${code}|producer:${producer}` : `code:${code}`;
+  if (article) {
+    return producer ? `article:${article}|producer:${producer}` : `article:${article}`;
+  }
+  if (name) return producer ? `name:${name}|producer:${producer}` : `name:${name}`;
+  return "";
+};
+
 const buildGroupItemProducerSplit = (options: {
   producers: SeoProducerFacet[];
   groupLabel: string;
   itemLabels: string[];
-}) => {
+}): GroupItemProducerEntry[] => {
   const groupKeys = new Set(buildFacetLookupKeys(options.groupLabel));
   const itemKeys = new Set(options.itemLabels.flatMap((label) => buildFacetLookupKeys(label)));
   if (groupKeys.size === 0 || itemKeys.size === 0) return [];
@@ -149,6 +179,111 @@ const buildGroupItemProducerSplit = (options: {
     });
 };
 
+const collectDirectGroupItemProducerSplit = cache(
+  async (
+    catalogGroupLabel: string,
+    catalogSubcategoryLabel: string
+  ): Promise<GroupItemProducerEntry[]> => {
+    const normalizedGroup = normalizeValue(catalogGroupLabel);
+    const normalizedSubcategory = normalizeValue(catalogSubcategoryLabel);
+    if (!normalizedSubcategory) return [];
+
+    const producerProducts = new Map<string, { label: string; productKeys: Set<string> }>();
+    let cursor = "";
+    let cursorField = "";
+
+    for (let page = 1; page <= GROUP_ITEM_PRODUCER_SPLIT_MAX_PAGES; page += 1) {
+      const result = await fetchCatalogProductsByQuery({
+        page: cursor ? 1 : page,
+        limit: GROUP_ITEM_PRODUCER_SPLIT_PAGE_SIZE,
+        group: normalizedGroup || null,
+        subcategory: normalizedSubcategory,
+        cursor: cursor || undefined,
+        cursorField: cursorField || undefined,
+        sortOrder: "none",
+        includePriceEnrichment: false,
+        forceAllgoodsSource: true,
+        timeoutMs: GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS,
+        retries: 0,
+        retryDelayMs: 100,
+        cacheTtlMs: 1000 * 60 * 30,
+      }).catch(() => ({
+        items: [],
+        hasMore: false,
+        nextCursor: "",
+        cursorField: "",
+      }));
+
+      for (const item of result.items) {
+        const producerLabel = normalizeValue(item.producer);
+        if (!producerLabel) continue;
+
+        const productKey = buildProductDedupeKey(item);
+        if (!productKey) continue;
+
+        const producerKey = normalizeLookupKey(producerLabel);
+        const entry =
+          producerProducts.get(producerKey) ||
+          {
+            label: producerLabel,
+            productKeys: new Set<string>(),
+          };
+        entry.productKeys.add(productKey);
+        producerProducts.set(producerKey, entry);
+      }
+
+      const nextCursor = normalizeValue(result.nextCursor);
+      if (!result.hasMore || !nextCursor || nextCursor === cursor) break;
+
+      cursor = nextCursor;
+      cursorField = normalizeValue(result.cursorField);
+    }
+
+    return Array.from(producerProducts.values())
+      .map((entry) => ({
+        label: entry.label,
+        slug: buildPlainSeoSlug(entry.label),
+        productCount: entry.productKeys.size,
+        catalogPath: buildCatalogProducerPath(
+          entry.label,
+          normalizedGroup || undefined,
+          normalizedSubcategory
+        ),
+        manufacturerPath: buildManufacturerPath(entry.label),
+      }))
+      .filter((entry) => entry.productCount > 0)
+      .sort((left, right) => {
+        if (right.productCount !== left.productCount) {
+          return right.productCount - left.productCount;
+        }
+        return left.label.localeCompare(right.label, "uk", { sensitivity: "base" });
+      });
+  }
+);
+
+const resolveGroupItemProducerSplit = async (options: {
+  seoProducers: SeoProducerFacet[];
+  seoGroupLabel: string;
+  seoItemLabels: string[];
+  catalogGroupLabel: string;
+  catalogSubcategoryLabel: string;
+}) => {
+  const seoSplit = buildGroupItemProducerSplit({
+    producers: options.seoProducers,
+    groupLabel: options.seoGroupLabel,
+    itemLabels: options.seoItemLabels,
+  });
+  if (seoSplit.length > 0) return seoSplit;
+  if (isProductionBuildPhase) return seoSplit;
+
+  const directSplit = await collectDirectGroupItemProducerSplit(
+    options.catalogGroupLabel,
+    options.catalogSubcategoryLabel
+  ).catch(() => []);
+
+  return directSplit.length > 0 ? directSplit : seoSplit;
+};
+
 const getGroupItemBySlugs = cache(
   async (groupSlug: string, itemSlug: string): Promise<GroupItemPageData | null> => {
     const [dataset, seoFacets] = await Promise.all([
@@ -169,10 +304,12 @@ const getGroupItemBySlugs = cache(
       );
       if (!seoGroup || !seoSubgroup) return null;
 
-      const producerSplit = buildGroupItemProducerSplit({
-        producers: seoFacets.producers,
-        groupLabel: seoGroup.label,
-        itemLabels: [seoSubgroup.label],
+      const producerSplit = await resolveGroupItemProducerSplit({
+        seoProducers: seoFacets.producers,
+        seoGroupLabel: seoGroup.label,
+        seoItemLabels: [seoSubgroup.label],
+        catalogGroupLabel: seoGroup.label,
+        catalogSubcategoryLabel: seoSubgroup.label,
       });
       const producerProductCount = producerSplit.reduce(
         (sum, producer) => sum + producer.productCount,
@@ -204,10 +341,12 @@ const getGroupItemBySlugs = cache(
         ...child,
         productCount: counts.childProductCounts.get(child.slug) ?? 0,
       }));
-      const producerSplit = buildGroupItemProducerSplit({
-        producers: seoFacets.producers,
-        groupLabel: group.label,
-        itemLabels: [subgroup.label, ...children.map((child) => child.label)],
+      const producerSplit = await resolveGroupItemProducerSplit({
+        seoProducers: seoFacets.producers,
+        seoGroupLabel: group.label,
+        seoItemLabels: [subgroup.label, ...children.map((child) => child.label)],
+        catalogGroupLabel: group.label,
+        catalogSubcategoryLabel: subgroup.label,
       });
       const producerProductCount = producerSplit.reduce(
         (sum, producer) => sum + producer.productCount,
@@ -238,10 +377,12 @@ const getGroupItemBySlugs = cache(
         (candidate) => candidate.slug === itemSlug || candidate.legacySlug === itemSlug
       );
       if (!child) continue;
-      const producerSplit = buildGroupItemProducerSplit({
-        producers: seoFacets.producers,
-        groupLabel: group.label,
-        itemLabels: [child.label],
+      const producerSplit = await resolveGroupItemProducerSplit({
+        seoProducers: seoFacets.producers,
+        seoGroupLabel: group.label,
+        seoItemLabels: [child.label],
+        catalogGroupLabel: entry.label,
+        catalogSubcategoryLabel: child.label,
       });
       const producerProductCount = producerSplit.reduce(
         (sum, producer) => sum + producer.productCount,
@@ -281,10 +422,12 @@ const getGroupItemBySlugs = cache(
     );
     if (!seoGroup || !seoSubgroup) return null;
 
-    const producerSplit = buildGroupItemProducerSplit({
-      producers: seoFacets.producers,
-      groupLabel: seoGroup.label,
-      itemLabels: [seoSubgroup.label],
+    const producerSplit = await resolveGroupItemProducerSplit({
+      seoProducers: seoFacets.producers,
+      seoGroupLabel: seoGroup.label,
+      seoItemLabels: [seoSubgroup.label],
+      catalogGroupLabel: seoGroup.label,
+      catalogSubcategoryLabel: seoSubgroup.label,
     });
     const producerProductCount = producerSplit.reduce(
       (sum, producer) => sum + producer.productCount,
@@ -321,6 +464,26 @@ const buildGroupItemDescription = (item: GroupItemPageData) => {
 };
 
 const buildGroupPagePath = (groupSlug: string) => `/groups/${encodeURIComponent(groupSlug)}`;
+
+const dedupeGroupItemStaticParams = (
+  params: Array<{ slug: string; itemSlug: string }>
+) => {
+  const seen = new Set<string>();
+  return params.filter((entry) => {
+    const key = `${entry.slug}/${entry.itemSlug}`;
+    if (!entry.slug || !entry.itemSlug || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const buildStaticSlugCandidates = (
+  ...values: Array<string | null | undefined>
+) =>
+  Array.from(
+    new Set(values.map((value) => normalizeValue(value)).filter(Boolean))
+  );
+
 const buildGroupItemTitle = (item: GroupItemPageData) => {
   const visibleLabel = buildVisibleProductName(item.label);
   const visibleGroupLabel = buildVisibleProductName(item.groupLabel);
@@ -338,19 +501,41 @@ export async function generateStaticParams() {
   if (limit <= 0) return [];
 
   const dataset = await getProductTreeDataset().catch(() => null);
-  const treeParams =
-    dataset?.groups.flatMap((group) => [
-      ...group.subgroups.map((subgroup) => ({
-        slug: group.slug,
-        itemSlug: subgroup.slug,
-      })),
-      ...group.subgroups.flatMap((subgroup) =>
-        subgroup.children.map((child) => ({
-          slug: group.slug,
-          itemSlug: child.slug,
-        }))
-      ),
-    ]) ?? [];
+  const treeParams = dedupeGroupItemStaticParams(
+    dataset?.groups.flatMap((group) => {
+      const groupSlugs = buildStaticSlugCandidates(
+        group.slug,
+        group.legacySlug,
+        buildPlainSeoSlug(group.label)
+      );
+
+      return group.subgroups.flatMap((subgroup) => {
+        const subgroupSlugs = buildStaticSlugCandidates(
+          subgroup.slug,
+          subgroup.legacySlug,
+          buildPlainSeoSlug(subgroup.label)
+        );
+        const childParams = subgroup.children.flatMap((child) => {
+          const childSlugs = buildStaticSlugCandidates(
+            child.slug,
+            child.legacySlug,
+            buildPlainSeoSlug(child.label)
+          );
+
+          return groupSlugs.flatMap((slug) =>
+            childSlugs.map((itemSlug) => ({ slug, itemSlug }))
+          );
+        });
+
+        return [
+          ...groupSlugs.flatMap((slug) =>
+            subgroupSlugs.map((itemSlug) => ({ slug, itemSlug }))
+          ),
+          ...childParams,
+        ];
+      });
+    }) ?? []
+  );
   if (treeParams.length > 0) {
     return treeParams.slice(0, limit);
   }
@@ -359,14 +544,20 @@ export async function generateStaticParams() {
     const seoFacets = await getCatalogSeoFacetsWithTimeout(
       GROUP_ITEM_STATIC_PARAMS_FALLBACK_TIMEOUT_MS
     );
-    return seoFacets.groups
-      .flatMap((group) =>
-        (Array.isArray(group.subgroups) ? group.subgroups : []).map((subgroup) => ({
-          slug: group.slug,
-          itemSlug: subgroup.slug,
-        }))
+    return dedupeGroupItemStaticParams(
+      seoFacets.groups.flatMap((group) =>
+        (Array.isArray(group.subgroups) ? group.subgroups : []).flatMap((subgroup) => [
+          {
+            slug: group.slug,
+            itemSlug: subgroup.slug,
+          },
+          {
+            slug: buildPlainSeoSlug(group.label),
+            itemSlug: buildPlainSeoSlug(subgroup.label),
+          },
+        ])
       )
-      .filter((entry) => entry.slug && entry.itemSlug)
+    )
       .slice(0, limit);
   } catch {
     return [];
@@ -525,7 +716,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   }
 
   return (
-    <main className="page-shell-inline py-8">
+    <main className="page-shell-inline py-6 sm:py-8">
       <nav className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
         <Link href="/" className="transition hover:text-slate-800">
           Головна
@@ -547,14 +738,14 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
 
       <Link
         href={groupPagePath}
-        className="mt-3 inline-flex text-sm font-medium text-sky-700 hover:text-sky-900"
+        className="mt-3 inline-flex text-sm font-semibold text-teal-800 hover:text-teal-900"
       >
         &larr; До групи {visibleGroupLabel}
       </Link>
 
-      <section className="mt-4 overflow-hidden rounded-[28px] border border-slate-200/90 bg-[radial-gradient(circle_at_top_left,rgba(186,230,253,0.22),transparent_34%),linear-gradient(160deg,#ffffff_0%,#f8fbff_55%,#eef6ff_100%)] p-5 shadow-[0_20px_44px_rgba(15,23,42,0.08)]">
+      <section className={`mt-4 ${directoryHeroClass}`}>
         <div className="flex items-start gap-4">
-          <div className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] border border-sky-100 bg-white/95 shadow-[0_14px_28px_rgba(14,165,233,0.10)]">
+          <div className={directoryIconTileClass}>
             <Image
               src={categoryIconPath}
               alt={`Іконка категорії ${visibleGroupLabel}`}
@@ -566,15 +757,16 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex rounded-full border border-sky-200 bg-sky-50/90 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-sky-800">
+              <span className="inline-flex rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
                 {item.parentSubgroupLabel ? "Кінцева категорія" : "Підгрупа"}
               </span>
-              <span className="inline-flex rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-600">
+              <span className={directoryCompactMetricClass}>
                 {pageStats}
               </span>
               {item.producersCount > 0 ? (
-                <span className="inline-flex rounded-full border border-cyan-100 bg-cyan-50/90 px-3 py-1 text-[11px] font-semibold text-cyan-800">
-                  {item.producersCount.toLocaleString("uk-UA")} виробників
+                <span className={directoryCompactMetricAccentClass}>
+                  <span>{item.producersCount.toLocaleString("uk-UA")}</span>
+                  <span className="font-semibold text-teal-700">виробників</span>
                 </span>
               ) : null}
             </div>
@@ -596,7 +788,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               </CatalogPrefetchLink>
               <SmartLink
                 href={groupPagePath}
-                className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+                className={directorySecondaryButtonClass}
               >
                 До групи {visibleGroupLabel}
               </SmartLink>
@@ -619,19 +811,21 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                 Лічильники рахуються по товарах цієї кінцевої категорії і допомагають одразу перейти до потрібного бренду у каталозі.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <span className={directoryMetricAccentClass}>
-                {item.producersCount.toLocaleString("uk-UA")} виробників
+            <div className="flex flex-wrap gap-1.5">
+              <span className={directoryCompactMetricAccentClass}>
+                <span>{item.producersCount.toLocaleString("uk-UA")}</span>
+                <span className="font-semibold text-teal-700">виробників</span>
               </span>
-              <span className={directoryMetricClass}>
-                {(producerProductsTotal || item.productCount).toLocaleString("uk-UA")} товарів
+              <span className={directoryCompactMetricClass}>
+                <span>{(producerProductsTotal || item.productCount).toLocaleString("uk-UA")}</span>
+                <span className="font-semibold text-slate-500">товарів</span>
               </span>
             </div>
           </div>
         </div>
 
         {hasProducerSplit ? (
-          <div className="grid gap-2.5 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-4">
+          <div className="grid gap-2.5 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-4">
             {topProducerSplit.map((producer) => {
               return (
                 <article
@@ -650,14 +844,15 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                         {producer.label}
                       </Link>
                     </div>
-                    <span className="shrink-0 rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-bold text-teal-800">
-                      {producer.productCount.toLocaleString("uk-UA")}
+                    <span className={directoryCompactMetricAccentClass}>
+                      <span>{producer.productCount.toLocaleString("uk-UA")}</span>
+                      <span className="font-semibold text-teal-700">тов.</span>
                     </span>
                   </div>
 
                   <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
-                    <p className="text-xs font-semibold text-slate-500">
-                      товарів у розділі
+                    <p className="text-[11px] font-semibold text-slate-500">
+                      У цій категорії
                     </p>
                     <CatalogPrefetchLink
                       href={producer.catalogPath}
@@ -697,25 +892,39 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
       </section>
 
       {item.children.length > 0 ? (
-        <section className="mt-8 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
-          <h2 className="font-display-italic text-lg tracking-[-0.046em] text-slate-800">
-            Підкатегорії
-          </h2>
-          <ul className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <section className={`${directoryPanelClass} mt-6`}>
+          <div className={directoryHeaderClass}>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-teal-800">
+                  Навігація
+                </p>
+                <h2 className="mt-1 text-lg font-extrabold tracking-normal text-slate-950">
+                  Кінцеві підкатегорії
+                </h2>
+              </div>
+              <span className={directoryCompactMetricAccentClass}>
+                {item.children.length} підгр.
+              </span>
+            </div>
+          </div>
+          <ul className="grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
             {item.children.map((child) => (
               <li key={child.slug}>
                 <CatalogPrefetchLink
                   href={buildGroupItemPath(item.groupSlug, child.slug)}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800"
+                  className={`${directoryListCardClass} flex items-center justify-between gap-3 px-3 py-2.5 text-sm text-slate-700`}
                 >
-                  <span>{buildVisibleProductName(child.label)}</span>
-                  <span className="flex shrink-0 items-center gap-2">
+                  <span className="min-w-0 truncate font-semibold">
+                    {buildVisibleProductName(child.label)}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1.5">
                     {child.productCount > 0 ? (
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+                      <span className={directoryCompactMetricClass}>
                         {child.productCount.toLocaleString("uk-UA")}
                       </span>
                     ) : null}
-                    <span className="text-slate-400">&rarr;</span>
+                    <span className="text-teal-700">&rarr;</span>
                   </span>
                 </CatalogPrefetchLink>
               </li>

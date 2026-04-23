@@ -13,6 +13,7 @@ interface CheckoutOrderData {
   orderId: string;
   paymentMethod: PaymentMethodValue;
   deliveryMethod: string;
+  paymentStatus: string;
 }
 
 const Checkout: React.FC = () => {
@@ -25,10 +26,20 @@ const Checkout: React.FC = () => {
     orderId: 'ORDER123',
     paymentMethod: '',
     deliveryMethod: 'delivery',
+    paymentStatus: '',
   });
 
-  const handlePaymentConfirmed = () => {
-    setOrderData((prev) => ({ ...prev, paymentMethod }));
+  const handlePaymentConfirmed = (paymentPayload: Record<string, unknown>) => {
+    setOrderData((prev) => ({
+      ...prev,
+      paymentMethod,
+      paymentStatus:
+        typeof paymentPayload.paymentStatus === 'string'
+          ? paymentPayload.paymentStatus
+          : paymentMethod === 'Готівка'
+            ? 'cash_on_delivery'
+            : '',
+    }));
     setCurrentStep('confirmation');
   };
 
@@ -59,6 +70,8 @@ const Checkout: React.FC = () => {
           phone={orderData.phone}
           orderId={orderData.orderId}
           totalAmount={orderData.amount}
+          paymentMethod={orderData.paymentMethod}
+          paymentStatus={orderData.paymentStatus}
           onClose={handleBackToPayment}
         />
       )}
