@@ -16,10 +16,6 @@ const BrandCarousel = dynamic(() => import("./Brands"), {
   ssr: false,
   loading: () => <HomeSectionFallback minHeight="380px" />,
 });
-const AdvantagesSection = dynamic(() => import("./AdvantagesSection"), {
-  ssr: false,
-  loading: () => <HomeSectionFallback minHeight="340px" />,
-});
 const Footer = dynamic(() => import("./footer"), {
   ssr: false,
   loading: () => <HomeSectionFallback minHeight="220px" />,
@@ -86,22 +82,6 @@ export default function HomeDeferredStack() {
           <SectionBoundary title="Модуль брендів тимчасово недоступний">
             <BrandCarousel playEntranceAnimations={false} />
           </SectionBoundary>
-        </section>
-      </DeferredSection>
-
-      <DeferredSection
-        className="section-reveal relative w-full py-1"
-        minHeight="380px"
-        rootMargin="120px"
-        fallbackDelayMs={16000}
-        fallback={<HomeSectionFallback minHeight="340px" />}
-      >
-        <section className="relative w-full py-1">
-          <div className="page-shell-inline grid">
-            <SectionBoundary title="Інформаційний блок тимчасово недоступний">
-              <AdvantagesSection playEntranceAnimations={false} />
-            </SectionBoundary>
-          </div>
         </section>
       </DeferredSection>
 

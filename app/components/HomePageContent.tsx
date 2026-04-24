@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import type { Auth } from "firebase/auth";
+import AdvantagesSection from "./AdvantagesSection";
 import Hero from "./hero";
+import SectionBoundary from "./SectionBoundary";
 
 type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
 
@@ -180,6 +182,10 @@ export default function HomePageContent() {
           onAddVin={openVinModal}
         />
       </div>
+
+      <SectionBoundary title="Інформаційний блок тимчасово недоступний">
+        <AdvantagesSection />
+      </SectionBoundary>
 
       <div ref={deferredHomeSentinelRef} aria-hidden="true" className="h-px w-full" />
 

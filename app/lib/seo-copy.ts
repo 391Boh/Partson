@@ -33,6 +33,14 @@ type ProducerSeoCopy = {
   highlights: string[];
 };
 
+type GroupItemSeoCopy = {
+  title: string;
+  intro: string;
+  paragraphs: string[];
+  highlightsTitle: string;
+  highlights: string[];
+};
+
 const normalizeLabel = (value: string) => value.trim().toLowerCase();
 
 export const homeSeoContent: HomeSeoContent = {
@@ -408,6 +416,69 @@ export const getGroupSeoCopy = (label: string, productCount: number): GroupSeoCo
 
 export const getGroupMetaDescription = (label: string, productCount: number) =>
   `${label} у PartsON: купити автозапчастини у Львові, підбір за кодом і артикулом, товари та підгрупи — ${productCount}. Доставка по Львову і Україні.`;
+
+export const getGroupItemSeoCopy = (options: {
+  label: string;
+  groupLabel: string;
+  parentSubgroupLabel?: string;
+  productCount: number;
+  producersCount: number;
+  childrenCount: number;
+}): GroupItemSeoCopy => {
+  const label = options.label.trim();
+  const groupLabel = options.groupLabel.trim();
+  const parentSubgroupLabel = (options.parentSubgroupLabel || "").trim();
+  const productCountLabel =
+    options.productCount > 0
+      ? `${options.productCount.toLocaleString("uk-UA")} товарів`
+      : "актуальні товарні позиції каталогу";
+  const producersCountLabel =
+    options.producersCount > 0
+      ? `${options.producersCount.toLocaleString("uk-UA")} виробників`
+      : "різні бренди та виробники";
+
+  if (parentSubgroupLabel) {
+    return {
+      title: `${label} — купити автозапчастини у Львові | PartsON`,
+      intro:
+        `${label} у PartsON — це кінцева категорія в підгрупі ${parentSubgroupLabel} групи ${groupLabel}, де зручно купити автозапчастини у Львові, перейти в каталог, підібрати оригінальні запчастини або аналоги та замовити доставку по Україні.`,
+      paragraphs: [
+        `На сторінці ${label} зібрано ${productCountLabel}. Тут зручно шукати запчастини за назвою, артикулом, кодом виробника або швидко перейти в каталог для точнішого підбору по бренду та характеристиках.`,
+        `Категорія підходить під комерційні запити купити ${label}, ${label} Львів, каталог ${label}, автозапчастини ${label} з доставкою по Україні. Для цієї сторінки вже доступний розподіл за ${producersCountLabel}, тому користувач може одразу перейти до потрібного бренду.`,
+        `PartsON допомагає підібрати запчастини для ремонту, сервісу і планового обслуговування авто. Якщо потрібна сумісність, можна звірити код деталі, підібрати аналог або швидко перейти у суміжні категорії групи ${groupLabel}.`,
+      ],
+      highlightsTitle: "Що є на сторінці категорії",
+      highlights: [
+        `${label} у каталозі автозапчастин PartsON;`,
+        `пошук і підбір за артикулом, кодом і брендом;`,
+        `${producersCountLabel} у цій категорії;`,
+        "замовлення у Львові та доставка по Україні;",
+      ],
+    };
+  }
+
+  return {
+    title: `${label} — підгрупа автозапчастин | PartsON`,
+    intro:
+      `${label} у групі ${groupLabel} — це підгрупа каталогу автозапчастин PartsON для швидкого переходу до конкретних товарів, кінцевих підкатегорій та підбору деталей у Львові з доставкою по Україні.`,
+    paragraphs: [
+      `У підгрупі ${label} можна знайти ${productCountLabel}, перейти до пов'язаних кінцевих категорій і відкрити каталог автозапчастин без зайвих кроків. Така структура допомагає швидше знаходити потрібні позиції для ремонту, ТО та заміни вузлів автомобіля.`,
+      options.childrenCount > 0
+        ? `Сторінка містить ${options.childrenCount.toLocaleString("uk-UA")} кінцевих підкатегорій, тому користувач може звузити пошук до конкретного типу деталей. Це зручно для запитів купити ${label}, каталог ${label}, ${label} Львів, автозапчастини ${label} за кодом і артикулом.`
+        : `Сторінка веде безпосередньо у каталог цієї підгрупи та закриває запити купити ${label}, каталог ${label}, ${label} Львів, автозапчастини ${label} за кодом, артикулом і виробником.`,
+      `PartsON також показує розподіл за ${producersCountLabel}, щоб можна було швидко перейти до конкретного бренду, перевірити доступні товари, порівняти аналоги та оформити замовлення з доставкою по Україні.`,
+    ],
+    highlightsTitle: "Переваги цієї підгрупи",
+    highlights: [
+      `${label} у структурі групи ${groupLabel};`,
+      options.childrenCount > 0
+        ? `${options.childrenCount.toLocaleString("uk-UA")} кінцевих підкатегорій для точнішого підбору;`
+        : "прямий перехід у каталог підгрупи;",
+      `${producersCountLabel} у доступному розподілі;`,
+      "підбір, замовлення і доставка автозапчастин по Україні;",
+    ],
+  };
+};
 
 export const getProducerSeoCopy = (
   label: string,

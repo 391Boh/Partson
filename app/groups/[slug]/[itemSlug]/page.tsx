@@ -36,6 +36,7 @@ import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
+import { getGroupItemSeoCopy } from "app/lib/seo-copy";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
@@ -493,6 +494,23 @@ const buildGroupItemTitle = (item: GroupItemPageData) => {
     : `${visibleLabel} - підгрупа ${visibleGroupLabel} | Каталог автозапчастин`;
 };
 
+const buildChildCategoryLead = (options: {
+  groupLabel: string;
+  parentLabel: string;
+  label: string;
+  productCount: number;
+}) => {
+  const visibleLabel = buildVisibleProductName(options.label);
+  const visibleParentLabel = buildVisibleProductName(options.parentLabel);
+  const visibleGroupLabel = buildVisibleProductName(options.groupLabel);
+  const productCountLabel =
+    options.productCount > 0
+      ? `${options.productCount.toLocaleString("uk-UA")} товарів`
+      : "товари каталогу";
+
+  return `Категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel} відкриває ${productCountLabel} і веде до точнішого підбору автозапчастин за брендом, назвою або артикулом.`;
+};
+
 export async function generateStaticParams() {
   const limit = parsePositiveInt(
     process.env.SEO_GROUP_ITEM_STATIC_PARAMS_LIMIT,
@@ -641,6 +659,14 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   );
   const topProducerSplit = item.producerSplit.slice(0, 24);
   const hasProducerSplit = topProducerSplit.length > 0;
+  const seoCopy = getGroupItemSeoCopy({
+    label: item.label,
+    groupLabel: item.groupLabel,
+    parentSubgroupLabel: item.parentSubgroupLabel,
+    productCount: item.productCount,
+    producersCount: item.producersCount,
+    childrenCount: item.children.length,
+  });
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -797,6 +823,61 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         </div>
       </section>
 
+      <section className={`${directoryPanelClass} mt-6`}>
+        <div className={directoryHeaderClass}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+                Опис категорії
+              </p>
+              <h2 className="font-display mt-1 text-xl font-[780] tracking-normal text-slate-950 sm:text-2xl">
+                {visibleLabel} в каталозі PartsON
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                {seoCopy.intro}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <span className={directoryCompactMetricClass}>
+                <span>{(item.productCount || producerProductsTotal).toLocaleString("uk-UA")}</span>
+                <span className="font-semibold text-slate-500">товарів</span>
+              </span>
+              {item.producersCount > 0 ? (
+                <span className={directoryCompactMetricAccentClass}>
+                  <span>{item.producersCount.toLocaleString("uk-UA")}</span>
+                  <span className="font-semibold text-teal-700">виробників</span>
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.95fr)]">
+          <div className="space-y-3 text-sm leading-6 text-slate-600">
+            {seoCopy.paragraphs.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </div>
+
+          <aside className="rounded-lg border border-teal-100/80 bg-[linear-gradient(165deg,rgba(240,253,250,0.94),rgba(239,246,255,0.92),rgba(255,255,255,0.98))] p-4 shadow-[0_16px_34px_rgba(13,148,136,0.08)]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+              {seoCopy.highlightsTitle}
+            </p>
+            <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">
+              {seoCopy.highlights.map((highlight) => (
+                <li
+                  key={highlight}
+                  className="flex items-start gap-2 border-b border-white/70 pb-2 last:border-b-0 last:pb-0"
+                >
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500" />
+                  <span>{highlight}</span>
+                </li>
+              ))}
+            </ul>
+          </aside>
+        </div>
+      </section>
+
       <section className={`${directoryPanelClass} mt-8`}>
         <div className={directoryHeaderClass}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -913,11 +994,21 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               <li key={child.slug}>
                 <CatalogPrefetchLink
                   href={buildGroupItemPath(item.groupSlug, child.slug)}
-                  className={`${directoryListCardClass} flex items-center justify-between gap-3 px-3 py-2.5 text-sm text-slate-700`}
+                  className={`${directoryListCardClass} flex items-start justify-between gap-3 px-3 py-2.5 text-sm text-slate-700`}
                 >
-                  <span className="min-w-0 truncate font-semibold">
-                    {buildVisibleProductName(child.label)}
-                  </span>
+                  <div className="min-w-0">
+                    <span className="block truncate font-semibold">
+                      {buildVisibleProductName(child.label)}
+                    </span>
+                    <span className="mt-1 block text-[13px] leading-5 text-slate-500">
+                      {buildChildCategoryLead({
+                        groupLabel: item.groupLabel,
+                        parentLabel: item.label,
+                        label: child.label,
+                        productCount: child.productCount,
+                      })}
+                    </span>
+                  </div>
                   <span className="flex shrink-0 items-center gap-1.5">
                     {child.productCount > 0 ? (
                       <span className={directoryCompactMetricClass}>
