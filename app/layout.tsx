@@ -310,6 +310,12 @@ export default function RootLayout({
                       attributes: true,
                       attributeFilter: [attrName],
                     });
+
+                    window.setTimeout(function() {
+                      try {
+                        observer.disconnect();
+                      } catch (e) {}
+                    }, 4000);
                   }
 
                   document.addEventListener('DOMContentLoaded', cleanDocument, { once: true });

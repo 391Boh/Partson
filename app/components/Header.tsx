@@ -133,23 +133,62 @@ const Header: React.FC = () => {
 
   // AUTH LISTENER
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
+    let idleId: number | null = null;
+    let timeoutId: number | null = null;
+    const win = window as Window & {
+      requestIdleCallback?: RequestIdleCallback;
+      cancelIdleCallback?: (id: number) => void;
+    };
 
-    void loadHeaderAuthDeps()
-      .then(({ auth, onAuthStateChanged }) => {
-        if (cancelled) return;
-        setUser(auth.currentUser ?? null);
-        unsubscribe = onAuthStateChanged(auth, (authUser) => {
-          setUser(authUser ?? null);
+    const loadAuth = () => {
+      void loadHeaderAuthDeps()
+        .then(({ auth, onAuthStateChanged }) => {
+          if (cancelled) return;
+          setUser(auth.currentUser ?? null);
+          unsubscribe = onAuthStateChanged(auth, (authUser) => {
+            setUser(authUser ?? null);
+          });
+        })
+        .catch((error) => {
+          console.error('Failed to load header auth deps:', error);
         });
-      })
-      .catch((error) => {
-        console.error('Failed to load header auth deps:', error);
-      });
+    };
+
+    const triggerAuthLoad = () => {
+      window.removeEventListener('pointerdown', triggerAuthLoad);
+      window.removeEventListener('keydown', triggerAuthLoad);
+      if (idleId != null && typeof win.cancelIdleCallback === 'function') {
+        win.cancelIdleCallback(idleId);
+      }
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
+      loadAuth();
+    };
+
+    window.addEventListener('pointerdown', triggerAuthLoad, { once: true, passive: true });
+    window.addEventListener('keydown', triggerAuthLoad, { once: true });
+
+    if (typeof win.requestIdleCallback === 'function') {
+      idleId = win.requestIdleCallback(triggerAuthLoad, { timeout: 3200 });
+    } else {
+      timeoutId = window.setTimeout(triggerAuthLoad, 2200);
+    }
 
     return () => {
       cancelled = true;
+      window.removeEventListener('pointerdown', triggerAuthLoad);
+      window.removeEventListener('keydown', triggerAuthLoad);
+      if (idleId != null && typeof win.cancelIdleCallback === 'function') {
+        win.cancelIdleCallback(idleId);
+      }
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
       unsubscribe?.();
     };
   }, []);
@@ -173,14 +212,34 @@ const Header: React.FC = () => {
     let timeoutId: number | null = null;
     let idleId: number | null = null;
 
+    const triggerSearchLoad = () => {
+      window.removeEventListener('pointerdown', triggerSearchLoad);
+      window.removeEventListener('keydown', triggerSearchLoad);
+      if (idleId != null && typeof win.cancelIdleCallback === 'function') {
+        win.cancelIdleCallback(idleId);
+      }
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
+      loadSearch();
+    };
+
+    window.addEventListener('pointerdown', triggerSearchLoad, {
+      once: true,
+      passive: true,
+    });
+    window.addEventListener('keydown', triggerSearchLoad, { once: true });
+
     if (typeof win.requestIdleCallback === 'function') {
-      idleId = win.requestIdleCallback(loadSearch, { timeout: 1200 });
+      idleId = win.requestIdleCallback(triggerSearchLoad, { timeout: 4200 });
     } else {
-      timeoutId = window.setTimeout(loadSearch, 320);
+      timeoutId = window.setTimeout(triggerSearchLoad, 2600);
     }
 
     return () => {
       cancelled = true;
+      window.removeEventListener('pointerdown', triggerSearchLoad);
+      window.removeEventListener('keydown', triggerSearchLoad);
       if (idleId != null && typeof win.cancelIdleCallback === 'function') {
         win.cancelIdleCallback(idleId);
       }

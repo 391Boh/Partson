@@ -92,11 +92,12 @@ export default function HomeDeferredStack() {
         fallbackDelayMs={18000}
         fallback={<HomeSectionFallback minHeight="220px" />}
       >
-        <div className="relative w-full pt-1">
+        {/* Footer перенесено у HomePageContent */}
+        {/* <div className="relative w-full pt-1">
           <SectionBoundary title="Нижній блок тимчасово недоступний">
             <Footer />
           </SectionBoundary>
-        </div>
+        </div> */}
       </DeferredSection>
     </>
   );

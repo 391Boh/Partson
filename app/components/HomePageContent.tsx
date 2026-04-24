@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import type { Auth } from "firebase/auth";
 import AdvantagesSection from "./AdvantagesSection";
+import dynamic from "next/dynamic";
+const Footer = dynamic(() => import("./footer"), {
+  ssr: false,
+});
 import Hero from "./hero";
 import SectionBoundary from "./SectionBoundary";
 
@@ -46,23 +50,63 @@ export default function HomePageContent() {
   const deferredHomeSentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
+    let idleId: number | null = null;
+    let timeoutId: number | null = null;
 
-    void loadHomeAuthDeps()
-      .then(({ auth, onAuthStateChanged }) => {
-        if (cancelled) return;
-        setIsAuthenticated(Boolean(auth.currentUser));
-        unsubscribe = onAuthStateChanged(auth, (authUser) => {
-          setIsAuthenticated(Boolean(authUser));
+    const loadAuthState = () => {
+      void loadHomeAuthDeps()
+        .then(({ auth, onAuthStateChanged }) => {
+          if (cancelled) return;
+          setIsAuthenticated(Boolean(auth.currentUser));
+          unsubscribe = onAuthStateChanged(auth, (authUser) => {
+            setIsAuthenticated(Boolean(authUser));
+          });
+        })
+        .catch((error) => {
+          console.error("Failed to load home auth deps:", error);
         });
-      })
-      .catch((error) => {
-        console.error("Failed to load home auth deps:", error);
-      });
+    };
+
+    const win = window as Window & {
+      requestIdleCallback?: RequestIdleCallback;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    const triggerAuthLoad = () => {
+      window.removeEventListener("pointerdown", triggerAuthLoad);
+      window.removeEventListener("keydown", triggerAuthLoad);
+      if (idleId != null && typeof win.cancelIdleCallback === "function") {
+        win.cancelIdleCallback(idleId);
+      }
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
+      loadAuthState();
+    };
+
+    window.addEventListener("pointerdown", triggerAuthLoad, { once: true, passive: true });
+    window.addEventListener("keydown", triggerAuthLoad, { once: true });
+
+    if (typeof win.requestIdleCallback === "function") {
+      idleId = win.requestIdleCallback(triggerAuthLoad, { timeout: 2800 });
+    } else {
+      timeoutId = window.setTimeout(triggerAuthLoad, 1800);
+    }
 
     return () => {
       cancelled = true;
+      window.removeEventListener("pointerdown", triggerAuthLoad);
+      window.removeEventListener("keydown", triggerAuthLoad);
+      if (idleId != null && typeof win.cancelIdleCallback === "function") {
+        win.cancelIdleCallback(idleId);
+      }
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
       unsubscribe?.();
     };
   }, []);
@@ -92,7 +136,7 @@ export default function HomePageContent() {
               }
             },
             {
-              rootMargin: "360px 0px",
+              rootMargin: "220px 0px",
             }
           )
         : null;
@@ -105,9 +149,9 @@ export default function HomePageContent() {
     let idleId: number | null = null;
 
     if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(markReady, { timeout: 5000 });
+      idleId = win.requestIdleCallback(markReady, { timeout: 9000 });
     } else {
-      timeoutId = window.setTimeout(markReady, 4200);
+      timeoutId = window.setTimeout(markReady, 8200);
     }
 
     return () => {
@@ -183,10 +227,6 @@ export default function HomePageContent() {
         />
       </div>
 
-      <SectionBoundary title="Інформаційний блок тимчасово недоступний">
-        <AdvantagesSection />
-      </SectionBoundary>
-
       <div ref={deferredHomeSentinelRef} aria-hidden="true" className="h-px w-full" />
 
       {HomeDeferredStackComponent ? (
@@ -196,6 +236,12 @@ export default function HomePageContent() {
       ) : (
         <div className="h-6 w-full" />
       )}
+
+      <SectionBoundary title="Інформаційний блок тимчасово недоступний">
+        <AdvantagesSection />
+      </SectionBoundary>
+
+      <Footer />
     </div>
   );
 }

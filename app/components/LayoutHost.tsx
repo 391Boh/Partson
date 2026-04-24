@@ -315,15 +315,30 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     let idleId: number | null = null;
     let timeoutId: number | null = null;
+    const triggerDepsLoad = () => {
+      window.removeEventListener("pointerdown", triggerDepsLoad);
+      window.removeEventListener("keydown", triggerDepsLoad);
+      if (idleId != null) win.cancelIdleCallback?.(idleId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+      loadDeps();
+    };
+
+    window.addEventListener("pointerdown", triggerDepsLoad, {
+      once: true,
+      passive: true,
+    });
+    window.addEventListener("keydown", triggerDepsLoad, { once: true });
 
     if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(loadDeps, { timeout: 900 });
+      idleId = win.requestIdleCallback(triggerDepsLoad, { timeout: 4800 });
     } else {
-      timeoutId = window.setTimeout(loadDeps, 350);
+      timeoutId = window.setTimeout(triggerDepsLoad, 3400);
     }
 
     return () => {
       cancelled = true;
+      window.removeEventListener("pointerdown", triggerDepsLoad);
+      window.removeEventListener("keydown", triggerDepsLoad);
       if (idleId != null) win.cancelIdleCallback?.(idleId);
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
@@ -352,15 +367,30 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     let idleId: number | null = null;
     let timeoutId: number | null = null;
+    const triggerChatButtonLoad = () => {
+      window.removeEventListener("pointerdown", triggerChatButtonLoad);
+      window.removeEventListener("keydown", triggerChatButtonLoad);
+      if (idleId != null) win.cancelIdleCallback?.(idleId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+      loadChatButton();
+    };
+
+    window.addEventListener("pointerdown", triggerChatButtonLoad, {
+      once: true,
+      passive: true,
+    });
+    window.addEventListener("keydown", triggerChatButtonLoad, { once: true });
 
     if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(loadChatButton, { timeout: 1400 });
+      idleId = win.requestIdleCallback(triggerChatButtonLoad, { timeout: 5600 });
     } else {
-      timeoutId = window.setTimeout(loadChatButton, 700);
+      timeoutId = window.setTimeout(triggerChatButtonLoad, 4200);
     }
 
     return () => {
       cancelled = true;
+      window.removeEventListener("pointerdown", triggerChatButtonLoad);
+      window.removeEventListener("keydown", triggerChatButtonLoad);
       if (idleId != null) win.cancelIdleCallback?.(idleId);
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
@@ -430,6 +460,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     const body = document.body;
     const mediaQuery = window.matchMedia("(max-width: 639px)");
     const overlaySelector = ".soft-modal-shell, .app-overlay-panel";
+
+    if (!mediaQuery.matches && !isChatOpen && !isAdminPanelOpen) {
+      return;
+    }
 
     const previousStyles = {
       htmlOverflow: root.style.overflow,
@@ -545,6 +579,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     const shouldUseLightWarmup = isSlowConnection || isLowMemoryDevice;
     const isHome = window.location?.pathname === "/";
 
+    if (isHome) {
+      return;
+    }
+
     const GETPROD_CACHE_KEY = "partson:getprod";
     const GETPROD_TTL_MS = 1000 * 60 * 30;
 
@@ -650,8 +688,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         }
       } catch {}
 
-      if (isHome) return;
-
       try {
         let selectedCars: string[] = [];
         try {
@@ -745,7 +781,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       initialWarmupFrameId = window.requestAnimationFrame(() => {
         PRIMARY_WARMUP_ROUTES.slice(0, 5).forEach((route) => router.prefetch(route));
         preloadCriticalChunks();
-        warmRoutesTimer = window.setTimeout(() => void warmRoutes(), 600);
+        warmRoutesTimer = window.setTimeout(() => void warmRoutes(), 1800);
       });
     }
 
@@ -753,11 +789,11 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       if (shouldUseLightWarmup) return;
 
       if (enableAggressiveWarmup) {
-        preloadAllTimer = window.setTimeout(preloadAllChunks, 2500);
+        preloadAllTimer = window.setTimeout(preloadAllChunks, 4200);
       }
 
       if (typeof idle === "function") {
-        idleId = idle(() => void runWarmup(), { timeout: 2000 });
+        idleId = idle(() => void runWarmup(), { timeout: 5200 });
       } else {
         timerId = window.setTimeout(() => void runWarmup(), 1500);
       }

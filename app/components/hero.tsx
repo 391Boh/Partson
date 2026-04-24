@@ -18,15 +18,15 @@ const benefitItems = [
 ];
 
 const depthBackground = [
-  "radial-gradient(circle at 18% 20%, rgba(59,130,246,0.35), transparent 45%)",
-  "radial-gradient(circle at 82% 10%, rgba(30,64,175,0.25), transparent 50%)",
-  "linear-gradient(180deg, rgba(2,6,23,0.96) 0%, rgba(15,23,42,0.92) 35%, rgba(59,130,246,0.25) 100%)",
+  "radial-gradient(circle at 18% 18%, rgba(56,189,248,0.22), transparent 42%)",
+  "radial-gradient(circle at 86% 12%, rgba(59,130,246,0.16), transparent 38%)",
+  "linear-gradient(180deg, rgba(7,15,30,0.98) 0%, rgba(15,23,42,0.95) 38%, rgba(30,64,175,0.2) 100%)",
 ].join(", ");
 
 const cardGradientBase =
-  "bg-gradient-to-b from-slate-950/50 via-slate-900/30 to-sky-200/18";
+  "bg-gradient-to-b from-slate-950/42 via-slate-900/24 to-sky-200/12";
 const cardGradientHover =
-  "motion-safe:hover:from-slate-950/42 motion-safe:hover:via-slate-900/24 motion-safe:hover:to-sky-200/28";
+  "motion-safe:hover:from-slate-950/36 motion-safe:hover:via-slate-900/20 motion-safe:hover:to-sky-200/18";
 const cardInteractionStatic =
   "transition-[box-shadow,background-color,border-color] duration-300 ease-out";
 const heroHeadingText =
@@ -77,26 +77,21 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
 
   return (
     <section
-      className="font-ui group/hero relative isolate w-full select-none overflow-hidden py-6 [background-size:162%_172%] [background-position:78%_48%] transition-[filter,background-position,background-size] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:hover:[background-position:72%_46%] motion-safe:hover:[background-size:170%_178%] sm:py-8"
+      className="font-ui relative isolate w-full select-none overflow-hidden py-6 sm:py-8"
       style={{
         backgroundImage: depthBackground,
       }}
       >
-      <span className="pointer-events-none absolute -inset-24 rounded-[36px] bg-[image:radial-gradient(circle_at_20%_5%,rgba(56,189,248,0.28),transparent_44%),radial-gradient(circle_at_88%_10%,rgba(37,99,235,0.18),transparent_48%),radial-gradient(circle_at_60%_80%,rgba(14,165,233,0.12),transparent_58%)] opacity-52 blur-[42px] transition-[opacity,transform] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover/hero:translate-y-[-6px] motion-safe:group-hover/hero:scale-[1.03] motion-safe:group-hover/hero:opacity-74" />
-      <span className="pointer-events-none absolute inset-0 rounded-[28px] bg-[image:linear-gradient(132deg,rgba(15,23,42,0.22)_0%,rgba(14,165,233,0.16)_28%,rgba(56,189,248,0.18)_58%,rgba(2,6,23,0.14)_100%)] opacity-50 mix-blend-screen transition-opacity duration-700 ease-out motion-safe:group-hover/hero:opacity-82" />
-      <span className="pointer-events-none absolute inset-0 rounded-[28px] bg-[image:radial-gradient(circle_at_24%_16%,rgba(186,230,253,0.14),transparent_34%),radial-gradient(circle_at_76%_28%,rgba(56,189,248,0.16),transparent_38%),linear-gradient(118deg,rgba(125,211,252,0.08),transparent_36%,rgba(59,130,246,0.12)_72%,transparent)] opacity-0 transition-[opacity,transform] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover/hero:scale-[1.02] motion-safe:group-hover/hero:opacity-100" />
-      <span className="pointer-events-none absolute left-1/2 top-1/2 h-32 w-52 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-300/20 blur-[44px] opacity-0 transition-[opacity,transform] duration-700 ease-out motion-safe:group-hover/hero:scale-[1.08] motion-safe:group-hover/hero:opacity-75" />
+      <span className="pointer-events-none absolute -inset-20 bg-[image:radial-gradient(circle_at_20%_5%,rgba(56,189,248,0.24),transparent_42%),radial-gradient(circle_at_88%_10%,rgba(37,99,235,0.14),transparent_46%),radial-gradient(circle_at_60%_80%,rgba(14,165,233,0.1),transparent_54%)] opacity-60 blur-[32px]" />
+      <span className="pointer-events-none absolute inset-0 bg-[image:linear-gradient(132deg,rgba(15,23,42,0.18)_0%,rgba(14,165,233,0.12)_28%,rgba(56,189,248,0.12)_58%,rgba(2,6,23,0.1)_100%)] opacity-60" />
       <div className="page-shell-inline">
         <div className="relative grid gap-4 text-slate-100 md:grid-cols-2 lg:grid-cols-3 lg:items-stretch">
           <div className="h-full min-w-0">
             <div
-              className={`group/card relative flex min-h-[180px] h-full flex-col justify-start gap-1.5 overflow-hidden rounded-2xl border border-white/10 p-3 shadow-[0_10px_26px_rgba(2,6,23,0.28)] ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/12 hover:shadow-[0_16px_34px_rgba(2,6,23,0.34)] sm:min-h-0 sm:justify-center`}
+              className={`relative flex min-h-[180px] h-full flex-col justify-start gap-1.5 overflow-hidden rounded-2xl border border-white/10 p-3 shadow-[0_10px_24px_rgba(2,6,23,0.26)] ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/12 hover:shadow-[0_14px_28px_rgba(2,6,23,0.3)] sm:min-h-0 sm:justify-center`}
             >
-              <span className="pointer-events-none absolute -inset-3 rounded-2xl bg-[image:radial-gradient(circle_at_24%_12%,rgba(56,189,248,0.32),transparent_42%),radial-gradient(circle_at_78%_88%,rgba(14,165,233,0.18),transparent_52%)] opacity-0 blur-[28px] transition-opacity duration-300 ease-out motion-safe:group-hover/card:opacity-100" />
-              <span className="pointer-events-none absolute inset-0 rounded-2xl border border-sky-200/10 transition-colors duration-300 ease-out motion-safe:group-hover/card:border-sky-200/45" />
-              <span className="pointer-events-none absolute inset-0 rounded-2xl shadow-[inset_0_10px_30px_rgba(255,255,255,0.2)] opacity-0 transition-opacity duration-300 ease-out motion-safe:group-hover/card:opacity-100" />
-              <span className="pointer-events-none absolute right-1/2 top-10 h-14 w-24 -translate-x-1/2 rounded-full bg-sky-300/18 blur-[28px] opacity-0 transition-opacity duration-300 ease-out motion-safe:group-hover/card:opacity-75" />
-              <div className="pointer-events-none absolute inset-0 opacity-35 bg-[image:radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.2),transparent_45%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,0.16),transparent_50%)]" />
+              <span className="pointer-events-none absolute inset-0 rounded-2xl border border-sky-200/10" />
+              <div className="pointer-events-none absolute inset-0 opacity-30 bg-[image:radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.16),transparent_44%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,0.12),transparent_48%)]" />
               <div className="relative z-10 flex items-center gap-3 pb-1">
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-sky-200/30 text-sky-200/90 shadow-[0_0_18px_rgba(56,189,248,0.35)]">
                   <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -145,7 +140,7 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
                   width={98}
                   height={49}
                   className="relative z-[2] h-auto w-[72px] object-contain drop-shadow-[0_10px_20px_rgba(15,23,42,0.18)] transition-transform duration-500 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:transform-gpu md:w-[108px] motion-safe:group-hover/logo:-translate-y-0.5 motion-safe:group-hover/logo:scale-[1.04]"
-                  priority
+                  sizes="(min-width: 768px) 108px, 72px"
                   onError={handleLogoLoadError}
                 />
                 <span className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-3 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-[14px] border border-sky-200/35 bg-[image:linear-gradient(135deg,rgba(30,41,59,0.96),rgba(51,65,85,0.94))] px-4 py-2 text-center text-[12px] font-semibold tracking-[0.08em] text-slate-50 opacity-0 shadow-[0_18px_40px_rgba(15,23,42,0.34)] ring-1 ring-sky-100/10 backdrop-blur-xl transition-[opacity,transform] duration-300 ease-out after:absolute after:left-1/2 after:top-full after:h-2.5 after:w-2.5 after:-translate-x-1/2 after:-translate-y-1/2 after:rotate-45 after:border-b after:border-r after:border-sky-200/30 after:bg-slate-700 motion-safe:group-hover/logo:-translate-y-1 motion-safe:group-hover/logo:opacity-100">
@@ -186,7 +181,7 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
           </div>
 
           <div
-            className={`flex min-h-[180px] h-full min-w-0 flex-col space-y-2 rounded-2xl border border-white/10 p-3 shadow-[0_10px_26px_rgba(2,6,23,0.28)] ${cardInteractionStatic} md:col-span-2 lg:col-span-1 ${cardGradientBase} ${cardGradientHover} bg-white/10 motion-safe:hover:bg-white/12 sm:min-h-0`}
+            className={`flex min-h-[180px] h-full min-w-0 flex-col space-y-2 rounded-2xl border border-white/10 p-3 shadow-[0_10px_24px_rgba(2,6,23,0.26)] ${cardInteractionStatic} md:col-span-2 lg:col-span-1 ${cardGradientBase} ${cardGradientHover} bg-white/10 motion-safe:hover:bg-white/12 sm:min-h-0`}
           >
             <div className="flex items-center gap-3">
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-sky-200/30 text-sky-200/90 shadow-[0_0_16px_rgba(56,189,248,0.3)]">

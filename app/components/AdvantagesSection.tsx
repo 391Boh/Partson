@@ -1,7 +1,4 @@
-"use client";
-
-import Image from "next/image";
-import { useEffect, useState, type ComponentType, type SVGProps } from "react";
+import type { ComponentType, SVGProps } from "react";
 import {
   CheckBadgeIcon,
   CreditCardIcon,
@@ -9,6 +6,7 @@ import {
   TruckIcon,
   WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
+import AdvantagesPhotoSlider from "./AdvantagesPhotoSlider";
 
 type AdvantagePanel = {
   title: string;
@@ -69,16 +67,6 @@ const advantagePanels: AdvantagePanel[] = [
   },
 ];
 
-const businessProfilePhotos = [
-  "/storefront/photos/partson-store-1.jpg",
-  "/storefront/photos/partson-store-2.jpg",
-  "/storefront/photos/partson-store-3.jpg",
-  "/storefront/photos/partson-store-4.jpg",
-  "/storefront/photos/partson-store-5.jpg",
-  "/storefront/photos/partson-store-6.jpg",
-  "/storefront/photos/partson-store-7.jpg",
-] as const;
-
 const headerHighlights = [
   {
     label: "Підбір за VIN-кодом",
@@ -97,72 +85,19 @@ const headerHighlights = [
   },
 ] as const;
 
-const PHOTO_FADE_DURATION_MS = 480;
-
 const AdvantagesSection = () => {
-  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
-  const [displayedPhotoIndex, setDisplayedPhotoIndex] = useState(0);
-  const [previousPhotoIndex, setPreviousPhotoIndex] = useState<number | null>(null);
-  const [showPreviousPhoto, setShowPreviousPhoto] = useState(false);
-
-  useEffect(() => {
-    if (businessProfilePhotos.length <= 1) return undefined;
-
-    const intervalId = window.setInterval(() => {
-      setActivePhotoIndex((current) =>
-        current === businessProfilePhotos.length - 1 ? 0 : current + 1
-      );
-    }, 5000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (activePhotoIndex === displayedPhotoIndex) return undefined;
-
-    let frameId = 0;
-    const timeoutId = window.setTimeout(() => {
-      setPreviousPhotoIndex(null);
-    }, PHOTO_FADE_DURATION_MS);
-
-    setPreviousPhotoIndex(displayedPhotoIndex);
-    setShowPreviousPhoto(true);
-    setDisplayedPhotoIndex(activePhotoIndex);
-
-    frameId = window.requestAnimationFrame(() => {
-      frameId = window.requestAnimationFrame(() => {
-        setShowPreviousPhoto(false);
-      });
-    });
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      window.cancelAnimationFrame(frameId);
-    };
-  }, [activePhotoIndex, displayedPhotoIndex]);
-
-  const activePhotoSrc = businessProfilePhotos[displayedPhotoIndex];
-  const previousPhotoSrc =
-    previousPhotoIndex === null ? null : businessProfilePhotos[previousPhotoIndex];
-
   return (
     <section
-      className="section-reveal font-ui group/advantages relative isolate w-full select-none overflow-hidden bg-gradient-to-br from-cyan-50/98 via-sky-100/78 to-blue-100/84 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.94),inset_0_-1px_0_rgba(30,64,175,0.1),0_14px_30px_rgba(37,99,235,0.1)] sm:py-5"
-      onCopy={(event) => event.preventDefault()}
-      onCut={(event) => event.preventDefault()}
+      className="section-reveal font-ui group/advantages relative isolate w-full overflow-hidden bg-gradient-to-br from-cyan-50/96 via-sky-100/70 to-blue-100/80 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.08),0_12px_24px_rgba(37,99,235,0.08)] sm:py-5"
     >
-      <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_16%,rgba(103,232,249,0.26),transparent_36%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.2),transparent_40%),radial-gradient(circle_at_52%_88%,rgba(96,165,250,0.16),transparent_34%)]" />
-      <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 ease-out group-hover/advantages:opacity-100 bg-[radial-gradient(circle_at_10%_12%,rgba(6,182,212,0.22),transparent_34%),radial-gradient(circle_at_88%_16%,rgba(59,130,246,0.22),transparent_34%),radial-gradient(circle_at_50%_100%,rgba(251,191,36,0.12),transparent_38%)]" />
+      <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_16%,rgba(103,232,249,0.22),transparent_36%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.16),transparent_40%),radial-gradient(circle_at_52%_88%,rgba(96,165,250,0.12),transparent_34%)]" />
 
       <div
         className="page-shell-inline relative z-10"
       >
-        <div className="relative overflow-hidden rounded-[22px] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(236,254,255,0.92),rgba(219,234,254,0.9))] shadow-[0_18px_38px_rgba(15,23,42,0.1),inset_0_1px_0_rgba(255,255,255,0.92)] transition-[background-image,box-shadow,border-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/advantages:border-cyan-100 group-hover/advantages:bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(236,254,255,0.98),rgba(224,242,254,0.96),rgba(191,219,254,0.94))] group-hover/advantages:shadow-[0_26px_54px_rgba(14,165,233,0.14),0_12px_28px_rgba(37,99,235,0.1),inset_0_1px_0_rgba(255,255,255,0.95)]">
+        <div className="relative overflow-hidden rounded-[22px] border border-white/82 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(236,254,255,0.92),rgba(219,234,254,0.9))] shadow-[0_16px_32px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.92)] transition-[background-image,box-shadow,border-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/advantages:border-cyan-100 group-hover/advantages:bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(236,254,255,0.96),rgba(224,242,254,0.94),rgba(191,219,254,0.92))] group-hover/advantages:shadow-[0_22px_44px_rgba(14,165,233,0.1),0_10px_22px_rgba(37,99,235,0.08),inset_0_1px_0_rgba(255,255,255,0.95)]">
           <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/95 to-transparent" />
-          <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_16%,rgba(103,232,249,0.18),transparent_32%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.14),transparent_36%),radial-gradient(circle_at_50%_88%,rgba(96,165,250,0.12),transparent_32%)]" />
-          <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 ease-out group-hover/advantages:opacity-100 bg-[linear-gradient(135deg,rgba(255,255,255,0)_0%,rgba(165,243,252,0.18)_24%,rgba(125,211,252,0.16)_56%,rgba(191,219,254,0.2)_100%)]" />
+          <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_16%,rgba(103,232,249,0.14),transparent_32%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.1),transparent_36%),radial-gradient(circle_at_50%_88%,rgba(96,165,250,0.08),transparent_32%)]" />
 
           <div className="relative overflow-hidden border-b border-sky-100/80 bg-[linear-gradient(135deg,rgba(250,254,255,0.99),rgba(236,254,255,0.98)_24%,rgba(224,242,254,0.97)_54%,rgba(191,219,254,0.94)_100%)] px-5 py-6 sm:px-6 sm:py-7 lg:px-7 transition-[background-image] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/advantages:bg-[linear-gradient(135deg,rgba(255,255,255,0.99),rgba(224,247,255,0.99)_22%,rgba(186,230,253,0.95)_54%,rgba(191,219,254,0.96)_100%)]">
             <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(103,232,249,0.24),transparent_28%),radial-gradient(circle_at_88%_22%,rgba(186,230,253,0.2),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.46),transparent_52%)]" />
@@ -217,60 +152,7 @@ const AdvantagesSection = () => {
               </div>
 
               <div className="relative lg:justify-self-end">
-                <div className="overflow-hidden rounded-[18px] border border-sky-200/80 bg-white/82 shadow-[0_18px_34px_rgba(56,189,248,0.14)] backdrop-blur-md transition-[background-image,box-shadow,border-color,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/advantages:border-cyan-100 group-hover/advantages:bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(236,254,255,0.96),rgba(224,242,254,0.94))] group-hover/advantages:shadow-[0_26px_46px_rgba(14,165,233,0.22)]">
-                  <div className="relative aspect-[4/3] w-full bg-slate-900/30 lg:w-[332px]">
-                    {previousPhotoSrc ? (
-                      <Image
-                        key={`previous-${previousPhotoSrc}`}
-                        src={previousPhotoSrc}
-                        alt=""
-                        aria-hidden="true"
-                        fill
-                        sizes="(min-width: 1024px) 332px, 100vw"
-                        className={`pointer-events-none z-10 object-cover transition-opacity ease-out ${
-                          showPreviousPhoto ? "opacity-100" : "opacity-0"
-                        }`}
-                        style={{ transitionDuration: `${PHOTO_FADE_DURATION_MS}ms` }}
-                      />
-                    ) : null}
-                    <Image
-                      key={activePhotoSrc}
-                      src={activePhotoSrc}
-                      alt={`Фото магазину PartsON ${displayedPhotoIndex + 1}`}
-                      fill
-                      sizes="(min-width: 1024px) 332px, 100vw"
-                      priority={displayedPhotoIndex === 0}
-                      className="object-cover"
-                    />
-                  </div>
-
-                  <div className="flex items-start justify-between gap-3 border-t border-sky-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.92))] px-4 py-3 transition-[background-image] duration-500 ease-out group-hover/advantages:bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(236,254,255,0.96),rgba(224,242,254,0.94))]">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-700/78">
-                        Фото магазину PartsON
-                      </p>
-                      <p className="mt-1 text-[13px] font-semibold text-slate-700">
-                        Простір магазину, вітрина та зона самовивозу
-                      </p>
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-1.5 pt-1">
-                      {businessProfilePhotos.map((_, index) => (
-                        <button
-                          key={`photo-dot-${index}`}
-                          type="button"
-                          onClick={() => setActivePhotoIndex(index)}
-                          aria-label={`Показати фото магазину ${index + 1}`}
-                          className={`h-2.5 rounded-full transition-all duration-200 ${
-                            index === activePhotoIndex
-                              ? "w-6 bg-sky-600"
-                              : "w-2.5 bg-sky-200 hover:bg-sky-300"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <AdvantagesPhotoSlider />
               </div>
             </div>
           </div>
@@ -282,7 +164,7 @@ const AdvantagesSection = () => {
               return (
                 <article
                   key={item.title}
-                  className="relative flex h-full min-w-0 flex-col px-5 py-5 sm:px-6 sm:py-6 transition-[background-image,box-shadow] duration-500 ease-out hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.52),rgba(236,254,255,0.46),rgba(224,242,254,0.36),rgba(191,219,254,0.22))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]"
+                  className="relative flex h-full min-w-0 flex-col px-5 py-5 sm:px-6 sm:py-6 transition-[background-image,box-shadow] duration-500 ease-out hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.42),rgba(236,254,255,0.36),rgba(224,242,254,0.26),rgba(191,219,254,0.16))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.42)]"
                 >
                   <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(125,211,252,0.12),transparent_42%)]" />
 
