@@ -81,7 +81,11 @@ const DeferredSection = ({
     <div
       ref={containerRef}
       className={className}
-      style={{ minHeight: isVisible ? undefined : minHeight }}
+      style={{
+        minHeight: isVisible ? undefined : minHeight,
+        contentVisibility: isVisible ? "visible" : "auto",
+        containIntrinsicSize: isVisible ? undefined : minHeight,
+      }}
     >
       {isVisible ? (
         <div className="deferred-section-content">{children}</div>

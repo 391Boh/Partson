@@ -92,7 +92,7 @@ export default function HomePageContent() {
               }
             },
             {
-              rootMargin: "480px 0px",
+              rootMargin: "360px 0px",
             }
           )
         : null;
@@ -105,9 +105,9 @@ export default function HomePageContent() {
     let idleId: number | null = null;
 
     if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(markReady, { timeout: 2500 });
+      idleId = win.requestIdleCallback(markReady, { timeout: 5000 });
     } else {
-      timeoutId = window.setTimeout(markReady, 1800);
+      timeoutId = window.setTimeout(markReady, 4200);
     }
 
     return () => {

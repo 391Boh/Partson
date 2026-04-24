@@ -56,6 +56,9 @@ const PRODUCT_SITEMAP_MAX_SOURCE_PAGES = parseOptionalPositiveInt(
   process.env.PRODUCT_SITEMAP_MAX_SOURCE_PAGES
 );
 
+const shouldBypassProductSitemapCache = () =>
+  process.env.PRODUCT_SITEMAP_DISABLE_CACHE === "1";
+
 const formatLoggedError = (error: unknown) => {
   if (error instanceof Error) {
     return error.message.trim();
@@ -82,6 +85,8 @@ export type ProductSitemapEntry = {
   subGroup?: string;
   category?: string;
   hasPhoto?: boolean;
+  quantity: number;
+  priceEuro: number;
 };
 
 const normalizeProductCodes = (codes: string[]) => {
@@ -127,6 +132,8 @@ const toProductSitemapEntry = (product: CatalogProduct): ProductSitemapEntry | n
     subGroup: product.subGroup,
     category: product.category,
     hasPhoto: product.hasPhoto,
+    quantity: Number.isFinite(product.quantity) ? Math.max(0, product.quantity) : 0,
+    priceEuro: product.priceEuro as number,
   };
 };
 
@@ -274,7 +281,7 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
 const getProductSitemapEntryBatchesWithCache = unstable_cache(
   buildProductSitemapEntryBatches,
   [
-    `product-sitemap-entries-v20-priced-canonical-images-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_BATCHES ?? "all"}-${PRODUCT_SITEMAP_QUERY_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ?? "none"}-${PRODUCT_SITEMAP_MAX_SOURCE_PAGES ?? "all"}`,
+    `product-sitemap-entries-v21-priced-canonical-images-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_BATCHES ?? "all"}-${PRODUCT_SITEMAP_QUERY_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ?? "none"}-${PRODUCT_SITEMAP_MAX_SOURCE_PAGES ?? "all"}`,
   ],
   {
     revalidate: 60 * 60,
@@ -283,11 +290,24 @@ const getProductSitemapEntryBatchesWithCache = unstable_cache(
 );
 
 const getProductSitemapEntryBatchesSafe = async () => {
+  if (shouldBypassProductSitemapCache()) {
+    return buildProductSitemapEntryBatches();
+  }
+
   try {
     return await getProductSitemapEntryBatchesWithCache();
   } catch (error) {
     logProductSitemapFailure("Failed to resolve cached product sitemap entry batches", error);
-    return [] as ProductSitemapEntry[][];
+
+    try {
+      return await buildProductSitemapEntryBatches();
+    } catch (fallbackError) {
+      logProductSitemapFailure(
+        "Failed to resolve uncached product sitemap entry batches",
+        fallbackError
+      );
+      return [] as ProductSitemapEntry[][];
+    }
   }
 };
 
