@@ -7,6 +7,7 @@ import { notFound, redirect } from "next/navigation";
 
 import {
   fetchCatalogProductsByArticle,
+  fetchProductDescription,
   fetchEuroRate,
   findCatalogProductByCode,
   toPriceUah,
@@ -15,6 +16,7 @@ import ProductDescriptionClientCard from "app/components/ProductDescriptionClien
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import OpenChatButton from "app/components/OpenChatButton";
 import ProductRelatedItemsSection from "app/components/ProductRelatedItemsSection";
+import ProductSimilarItemsSection from "app/components/ProductSimilarItemsSection";
 import {
   buildCatalogCategoryPath,
   buildCatalogProducerPath,
@@ -50,6 +52,8 @@ const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 350;
 const PRODUCT_PAGE_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 900;
 const PRODUCT_PAGE_GROUP_LANDING_TIMEOUT_MS = 140;
+const PRODUCT_PAGE_DESCRIPTION_TIMEOUT_MS = 760;
+const PRODUCT_PAGE_DESCRIPTION_LOOKUP_TIMEOUT_MS = 520;
 
 export const revalidate = 900;
 
@@ -83,6 +87,26 @@ const ProductRelatedItemsFallback = () => (
         <div
           key={index}
           className="h-[156px] animate-pulse rounded-[18px] border border-slate-200 bg-slate-100"
+        />
+      ))}
+    </div>
+  </section>
+);
+
+const ProductSimilarItemsFallback = () => (
+  <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
+    <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-2.5">
+      <div>
+        <div className="h-3 w-24 animate-pulse rounded-full bg-slate-200" />
+        <div className="mt-2 h-6 w-64 animate-pulse rounded-full bg-slate-100" />
+      </div>
+      <div className="h-6 w-24 animate-pulse rounded-full bg-slate-100" />
+    </div>
+    <div className="mt-3 grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div
+          key={index}
+          className="h-[188px] animate-pulse rounded-[18px] border border-slate-200 bg-slate-100"
         />
       ))}
     </div>
@@ -850,7 +874,7 @@ const buildProductMetaDescription = (options: {
     .filter(Boolean)
     .join(", ");
 
-  return `Купити ${name}. ${details}. Каталог автозапчастин PartsON.`;
+  return `Купити ${name}. ${details}. Підбір за VIN-кодом, консультація менеджера, доставка по Україні та самовивіз у Львові в каталозі автозапчастин PartsON.`;
 };
 
 const buildProductFallbackDescription = (options: {
@@ -930,6 +954,27 @@ const resolveProductSeoPrice = cache(
     };
   }
 );
+
+const getInitialProductDescription = async (lookupKeys: string[]) => {
+  const normalizedLookupKeys = Array.from(
+    new Set(lookupKeys.map((value) => (value || "").trim()).filter(Boolean))
+  ).slice(0, 6);
+
+  for (const lookupKey of normalizedLookupKeys) {
+    const description = await fetchProductDescription(lookupKey, {
+      timeoutMs: PRODUCT_PAGE_DESCRIPTION_LOOKUP_TIMEOUT_MS,
+      retries: 0,
+      retryDelayMs: 80,
+      cacheTtlMs: 1000 * 60 * 30,
+    }).catch(() => null);
+
+    if (description) {
+      return description;
+    }
+  }
+
+  return null;
+};
 
 const buildCanonicalProductPath = (
   product: {
@@ -1321,22 +1366,19 @@ export async function generateMetadata({
     seoVisibleProductName
       ? `Купити ${seoVisibleProductName}`
       : "Купити автозапчастину",
-    productProducer ? `виробник ${productProducer}` : null,
-    productArticle ? `артикул ${productArticle}` : null,
-    categoryLabel ? `категорія ${categoryLabel}` : null,
-    resolvedCode ? `код ${resolvedCode}` : null,
-    "ціна",
-    "доставка",
+    productArticle || resolvedCode || null,
+    productProducer || null,
+    "ціна та наявність у Львові",
     "PartsON",
   ]
     .filter(Boolean)
     .join(" | ");
 
   const description = [
-    `Купити ${seoVisibleProductName}${productProducer ? ` від ${productProducer}` : ""}${productArticle ? `, артикул ${productArticle}` : ""}.`,
+    `Купити ${seoVisibleProductName}${productProducer ? ` ${productProducer}` : ""}${productArticle ? `, артикул ${productArticle}` : resolvedCode ? `, код ${resolvedCode}` : ""}.`,
     categoryLabel ? `Категорія: ${categoryLabel}.` : null,
-    resolvedCode ? `Код товару: ${resolvedCode}.` : null,
-    "Доставка по Україні, підбір за кодом, артикулом і VIN в PartsON.",
+    resolvedCode && resolvedCode !== productArticle ? `Код товару: ${resolvedCode}.` : null,
+    "Перевірка сумісності, підбір за кодом, артикулом і VIN-кодом, доставка по Україні та самовивіз у Львові в PartsON.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -1498,6 +1540,11 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     : Array.from(
         new Set([product.article.trim(), product.code.trim(), resolvedCode].filter(Boolean))
       );
+  const initialDescriptionPromise = resolveWithTimeout(
+    () => getInitialProductDescription(lookupKeys),
+    null,
+    PRODUCT_PAGE_DESCRIPTION_TIMEOUT_MS
+  );
   const inlineInitialPriceEuro = toPositiveNumberOrNull(product.priceEuro);
   const pagePrice = await resolveProductSeoPrice(inlineInitialPriceEuro);
   const initialPriceUah = pagePrice.priceUah;
@@ -1544,7 +1591,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const producerCatalogPath = product.producer
     ? buildCatalogProducerPath(product.producer, productGroup || undefined)
     : null;
-  const [groupLandingPath, categoryLandingPath] = await Promise.all([
+  const [groupLandingPath, categoryLandingPath, initialDescriptionText] = await Promise.all([
     productGroup
       ? resolveWithTimeout(
           () => resolveProductGroupLandingPath(productCategory, productGroup),
@@ -1564,6 +1611,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           PRODUCT_PAGE_GROUP_LANDING_TIMEOUT_MS
         )
       : null,
+    initialDescriptionPromise,
   ]);
   const categoryLandingHref =
     categoryLandingPath ||
@@ -1702,6 +1750,27 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     group: productGroup,
     subGroup: productSubgroup,
   });
+  const productHeroLeadText = [
+    `Купити ${visibleProductName}${product.producer ? ` ${product.producer}` : ""}${product.article ? `, артикул ${product.article}` : ""} можна з підбором по коду, артикулу або VIN-коду.`,
+    visibleProductSubgroup || visibleProductGroup
+      ? `Позиція належить до категорії ${visibleProductSubgroup || visibleProductGroup}.`
+      : null,
+    "PartsON допоможе перевірити сумісність, наявність, доставку по Україні та самовивіз у Львові.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const productHeroHighlights = Array.from(
+    new Set(
+      [
+        product.article ? `Артикул ${product.article}` : null,
+        product.producer ? `Бренд ${product.producer}` : null,
+        "Підбір за VIN-кодом",
+        "Доставка по Україні",
+        "Самовивіз у Львові",
+        "Оригінали та аналоги",
+      ].filter(Boolean)
+    )
+  ).slice(0, 5);
   const keywordPhrases = Array.from(
     new Set(
       [
@@ -1730,7 +1799,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         .filter(Boolean)
     )
   ).slice(0, 10);
-  const keywordSummaryText = `Зібрали короткі запити, за якими найчастіше шукають ${visibleProductName}${product.producer ? ` від ${product.producer}` : ""}${visibleProductSubgroup || visibleProductGroup ? ` у розділі ${visibleProductSubgroup || visibleProductGroup}` : ""}.`;
+  const keywordSummaryText = `Зібрали ключові запити, за якими найчастіше шукають ${visibleProductName}${product.producer ? ` від ${product.producer}` : ""}${visibleProductSubgroup || visibleProductGroup ? ` у розділі ${visibleProductSubgroup || visibleProductGroup}` : ""}, щоб швидше перейти до суміжних позицій, брендів і категорій каталогу.`;
   const faqItems = [
     {
       question: "Як замовити товар?",
@@ -1834,6 +1903,19 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   <h1 className="font-display-italic mt-3 max-w-none break-words text-[clamp(1.26rem,2.8vw,2.42rem)] font-black leading-[0.98] tracking-[-0.048em] text-white [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[42ch]">
                     {productHeadingText}
                   </h1>
+                  <p className="mt-3 max-w-3xl text-[14px] font-medium leading-6 text-slate-200/92 sm:text-[15px]">
+                    {productHeroLeadText}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {productHeroHighlights.map((item) => (
+                      <span
+                        key={item}
+                        className="inline-flex min-h-8 items-center rounded-[13px] border border-white/14 bg-white/10 px-3 py-1 text-[11px] font-bold tracking-[0.04em] text-slate-100 shadow-[0_10px_26px_rgba(2,6,23,0.16)] backdrop-blur-sm"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
                   <div className={productHeaderMetaGridClass}>
                     <div className="rounded-[20px] border border-cyan-400/18 bg-[linear-gradient(165deg,rgba(14,165,233,0.16),rgba(15,23,42,0.92)_30%,rgba(2,6,23,0.96))] px-4 py-3.5 shadow-[0_18px_36px_rgba(2,6,23,0.28)]">
                       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200 sm:text-[11px]">
@@ -1917,6 +1999,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
               <ProductDescriptionClientCard
                 fallbackText={fallbackDescription}
+                initialText={initialDescriptionText}
                 lookupKeys={lookupKeys}
                 isModalView={isModalView}
                 descriptionTextClass={descriptionTextClass}
@@ -1924,7 +2007,33 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
               {!isModalView && (
                 <Suspense fallback={<ProductRelatedItemsFallback />}>
-                  <ProductRelatedItemsSection product={product} />
+                  <ProductRelatedItemsSection
+                    product={{
+                      code: product.code,
+                      article: product.article,
+                      name: product.name,
+                      producer: product.producer,
+                      group: product.group,
+                      subGroup: product.subGroup,
+                      category: product.category,
+                    }}
+                  />
+                </Suspense>
+              )}
+
+              {!isModalView && (
+                <Suspense fallback={<ProductSimilarItemsFallback />}>
+                  <ProductSimilarItemsSection
+                    product={{
+                      code: product.code,
+                      article: product.article,
+                      name: product.name,
+                      producer: product.producer,
+                      group: product.group,
+                      subGroup: product.subGroup,
+                      category: product.category,
+                    }}
+                  />
                 </Suspense>
               )}
             </section>
@@ -1938,12 +2047,15 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     <div className="min-w-0 max-w-4xl">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-900">
-                          Часто шукають
+                          Ключові пошукові фрази
                         </p>
                         <span className="inline-flex rounded-[12px] border border-slate-900/10 bg-slate-950 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-100">
                           {keywordPhrases.length} запитів
                         </span>
                       </div>
+                      <h2 className="font-display-italic mt-2 text-[1.04rem] font-black tracking-[-0.04em] text-slate-950 sm:text-[1.16rem]">
+                        Як шукають цю запчастину в каталозі
+                      </h2>
                       <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700 sm:text-[15px]">
                         {keywordSummaryText}
                       </p>

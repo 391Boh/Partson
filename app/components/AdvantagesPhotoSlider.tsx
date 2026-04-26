@@ -39,23 +39,53 @@ export default function AdvantagesPhotoSlider() {
     if (activePhotoIndex === displayedPhotoIndex) return undefined;
 
     let frameId = 0;
-    const timeoutId = window.setTimeout(() => {
-      setPreviousPhotoIndex(null);
-    }, PHOTO_FADE_DURATION_MS);
+    let timeoutId: number | null = null;
+    let cancelled = false;
+    const nextPhotoSrc = businessProfilePhotos[activePhotoIndex];
 
-    setPreviousPhotoIndex(displayedPhotoIndex);
-    setShowPreviousPhoto(true);
-    setDisplayedPhotoIndex(activePhotoIndex);
+    const beginTransition = () => {
+      if (cancelled) return;
 
-    frameId = window.requestAnimationFrame(() => {
+      setPreviousPhotoIndex(displayedPhotoIndex);
+      setShowPreviousPhoto(true);
+      setDisplayedPhotoIndex(activePhotoIndex);
+
       frameId = window.requestAnimationFrame(() => {
-        setShowPreviousPhoto(false);
+        frameId = window.requestAnimationFrame(() => {
+          if (cancelled) return;
+          setShowPreviousPhoto(false);
+        });
       });
-    });
+
+      timeoutId = window.setTimeout(() => {
+        if (cancelled) return;
+        setPreviousPhotoIndex(null);
+      }, PHOTO_FADE_DURATION_MS);
+    };
+
+    const preloadImage = new window.Image();
+    preloadImage.src = nextPhotoSrc;
+
+    if (typeof preloadImage.decode === "function") {
+      void preloadImage
+        .decode()
+        .catch(() => {})
+        .then(beginTransition);
+    } else if (preloadImage.complete) {
+      beginTransition();
+    } else {
+      preloadImage.onload = beginTransition;
+      preloadImage.onerror = beginTransition;
+    }
 
     return () => {
-      window.clearTimeout(timeoutId);
+      cancelled = true;
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
       window.cancelAnimationFrame(frameId);
+      preloadImage.onload = null;
+      preloadImage.onerror = null;
     };
   }, [activePhotoIndex, displayedPhotoIndex]);
 
@@ -68,7 +98,6 @@ export default function AdvantagesPhotoSlider() {
       <div className="relative aspect-[4/3] w-full bg-slate-900/30 lg:w-[332px]">
         {previousPhotoSrc ? (
           <Image
-            key={`previous-${previousPhotoSrc}`}
             src={previousPhotoSrc}
             alt=""
             aria-hidden="true"
@@ -82,7 +111,6 @@ export default function AdvantagesPhotoSlider() {
           />
         ) : null}
         <Image
-          key={activePhotoSrc}
           src={activePhotoSrc}
           alt={`Фото магазину PartsON ${displayedPhotoIndex + 1}`}
           fill

@@ -133,62 +133,22 @@ const Header: React.FC = () => {
 
   // AUTH LISTENER
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
-    let idleId: number | null = null;
-    let timeoutId: number | null = null;
-    const win = window as Window & {
-      requestIdleCallback?: RequestIdleCallback;
-      cancelIdleCallback?: (id: number) => void;
-    };
-
-    const loadAuth = () => {
-      void loadHeaderAuthDeps()
-        .then(({ auth, onAuthStateChanged }) => {
-          if (cancelled) return;
-          setUser(auth.currentUser ?? null);
-          unsubscribe = onAuthStateChanged(auth, (authUser) => {
-            setUser(authUser ?? null);
-          });
-        })
-        .catch((error) => {
-          console.error('Failed to load header auth deps:', error);
+    void loadHeaderAuthDeps()
+      .then(({ auth, onAuthStateChanged }) => {
+        if (cancelled) return;
+        setUser(auth.currentUser ?? null);
+        unsubscribe = onAuthStateChanged(auth, (authUser) => {
+          setUser(authUser ?? null);
         });
-    };
-
-    const triggerAuthLoad = () => {
-      window.removeEventListener('pointerdown', triggerAuthLoad);
-      window.removeEventListener('keydown', triggerAuthLoad);
-      if (idleId != null && typeof win.cancelIdleCallback === 'function') {
-        win.cancelIdleCallback(idleId);
-      }
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
-      loadAuth();
-    };
-
-    window.addEventListener('pointerdown', triggerAuthLoad, { once: true, passive: true });
-    window.addEventListener('keydown', triggerAuthLoad, { once: true });
-
-    if (typeof win.requestIdleCallback === 'function') {
-      idleId = win.requestIdleCallback(triggerAuthLoad, { timeout: 3200 });
-    } else {
-      timeoutId = window.setTimeout(triggerAuthLoad, 2200);
-    }
+      })
+      .catch((error) => {
+        console.error('Failed to load header auth deps:', error);
+      });
 
     return () => {
       cancelled = true;
-      window.removeEventListener('pointerdown', triggerAuthLoad);
-      window.removeEventListener('keydown', triggerAuthLoad);
-      if (idleId != null && typeof win.cancelIdleCallback === 'function') {
-        win.cancelIdleCallback(idleId);
-      }
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
       unsubscribe?.();
     };
   }, []);

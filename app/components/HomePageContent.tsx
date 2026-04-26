@@ -3,10 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import type { Auth } from "firebase/auth";
 import AdvantagesSection from "./AdvantagesSection";
-import dynamic from "next/dynamic";
-const Footer = dynamic(() => import("./footer"), {
-  ssr: false,
-});
+import Footer from "./footer";
 import Hero from "./hero";
 import SectionBoundary from "./SectionBoundary";
 
@@ -31,82 +28,57 @@ const loadHomeAuthDeps = () => {
   return homeAuthDepsPromise;
 };
 
+const placeholderHeights = ["520px", "560px", "380px"] as const;
+
 const HomeDeferredStackPlaceholder = () => (
-  <section className="relative w-full py-2">
-    <div className="page-shell-inline">
-      <div className="rounded-[28px] border border-sky-100/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.88))] p-5 shadow-[0_18px_36px_rgba(15,23,42,0.06)]">
-        <div className="h-5 w-36 rounded-full bg-slate-200/80" />
-        <div className="mt-4 min-h-[180px] rounded-[22px] bg-[linear-gradient(135deg,rgba(226,232,240,0.8),rgba(255,255,255,0.92),rgba(224,242,254,0.76))]" />
-      </div>
-    </div>
-  </section>
+  <>
+    {placeholderHeights.map((minHeight, index) => (
+      <section key={`home-placeholder-${minHeight}`} className="relative w-full py-1">
+        <div className="page-shell-inline">
+          <div className="rounded-[28px] border border-sky-100/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.88))] p-5 shadow-[0_18px_36px_rgba(15,23,42,0.06)]">
+            <div
+              className="h-5 rounded-full bg-slate-200/80"
+              style={{ width: index === 0 ? "9rem" : index === 1 ? "10rem" : "8rem" }}
+            />
+            <div
+              className="mt-4 rounded-[22px] bg-[linear-gradient(135deg,rgba(226,232,240,0.8),rgba(255,255,255,0.92),rgba(224,242,254,0.76))]"
+              style={{ minHeight }}
+            />
+          </div>
+        </div>
+      </section>
+    ))}
+  </>
 );
 
 export default function HomePageContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [HomeDeferredStackComponent, setHomeDeferredStackComponent] =
     useState<ComponentType | null>(null);
   const [shouldLoadDeferredHome, setShouldLoadDeferredHome] = useState(false);
   const deferredHomeSentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
-    let idleId: number | null = null;
-    let timeoutId: number | null = null;
-
-    const loadAuthState = () => {
-      void loadHomeAuthDeps()
-        .then(({ auth, onAuthStateChanged }) => {
-          if (cancelled) return;
-          setIsAuthenticated(Boolean(auth.currentUser));
-          unsubscribe = onAuthStateChanged(auth, (authUser) => {
-            setIsAuthenticated(Boolean(authUser));
-          });
-        })
-        .catch((error) => {
-          console.error("Failed to load home auth deps:", error);
+    void loadHomeAuthDeps()
+      .then(({ auth, onAuthStateChanged }) => {
+        if (cancelled) return;
+        setIsAuthenticated(Boolean(auth.currentUser));
+        setAuthReady(true);
+        unsubscribe = onAuthStateChanged(auth, (authUser) => {
+          setIsAuthenticated(Boolean(authUser));
+          setAuthReady(true);
         });
-    };
-
-    const win = window as Window & {
-      requestIdleCallback?: RequestIdleCallback;
-      cancelIdleCallback?: (id: number) => void;
-    };
-
-    const triggerAuthLoad = () => {
-      window.removeEventListener("pointerdown", triggerAuthLoad);
-      window.removeEventListener("keydown", triggerAuthLoad);
-      if (idleId != null && typeof win.cancelIdleCallback === "function") {
-        win.cancelIdleCallback(idleId);
-      }
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
-      loadAuthState();
-    };
-
-    window.addEventListener("pointerdown", triggerAuthLoad, { once: true, passive: true });
-    window.addEventListener("keydown", triggerAuthLoad, { once: true });
-
-    if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(triggerAuthLoad, { timeout: 2800 });
-    } else {
-      timeoutId = window.setTimeout(triggerAuthLoad, 1800);
-    }
+      })
+      .catch((error) => {
+        console.error("Failed to load home auth deps:", error);
+        setAuthReady(true);
+      });
 
     return () => {
       cancelled = true;
-      window.removeEventListener("pointerdown", triggerAuthLoad);
-      window.removeEventListener("keydown", triggerAuthLoad);
-      if (idleId != null && typeof win.cancelIdleCallback === "function") {
-        win.cancelIdleCallback(idleId);
-      }
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
       unsubscribe?.();
     };
   }, []);
@@ -221,6 +193,7 @@ export default function HomePageContent() {
       <div className="section-reveal">
         <Hero
           isAuthenticated={isAuthenticated}
+          authReady={authReady}
           onLogin={openLoginModal}
           onRegister={openRegisterModal}
           onAddVin={openVinModal}
@@ -229,13 +202,7 @@ export default function HomePageContent() {
 
       <div ref={deferredHomeSentinelRef} aria-hidden="true" className="h-px w-full" />
 
-      {HomeDeferredStackComponent ? (
-        <HomeDeferredStackComponent />
-      ) : shouldLoadDeferredHome ? (
-        <HomeDeferredStackPlaceholder />
-      ) : (
-        <div className="h-6 w-full" />
-      )}
+      {HomeDeferredStackComponent ? <HomeDeferredStackComponent /> : <HomeDeferredStackPlaceholder />}
 
       <SectionBoundary title="Інформаційний блок тимчасово недоступний">
         <AdvantagesSection />

@@ -1187,7 +1187,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           isEmbeddedProductView ? "min-h-screen" : "min-h-screen pt-header-offset"
         }
       >
-        <div className="route-transition-shell">{children}</div>
+        <div className={pathname === "/" ? undefined : "route-transition-shell"}>
+          {children}
+        </div>
       </main>
 
       {!isEmbeddedProductView && (

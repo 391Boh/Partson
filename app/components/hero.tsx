@@ -6,6 +6,7 @@ import { LogIn, UserPlus } from "lucide-react";
 
 interface HeroProps {
   isAuthenticated: boolean;
+  authReady?: boolean;
   onLogin: () => void;
   onRegister: () => void;
   onAddVin?: () => void;
@@ -62,7 +63,13 @@ const loginButton = `${primaryButton} bg-no-repeat [background-size:185%_185%] [
 const vinButton = `${actionButtonBase} border border-emerald-100/45 bg-[image:linear-gradient(135deg,rgba(236,253,245,0.98)_0%,rgba(167,243,208,0.95)_32%,rgba(110,231,183,0.92)_68%,rgba(16,185,129,0.9)_100%)] bg-no-repeat [background-size:185%_185%] [background-position:0%_50%] text-slate-900 shadow-[0_12px_24px_rgba(52,211,153,0.28)] transition-[box-shadow,filter,background-color,border-color,background-position] motion-safe:hover:[background-position:100%_50%] motion-safe:hover:border-emerald-50/60 motion-safe:hover:brightness-[1.02] motion-safe:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.16),0_16px_32px_rgba(52,211,153,0.3)]`;
 const secondaryButton = `${actionButtonBase} border border-white/24 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.18)_0%,rgba(226,232,240,0.12)_50%,rgba(125,211,252,0.16)_100%)] text-white shadow-[0_10px_20px_rgba(2,6,23,0.24)] motion-safe:hover:border-sky-100/34 motion-safe:hover:bg-[image:linear-gradient(135deg,rgba(255,255,255,0.22)_0%,rgba(226,232,240,0.14)_48%,rgba(125,211,252,0.2)_100%)] motion-safe:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_14px_28px_rgba(56,189,248,0.16)]`;
 
-const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin }) => {
+const Hero: FC<HeroProps> = ({
+  isAuthenticated,
+  authReady = false,
+  onLogin,
+  onRegister,
+  onAddVin,
+}) => {
   const logoFallbackPath = "/favicon-192x192.png";
   const handleLogoClick = () => {
     window.location.reload();
@@ -147,8 +154,10 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
                   Оновити сторінку
                 </span>
               </button>
-              <div className="flex flex-wrap justify-center gap-2">
-                {!isAuthenticated ? (
+              <div className="flex min-h-[42px] min-w-[272px] flex-wrap items-center justify-center gap-2 sm:min-h-[44px] sm:min-w-[292px]">
+                {!authReady ? (
+                  <div className="h-[42px] w-full max-w-[292px] rounded-[14px] border border-white/14 bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:h-[44px]" />
+                ) : !isAuthenticated ? (
                   <>
                     <button
                       type="button"
@@ -171,7 +180,7 @@ const Hero: FC<HeroProps> = ({ isAuthenticated, onLogin, onRegister, onAddVin })
                   <button
                     type="button"
                     onClick={onAddVin}
-                    className={vinButton}
+                    className={`${vinButton} min-w-[272px] sm:min-w-[292px]`}
                   >
                     Додати VIN номер
                   </button>

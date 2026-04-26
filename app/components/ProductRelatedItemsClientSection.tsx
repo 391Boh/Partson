@@ -21,12 +21,18 @@ type RelatedItem = {
   group?: string;
   subGroup?: string;
   category?: string;
+  hasPhoto?: boolean;
 };
 
 type ProductRelatedItemsClientSectionProps = {
   product: {
     code: string;
     article: string;
+    name?: string;
+    producer?: string;
+    group?: string;
+    subGroup?: string;
+    category?: string;
   };
   initialItems?: RelatedItem[] | null;
 };
@@ -34,10 +40,10 @@ type ProductRelatedItemsClientSectionProps = {
 const formatStockLabel = (quantity: number) =>
   quantity > 0 ? `В наявності ${quantity} шт.` : "Під замовлення";
 
-const RELATED_ITEMS_CACHE_PREFIX = "partson:v4:product-related:";
+const RELATED_ITEMS_CACHE_PREFIX = "partson:v5:product-related:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
 const RELATED_IMAGE_PREFETCH_LIMIT = 6;
-const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1100;
+const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1500;
 const RELATED_IMAGE_DEEP_RECOVERY_DELAY_MS = 550;
 
 const buildDirectProductPath = (item: RelatedItem) => {
@@ -55,22 +61,20 @@ const buildDirectProductPath = (item: RelatedItem) => {
 };
 
 const Skeleton = () => (
-  <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[24px] sm:p-4">
-    <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-2.5">
-      <div>
-        <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-sky-700">
-          Аналоги
-        </p>
-        <h2 className="mt-1 text-[1.05rem] font-extrabold tracking-[-0.03em] text-slate-900 sm:text-[1.12rem]">
-          Підбираємо збіги по артикулу
-        </h2>
+  <section className="overflow-hidden rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(238,246,252,0.96),rgba(255,255,255,0.97))] p-3 shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/8 pb-3">
+      <div className="min-w-0">
+        <div className="h-3 w-28 animate-pulse rounded-full bg-sky-100" />
+        <div className="mt-2 h-7 w-72 max-w-full animate-pulse rounded-full bg-slate-100" />
+        <div className="mt-2 h-4 w-80 max-w-full animate-pulse rounded-full bg-slate-100" />
       </div>
+      <div className="h-6 w-24 animate-pulse rounded-full bg-slate-100" />
     </div>
     <div className="mt-3 grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={index}
-          className="h-[156px] animate-pulse rounded-[18px] border border-slate-200 bg-slate-100"
+          className="h-[188px] animate-pulse rounded-[18px] border border-slate-200 bg-slate-100"
         />
       ))}
     </div>
@@ -84,28 +88,61 @@ export default function ProductRelatedItemsClientSection({
   initialItems = null,
 }: ProductRelatedItemsClientSectionProps) {
   const articleLabel = (product.article || "").trim();
+  const productCode = (product.code || "").trim();
+  const productDisplayName = useMemo(() => {
+    const visibleName = buildVisibleProductName(product.name || "");
+    return visibleName && visibleName !== "Товар" ? visibleName : "";
+  }, [product.name]);
   const normalizedInitialItems = useMemo(
     () =>
       Array.isArray(initialItems)
-        ? initialItems
-            .filter((item) => Boolean((item.code || item.article || "").trim()))
+        ? initialItems.filter((item) => Boolean((item.code || item.article || "").trim()))
         : null,
     [initialItems]
   );
   const [items, setItems] = useState<RelatedItem[] | null>(normalizedInitialItems);
   const [imageMap, setImageMap] = useState<RelatedImageMap>({});
 
-  const requestUrl = useMemo(() => {
-    const lookupArticle = articleLabel;
-    const lookupCode = (product.code || "").trim();
-    if (!lookupArticle && !lookupCode) return "";
+  const sectionSummary = useMemo(() => {
+    const identityLabel = articleLabel || productCode;
+    if (productDisplayName && identityLabel) {
+      return `Підбираємо товари за назвою "${productDisplayName}", артикулом ${identityLabel} та кодом обраної позиції.`;
+    }
+    if (productDisplayName) {
+      return `Підбираємо релевантні варіанти за назвою "${productDisplayName}" і даними каталогу.`;
+    }
+    if (identityLabel) {
+      return `Показуємо релевантні товари за артикулом і кодом ${identityLabel}, щоб швидше знайти потрібний аналог.`;
+    }
+    return "Показуємо релевантні товари за назвою, артикулом і кодом обраної позиції.";
+  }, [articleLabel, productCode, productDisplayName]);
 
-    const params = new URLSearchParams({
-      code: lookupCode,
-    });
-    if (lookupArticle) params.set("article", lookupArticle);
-    return `/api/product-related?${params.toString()}`;
-  }, [articleLabel, product.code]);
+  const requestUrl = useMemo(() => {
+    if (!articleLabel && !productCode && !productDisplayName) return "";
+
+    const params = new URLSearchParams();
+    if (productCode) params.set("code", productCode);
+    if (articleLabel) params.set("article", articleLabel);
+    if (productDisplayName || product.name) {
+      params.set("name", productDisplayName || product.name || "");
+    }
+    if (product.producer) params.set("producer", product.producer);
+    if (product.group) params.set("group", product.group);
+    if (product.subGroup) params.set("subGroup", product.subGroup);
+    if (product.category) params.set("category", product.category);
+
+    const serialized = params.toString();
+    return serialized ? `/api/product-related?${serialized}` : "";
+  }, [
+    articleLabel,
+    product.category,
+    product.group,
+    product.name,
+    product.producer,
+    product.subGroup,
+    productCode,
+    productDisplayName,
+  ]);
 
   const cacheKey = useMemo(
     () => (requestUrl ? `${RELATED_ITEMS_CACHE_PREFIX}${requestUrl}` : ""),
@@ -230,21 +267,23 @@ export default function ProductRelatedItemsClientSection({
 
     const seen = new Set<string>();
 
-    return items.reduce<Array<{ key: string; code: string; article?: string }>>((acc, item) => {
-      const code = (item.code || "").trim();
-      const article = (item.article || articleLabel || "").trim();
-      const key = buildProductImageBatchKey(code, article);
+    return items
+      .reduce<Array<{ key: string; code: string; article?: string }>>((acc, item) => {
+        const code = (item.code || "").trim();
+        const article = (item.article || articleLabel || "").trim();
+        const key = buildProductImageBatchKey(code, article);
 
-      if (!code || !key || seen.has(key)) return acc;
+        if (!code || !key || seen.has(key)) return acc;
 
-      seen.add(key);
-      acc.push({
-        key,
-        code,
-        article: article || undefined,
-      });
-      return acc;
-    }, []).slice(0, RELATED_IMAGE_PREFETCH_LIMIT);
+        seen.add(key);
+        acc.push({
+          key,
+          code,
+          article: article || undefined,
+        });
+        return acc;
+      }, [])
+      .slice(0, RELATED_IMAGE_PREFETCH_LIMIT);
   }, [articleLabel, items]);
 
   useEffect(() => {
@@ -324,10 +363,7 @@ export default function ProductRelatedItemsClientSection({
         }
 
         await new Promise<void>((resolve) => {
-          const timerId = window.setTimeout(
-            resolve,
-            RELATED_IMAGE_DEEP_RECOVERY_DELAY_MS
-          );
+          const timerId = window.setTimeout(resolve, RELATED_IMAGE_DEEP_RECOVERY_DELAY_MS);
           controller.signal.addEventListener(
             "abort",
             () => {
@@ -393,45 +429,66 @@ export default function ProductRelatedItemsClientSection({
     };
   }, [imageRequests, items]);
 
-  if (!articleLabel && !(product.code || "").trim()) return null;
+  if (!articleLabel && !productCode && !productDisplayName) return null;
   if (items === null) return <Skeleton />;
   if (items.length === 0) return null;
 
   return (
-    <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
-      <div className="flex flex-wrap items-end justify-between gap-2.5 border-b border-slate-100 pb-2.5 sm:gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-sky-700">
-            Аналоги
+    <section className="overflow-hidden rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(238,246,252,0.96),rgba(255,255,255,0.97))] p-3 shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-900/8 pb-2">
+        <div className="min-w-0 max-w-3xl">
+          <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-sky-800 mb-0.5">
+            Аналоги і сумісні позиції
           </p>
-          <h2 className="font-display-italic mt-1 break-words text-[1.02rem] font-black leading-tight tracking-[-0.04em] text-slate-900 sm:text-[1.14rem]">
-            Аналоги за запитом “{articleLabel || (product.code || "").trim()}”
+          <h2 className="font-display-italic mt-0.5 break-words text-[0.98rem] font-black leading-tight tracking-[-0.035em] text-slate-950 sm:text-[1.08rem]">
+            {productDisplayName
+              ? `Аналоги для ${productDisplayName}`
+              : `Аналоги за артикулом ${articleLabel || productCode}`}
           </h2>
-          <p className="mt-1.5 text-[13px] font-medium leading-5 text-slate-600 sm:text-sm">
-            Швидкі варіанти для переходу без повернення в каталог.
+          <p className="mt-1 max-w-2xl text-[12px] font-medium leading-5 text-slate-600 sm:text-xs sm:leading-5">
+            {sectionSummary}
           </p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {articleLabel ? (
+              <span className="inline-flex min-h-7 items-center rounded-full border border-sky-200 bg-white/90 px-2.5 py-0.5 text-[10px] font-bold tracking-[0.03em] text-sky-800">
+                Артикул: {articleLabel}
+              </span>
+            ) : null}
+            {product.producer ? (
+              <span className="inline-flex min-h-7 items-center rounded-full border border-slate-200 bg-white/90 px-2.5 py-0.5 text-[10px] font-bold tracking-[0.03em] text-slate-700">
+                Бренд: {product.producer}
+              </span>
+            ) : null}
+            {product.subGroup || product.group || product.category ? (
+              <span className="inline-flex min-h-7 items-center rounded-full border border-slate-200 bg-white/90 px-2.5 py-0.5 text-[10px] font-bold tracking-[0.03em] text-slate-700">
+                {product.subGroup || product.group || product.category}
+              </span>
+            ) : null}
+          </div>
         </div>
-        <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-sky-700 sm:px-3 sm:text-[11px]">
+        <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.09em] text-sky-800 sm:text-[10px]">
           {items.length} варіантів
         </span>
       </div>
 
-      <div className="mt-3 grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
-        {items.map((item) => {
+      <div className="mt-2 grid gap-2 lg:grid-cols-2 2xl:grid-cols-3">
+        {(items ?? []).slice(0, 8).map((item) => {
           const visibleItemName = buildVisibleProductName(item.name);
           const imageKey = buildProductImageBatchKey(item.code, item.article || articleLabel);
           const hasImageResult = Object.prototype.hasOwnProperty.call(imageMap, imageKey);
+          const categoryLabel = item.subGroup || item.group || item.category || "";
           let imageSrc: string | null | undefined = imageMap[imageKey];
           if (!hasImageResult) imageSrc = undefined;
+
           return (
             <Link
               key={`${item.code}-${item.article}-${item.name}`}
               href={buildDirectProductPath(item)}
               prefetch={false}
-              className="group rounded-[18px] border border-slate-200 bg-[image:linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-3 shadow-[0_14px_26px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-[0_18px_34px_rgba(14,165,233,0.12)] sm:rounded-[20px]"
+              className="group flex min-h-[194px] flex-col rounded-[18px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-3 shadow-[0_14px_26px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_18px_34px_rgba(14,165,233,0.12)] sm:rounded-[20px]"
             >
               <div className="flex items-start gap-3">
-                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[16px] border border-slate-200 bg-slate-50">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[16px] border border-slate-200 bg-slate-50">
                   <AnalogProductThumb
                     src={imageSrc ?? undefined}
                     alt={visibleItemName}
@@ -455,24 +512,30 @@ export default function ProductRelatedItemsClientSection({
                     </span>
                   </div>
 
-                  <p className="mt-2 line-clamp-2 break-words text-[14px] font-extrabold leading-5 text-slate-900 sm:text-[15px]">
+                  <p className="mt-2 line-clamp-3 break-words text-[14px] font-extrabold leading-5 text-slate-900 sm:text-[15px]">
                     {visibleItemName}
                   </p>
 
-                  <div className="mt-2.5 flex items-end justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                        Артикул / код
-                      </p>
-                      <p className="mt-1 truncate text-sm font-bold text-slate-700">
-                        {item.article || item.code}
-                      </p>
-                    </div>
-                    <span className="text-[13px] font-extrabold text-sky-700 transition group-hover:translate-x-0.5">
-                      Перейти →
-                    </span>
-                  </div>
+                  {categoryLabel ? (
+                    <p className="mt-2 line-clamp-2 text-[12px] font-medium leading-5 text-slate-500 sm:text-[13px]">
+                      {categoryLabel}
+                    </p>
+                  ) : null}
                 </div>
+              </div>
+
+              <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                    Артикул / код
+                  </p>
+                  <p className="mt-1 break-all text-sm font-bold leading-5 text-slate-700">
+                    {item.article || item.code}
+                  </p>
+                </div>
+                <span className="inline-flex items-center text-[13px] font-extrabold text-sky-700 transition group-hover:translate-x-0.5">
+                  Перейти →
+                </span>
               </div>
             </Link>
           );

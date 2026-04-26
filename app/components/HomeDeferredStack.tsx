@@ -16,10 +16,6 @@ const BrandCarousel = dynamic(() => import("./Brands"), {
   ssr: false,
   loading: () => <HomeSectionFallback minHeight="380px" />,
 });
-const Footer = dynamic(() => import("./footer"), {
-  ssr: false,
-  loading: () => <HomeSectionFallback minHeight="220px" />,
-});
 
 const HomeSectionFallback = ({
   minHeight,
@@ -83,20 +79,6 @@ export default function HomeDeferredStack() {
             <BrandCarousel playEntranceAnimations={false} />
           </SectionBoundary>
         </section>
-      </DeferredSection>
-
-      <DeferredSection
-        className="section-reveal relative w-full pt-1"
-        minHeight="260px"
-        rootMargin="80px"
-        fallbackDelayMs={18000}
-        fallback={<HomeSectionFallback minHeight="220px" />}
-      >
-        <div className="relative w-full pt-1">
-          <SectionBoundary title="Нижній блок тимчасово недоступний">
-            <Footer />
-          </SectionBoundary>
-        </div>
       </DeferredSection>
     </>
   );
