@@ -14,7 +14,7 @@ export const revalidate = 21600;
 const catalogShellClass = "page-shell-inline";
 
 const groupsDescription =
-  "Категорії, групи та підгрупи автозапчастин у каталозі PartsON. Обирайте потрібний розділ для швидкого підбору і купівлі автозапчастин з доставкою по Україні.";
+  "Категорії автозапчастин PartsON: групи, підгрупи, бренди й товари для швидкого підбору за назвою, артикулом або VIN з доставкою по Україні.";
 
 const buildGroupsPageDescription = (
   groupCount: number,
@@ -32,7 +32,7 @@ const buildGroupsPageDescription = (
       ? ` Каталог охоплює щонайменше ${indexedProductCount.toLocaleString("uk-UA")} проіндексованих товарних позицій.`
       : "";
 
-  return `Категорії та групи автозапчастин PartsON: ${countSummary} для швидкого підбору, переходу в каталог і купівлі автозапчастин з доставкою по Україні.${indexedSummary}`;
+  return `Категорії автозапчастин PartsON: ${countSummary} для підбору деталей за групою, назвою, артикулом або VIN. Купівля у Львові й доставка по Україні.${indexedSummary}`;
 };
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -50,7 +50,7 @@ export async function generateMetadata(): Promise<Metadata> {
   );
 
   return buildPageMetadata({
-    title: "Категорії та групи автозапчастин у каталозі PartsON",
+    title: "Категорії автозапчастин: групи товарів PartsON",
     description,
     canonicalPath: "/groups",
     keywords: [
@@ -67,7 +67,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "кузовні елементи",
       "автозапчастини львів",
     ],
-    openGraphTitle: "Категорії та групи автозапчастин у каталозі PartsON | PartsON",
+    openGraphTitle: "Категорії автозапчастин і групи товарів | PartsON",
     image: {
       url: "/Car-parts-fullwidth.png",
       alt: "PartsON - категорії автозапчастин",
@@ -100,7 +100,7 @@ export default async function GroupsPage() {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     "@id": `${siteUrl}/groups#collection-page`,
-    name: "Категорії та групи автозапчастин у каталозі PartsON",
+    name: "Категорії автозапчастин і групи товарів PartsON",
     description: groupsDescription,
     url: `${siteUrl}/groups`,
     inLanguage: "uk-UA",
@@ -157,8 +157,8 @@ export default async function GroupsPage() {
             current="groups"
             badge="Сітка каталогу"
             icon={Layers3}
-            title="Категорії та групи автозапчастин для підбору"
-            description="Сторінка груп товарів PartsON для швидкого переходу в потрібний розділ каталогу автозапчастин."
+            title="Категорії автозапчастин і групи товарів"
+            description="Оберіть групу, підгрупу або кінцеву категорію, щоб швидко перейти до релевантних товарів, брендів і запчастин для авто."
             highlights={[
               `${totalGroupsLabel} груп у структурі`,
               `${totalSubgroups.toLocaleString("uk-UA")} підгруп у каталозі`,
@@ -202,7 +202,7 @@ export default async function GroupsPage() {
             ]}
           />
 
-          <h1 className="sr-only">Категорії та групи автозапчастин для підбору</h1>
+          <h1 className="sr-only">Категорії автозапчастин і групи товарів PartsON</h1>
         </div>
       </div>
 

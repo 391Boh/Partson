@@ -220,6 +220,7 @@ const PRIMARY_WARMUP_ROUTES = [
   "/inform/delivery",
   "/inform/payment",
   "/inform/location",
+  "/inform/privacy",
   "/groups",
   "/manufacturers",
 ] as const;

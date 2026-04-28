@@ -6,8 +6,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import {
+  type CatalogProduct,
   fetchCatalogProductsByArticle,
-  fetchProductDescription,
   fetchEuroRate,
   findCatalogProductByCode,
   toPriceUah,
@@ -52,8 +52,6 @@ const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 350;
 const PRODUCT_PAGE_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 900;
 const PRODUCT_PAGE_GROUP_LANDING_TIMEOUT_MS = 140;
-const PRODUCT_PAGE_DESCRIPTION_TIMEOUT_MS = 760;
-const PRODUCT_PAGE_DESCRIPTION_LOOKUP_TIMEOUT_MS = 520;
 
 export const revalidate = 900;
 
@@ -332,6 +330,36 @@ const buildFrontendProductHeading = (
   return cleaned || buildPureProductName(value, hints);
 };
 
+const buildReadableNameFromRoute = (rawCode: string, fallbackCode: string) => {
+  const decodedParam = decodeURIComponent(rawCode || "").trim();
+  const routeSlugs = extractProductRouteSlugsFromParam(decodedParam);
+  const nameSource = routeSlugs?.nameSlug || decodedParam || fallbackCode;
+  const withoutInternalCode = nameSource.replace(/~[^~]+$/u, "");
+  const readable = buildVisibleProductName(withoutInternalCode.replace(/[-_]+/g, " "));
+
+  return readable && readable !== "Товар" ? readable : `Товар ${fallbackCode}`;
+};
+
+const buildFallbackProductFromRoute = (
+  rawCode: string,
+  resolvedCode: string
+): CatalogProduct => {
+  const normalizedCode = (resolvedCode || extractProductCodeFromParam(rawCode || "") || "").trim();
+
+  return {
+    code: normalizedCode,
+    article: normalizedCode,
+    name: buildReadableNameFromRoute(rawCode, normalizedCode || "PartsON"),
+    producer: "",
+    quantity: 0,
+    priceEuro: null,
+    group: "",
+    subGroup: "",
+    category: "",
+    hasPhoto: false,
+  };
+};
+
 const resolveProductGroupLandingPath = cache(
   async (productCategory: string, productGroup: string): Promise<string | null> => {
     const normalizedCategory = normalizeLandingValue(productCategory);
@@ -581,6 +609,34 @@ const buildProductJsonLd = (options: {
             Date.now() + 1000 * 60 * 60 * 24 * 14
           ).toISOString(),
           url: canonicalUrl,
+          shippingDetails: {
+            "@type": "OfferShippingDetails",
+            shippingDestination: {
+              "@type": "DefinedRegion",
+              addressCountry: "UA",
+            },
+            deliveryTime: {
+              "@type": "ShippingDeliveryTime",
+              handlingTime: {
+                "@type": "QuantitativeValue",
+                minValue: 0,
+                maxValue: 1,
+                unitCode: "DAY",
+              },
+              transitTime: {
+                "@type": "QuantitativeValue",
+                minValue: 1,
+                maxValue: 3,
+                unitCode: "DAY",
+              },
+            },
+          },
+          hasMerchantReturnPolicy: {
+            "@type": "MerchantReturnPolicy",
+            applicableCountry: "UA",
+            returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+            merchantReturnDays: 14,
+          },
         }
       : undefined;
 
@@ -751,10 +807,10 @@ const buildProductFaqJsonLd = (options: {
   quantity: number;
 }) => {
   const { name, producer, group, subGroup, hasPrice, quantity } = options;
-  const productLabel = name || "товару";
+  const productLabel = name || "цього товару";
   const producerLabel = producer || "виробника";
-  const groupLabel = subGroup || group || "каталогу";
-  const availabilityLabel = quantity > 0 ? "є в наявності" : "доступний під замовлення";
+  const groupLabel = subGroup || group || "запчастин";
+  const availLabel = quantity > 0 ? `є в наявності ${quantity} шт.` : "доступний під замовлення";
 
   return {
     "@context": "https://schema.org",
@@ -762,28 +818,36 @@ const buildProductFaqJsonLd = (options: {
     mainEntity: [
       {
         "@type": "Question",
-        name: `Як замовити ${productLabel}?`,
+        name: `Як замовити ${productLabel} у Львові?`,
         acceptedAnswer: {
           "@type": "Answer",
           text: hasPrice
-            ? `Товар ${productLabel} можна додати в замовлення прямо на сторінці. Якщо потрібна додаткова консультація по підбору, менеджер допоможе уточнити сумісність і терміни.`
-            : `Для товару ${productLabel} ціна уточнюється. Надішліть запит менеджеру зі сторінки товару і ми підготуємо актуальну пропозицію.`,
+            ? `Додайте ${productLabel} у кошик прямо на сторінці. Оплата: готівка, картка (термінал), онлайн або безготівково для юридичних осіб. Доставка Нова Пошта, Укрпошта, Meest по Україні або самовивіз у Львові.`
+            : `Для уточнення ціни на ${productLabel} надішліть запит менеджеру через чат. Ми підберемо оптимальний варіант від перевіреного постачальника.`,
         },
       },
       {
         "@type": "Question",
-        name: `Чи підійде ${productLabel} до мого авто?`,
+        name: `Як перевірити сумісність ${productLabel} з моїм авто?`,
         acceptedAnswer: {
           "@type": "Answer",
-          text: `Товар відноситься до підгрупи ${groupLabel}. Для точного підбору рекомендуємо перевіряти код, артикул і виробника ${producerLabel}, а також звіряти сумісність з менеджером перед оформленням.`,
+          text: `Для перевірки сумісності ${productLabel} від ${producerLabel} надайте VIN-код або марку, модель і рік авто. Менеджер PartsON безкоштовно підбере запчастину категорії ${groupLabel}. Підбір також за оригінальним артикулом або кодом.`,
         },
       },
       {
         "@type": "Question",
-        name: `Яка наявність і терміни по ${productLabel}?`,
+        name: `Яка наявність і терміни доставки ${productLabel}?`,
         acceptedAnswer: {
           "@type": "Answer",
-          text: `Зараз товар ${availabilityLabel}. Актуальна наявність, статус замовлення і можливі аналоги уточнюються в момент оформлення заявки.`,
+          text: `Зараз ${productLabel} ${availLabel}. Доставка по Львову — кур'єром у день замовлення. По Україні — Нова Пошта, Укрпошта або Meest, 1–3 дні. Самовивіз у нашому магазині у Львові.`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: `Чи є гарантія на ${productLabel}?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `Так, PartsON надає гарантію якості на всі запчастини від перевірених постачальників. Продаємо оригінальні та аналогові деталі — ${producerLabel} та інших брендів. У разі питань менеджер допоможе з поверненням або заміною.`,
         },
       },
     ],
@@ -866,15 +930,14 @@ const buildProductMetaDescription = (options: {
   quantity: number;
 }) => {
   const { name, article, producer, quantity } = options;
-  const details = [
-    article ? `артикул ${article}` : null,
-    producer ? `виробник ${producer}` : null,
-    quantity > 0 ? `в наявності ${quantity} шт.` : "під замовлення",
-  ]
-    .filter(Boolean)
-    .join(", ");
+  const availabilityLabel = quantity > 0
+    ? `в наявності ${quantity} шт.`
+    : "доступно під замовлення";
 
-  return `Купити ${name}. ${details}. Підбір за VIN-кодом, консультація менеджера, доставка по Україні та самовивіз у Львові в каталозі автозапчастин PartsON.`;
+  return [
+    `Купити ${name}${producer ? ` ${producer}` : ""}${article ? `, артикул ${article}` : ""}: ${availabilityLabel}.`,
+    "Підбір за VIN, перевірка сумісності, самовивіз у Львові та доставка Новою поштою по Україні.",
+  ].filter(Boolean).join(" ");
 };
 
 const buildProductFallbackDescription = (options: {
@@ -954,27 +1017,6 @@ const resolveProductSeoPrice = cache(
     };
   }
 );
-
-const getInitialProductDescription = async (lookupKeys: string[]) => {
-  const normalizedLookupKeys = Array.from(
-    new Set(lookupKeys.map((value) => (value || "").trim()).filter(Boolean))
-  ).slice(0, 6);
-
-  for (const lookupKey of normalizedLookupKeys) {
-    const description = await fetchProductDescription(lookupKey, {
-      timeoutMs: PRODUCT_PAGE_DESCRIPTION_LOOKUP_TIMEOUT_MS,
-      retries: 0,
-      retryDelayMs: 80,
-      cacheTtlMs: 1000 * 60 * 30,
-    }).catch(() => null);
-
-    if (description) {
-      return description;
-    }
-  }
-
-  return null;
-};
 
 const buildCanonicalProductPath = (
   product: {
@@ -1364,21 +1406,21 @@ export async function generateMetadata({
 
   const seoTitle = [
     seoVisibleProductName
-      ? `Купити ${seoVisibleProductName}`
+      ? `Купити ${seoVisibleProductName}${productProducer ? ` ${productProducer}` : ""}`
       : "Купити автозапчастину",
-    productArticle || resolvedCode || null,
-    productProducer || null,
-    "ціна та наявність у Львові",
+    productArticle
+      ? `артикул ${productArticle}`
+      : resolvedCode || null,
+    "ціна і наявність Львів",
     "PartsON",
   ]
     .filter(Boolean)
     .join(" | ");
 
   const description = [
-    `Купити ${seoVisibleProductName}${productProducer ? ` ${productProducer}` : ""}${productArticle ? `, артикул ${productArticle}` : resolvedCode ? `, код ${resolvedCode}` : ""}.`,
+    `Купити ${seoVisibleProductName}${productProducer ? ` ${productProducer}` : ""}${productArticle ? ` (артикул ${productArticle})` : resolvedCode ? ` (код ${resolvedCode})` : ""} у Львові.`,
     categoryLabel ? `Категорія: ${categoryLabel}.` : null,
-    resolvedCode && resolvedCode !== productArticle ? `Код товару: ${resolvedCode}.` : null,
-    "Перевірка сумісності, підбір за кодом, артикулом і VIN-кодом, доставка по Україні та самовивіз у Львові в PartsON.",
+    "Ціна, наявність, підбір за VIN, аналоги та доставка по Україні в PartsON.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -1509,12 +1551,24 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     }
   }
 
+  if (!resolvedCode) {
+    const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
+    const recoveredToken = routeSlugs?.nameSlug
+      ? extractPrimaryLookupTokenFromSeoNameSlug(routeSlugs.nameSlug)
+      : extractPrimaryLookupTokenFromSeoNameSlug(rawCode || "");
+
+    resolvedCode = (fallbackCodeFromRoute || recoveredToken || "").trim();
+  }
+
   if (!resolvedCode) notFound();
 
   const [normalizedSearchParams] = await Promise.all([
     searchParams ?? Promise.resolve({} as ProductPageSearchParams),
   ]);
-  if (!product) notFound();
+  const hasResolvedCatalogProduct = Boolean(product);
+  if (!product) {
+    product = buildFallbackProductFromRoute(rawCode || "", resolvedCode);
+  }
 
   const isModalView = normalizeView(normalizedSearchParams.view) === "modal";
   const isSeoResolvedInternally = hasInternalSeoResolution(
@@ -1527,6 +1581,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   ).trim();
 
   if (
+    hasResolvedCatalogProduct &&
     !isSeoResolvedInternally &&
     currentRouteParam !== canonicalRouteParam
   ) {
@@ -1540,11 +1595,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     : Array.from(
         new Set([product.article.trim(), product.code.trim(), resolvedCode].filter(Boolean))
       );
-  const initialDescriptionPromise = resolveWithTimeout(
-    () => getInitialProductDescription(lookupKeys),
-    null,
-    PRODUCT_PAGE_DESCRIPTION_TIMEOUT_MS
-  );
   const inlineInitialPriceEuro = toPositiveNumberOrNull(product.priceEuro);
   const pagePrice = await resolveProductSeoPrice(inlineInitialPriceEuro);
   const initialPriceUah = pagePrice.priceUah;
@@ -1591,7 +1641,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const producerCatalogPath = product.producer
     ? buildCatalogProducerPath(product.producer, productGroup || undefined)
     : null;
-  const [groupLandingPath, categoryLandingPath, initialDescriptionText] = await Promise.all([
+  const [groupLandingPath, categoryLandingPath] = await Promise.all([
     productGroup
       ? resolveWithTimeout(
           () => resolveProductGroupLandingPath(productCategory, productGroup),
@@ -1611,7 +1661,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           PRODUCT_PAGE_GROUP_LANDING_TIMEOUT_MS
         )
       : null,
-    initialDescriptionPromise,
   ]);
   const categoryLandingHref =
     categoryLandingPath ||
@@ -1676,8 +1725,8 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     ? "grid gap-2.5 p-2.5 sm:p-3"
     : "grid gap-3.5 p-2.5 sm:gap-4 sm:p-4";
   const heroProductImageClass = isModalView
-    ? "mx-auto h-[220px] w-full rounded-[20px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.98))] sm:h-[250px]"
-    : "mx-auto h-[220px] w-full rounded-[22px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.98))] sm:h-[250px] xl:h-[260px] 2xl:h-[276px]";
+    ? "mx-auto h-[190px] w-full rounded-[18px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.98))] sm:h-[214px]"
+    : "mx-auto h-[190px] w-full rounded-[18px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.98))] sm:h-[218px] xl:h-[224px] 2xl:h-[236px]";
   const descriptionTextClass = isModalView
     ? "mt-1.5 max-h-[172px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-sm leading-relaxed text-slate-700"
     : "mt-2.5 max-h-[238px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-[14px] leading-[1.72] text-slate-700 sm:text-[15px]";
@@ -1735,8 +1784,8 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       : null,
   ].filter(Boolean) as Array<{ label: string; value: string; href?: string | null }>;
   const productHeaderMetaGridClass = productHeaderInfoItems.length > 0
-    ? "mt-4 grid gap-2.5 lg:grid-cols-[minmax(240px,0.9fr)_minmax(0,1.1fr)]"
-    : "mt-4 max-w-[430px]";
+    ? "mt-3 grid gap-2 sm:grid-cols-[minmax(210px,0.85fr)_minmax(0,1.15fr)]"
+    : "mt-3 max-w-[380px]";
   const keywordButtonHref =
     producerLandingPath || producerCatalogPath || categoryLandingHref || "/groups";
   const keywordButtonLabel = producerCatalogPath
@@ -1750,24 +1799,15 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     group: productGroup,
     subGroup: productSubgroup,
   });
-  const productHeroLeadText = [
-    `Купити ${visibleProductName}${product.producer ? ` ${product.producer}` : ""}${product.article ? `, артикул ${product.article}` : ""} можна з підбором по коду, артикулу або VIN-коду.`,
-    visibleProductSubgroup || visibleProductGroup
-      ? `Позиція належить до категорії ${visibleProductSubgroup || visibleProductGroup}.`
-      : null,
-    "PartsON допоможе перевірити сумісність, наявність, доставку по Україні та самовивіз у Львові.",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const productHeroLeadText =
+    "Перевіримо сумісність за VIN, підберемо оригінал або аналог і погодимо доставку по Україні.";
   const productHeroHighlights = Array.from(
     new Set(
       [
-        product.article ? `Артикул ${product.article}` : null,
-        product.producer ? `Бренд ${product.producer}` : null,
-        "Підбір за VIN-кодом",
-        "Доставка по Україні",
-        "Самовивіз у Львові",
-        "Оригінали та аналоги",
+        "Підбір за VIN",
+        "Оригінали й аналоги",
+        "Самовивіз Львів",
+        "Доставка 1-3 дні",
       ].filter(Boolean)
     )
   ).slice(0, 5);
@@ -1777,45 +1817,41 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         visibleProductName,
         product.producer ? `${visibleProductName} ${product.producer}` : null,
         product.article ? `${visibleProductName} ${product.article}` : null,
-        visibleProductSubgroup ? `${visibleProductSubgroup} ${visibleProductName}` : null,
-        visibleProductGroup ? `${visibleProductGroup} ${visibleProductName}` : null,
-        product.producer && (visibleProductSubgroup || visibleProductGroup)
-          ? `${product.producer} ${visibleProductSubgroup || visibleProductGroup}`
-          : null,
-        `купити ${visibleProductName}`,
-        `${visibleProductName} ціна`,
-        `${visibleProductName} доставка Львів`,
-        `${visibleProductName} доставка по Україні`,
-        `${visibleProductName} самовивіз Львів`,
+        `${visibleProductName} Львів`,
         `${visibleProductName} купити Львів`,
-        `${visibleProductName} Нова пошта`,
-        `${visibleProductName} в наявності Львів`,
-        product.article ? `${product.article} доставка Львів` : null,
-        product.article ? `${product.article} самовивіз Львів` : null,
+        `${visibleProductName} ціна`,
+        `${visibleProductName} Нова Пошта`,
+        `${visibleProductName} доставка по Україні`,
+        visibleProductSubgroup ? `${visibleProductSubgroup} ${visibleProductName}` : null,
+        visibleProductGroup ? `${visibleProductGroup} купити Львів` : null,
         product.producer ? `${product.producer} ${visibleProductName} купити` : null,
-        product.producer ? `${product.producer} ${visibleProductName} доставка по Україні` : null,
+        product.producer ? `${product.producer} запчастини Львів` : null,
+        product.article ? `${product.article} купити` : null,
+        product.article ? `${product.article} ціна` : null,
       ]
         .map((item) => (item || "").replace(/\s+/g, " ").trim())
         .filter(Boolean)
     )
-  ).slice(0, 10);
+  ).slice(0, 12);
   const keywordSummaryText = `Зібрали ключові запити, за якими найчастіше шукають ${visibleProductName}${product.producer ? ` від ${product.producer}` : ""}${visibleProductSubgroup || visibleProductGroup ? ` у розділі ${visibleProductSubgroup || visibleProductGroup}` : ""}, щоб швидше перейти до суміжних позицій, брендів і категорій каталогу.`;
   const faqItems = [
     {
-      question: "Як замовити товар?",
-      answer:
-        "Надішліть запит менеджеру прямо зі сторінки або дочекайтесь, поки підтягнеться актуальна ціна. Якщо потрібна перевірка сумісності, відкрий чат і менеджер підкаже.",
+      question: "Як замовити та оплатити?",
+      answer: [
+        isInStock
+          ? `Є в наявності ${product.quantity} шт. — можна оформити відразу.`
+          : "Доступно під замовлення — менеджер уточнить термін.",
+        "Оплата: готівка, термінал, онлайн на сайті або рахунок для юросіб.",
+      ].join(" "),
     },
     {
       question: "Як перевірити сумісність?",
-      answer:
-        "Для точного підбору звіряйте код, артикул і виробника. Якщо є сумніви, напишіть у чат з VIN або даними авто.",
+      answer: `Надайте VIN-код або марку/модель/рік авто — менеджер безкоштовно підбере ${visibleProductName} з перевіркою сумісності. Також підбираємо за артикулом${product.article ? ` ${product.article}` : ""} або кодом.`,
     },
     {
-      question: "Які терміни по наявності?",
-      answer: isInStock
-        ? `Зараз товар є в наявності${product.quantity > 0 ? `: ${product.quantity} шт.` : "."}`
-        : "Зараз товар доступний під замовлення. Точний термін постачання уточнюється менеджером після заявки.",
+      question: "Доставка та самовивіз?",
+      answer:
+        "Доставка: Нова Пошта, Укрпошта або Meest по всій Україні (1–3 дні). Кур'єром по Львову. Самовивіз у магазині — в день замовлення.",
     },
   ];
   return (
@@ -1841,7 +1877,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             isModalView ? "rounded-2xl" : "rounded-[24px] sm:rounded-[26px]"
           }`}
         >
-          <header className="relative m-2.5 block h-auto min-h-0 overflow-hidden rounded-[22px] border border-slate-900/90 bg-[linear-gradient(140deg,rgba(2,6,23,0.98),rgba(15,23,42,0.98)_34%,rgba(8,47,73,0.96)_72%,rgba(8,145,178,0.88))] px-3 py-3.5 shadow-[0_30px_72px_rgba(2,6,23,0.38),0_14px_28px_rgba(14,165,233,0.16)] ring-1 ring-cyan-400/15 sm:m-3.5 sm:rounded-[26px] sm:px-5 sm:py-5">
+          <header className="relative m-2 block h-auto min-h-0 overflow-hidden rounded-[20px] border border-slate-900/90 bg-[linear-gradient(140deg,rgba(2,6,23,0.98),rgba(15,23,42,0.98)_38%,rgba(8,47,73,0.94)_78%,rgba(8,145,178,0.82))] px-3 py-3 shadow-[0_22px_54px_rgba(2,6,23,0.34),0_10px_22px_rgba(14,165,233,0.12)] ring-1 ring-cyan-400/15 sm:m-3 sm:rounded-[24px] sm:px-4 sm:py-4">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_12%,rgba(34,211,238,0.24),transparent_24%),radial-gradient(circle_at_88%_10%,rgba(248,113,113,0.18),transparent_22%),linear-gradient(180deg,transparent,rgba(2,6,23,0.08))]" />
             <div className="pointer-events-none absolute inset-y-6 left-0 w-[3px] rounded-full bg-gradient-to-b from-cyan-300 via-white/70 to-red-400/80" />
             <div className="pointer-events-none absolute left-6 right-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-red-300/60" />
@@ -1851,7 +1887,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               {!isModalView && (
                 <nav
                   aria-label="Навігація по сторінці товару"
-                  className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-300 sm:text-[12px]"
+                  className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-slate-300 sm:text-[12px]"
                 >
                   {breadcrumbItems.map((item, index) => (
                     <span key={item.href} className="inline-flex items-center gap-2">
@@ -1863,9 +1899,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   ))}
                 </nav>
               )}
-              <div className="grid gap-4 xl:grid-cols-[minmax(220px,252px)_minmax(0,1fr)_324px] xl:items-start 2xl:grid-cols-[minmax(240px,268px)_minmax(0,1fr)_348px]">
+              <div className="grid gap-3.5 xl:grid-cols-[minmax(190px,224px)_minmax(0,1fr)_300px] xl:items-start 2xl:grid-cols-[minmax(206px,238px)_minmax(0,1fr)_320px]">
                 <div className="order-2 min-w-0 xl:order-1">
-                  <div className="overflow-hidden rounded-[24px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(14,165,233,0.18),transparent_36%),linear-gradient(180deg,rgba(15,23,42,0.82),rgba(2,6,23,0.98))] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_20px_42px_rgba(2,6,23,0.32)] backdrop-blur-sm">
+                  <div className="overflow-hidden rounded-[20px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(14,165,233,0.18),transparent_36%),linear-gradient(180deg,rgba(15,23,42,0.82),rgba(2,6,23,0.98))] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_16px_34px_rgba(2,6,23,0.28)] backdrop-blur-sm">
                     <ProductImageWithFallback
                       src={productDisplayImagePath}
                       fallbackSrc={fallbackImagePath}
@@ -1898,34 +1934,39 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     >
                       {isInStock ? "В наявності" : "Під замовлення"}
                     </span>
+                    {!hasResolvedCatalogProduct ? (
+                      <span className="inline-flex rounded-[14px] border border-amber-300/35 bg-amber-400/12 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100">
+                        Дані уточнюються
+                      </span>
+                    ) : null}
                   </div>
 
-                  <h1 className="font-display-italic mt-3 max-w-none break-words text-[clamp(1.26rem,2.8vw,2.42rem)] font-black leading-[0.98] tracking-[-0.048em] text-white [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[42ch]">
+                  <h1 className="font-display-italic mt-2.5 max-w-none break-words text-[clamp(1.2rem,2.45vw,2.12rem)] font-black leading-[1.02] tracking-[-0.042em] text-white [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[40ch]">
                     {productHeadingText}
                   </h1>
-                  <p className="mt-3 max-w-3xl text-[14px] font-medium leading-6 text-slate-200/92 sm:text-[15px]">
+                  <p className="mt-2 max-w-2xl text-[13px] font-medium leading-5 text-slate-200/90 sm:text-[14px] sm:leading-6">
                     {productHeroLeadText}
                   </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
                     {productHeroHighlights.map((item) => (
                       <span
                         key={item}
-                        className="inline-flex min-h-8 items-center rounded-[13px] border border-white/14 bg-white/10 px-3 py-1 text-[11px] font-bold tracking-[0.04em] text-slate-100 shadow-[0_10px_26px_rgba(2,6,23,0.16)] backdrop-blur-sm"
+                        className="inline-flex min-h-7 items-center rounded-[11px] border border-white/14 bg-white/10 px-2.5 py-1 text-[10px] font-bold tracking-[0.04em] text-slate-100 shadow-[0_8px_20px_rgba(2,6,23,0.14)] backdrop-blur-sm"
                       >
                         {item}
                       </span>
                     ))}
                   </div>
                   <div className={productHeaderMetaGridClass}>
-                    <div className="rounded-[20px] border border-cyan-400/18 bg-[linear-gradient(165deg,rgba(14,165,233,0.16),rgba(15,23,42,0.92)_30%,rgba(2,6,23,0.96))] px-4 py-3.5 shadow-[0_18px_36px_rgba(2,6,23,0.28)]">
+                    <div className="rounded-[16px] border border-cyan-400/18 bg-[linear-gradient(165deg,rgba(14,165,233,0.16),rgba(15,23,42,0.92)_30%,rgba(2,6,23,0.96))] px-3.5 py-3 shadow-[0_14px_28px_rgba(2,6,23,0.22)]">
                       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200 sm:text-[11px]">
                         {productIdentifierLabel}
                       </p>
-                      <p className="mt-2 font-mono text-[17px] font-black leading-6 tracking-normal text-white [overflow-wrap:anywhere] sm:text-[19px]">
+                      <p className="mt-1.5 font-mono text-[15px] font-black leading-5 tracking-normal text-white [overflow-wrap:anywhere] sm:text-[17px]">
                         {productIdentifierValue}
                       </p>
                       {productIdentifierHint ? (
-                        <p className="mt-1.5 text-[12px] font-medium leading-5 text-slate-300 sm:text-[13px]">
+                        <p className="mt-1 text-[12px] font-medium leading-5 text-slate-300">
                           {productIdentifierHint}
                         </p>
                       ) : null}
@@ -1936,7 +1977,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                         {productHeaderInfoItems.map((item) => (
                           <div
                             key={item.label}
-                            className="rounded-[18px] border border-white/10 bg-white/8 px-3.5 py-3 shadow-[0_12px_24px_rgba(2,6,23,0.16)] backdrop-blur-sm"
+                            className="rounded-[15px] border border-white/10 bg-white/8 px-3 py-2.5 shadow-[0_10px_20px_rgba(2,6,23,0.14)] backdrop-blur-sm"
                           >
                             <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400 sm:text-[10px]">
                               {item.label}
@@ -1944,12 +1985,12 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                             {item.href ? (
                               <Link
                                 href={item.href}
-                                className="mt-1.5 block text-[13px] font-extrabold leading-5 text-white transition hover:text-cyan-200 [overflow-wrap:anywhere] sm:text-[14px]"
+                                className="mt-1 block text-[13px] font-extrabold leading-5 text-white transition hover:text-cyan-200 [overflow-wrap:anywhere]"
                               >
                                 {item.value}
                               </Link>
                             ) : (
-                              <p className="mt-1.5 text-[13px] font-extrabold leading-5 text-white [overflow-wrap:anywhere] sm:text-[14px]">
+                              <p className="mt-1 text-[13px] font-extrabold leading-5 text-white [overflow-wrap:anywhere]">
                                 {item.value}
                               </p>
                             )}
@@ -1960,7 +2001,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   </div>
                 </div>
                 <div className="order-3 xl:pl-1.5">
-                  <div className="rounded-[26px] border border-cyan-400/16 bg-[linear-gradient(180deg,rgba(2,6,23,0.3),rgba(15,23,42,0.46),rgba(8,47,73,0.28))] p-1.5 shadow-[0_20px_44px_rgba(2,6,23,0.28)] backdrop-blur-sm">
+                  <div className="rounded-[22px] border border-cyan-400/16 bg-[linear-gradient(180deg,rgba(2,6,23,0.3),rgba(15,23,42,0.46),rgba(8,47,73,0.28))] p-1.5 shadow-[0_16px_36px_rgba(2,6,23,0.24)] backdrop-blur-sm">
                     <ProductPurchasePanelClient
                       lookupKeys={lookupKeys}
                       isModalView={isModalView}
@@ -1999,7 +2040,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
               <ProductDescriptionClientCard
                 fallbackText={fallbackDescription}
-                initialText={initialDescriptionText}
+                initialText={null}
                 lookupKeys={lookupKeys}
                 isModalView={isModalView}
                 descriptionTextClass={descriptionTextClass}
@@ -2042,6 +2083,33 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           {!isModalView && (
             <section className="border-t border-slate-900/8 bg-[linear-gradient(180deg,rgba(226,232,240,0.34),rgba(255,255,255,0.95))] px-3 py-3.5 sm:px-4 sm:py-4">
               <div className="space-y-3">
+                <div className="overflow-hidden rounded-[24px] border border-slate-900/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,244,248,0.96))] shadow-[0_20px_44px_rgba(2,6,23,0.1)] sm:rounded-[26px]">
+                  <div className="border-b border-slate-900/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(8,47,73,0.9))] px-4 py-4 sm:px-5">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-300">
+                      Поширені питання
+                    </p>
+                    <h2 className="font-display-italic mt-1 text-[1.05rem] font-black tracking-[-0.04em] text-white sm:text-[1.22rem]">
+                      Що варто знати перед замовленням
+                    </h2>
+                  </div>
+
+                  <div className="grid gap-3 px-4 py-4 sm:px-5 lg:grid-cols-3">
+                    {faqItems.map((item) => (
+                      <div
+                        key={item.question}
+                        className="rounded-[20px] border border-slate-900/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(236,243,248,0.94))] px-4 py-3.5 shadow-[0_12px_24px_rgba(2,6,23,0.06)]"
+                      >
+                        <h3 className="text-[15px] font-extrabold text-slate-950 not-italic">
+                          {item.question}
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-700">
+                          {item.answer}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <section className="overflow-hidden rounded-[24px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(227,238,245,0.96),rgba(232,250,255,0.82))] shadow-[0_20px_44px_rgba(2,6,23,0.1)] sm:rounded-[26px]">
                   <div className="flex flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 max-w-4xl">
@@ -2084,33 +2152,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     </div>
                   </div>
                 </section>
-
-                <div className="overflow-hidden rounded-[24px] border border-slate-900/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,244,248,0.96))] shadow-[0_20px_44px_rgba(2,6,23,0.1)] sm:rounded-[26px]">
-                  <div className="border-b border-slate-900/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(8,47,73,0.9))] px-4 py-4 sm:px-5">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-300">
-                      Поширені питання
-                    </p>
-                    <h2 className="font-display-italic mt-1 text-[1.05rem] font-black tracking-[-0.04em] text-white sm:text-[1.22rem]">
-                      Що варто знати перед замовленням
-                    </h2>
-                  </div>
-
-                  <div className="grid gap-3 px-4 py-4 sm:px-5 lg:grid-cols-3">
-                    {faqItems.map((item) => (
-                      <div
-                        key={item.question}
-                        className="rounded-[20px] border border-slate-900/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(236,243,248,0.94))] px-4 py-3.5 shadow-[0_12px_24px_rgba(2,6,23,0.06)]"
-                      >
-                        <h3 className="text-[15px] font-extrabold text-slate-950 not-italic">
-                          {item.question}
-                        </h3>
-                        <p className="mt-2 text-sm leading-6 text-slate-700">
-                          {item.answer}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             </section>
           )}

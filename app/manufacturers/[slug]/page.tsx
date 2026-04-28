@@ -36,6 +36,7 @@ import {
 import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import { getProducerSeoCopy } from "app/lib/seo-copy";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
@@ -110,7 +111,7 @@ const buildProducerFallbackLabelFromSlug = (slug: string) =>
   normalizeValue(decodeSafe(slug).replace(/-/g, " "));
 
 const buildManufacturerTitle = (label: string) =>
-  `${normalizeValue(label)} - виробник автозапчастин`;
+  `${normalizeValue(label)} - купити автозапчастини`;
 
 const buildManufacturerDescription = (
   label: string,
@@ -127,7 +128,7 @@ const buildManufacturerDescription = (
       ? ` і добірка популярних груп (${groupsCount.toLocaleString("uk-UA")})`
       : "";
 
-  return `Каталог бренду ${normalizedLabel} у PartsON: ${productCountLabel}${groupLabel}. Швидкий перехід у фільтрований каталог виробника з доставкою по Україні.`;
+  return `Купити автозапчастини ${normalizedLabel} у PartsON: ${productCountLabel}${groupLabel}. Підбір за артикулом, групою і VIN, самовивіз у Львові та доставка по Україні.`;
 };
 
 const buildManufacturerKeywords = (label: string) => {
@@ -173,32 +174,6 @@ const buildProductDedupeKey = (item: {
   if (article) return producer ? `article:${article}|producer:${producer}` : `article:${article}`;
   if (name) return producer ? `name:${name}|producer:${producer}` : `name:${name}`;
   return "";
-};
-
-const resolveGroupLabel = (item: {
-  group?: string;
-  category?: string;
-}) => {
-  const group = normalizeValue(item.group);
-  if (group) return group;
-  return normalizeValue(item.category);
-};
-
-const resolveSubgroupLabel = (item: {
-  subGroup?: string;
-  category?: string;
-  group?: string;
-}) => {
-  const subgroup = normalizeValue(item.subGroup);
-  const category = normalizeValue(item.category);
-  const group = resolveGroupLabel(item);
-
-  if (!group) return "";
-  if (subgroup && subgroup.toLowerCase() !== group.toLowerCase()) return subgroup;
-  if (category && category.toLowerCase() !== group.toLowerCase()) return category;
-  if (!subgroup) return "";
-  if (subgroup.toLowerCase() === group.toLowerCase()) return "";
-  return subgroup;
 };
 
 type GroupHierarchyLookup = {
@@ -621,6 +596,8 @@ export default async function ManufacturerDetailPage({
     producer.productCount,
     producer.groupsCount
   );
+  const seoCopy = getProducerSeoCopy(producer.label, producer.productCount);
+  const h1Title = `${producer.label} - автозапчастини бренду`;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -742,9 +719,12 @@ export default async function ManufacturerDetailPage({
 
                 <div className="min-w-0">
                   <h1 className="font-display text-3xl font-[780] tracking-normal text-slate-950 sm:text-[2.35rem]">
-                    {producer.label}
+                    {h1Title}
                   </h1>
                   <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
+                    {pageDescription}
+                  </p>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 sm:text-[15px]">
                     {producer.description}
                   </p>
                 </div>
@@ -769,12 +749,65 @@ export default async function ManufacturerDetailPage({
 
             <div className="mt-5 flex flex-wrap gap-2">
               <span className={directoryCompactMetricClass}>
-                Каталог бренду з SEO-маршрутом
+                Окрема сторінка бренду
               </span>
               <span className={directoryCompactMetricAccentClass}>
                 Плавна навігація по групах і категоріях
               </span>
             </div>
+          </div>
+        </section>
+
+        <section className={directoryPanelClass}>
+          <div className={directoryHeaderClass}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className={directoryBadgeClass}>
+                  Опис виробника
+                </p>
+                <h2 className={directoryTitleClass}>
+                  Автозапчастини {producer.label} у каталозі PartsON
+                </h2>
+                <p className={directoryDescriptionClass}>
+                  {seoCopy.intro}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <span className={directoryCompactMetricClass}>
+                  {producer.productCount.toLocaleString("uk-UA")} тов.
+                </span>
+                {producer.groupsCount > 0 ? (
+                  <span className={directoryCompactMetricAccentClass}>
+                    {producer.groupsCount.toLocaleString("uk-UA")} груп
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.95fr)]">
+            <div className="space-y-3 text-sm leading-6 text-slate-600">
+              {seoCopy.paragraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+
+            <aside className="rounded-lg border border-teal-100/80 bg-[linear-gradient(165deg,rgba(240,253,250,0.94),rgba(239,246,255,0.92),rgba(255,255,255,0.98))] p-4 shadow-[0_16px_34px_rgba(13,148,136,0.08)]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+                Популярні запити бренду
+              </p>
+              <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">
+                {seoCopy.highlights.map((highlight) => (
+                  <li
+                    key={highlight}
+                    className="flex items-start gap-2 border-b border-white/70 pb-2 last:border-b-0 last:pb-0"
+                  >
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500" />
+                    <span>{highlight}</span>
+                  </li>
+                ))}
+              </ul>
+            </aside>
           </div>
         </section>
 

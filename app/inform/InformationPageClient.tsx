@@ -55,6 +55,7 @@ const iconMap: Record<InformationSectionKey, LucideIcon> = {
   payment: CreditCard,
   about: Info,
   location: MapPin,
+  privacy: ShieldCheck,
 };
 
 const tabs = informationSections.map((s) => ({ ...s, icon: iconMap[s.key] }));
@@ -288,6 +289,80 @@ const LocationTab = () => (
   </div>
 );
 
+const PrivacyTab = () => (
+  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="sm:col-span-2">
+      <InfoCard title="Політика конфіденційності PartsON" icon={ShieldCheck} accent="sky" featured>
+        <div className="space-y-3">
+          <p>
+            Ця політика пояснює, як PartsON обробляє персональні дані клієнтів і
+            відвідувачів сайту під час пошуку автозапчастин, оформлення замовлення,
+            оплати, доставки, консультацій та звернень у чат або телефоном.
+          </p>
+          <p>
+            Ми обробляємо дані відповідно до Закону України «Про захист персональних
+            даних» та, коли це застосовно, з урахуванням принципів GDPR: законність,
+            прозорість, мінімізація даних, обмеження мети, точність, захист і
+            відповідальне зберігання.
+          </p>
+        </div>
+      </InfoCard>
+    </div>
+
+    <InfoCard title="Які дані ми можемо збирати" icon={Users} accent="emerald">
+      <ul className="space-y-3">
+        <Li icon={CheckCircle} cls="text-emerald-500">Ім&apos;я, номер телефону, email та інші контактні дані, які ви надаєте для замовлення або консультації.</Li>
+        <Li icon={Car} cls="text-emerald-500">Дані авто для підбору: марка, модель, рік, модифікація, VIN, артикул або код деталі.</Li>
+        <Li icon={Package} cls="text-emerald-500">Дані доставки: місто, відділення перевізника, адреса доставки у Львові, обраний спосіб отримання.</Li>
+        <Li icon={CreditCard} cls="text-emerald-500">Дані про оплату, статус платежу та номер транзакції. Повні реквізити банківської картки PartsON не зберігає.</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Для чого використовуємо дані" icon={Info} accent="cyan">
+      <ul className="space-y-3">
+        <Li icon={CheckCircle} cls="text-cyan-500">Щоб оформити, підтвердити, оплатити, доставити або видати замовлення.</Li>
+        <Li icon={ShieldCheck} cls="text-cyan-500">Щоб перевірити сумісність деталей, підібрати аналоги, уточнити ціну, наявність і строки постачання.</Li>
+        <Li icon={MessageCircle} cls="text-cyan-500">Щоб відповідати на звернення, повідомляти про статус замовлення та надавати сервісну підтримку.</Li>
+        <Li icon={Building2} cls="text-cyan-500">Щоб виконувати вимоги бухгалтерського, податкового, споживчого та іншого застосовного законодавства.</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Кому можуть передаватися дані" icon={Truck} accent="amber">
+      <ul className="space-y-3">
+        <Li icon={Truck} cls="text-amber-500">Службам доставки: Нова Пошта, Укрпошта, Meest або іншим перевізникам, яких обирає клієнт.</Li>
+        <Li icon={CreditCard} cls="text-amber-500">Платіжним сервісам і банкам для проведення онлайн-оплати або повернення коштів.</Li>
+        <Li icon={Building2} cls="text-amber-500">Постачальникам, сервісним партнерам, бухгалтерам, технічним провайдерам сайту — лише в межах необхідного.</Li>
+        <Li icon={ShieldCheck} cls="text-amber-500">Державним органам — лише у випадках, прямо передбачених законом.</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Захист і строки зберігання" icon={ShieldCheck} accent="violet">
+      <ul className="space-y-3">
+        <Li icon={ShieldCheck} cls="text-violet-500">Ми застосовуємо організаційні та технічні заходи для захисту даних від втрати, несанкціонованого доступу або розголошення.</Li>
+        <Li icon={Clock} cls="text-violet-500">Дані зберігаються стільки, скільки потрібно для виконання замовлення, гарантійного супроводу, обліку та законних інтересів PartsON.</Li>
+        <Li icon={RefreshCcw} cls="text-violet-500">Після завершення необхідного строку дані видаляються, знеособлюються або архівуються відповідно до вимог законодавства.</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Ваші права" icon={RefreshCcw} accent="rose">
+      <ul className="space-y-3">
+        <Li icon={CheckCircle} cls="text-rose-500">Отримати інформацію про обробку ваших персональних даних.</Li>
+        <Li icon={CheckCircle} cls="text-rose-500">Попросити виправити, оновити, обмежити обробку або видалити дані, якщо це не суперечить закону.</Li>
+        <Li icon={CheckCircle} cls="text-rose-500">Відкликати згоду на комунікації або заперечити проти окремих видів обробки.</Li>
+        <Li icon={Phone} cls="text-rose-500">Звернутися до PartsON телефоном {PHONE_DISPLAY} або email: romaniukbboogg@gmail.com.</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Cookies, аналітика та зміни політики" icon={Clock} accent="slate">
+      <ul className="space-y-3">
+        <Li icon={Info} cls="text-slate-500">Сайт може використовувати cookies, технічні журнали, кеш браузера та аналітичні інструменти для стабільної роботи, безпеки й покращення сервісу.</Li>
+        <Li icon={ShieldCheck} cls="text-slate-500">Ми не продаємо персональні дані клієнтів третім особам.</Li>
+        <Li icon={Clock} cls="text-slate-500">Політика може оновлюватися при зміні сервісів або законодавства. Актуальна версія завжди доступна на цій сторінці.</Li>
+      </ul>
+    </InfoCard>
+  </div>
+);
+
 // ─── Вміст по ключу вкладки ────────────────────────────────────────────────
 const renderTabContent = (key: InformationSectionKey) => {
   switch (key) {
@@ -295,6 +370,7 @@ const renderTabContent = (key: InformationSectionKey) => {
     case 'payment':  return <PaymentTab />;
     case 'about':    return <AboutTab />;
     case 'location': return <LocationTab />;
+    case 'privacy':  return <PrivacyTab />;
     default:         return <DeliveryTab />;
   }
 };
@@ -346,7 +422,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
 
         {/* Навігаційні вкладки */}
         <nav className="relative overflow-hidden rounded-2xl border border-white/80 bg-white/70 p-2 shadow-[0_4px_18px_rgba(15,23,42,0.07)] backdrop-blur-xl">
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5 sm:gap-2">
             {tabs.map((tab) => {
               const isActive = tab.key === activeTab.key;
               const Icon = tab.icon;

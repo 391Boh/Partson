@@ -12,6 +12,7 @@ import {
   FaTruck,
   FaWallet,
   FaBoxes,
+  FaShieldAlt,
 } from "react-icons/fa";
 import { SiFacebook, SiInstagram, SiTelegram } from "react-icons/si";
 import React from "react";
@@ -142,6 +143,12 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link className={infoLinkClass} href="/inform/privacy">
+                  <FaShieldAlt className={infoIconClass} />
+                  <span>Конфіденційність</span>
+                </Link>
+              </li>
+              <li>
                 <Link className={infoLinkClass} href="/auto">
                   <FaCarSide className={infoIconClass} />
                   <span>Марки і моделі авто</span>
@@ -183,7 +190,14 @@ export default function Footer() {
         </div>
 
         <div className="mt-10 border-t border-slate-300 pt-5 text-center text-sm text-slate-500">
-          © {new Date().getFullYear()} PartsON
+          <p>© {new Date().getFullYear()} PartsON. Усі права захищено.</p>
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            Використовуючи сайт, ви погоджуєтесь з обробкою персональних даних відповідно до{" "}
+            <Link href="/inform/privacy" className="font-semibold text-sky-700 hover:text-sky-900">
+              Політики конфіденційності
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </footer>

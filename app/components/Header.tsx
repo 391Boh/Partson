@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, type ComponentType } from 'react';
 import {
   ShoppingCart, User, Menu, Info, Car,
-  List, Truck, CreditCard, MapPin, Users, Phone, Search
+  List, Truck, CreditCard, MapPin, Users, Phone, Search, ShieldCheck
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -26,6 +26,7 @@ const INFO_PREFETCH_ROUTES = [
   '/inform/payment',
   '/inform/about',
   '/inform/location',
+  '/inform/privacy',
 ] as const;
 
 const prefetchRouteList = (
@@ -610,6 +611,7 @@ const Header: React.FC = () => {
                     <li><Link href="/inform/payment" onClick={() => setActiveMenu('')} className={dropdownItemClass}><CreditCard size={18} /> Оплата</Link></li>
                     <li><Link href="/inform/about" onClick={() => setActiveMenu('')} className={dropdownItemClass}><Users size={18} /> Про нас</Link></li>
                     <li><Link href="/inform/location" onClick={() => setActiveMenu('')} className={dropdownItemClass}><MapPin size={18} /> Локація</Link></li>
+                    <li><Link href="/inform/privacy" onClick={() => setActiveMenu('')} className={dropdownItemClass}><ShieldCheck size={18} /> Конфіденційність</Link></li>
                   </ul>
               </li>
 

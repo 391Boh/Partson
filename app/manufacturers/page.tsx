@@ -14,7 +14,7 @@ export const revalidate = 21600;
 const catalogShellClass = "page-shell-inline";
 
 const pageDescription =
-  "Каталог брендів і виробників автозапчастин PartsON. Обирайте бренд, переходьте до товарів виробника та замовляйте автозапчастини з доставкою по Україні.";
+  "Виробники автозапчастин PartsON: бренди, групи товарів, фільтрований каталог і швидкий підбір запчастин за виробником з доставкою по Україні.";
 
 const buildManufacturersPageDescription = (
   totalBrands: number,
@@ -27,14 +27,14 @@ const buildManufacturersPageDescription = (
       : "бренди та виробники автозапчастин";
   const coverageSummary =
     indexedBrands > 0
-      ? ` Окремими SEO-маршрутами вже охоплено ${indexedBrands.toLocaleString("uk-UA")} виробників${
+      ? ` Окремими сторінками вже охоплено ${indexedBrands.toLocaleString("uk-UA")} виробників${
           indexedProducts > 0
             ? ` і щонайменше ${indexedProducts.toLocaleString("uk-UA")} товарних позицій за брендами`
             : ""
         }.`
       : ".";
 
-  return `Каталог виробників автозапчастин PartsON: ${brandSummary} з переходом до сторінок брендів, фільтрованого каталогу і купівлі автозапчастин з доставкою по Україні${coverageSummary}`;
+  return `Виробники автозапчастин PartsON: ${brandSummary} з окремими сторінками брендів, товарами, групами і підбором за виробником. Купівля у Львові та доставка по Україні.${coverageSummary}`;
 };
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -42,7 +42,7 @@ export async function generateMetadata(): Promise<Metadata> {
     await getFastManufacturersDirectoryData();
 
   return buildPageMetadata({
-    title: "Виробники автозапчастин і бренди у каталозі PartsON",
+    title: "Виробники автозапчастин: бренди PartsON",
     description: buildManufacturersPageDescription(
       clientProducers.length,
       indexedBrands,
@@ -62,7 +62,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "купити запчастини виробника",
       "автозапчастини львів",
     ],
-    openGraphTitle: "Виробники автозапчастин і бренди у каталозі PartsON | PartsON",
+    openGraphTitle: "Виробники автозапчастин і бренди | PartsON",
     image: {
       url: "/Car-parts-fullwidth.png",
       alt: "PartsON - бренди і виробники автозапчастин",
@@ -79,7 +79,7 @@ export default async function ManufacturersPage() {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     "@id": `${siteUrl}/manufacturers#collection-page`,
-    name: "Виробники автозапчастин і бренди у каталозі PartsON",
+    name: "Виробники автозапчастин і бренди PartsON",
     description: pageDescription,
     url: `${siteUrl}/manufacturers`,
     inLanguage: "uk-UA",
@@ -132,8 +132,8 @@ export default async function ManufacturersPage() {
             current="manufacturers"
             badge="Бренди та виробники"
             icon={Factory}
-            title="Виробники автозапчастин і бренди в каталозі"
-            description="Оберіть бренд і переходьте в каталог автозапчастин уже з готовим фільтром виробника."
+            title="Виробники автозапчастин і бренди"
+            description="Оберіть виробника, щоб перейти до товарів бренду, популярних груп, категорій, аналогів і актуальної наявності."
             highlights={[
               `${clientProducers.length.toLocaleString("uk-UA")} виробників`,
               hasIndexedCounts && indexedProducts > 0
@@ -177,7 +177,7 @@ export default async function ManufacturersPage() {
             ]}
           />
 
-          <h1 className="sr-only">Виробники автозапчастин і бренди в каталозі</h1>
+          <h1 className="sr-only">Виробники автозапчастин і бренди PartsON</h1>
         </div>
       </div>
 

@@ -123,7 +123,7 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
 });
 
 const buildGroupTitle = (label: string) =>
-  `Каталог автозапчастин ${buildVisibleProductName(label)}`;
+  `${buildVisibleProductName(label)} - купити автозапчастини`;
 
 const buildGroupDescription = (
   label: string,
@@ -140,7 +140,7 @@ const buildGroupDescription = (
       ? ` і ${subgroupsCount.toLocaleString("uk-UA")} підгруп`
       : "";
 
-  return `Каталог автозапчастин групи ${visibleLabel} в PartsON: ${productLabel}${subgroupLabel}. Швидкий перехід у потрібний розділ і доставка по Україні.`;
+  return `Купити автозапчастини ${visibleLabel} у PartsON: ${productLabel}${subgroupLabel}. Підбір за назвою, артикулом і VIN, самовивіз у Львові та доставка по Україні.`;
 };
 
 const buildGroupHeroDescription = (
@@ -152,14 +152,14 @@ const buildGroupHeroDescription = (
   const visibleLabel = buildVisibleProductName(label);
 
   if (hasSubgroups) {
-    return `У групі ${visibleLabel} зібрано ${productCount.toLocaleString("uk-UA")} товарів і ${subgroupsCount.toLocaleString("uk-UA")} підгруп для швидкого переходу в потрібний розділ каталогу автозапчастин.`;
+    return `У групі ${visibleLabel} зібрано ${productCount.toLocaleString("uk-UA")} товарів і ${subgroupsCount.toLocaleString("uk-UA")} підгруп. Оберіть напрямок, щоб перейти до запчастин з актуальною ціною, брендами й доставкою по Україні.`;
   }
 
   if (productCount > 0) {
-    return `У групі ${visibleLabel} доступний прямий перехід до каталогу з ${productCount.toLocaleString("uk-UA")} товарними позиціями та швидкою навігацією по суміжних напрямках.`;
+    return `У групі ${visibleLabel} доступний прямий перехід до каталогу з ${productCount.toLocaleString("uk-UA")} товарними позиціями, підбором за артикулом і перевіркою сумісності.`;
   }
 
-  return `Сторінка групи ${visibleLabel} веде прямо у відповідний розділ каталогу автозапчастин і допомагає швидко перейти до потрібних товарів.`;
+  return `Сторінка групи ${visibleLabel} веде у відповідний розділ каталогу PartsON і допомагає швидко знайти потрібні автозапчастини у Львові з доставкою по Україні.`;
 };
 
 const buildGroupHeroDetails = (
@@ -169,10 +169,10 @@ const buildGroupHeroDetails = (
   const visibleLabel = buildVisibleProductName(label);
 
   if (hasSubgroups) {
-    return `Оберіть підгрупу для точнішого підбору або відкрийте весь каталог групи ${visibleLabel} одним кліком.`;
+    return `Оберіть підгрупу для точнішого підбору або відкрийте весь каталог групи ${visibleLabel}, щоб порівняти товари, бренди, наявність і аналоги.`;
   }
 
-  return `Цей розділ зібраний як окрема сторінка групи ${visibleLabel}, щоб відкривати каталог без зайвих параметрів у посиланні.`;
+  return `Цей розділ зібраний як окрема сторінка групи ${visibleLabel}, щоб каталог відкривався напряму за зрозумілим посиланням.`;
 };
 
 const buildSubgroupLead = (options: {
@@ -290,7 +290,7 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
       `ціна ${group.label}`,
       "групи автозапчастин",
     ],
-    openGraphTitle: `Каталог автозапчастин ${group.label} | PartsON`,
+    openGraphTitle: `${buildVisibleProductName(group.label)} - купити автозапчастини | PartsON`,
     image: {
       url: categoryIconPath,
       width: 512,

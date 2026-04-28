@@ -456,12 +456,20 @@ const buildGroupItemDescription = (item: GroupItemPageData) => {
   const visibleLabel = buildVisibleProductName(item.label);
   const visibleGroupLabel = buildVisibleProductName(item.groupLabel);
   const visibleParentLabel = buildVisibleProductName(item.parentSubgroupLabel);
+  const productCountLabel =
+    item.productCount > 0
+      ? `${item.productCount.toLocaleString("uk-UA")} товарів`
+      : "актуальні товари";
+  const producersLabel =
+    item.producersCount > 0
+      ? `${item.producersCount.toLocaleString("uk-UA")} виробників`
+      : "бренди й аналоги";
 
   if (item.parentSubgroupLabel) {
-    return `Сторінка категорії ${visibleLabel} у групі ${visibleGroupLabel}${visibleParentLabel ? `, підгрупа ${visibleParentLabel}` : ""} каталогу PartsON. Швидкий перехід до товарів і підбір автозапчастин з доставкою по Україні.`;
+    return `Купити ${visibleLabel} у PartsON: ${productCountLabel}, ${producersLabel}, група ${visibleGroupLabel}${visibleParentLabel ? `, підгрупа ${visibleParentLabel}` : ""}. Підбір за артикулом і доставка по Україні.`;
   }
 
-  return `Сторінка підгрупи ${visibleLabel} у групі ${visibleGroupLabel} каталогу PartsON. Перейдіть до каталогу або відкрийте пов'язані кінцеві категорії автозапчастин.`;
+  return `Купити автозапчастини ${visibleLabel} у групі ${visibleGroupLabel}: ${productCountLabel}, ${producersLabel}, підбір за назвою, кодом і VIN, самовивіз у Львові та доставка по Україні.`;
 };
 
 const buildGroupPagePath = (groupSlug: string) => `/groups/${encodeURIComponent(groupSlug)}`;
@@ -490,8 +498,8 @@ const buildGroupItemTitle = (item: GroupItemPageData) => {
   const visibleGroupLabel = buildVisibleProductName(item.groupLabel);
 
   return item.parentSubgroupLabel
-    ? `${visibleLabel} - ${visibleGroupLabel} | Каталог автозапчастин`
-    : `${visibleLabel} - підгрупа ${visibleGroupLabel} | Каталог автозапчастин`;
+    ? `${visibleLabel} - купити автозапчастини | ${visibleGroupLabel}`
+    : `${visibleLabel} - купити запчастини | ${visibleGroupLabel}`;
 };
 
 const buildChildCategoryLead = (options: {
@@ -645,8 +653,8 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   const visibleGroupLabel = buildVisibleProductName(item.groupLabel);
   const visibleParentLabel = buildVisibleProductName(item.parentSubgroupLabel);
   const pageDescription = item.parentSubgroupLabel
-    ? `Кінцева категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel}. Сторінка веде прямо в каталог цієї категорії та допомагає швидко перейти до потрібних товарів.`
-    : `Підгрупа ${visibleLabel} у групі ${visibleGroupLabel} з прямим переходом у каталог автозапчастин і навігацією по суміжних розділах.`;
+    ? `Кінцева категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel}. Тут можна перейти до товарів, брендів, аналогів і перевірити наявність у каталозі.`
+    : `Підгрупа ${visibleLabel} у групі ${visibleGroupLabel} з прямим переходом до товарів, виробників і суміжних категорій автозапчастин.`;
   const pageStats =
     item.productCount > 0
       ? `${item.productCount.toLocaleString("uk-UA")} товарів у розділі`

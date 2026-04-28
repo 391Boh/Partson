@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 
-export type InformationSectionKey = "delivery" | "payment" | "about" | "location";
+export type InformationSectionKey =
+  | "delivery"
+  | "payment"
+  | "about"
+  | "location"
+  | "privacy";
 
 type InformationSection = {
   key: InformationSectionKey;
@@ -89,6 +94,22 @@ export const informationSections: InformationSection[] = [
       "пункт самовивозу автозапчастин львів",
       "контакти магазину автозапчастин львів",
       "вулиця магазину автозапчастин",
+    ],
+  },
+  {
+    key: "privacy",
+    title: "Конфіденційність",
+    subtitle: "Дані та безпека",
+    seoTitle: "Політика конфіденційності PartsON",
+    seoDescription:
+      "Політика конфіденційності PartsON: які персональні дані ми збираємо, для чого обробляємо, кому передаємо, як захищаємо та як користувач може реалізувати свої права.",
+    keywords: [
+      "політика конфіденційності PartsON",
+      "захист персональних даних",
+      "персональні дані PartsON",
+      "обробка персональних даних",
+      "конфіденційність інтернет-магазин",
+      "права користувача персональні дані",
     ],
   },
 ];
