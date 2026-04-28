@@ -121,6 +121,7 @@ export default function ProductDescriptionClientCard({
 
     const controller = new AbortController();
     let cancelled = false;
+    let loadTimerId: number | null = null;
 
     const loadDescription = async () => {
       try {
@@ -146,11 +147,36 @@ export default function ProductDescriptionClientCard({
       }
     };
 
-    void loadDescription();
+    const scheduleLoad = () => {
+      if (typeof window === "undefined") {
+        void loadDescription();
+        return;
+      }
+
+      const requestIdleCallback = window.requestIdleCallback;
+      if (typeof requestIdleCallback === "function") {
+        const idleId = requestIdleCallback(() => void loadDescription(), {
+          timeout: 1800,
+        });
+        loadTimerId = idleId;
+        return;
+      }
+
+      loadTimerId = window.setTimeout(() => void loadDescription(), 900);
+    };
+
+    scheduleLoad();
 
     return () => {
       cancelled = true;
       controller.abort();
+      if (loadTimerId != null && typeof window !== "undefined") {
+        if (typeof window.cancelIdleCallback === "function") {
+          window.cancelIdleCallback(loadTimerId);
+        } else {
+          window.clearTimeout(loadTimerId);
+        }
+      }
     };
   }, [cacheKey, normalizedInitialText, requestUrl]);
 

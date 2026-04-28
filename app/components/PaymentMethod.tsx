@@ -73,7 +73,7 @@ const PaymentMethod: React.FC<Props> = ({
     currency: 'UAH',
     maximumFractionDigits: 2,
   }).format(amount);
-  const paidLiqPayStatuses = new Set(['success', 'sandbox']);
+  const paidLiqPayStatuses = new Set(['success']);
   const failedLiqPayStatuses = new Set([
     'failure',
     'error',

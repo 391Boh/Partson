@@ -16,7 +16,7 @@ import ProductDescriptionClientCard from "app/components/ProductDescriptionClien
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import OpenChatButton from "app/components/OpenChatButton";
 import ProductRelatedItemsSection from "app/components/ProductRelatedItemsSection";
-import ProductSimilarItemsSection from "app/components/ProductSimilarItemsSection";
+import ProductRecentlyViewedSection from "app/components/ProductRecentlyViewedSection";
 import {
   buildCatalogCategoryPath,
   buildCatalogProducerPath,
@@ -40,18 +40,16 @@ import {
   resolveProductCodeFromNameSlug,
   resolveProductCodeFromSeoRoute,
 } from "app/lib/product-route-resolver";
-import { getProductTreeDataset } from "app/lib/product-tree";
 import { getSiteUrl } from "app/lib/site-url";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
-const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 2200;
-const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1500;
-const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 950;
-const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 350;
+const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 1500;
+const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1300;
+const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 700;
+const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 120;
 const PRODUCT_PAGE_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
-const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 900;
-const PRODUCT_PAGE_GROUP_LANDING_TIMEOUT_MS = 140;
+const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 620;
 
 export const revalidate = 900;
 
@@ -91,7 +89,7 @@ const ProductRelatedItemsFallback = () => (
   </section>
 );
 
-const ProductSimilarItemsFallback = () => (
+const ProductRecentlyViewedFallback = () => (
   <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
     <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-2.5">
       <div>
@@ -130,47 +128,10 @@ const pageBackground: CSSProperties = {
     "radial-gradient(circle at 0% 0%, rgba(14,165,233,0.22), transparent 24%), radial-gradient(circle at 100% 8%, rgba(248,113,113,0.14), transparent 22%), radial-gradient(circle at 58% 18%, rgba(34,211,238,0.12), transparent 26%), linear-gradient(180deg, #e8f0f5 0%, #f8fafc 40%, #e6eef4 100%)",
 };
 
-type ProductTreeLandingEntry = {
-  label?: string;
-  slug?: string;
-  legacySlug?: string;
-};
-
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const normalizeLandingValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
-
-const toLandingLookupKey = (value: string | null | undefined) =>
-  normalizeLandingValue(value).toLocaleLowerCase("uk-UA");
-
-const buildLandingLookupKeys = (value: string | null | undefined) => {
-  const normalized = normalizeLandingValue(value);
-  if (!normalized) return new Set<string>();
-
-  return new Set(
-    [normalized, buildPlainSeoSlug(normalized)]
-      .map(toLandingLookupKey)
-      .filter(Boolean)
-  );
-};
-
-const matchesLandingEntry = (
-  entry: ProductTreeLandingEntry,
-  targetKeys: Set<string>
-) => {
-  if (targetKeys.size === 0) return false;
-
-  return [
-    entry.label,
-    entry.slug,
-    entry.legacySlug,
-    entry.label ? buildPlainSeoSlug(entry.label) : null,
-  ].some((value) => {
-    const key = toLandingLookupKey(value);
-    return key ? targetKeys.has(key) : false;
-  });
-};
 
 const buildProductGroupLandingFallbackPath = (
   productCategory: string,
@@ -348,7 +309,7 @@ const buildFallbackProductFromRoute = (
 
   return {
     code: normalizedCode,
-    article: normalizedCode,
+    article: "",
     name: buildReadableNameFromRoute(rawCode, normalizedCode || "PartsON"),
     producer: "",
     quantity: 0,
@@ -359,162 +320,6 @@ const buildFallbackProductFromRoute = (
     hasPhoto: false,
   };
 };
-
-const resolveProductGroupLandingPath = cache(
-  async (productCategory: string, productGroup: string): Promise<string | null> => {
-    const normalizedCategory = normalizeLandingValue(productCategory);
-    const normalizedGroup = normalizeLandingValue(productGroup);
-
-    if (!normalizedGroup) return null;
-
-    const fallbackPath = buildProductGroupLandingFallbackPath(
-      normalizedCategory,
-      normalizedGroup
-    );
-
-    const dataset = await getProductTreeDataset().catch(() => null);
-    if (!dataset) return fallbackPath;
-
-    const categoryKeys = buildLandingLookupKeys(normalizedCategory);
-    const groupKeys = buildLandingLookupKeys(normalizedGroup);
-
-    if (groupKeys.size === 0) return fallbackPath;
-
-    const directGroup = dataset.groups.find((entry) =>
-      matchesLandingEntry(entry, groupKeys)
-    );
-    if (directGroup) {
-      return buildGroupPath(directGroup.slug);
-    }
-
-    const resolveNestedGroupPath = (parentGroup: (typeof dataset.groups)[number]) => {
-      const subgroup = parentGroup.subgroups.find(
-        (entry) => matchesLandingEntry(entry, groupKeys)
-      );
-      if (subgroup) {
-        return buildGroupItemPath(parentGroup.slug, subgroup.slug);
-      }
-
-      for (const subgroupEntry of parentGroup.subgroups) {
-        const child = subgroupEntry.children.find(
-          (entry) => matchesLandingEntry(entry, groupKeys)
-        );
-        if (child) {
-          return buildGroupItemPath(parentGroup.slug, child.slug);
-        }
-      }
-
-      return null;
-    };
-
-    if (categoryKeys.size > 0) {
-      const parentGroup = dataset.groups.find((entry) =>
-        matchesLandingEntry(entry, categoryKeys)
-      );
-      const categoryMatchPath = parentGroup
-        ? resolveNestedGroupPath(parentGroup)
-        : null;
-      if (categoryMatchPath) {
-        return categoryMatchPath;
-      }
-    }
-
-    for (const parentGroup of dataset.groups) {
-      const nestedGroupPath = resolveNestedGroupPath(parentGroup);
-      if (nestedGroupPath) {
-        return nestedGroupPath;
-      }
-    }
-
-    return fallbackPath;
-  }
-);
-
-const resolveProductCategoryLandingPath = cache(
-  async (
-    productCategory: string,
-    productGroup: string,
-    productSubgroup: string
-  ): Promise<string | null> => {
-    const normalizedCategory = normalizeLandingValue(productCategory);
-    const normalizedGroup = normalizeLandingValue(productGroup);
-    const normalizedSubgroup = normalizeLandingValue(productSubgroup);
-    const fallbackPath = buildProductGroupLandingFallbackPath(
-      normalizedCategory,
-      normalizedGroup
-    );
-    const targetLabels = [normalizedSubgroup, normalizedCategory].reduce<string[]>(
-      (items, value) => {
-        const key = value.toLocaleLowerCase("uk-UA");
-        if (value && !items.some((entry) => entry.toLocaleLowerCase("uk-UA") === key)) {
-          items.push(value);
-        }
-        return items;
-      },
-      []
-    );
-
-    if (targetLabels.length === 0) {
-      return normalizedGroup
-        ? resolveProductGroupLandingPath(normalizedCategory, normalizedGroup)
-        : fallbackPath;
-    }
-
-    const dataset = await getProductTreeDataset().catch(() => null);
-    if (!dataset) return fallbackPath;
-
-    const groupKeys = buildLandingLookupKeys(normalizedGroup);
-    const categoryKeys = buildLandingLookupKeys(normalizedCategory);
-
-    const parentGroups = [
-      ...dataset.groups.filter((entry) => matchesLandingEntry(entry, groupKeys)),
-      ...dataset.groups.filter((entry) => matchesLandingEntry(entry, categoryKeys)),
-      ...dataset.groups,
-    ].filter(
-      (entry, index, entries) =>
-        entries.findIndex((candidate) => candidate.slug === entry.slug) === index
-    );
-
-    const findNestedPath = (
-      parentGroup: (typeof dataset.groups)[number],
-      targetKeys: Set<string>
-    ) => {
-      if (matchesLandingEntry(parentGroup, targetKeys)) {
-        return buildGroupPath(parentGroup.slug);
-      }
-
-      const subgroup = parentGroup.subgroups.find((entry) =>
-        matchesLandingEntry(entry, targetKeys)
-      );
-      if (subgroup) {
-        return buildGroupItemPath(parentGroup.slug, subgroup.slug);
-      }
-
-      for (const subgroupEntry of parentGroup.subgroups) {
-        const child = subgroupEntry.children.find((entry) =>
-          matchesLandingEntry(entry, targetKeys)
-        );
-        if (child) {
-          return buildGroupItemPath(parentGroup.slug, child.slug);
-        }
-      }
-
-      return null;
-    };
-
-    for (const label of targetLabels) {
-      const targetKeys = buildLandingLookupKeys(label);
-      for (const parentGroup of parentGroups) {
-        const path = findNestedPath(parentGroup, targetKeys);
-        if (path) return path;
-      }
-    }
-
-    return normalizedGroup
-      ? resolveProductGroupLandingPath(normalizedCategory, normalizedGroup)
-      : fallbackPath;
-  }
-);
 
 const normalizeView = (view: string | string[] | undefined) => {
   if (Array.isArray(view)) return (view[0] || "").trim().toLowerCase();
@@ -859,8 +664,8 @@ const findCatalogProductByArticleFast = async (value: string) => {
   if (!normalized) return null;
 
   const byArticle = await fetchCatalogProductsByArticle(normalized, {
-    limit: 6,
-    timeoutMs: 520,
+    limit: 4,
+    timeoutMs: 480,
     retries: 0,
     retryDelayMs: 100,
     cacheTtlMs: 1000 * 20,
@@ -878,19 +683,19 @@ const findCatalogProductByArticleFast = async (value: string) => {
 };
 
 const FAST_PRODUCT_CATALOG_LOOKUP_OPTIONS = {
-  lookupLimit: 14,
+  lookupLimit: 10,
   fallbackPages: 1,
-  pageSize: 30,
-  timeoutMs: 900,
+  pageSize: 24,
+  timeoutMs: 820,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 20,
 };
 const DEEP_PRODUCT_CATALOG_LOOKUP_OPTIONS = {
-  lookupLimit: 22,
+  lookupLimit: 14,
   fallbackPages: 1,
-  pageSize: 36,
-  timeoutMs: 1250,
+  pageSize: 28,
+  timeoutMs: 1050,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 10,
@@ -1522,7 +1327,11 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS
   );
   if (!routeData.code) {
-    const recoveredRouteData = await recoverProductRouteDataFromNameSlug(rawCode || "");
+    const recoveredRouteData = await resolveWithTimeout(
+      () => recoverProductRouteDataFromNameSlug(rawCode || ""),
+      null,
+      PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS
+    );
     if (recoveredRouteData?.code) {
       routeData = recoveredRouteData;
     }
@@ -1641,27 +1450,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const producerCatalogPath = product.producer
     ? buildCatalogProducerPath(product.producer, productGroup || undefined)
     : null;
-  const [groupLandingPath, categoryLandingPath] = await Promise.all([
-    productGroup
-      ? resolveWithTimeout(
-          () => resolveProductGroupLandingPath(productCategory, productGroup),
-          groupSeoFallbackPath,
-          PRODUCT_PAGE_GROUP_LANDING_TIMEOUT_MS
-        )
-      : null,
-    productSubgroup || productCategory
-      ? resolveWithTimeout(
-          () =>
-            resolveProductCategoryLandingPath(
-              productCategory,
-              productGroup,
-              productSubgroup
-            ),
-          groupSeoFallbackPath || "/groups",
-          PRODUCT_PAGE_GROUP_LANDING_TIMEOUT_MS
-        )
-      : null,
-  ]);
+  const groupLandingPath = groupSeoFallbackPath;
+  const categoryLandingPath = productSubgroup
+    ? buildProductGroupLandingFallbackPath(productGroup || productCategory, productSubgroup)
+    : groupSeoFallbackPath;
   const categoryLandingHref =
     categoryLandingPath ||
     groupLandingPath ||
@@ -1738,7 +1530,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   ]
     .filter(Boolean)
     .join("\n");
-  const breadcrumbItems = [
+  const breadcrumbItems = ([
     { href: "/", label: "Головна" },
     { href: "/katalog", label: "Каталог" },
     groupLandingPath && productGroup
@@ -1748,8 +1540,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     productSubgroup.toLowerCase() !== (productGroup || "").toLowerCase()
       ? { href: categoryLandingHref, label: visibleProductSubgroup }
       : null,
-  ].filter(Boolean) as Array<{ href: string; label: string }>;
-  const normalizedProductArticle = (product.article || "").trim();
+  ].filter(Boolean) as Array<{ href: string; label: string }>).filter(
+    (item, index, items) =>
+      items.findIndex((candidate) => candidate.href === item.href) === index
+  );
+  const normalizedProductArticle = hasResolvedCatalogProduct
+    ? (product.article || "").trim()
+    : "";
   const normalizedProductCode = (product.code || resolvedCode || "").trim();
   const hasDistinctProductCode =
     Boolean(normalizedProductArticle) &&
@@ -1890,7 +1687,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-slate-300 sm:text-[12px]"
                 >
                   {breadcrumbItems.map((item, index) => (
-                    <span key={item.href} className="inline-flex items-center gap-2">
+                    <span
+                      key={`${item.href}:${item.label}:${index}`}
+                      className="inline-flex items-center gap-2"
+                    >
                       {index > 0 ? <span className="text-slate-600">/</span> : null}
                       <Link href={item.href} className="transition hover:text-cyan-200">
                         {item.label}
@@ -2063,16 +1863,18 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               )}
 
               {!isModalView && (
-                <Suspense fallback={<ProductSimilarItemsFallback />}>
-                  <ProductSimilarItemsSection
+                <Suspense fallback={<ProductRecentlyViewedFallback />}>
+                  <ProductRecentlyViewedSection
                     product={{
                       code: product.code,
                       article: product.article,
                       name: product.name,
                       producer: product.producer,
+                      quantity: product.quantity,
                       group: product.group,
                       subGroup: product.subGroup,
                       category: product.category,
+                      hasPhoto: product.hasPhoto,
                     }}
                   />
                 </Suspense>

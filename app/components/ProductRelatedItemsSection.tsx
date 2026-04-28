@@ -1,10 +1,6 @@
 import "server-only";
 
 import ProductRelatedItemsClientSection from "app/components/ProductRelatedItemsClientSection";
-import { getRelatedProducts } from "app/lib/product-related";
-import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
-
-const PRODUCT_RELATED_INITIAL_TIMEOUT_MS = 700;
 
 type ProductRelatedItemsSectionProps = {
   product: {
@@ -18,28 +14,13 @@ type ProductRelatedItemsSectionProps = {
   };
 };
 
-export default async function ProductRelatedItemsSection({
+export default function ProductRelatedItemsSection({
   product,
 }: ProductRelatedItemsSectionProps) {
-  const initialItems = await resolveWithTimeout(
-    () =>
-      getRelatedProducts(
-        product.article,
-        product.code,
-        product.name,
-        product.producer,
-        product.group,
-        product.subGroup,
-        product.category
-      ),
-    null,
-    PRODUCT_RELATED_INITIAL_TIMEOUT_MS
-  );
-
   return (
     <ProductRelatedItemsClientSection
       product={product}
-      initialItems={Array.isArray(initialItems) ? initialItems : null}
+      initialItems={null}
     />
   );
 }

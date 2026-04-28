@@ -2,6 +2,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
@@ -46,12 +47,8 @@ const GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT = 750;
 const GROUP_ITEM_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
 const GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS = 6000;
 const GROUP_ITEM_PRODUCER_SPLIT_PAGE_SIZE = 220;
-const GROUP_ITEM_PRODUCER_SPLIT_MAX_PAGES = 2;
-const GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS = 1100;
-const isProductionBuildPhase =
-  process.env.NEXT_PHASE === "phase-production-build" ||
-  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
-  process.env.npm_lifecycle_event === "build";
+const GROUP_ITEM_PRODUCER_SPLIT_MAX_PAGES = 3;
+const GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS = 2200;
 
 interface GroupItemPageParams {
   slug: string;
@@ -180,11 +177,10 @@ const buildGroupItemProducerSplit = (options: {
     });
 };
 
-const collectDirectGroupItemProducerSplit = cache(
-  async (
-    catalogGroupLabel: string,
-    catalogSubcategoryLabel: string
-  ): Promise<GroupItemProducerEntry[]> => {
+const collectDirectGroupItemProducerSplitUncached = async (
+  catalogGroupLabel: string,
+  catalogSubcategoryLabel: string
+): Promise<GroupItemProducerEntry[]> => {
     const normalizedGroup = normalizeValue(catalogGroupLabel);
     const normalizedSubcategory = normalizeValue(catalogSubcategoryLabel);
     if (!normalizedSubcategory) return [];
@@ -259,7 +255,16 @@ const collectDirectGroupItemProducerSplit = cache(
         }
         return left.label.localeCompare(right.label, "uk", { sensitivity: "base" });
       });
-  }
+};
+
+const collectDirectGroupItemProducerSplitCached = unstable_cache(
+  collectDirectGroupItemProducerSplitUncached,
+  ["group-item:producer-split:v2"],
+  { revalidate: 60 * 30 }
+);
+
+const collectDirectGroupItemProducerSplit = cache(
+  collectDirectGroupItemProducerSplitCached
 );
 
 const resolveGroupItemProducerSplit = async (options: {
@@ -275,7 +280,6 @@ const resolveGroupItemProducerSplit = async (options: {
     itemLabels: options.seoItemLabels,
   });
   if (seoSplit.length > 0) return seoSplit;
-  if (isProductionBuildPhase) return seoSplit;
 
   const directSplit = await collectDirectGroupItemProducerSplit(
     options.catalogGroupLabel,

@@ -1,15 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import AnalogProductThumb from "app/components/AnalogProductThumb";
-import { fetchCatalogImageBatch } from "app/lib/product-image-batch-client";
-import {
-  readProductImageMissing,
-  readProductImageSuccess,
-} from "app/lib/product-image-client";
-import { buildProductImageBatchKey } from "app/lib/product-image-path";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 
 type RelatedItem = {
@@ -40,11 +35,38 @@ type ProductRelatedItemsClientSectionProps = {
 const formatStockLabel = (quantity: number) =>
   quantity > 0 ? `В наявності ${quantity} шт.` : "Під замовлення";
 
-const RELATED_ITEMS_CACHE_PREFIX = "partson:v5:product-related:";
+const RELATED_ITEMS_CACHE_PREFIX = "partson:v6:product-related:";
+const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v1:product-similar:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
-const RELATED_IMAGE_PREFETCH_LIMIT = 6;
-const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1500;
-const RELATED_IMAGE_DEEP_RECOVERY_DELAY_MS = 550;
+const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 3600;
+const SIMILAR_ITEMS_VISIBLE_LIMIT = 4;
+
+type RecommendationMode = "related" | "similar";
+
+const normalizeRelatedKeyPart = (value: string | null | undefined) =>
+  (value || "").replace(/\s+/g, " ").trim().toLowerCase();
+
+const normalizeRelatedItems = (value: RelatedItem[] | null | undefined) => {
+  if (!Array.isArray(value)) return null;
+
+  const seen = new Set<string>();
+  const items: RelatedItem[] = [];
+
+  for (const item of value) {
+    const code = normalizeRelatedKeyPart(item.code);
+    const article = normalizeRelatedKeyPart(item.article);
+    const name = normalizeRelatedKeyPart(buildVisibleProductName(item.name));
+    const producer = normalizeRelatedKeyPart(item.producer);
+    const identity = [code, article, name, producer].join("::");
+
+    if ((!code && !article) || !identity || seen.has(identity)) continue;
+
+    seen.add(identity);
+    items.push(item);
+  }
+
+  return items;
+};
 
 const buildDirectProductPath = (item: RelatedItem) => {
   const productCode = (item.code || item.article || "").trim();
@@ -81,8 +103,6 @@ const Skeleton = () => (
   </section>
 );
 
-type RelatedImageMap = Record<string, string | null>;
-
 export default function ProductRelatedItemsClientSection({
   product,
   initialItems = null,
@@ -94,16 +114,22 @@ export default function ProductRelatedItemsClientSection({
     return visibleName && visibleName !== "Товар" ? visibleName : "";
   }, [product.name]);
   const normalizedInitialItems = useMemo(
-    () =>
-      Array.isArray(initialItems)
-        ? initialItems.filter((item) => Boolean((item.code || item.article || "").trim()))
-        : null,
+    () => normalizeRelatedItems(initialItems),
     [initialItems]
   );
   const [items, setItems] = useState<RelatedItem[] | null>(normalizedInitialItems);
-  const [imageMap, setImageMap] = useState<RelatedImageMap>({});
+  const [itemMode, setItemMode] = useState<RecommendationMode>("related");
+  const [shouldLoad, setShouldLoad] = useState(Boolean(normalizedInitialItems));
+  const sectionRef = useRef<HTMLDivElement | null>(null);
 
   const sectionSummary = useMemo(() => {
+    if (itemMode === "similar") {
+      const categoryLabel = product.subGroup || product.group || product.category || "";
+      return categoryLabel
+        ? `Аналогів не знайшли, тому показуємо 4 схожі товари з розділу ${categoryLabel}.`
+        : "Аналогів не знайшли, тому показуємо 4 схожі товари з найближчих розділів каталогу.";
+    }
+
     const identityLabel = articleLabel || productCode;
     if (productDisplayName && identityLabel) {
       return `Підбираємо товари за назвою "${productDisplayName}", артикулом ${identityLabel} та кодом обраної позиції.`;
@@ -115,9 +141,9 @@ export default function ProductRelatedItemsClientSection({
       return `Показуємо релевантні товари за артикулом і кодом ${identityLabel}, щоб швидше знайти потрібний аналог.`;
     }
     return "Показуємо релевантні товари за назвою, артикулом і кодом обраної позиції.";
-  }, [articleLabel, productCode, productDisplayName]);
+  }, [articleLabel, itemMode, product.category, product.group, product.subGroup, productCode, productDisplayName]);
 
-  const requestUrl = useMemo(() => {
+  const recommendationSearchParams = useMemo(() => {
     if (!articleLabel && !productCode && !productDisplayName) return "";
 
     const params = new URLSearchParams();
@@ -132,7 +158,7 @@ export default function ProductRelatedItemsClientSection({
     if (product.category) params.set("category", product.category);
 
     const serialized = params.toString();
-    return serialized ? `/api/product-related?${serialized}` : "";
+    return serialized;
   }, [
     articleLabel,
     product.category,
@@ -144,14 +170,26 @@ export default function ProductRelatedItemsClientSection({
     productDisplayName,
   ]);
 
+  const requestUrl = recommendationSearchParams
+    ? `/api/product-related?${recommendationSearchParams}`
+    : "";
+  const similarRequestUrl = recommendationSearchParams
+    ? `/api/product-similar?${recommendationSearchParams}`
+    : "";
   const cacheKey = useMemo(
     () => (requestUrl ? `${RELATED_ITEMS_CACHE_PREFIX}${requestUrl}` : ""),
     [requestUrl]
   );
+  const similarCacheKey = useMemo(
+    () => (similarRequestUrl ? `${SIMILAR_ITEMS_CACHE_PREFIX}${similarRequestUrl}` : ""),
+    [similarRequestUrl]
+  );
 
   useEffect(() => {
     if (normalizedInitialItems) {
+      setItemMode("related");
       setItems(normalizedInitialItems);
+      setShouldLoad(true);
       return;
     }
 
@@ -164,17 +202,50 @@ export default function ProductRelatedItemsClientSection({
   }, [normalizedInitialItems, requestUrl]);
 
   useEffect(() => {
+    if (shouldLoad || !requestUrl) return;
+
+    const element = sectionRef.current;
+    if (typeof window === "undefined") return;
+
+    if (!element || !("IntersectionObserver" in window)) {
+      const timerId = window.setTimeout(() => setShouldLoad(true), 900);
+      return () => window.clearTimeout(timerId);
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldLoad(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "700px 0px" }
+    );
+
+    observer.observe(element);
+
+    const idleTimerId = window.setTimeout(() => setShouldLoad(true), 2200);
+
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(idleTimerId);
+    };
+  }, [requestUrl, shouldLoad]);
+
+  useEffect(() => {
     if (!requestUrl) {
       setItems([]);
       return;
     }
 
-    const readCachedItems = () => {
-      if (typeof window === "undefined" || !cacheKey) return null;
+    if (!shouldLoad) return;
+
+    const readCachedItems = (key: string) => {
+      if (typeof window === "undefined" || !key) return null;
 
       const readFromStorage = (storage: Storage) => {
         try {
-          const raw = storage.getItem(cacheKey);
+          const raw = storage.getItem(key);
           if (!raw) return null;
 
           const parsed = JSON.parse(raw) as { value?: RelatedItem[] | null; t?: number };
@@ -184,7 +255,8 @@ export default function ProductRelatedItemsClientSection({
             return null;
           }
 
-          return Array.isArray(parsed.value) ? parsed.value : null;
+          const cachedItems = normalizeRelatedItems(parsed.value);
+          return cachedItems && cachedItems.length > 0 ? cachedItems : null;
         } catch {
           return null;
         }
@@ -200,31 +272,34 @@ export default function ProductRelatedItemsClientSection({
       }
     };
 
-    const writeCachedItems = (value: RelatedItem[]) => {
-      if (typeof window === "undefined" || !cacheKey) return;
+    const writeCachedItems = (key: string, value: RelatedItem[]) => {
+      if (value.length === 0) return;
+      if (typeof window === "undefined" || !key) return;
 
       const payload = JSON.stringify({ value, t: Date.now() });
 
       try {
-        window.sessionStorage.setItem(cacheKey, payload);
+        window.sessionStorage.setItem(key, payload);
       } catch {
         // Ignore storage quota issues.
       }
 
       try {
-        window.localStorage.setItem(cacheKey, payload);
+        window.localStorage.setItem(key, payload);
       } catch {
         // Ignore storage quota issues.
       }
     };
 
     if (normalizedInitialItems) {
-      writeCachedItems(normalizedInitialItems);
+      setItemMode("related");
+      writeCachedItems(cacheKey, normalizedInitialItems);
       return;
     }
 
-    const cachedItems = readCachedItems();
+    const cachedItems = readCachedItems(cacheKey);
     if (cachedItems) {
+      setItemMode("related");
       setItems(cachedItems);
       return;
     }
@@ -235,21 +310,67 @@ export default function ProductRelatedItemsClientSection({
       controller.abort();
     }, RELATED_ITEMS_REQUEST_TIMEOUT_MS);
 
+    const fetchItems = async (url: string) => {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new Error("Failed to load product recommendations");
+      }
+
+      const payload = (await response.json()) as { items?: RelatedItem[] };
+      return normalizeRelatedItems(payload.items) || [];
+    };
+
+    const loadSimilarItems = async () => {
+      if (!similarRequestUrl) return [] as RelatedItem[];
+
+      const cachedSimilarItems = readCachedItems(similarCacheKey);
+      if (cachedSimilarItems) {
+        return cachedSimilarItems.slice(0, SIMILAR_ITEMS_VISIBLE_LIMIT);
+      }
+
+      const similarItems = (await fetchItems(similarRequestUrl)).slice(
+        0,
+        SIMILAR_ITEMS_VISIBLE_LIMIT
+      );
+      if (similarItems.length > 0) {
+        writeCachedItems(similarCacheKey, similarItems);
+      }
+      return similarItems;
+    };
+
     const loadItems = async () => {
       try {
-        const response = await fetch(requestUrl, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-        });
-        const payload = (await response.json()) as { items?: RelatedItem[] };
+        const nextItems = await fetchItems(requestUrl);
         if (cancelled) return;
-        const nextItems = Array.isArray(payload.items) ? payload.items : [];
-        writeCachedItems(nextItems);
-        setItems(nextItems);
+        if (nextItems.length > 0) {
+          setItemMode("related");
+          writeCachedItems(cacheKey, nextItems);
+          setItems(nextItems);
+          return;
+        }
+
+        const similarItems = await loadSimilarItems();
+        if (cancelled) return;
+        setItemMode("similar");
+        setItems(similarItems);
       } catch {
         if (cancelled) return;
-        setItems([]);
+
+        try {
+          const similarItems = await loadSimilarItems();
+          if (cancelled) return;
+          setItemMode("similar");
+          setItems((current) =>
+            current && current.length > 0 ? current : similarItems
+          );
+        } catch {
+          if (cancelled) return;
+          setItems((current) => (current && current.length > 0 ? current : []));
+        }
       }
     };
 
@@ -260,190 +381,44 @@ export default function ProductRelatedItemsClientSection({
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [cacheKey, normalizedInitialItems, requestUrl]);
-
-  const imageRequests = useMemo(() => {
-    if (!items || items.length === 0) return [];
-
-    const seen = new Set<string>();
-
-    return items
-      .reduce<Array<{ key: string; code: string; article?: string }>>((acc, item) => {
-        const code = (item.code || "").trim();
-        const article = (item.article || articleLabel || "").trim();
-        const key = buildProductImageBatchKey(code, article);
-
-        if (!code || !key || seen.has(key)) return acc;
-
-        seen.add(key);
-        acc.push({
-          key,
-          code,
-          article: article || undefined,
-        });
-        return acc;
-      }, [])
-      .slice(0, RELATED_IMAGE_PREFETCH_LIMIT);
-  }, [articleLabel, items]);
-
-  useEffect(() => {
-    if (!items || items.length === 0 || imageRequests.length === 0) {
-      setImageMap({});
-      return;
-    }
-
-    const cachedMap: RelatedImageMap = {};
-    const pendingItems: Array<{ key: string; code: string; article?: string }> = [];
-
-    for (const request of imageRequests) {
-      const cachedSrc = readProductImageSuccess(request.code, request.article);
-      if (cachedSrc) {
-        cachedMap[request.key] = cachedSrc;
-        continue;
-      }
-
-      if (readProductImageMissing(request.code, request.article)) {
-        cachedMap[request.key] = null;
-        continue;
-      }
-
-      pendingItems.push({
-        key: request.key,
-        code: request.code,
-        article: request.article,
-      });
-    }
-
-    setImageMap(cachedMap);
-
-    if (pendingItems.length === 0) return;
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    const loadImages = async () => {
-      try {
-        const requestPayload = pendingItems.map((item) => ({
-          code: item.code,
-          article: item.article,
-        }));
-        const results = await fetchCatalogImageBatch(requestPayload, {
-          signal: controller.signal,
-        });
-        if (cancelled) return;
-
-        const unresolvedItems = new Map(pendingItems.map((item) => [item.key, item]));
-        const readyImages: RelatedImageMap = {};
-        for (const result of results) {
-          if (!result.key) continue;
-          if (result.status === "ready" && result.src) {
-            readyImages[result.key] = result.src;
-            unresolvedItems.delete(result.key);
-          }
-        }
-
-        setImageMap((current) => {
-          if (Object.keys(readyImages).length === 0) return current;
-          return { ...current, ...readyImages };
-        });
-
-        const deepRecoveryItems = Array.from(unresolvedItems.values()).filter((item) =>
-          Boolean((item.article || "").trim())
-        );
-
-        if (deepRecoveryItems.length === 0) {
-          setImageMap((current) => {
-            const nextMap: RelatedImageMap = { ...current };
-            for (const item of unresolvedItems.values()) {
-              nextMap[item.key] = null;
-            }
-            return nextMap;
-          });
-          return;
-        }
-
-        await new Promise<void>((resolve) => {
-          const timerId = window.setTimeout(resolve, RELATED_IMAGE_DEEP_RECOVERY_DELAY_MS);
-          controller.signal.addEventListener(
-            "abort",
-            () => {
-              window.clearTimeout(timerId);
-              resolve();
-            },
-            { once: true }
-          );
-        });
-        if (cancelled) return;
-
-        const deepResults = await fetchCatalogImageBatch(
-          deepRecoveryItems.map((item) => ({
-            code: item.code,
-            article: item.article,
-          })),
-          {
-            deep: true,
-            signal: controller.signal,
-          }
-        ).catch(() => []);
-        if (cancelled) return;
-
-        const recoveredKeys = new Set<string>();
-        setImageMap((current) => {
-          const nextMap: RelatedImageMap = { ...current };
-          for (const result of deepResults) {
-            if (!result.key) continue;
-            if (result.status === "ready" && result.src) {
-              nextMap[result.key] = result.src;
-              recoveredKeys.add(result.key);
-            }
-          }
-
-          for (const item of unresolvedItems.values()) {
-            if (!recoveredKeys.has(item.key)) {
-              nextMap[item.key] = null;
-            }
-          }
-
-          return nextMap;
-        });
-      } catch {
-        if (cancelled) return;
-
-        setImageMap((current) => {
-          const nextMap: RelatedImageMap = { ...current };
-          for (const request of imageRequests) {
-            if (!(request.key in nextMap)) {
-              nextMap[request.key] = null;
-            }
-          }
-          return nextMap;
-        });
-      }
-    };
-
-    void loadImages();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [imageRequests, items]);
+  }, [cacheKey, normalizedInitialItems, requestUrl, shouldLoad, similarCacheKey, similarRequestUrl]);
 
   if (!articleLabel && !productCode && !productDisplayName) return null;
-  if (items === null) return <Skeleton />;
+  if (items === null) {
+    return (
+      <div ref={sectionRef}>
+        <Skeleton />
+      </div>
+    );
+  }
   if (items.length === 0) return null;
+
+  const visibleItems = items.slice(
+    0,
+    itemMode === "similar" ? SIMILAR_ITEMS_VISIBLE_LIMIT : 8
+  );
+  const listClass =
+    itemMode === "similar"
+      ? "mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin] xl:overflow-visible"
+      : "mt-2 grid gap-2 lg:grid-cols-2 2xl:grid-cols-3";
+  const cardClass =
+    itemMode === "similar"
+      ? "group flex min-h-[194px] min-w-[260px] flex-1 flex-col rounded-[18px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-3 shadow-[0_14px_26px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_18px_34px_rgba(14,165,233,0.12)] sm:min-w-[280px] sm:rounded-[20px] xl:min-w-0"
+      : "group flex min-h-[194px] flex-col rounded-[18px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-3 shadow-[0_14px_26px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_18px_34px_rgba(14,165,233,0.12)] sm:rounded-[20px]";
 
   return (
     <section className="overflow-hidden rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(238,246,252,0.96),rgba(255,255,255,0.97))] p-3 shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-900/8 pb-2">
         <div className="min-w-0 max-w-3xl">
           <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-sky-800 mb-0.5">
-            Аналоги і сумісні позиції
+            {itemMode === "similar" ? "Схожі товари" : "Аналоги і сумісні позиції"}
           </p>
           <h2 className="font-display-italic mt-0.5 break-words text-[0.98rem] font-black leading-tight tracking-[-0.035em] text-slate-950 sm:text-[1.08rem]">
-            {productDisplayName
-              ? `Аналоги для ${productDisplayName}`
-              : `Аналоги за артикулом ${articleLabel || productCode}`}
+            {itemMode === "similar"
+              ? "Схожі товари з цієї категорії"
+              : productDisplayName
+                ? `Аналоги для ${productDisplayName}`
+                : `Аналоги за артикулом ${articleLabel || productCode}`}
           </h2>
           <p className="mt-1 max-w-2xl text-[12px] font-medium leading-5 text-slate-600 sm:text-xs sm:leading-5">
             {sectionSummary}
@@ -467,33 +442,40 @@ export default function ProductRelatedItemsClientSection({
           </div>
         </div>
         <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.09em] text-sky-800 sm:text-[10px]">
-          {items.length} варіантів
+          {visibleItems.length} варіантів
         </span>
       </div>
 
-      <div className="mt-2 grid gap-2 lg:grid-cols-2 2xl:grid-cols-3">
-        {(items ?? []).slice(0, 8).map((item) => {
+      <div className={listClass}>
+        {visibleItems.map((item, index) => {
           const visibleItemName = buildVisibleProductName(item.name);
-          const imageKey = buildProductImageBatchKey(item.code, item.article || articleLabel);
-          const hasImageResult = Object.prototype.hasOwnProperty.call(imageMap, imageKey);
           const categoryLabel = item.subGroup || item.group || item.category || "";
-          let imageSrc: string | null | undefined = imageMap[imageKey];
-          if (!hasImageResult) imageSrc = undefined;
+          const imageSrc =
+            item.hasPhoto === false
+              ? ""
+              : buildProductImagePath(item.code, item.article || articleLabel, {
+                  catalog: true,
+                });
 
           return (
             <Link
-              key={`${item.code}-${item.article}-${item.name}`}
+              key={[
+                normalizeRelatedKeyPart(item.code),
+                normalizeRelatedKeyPart(item.article),
+                normalizeRelatedKeyPart(item.name),
+                normalizeRelatedKeyPart(item.producer),
+                index,
+              ].join("-")}
               href={buildDirectProductPath(item)}
               prefetch={false}
-              className="group flex min-h-[194px] flex-col rounded-[18px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-3 shadow-[0_14px_26px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_18px_34px_rgba(14,165,233,0.12)] sm:rounded-[20px]"
+              className={cardClass}
             >
               <div className="flex items-start gap-3">
                 <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[16px] border border-slate-200 bg-slate-50">
                   <AnalogProductThumb
-                    src={imageSrc ?? undefined}
+                    src={imageSrc}
                     alt={visibleItemName}
                     disableDirectFetch
-                    pending={!hasImageResult}
                   />
                 </div>
                 <div className="min-w-0 flex-1">

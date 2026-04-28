@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
-import { ImageOff } from "lucide-react";
+
+import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 
 type AnalogProductThumbProps = {
   src?: string;
@@ -11,7 +11,7 @@ type AnalogProductThumbProps = {
   pending?: boolean;
 };
 
-const IMAGE_FALLBACK_PATH = "/car-parts-fullwidth.png";
+const IMAGE_FALLBACK_PATH = PRODUCT_IMAGE_FALLBACK_PATH.toLowerCase();
 
 const withStrictMode = (src: string) => {
   if (!src) return src;
@@ -39,55 +39,42 @@ export default function AnalogProductThumb({
     setIsLoaded(false);
   }, [disableDirectFetch, src]);
 
-  if (pending) {
-    return <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200" />;
-  }
+  const placeholder = (
+    <div className="absolute inset-0 flex items-center justify-center bg-slate-50 p-1.5">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={PRODUCT_IMAGE_FALLBACK_PATH}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        width={96}
+        height={96}
+        className="h-full w-full object-contain opacity-80"
+        aria-hidden="true"
+      />
+    </div>
+  );
 
-  if (!activeSrc) {
+  if (pending || !activeSrc || hasError) {
     return (
-      <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef3f7_60%,#e2e8f0_100%)] px-2 text-center">
-        <div className="absolute inset-x-2 top-2 h-px bg-gradient-to-r from-transparent via-slate-300/70 to-transparent" />
-        <ImageOff
-          className="relative h-5 w-5 text-slate-400/90 sm:h-6 sm:w-6"
-          strokeWidth={1.7}
-          aria-hidden="true"
-        />
-        <span className="relative mt-1.5 text-[8.5px] font-bold uppercase tracking-[0.16em] leading-tight text-slate-500">
-          Зображення відсутнє
-        </span>
-      </div>
-    );
-  }
-
-  if (hasError) {
-    return (
-      <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef3f7_60%,#e2e8f0_100%)] px-2 text-center">
-        <div className="absolute inset-x-2 top-2 h-px bg-gradient-to-r from-transparent via-slate-300/70 to-transparent" />
-        <ImageOff
-          className="relative h-5 w-5 text-slate-400/90 sm:h-6 sm:w-6"
-          strokeWidth={1.7}
-          aria-hidden="true"
-        />
-        <span className="relative mt-1.5 text-[8.5px] font-bold uppercase tracking-[0.16em] leading-tight text-slate-500">
-          Зображення відсутнє
-        </span>
+      <div className="relative h-full w-full overflow-hidden bg-slate-50">
+        {placeholder}
       </div>
     );
   }
 
   return (
     <>
-      {!isLoaded && (
-        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200" />
-      )}
-      <Image
+      {!isLoaded ? placeholder : null}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
         src={activeSrc}
         alt={alt}
-        fill
-        sizes="64px"
-        fetchPriority="high"
-        decoding="sync"
-        className={`object-cover transition-opacity duration-150 ${
+        loading="lazy"
+        decoding="async"
+        width={96}
+        height={96}
+        className={`h-full w-full object-contain transition-opacity duration-150 ${
           isLoaded ? "opacity-100" : "opacity-0"
         }`}
         onLoad={(event) => {

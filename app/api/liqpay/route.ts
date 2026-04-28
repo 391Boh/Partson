@@ -64,6 +64,20 @@ export async function POST(req: NextRequest) {
   }
   const normalizedPublicKey = publicKey!.trim();
   const normalizedPrivateKey = privateKey!.trim();
+  const isSandboxMode = readBooleanEnv(process.env.LIQPAY_SANDBOX);
+
+  if (
+    !isSandboxMode &&
+    (normalizedPublicKey.startsWith("sandbox_") ||
+      normalizedPrivateKey.startsWith("sandbox_"))
+  ) {
+    const misconfigured = NextResponse.json(
+      { error: "Live LiqPay keys are required when LIQPAY_SANDBOX=0" },
+      { status: 500 }
+    );
+    setRateLimitHeaders(misconfigured.headers, rateResult);
+    return misconfigured;
+  }
 
   const parsed = await readJsonObject(req, { maxBytes: 8_192 });
   if (!parsed.ok) {
@@ -112,7 +126,7 @@ export async function POST(req: NextRequest) {
     payload.info = info;
   }
 
-  if (readBooleanEnv(process.env.LIQPAY_SANDBOX)) {
+  if (isSandboxMode) {
     payload.sandbox = 1;
   }
 

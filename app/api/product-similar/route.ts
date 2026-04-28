@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { getRelatedProducts } from "app/lib/product-related";
+import { getSimilarProducts } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
-const PRODUCT_RELATED_API_TIMEOUT_MS = 3200;
+const PRODUCT_SIMILAR_API_TIMEOUT_MS = 2600;
+const PRODUCT_SIMILAR_LIMIT = 4;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -15,14 +16,14 @@ export async function GET(request: Request) {
   const subGroup = (url.searchParams.get("subGroup") || "").trim();
   const category = (url.searchParams.get("category") || "").trim();
 
-  if (!article && !code && !name) {
+  if (!article && !code && !name && !group && !subGroup && !category) {
     return NextResponse.json({ items: [] });
   }
 
   try {
     const items = await resolveWithTimeout(
       () =>
-        getRelatedProducts(
+        getSimilarProducts(
           article,
           code,
           name,
@@ -32,11 +33,11 @@ export async function GET(request: Request) {
           category
         ),
       [],
-      PRODUCT_RELATED_API_TIMEOUT_MS
+      PRODUCT_SIMILAR_API_TIMEOUT_MS
     );
 
     return NextResponse.json(
-      { items },
+      { items: items.slice(0, PRODUCT_SIMILAR_LIMIT) },
       {
         headers: {
           "cache-control": "public, max-age=300, s-maxage=300, stale-while-revalidate=1800",

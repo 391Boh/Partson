@@ -64,16 +64,7 @@ export default function ProductImageWithFallback({
 
   const [loadedSrc, setLoadedSrc] = useState("");
   const [failedSrc, setFailedSrc] = useState("");
-  const [cachedPreviewSrc, setCachedPreviewSrc] = useState(() => {
-    if (!hasKnownPhoto) return "";
-    if (typeof window === "undefined" || !normalizedProductCode) return "";
-    return (
-      readProductImageSuccess(
-        normalizedProductCode,
-        normalizedArticleHint || undefined
-      ) || ""
-    );
-  });
+  const [cachedPreviewSrc, setCachedPreviewSrc] = useState("");
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
 
