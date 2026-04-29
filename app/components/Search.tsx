@@ -7,16 +7,16 @@ import { Search, Clock, XCircle } from "lucide-react";
 interface SearchBarProps {
   onSearch: (
     searchQuery: string,
-    filterBy: "all" | "article" | "name" | "code" | "producer"
+    filterBy: "all" | "article" | "name" | "code" | "producer" | "description"
   ) => void;
 }
 
 const MAX_HISTORY = 8;
+type SearchFilter = "all" | "article" | "name" | "code" | "producer" | "description";
 
 const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterBy, setFilterBy] =
-    useState<"all" | "article" | "name" | "code" | "producer">("all");
+  const [filterBy, setFilterBy] = useState<SearchFilter>("all");
 
   const [history, setHistory] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -66,10 +66,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   };
 
   // --- 4. Пошук ---
-  const sanitizeQuery = (
-    value: string,
-    filter: "all" | "article" | "name" | "code" | "producer"
-  ) => {
+  const sanitizeQuery = (value: string, filter: SearchFilter) => {
     const trimmed = value.trim();
     if (filter !== "article") return trimmed;
     return trimmed.replace(/\s+/g, "").replace(/\./g, "").replace(/-/g, "");
@@ -135,17 +132,14 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         <select
           className="font-ui h-9 border-l border-gray-600 bg-gray-700 px-2 py-2 text-base font-semibold tracking-normal text-white outline-none sm:text-sm"
           value={filterBy}
-          onChange={(e) =>
-            setFilterBy(
-              e.target.value as "all" | "article" | "name" | "code" | "producer"
-            )
-          }
+          onChange={(e) => setFilterBy(e.target.value as SearchFilter)}
         >
           <option value="all">Всі</option>
           <option value="article">Артикул</option>
           <option value="name">Назва</option>
           <option value="code">Код</option>
           <option value="producer">Виробник</option>
+          <option value="description">Опис</option>
         </select>
 
         <button

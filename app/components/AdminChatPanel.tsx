@@ -919,27 +919,27 @@ export default function AdminChatPanel({
 
   return (
     <div
-      className="app-overlay-panel fixed left-2 right-2 top-[4.5rem] bottom-2 z-50 flex max-h-[calc(100dvh-4.95rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-sky-200/20 bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900 shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl md:left-6 md:right-auto md:top-20 md:bottom-6 md:w-[min(720px,calc(100vw-3rem))] md:max-h-[calc(100vh-6.5rem)] md:rounded-[32px]"
+      className="app-overlay-panel fixed inset-x-2 bottom-2 top-[4.25rem] z-50 flex max-h-[calc(100dvh-4.75rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-sky-200/20 bg-[image:linear-gradient(145deg,rgba(2,6,23,0.97),rgba(15,23,42,0.96)_48%,rgba(7,89,133,0.92))] shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:inset-x-3 sm:bottom-3 sm:top-[4.75rem] sm:max-h-[calc(100dvh-5.5rem)] md:left-auto md:right-4 md:bottom-auto md:top-[4.5rem] md:h-[min(860px,calc(100dvh-4.75rem))] md:w-[min(920px,calc(100vw-2rem))] md:max-h-none md:rounded-[32px] lg:right-6 lg:w-[min(980px,calc(100vw-3rem))] xl:w-[1040px]"
       style={{
         backgroundSize: '200% 200%',
         animation: 'adminGradient 12s ease infinite',
       }}
     >
-      <div className="border-b border-white/10 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.82),rgba(30,41,59,0.72),rgba(14,165,233,0.16))] px-2.5 py-2.5 text-white sm:px-5 sm:py-4">
-        <div className="flex items-start justify-between gap-3">
+      <div className="border-b border-white/10 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.9),rgba(30,41,59,0.78),rgba(14,165,233,0.2))] px-3 py-3 text-white sm:px-5 sm:py-4">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[18px] border border-sky-200/20 bg-white/10 text-sky-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_18px_32px_rgba(14,165,233,0.2)] sm:h-12 sm:w-12 sm:rounded-2xl">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] border border-sky-200/20 bg-white/10 text-sky-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_18px_32px_rgba(14,165,233,0.2)] sm:h-12 sm:w-12 sm:rounded-[18px]">
               <ShieldCheck className="h-5 w-5 sm:h-6 sm:w-6" />
             </span>
             <div className="min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-sky-200/80 sm:text-[11px] sm:tracking-[0.18em]">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-sky-200/80 sm:text-[10px] sm:tracking-[0.18em]">
                 Керування магазином
               </p>
-              <h2 className="mt-0.5 text-[15px] font-bold tracking-[-0.03em] text-white sm:mt-1 sm:text-xl">
+              <h2 className="mt-0.5 text-[16px] font-black tracking-[-0.03em] text-white sm:mt-1 sm:text-2xl">
                 Панель адміністратора
               </h2>
-              <p className="mt-1 hidden text-xs text-slate-300 sm:block sm:text-sm">
-                Чати, клієнти, замовлення та зворотні дзвінки в одному вікні.
+              <p className="mt-1 hidden max-w-2xl text-xs text-slate-300 sm:block sm:text-sm">
+                Єдине робоче вікно для діалогів, клієнтів, замовлень і заявок.
               </p>
             </div>
           </div>
@@ -952,15 +952,14 @@ export default function AdminChatPanel({
             <X className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
           </button>
         </div>
-
       </div>
 
-      <div className="sticky top-0 z-10 grid grid-cols-2 gap-1.5 border-b border-white/10 bg-slate-950/25 px-1.5 py-1.5 sm:grid-cols-4 sm:gap-2 sm:px-3 sm:py-2.5">
+      <div className="sticky top-0 z-10 grid grid-cols-2 gap-1.5 border-b border-white/10 bg-slate-950/55 px-1.5 py-1.5 backdrop-blur-xl sm:gap-2 sm:px-3 sm:py-2.5">
         <Tab
           icon={<ChatBubbleBottomCenterTextIcon className="h-6 w-6" />}
           label="Повідомлення"
           value={totalThreads}
-          meta={`Нові ${unreadMessages}`}
+          meta="Діалоги"
           badgeCount={unreadMessages}
           active={tab === 'messages'}
           onClick={() => setTab('messages')}
@@ -970,7 +969,6 @@ export default function AdminChatPanel({
           label="Користувачі"
           value={users.length}
           meta={`Онлайн ${onlineUsersCount}`}
-          badgeCount={onlineUsersCount}
           active={tab === 'users'}
           onClick={() => setTab('users')}
         />
@@ -978,7 +976,7 @@ export default function AdminChatPanel({
           icon={<ShoppingBagIcon className="h-6 w-6" />}
           label="Замовлення"
           value={orders.length}
-          meta={`Нові ${unreadOrders}`}
+          meta="Заявки"
           badgeCount={unreadOrders}
           active={tab === 'orders'}
           onClick={() => setTab('orders')}
@@ -987,14 +985,14 @@ export default function AdminChatPanel({
           icon={<PhoneIcon className="h-6 w-6" />}
           label="Дзвінки"
           value={calls.length}
-          meta={`Нові ${unreadCalls}`}
+          meta="Запити"
           badgeCount={unreadCalls}
           active={tab === 'calls'}
           onClick={() => setTab('calls')}
         />
       </div>
 
-      <main className="app-panel-scroll flex-1 min-h-0 overflow-y-auto bg-[image:linear-gradient(180deg,rgba(15,23,42,0.5),rgba(2,6,23,0.56))] p-1.5 text-slate-100 [touch-action:pan-y] sm:p-4">
+      <main className="app-panel-scroll flex-1 min-h-0 overflow-y-auto bg-[image:linear-gradient(180deg,rgba(15,23,42,0.5),rgba(2,6,23,0.56))] px-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] pt-0 text-slate-100 [touch-action:pan-y] sm:px-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pt-0">
         {tab === 'messages' && (
           <>
             {!selectedUserId ? (
@@ -1664,7 +1662,7 @@ function Tab({
   label,
   value,
   meta,
-  badgeCount,
+  badgeCount = 0,
   active,
   onClick,
 }: {
@@ -1672,7 +1670,7 @@ function Tab({
   label: string;
   value: number;
   meta: string;
-  badgeCount: number;
+  badgeCount?: number;
   active: boolean;
   onClick: () => void;
 }) {
@@ -1681,15 +1679,15 @@ function Tab({
   return (
     <button
       onClick={onClick}
-      className={`relative flex min-h-[52px] items-center gap-1.5 rounded-[15px] border px-2 py-1.5 text-left transition sm:min-h-[64px] sm:gap-2.5 sm:px-3 sm:py-2 sm:rounded-[18px] ${
+      className={`relative flex min-h-[62px] items-center gap-2 rounded-[16px] border px-2.5 py-2 text-left transition sm:min-h-[72px] sm:gap-3 sm:px-3.5 sm:py-2.5 sm:rounded-[20px] ${
         active
-          ? 'border-sky-300/35 bg-[image:linear-gradient(135deg,rgba(56,189,248,0.18),rgba(59,130,246,0.16))] text-white shadow-[0_14px_26px_rgba(14,165,233,0.14)]'
-          : 'border-white/5 text-slate-300 hover:bg-white/5'
+          ? 'border-sky-300/40 bg-[image:linear-gradient(135deg,rgba(56,189,248,0.2),rgba(37,99,235,0.18))] text-white shadow-[0_14px_30px_rgba(14,165,233,0.18),inset_0_1px_0_rgba(255,255,255,0.1)]'
+          : 'border-white/7 bg-white/[0.035] text-slate-300 hover:border-white/14 hover:bg-white/[0.07]'
       }`}
     >
       <span
-        className={`relative inline-flex h-7.5 w-7.5 items-center justify-center rounded-[11px] sm:h-9 sm:w-9 sm:rounded-xl ${
-          active ? 'bg-white/12 text-sky-100' : 'bg-white/6 text-slate-200'
+        className={`relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] sm:h-10 sm:w-10 sm:rounded-[14px] ${
+          active ? 'bg-white/14 text-sky-100' : 'bg-white/7 text-slate-200'
         }`}
       >
         {icon}
@@ -1702,14 +1700,14 @@ function Tab({
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <div className="truncate text-[9px] font-semibold leading-tight text-slate-100 sm:text-[11px]">
+            <div className="break-words text-[10px] font-bold leading-tight text-slate-100 sm:text-[13px]">
               {label}
             </div>
-            <div className="truncate text-[8px] font-medium leading-tight text-slate-300 sm:text-[10px]">
+            <div className="mt-0.5 break-words text-[9px] font-medium leading-tight text-slate-300 sm:text-[11px]">
               {meta}
             </div>
           </div>
-          <div className="shrink-0 text-[15px] font-bold tracking-[-0.03em] text-white sm:text-lg">
+          <div className="shrink-0 text-[17px] font-black tracking-[-0.04em] text-white sm:text-xl">
             {value}
           </div>
         </div>
@@ -1728,12 +1726,12 @@ function PanelSearchField({
   placeholder: string;
 }) {
   return (
-    <label className="relative block">
-      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-200/70 sm:left-3 sm:h-[18px] sm:w-[18px]" />
+    <label className="relative block min-w-0">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-200/75 sm:left-3.5 sm:h-[18px] sm:w-[18px]" />
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-[14px] border border-white/10 bg-white/[0.07] py-1.5 pl-9 pr-9 text-[15px] text-white placeholder:text-slate-300/75 focus:border-sky-300/60 focus:outline-none sm:rounded-[18px] sm:py-2.5 sm:pl-10 sm:pr-10 sm:text-sm"
+        className="h-11 w-full min-w-0 rounded-[16px] border border-white/12 bg-slate-950/45 pl-10 pr-10 text-[16px] font-medium leading-none text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] placeholder:text-[13px] placeholder:font-medium placeholder:text-slate-300/70 focus:border-sky-300/60 focus:bg-slate-950/60 focus:outline-none sm:h-12 sm:rounded-[20px] sm:pl-11 sm:pr-11 sm:text-sm sm:placeholder:text-sm"
         placeholder={placeholder}
         data-search="true"
       />
@@ -1741,7 +1739,7 @@ function PanelSearchField({
         <button
           type="button"
           onClick={() => onChange('')}
-          className="absolute right-1.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/6 text-slate-200 hover:bg-white/12 sm:right-2 sm:h-8 sm:w-8"
+          className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/7 text-slate-200 transition hover:bg-white/12 sm:right-2.5 sm:h-8 sm:w-8"
           aria-label="Очистити пошук"
         >
           <X className="h-4 w-4" />
@@ -1757,7 +1755,7 @@ function SearchDock({
   children: React.ReactNode;
 }) {
   return (
-    <div className="sticky top-0 z-20 -mx-1.5 -mt-1.5 border-b border-white/6 bg-slate-950/88 px-1.5 pb-1.5 pt-1 backdrop-blur-xl sm:-mx-4 sm:-mt-4 sm:px-4 sm:pb-3 sm:pt-2">
+    <div className="sticky top-0 z-20 -mx-1.5 border-b border-white/8 bg-slate-950/92 px-1.5 pb-2 pt-1 shadow-[0_12px_24px_rgba(2,6,23,0.2)] backdrop-blur-xl sm:-mx-4 sm:px-4 sm:pb-3 sm:pt-2">
       {children}
     </div>
   );

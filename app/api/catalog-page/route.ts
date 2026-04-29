@@ -45,7 +45,7 @@ const toPositiveInt = (value: unknown, fallback: number) => {
 
 const buildRouteCacheKey = (body: Record<string, unknown>) =>
   JSON.stringify({
-    source: "allgoods-photo-price-unknown-state:v2",
+    source: "allgoods-photo-price-unknown-state:v6-description-all-words",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -57,7 +57,8 @@ const buildRouteCacheKey = (body: Record<string, unknown>) =>
       body.searchFilter === "article" ||
       body.searchFilter === "name" ||
       body.searchFilter === "code" ||
-      body.searchFilter === "producer"
+      body.searchFilter === "producer" ||
+      body.searchFilter === "description"
         ? body.searchFilter
         : "all",
     group: toTrimmedString(body.group),
@@ -195,6 +196,8 @@ export async function POST(request: Request) {
     const normalizedGroup = toTrimmedString(body.group);
     const normalizedSubcategory = toTrimmedString(body.subcategory);
     const normalizedProducer = toTrimmedString(body.producer);
+    const isDescriptionSearch =
+      body.searchFilter === "description" && Boolean(normalizedSearchQuery);
     const hasTightFilterContext = Boolean(
       normalizedSearchQuery ||
         normalizedGroup ||
@@ -202,7 +205,11 @@ export async function POST(request: Request) {
         normalizedProducer
     );
 
-      const timeoutMs = hasTightFilterContext ? 3200 : 5600;
+    const timeoutMs = isDescriptionSearch
+      ? 5200
+      : hasTightFilterContext
+        ? 3200
+        : 5600;
     const retries = 0;
     const retryDelayMs = hasTightFilterContext ? 80 : 150;
     const cacheTtlMs = hasTightFilterContext ? 1000 * 20 : 1000 * 45;
@@ -222,7 +229,8 @@ export async function POST(request: Request) {
         body.searchFilter === "article" ||
         body.searchFilter === "name" ||
         body.searchFilter === "code" ||
-        body.searchFilter === "producer"
+        body.searchFilter === "producer" ||
+        body.searchFilter === "description"
           ? body.searchFilter
           : "all",
       group: normalizedGroup,
@@ -288,7 +296,7 @@ export async function POST(request: Request) {
 
     const payload = await awaitCatalogPayloadWithinBudget(
       inFlight,
-      CATALOG_ROUTE_RESPONSE_TIMEOUT_MS
+      isDescriptionSearch ? 9000 : CATALOG_ROUTE_RESPONSE_TIMEOUT_MS
     );
     if (!payload) {
       void inFlight.catch(() => null);

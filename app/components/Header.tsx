@@ -60,7 +60,7 @@ type AuthModalComponentProps = {
 type SearchBarComponentProps = {
   onSearch: (
     searchQuery: string,
-    filterBy: 'all' | 'article' | 'name' | 'code' | 'producer'
+    filterBy: 'all' | 'article' | 'name' | 'code' | 'producer' | 'description'
   ) => void;
 };
 

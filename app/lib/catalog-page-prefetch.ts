@@ -2,9 +2,9 @@
 
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_ITEMS_PER_PAGE = 12;
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v14-price-unknown-state";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v18-description-all-words";
 
-type CatalogSearchFilter = "all" | "article" | "name" | "code" | "producer";
+type CatalogSearchFilter = "all" | "article" | "name" | "code" | "producer" | "description";
 
 const VALID_SEARCH_FILTERS = new Set<CatalogSearchFilter>([
   "all",
@@ -12,6 +12,7 @@ const VALID_SEARCH_FILTERS = new Set<CatalogSearchFilter>([
   "name",
   "code",
   "producer",
+  "description",
 ]);
 
 const catalogPagePrefetchInFlight = new Map<string, Promise<void>>();

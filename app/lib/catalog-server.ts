@@ -13,6 +13,7 @@ export interface CatalogProduct {
   subGroup?: string;
   category?: string;
   hasPhoto?: boolean;
+  description?: string;
 }
 
 export interface CatalogQueryPageResult {
@@ -27,7 +28,8 @@ export type CatalogSearchFilter =
   | "article"
   | "name"
   | "code"
-  | "producer";
+  | "producer"
+  | "description";
 
 const PAGE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u044b";
 const OFFSET_FIELD = "\u0421\u043c\u0435\u0449\u0435\u043d\u0438\u0435";
@@ -215,6 +217,7 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
   const subGroup = readFirstString(record, SUBGROUP_FIELDS);
   const category = readFirstString(record, CATEGORY_FIELDS);
   const hasPhoto = readFirstBoolean(record, PHOTO_FIELDS, true);
+  const description = readDescriptionFromRecord(record) || undefined;
   const resolvedCode = code || article || readFirstString(record, ["ID", "Id"]) || name;
 
   return {
@@ -232,6 +235,7 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
     subGroup,
     category,
     hasPhoto,
+    description,
   };
 };
 
@@ -673,6 +677,58 @@ const safeDecode = (value: string) => {
 const normalizeFacetValue = (value: string | null | undefined) =>
   maybeFixMojibake((value || "").replace(/\s+/g, " ").trim()).toLowerCase();
 
+const buildDescriptionSearchTokens = (value: string) =>
+  Array.from(
+    new Set(
+      normalizeFacetValue(value)
+        .split(/[^0-9a-zа-яіїєґё]+/i)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 2)
+    )
+  ).slice(0, 16);
+
+const scoreDescriptionSearchItem = (
+  item: CatalogProduct,
+  query: string,
+  tokens: string[]
+) => {
+  const description = normalizeFacetValue(item.description);
+  if (!description) return 0;
+
+  const name = normalizeFacetValue(item.name);
+  const producer = normalizeFacetValue(item.producer);
+  const group = normalizeFacetValue(item.group || item.category);
+  const subGroup = normalizeFacetValue(item.subGroup);
+  const article = normalizeFacetValue(item.article);
+  const code = normalizeFacetValue(item.code);
+  const haystack = [description, name, producer, group, subGroup, article, code]
+    .filter(Boolean)
+    .join(" ");
+
+  let score = 0;
+  const phraseInDescription = Boolean(query && description.includes(query));
+
+  if (phraseInDescription) score += 140;
+
+  if (tokens.length > 0) {
+    const descMatches = tokens.filter((token) => description.includes(token)).length;
+    const allTokensInDescription = descMatches === tokens.length;
+
+    if (!allTokensInDescription) return 0;
+
+    score += descMatches * 22;
+    score += 55;
+  }
+
+  if (tokens.some((token) => name.includes(token))) score += 10;
+  if (tokens.some((token) => producer.includes(token))) score += 8;
+  if (tokens.some((token) => group.includes(token) || subGroup.includes(token))) score += 6;
+  if (Number.isFinite(item.quantity) && item.quantity > 0) score += 3;
+  if (typeof item.priceEuro === "number" && item.priceEuro > 0) score += 2;
+
+  return score;
+};
+
 const normalizeDescriptionText = (value: string) => {
   const normalized = maybeFixMojibake(value).replace(/\r\n?/g, "\n").trim();
   return normalized || null;
@@ -1006,6 +1062,8 @@ export const fetchCatalogProductsByQuery = async (options: {
       primaryKeys = [...ARTICLE_FIELDS];
     } else if (searchFilter === "producer") {
       primaryKeys = [...PRODUCER_FIELDS];
+    } else if (searchFilter === "description") {
+      primaryKeys = [...ALLGOODS_DESC_FIELDS];
     } else {
       primaryKeys = looksLikeIdentifierSearch
         ? [...ARTICLE_FIELDS, ...CODE_FIELDS]
@@ -1036,7 +1094,7 @@ export const fetchCatalogProductsByQuery = async (options: {
 
   if (canUseAllgoods) {
     const allgoodsBaseBody: Record<string, unknown> = {};
-    allgoodsBaseBody[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = false;
+    allgoodsBaseBody[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = searchFilter === "description";
 
     if (producerName) {
       allgoodsBaseBody[ALLGOODS_PRODUCER_FIELD] = producerName;
@@ -1085,7 +1143,102 @@ export const fetchCatalogProductsByQuery = async (options: {
       });
     };
 
+    const runAllgoodsDescriptionSearch = async () => {
+      const descriptionQuery = normalizeFacetValue(searchQuery);
+      const descriptionTokens = buildDescriptionSearchTokens(searchQuery);
+      const targetCount = page * limit + 1;
+      const scanLimit = Math.min(500, Math.max(limit * 12, 120));
+      const maxScannedItems = Math.min(2500, Math.max(targetCount * 16, scanLimit));
+      const minScannedItems = Math.min(
+        maxScannedItems,
+        Math.max(scanLimit, targetCount * 8)
+      );
+      const scoredByKey = new Map<
+        string,
+        { item: CatalogProduct; score: number; index: number }
+      >();
+      let scanCursor = "";
+      let scannedItems = 0;
+      let hasMoreSource = false;
+      let scanIndex = 0;
+
+      while (
+        scannedItems < maxScannedItems &&
+        (scannedItems < minScannedItems || scoredByKey.size < targetCount)
+      ) {
+        const pageResult = await fetchAllgoodsProductsPageDetailed({
+          page: 1,
+          limit: scanLimit,
+          body: allgoodsBaseBody,
+          cursor: scanCursor,
+          timeoutMs: options.timeoutMs,
+          retries: options.retries,
+          retryDelayMs: options.retryDelayMs,
+          cacheTtlMs: options.cacheTtlMs ?? 1000 * 20,
+        });
+
+        scannedItems += pageResult.items.length;
+        hasMoreSource = pageResult.hasMore;
+
+        for (const item of pageResult.items) {
+          const score = scoreDescriptionSearchItem(
+            item,
+            descriptionQuery,
+            descriptionTokens
+          );
+          if (score <= 0) {
+            scanIndex += 1;
+            continue;
+          }
+
+          const dedupeKey =
+            normalizeFacetValue(item.code) ||
+            normalizeFacetValue(item.article) ||
+            `${normalizeFacetValue(item.name)}:${normalizeFacetValue(item.producer)}`;
+          if (!dedupeKey) {
+            scanIndex += 1;
+            continue;
+          }
+
+          const existing = scoredByKey.get(dedupeKey);
+          if (!existing || score > existing.score) {
+            scoredByKey.set(dedupeKey, { item, score, index: scanIndex });
+          }
+          scanIndex += 1;
+        }
+
+        if (!pageResult.hasMore || !pageResult.nextCursor || pageResult.items.length === 0) {
+          break;
+        }
+
+        scanCursor = pageResult.nextCursor;
+      }
+
+      const matches = Array.from(scoredByKey.values())
+        .sort((left, right) => {
+          if (right.score !== left.score) return right.score - left.score;
+          return left.index - right.index;
+        })
+        .map(({ item }) => item);
+      const start = (page - 1) * limit;
+      const pageItems = matches.slice(start, start + limit);
+
+      return {
+        items: pageItems,
+        hasMore: matches.length > start + limit || (hasMoreSource && scannedItems >= maxScannedItems),
+        nextCursor: "",
+      };
+    };
+
     try {
+      if (searchFilter === "description" && searchQuery) {
+        const pageResult = await runAllgoodsDescriptionSearch();
+        return {
+          ...pageResult,
+          cursorField: null,
+        };
+      }
+
       const effectiveAllgoodsSearchKeys =
         searchQuery && cursor && cursorField && allgoodsSearchKeys.includes(cursorField)
           ? [cursorField]

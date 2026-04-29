@@ -443,7 +443,8 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
           state.searchFilter === "article" ||
           state.searchFilter === "name" ||
           state.searchFilter === "code" ||
-          state.searchFilter === "producer"
+          state.searchFilter === "producer" ||
+          state.searchFilter === "description"
             ? state.searchFilter
             : "all",
         group: state.group || null,

@@ -738,7 +738,7 @@ function useCatalogData(params: {
   selectedCars: string[];
   selectedCategories: string[];
   rawSearchQuery: string;
-  searchFilter: "all" | "article" | "name" | "code" | "producer";
+  searchFilter: "all" | "article" | "name" | "code" | "producer" | "description";
   groupFromURL: string | null;
   subcategoryFromURL: string | null;
   producerFromURL: string | null;
@@ -2315,6 +2315,8 @@ function useCatalogData(params: {
                 ? codeLower.includes(q)
                 : searchFilter === "producer"
                   ? producerLower.includes(q)
+                  : searchFilter === "description"
+                    ? true
                   : codeLower.includes(q) ||
                     articleLower.includes(q) ||
                     nameLower.includes(q) ||
@@ -2482,7 +2484,7 @@ const Data: React.FC<DataProps> = ({
 
   const rawSearchQuery = currentSearchParams.get("search") || "";
   const searchFilter =
-    (currentSearchParams.get("filter") as "all" | "article" | "name" | "code" | "producer") ||
+    (currentSearchParams.get("filter") as "all" | "article" | "name" | "code" | "producer" | "description") ||
     "all";
 
   const groupFromURL = currentSearchParams.get("group");
