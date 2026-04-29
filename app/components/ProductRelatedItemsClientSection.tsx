@@ -13,6 +13,7 @@ type RelatedItem = {
   name: string;
   producer: string;
   quantity: number;
+  priceEuro?: number | null;
   group?: string;
   subGroup?: string;
   category?: string;
@@ -30,13 +31,34 @@ type ProductRelatedItemsClientSectionProps = {
     category?: string;
   };
   initialItems?: RelatedItem[] | null;
+  euroRate?: number;
 };
 
 const formatStockLabel = (quantity: number) =>
   quantity > 0 ? `В наявності ${quantity} шт.` : "Під замовлення";
 
-const RELATED_ITEMS_CACHE_PREFIX = "partson:v6:product-related:";
-const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v1:product-similar:";
+const formatPriceLabel = (priceEuro: number | null | undefined, euroRate: number) => {
+  if (
+    typeof priceEuro !== "number" ||
+    !Number.isFinite(priceEuro) ||
+    priceEuro <= 0 ||
+    !Number.isFinite(euroRate) ||
+    euroRate <= 0
+  ) {
+    return "Ціну уточнити";
+  }
+
+  return `${Math.round(priceEuro * euroRate).toLocaleString("uk-UA")} грн`;
+};
+
+const buildPriceStateKey = (item: Pick<RelatedItem, "code" | "article">) =>
+  (item.code || item.article || "").trim();
+
+const buildPriceLookupKeys = (item: Pick<RelatedItem, "code" | "article">) =>
+  Array.from(new Set([item.code, item.article].map((value) => (value || "").trim()).filter(Boolean)));
+
+const RELATED_ITEMS_CACHE_PREFIX = "partson:v7:product-related:";
+const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v2:product-similar:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
 const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 3600;
 const SIMILAR_ITEMS_VISIBLE_LIMIT = 4;
@@ -106,6 +128,7 @@ const Skeleton = () => (
 export default function ProductRelatedItemsClientSection({
   product,
   initialItems = null,
+  euroRate = 50,
 }: ProductRelatedItemsClientSectionProps) {
   const articleLabel = (product.article || "").trim();
   const productCode = (product.code || "").trim();
@@ -119,6 +142,7 @@ export default function ProductRelatedItemsClientSection({
   );
   const [items, setItems] = useState<RelatedItem[] | null>(normalizedInitialItems);
   const [itemMode, setItemMode] = useState<RecommendationMode>("related");
+  const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
   const [shouldLoad, setShouldLoad] = useState(Boolean(normalizedInitialItems));
   const sectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -383,6 +407,76 @@ export default function ProductRelatedItemsClientSection({
     };
   }, [cacheKey, normalizedInitialItems, requestUrl, shouldLoad, similarCacheKey, similarRequestUrl]);
 
+  useEffect(() => {
+    if (!items || items.length === 0) return;
+
+    const priceItems = items
+      .filter((item) => {
+        if (
+          typeof item.priceEuro === "number" &&
+          Number.isFinite(item.priceEuro) &&
+          item.priceEuro > 0
+        ) {
+          return false;
+        }
+
+        const stateKey = buildPriceStateKey(item);
+        if (!stateKey || Object.prototype.hasOwnProperty.call(resolvedPrices, stateKey)) {
+          return false;
+        }
+
+        return buildPriceLookupKeys(item).length > 0;
+      })
+      .slice(0, 8)
+      .map((item) => ({
+        stateKey: buildPriceStateKey(item),
+        lookupKeys: buildPriceLookupKeys(item),
+      }));
+
+    if (priceItems.length === 0) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const loadPrices = async () => {
+      try {
+        const response = await fetch("/api/catalog-prices?mode=full", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: priceItems }),
+          signal: controller.signal,
+        });
+        const payload = (await response.json()) as {
+          prices?: Record<string, number | null>;
+        };
+        if (cancelled) return;
+
+        const prices = payload.prices && typeof payload.prices === "object"
+          ? payload.prices
+          : {};
+
+        setResolvedPrices((current) => ({ ...current, ...prices }));
+      } catch {
+        if (cancelled) return;
+
+        setResolvedPrices((current) => {
+          const next = { ...current };
+          for (const item of priceItems) {
+            if (!(item.stateKey in next)) next[item.stateKey] = null;
+          }
+          return next;
+        });
+      }
+    };
+
+    void loadPrices();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [items, resolvedPrices]);
+
   if (!articleLabel && !productCode && !productDisplayName) return null;
   if (items === null) {
     return (
@@ -403,8 +497,8 @@ export default function ProductRelatedItemsClientSection({
       : "mt-2 grid gap-2 lg:grid-cols-2 2xl:grid-cols-3";
   const cardClass =
     itemMode === "similar"
-      ? "group flex min-h-[194px] min-w-[260px] flex-1 flex-col rounded-[18px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-3 shadow-[0_14px_26px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_18px_34px_rgba(14,165,233,0.12)] sm:min-w-[280px] sm:rounded-[20px] xl:min-w-0"
-      : "group flex min-h-[194px] flex-col rounded-[18px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-3 shadow-[0_14px_26px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_18px_34px_rgba(14,165,233,0.12)] sm:rounded-[20px]";
+      ? "group flex min-h-[174px] min-w-[258px] flex-1 flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.12)] sm:min-w-[280px] sm:rounded-[18px] xl:min-w-0"
+      : "group flex min-h-[174px] flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.12)] sm:rounded-[18px]";
 
   return (
     <section className="overflow-hidden rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(238,246,252,0.96),rgba(255,255,255,0.97))] p-3 shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
@@ -450,12 +544,25 @@ export default function ProductRelatedItemsClientSection({
         {visibleItems.map((item, index) => {
           const visibleItemName = buildVisibleProductName(item.name);
           const categoryLabel = item.subGroup || item.group || item.category || "";
-          const imageSrc =
-            item.hasPhoto === false
-              ? ""
-              : buildProductImagePath(item.code, item.article || articleLabel, {
-                  catalog: true,
-                });
+          const stateKey = buildPriceStateKey(item);
+          const resolvedPriceEuro = stateKey in resolvedPrices
+            ? resolvedPrices[stateKey]
+            : item.priceEuro;
+          const priceLabel = formatPriceLabel(resolvedPriceEuro, euroRate);
+          const hasPrice = priceLabel !== "Ціну уточнити";
+          const imageCode = item.code || item.article || articleLabel;
+          const imageArticle = item.article || item.code || articleLabel;
+          const imageSrc = buildProductImagePath(imageCode, imageArticle, {
+            catalog: true,
+          });
+          const retryImageSrc = buildProductImagePath(imageCode, imageArticle, {
+            catalog: true,
+            retryToken: 1,
+          });
+          const finalRetryImageSrc = buildProductImagePath(imageCode, imageArticle, {
+            catalog: true,
+            retryToken: 2,
+          });
 
           return (
             <Link
@@ -470,21 +577,25 @@ export default function ProductRelatedItemsClientSection({
               prefetch={false}
               className={cardClass}
             >
-              <div className="flex items-start gap-3">
-                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[16px] border border-slate-200 bg-slate-50">
+              <div className="flex items-start gap-2.5">
+                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-slate-200 bg-gray-200 sm:h-16 sm:w-16">
                   <AnalogProductThumb
                     src={imageSrc}
                     alt={visibleItemName}
                     disableDirectFetch
+                    retrySrc={retryImageSrc}
+                    finalRetrySrc={finalRetryImageSrc}
+                    productCode={imageCode}
+                    articleHint={imageArticle}
                   />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="inline-flex min-w-0 max-w-full rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500 [overflow-wrap:anywhere]">
+                    <span className="inline-flex min-w-0 max-w-full rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.07em] text-slate-500 [overflow-wrap:anywhere] sm:text-[10px]">
                       {item.producer || "Товар"}
                     </span>
                     <span
-                      className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${
+                      className={`inline-flex shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.07em] sm:text-[10px] ${
                         item.quantity > 0
                           ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                           : "border-amber-200 bg-amber-50 text-amber-700"
@@ -494,30 +605,41 @@ export default function ProductRelatedItemsClientSection({
                     </span>
                   </div>
 
-                  <p className="mt-2 line-clamp-3 break-words text-[14px] font-extrabold leading-5 text-slate-900 sm:text-[15px]">
+                  <p className="mt-1.5 line-clamp-2 break-words text-[13px] font-extrabold leading-[1.25] text-slate-900 sm:text-[14px]">
                     {visibleItemName}
                   </p>
 
                   {categoryLabel ? (
-                    <p className="mt-2 line-clamp-2 text-[12px] font-medium leading-5 text-slate-500 sm:text-[13px]">
+                    <p className="mt-1 line-clamp-1 text-[11px] font-medium leading-4 text-slate-500 sm:text-[12px]">
                       {categoryLabel}
                     </p>
                   ) : null}
                 </div>
               </div>
 
-              <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="mt-auto grid gap-2 border-t border-slate-100 pt-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500">
                     Артикул / код
                   </p>
-                  <p className="mt-1 break-all text-sm font-bold leading-5 text-slate-700">
+                  <p className="mt-0.5 break-all text-[12px] font-bold leading-4 text-slate-700 sm:text-[13px]">
                     {item.article || item.code}
                   </p>
                 </div>
-                <span className="inline-flex items-center text-[13px] font-extrabold text-sky-700 transition group-hover:translate-x-0.5">
-                  Перейти →
-                </span>
+                <div className="mt-1 flex items-center justify-between gap-2 sm:mt-0 sm:block sm:text-right">
+                  <span
+                    className={`inline-flex min-h-8 items-center rounded-[12px] border px-3 py-1.5 text-[13px] font-black leading-none tabular-nums shadow-[0_8px_18px_rgba(14,165,233,0.10)] ring-1 ring-white/80 ${
+                      hasPrice
+                        ? "border-sky-300 bg-[linear-gradient(180deg,#f0f9ff,#e0f2fe)] text-sky-900"
+                        : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-slate-500"
+                    }`}
+                  >
+                    {priceLabel}
+                  </span>
+                  <span className="inline-flex items-center text-[12px] font-extrabold text-sky-700 transition group-hover:translate-x-0.5 sm:mt-1">
+                    Перейти →
+                  </span>
+                </div>
               </div>
             </Link>
           );

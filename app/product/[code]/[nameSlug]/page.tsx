@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 
 interface LegacySeoProductRouteParams {
@@ -19,7 +19,7 @@ export const metadata: Metadata = buildPageMetadata({
   description:
     "Службовий маршрут переадресації на канонічну сторінку товару PartsON.",
   canonicalPath: "/product",
-  index: false,
+  index: true,
   follow: true,
 });
 
@@ -55,7 +55,7 @@ export default async function LegacySeoProductRoute({
   const normalizedSearchParams = (await searchParams) || {};
   const normalizedCode = (code || "").trim();
 
-  redirect(
+  permanentRedirect(
     `/product/${encodeURIComponent(normalizedCode)}${buildSearchParamsString(
       normalizedSearchParams
     )}`

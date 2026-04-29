@@ -44,12 +44,12 @@ import { getSiteUrl } from "app/lib/site-url";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
-const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 1500;
-const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1300;
-const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 700;
+const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 2400;
+const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 2200;
+const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 1000;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 120;
 const PRODUCT_PAGE_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
-const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 620;
+const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
 
 export const revalidate = 900;
 
@@ -1206,8 +1206,7 @@ export async function generateMetadata({
     ? getProductImagePath(routeProduct.code || resolvedCode, routeProduct.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const productImageUrl = `${getSiteUrl()}${productImagePath}`;
-  const seoPrice = await resolveProductSeoPrice(routeProduct?.priceEuro ?? null);
-  const shouldIndexProduct = !isModalView && seoPrice.priceUah != null;
+  const shouldIndexProduct = !isModalView && Boolean(resolvedCode || fallbackCode);
 
   const seoTitle = [
     seoVisibleProductName
@@ -1407,7 +1406,8 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const inlineInitialPriceEuro = toPositiveNumberOrNull(product.priceEuro);
   const pagePrice = await resolveProductSeoPrice(inlineInitialPriceEuro);
   const initialPriceUah = pagePrice.priceUah;
-  const shouldEmitProductStructuredData = !isModalView && initialPriceUah != null;
+  const recommendationEuroRate = await getProductSeoEuroRate();
+  const shouldEmitProductStructuredData = !isModalView && hasResolvedCatalogProduct;
   const productCategory = (product.category || "").trim();
   const productGroup = (product.group || productCategory || "").trim();
   const productSubgroup = (product.subGroup || "").trim();
@@ -1734,11 +1734,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     >
                       {isInStock ? "В наявності" : "Під замовлення"}
                     </span>
-                    {!hasResolvedCatalogProduct ? (
-                      <span className="inline-flex rounded-[14px] border border-amber-300/35 bg-amber-400/12 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100">
-                        Дані уточнюються
-                      </span>
-                    ) : null}
                   </div>
 
                   <h1 className="font-display-italic mt-2.5 max-w-none break-words text-[clamp(1.2rem,2.45vw,2.12rem)] font-black leading-[1.02] tracking-[-0.042em] text-white [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[40ch]">
@@ -1858,6 +1853,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                       subGroup: product.subGroup,
                       category: product.category,
                     }}
+                    euroRate={recommendationEuroRate}
                   />
                 </Suspense>
               )}
@@ -1875,7 +1871,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                       subGroup: product.subGroup,
                       category: product.category,
                       hasPhoto: product.hasPhoto,
+                      priceEuro: product.priceEuro,
                     }}
+                    euroRate={recommendationEuroRate}
                   />
                 </Suspense>
               )}

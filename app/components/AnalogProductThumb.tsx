@@ -1,14 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ImageOff } from "lucide-react";
 
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
+import {
+  clearProductImageMissing,
+  clearProductImageSuccess,
+  readProductImageMissing,
+  readProductImageSuccess,
+  writeProductImageMissing,
+  writeProductImageSuccess,
+} from "app/lib/product-image-client";
 
 type AnalogProductThumbProps = {
   src?: string;
   alt: string;
   disableDirectFetch?: boolean;
   pending?: boolean;
+  retrySrc?: string;
+  finalRetrySrc?: string;
+  productCode?: string;
+  articleHint?: string;
 };
 
 const IMAGE_FALLBACK_PATH = PRODUCT_IMAGE_FALLBACK_PATH.toLowerCase();
@@ -23,35 +36,104 @@ export default function AnalogProductThumb({
   alt,
   disableDirectFetch = false,
   pending = false,
+  retrySrc = "",
+  finalRetrySrc = "",
+  productCode = "",
+  articleHint = "",
 }: AnalogProductThumbProps) {
   const [hasError, setHasError] = useState(false);
   const [useRelaxedSrc, setUseRelaxedSrc] = useState(false);
+  const [retryStep, setRetryStep] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [cachedSrc, setCachedSrc] = useState("");
+  const normalizedProductCode = (productCode || "").trim();
+  const normalizedArticleHint = (articleHint || "").trim();
+  const sourceSrc = cachedSrc || src;
   const strictSrc = useMemo(() => {
-    if (disableDirectFetch) return src;
-    return withStrictMode(src);
-  }, [disableDirectFetch, src]);
-  const activeSrc = disableDirectFetch ? src : useRelaxedSrc ? src : strictSrc;
+    if (disableDirectFetch) return sourceSrc;
+    return withStrictMode(sourceSrc);
+  }, [disableDirectFetch, sourceSrc]);
+  const activeSrc =
+    retryStep === 2 && finalRetrySrc
+      ? finalRetrySrc
+      : retryStep === 1 && retrySrc
+        ? retrySrc
+        : disableDirectFetch
+          ? sourceSrc
+          : useRelaxedSrc
+            ? sourceSrc
+            : strictSrc;
 
   useEffect(() => {
+    const cachedImageSrc = normalizedProductCode
+      ? readProductImageSuccess(normalizedProductCode, normalizedArticleHint || undefined)
+      : null;
+    const cachedMissing = normalizedProductCode
+      ? readProductImageMissing(normalizedProductCode, normalizedArticleHint || undefined)
+      : false;
+
+    setCachedSrc(cachedImageSrc || "");
     setHasError(false);
     setUseRelaxedSrc(false);
-    setIsLoaded(false);
-  }, [disableDirectFetch, src]);
+    setRetryStep(0);
+    setIsLoaded(Boolean(cachedImageSrc));
+
+    if (!cachedImageSrc && cachedMissing && !src) {
+      setHasError(true);
+    }
+  }, [
+    disableDirectFetch,
+    finalRetrySrc,
+    normalizedArticleHint,
+    normalizedProductCode,
+    retrySrc,
+    src,
+  ]);
+
+  const tryNextSource = () => {
+    if (retryStep === 0 && retrySrc && retrySrc !== activeSrc) {
+      if (cachedSrc) setCachedSrc("");
+      setRetryStep(1);
+      setIsLoaded(false);
+      return true;
+    }
+
+    if (retryStep <= 1 && finalRetrySrc && finalRetrySrc !== activeSrc) {
+      if (cachedSrc) setCachedSrc("");
+      setRetryStep(2);
+      setIsLoaded(false);
+      return true;
+    }
+
+    if (!disableDirectFetch && !useRelaxedSrc && sourceSrc && sourceSrc !== activeSrc) {
+      if (cachedSrc) setCachedSrc("");
+      setUseRelaxedSrc(true);
+      setRetryStep(0);
+      setIsLoaded(false);
+      return true;
+    }
+
+    return false;
+  };
+
+  const markMissing = () => {
+    if (normalizedProductCode) {
+      writeProductImageMissing(normalizedProductCode, normalizedArticleHint || undefined);
+    }
+    setHasError(true);
+  };
 
   const placeholder = (
-    <div className="absolute inset-0 flex items-center justify-center bg-slate-50 p-1.5">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={PRODUCT_IMAGE_FALLBACK_PATH}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        width={96}
-        height={96}
-        className="h-full w-full object-contain opacity-80"
+    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#edf3f8_58%,#e2e8f0_100%)] px-2 text-center">
+      <div className="absolute inset-x-2 top-2 h-px bg-gradient-to-r from-transparent via-slate-300/70 to-transparent" />
+      <ImageOff
+        className="relative h-5 w-5 text-slate-400/90 sm:h-6 sm:w-6"
+        strokeWidth={1.7}
         aria-hidden="true"
       />
+      <span className="relative mt-1.5 text-[8.5px] font-bold uppercase leading-tight tracking-[0.16em] text-slate-500">
+        Зображення відсутнє
+      </span>
     </div>
   );
 
@@ -90,25 +172,32 @@ export default function AnalogProductThumb({
           })();
 
           if (currentPath !== IMAGE_FALLBACK_PATH) {
+            const currentSrc = currentTarget.currentSrc || currentTarget.src || activeSrc;
+            if (normalizedProductCode && currentSrc) {
+              writeProductImageSuccess(
+                normalizedProductCode,
+                normalizedArticleHint || undefined,
+                currentSrc
+              );
+              clearProductImageMissing(
+                normalizedProductCode,
+                normalizedArticleHint || undefined
+              );
+            }
             setIsLoaded(true);
             return;
           }
 
-          if (!disableDirectFetch && !useRelaxedSrc && src) {
-            setUseRelaxedSrc(true);
-            setIsLoaded(false);
-            return;
-          }
+          if (tryNextSource()) return;
 
-          setHasError(true);
+          markMissing();
         }}
         onError={() => {
-          if (!disableDirectFetch && !useRelaxedSrc && src) {
-            setUseRelaxedSrc(true);
-            setIsLoaded(false);
-            return;
+          if (normalizedProductCode) {
+            clearProductImageSuccess(normalizedProductCode, normalizedArticleHint || undefined);
           }
-          setHasError(true);
+          if (tryNextSource()) return;
+          markMissing();
         }}
       />
     </>

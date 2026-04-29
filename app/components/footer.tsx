@@ -61,9 +61,9 @@ export default function Footer() {
           <Link
             href="/"
             onClick={handleBrandClick}
-            className="relative block md:border-r md:border-slate-200/40 md:pr-4"
+            className="relative block md:border-r md:border-slate-200/40 md:px-4"
           >
-            <div className="flex flex-col items-center gap-2 text-center md:items-start md:text-left">
+            <div className="mx-auto flex max-w-[260px] flex-col items-center gap-2 text-center">
               <Image
                 src="/Car-parts.png"
                 alt="PartsON"
@@ -88,7 +88,7 @@ export default function Footer() {
 
               <div className="mt-4 w-full">
                 <h3 className="mb-3 text-base font-semibold text-slate-900">Ми в соцмережах</h3>
-                <div className="flex flex-wrap items-center justify-center gap-3 md:justify-start">
+                <div className="flex flex-wrap items-center justify-center gap-3">
                   <button
                     type="button"
                     aria-label="Facebook"

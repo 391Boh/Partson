@@ -14,8 +14,8 @@ import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getSiteUrl } from "app/lib/site-url";
 
 const INITIAL_CATALOG_PAGE_LIMIT = 12;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS = 2600;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 900;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS = 1600;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 650;
 
 type InitialCatalogPagePayload = {
   items: Array<{

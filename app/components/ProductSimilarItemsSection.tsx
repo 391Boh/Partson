@@ -2,7 +2,7 @@ import "server-only";
 
 import Link from "next/link";
 
-import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
+import AnalogProductThumb from "app/components/AnalogProductThumb";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { getSimilarProducts } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
@@ -20,10 +20,25 @@ type ProductSimilarItemsSectionProps = {
     subGroup?: string;
     category?: string;
   };
+  euroRate?: number;
 };
 
 const formatStockLabel = (quantity: number) =>
   quantity > 0 ? `В наявності ${quantity} шт.` : "Під замовлення";
+
+const formatPriceLabel = (priceEuro: number | null | undefined, euroRate: number) => {
+  if (
+    typeof priceEuro !== "number" ||
+    !Number.isFinite(priceEuro) ||
+    priceEuro <= 0 ||
+    !Number.isFinite(euroRate) ||
+    euroRate <= 0
+  ) {
+    return "Ціну уточнити";
+  }
+
+  return `${Math.round(priceEuro * euroRate).toLocaleString("uk-UA")} грн`;
+};
 
 const buildDirectProductPath = (item: ProductSimilarItemsAwaited[number]) =>
   buildProductPath({
@@ -40,6 +55,7 @@ type ProductSimilarItemsAwaited = Awaited<ReturnType<typeof getSimilarProducts>>
 
 export default async function ProductSimilarItemsSection({
   product,
+  euroRate = 50,
 }: ProductSimilarItemsSectionProps) {
   const items = await resolveWithTimeout(
     () =>
@@ -93,39 +109,50 @@ export default async function ProductSimilarItemsSection({
 
       <div className="mt-2 grid gap-2 lg:grid-cols-2 2xl:grid-cols-4">
         {visibleItems.map((item) => {
-          const imageSrc =
-            item.hasPhoto === false
-              ? PRODUCT_IMAGE_FALLBACK_PATH
-              : buildProductImagePath(item.code, item.article, { catalog: true });
+          const imageCode = item.code || item.article;
+          const imageArticle = item.article || item.code;
+          const imageSrc = buildProductImagePath(imageCode, imageArticle, {
+            catalog: true,
+          });
+          const retryImageSrc = buildProductImagePath(imageCode, imageArticle, {
+            catalog: true,
+            retryToken: 1,
+          });
+          const finalRetryImageSrc = buildProductImagePath(imageCode, imageArticle, {
+            catalog: true,
+            retryToken: 2,
+          });
+          const itemName = buildVisibleProductName(item.name);
           const itemCategoryLabel = item.subGroup || item.group || item.category || "";
+          const priceLabel = formatPriceLabel(item.priceEuro, euroRate);
+          const hasPrice = priceLabel !== "Ціну уточнити";
 
           return (
             <Link
               key={`${item.code}-${item.article}-${item.name}`}
               href={buildDirectProductPath(item)}
               prefetch={false}
-              className="group flex min-h-[194px] flex-col rounded-[18px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(247,250,253,1))] p-3 shadow-[0_14px_26px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(237,246,252,1))] hover:shadow-[0_18px_34px_rgba(14,165,233,0.1)] sm:rounded-[20px]"
+              className="group flex min-h-[174px] flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(247,250,253,1))] p-2.5 shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(237,246,252,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.1)] sm:rounded-[18px]"
             >
-              <div className="flex items-start gap-3">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[16px] border border-slate-200 bg-slate-50 p-1.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+              <div className="flex items-start gap-2.5">
+                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-slate-200 bg-gray-200 sm:h-16 sm:w-16">
+                  <AnalogProductThumb
                     src={imageSrc}
-                    alt={buildVisibleProductName(item.name)}
-                    loading="lazy"
-                    decoding="async"
-                    width={96}
-                    height={96}
-                    className="h-full w-full object-contain"
+                    alt={itemName}
+                    disableDirectFetch
+                    retrySrc={retryImageSrc}
+                    finalRetrySrc={finalRetryImageSrc}
+                    productCode={imageCode}
+                    articleHint={imageArticle}
                   />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="inline-flex min-w-0 max-w-full rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500 [overflow-wrap:anywhere]">
+                    <span className="inline-flex min-w-0 max-w-full rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.07em] text-slate-500 [overflow-wrap:anywhere] sm:text-[10px]">
                       {item.producer || "Товар"}
                     </span>
                     <span
-                      className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${
+                      className={`inline-flex shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.07em] sm:text-[10px] ${
                         item.quantity > 0
                           ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                           : "border-amber-200 bg-amber-50 text-amber-700"
@@ -135,30 +162,41 @@ export default async function ProductSimilarItemsSection({
                     </span>
                   </div>
 
-                  <p className="mt-2 line-clamp-3 break-words text-[14px] font-extrabold leading-5 text-slate-900 sm:text-[15px]">
-                    {buildVisibleProductName(item.name)}
+                  <p className="mt-1.5 line-clamp-2 break-words text-[13px] font-extrabold leading-[1.25] text-slate-900 sm:text-[14px]">
+                    {itemName}
                   </p>
 
                   {itemCategoryLabel ? (
-                    <p className="mt-2 line-clamp-2 text-[12px] font-medium leading-5 text-slate-500 sm:text-[13px]">
+                    <p className="mt-1 line-clamp-1 text-[11px] font-medium leading-4 text-slate-500 sm:text-[12px]">
                       {itemCategoryLabel}
                     </p>
                   ) : null}
                 </div>
               </div>
 
-              <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="mt-auto grid gap-2 border-t border-slate-100 pt-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500">
                     Артикул / код
                   </p>
-                  <p className="mt-1 break-all text-sm font-bold leading-5 text-slate-700">
+                  <p className="mt-0.5 break-all text-[12px] font-bold leading-4 text-slate-700 sm:text-[13px]">
                     {item.article || item.code}
                   </p>
                 </div>
-                <span className="inline-flex items-center text-[13px] font-extrabold text-sky-700 transition group-hover:translate-x-0.5">
-                  Перейти →
-                </span>
+                <div className="mt-1 flex items-center justify-between gap-2 sm:mt-0 sm:block sm:text-right">
+                  <span
+                    className={`inline-flex min-h-8 items-center rounded-[12px] border px-3 py-1.5 text-[13px] font-black leading-none tabular-nums shadow-[0_8px_18px_rgba(14,165,233,0.10)] ring-1 ring-white/80 ${
+                      hasPrice
+                        ? "border-sky-300 bg-[linear-gradient(180deg,#f0f9ff,#e0f2fe)] text-sky-900"
+                        : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-slate-500"
+                    }`}
+                  >
+                    {priceLabel}
+                  </span>
+                  <span className="inline-flex items-center text-[12px] font-extrabold text-sky-700 transition group-hover:translate-x-0.5 sm:mt-1">
+                    Перейти →
+                  </span>
+                </div>
               </div>
             </Link>
           );

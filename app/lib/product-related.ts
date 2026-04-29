@@ -19,6 +19,7 @@ export type RelatedProductCardItem = {
   name: string;
   producer: string;
   quantity: number;
+  priceEuro?: number | null;
   group?: string;
   subGroup?: string;
   category?: string;
@@ -135,6 +136,12 @@ const toRelatedCardItem = (item: CatalogProduct): RelatedProductCardItem => ({
   name: item.name || "",
   producer: item.producer || "",
   quantity: Number.isFinite(item.quantity) ? item.quantity : 0,
+  priceEuro:
+    typeof item.priceEuro === "number" &&
+    Number.isFinite(item.priceEuro) &&
+    item.priceEuro > 0
+      ? item.priceEuro
+      : null,
   group: item.group || "",
   subGroup: item.subGroup || "",
   category: item.category || "",
@@ -490,13 +497,13 @@ const getSimilarProductsUncached = async (
 
 const getRelatedProductsCached = unstable_cache(
   getRelatedProductsUncached,
-  ["product-related:header-search-v8-name-article"],
+  ["product-related:header-search-v9-price"],
   { revalidate: 60 * 10 }
 );
 
 const getSimilarProductsCached = unstable_cache(
   getSimilarProductsUncached,
-  ["product-similar:subgroup-v2"],
+  ["product-similar:subgroup-v3-price"],
   { revalidate: 60 * 10 }
 );
 

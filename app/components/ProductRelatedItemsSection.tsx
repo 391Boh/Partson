@@ -12,15 +12,18 @@ type ProductRelatedItemsSectionProps = {
     subGroup?: string;
     category?: string;
   };
+  euroRate?: number;
 };
 
 export default function ProductRelatedItemsSection({
   product,
+  euroRate = 50,
 }: ProductRelatedItemsSectionProps) {
   return (
     <ProductRelatedItemsClientSection
       product={product}
       initialItems={null}
+      euroRate={euroRate}
     />
   );
 }
