@@ -37,7 +37,10 @@ function checkTelegramAuth(data) {
     .join("\n");
 
   const hmac = crypto.createHmac("sha256", secret).update(checkString).digest("hex");
-  return hmac === data.hash;
+  const a = Buffer.from(hmac, "hex");
+  const b = Buffer.from(String(data.hash || ""), "hex");
+  if (a.length === 0 || a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 app.post("/auth/telegram", (req, res) => {
@@ -59,7 +62,6 @@ app.post("/auth/telegram", (req, res) => {
       username: userData.username,
       photo_url: userData.photo_url,
     },
-    token: "jwt_or_session_token_here",
   });
 });
 

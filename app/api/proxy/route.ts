@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { oneCRequest } from "app/api/_lib/oneC";
 import { fetchEuroRate } from "app/lib/catalog-server";
+import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 
 const ALLOWED_ENDPOINTS = new Set([
   "getprod",
@@ -52,7 +53,17 @@ const forwardToOneC = async (endpoint: string, request: Request) => {
   });
 };
 
-export async function GET(request: Request) {
+const checkProxyRateLimit = (request: NextRequest) =>
+  checkRateLimit({ req: request, key: "proxy", limit: 60, windowMs: 60_000 });
+
+export async function GET(request: NextRequest) {
+  const rateResult = checkProxyRateLimit(request);
+  if (!rateResult.ok) {
+    const limited = buildJsonResponse({ error: "Too many requests" }, 429);
+    setRateLimitHeaders(limited.headers, rateResult);
+    return limited;
+  }
+
   const endpoint = getEndpoint(request);
 
   if (endpoint === "euro") {
@@ -67,7 +78,14 @@ export async function GET(request: Request) {
   return forwardToOneC(endpoint, request);
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const rateResult = checkProxyRateLimit(request);
+  if (!rateResult.ok) {
+    const limited = buildJsonResponse({ error: "Too many requests" }, 429);
+    setRateLimitHeaders(limited.headers, rateResult);
+    return limited;
+  }
+
   const endpoint = getEndpoint(request);
 
   if (endpoint === "euro") {

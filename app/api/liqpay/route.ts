@@ -4,6 +4,25 @@ import crypto from "crypto";
 import { checkRateLimit, setRateLimitHeaders } from "../_lib/rateLimit";
 import { isNonEmptyString, readJsonObject } from "../_lib/requestValidation";
 
+const getAllowedOrigin = (): string => {
+  const raw = (process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "").trim();
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return "";
+  }
+};
+
+const isAllowedLiqPayUrl = (value: string): boolean => {
+  const allowedOrigin = getAllowedOrigin();
+  if (!allowedOrigin) return false;
+  try {
+    return new URL(value).origin === allowedOrigin;
+  } catch {
+    return false;
+  }
+};
+
 const sha1Base64 = (value: string) =>
   crypto.createHash("sha1").update(value).digest("base64");
 
@@ -106,6 +125,15 @@ export async function POST(req: NextRequest) {
     );
     setRateLimitHeaders(invalid.headers, rateResult);
     return invalid;
+  }
+
+  if (!isAllowedLiqPayUrl(resultUrl) || !isAllowedLiqPayUrl(serverUrl)) {
+    const forbidden = NextResponse.json(
+      { error: "result_url and server_url must belong to the site origin" },
+      { status: 400 }
+    );
+    setRateLimitHeaders(forbidden.headers, rateResult);
+    return forbidden;
   }
 
   const payload: Record<string, unknown> = {

@@ -1,3 +1,5 @@
+import crypto from "crypto";
+
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
@@ -39,7 +41,17 @@ export async function POST(request: Request) {
   const headerSecret = (request.headers.get("x-revalidate-secret") || "").trim();
   const bodySecret = typeof payload.secret === "string" ? payload.secret.trim() : "";
   const receivedSecret = headerSecret || bodySecret;
-  if (!receivedSecret || receivedSecret !== expectedSecret) {
+  const secretsMatch = (() => {
+    if (!receivedSecret) return false;
+    try {
+      const a = Buffer.from(receivedSecret);
+      const b = Buffer.from(expectedSecret);
+      return a.length === b.length && crypto.timingSafeEqual(a, b);
+    } catch {
+      return false;
+    }
+  })();
+  if (!secretsMatch) {
     return NextResponse.json(
       {
         ok: false,

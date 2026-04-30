@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ── orders ────────────────────────────────────────────────────────────────
+    // Guests and authenticated users may create orders.
+    // Only the authenticated owner can read their own orders (matched by uid field).
+    // Updates and deletes are blocked on the client; use Firebase Admin SDK server-side.
+    match /orders/{orderId} {
+      allow create: if true;
+      allow read:   if isOwner(resource.data.uid);
+      allow update, delete: if false;
+    }
+
+    // ── messages (chat) ───────────────────────────────────────────────────────
+    // Anyone may create or read messages.
+    //
+    // TRADE-OFF: TelegramChat stores a localStorage UUID (user_<uuid>) as userId,
+    // not a Firebase Auth UID. Ownership cannot be verified by rules until the
+    // component is migrated to use Firebase Auth. Until then, all messages are
+    // publicly readable by anyone who can construct the query.
+    //
+    // Deletes are blocked. Updates are restricted to flipping the isRead flag only —
+    // no other field may be changed by the client.
+    //
+    // TODO: Migrate TelegramChat to call signInAnonymously and store
+    //       request.auth.uid as userId, then tighten read to isOwner(resource.data.userId).
+    match /messages/{messageId} {
+      allow create: if true;
+      allow read:   if true;
+      allow update: if request.resource.data.diff(resource.data)
+                         .affectedKeys()
+                         .hasOnly(['isRead']);
+      allow delete: if false;
+    }
+
+    // ── zvyaz (call-back requests) ────────────────────────────────────────────
+    // Create-only. No client-side reads, updates, or deletes.
+    // Admin access goes through Firebase Admin SDK server-side.
+    match /zvyaz/{docId} {
+      allow create: if true;
+      allow read, update, delete: if false;
+    }
+
+    // ── users ─────────────────────────────────────────────────────────────────
+    // Each user can read and write only their own profile document.
+    //
+    // TRADE-OFF: Phone uniqueness checks in Register.tsx / AuthForm.tsx /
+    // AccountInfo.tsx query other users' documents, which this rule blocks.
+    // Those queries will silently return zero results, disabling duplicate-phone
+    // detection. Move that check to a server API route using the Admin SDK.
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ── deny everything else ──────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
