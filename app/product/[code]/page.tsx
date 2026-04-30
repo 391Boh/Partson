@@ -1296,7 +1296,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title: seoTitle,
       description,
-      images: [productImageUrl],
+      images: [{ url: productImageUrl, alt: `Фото товару ${seoVisibleProductName}` }],
     },
     robots: {
       index: shouldIndexProduct,

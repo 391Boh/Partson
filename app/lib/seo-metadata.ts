@@ -83,6 +83,7 @@ export const buildPageMetadata = ({
   alternates: {
     canonical: canonicalPath,
     languages: {
+      "x-default": canonicalPath,
       "uk-UA": canonicalPath,
       uk: canonicalPath,
     },
@@ -108,7 +109,7 @@ export const buildPageMetadata = ({
     card: "summary_large_image",
     title: twitterTitle ?? openGraphTitle ?? `${title} | PartsON`,
     description: twitterDescription ?? openGraphDescription ?? description,
-    images: [image.url],
+    images: [{ url: image.url, alt: image.alt ?? DEFAULT_IMAGE.alt }],
   },
   icons,
   other: {

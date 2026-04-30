@@ -28,7 +28,8 @@ export default async function sitemap(props: {
 }): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
   const id = String(await props.id);
-  const lastModified = new Date();
+  const _now = new Date();
+  const lastModified = new Date(Date.UTC(_now.getUTCFullYear(), _now.getUTCMonth(), _now.getUTCDate()));
 
   let entries: Awaited<ReturnType<typeof getProductEntriesBySitemapId>> = [];
 
