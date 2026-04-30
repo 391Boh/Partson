@@ -1013,6 +1013,7 @@ const AutoSection: React.FC<AutoProps> = ({
                           <button
                             key={brand.id}
                             type="button"
+                            aria-label={`Обрати ${brand.name}`}
                             onClick={() => {
                               if (isSwiping.current) return;
                               setSelectedBrand(brand);
@@ -1028,7 +1029,6 @@ const AutoSection: React.FC<AutoProps> = ({
                                 ? "rounded-[16px] py-2.5 min-h-[94px]"
                                 : "rounded-xl py-3.5 min-h-[108px]"
                             }`}
-                            aria-label={`\u041e\u0431\u0440\u0430\u0442\u0438 ${brand.name}`}
                           >
                             <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
                             <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />

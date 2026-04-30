@@ -115,8 +115,8 @@ export default function AdvantagesPhotoSlider() {
           alt={`Фото магазину PartsON ${displayedPhotoIndex + 1}`}
           fill
           sizes="(min-width: 1280px) 332px, (min-width: 1024px) 30vw, 100vw"
-          priority={displayedPhotoIndex === 0}
           quality={68}
+          priority={displayedPhotoIndex === 0}
           className="object-cover"
         />
       </div>
@@ -138,10 +138,10 @@ export default function AdvantagesPhotoSlider() {
               type="button"
               onClick={() => setActivePhotoIndex(index)}
               aria-label={`Показати фото магазину ${index + 1}`}
-              className={`h-2.5 rounded-full transition-all duration-200 ${
+              className={`inline-flex h-6 items-center justify-center rounded-full transition-all duration-200 ${
                 index === activePhotoIndex
                   ? "w-6 bg-sky-600"
-                  : "w-2.5 bg-sky-200 hover:bg-sky-300"
+                  : "w-6 bg-sky-200 hover:bg-sky-300"
               }`}
             />
           ))}

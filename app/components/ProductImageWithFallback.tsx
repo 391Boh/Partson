@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
+import Image from "next/image";
 import { ImageOff, Maximize2 } from "lucide-react";
 
 import ImageModal from "app/components/ImageModal";
@@ -92,7 +93,7 @@ export default function ProductImageWithFallback({
         writeProductImageSuccess(
           normalizedProductCode,
           normalizedArticleHint || undefined,
-          element.currentSrc || element.src || activeSrc
+          activeSrc
         );
         clearProductImageMissing(
           normalizedProductCode,
@@ -213,11 +214,11 @@ export default function ProductImageWithFallback({
           </div>
         ) : null}
 
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           ref={imageRef}
           src={activeSrc}
           alt={alt}
+          priority={preferImmediateDecode}
           loading={loading}
           decoding={preferImmediateDecode ? "sync" : decoding}
           fetchPriority={fetchPriority}
@@ -225,6 +226,7 @@ export default function ProductImageWithFallback({
           onError={handleImageError}
           width={width}
           height={height}
+          sizes="(max-width: 767px) 100vw, (max-width: 1279px) 46vw, 520px"
           className={`h-full w-full object-contain transition-[opacity,transform] ${
             preferImmediateDecode ? "duration-100" : "duration-180"
           } ${

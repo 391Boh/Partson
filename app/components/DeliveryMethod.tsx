@@ -317,9 +317,9 @@ const DeliveryMethod: React.FC<Props> = ({
           />
           {lvivStreets.length > 0 && (
             <ul className="soft-surface-card absolute bottom-full top-auto z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-[16px]">
-              {lvivStreets.map((street, index) => (
+              {lvivStreets.map((street) => (
                 <li
-                  key={index}
+                  key={street}
                   onClick={() => {
                     setSelectedLvivStreet(street);
                     setLvivStreet(street);

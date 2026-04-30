@@ -70,9 +70,9 @@ function BrandCard({
   return (
     <button
       type="button"
+      aria-label={`Обрати ${brand.name}`}
       onClick={() => onOpen(brand.name)}
       className="group relative isolate flex w-full min-h-[148px] items-center gap-3.5 overflow-hidden rounded-2xl border border-slate-100/85 bg-white/94 px-3 py-3 text-left shadow-[0_12px_28px_rgba(15,23,42,0.12)] ring-1 ring-transparent transition-[border-color,background-color,box-shadow,ring-color] duration-300 ease-out hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/75 hover:to-blue-50 hover:shadow-[0_18px_42px_rgba(59,130,246,0.16),0_8px_22px_rgba(14,165,233,0.12)] hover:ring-2 hover:ring-sky-200/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 sm:min-h-[146px] sm:gap-4"
-      aria-label={`Обрати ${brand.name}`}
     >
       <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
       <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />

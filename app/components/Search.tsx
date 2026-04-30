@@ -161,9 +161,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
             </button>
           </div>
 
-          {history.map((item, index) => (
+          {history.map((item) => (
             <button
-              key={index}
+              key={item}
               className="font-ui flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold tracking-normal text-gray-200 hover:bg-gray-800/80 cursor-pointer"
               onClick={() => handleSearch(item)}
             >

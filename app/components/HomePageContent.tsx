@@ -53,7 +53,7 @@ const HomeDeferredStackPlaceholder = () => (
 
 export default function HomePageContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
+  const [authReady, setAuthReady] = useState(true);
   const [HomeDeferredStackComponent, setHomeDeferredStackComponent] =
     useState<ComponentType | null>(null);
   const [shouldLoadDeferredHome, setShouldLoadDeferredHome] = useState(false);
@@ -62,26 +62,72 @@ export default function HomePageContent() {
   useEffect(() => {
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
-    void loadHomeAuthDeps()
-      .then(({ auth, onAuthStateChanged }) => {
-        if (cancelled) return;
-        setIsAuthenticated(Boolean(auth.currentUser));
-        setAuthReady(true);
-        unsubscribe = onAuthStateChanged(auth, (authUser) => {
-          setIsAuthenticated(Boolean(authUser));
+    let timeoutId: number | null = null;
+
+    const loadAuth = () => {
+      void loadHomeAuthDeps()
+        .then(({ auth, onAuthStateChanged }) => {
+          if (cancelled) return;
+          setIsAuthenticated(Boolean(auth.currentUser));
+          setAuthReady(true);
+          unsubscribe = onAuthStateChanged(auth, (authUser) => {
+            setIsAuthenticated(Boolean(authUser));
+            setAuthReady(true);
+          });
+        })
+        .catch((error) => {
+          console.error("Failed to load home auth deps:", error);
           setAuthReady(true);
         });
+    };
+
+    const triggerAuthLoad = () => {
+      window.removeEventListener("pointerdown", triggerAuthLoad);
+      window.removeEventListener("keydown", triggerAuthLoad);
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
+      loadAuth();
+    };
+
+    window.addEventListener("pointerdown", triggerAuthLoad, {
+      once: true,
+      passive: true,
+    });
+    window.addEventListener("keydown", triggerAuthLoad, { once: true });
+
+    timeoutId = window.setTimeout(triggerAuthLoad, 5000);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pointerdown", triggerAuthLoad);
+      window.removeEventListener("keydown", triggerAuthLoad);
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
+      unsubscribe?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!shouldLoadDeferredHome || HomeDeferredStackComponent) return;
+
+    let cancelled = false;
+    void import("./HomeDeferredStack")
+      .then((module) => {
+        if (cancelled) return;
+        setHomeDeferredStackComponent(() => module.default);
       })
       .catch((error) => {
-        console.error("Failed to load home auth deps:", error);
-        setAuthReady(true);
+        if (!cancelled) {
+          console.error("Failed to load HomeDeferredStack:", error);
+        }
       });
 
     return () => {
       cancelled = true;
-      unsubscribe?.();
     };
-  }, []);
+  }, [HomeDeferredStackComponent, shouldLoadDeferredHome]);
 
   useEffect(() => {
     if (typeof window === "undefined" || shouldLoadDeferredHome) return;
@@ -137,27 +183,6 @@ export default function HomePageContent() {
       }
     };
   }, [shouldLoadDeferredHome]);
-
-  useEffect(() => {
-    if (!shouldLoadDeferredHome || HomeDeferredStackComponent) return;
-
-    let cancelled = false;
-    void import("./HomeDeferredStack")
-      .then((module) => {
-        if (!cancelled) {
-          setHomeDeferredStackComponent(() => module.default);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          console.error("Failed to load HomeDeferredStack:", error);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [HomeDeferredStackComponent, shouldLoadDeferredHome]);
 
   const openLoginModal = useCallback(() => {
     if (typeof window === "undefined") return;

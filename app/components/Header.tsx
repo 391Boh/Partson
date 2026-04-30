@@ -64,8 +64,6 @@ type SearchBarComponentProps = {
   ) => void;
 };
 
-type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
-
 type HeaderAuthDeps = {
   auth: Auth;
   onAuthStateChanged: typeof import('firebase/auth').onAuthStateChanged;
@@ -132,24 +130,49 @@ const Header: React.FC = () => {
     prefetchRouteList(router, prefetchedRoutesRef.current, INFO_PREFETCH_ROUTES);
   };
 
-  // AUTH LISTENER
   useEffect(() => {
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
-    void loadHeaderAuthDeps()
-      .then(({ auth, onAuthStateChanged }) => {
-        if (cancelled) return;
-        setUser(auth.currentUser ?? null);
-        unsubscribe = onAuthStateChanged(auth, (authUser) => {
-          setUser(authUser ?? null);
+    let timeoutId: number | null = null;
+
+    const loadAuth = () => {
+      void loadHeaderAuthDeps()
+        .then(({ auth, onAuthStateChanged }) => {
+          if (cancelled) return;
+          setUser(auth.currentUser ?? null);
+          unsubscribe = onAuthStateChanged(auth, (authUser) => {
+            setUser(authUser ?? null);
+          });
+        })
+        .catch((error) => {
+          console.error('Failed to load header auth deps:', error);
         });
-      })
-      .catch((error) => {
-        console.error('Failed to load header auth deps:', error);
-      });
+    };
+
+    const triggerAuthLoad = () => {
+      window.removeEventListener('pointerdown', triggerAuthLoad);
+      window.removeEventListener('keydown', triggerAuthLoad);
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
+      loadAuth();
+    };
+
+    window.addEventListener('pointerdown', triggerAuthLoad, {
+      once: true,
+      passive: true,
+    });
+    window.addEventListener('keydown', triggerAuthLoad, { once: true });
+
+    timeoutId = window.setTimeout(triggerAuthLoad, 5000);
 
     return () => {
       cancelled = true;
+      window.removeEventListener('pointerdown', triggerAuthLoad);
+      window.removeEventListener('keydown', triggerAuthLoad);
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
       unsubscribe?.();
     };
   }, []);
@@ -159,10 +182,6 @@ const Header: React.FC = () => {
     if (SearchBarComponent) return;
 
     let cancelled = false;
-    const win = window as Window & {
-      requestIdleCallback?: RequestIdleCallback;
-      cancelIdleCallback?: (id: number) => void;
-    };
     const loadSearch = () => {
       void import('app/components/Search').then((module) => {
         if (!cancelled) {
@@ -171,14 +190,10 @@ const Header: React.FC = () => {
       });
     };
     let timeoutId: number | null = null;
-    let idleId: number | null = null;
 
     const triggerSearchLoad = () => {
       window.removeEventListener('pointerdown', triggerSearchLoad);
       window.removeEventListener('keydown', triggerSearchLoad);
-      if (idleId != null && typeof win.cancelIdleCallback === 'function') {
-        win.cancelIdleCallback(idleId);
-      }
       if (timeoutId != null) {
         window.clearTimeout(timeoutId);
       }
@@ -191,19 +206,12 @@ const Header: React.FC = () => {
     });
     window.addEventListener('keydown', triggerSearchLoad, { once: true });
 
-    if (typeof win.requestIdleCallback === 'function') {
-      idleId = win.requestIdleCallback(triggerSearchLoad, { timeout: 4200 });
-    } else {
-      timeoutId = window.setTimeout(triggerSearchLoad, 2600);
-    }
+    timeoutId = window.setTimeout(triggerSearchLoad, 5000);
 
     return () => {
       cancelled = true;
       window.removeEventListener('pointerdown', triggerSearchLoad);
       window.removeEventListener('keydown', triggerSearchLoad);
-      if (idleId != null && typeof win.cancelIdleCallback === 'function') {
-        win.cancelIdleCallback(idleId);
-      }
       if (timeoutId != null) {
         window.clearTimeout(timeoutId);
       }
@@ -544,6 +552,7 @@ const Header: React.FC = () => {
               <li className="relative select-none">
                 <button
                   data-overlay-toggle="menu"
+                  aria-label="Меню"
                   onClick={() => toggleMenu("menu")}
                   onPointerEnter={prefetchCatalogRoutes}
                   onFocus={prefetchCatalogRoutes}
@@ -588,6 +597,7 @@ const Header: React.FC = () => {
               <li className="relative select-none">
                 <button
                   data-overlay-toggle="info"
+                  aria-label="Інформація"
                   onClick={() => toggleMenu("info")}
                   onPointerEnter={prefetchInfoRoutes}
                   onFocus={prefetchInfoRoutes}
@@ -627,6 +637,7 @@ const Header: React.FC = () => {
           </div>
 
           <button
+            aria-label="Пошук"
             className={`lg:hidden ${buttonBaseClass} ${
               showSearchModal
                 ? 'border-rose-300/70 bg-rose-500/15 text-rose-100'
@@ -645,6 +656,7 @@ const Header: React.FC = () => {
           {/* ACCOUNT */}
           <button
             data-overlay-toggle="auth"
+            aria-label="Профіль"
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -663,6 +675,7 @@ const Header: React.FC = () => {
           {/* CART */}
           <button
             data-overlay-toggle="order"
+            aria-label="Замовлення"
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -685,6 +698,7 @@ const Header: React.FC = () => {
           {/* PHONE */}
           <button
             data-overlay-toggle="contact"
+            aria-label="Контакти"
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();

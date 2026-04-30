@@ -733,12 +733,12 @@ const ProductFetcher: React.FC<Props> = ({
                 <div className="h-9 w-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shadow-inner">
                   <Search size={16} />
                 </div>
-                <h3 className="font-display relative min-w-0 flex-1 text-[22px] tracking-[-0.045em] text-slate-700 sm:text-[25px]">
+                <h2 className="font-display relative min-w-0 flex-1 text-[22px] tracking-[-0.045em] text-slate-700 sm:text-[25px]">
                   <span className="relative inline-block max-w-full break-words">
                     {"\u0428\u0432\u0438\u0434\u043a\u0438\u0439 \u043f\u043e\u0448\u0443\u043a \u0442\u043e\u0432\u0430\u0440\u0456\u0432!"}
                     <span className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400 transform origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 hover:scale-x-100 shadow-[0_4px_12px_rgba(37,99,235,0.3)]" />
                   </span>
-                </h3>
+                </h2>
               </div>
 
               <ProductSearchInput
@@ -974,10 +974,10 @@ const ProductFetcher: React.FC<Props> = ({
                     type="button"
                     onClick={() => goToPage(dotPage)}
                     aria-label={`\u0421\u0442\u043e\u0440\u0456\u043d\u043a\u0430 ${dotPage}`}
-                    className={`h-1.5 rounded-full transition-all duration-200 ${
+                    className={`inline-flex h-6 items-center justify-center rounded-full transition-all duration-200 ${
                       isActive
-                        ? "w-4 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-500 shadow-[0_2px_8px_rgba(14,116,144,0.32)]"
-                        : "w-1.5 bg-slate-300/90 hover:bg-slate-400/90"
+                        ? "w-6 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-500 shadow-[0_2px_8px_rgba(14,116,144,0.32)]"
+                        : "w-6 bg-slate-300/90 hover:bg-slate-400/90"
                     }`}
                   />
                 );

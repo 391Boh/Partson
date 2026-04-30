@@ -84,7 +84,7 @@ const Hero: FC<HeroProps> = ({
 
   return (
     <section
-      className="font-ui relative isolate w-full select-none overflow-hidden py-6 sm:py-8"
+      className="font-ui relative isolate flex min-h-[calc(100svh-var(--header-height,4rem)-0.75rem)] w-full select-none items-center overflow-hidden py-6 sm:min-h-0 sm:py-8"
       style={{
         backgroundImage: depthBackground,
       }}

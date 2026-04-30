@@ -297,11 +297,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     if (typeof window === "undefined" || firebaseDeps) return;
 
     let cancelled = false;
-    const win = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-
     const loadDeps = () => {
       void loadLayoutFirebaseDeps()
         .then((deps) => {
@@ -314,12 +309,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         });
     };
 
-    let idleId: number | null = null;
     let timeoutId: number | null = null;
     const triggerDepsLoad = () => {
       window.removeEventListener("pointerdown", triggerDepsLoad);
       window.removeEventListener("keydown", triggerDepsLoad);
-      if (idleId != null) win.cancelIdleCallback?.(idleId);
       if (timeoutId != null) window.clearTimeout(timeoutId);
       loadDeps();
     };
@@ -330,17 +323,12 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     });
     window.addEventListener("keydown", triggerDepsLoad, { once: true });
 
-    if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(triggerDepsLoad, { timeout: 4800 });
-    } else {
-      timeoutId = window.setTimeout(triggerDepsLoad, 3400);
-    }
+    timeoutId = window.setTimeout(triggerDepsLoad, 5000);
 
     return () => {
       cancelled = true;
       window.removeEventListener("pointerdown", triggerDepsLoad);
       window.removeEventListener("keydown", triggerDepsLoad);
-      if (idleId != null) win.cancelIdleCallback?.(idleId);
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
   }, [firebaseDeps]);
@@ -349,11 +337,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     if (typeof window === "undefined" || ChatButtonComponent) return;
 
     let cancelled = false;
-    const win = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-
     const loadChatButton = () => {
       void import("./ChatButton")
         .then((module) => {
@@ -366,12 +349,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         });
     };
 
-    let idleId: number | null = null;
     let timeoutId: number | null = null;
     const triggerChatButtonLoad = () => {
       window.removeEventListener("pointerdown", triggerChatButtonLoad);
       window.removeEventListener("keydown", triggerChatButtonLoad);
-      if (idleId != null) win.cancelIdleCallback?.(idleId);
       if (timeoutId != null) window.clearTimeout(timeoutId);
       loadChatButton();
     };
@@ -382,17 +363,12 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     });
     window.addEventListener("keydown", triggerChatButtonLoad, { once: true });
 
-    if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(triggerChatButtonLoad, { timeout: 5600 });
-    } else {
-      timeoutId = window.setTimeout(triggerChatButtonLoad, 4200);
-    }
+    timeoutId = window.setTimeout(triggerChatButtonLoad, 5000);
 
     return () => {
       cancelled = true;
       window.removeEventListener("pointerdown", triggerChatButtonLoad);
       window.removeEventListener("keydown", triggerChatButtonLoad);
-      if (idleId != null) win.cancelIdleCallback?.(idleId);
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
   }, [ChatButtonComponent]);

@@ -231,6 +231,8 @@ function FlipCardComponent({
 
             <div className="flex items-center gap-1.5">
               <button
+                type="button"
+                aria-label="Попередня сторінка"
                 onClick={() => {
                   if (activeGroup) {
                     if (sub === 0) {
@@ -259,6 +261,8 @@ function FlipCardComponent({
               </span>
 
               <button
+                type="button"
+                aria-label="Наступна сторінка"
                 onClick={() => {
                   const max = activeGroup ? subPages : mainPages;
                   const current = activeGroup ? sub : page;

@@ -117,7 +117,7 @@ const Skeleton = () => (
     <div className="mt-3 grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
       {Array.from({ length: 4 }).map((_, index) => (
         <div
-          key={index}
+          key={`rel-skeleton-${index}`}
           className="h-[188px] animate-pulse rounded-[18px] border border-slate-200 bg-slate-100"
         />
       ))}
