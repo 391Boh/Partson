@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { ImageOff } from "lucide-react";
 
 
@@ -80,31 +81,20 @@ const ProductCardImage: React.FC<Props> = ({
   const handleLoad = useCallback((event: React.SyntheticEvent<HTMLImageElement>) => {
     const currentTarget = event.currentTarget;
     const nextSrc = currentTarget.currentSrc || currentTarget.src || requestSrc;
-    const normalizedNextSrc = (nextSrc || "").trim();
-    const isInlineImage = normalizedNextSrc.startsWith("data:image/");
-    const loadedPath = normalizeSrcPath(normalizedNextSrc);
+    const loadedPath = normalizeSrcPath(nextSrc);
 
-    if (
-      loadedPath &&
-      loadedPath === PRODUCT_IMAGE_FALLBACK_PATH.toLowerCase()
-    ) {
+    if (loadedPath && loadedPath === PRODUCT_IMAGE_FALLBACK_PATH.toLowerCase()) {
       writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
       setRequestSrc("");
       setStatus("missing");
       return;
     }
 
-    // Не оновлюємо src, якщо він вже співпадає
-    if (normalizedNextSrc && normalizedNextSrc !== requestSrc) {
-      lastSuccessfulSrcRef.current = normalizedNextSrc;
-      setRequestSrc(normalizedNextSrc);
-      if (!isInlineImage) {
-        writeProductImageSuccess(
-          normalizedCode,
-          normalizedArticle || undefined,
-          normalizedNextSrc
-        );
-      }
+    // Use requestSrc (not currentSrc) for the cache: the Next.js image optimizer
+    // rewrites currentSrc to /_next/image?url=... which is not a stable cache key.
+    if (requestSrc && !requestSrc.startsWith("data:image/")) {
+      lastSuccessfulSrcRef.current = requestSrc;
+      writeProductImageSuccess(normalizedCode, normalizedArticle || undefined, requestSrc);
       clearProductImageMissing(normalizedCode, normalizedArticle || undefined);
     }
 
@@ -243,19 +233,19 @@ const ProductCardImage: React.FC<Props> = ({
             aria-hidden="true"
           />
           {requestSrc && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
+              key={requestSrc}
               src={requestSrc}
               alt="product"
+              fill
+              sizes="(max-width: 640px) 40vw, (max-width: 1024px) 22vw, 150px"
               loading={loadingMode}
-              decoding={imageDecodingMode}
               fetchPriority={fetchPriority}
-              width={360}
-              height={360}
+              decoding={imageDecodingMode}
               draggable={false}
               onLoad={handleLoad}
               onError={handleError}
-              className={`relative z-[1] h-full w-full object-contain transition-opacity duration-300 ${showLoadingSkeleton ? 'opacity-0' : 'opacity-100'}`}
+              className={`object-contain transition-opacity duration-300 ${showLoadingSkeleton ? 'opacity-0' : 'opacity-100'}`}
             />
           )}
         </>

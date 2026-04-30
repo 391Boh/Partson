@@ -28,6 +28,9 @@ interface ProductImageWithFallbackProps {
   hasKnownPhoto?: boolean;
 }
 
+const BLUR_DATA_URL =
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiNmMWY1ZjkiLz48L3N2Zz4=";
+
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
   if (!trimmed) return "";
@@ -227,6 +230,8 @@ export default function ProductImageWithFallback({
           width={width}
           height={height}
           sizes="(max-width: 767px) 100vw, (max-width: 1279px) 46vw, 520px"
+          placeholder="blur"
+          blurDataURL={BLUR_DATA_URL}
           className={`h-full w-full object-contain transition-[opacity,transform] ${
             preferImmediateDecode ? "duration-100" : "duration-180"
           } ${

@@ -225,11 +225,13 @@ const optimizeImageBuffer = async (
     hash: string;
     variant: "catalog" | "full";
     originalContentType: string;
+    acceptsAvif?: boolean;
   }
 ) => {
   pruneOptimizedImageCache();
 
-  const cacheKey = `${options.variant}:${options.hash}`;
+  const targetFormat = options.acceptsAvif ? "avif" : "webp";
+  const cacheKey = `${options.variant}:${targetFormat}:${options.hash}`;
   const cached = optimizedImageCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.value;
@@ -258,6 +260,7 @@ const optimizeImageBuffer = async (
     }
 
     if (
+      !options.acceptsAvif &&
       options.variant === "catalog" &&
       options.originalContentType === "image/webp" &&
       imageBuffer.length > 0 &&
@@ -284,7 +287,7 @@ const optimizeImageBuffer = async (
               quality: FULL_IMAGE_QUALITY,
             };
 
-      const transformed = await sharp(imageBuffer, {
+      const sharpInstance = sharp(imageBuffer, {
         failOn: "none",
         animated: false,
       })
@@ -294,18 +297,18 @@ const optimizeImageBuffer = async (
           height: resizeOptions.height,
           fit: "inside",
           withoutEnlargement: true,
-        })
-        .webp({
-          quality: resizeOptions.quality,
-          effort: options.variant === "catalog" ? 2 : 3,
-        })
-        .toBuffer();
+        });
+
+      const transformed = await (options.acceptsAvif
+        ? sharpInstance.avif({ quality: resizeOptions.quality, effort: options.variant === "catalog" ? 2 : 3 })
+        : sharpInstance.webp({ quality: resizeOptions.quality, effort: options.variant === "catalog" ? 2 : 3 })
+      ).toBuffer();
 
       const optimized =
         transformed.length > 0 && transformed.length < imageBuffer.length
           ? {
               buffer: transformed,
-              contentType: "image/webp",
+              contentType: options.acceptsAvif ? "image/avif" : "image/webp",
             }
           : original;
 
@@ -427,6 +430,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     "public, max-age=3, s-maxage=3, stale-while-revalidate=8";
   const articleHint = safeDecode(requestUrl.searchParams.get("article") || "").trim();
   const allowDeepCatalogRecovery = catalogMode && (retryAttempt > 0 || !articleHint);
+  const acceptsAvif = (request.headers.get("accept") || "").includes("image/avif");
   const lookupOptions = strictMode
     ? STRICT_IMAGE_LOOKUP_OPTIONS
     : catalogMode
@@ -457,6 +461,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   addLookupKey(normalizedCode);
   addLookupKey(articleHint);
 
+  // Miss status is format-independent: if the image doesn't exist, it's gone regardless of format.
   const routeMissCacheKey = [
     strictMode ? "strict" : "normal",
     catalogMode ? "catalog" : "full",
@@ -464,7 +469,15 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     normalizedCode.toLowerCase(),
     articleHint.toLowerCase(),
   ].join("::");
-  const routeHitCacheKey = routeMissCacheKey;
+  // Hit cache must be keyed by format since AVIF and WebP are different cached responses.
+  const routeHitCacheKey = [
+    strictMode ? "strict" : "normal",
+    catalogMode ? "catalog" : "full",
+    retryAttempt,
+    normalizedCode.toLowerCase(),
+    articleHint.toLowerCase(),
+    acceptsAvif ? "avif" : "webp",
+  ].join("::");
   const routeMissTtlMs = catalogMode
     ? retryAttempt > 0
       ? CATALOG_ROUTE_RETRY_MISS_CACHE_TTL_MS
@@ -496,6 +509,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       headers: {
         "content-type": cachedHit.value.contentType,
         "cache-control": "public, max-age=21600, s-maxage=21600, stale-while-revalidate=604800",
+        "vary": "Accept",
       },
     });
   }
@@ -603,6 +617,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       hash: imageHash,
       variant: catalogMode ? "catalog" : "full",
       originalContentType,
+      acceptsAvif,
     });
 
     routeImageHitCache.set(routeHitCacheKey, {
@@ -619,6 +634,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       headers: {
         "content-type": optimizedImage.contentType,
         "cache-control": "public, max-age=21600, s-maxage=21600, stale-while-revalidate=604800",
+        "vary": "Accept",
       },
     });
   } catch {

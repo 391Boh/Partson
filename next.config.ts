@@ -42,6 +42,8 @@ const nextConfig: NextConfig = {
     "192.168.0.102", // додано для доступу з цього пристрою
   ],
   images: {
+    formats: ["image/avif", "image/webp"],
+    minimumCacheTTL: 86400,
     qualities: [75, 100],
     localPatterns: [
       // Keep default strict behavior for regular local images (no query string).
