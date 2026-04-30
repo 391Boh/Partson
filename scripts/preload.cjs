@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Мокаємо server-only щоб скрипт міг імпортувати Next.js серверні модулі
 const Module = require('module');
 const originalLoad = Module._load;
