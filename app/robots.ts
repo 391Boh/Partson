@@ -4,6 +4,7 @@ import { getSiteUrl } from "app/lib/site-url";
 
 export default function robots(): MetadataRoute.Robots {
   const siteUrl = getSiteUrl();
+  const siteHost = new URL(siteUrl).host;
 
   return {
     rules: [
@@ -14,6 +15,6 @@ export default function robots(): MetadataRoute.Robots {
       },
     ],
     sitemap: [`${siteUrl}/sitemap.xml`],
-    host: siteUrl,
+    host: siteHost,
   };
 }
