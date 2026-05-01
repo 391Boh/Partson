@@ -7,9 +7,9 @@ import ProductRelatedItemsClientSection from "app/components/ProductRelatedItems
 
 // Cap the SSR prefetch so the Suspense boundary does not hold the page past this.
 // On cache hit (unstable_cache, 10 min TTL) the call returns in < 100 ms.
-// On a cold miss the sequential 1C lookups inside getRelatedProducts can take
-// up to ~2.5 s; we bail out and let the client component handle it instead.
-const RELATED_SSR_TIMEOUT_MS = 2500;
+// On a cold miss the sequential 1C lookups can be slow; bail out quickly and
+// let the client component continue after the main product content is visible.
+const RELATED_SSR_TIMEOUT_MS = 900;
 
 type ProductRelatedItemsSectionProps = {
   product: {

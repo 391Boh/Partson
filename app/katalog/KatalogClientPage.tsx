@@ -72,6 +72,31 @@ const loadCatalogFirebaseDeps = (() => {
   };
 })();
 
+const scheduleCatalogFirebaseLoad = (callback: () => void) => {
+  if (typeof window === 'undefined') return () => {};
+
+  let didRun = false;
+  const run = () => {
+    if (didRun) return;
+    didRun = true;
+    window.clearTimeout(timerId);
+    window.removeEventListener('pointerdown', run);
+    window.removeEventListener('keydown', run);
+    callback();
+  };
+
+  const timerId = window.setTimeout(run, 18000);
+  window.addEventListener('pointerdown', run, { passive: true, once: true });
+  window.addEventListener('keydown', run, { once: true });
+
+  return () => {
+    didRun = true;
+    window.clearTimeout(timerId);
+    window.removeEventListener('pointerdown', run);
+    window.removeEventListener('keydown', run);
+  };
+};
+
 interface KatalogProps {
   initialPagePayload?: InitialCatalogPagePayload | null;
   initialQuerySignature?: string | null;
@@ -316,113 +341,116 @@ const Katalog: React.FC<KatalogProps> = ({
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
 
-    void loadCatalogFirebaseDeps().then(({ auth, db, doc, getDoc, onAuthStateChanged }) => {
-      if (cancelled) return;
+    const cancelScheduledLoad = scheduleCatalogFirebaseLoad(() => {
+      void loadCatalogFirebaseDeps().then(({ auth, db, doc, getDoc, onAuthStateChanged }) => {
+        if (cancelled) return;
 
-      unsubscribe = onAuthStateChanged(auth, (user) => {
-        setFirebaseUser(user);
+        unsubscribe = onAuthStateChanged(auth, (user) => {
+          setFirebaseUser(user);
 
-        if (!user) {
-          setCarsLoaded(true);
-          return;
-        }
+          if (!user) {
+            setCarsLoaded(true);
+            return;
+          }
 
-        setCarsLoaded(false);
+          setCarsLoaded(false);
 
-        if (skipRemoteLoadRef.current) {
-          skipRemoteLoadRef.current = false;
-          setCarsLoaded(true);
-          return;
-        }
+          if (skipRemoteLoadRef.current) {
+            skipRemoteLoadRef.current = false;
+            setCarsLoaded(true);
+            return;
+          }
 
-        const extractCars = (value: unknown) =>
-          Array.isArray(value)
-            ? (value as unknown[]).filter(
-                (car): car is string => typeof car === 'string' && car.trim() !== ''
-              )
-            : [];
+          const extractCars = (value: unknown) =>
+            Array.isArray(value)
+              ? (value as unknown[]).filter(
+                  (car): car is string => typeof car === 'string' && car.trim() !== ''
+                )
+              : [];
 
-        const extractSelection = (value: unknown): PersistedCarSelection | null => {
-          if (!value || typeof value !== 'object') return null;
-          const record = value as Record<string, unknown>;
-          const brand =
-            typeof record.brand === 'string' && record.brand.trim() ? record.brand : '';
-          const model =
-            typeof record.model === 'string' && record.model.trim() ? record.model : '';
-          const label =
-            typeof record.label === 'string' && record.label.trim() ? record.label : '';
-          const year =
-            typeof record.year === 'number' && Number.isFinite(record.year)
-              ? record.year
-              : null;
-          const volume =
-            typeof record.volume === 'string' && record.volume.trim()
-              ? record.volume
-              : null;
-          const power =
-            typeof record.power === 'string' && record.power.trim() ? record.power : null;
-          const gearbox =
-            typeof record.gearbox === 'string' && record.gearbox.trim()
-              ? record.gearbox
-              : null;
-          const drive =
-            typeof record.drive === 'string' && record.drive.trim() ? record.drive : null;
+          const extractSelection = (value: unknown): PersistedCarSelection | null => {
+            if (!value || typeof value !== 'object') return null;
+            const record = value as Record<string, unknown>;
+            const brand =
+              typeof record.brand === 'string' && record.brand.trim() ? record.brand : '';
+            const model =
+              typeof record.model === 'string' && record.model.trim() ? record.model : '';
+            const label =
+              typeof record.label === 'string' && record.label.trim() ? record.label : '';
+            const year =
+              typeof record.year === 'number' && Number.isFinite(record.year)
+                ? record.year
+                : null;
+            const volume =
+              typeof record.volume === 'string' && record.volume.trim()
+                ? record.volume
+                : null;
+            const power =
+              typeof record.power === 'string' && record.power.trim() ? record.power : null;
+            const gearbox =
+              typeof record.gearbox === 'string' && record.gearbox.trim()
+                ? record.gearbox
+                : null;
+            const drive =
+              typeof record.drive === 'string' && record.drive.trim() ? record.drive : null;
 
-          if (!brand || !model || !label) return null;
-          return { brand, model, year, volume, power, gearbox, drive, label };
-        };
+            if (!brand || !model || !label) return null;
+            return { brand, model, year, volume, power, gearbox, drive, label };
+          };
 
-        const loadCars = async () => {
-          try {
-            const docRef = doc(db, 'users', user.uid);
-            const snap = await getDoc(docRef);
-            if (!snap.exists()) return;
-            const data = snap.data() as {
-              avto?: { cars?: unknown; selection?: unknown };
-              selectedCars?: unknown;
-              selectedCarSelection?: unknown;
-            };
-            const avtoData = data.avto ?? null;
+          const loadCars = async () => {
+            try {
+              const docRef = doc(db, 'users', user.uid);
+              const snap = await getDoc(docRef);
+              if (!snap.exists()) return;
+              const data = snap.data() as {
+                avto?: { cars?: unknown; selection?: unknown };
+                selectedCars?: unknown;
+                selectedCarSelection?: unknown;
+              };
+              const avtoData = data.avto ?? null;
 
-            const avtoCars = extractCars(avtoData?.cars);
-            let storedCars = avtoCars.length
-              ? avtoCars
-              : extractCars(data.selectedCars);
+              const avtoCars = extractCars(avtoData?.cars);
+              let storedCars = avtoCars.length
+                ? avtoCars
+                : extractCars(data.selectedCars);
 
-            const avtoSelection = extractSelection(avtoData?.selection);
-            const storedSelection =
-              avtoSelection ?? extractSelection(data.selectedCarSelection);
+              const avtoSelection = extractSelection(avtoData?.selection);
+              const storedSelection =
+                avtoSelection ?? extractSelection(data.selectedCarSelection);
 
-          let didApplyRemote = false;
-          if (storedSelection) {
-            if (!storedCars.includes(storedSelection.label)) {
-              storedCars = [...storedCars, storedSelection.label];
+              let didApplyRemote = false;
+              if (storedSelection) {
+                if (!storedCars.includes(storedSelection.label)) {
+                  storedCars = [...storedCars, storedSelection.label];
+                }
+                setSelectedCars(storedCars);
+                setSelectedCarSelection(storedSelection);
+                didApplyRemote = true;
+              } else {
+                setSelectedCars(storedCars);
+                setSelectedCarSelection(null);
+                didApplyRemote = storedCars.length > 0;
+              }
+
+              if (didApplyRemote) {
+                skipNextRemoteSaveRef.current = true;
+              }
+            } catch (error) {
+              console.error('Failed to load saved cars from Firestore:', error);
+            } finally {
+              setCarsLoaded(true);
             }
-            setSelectedCars(storedCars);
-            setSelectedCarSelection(storedSelection);
-            didApplyRemote = true;
-          } else {
-            setSelectedCars(storedCars);
-            setSelectedCarSelection(null);
-            didApplyRemote = storedCars.length > 0;
-          }
+          };
 
-          if (didApplyRemote) {
-            skipNextRemoteSaveRef.current = true;
-          }
-        } catch (error) {
-          console.error('Failed to load saved cars from Firestore:', error);
-        } finally {
-          setCarsLoaded(true);
-        }
-      };
-
-        void loadCars();
+          void loadCars();
+        });
       });
     });
 
     return () => {
       cancelled = true;
+      cancelScheduledLoad();
       unsubscribe?.();
     };
   }, []);

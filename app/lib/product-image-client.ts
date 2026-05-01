@@ -30,16 +30,25 @@ export const getProductImageClientMissingCacheKey = (
   return batchKey ? `${PRODUCT_IMAGE_CLIENT_MISSING_CACHE_PREFIX}${batchKey}` : "";
 };
 
-export const normalizeProductImageCachedSrc = (value: string) => {
+export const normalizeProductImageCachedSrc = (value: string): string => {
   const trimmed = (value || "").trim();
   if (!trimmed) return "";
   if (trimmed.startsWith("data:image/")) return trimmed;
 
   try {
     const parsed = new URL(trimmed, "http://localhost");
-    return `${parsed.pathname}${parsed.search}`;
+    if (parsed.pathname === "/_next/image") {
+      const sourceUrl = parsed.searchParams.get("url") || "";
+      const normalizedSourceUrl: string = normalizeProductImageCachedSrc(sourceUrl);
+      return normalizedSourceUrl.startsWith("/_next/image")
+        ? ""
+        : normalizedSourceUrl;
+    }
+
+    const normalizedSrc = `${parsed.pathname}${parsed.search}`;
+    return normalizedSrc.startsWith("/product-image/") ? normalizedSrc : "";
   } catch {
-    return trimmed;
+    return trimmed.startsWith("/product-image/") ? trimmed : "";
   }
 };
 

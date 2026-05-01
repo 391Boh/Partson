@@ -699,11 +699,6 @@ const scoreDescriptionSearchItem = (
   const producer = normalizeFacetValue(item.producer);
   const group = normalizeFacetValue(item.group || item.category);
   const subGroup = normalizeFacetValue(item.subGroup);
-  const article = normalizeFacetValue(item.article);
-  const code = normalizeFacetValue(item.code);
-  const haystack = [description, name, producer, group, subGroup, article, code]
-    .filter(Boolean)
-    .join(" ");
 
   let score = 0;
   const phraseInDescription = Boolean(query && description.includes(query));

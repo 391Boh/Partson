@@ -54,8 +54,8 @@ const ProductCardImage: React.FC<Props> = ({
   prefetchedSrc,
   className = "",
   onClick,
-  loadingMode = "eager",
-  fetchPriority = "high",
+  loadingMode = "lazy",
+  fetchPriority = "low",
 }) => {
   const [requestSrc, setRequestSrc] = useState("");
   const [status, setStatus] = useState<ImageStatus>(hasKnownPhoto ? "loading" : "missing");

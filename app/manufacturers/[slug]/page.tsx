@@ -43,7 +43,7 @@ import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 21600;
 export const dynamicParams = true;
-const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 300;
+const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 0;
 const MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS = 1800;
 const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
 const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 2400;

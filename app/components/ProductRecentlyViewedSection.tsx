@@ -254,7 +254,7 @@ export default function ProductRecentlyViewedSection({
   if (items.length === 0) return null;
 
   return (
-    <section className="overflow-hidden rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96),rgba(255,255,255,0.97))] p-3 shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
+    <section className="overflow-hidden rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96),rgba(255,255,255,0.97))] p-3 text-left shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-900/8 pb-2">
         <div className="min-w-0 max-w-3xl">
           <p className="mb-0.5 text-[10px] font-bold uppercase tracking-[0.13em] text-slate-700">
@@ -272,7 +272,7 @@ export default function ProductRecentlyViewedSection({
         </span>
       </div>
 
-      <div className="mt-2 grid gap-2 lg:grid-cols-2 2xl:grid-cols-4">
+      <div className="mt-2 grid gap-2 text-left lg:grid-cols-2 2xl:grid-cols-4">
         {items.map((item) => {
           const visibleName = buildVisibleProductName(item.name);
           const stateKey = buildPriceStateKey(item);
@@ -301,7 +301,7 @@ export default function ProductRecentlyViewedSection({
               key={`${item.code}-${item.article}-${item.viewedAt}`}
               href={buildItemPath(item)}
               prefetch={false}
-              className="group flex min-h-[174px] flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(238,247,252,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.1)] sm:rounded-[18px]"
+              className="group flex min-h-[174px] flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 text-left shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(238,247,252,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.1)] sm:rounded-[18px]"
             >
               <div className="flex items-start gap-2.5">
                 <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-slate-200 bg-gray-200 sm:h-16 sm:w-16">

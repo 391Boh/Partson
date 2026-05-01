@@ -60,7 +60,7 @@ const buildPriceLookupKeys = (item: Pick<RelatedItem, "code" | "article">) =>
 const RELATED_ITEMS_CACHE_PREFIX = "partson:v7:product-related:";
 const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v2:product-similar:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
-const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 3600;
+const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 2600;
 const SIMILAR_ITEMS_VISIBLE_LIMIT = 4;
 
 type RecommendationMode = "related" | "similar";
@@ -243,12 +243,12 @@ export default function ProductRelatedItemsClientSection({
           observer.disconnect();
         }
       },
-      { rootMargin: "700px 0px" }
+      { rootMargin: "1100px 0px" }
     );
 
     observer.observe(element);
 
-    const idleTimerId = window.setTimeout(() => setShouldLoad(true), 2200);
+    const idleTimerId = window.setTimeout(() => setShouldLoad(true), 1200);
 
     return () => {
       observer.disconnect();
@@ -493,15 +493,15 @@ export default function ProductRelatedItemsClientSection({
   );
   const listClass =
     itemMode === "similar"
-      ? "mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin] xl:overflow-visible"
-      : "mt-2 grid gap-2 lg:grid-cols-2 2xl:grid-cols-3";
+      ? "mt-2 flex snap-x gap-2 overflow-x-auto pb-1 text-left [scrollbar-width:thin] xl:overflow-visible"
+      : "mt-2 grid gap-2 text-left lg:grid-cols-2 2xl:grid-cols-3";
   const cardClass =
     itemMode === "similar"
-      ? "group flex min-h-[174px] min-w-[258px] flex-1 flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.12)] sm:min-w-[280px] sm:rounded-[18px] xl:min-w-0"
-      : "group flex min-h-[174px] flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.12)] sm:rounded-[18px]";
+      ? "group flex min-h-[174px] min-w-[min(82vw,258px)] snap-start flex-1 flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 text-left shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.12)] sm:min-w-[280px] sm:rounded-[18px] xl:min-w-0"
+      : "group flex min-h-[174px] flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 text-left shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.12)] sm:rounded-[18px]";
 
   return (
-    <section className="overflow-hidden rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(238,246,252,0.96),rgba(255,255,255,0.97))] p-3 shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
+    <section className="overflow-hidden rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(238,246,252,0.96),rgba(255,255,255,0.97))] p-3 text-left shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-900/8 pb-2">
         <div className="min-w-0 max-w-3xl">
           <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-sky-800 mb-0.5">

@@ -64,11 +64,11 @@ const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 0;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 900;
 const IMAGE_PRIORITY_ITEMS_COUNT = 4;
-const IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT = 0;
-const IMAGE_DEEP_RECOVERY_BATCH_COUNT = 0;
+const IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT = 8;
+const IMAGE_DEEP_RECOVERY_BATCH_COUNT = 4;
 const IMAGE_DEEP_RECOVERY_DELAY_MS = 300;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 0;
-const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = 0;
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 6;
+const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = 18;
 const LOAD_MORE_SCROLL_BUFFER_PX = 1200;
 const LOAD_MORE_OBSERVER_ROOT_MARGIN = "0px 0px 1400px 0px";
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 80;
@@ -2685,6 +2685,12 @@ const Data: React.FC<DataProps> = ({
     if (viewportWidth >= 640) return 2;
     return 1;
   }, [viewportWidth]);
+  const imagePriorityItemsCount = useMemo(() => {
+    if (viewportWidth <= 0) return IMAGE_PRIORITY_ITEMS_COUNT;
+    if (viewportWidth < 640) return 1;
+    if (viewportWidth < 1024) return 2;
+    return IMAGE_PRIORITY_ITEMS_COUNT;
+  }, [viewportWidth]);
   const shouldUseVirtualWindow =
     visibleSortedEntries.length >= VIRTUAL_WINDOW_THRESHOLD_ITEMS && !shouldShowInitialSkeleton;
   const virtualizedEntries = useMemo(() => {
@@ -3097,7 +3103,7 @@ const Data: React.FC<DataProps> = ({
                     : Object.prototype.hasOwnProperty.call(prices, priceKey)
                       ? "request"
                       : "loading";
-                const shouldPrioritizeImage = absoluteIndex < IMAGE_PRIORITY_ITEMS_COUNT;
+                const shouldPrioritizeImage = absoluteIndex < imagePriorityItemsCount;
                 const imageBatchKey = buildProductImageBatchKey(item.code, item.article);
                 const hasPhoto = item.hasPhoto !== false;
                 const normalizedGroup =
@@ -3121,6 +3127,11 @@ const Data: React.FC<DataProps> = ({
                   <div
                     key={stableKey || `${code || "item"}-${index}`}
                     data-catalog-card="1"
+                    className={
+                      absoluteIndex > imagePriorityItemsCount + gridColumnCount
+                        ? "[content-visibility:auto] [contain-intrinsic-size:352px]"
+                        : undefined
+                    }
                   >
                     <ProductCard
                       item={item}

@@ -36,6 +36,17 @@ const socialLinks = (process.env.NEXT_PUBLIC_SOCIAL_LINKS || "")
 const sameAsLinks = Array.from(
   new Set([googleBusinessProfileUrl, ...socialLinks].filter(Boolean))
 );
+const googleTagManagerId = (() => {
+  const rawId = (
+    process.env.NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID ||
+    process.env.GOOGLE_TAG_MANAGER_ID ||
+    ""
+  )
+    .trim()
+    .toUpperCase();
+
+  return /^GTM-[A-Z0-9]+$/.test(rawId) ? rawId : "";
+})();
 
 export const metadata: Metadata = {
   metadataBase: siteUrlObject,
@@ -339,6 +350,26 @@ export default function RootLayout({
             `,
           }}
         />
+        {googleTagManagerId ? (
+          <Script
+            id="google-tag-manager"
+            strategy="afterInteractive"
+            dangerouslySetInnerHTML={{
+              __html: `
+                (function(w,d,s,l,i){
+                  w[l]=w[l]||[];
+                  w[l].push({'gtm.start': new Date().getTime(), event:'gtm.js'});
+                  var f=d.getElementsByTagName(s)[0],
+                    j=d.createElement(s),
+                    dl=l!='dataLayer'?'&l='+l:'';
+                  j.async=true;
+                  j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
+                  f.parentNode.insertBefore(j,f);
+                })(window,document,'script','dataLayer','${googleTagManagerId}');
+              `,
+            }}
+          />
+        ) : null}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
@@ -357,6 +388,17 @@ export default function RootLayout({
         />
       </head>
       <body>
+        {googleTagManagerId ? (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${googleTagManagerId}`}
+              height="0"
+              width="0"
+              style={{ display: "none", visibility: "hidden" }}
+              title="Google Tag Manager"
+            />
+          </noscript>
+        ) : null}
         <div className="page-scale-root">
           <ClientWrapper>
             <Suspense fallback={layoutFallback}>
