@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, MessageCircle, Minus, Plus, ShoppingCart } from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
+import { pushDataLayer } from "app/lib/gtm";
 
 type ProductPageActionsProps = {
   code: string;
@@ -69,6 +70,13 @@ const ProductPageActions = ({
       name,
       price: priceUah,
       quantity: quantityToAdd,
+    });
+
+    pushDataLayer({
+      event: "add_to_cart",
+      currency: "UAH",
+      value: priceUah * quantityToAdd,
+      items: [{ item_id: code, item_name: name, price: priceUah, quantity: quantityToAdd, currency: "UAH" }],
     });
 
     setJustAdded(true);

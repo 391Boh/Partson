@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { buildPageMetadata } from "app/lib/seo-metadata";
+import PurchaseEvent from "app/components/PurchaseEvent";
 
 export const metadata = buildPageMetadata({
   title: "Оплату отримано",
@@ -14,6 +15,7 @@ export const metadata = buildPageMetadata({
 export default function PaymentSuccessPage() {
   return (
     <main className="mx-auto flex min-h-[70svh] w-full max-w-3xl items-center px-4 py-12 sm:px-6">
+      <PurchaseEvent />
       <section className="soft-surface-card w-full rounded-[24px] px-6 py-8 text-center text-slate-700 shadow-[0_24px_60px_rgba(15,23,42,0.08)] sm:px-8">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-2xl text-emerald-600">
           ✓

@@ -43,6 +43,7 @@ import {
 import { getSiteUrl } from "app/lib/site-url";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import ProductViewTracking from "app/components/ProductViewTracking";
 
 const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 2400;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 2200;
@@ -1807,6 +1808,11 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         as="image"
         href={productDisplayImagePath}
         fetchPriority="high"
+      />
+      <ProductViewTracking
+        item_id={product.code || resolvedCode}
+        item_name={visibleProductName}
+        price={initialPriceUah}
       />
       <div
         className={

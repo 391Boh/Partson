@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCart } from 'app/context/CartContext';
+import { pushDataLayer } from 'app/lib/gtm';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import Zamovl from './zamovl';
 import { db, auth } from '../../firebase';
@@ -94,6 +95,22 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     (total, item) => total + (item.quantity || 0),
     0
   );
+
+  const handleBeginCheckout = () => {
+    pushDataLayer({
+      event: "begin_checkout",
+      currency: "UAH",
+      value: totalAmount,
+      items: cartItems.map((item) => ({
+        item_id: item.code,
+        item_name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        currency: "UAH",
+      })),
+    });
+    setIsOrdering(true);
+  };
   const totalPastOrdersAmount = useMemo(
     () =>
       pastOrders.reduce((total, order) => {
@@ -402,7 +419,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
             </button>
 
             <button
-              onClick={() => setIsOrdering(true)}
+              onClick={handleBeginCheckout}
               className={`flex items-center justify-center gap-1.5 rounded-[14px] border px-2.5 py-2 text-sm font-semibold transition-[transform,box-shadow,filter,background-color,border-color] duration-200 sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
                 hasItems
                   ? 'border-sky-200/50 bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-500 text-white shadow-[0_16px_30px_rgba(14,165,233,0.28)] hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_20px_38px_rgba(37,99,235,0.3)]'
