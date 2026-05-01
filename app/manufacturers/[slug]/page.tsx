@@ -83,6 +83,8 @@ type ManufacturerPageData = {
   }>;
 };
 
+type ManufacturerTopGroup = ManufacturerPageData["topGroups"][number];
+
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return fallbackValue;
@@ -334,6 +336,65 @@ const collectProducerFallbackStats = cache(async (producerLabel: string) => {
   };
 });
 
+const manufacturerGroupHasCatalogResults = async (
+  producerLabel: string,
+  group: ManufacturerTopGroup
+) => {
+  const normalizedProducer = normalizeValue(producerLabel);
+  const normalizedGroup = normalizeValue(group.filterValue || group.label);
+  if (!normalizedProducer || !normalizedGroup) return false;
+
+  const result = await resolveWithTimeout(
+    () =>
+      fetchCatalogProductsByQuery({
+        page: 1,
+        limit: 1,
+        producer: normalizedProducer,
+        group: normalizedGroup,
+        sortOrder: "none",
+        forceAllgoodsSource: true,
+        timeoutMs: 650,
+        retries: 0,
+        retryDelayMs: 80,
+        cacheTtlMs: 1000 * 60 * 20,
+      }),
+    null,
+    900
+  ).catch(() => null);
+
+  return Array.isArray(result?.items) && result.items.length > 0;
+};
+
+const filterManufacturerGroupsWithCatalogResults = async (
+  producerLabel: string,
+  groups: ManufacturerTopGroup[]
+) => {
+  if (isProductionBuildPhase || groups.length === 0) return groups;
+
+  const checks = await Promise.all(
+    groups.map(async (group) => ({
+      group,
+      hasResults: await manufacturerGroupHasCatalogResults(producerLabel, group),
+    }))
+  );
+
+  return checks
+    .filter((entry) => {
+      if (entry.hasResults) return true;
+      console.log(JSON.stringify({
+        type: "manufacturer-group-excluded",
+        producer: producerLabel,
+        groupLabel: entry.group.label,
+        groupFilterValue: entry.group.filterValue,
+        groupSlug: entry.group.slug,
+        reason: "catalog validation returned 0 products",
+        ts: Date.now(),
+      }));
+      return false;
+    })
+    .map((entry) => entry.group);
+};
+
 const findBrandMeta = (label: string) => {
   const normalizedLabel = normalizeValue(label);
   const labelSlug = buildSeoSlug(normalizedLabel);
@@ -452,6 +513,11 @@ const getManufacturerBySlug = cache(
       return false;
     });
 
+    const validatedTopGroups = await filterManufacturerGroupsWithCatalogResults(
+      label,
+      safeTopGroups
+    );
+
     return {
       label,
       slug: canonicalSlug,
@@ -459,9 +525,12 @@ const getManufacturerBySlug = cache(
       logoPath,
       initials: getProducerInitials(label),
       productCount: Math.max(productCount, fallbackCounts?.productCount || 0),
-      groupsCount: Math.max(groupsCount, fallbackCounts?.groupsCount || 0),
-      categoriesCount: Math.max(categoriesCount, fallbackCounts?.categoriesCount || 0),
-      topGroups: safeTopGroups,
+      groupsCount: validatedTopGroups.length,
+      categoriesCount: validatedTopGroups.reduce(
+        (sum, group) => sum + group.subgroups.length,
+        0
+      ),
+      topGroups: validatedTopGroups,
     };
   }
 );
