@@ -47,6 +47,17 @@ const googleTagManagerId = (() => {
 
   return /^GTM-[A-Z0-9]+$/.test(rawId) ? rawId : "";
 })();
+const googleAnalyticsId = (() => {
+  const rawId = (
+    process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID ||
+    process.env.GOOGLE_ANALYTICS_ID ||
+    "G-B56XGEPJPT"
+  )
+    .trim()
+    .toUpperCase();
+
+  return /^G-[A-Z0-9]+$/.test(rawId) ? rawId : "";
+})();
 
 export const metadata: Metadata = {
   metadataBase: siteUrlObject,
@@ -275,6 +286,27 @@ export default function RootLayout({
           type="font/ttf"
           crossOrigin="anonymous"
         />
+        {googleAnalyticsId ? (
+          <>
+            <Script
+              id="google-analytics-src"
+              src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`}
+              strategy="afterInteractive"
+            />
+            <Script
+              id="google-analytics-config"
+              strategy="afterInteractive"
+              dangerouslySetInnerHTML={{
+                __html: `
+                  window.dataLayer = window.dataLayer || [];
+                  function gtag(){dataLayer.push(arguments);}
+                  gtag('js', new Date());
+                  gtag('config', '${googleAnalyticsId}');
+                `,
+              }}
+            />
+          </>
+        ) : null}
         {googleTagManagerId ? (
           <Script
             id="google-tag-manager"
