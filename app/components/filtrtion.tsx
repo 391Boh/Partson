@@ -115,7 +115,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const [activeComponent, setActiveComponent] = useState<'auto' | 'category' | 'producer'>('auto');
   const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>(selectedCars);
   const [localSortOrder, setLocalSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
   const handleHeaderToggle = useCallback((event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;

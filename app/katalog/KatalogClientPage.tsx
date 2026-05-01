@@ -41,6 +41,7 @@ const SESSION_KEYS = {
 
 const FILTER_TOP_GAP = 14;
 const FILTER_RESULTS_GAP = 32;
+const FILTER_RESULTS_FALLBACK_OFFSET = 112;
 
 const loadCatalogFirebaseDeps = (() => {
   let promise: Promise<{
@@ -605,7 +606,9 @@ const Katalog: React.FC<KatalogProps> = ({
   );
 
   const catalogTopOffset =
-    filterHeight > 0 ? filterHeight + FILTER_TOP_GAP + FILTER_RESULTS_GAP : 136;
+    filterHeight > 0
+      ? filterHeight + FILTER_TOP_GAP + FILTER_RESULTS_GAP
+      : FILTER_RESULTS_FALLBACK_OFFSET;
 
   const fixedFilterLayer = (
     <div
@@ -625,7 +628,6 @@ const Katalog: React.FC<KatalogProps> = ({
         className="page-shell-inline"
         style={{
           paddingTop: catalogTopOffset,
-          transition: 'padding-top 180ms ease',
         }}
       >
         <Data

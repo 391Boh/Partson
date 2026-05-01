@@ -1,15 +1,12 @@
 ﻿"use client";
 
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
 import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle, Copy, Check } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
 
-const MOTION_EASE_OUT = [0.22, 1, 0.36, 1] as const;
-const MOTION_EASE_LINEAR = [0, 0, 1, 1] as const;
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
 const ARTICLE_COPY_FEEDBACK_MS = 1200;
@@ -74,49 +71,16 @@ const ProductCard: React.FC<Props> = ({
     onFlip,
     onImageOpen,
 }) => {
-    const reduceMotion = useReducedMotion() ?? false;
     const motionEnabled = motionEnabledProp ?? true;
-    const allowMotion = motionEnabled && !reduceMotion;
-    const [canHover, setCanHover] = useState(false);
-    const [isCoarsePointer, setIsCoarsePointer] = useState(false);
-
-    useEffect(() => {
-        if (!allowMotion) {
-            setCanHover(false);
-            setIsCoarsePointer(false);
-            return;
-        }
-        if (typeof window === "undefined") return;
-
-        const hoverQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
-        const pointerQuery = window.matchMedia("(pointer: coarse)");
-
-        const update = () => {
-            setCanHover(hoverQuery.matches);
-            setIsCoarsePointer(pointerQuery.matches);
-        };
-
-        update();
-
-        if ("addEventListener" in hoverQuery) {
-            hoverQuery.addEventListener("change", update);
-            pointerQuery.addEventListener("change", update);
-            return () => {
-                hoverQuery.removeEventListener("change", update);
-                pointerQuery.removeEventListener("change", update);
-            };
-        }
-
-        // @ts-expect-error - Safari fallback
-        hoverQuery.addListener(update);
-      
-        pointerQuery.addListener(update);
-        return () => {
-            // @ts-expect-error - Safari fallback
-            hoverQuery.removeListener(update);
-            pointerQuery.removeListener(update);
-        };
-    }, [allowMotion]);
+    const cardMotionClass = motionEnabled
+        ? "transition-transform duration-200 ease-out hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+        : "";
+    const flipMotionClass = motionEnabled
+        ? "transition-transform duration-300 ease-out motion-reduce:transition-none"
+        : "";
+    const tapMotionClass = motionEnabled
+        ? "active:scale-[0.96] motion-reduce:active:scale-100"
+        : "";
 
     const quantity = item.quantity ?? 0;
     const code = item.code ?? "";
@@ -357,31 +321,17 @@ useEffect(() => {
     };
 }, [descriptionRequestUrl, isFlipped]);
 
-
-    const entryMotionEnabled = allowMotion;
-    const entryTransition = entryMotionEnabled
-        ? { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const }
-        : { duration: 0 };
-    const flipTransition = allowMotion
-        ? { type: "tween" as const, duration: isCoarsePointer ? 0.28 : 0.34, ease: MOTION_EASE_OUT }
-        : { duration: 0.2, ease: MOTION_EASE_LINEAR };
-
     return (
         <>
-        <motion.div
-            className="relative w-full h-[320px] [perspective:1200px] select-none"
-            initial={entryMotionEnabled ? { opacity: 0, y: 10 } : false}
-            whileInView={entryMotionEnabled ? { opacity: 1, y: 0 } : undefined}
-            viewport={entryMotionEnabled ? { once: false, amount: 0.35, margin: "0px 0px -10% 0px" } : undefined}
-            transition={entryTransition}
-            whileHover={allowMotion && canHover ? { y: -2 } : undefined}
-            style={entryMotionEnabled ? { willChange: "transform, opacity", transform: "translateZ(0)" } : undefined}
+        <div
+            className={`relative w-full h-[320px] [perspective:1200px] select-none ${cardMotionClass}`}
         >
-            <motion.div
-                className="relative w-full h-full cursor-pointer"
-                animate={{ rotateY: isFlipped ? 180 : 0 }}
-                transition={flipTransition}
-                style={{ transformStyle: "preserve-3d" }}
+            <div
+                className={`relative w-full h-full cursor-pointer ${flipMotionClass}`}
+                style={{
+                    transform: `rotateY(${isFlipped ? 180 : 0}deg)`,
+                    transformStyle: "preserve-3d",
+                }}
             >
                 {/* ---------- FRONT ---------- */}
                 <div
@@ -410,7 +360,7 @@ useEffect(() => {
                             shadow-sm hover:shadow-md
                         "
                     >
-                        <div className="w-2/5 h-full flex items-center justify-center overflow-hidden rounded-lg bg-white mr-2">
+                        <div className="mr-2 flex h-full w-1/3 items-center justify-center overflow-hidden rounded-lg bg-white sm:w-2/5">
                             <ProductCardImage
                                 productCode={code}
                                 articleHint={item.article}
@@ -424,7 +374,7 @@ useEffect(() => {
                             />
                         </div>
 
-                        <div className="w-3/5 h-full flex items-center">
+                        <div className="flex h-full w-2/3 items-center sm:w-3/5">
                             <SmartLink
                                 href={productHref}
                                 prefetch={false}
@@ -573,14 +523,10 @@ useEffect(() => {
                         <div className="flex items-center gap-1">
                             {cartQty > 0 && (
                                 <div className="flex items-center gap-2">
-                                    <motion.div
-                                        className="inline-flex flex-col items-center rounded-full bg-orange-500 px-1 py-0.5 text-[8px] font-semibold text-white shadow-sm leading-none"
-                                        animate={allowMotion ? { scale: justAdded ? 1.12 : 1 } : undefined}
-                                        transition={
-                                            allowMotion
-                                                ? { type: "tween", duration: 0.18, ease: "easeOut" }
-                                                : { duration: 0 }
-                                        }
+                                    <div
+                                        className={`inline-flex flex-col items-center rounded-full bg-orange-500 px-1 py-0.5 text-[8px] font-semibold text-white shadow-sm leading-none transition-transform duration-150 ${
+                                            justAdded && motionEnabled ? "scale-110" : "scale-100"
+                                        }`}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             if (typeof window !== "undefined") {
@@ -590,28 +536,20 @@ useEffect(() => {
                                     >
                                         <span>{"\u0423 \u043A\u043E\u0448\u0438\u043A\u0443"}</span>
                                         <span className="min-w-[12px] text-center">{cartQty}</span>
-                                    </motion.div>
-                                    <motion.button
-                                        whileTap={allowMotion ? { scale: 0.93 } : undefined}
+                                    </div>
+                                    <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onRemoveFromCart(code);
                                         }}
-                                        className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all duration-200 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                                        className={`p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all duration-200 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 ${tapMotionClass}`}
                                         aria-label="Видалити товар з кошика"
                                     >
                                         <Trash2 size={16} />
-                                    </motion.button>
+                                    </button>
                                 </div>
                             )}
-                            <motion.button
-                                whileTap={allowMotion ? { scale: 0.93 } : undefined}
-                                animate={allowMotion ? { scale: justAdded ? 1.06 : 1 } : undefined}
-                                transition={
-                                    allowMotion
-                                        ? { type: "tween", duration: 0.2, ease: "easeOut" }
-                                        : { duration: 0 }
-                                }
+                            <button
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (isPriceLoading) {
@@ -639,6 +577,8 @@ useEffect(() => {
                                         : isRequestAction
                                             ? "bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200/80 shadow-xs hover:shadow-sm"
                                             : "bg-rose-500 text-white hover:bg-rose-600 shadow-xs hover:shadow-sm"
+                                } ${tapMotionClass} ${
+                                    justAdded && motionEnabled ? "scale-105" : "scale-100"
                                 }`}
                             >
                                 {isPriceLoading ? (
@@ -648,7 +588,7 @@ useEffect(() => {
                                 ) : (
                                     <ShoppingCart size={18} />
                                 )}
-                            </motion.button>
+                            </button>
 
                             <button
                                 onClick={(e) => {
@@ -708,7 +648,7 @@ useEffect(() => {
         
     </div>
 
-    <motion.button
+    <button
         onClick={(e) => {
             e.stopPropagation();
             onFlip(code);
@@ -722,18 +662,17 @@ useEffect(() => {
             shadow-sm
             hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50
             transition-all
+            hover:scale-[1.03] active:scale-[0.96] motion-reduce:hover:scale-100 motion-reduce:active:scale-100
         "
         aria-label="Назад"
-        whileHover={allowMotion && canHover ? { scale: 1.06 } : undefined}
-        whileTap={allowMotion ? { scale: 0.92 } : undefined}
     >
         <ChevronDown size={16} className="rotate-180" />
-    </motion.button>
+    </button>
 </div>
 
 
-            </motion.div>
-        </motion.div>
+            </div>
+        </div>
         </>
     );
 };

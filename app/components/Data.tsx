@@ -9,7 +9,6 @@ import React, {
   useDeferredValue,
 } from "react";
 import { useSearchParams } from "next/navigation";
-import { AnimatePresence } from "framer-motion";
 import { Search } from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
@@ -497,6 +496,41 @@ const CatalogTransitionLoader = ({
       <span className="h-3 w-3 animate-pulse rounded-full bg-sky-500" />
       <span>{label}</span>
     </div>
+  </div>
+);
+
+const CatalogCardSkeleton = ({ index }: { index: number }) => (
+  <div
+    className="flex h-[320px] flex-col rounded-xl border border-slate-200/70 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-2.5 shadow-sm"
+    aria-hidden="true"
+  >
+    <div className="flex h-20 rounded-xl border border-slate-200/70 bg-gradient-to-r from-slate-100 to-slate-200 p-1.5">
+      <div className="h-full w-2/5 rounded-lg bg-white" />
+      <div className="ml-2 flex w-3/5 flex-col justify-center gap-2">
+        <div className="h-3.5 w-full rounded-full bg-slate-200" />
+        <div className="h-3.5 w-5/6 rounded-full bg-slate-200" />
+        <div className="h-3.5 w-3/5 rounded-full bg-slate-200" />
+      </div>
+    </div>
+    <div className="mt-5 space-y-2.5 px-1">
+      <div className="h-3 rounded-full bg-slate-200/80" />
+      <div className="h-3 rounded-full bg-slate-200/80" />
+      <div className="h-3 rounded-full bg-slate-200/80" />
+    </div>
+    <div className="mt-5 flex justify-end">
+      <div className="h-9 w-40 rounded-full border border-blue-100 bg-white/90" />
+    </div>
+    <div className="mt-auto flex items-end justify-between border-t border-slate-200 pt-3">
+      <div className="space-y-2">
+        <div className="h-3 w-24 rounded-full bg-slate-200/80" />
+        <div className="h-6 w-20 rounded-full border border-slate-200 bg-white" />
+      </div>
+      <div className="flex gap-2">
+        <div className="h-9 w-9 rounded-lg bg-slate-200/80" />
+        <div className="h-9 w-9 rounded-lg bg-slate-200/80" />
+      </div>
+    </div>
+    <span className="sr-only">Завантаження товару {index + 1}</span>
   </div>
 );
 
@@ -3143,7 +3177,9 @@ const Data: React.FC<DataProps> = ({
                       imageLoadingMode={shouldPrioritizeImage ? "eager" : "lazy"}
                       imageFetchPriority={shouldPrioritizeImage ? "high" : "low"}
                       prefetchedImageSrc={
-                        (imageBatchKey ? pageImages[imageBatchKey] : null) ?? null
+                        !shouldPrioritizeImage && imageBatchKey
+                          ? pageImages[imageBatchKey] ?? null
+                          : null
                       }
                       batchImagePending={Boolean(imageBatchKey && pageImagePending[imageBatchKey])}
                       batchImageMissing={
@@ -3175,7 +3211,14 @@ const Data: React.FC<DataProps> = ({
               )}
 
               {shouldShowInitialSkeleton && (
-                <CatalogTransitionLoader label={filterTransitionLabel} />
+                <>
+                  <div className="sr-only" role="status">
+                    {filterTransitionLabel}
+                  </div>
+                  {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
+                    <CatalogCardSkeleton key={`catalog-skeleton-${index}`} index={index} />
+                  ))}
+                </>
               )}
 
               {showInlineLoader && (
@@ -3238,9 +3281,7 @@ const Data: React.FC<DataProps> = ({
 
       </div>
 
-      <AnimatePresence>
-        {selectedImage && <ImageModal src={selectedImage} onClose={handleImageClose} />}
-      </AnimatePresence>
+      {selectedImage && <ImageModal src={selectedImage} onClose={handleImageClose} />}
     </>
   );
 };

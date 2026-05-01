@@ -47,6 +47,10 @@ export interface SeoGroupFacet extends SeoFacetItem {
 }
 
 export interface SeoProducerGroupFacet extends SeoFacetItem {
+  // filterValue holds the raw 1C Группа field value used in ?group= URL params.
+  // label may differ when the swap-correction in resolveFacetHierarchy promotes
+  // a Категорія value to the human-visible group name.
+  filterValue: string;
   subgroups: SeoFacetItem[];
 }
 
@@ -252,6 +256,10 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
   const groupSubgroupCounts = new Map<string, FacetCounterMap>();
   const producerGroupCounts = new Map<string, FacetCounterMap>();
   const producerGroupSubgroupCounts = new Map<string, NestedFacetCounterMap>();
+  // producerGroupDisplayLabels[producerSlug][groupFilterSlug] = swap-corrected display label.
+  // Populated only when resolveFacetHierarchy corrects a swapped Группа/Категорія pair so
+  // that the human-visible label differs from the raw Группа filter value.
+  const producerGroupDisplayLabels = new Map<string, Map<string, string>>();
 
   let totalItems = 0;
   const dataset = await getProductTreeDataset().catch(() => null);
@@ -301,18 +309,53 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
         registerFacetProduct(producerCounts, producer, productKey);
       }
 
-      if (producer && group) {
-        registerNestedFacetProduct(producerGroupCounts, producer, group, productKey);
+      // Use the original product.group (Группа field as returned by 1C) rather than
+      // the swap-corrected `group` for producer→group registration.
+      //
+      // resolveFacetHierarchy may replace `group` with `product.category` when it
+      // detects swapped 1C fields; the corrected label is useful for global category
+      // display but causes empty catalog results when used as a URL filter, because
+      // the catalog queries 1C with Группа=<label> and 1C never has Группа=<corrected>
+      // for those products — it only has Группа=<original subgroup value>.
+      const rawGroupForFilter =
+        normalizeValue(product.group) || normalizeValue(product.category);
+
+      if (producer && rawGroupForFilter) {
+        registerNestedFacetProduct(producerGroupCounts, producer, rawGroupForFilter, productKey);
+
+        // When resolveFacetHierarchy detected a swap, `group` (swap-corrected label
+        // derived from Категорія) differs from `rawGroupForFilter` (original Группа
+        // value).  Record the corrected label so it can be used as the display label
+        // on the manufacturer page while filterValue stays as rawGroupForFilter.
+        if (group && group !== rawGroupForFilter) {
+          const producerSlug = buildSeoSlug(normalizeValue(producer));
+          const groupFilterSlug = buildSeoSlug(normalizeValue(rawGroupForFilter));
+          if (producerSlug && groupFilterSlug) {
+            let displayMap = producerGroupDisplayLabels.get(producerSlug);
+            if (!displayMap) {
+              displayMap = new Map<string, string>();
+              producerGroupDisplayLabels.set(producerSlug, displayMap);
+            }
+            if (!displayMap.has(groupFilterSlug)) {
+              displayMap.set(groupFilterSlug, group);
+            }
+          }
+        }
       }
 
-      if (producer && group && leaf) {
-        registerDoubleNestedFacetProduct(
-          producerGroupSubgroupCounts,
-          producer,
-          group,
-          leaf,
-          productKey
-        );
+      if (producer && rawGroupForFilter && leaf) {
+        const leafNorm = normalizeValue(leaf);
+        // Skip self-referencing subgroup that arises when a swapped product has
+        // rawGroup==leaf (both equal to the original Группа subgroup value).
+        if (leafNorm.toLowerCase() !== rawGroupForFilter.toLowerCase()) {
+          registerDoubleNestedFacetProduct(
+            producerGroupSubgroupCounts,
+            producer,
+            rawGroupForFilter,
+            leaf,
+            productKey
+          );
+        }
       }
 
       totalItems += 1;
@@ -346,11 +389,21 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
     const producerSubgroupMap =
       producerGroupSubgroupCounts.get(producerFacet.slug) ||
       new Map<string, FacetCounterMap>();
+    const displayLabels =
+      producerGroupDisplayLabels.get(producerFacet.slug) || new Map<string, string>();
     const producerGroups = toFacetList(groupMap).map((groupFacet) => {
       const subgroupMap =
         producerSubgroupMap.get(groupFacet.slug) || new Map<string, FacetCounterEntry>();
       const subgroups = toFacetList(subgroupMap);
-      return { ...groupFacet, subgroups };
+      // groupFacet.label = raw Группа value (the filter key stored by registerFacetProduct).
+      // displayLabels may hold a swap-corrected human-friendly name for this slug.
+      const displayLabel = displayLabels.get(groupFacet.slug) || groupFacet.label;
+      return {
+        ...groupFacet,
+        label: displayLabel,          // human-friendly (swap-corrected when applicable)
+        filterValue: groupFacet.label, // raw 1C Группа value → used in ?group= URL param
+        subgroups,
+      };
     });
     const topGroups = producerGroups;
     const categoriesCount = producerGroups.reduce(
@@ -374,7 +427,7 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
 
 const collectSeoFacetsWithRevalidate = unstable_cache(
   buildCatalogSeoFacets,
-  ["catalog-seo-facets-v11-leaf-category-counts"],
+  ["catalog-seo-facets-v12-producer-raw-group-filter"],
   {
     revalidate: 60 * 60 * 6,
     tags: ["catalog-seo-facets"],

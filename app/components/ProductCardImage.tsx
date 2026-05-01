@@ -238,7 +238,7 @@ const ProductCardImage: React.FC<Props> = ({
               src={requestSrc}
               alt="product"
               fill
-              sizes="(max-width: 640px) 40vw, (max-width: 1024px) 22vw, 150px"
+              sizes="(max-width: 640px) 30vw, (max-width: 1024px) 22vw, 150px"
               loading={loadingMode}
               fetchPriority={fetchPriority}
               decoding={imageDecodingMode}

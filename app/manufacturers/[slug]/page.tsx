@@ -34,7 +34,6 @@ import {
   findSeoProducerBySlug,
 } from "app/lib/catalog-seo";
 import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
-import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getProducerSeoCopy } from "app/lib/seo-copy";
 import { buildPageMetadata } from "app/lib/seo-metadata";
@@ -72,7 +71,8 @@ type ManufacturerPageData = {
   groupsCount: number;
   categoriesCount: number;
   topGroups: Array<{
-    label: string;
+    label: string;       // human-friendly display label (swap-corrected when applicable)
+    filterValue: string; // raw 1C Группа value used in ?group= URL param
     slug: string;
     productCount: number;
     subgroups: Array<{
@@ -176,81 +176,6 @@ const buildProductDedupeKey = (item: {
   return "";
 };
 
-type GroupHierarchyLookup = {
-  groups: Set<string>;
-  subgroups: Set<string>;
-  children: Set<string>;
-};
-
-const normalizeHierarchyKey = (value: string | null | undefined) =>
-  normalizeValue(value).toLocaleLowerCase("uk-UA");
-
-const buildGroupHierarchyLookup = (
-  dataset: Awaited<ReturnType<typeof getProductTreeDataset>> | null
-): GroupHierarchyLookup => {
-  const groups = new Set<string>();
-  const subgroups = new Set<string>();
-  const children = new Set<string>();
-
-  for (const group of dataset?.groups ?? []) {
-    const groupKey = normalizeHierarchyKey(group.label);
-    if (groupKey) groups.add(groupKey);
-
-    for (const subgroup of group.subgroups ?? []) {
-      const subgroupKey = normalizeHierarchyKey(subgroup.label);
-      if (subgroupKey) subgroups.add(subgroupKey);
-
-      for (const child of subgroup.children ?? []) {
-        const childKey = normalizeHierarchyKey(child.label);
-        if (childKey) children.add(childKey);
-      }
-    }
-  }
-
-  return { groups, subgroups, children };
-};
-
-const resolveFacetGroupAndSubgroup = (
-  item: { group?: string; subGroup?: string; category?: string },
-  lookup: GroupHierarchyLookup
-) => {
-  const rawGroup = normalizeValue(item.group);
-  const rawSubgroup = normalizeValue(item.subGroup);
-  const rawCategory = normalizeValue(item.category);
-
-  let group = rawGroup || rawCategory;
-  let subgroup = "";
-  let category = "";
-
-  if (rawSubgroup && rawSubgroup.toLowerCase() !== group.toLowerCase()) {
-    subgroup = rawSubgroup;
-  } else if (rawCategory && rawCategory.toLowerCase() !== group.toLowerCase()) {
-    subgroup = rawCategory;
-  }
-
-  if (
-    rawCategory &&
-    rawCategory.toLowerCase() !== group.toLowerCase() &&
-    rawCategory.toLowerCase() !== subgroup.toLowerCase()
-  ) {
-    category = rawCategory;
-  }
-
-  if (!rawSubgroup && rawGroup && rawCategory) {
-    const rawGroupKey = normalizeHierarchyKey(rawGroup);
-    const rawCategoryKey = normalizeHierarchyKey(rawCategory);
-    const looksSwapped =
-      lookup.subgroups.has(rawGroupKey) && lookup.groups.has(rawCategoryKey);
-
-    if (looksSwapped) {
-      group = rawCategory;
-      subgroup = rawGroup;
-      category = "";
-    }
-  }
-
-  return { group, subgroup: category || subgroup };
-};
 
 const collectProducerFallbackStats = cache(async (producerLabel: string) => {
   const normalizedProducerLabel = normalizeValue(producerLabel);
@@ -261,6 +186,7 @@ const collectProducerFallbackStats = cache(async (producerLabel: string) => {
       categoriesCount: 0,
       topGroups: [] as Array<{
         label: string;
+        filterValue: string;
         slug: string;
         productCount: number;
         subgroups: Array<{ label: string; slug: string; productCount: number }>;
@@ -277,8 +203,6 @@ const collectProducerFallbackStats = cache(async (producerLabel: string) => {
   const maxItems =
     parseOptionalPositiveInt(process.env.SEO_MANUFACTURER_FALLBACK_MAX_ITEMS) ??
     MANUFACTURER_FALLBACK_MAX_ITEMS_DEFAULT;
-  const dataset = await getProductTreeDataset().catch(() => null);
-  const hierarchyLookup = buildGroupHierarchyLookup(dataset);
   const seenProducts = new Set<string>();
   const groupCounts = new Map<
     string,
@@ -318,10 +242,14 @@ const collectProducerFallbackStats = cache(async (producerLabel: string) => {
       if (!dedupeKey || seenProducts.has(dedupeKey)) continue;
 
       seenProducts.add(dedupeKey);
-      const { group: groupLabel, subgroup: subgroupLabel } = resolveFacetGroupAndSubgroup(
-        item,
-        hierarchyLookup
-      );
+      // Use the original item.group (Группа field from 1C) rather than the
+      // swap-corrected result of resolveFacetGroupAndSubgroup.  The group label
+      // is passed directly into ?group=X URL params; the catalog filters 1C by
+      // Группа=X, so the label must match the actual Группа field stored in 1C.
+      // The swap-corrected label (taken from Категорія) causes Группа filter
+      // mismatches → empty catalog results on manufacturer group links.
+      const groupLabel = normalizeValue(item.group) || normalizeValue(item.category);
+      const subgroupLabel = normalizeValue(item.subGroup);
       if (!groupLabel) continue;
 
       const groupSlug = buildSeoSlug(groupLabel);
@@ -371,6 +299,10 @@ const collectProducerFallbackStats = cache(async (producerLabel: string) => {
     .map(([slug, value]) => ({
       slug,
       label: value.label,
+      // Fallback path has no swap-correction data, so filterValue == label.
+      // The label is already the raw item.group (Группа field) value, so it
+      // matches what 1C filters on.
+      filterValue: value.label,
       productCount: value.productCount,
       subgroups: Array.from(value.subgroups.entries())
         .map(([subgroupSlug, subgroupValue]) => ({
@@ -445,7 +377,10 @@ const getManufacturerBySlug = cache(
 
     const topGroups = (producer?.topGroups ?? [])
       .map((group) => ({
-        ...group,
+        label: group.label,
+        filterValue: group.filterValue,
+        slug: group.slug,
+        productCount: group.productCount,
         subgroups: (group.subgroups ?? []).filter(
           (subgroup) => normalizeValue(subgroup.label).length > 0
         ),
@@ -494,11 +429,28 @@ const getManufacturerBySlug = cache(
       : null;
     const fallbackTopGroups = fallbackCounts?.topGroups || [];
     const fallbackCategoriesCount = fallbackCounts?.categoriesCount || 0;
-    const resolvedTopGroups =
+    const resolvedTopGroups: ManufacturerPageData["topGroups"] =
       fallbackTopGroups.length > 0 &&
       (topGroups.length === 0 || fallbackCategoriesCount > topGroupsCategoriesCount)
         ? fallbackTopGroups
         : topGroups;
+
+    // Safety pass: drop any group that has zero products.  This is already
+    // guaranteed by toFacetList / collectProducerFallbackStats, but stale
+    // cached facets or data gaps can occasionally surface 0-count entries.
+    const safeTopGroups = resolvedTopGroups.filter((group) => {
+      if (group.productCount > 0) return true;
+      console.log(JSON.stringify({
+        type: "manufacturer-group-excluded",
+        producer: label,
+        groupLabel: group.label,
+        groupFilterValue: group.filterValue,
+        groupSlug: group.slug,
+        reason: "productCount is 0 — stale facet entry skipped",
+        ts: Date.now(),
+      }));
+      return false;
+    });
 
     return {
       label,
@@ -509,7 +461,7 @@ const getManufacturerBySlug = cache(
       productCount: Math.max(productCount, fallbackCounts?.productCount || 0),
       groupsCount: Math.max(groupsCount, fallbackCounts?.groupsCount || 0),
       categoriesCount: Math.max(categoriesCount, fallbackCounts?.categoriesCount || 0),
-      topGroups: resolvedTopGroups,
+      topGroups: safeTopGroups,
     };
   }
 );
@@ -622,7 +574,7 @@ export default async function ManufacturerDetailPage({
         "@type": "ListItem",
         position: index + 1,
         name: group.label,
-        url: `${siteUrl}${buildCatalogProducerPath(producer.label, group.label)}`,
+        url: `${siteUrl}${buildCatalogProducerPath(producer.label, group.filterValue)}`,
       })),
     },
   };
@@ -838,7 +790,7 @@ export default async function ManufacturerDetailPage({
                           Група
                         </p>
                         <CatalogPrefetchLink
-                          href={buildCatalogProducerPath(producer.label, group.label)}
+                          href={buildCatalogProducerPath(producer.label, group.filterValue)}
                           prefetchCatalogOnViewport
                           className="font-display mt-1 inline-flex text-[18px] font-[760] tracking-normal text-slate-950 transition hover:text-teal-700"
                         >
@@ -865,7 +817,7 @@ export default async function ManufacturerDetailPage({
                             key={`${group.slug}:${subgroup.slug}`}
                             href={buildCatalogProducerPath(
                               producer.label,
-                              group.label,
+                              group.filterValue,
                               subgroup.label
                             )}
                             prefetchCatalogOnViewport
@@ -881,7 +833,7 @@ export default async function ManufacturerDetailPage({
                     ) : (
                       <div className="px-4 py-4">
                         <CatalogPrefetchLink
-                          href={buildCatalogProducerPath(producer.label, group.label)}
+                          href={buildCatalogProducerPath(producer.label, group.filterValue)}
                           prefetchCatalogOnViewport
                           className={directoryPrimaryButtonClass}
                         >
