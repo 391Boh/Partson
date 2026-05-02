@@ -28,7 +28,7 @@ const loadHomeAuthDeps = () => {
   return homeAuthDepsPromise;
 };
 
-const placeholderHeights = ["520px", "560px", "380px"] as const;
+const placeholderHeights = ["520px", "560px", "380px"] as const; // must match HomeSectionFallback heights in HomeDeferredStack.tsx
 
 const HomeDeferredStackPlaceholder = () => (
   <>

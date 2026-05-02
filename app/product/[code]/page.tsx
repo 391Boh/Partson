@@ -1,6 +1,6 @@
 import { Suspense, cache, type CSSProperties } from "react";
 import type { Metadata } from "next";
-import { unstable_cache, unstable_noStore } from "next/cache";
+import { unstable_cache } from "next/cache";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -43,14 +43,13 @@ import {
 import { getSiteUrl } from "app/lib/site-url";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
-import ProductViewTracking from "app/components/ProductViewTracking";
 
 const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 2400;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 2200;
 const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 1000;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 120;
 const PRODUCT_PAGE_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
-const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 2400;
+const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
 
 export const revalidate = 900;
 
@@ -79,11 +78,11 @@ const ProductRelatedItemsFallback = () => (
       </div>
       <div className="h-6 w-24 animate-pulse rounded-full bg-slate-100" />
     </div>
-    <div className="mt-3 grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
+    <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:thin] md:grid md:overflow-visible lg:grid-cols-2 2xl:grid-cols-3">
       {Array.from({ length: 3 }).map((_, index) => (
         <div
           key={index}
-          className="h-[156px] animate-pulse rounded-[18px] border border-slate-200 bg-slate-100"
+          className="h-[156px] min-w-[min(84vw,258px)] shrink-0 animate-pulse rounded-[18px] border border-slate-200 bg-slate-100 sm:min-w-[280px] md:min-w-0"
         />
       ))}
     </div>
@@ -99,11 +98,11 @@ const ProductRecentlyViewedFallback = () => (
       </div>
       <div className="h-6 w-24 animate-pulse rounded-full bg-slate-100" />
     </div>
-    <div className="mt-3 grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-4">
+    <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:thin] md:grid md:overflow-visible lg:grid-cols-2 2xl:grid-cols-4">
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={index}
-          className="h-[188px] animate-pulse rounded-[18px] border border-slate-200 bg-slate-100"
+          className="h-[188px] min-w-[min(84vw,258px)] shrink-0 animate-pulse rounded-[18px] border border-slate-200 bg-slate-100 sm:min-w-[280px] md:min-w-0"
         />
       ))}
     </div>
@@ -298,12 +297,8 @@ const buildReadableNameFromRoute = (rawCode: string, fallbackCode: string) => {
   const nameSource = routeSlugs?.nameSlug || decodedParam || fallbackCode;
   const withoutInternalCode = nameSource.replace(/~[^~]+$/u, "");
   const readable = buildVisibleProductName(withoutInternalCode.replace(/[-_]+/g, " "));
-  const normalizedCode = (fallbackCode || "").trim() || "PartsON";
 
-  // URL slugs are transliterated Latin. Only use the slug-derived name when it
-  // contains Cyrillic characters; otherwise fall back to a Ukrainian placeholder.
-  const hasCyrillic = /[А-ЯҐЄІЇа-яґєії]/u.test(readable);
-  return hasCyrillic ? readable : `Товар ${normalizedCode}`;
+  return readable && readable !== "Товар" ? readable : `Товар ${fallbackCode}`;
 };
 
 const buildFallbackProductFromRoute = (
@@ -1134,95 +1129,6 @@ const canUseDirectProductCodeFallback = (rawCode: string) => {
   return decodedParam.includes("~") || !decodedParam.includes("-");
 };
 
-// ─── Slug validation ──────────────────��─────────────────────────────────────
-// buildPlainSeoSlug outputs only [a-z0-9-], no leading/trailing/double hyphens.
-// These constants mirror that contract so we can validate URLs before indexing.
-const SLUG_VALID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/;
-const SLUG_MIN_LENGTH = 4;
-const SLUG_MAX_LENGTH = 200;
-// Generic placeholders emitted by buildProductPath when all identifiers are missing.
-const SLUG_GENERIC_FALLBACKS = new Set(["item", "tovar"]);
-
-// Returns true if at least one hyphen-separated token carries a digit.
-// Every real product slug ends with an article or code token (always alphanumeric),
-// so purely alphabetic slugs are a strong signal of random/invalid URLs.
-const hasStableIdentifierToken = (slug: string): boolean =>
-  slug.split("-").some((part) => part.length >= 2 && /\d/.test(part));
-
-const isValidSlugSegment = (segment: string): boolean => {
-  if (!segment) return false;
-  const len = segment.length;
-  if (len < SLUG_MIN_LENGTH || len > SLUG_MAX_LENGTH) return false;
-  if (!SLUG_VALID_PATTERN.test(segment)) return false;
-  if (SLUG_GENERIC_FALLBACKS.has(segment.toLowerCase())) return false;
-  return true;
-};
-
-// Validates whether a raw URL code param has the structural shape of a real
-// product URL, without touching the database.  Three accepted formats:
-//   1. Standard SEO slug:  "kupity-filtr-maslyaniy-n01070816"
-//   2. Group+name slug:    "filtry--kupity-filtr-n01070816"
-//   3. Bare code/article:  "N01070816" or "article~codeHint"
-const isValidProductSlug = (rawCode: string): boolean => {
-  const decoded = decodeURIComponent(rawCode || "").trim();
-  if (!decoded || decoded.length > SLUG_MAX_LENGTH) return false;
-
-  // Format 2: group--nameSlug (two-segment SEO URL)
-  const routeSlugs = extractProductRouteSlugsFromParam(decoded);
-  if (routeSlugs !== null) {
-    return (
-      isValidSlugSegment(routeSlugs.groupSlug) &&
-      isValidSlugSegment(routeSlugs.nameSlug) &&
-      hasStableIdentifierToken(routeSlugs.nameSlug)
-    );
-  }
-
-  // Format 3a: direct code with "~" hint separator (e.g. N01070816~ART)
-  if (decoded.includes("~")) {
-    const mainCode = decoded.split("~")[0].trim();
-    return mainCode.length >= 2 && mainCode.length <= SLUG_MAX_LENGTH;
-  }
-
-  // Format 3b: bare code without hyphens (e.g. N01070816)
-  if (!decoded.includes("-")) {
-    return (
-      decoded.length >= 2 &&
-      decoded.length <= SLUG_MAX_LENGTH &&
-      /[a-zA-Z0-9]/.test(decoded)
-    );
-  }
-
-  // Format 1: standard hyphenated SEO slug — must contain at least one
-  // identifier token with a digit (article or code suffix).
-  return isValidSlugSegment(decoded) && hasStableIdentifierToken(decoded);
-};
-
-// ─── Observability ─────────────────────────��─────────────────────────���──────
-// Replace this with your structured logging sink (Datadog, Sentry, Loki, etc.).
-// Runs server-side only; safe to use JSON.stringify in all environments.
-type ProductSeoEvent =
-  | "indexed"
-  | "modal-noindex"
-  | "invalid-slug-noindex"
-  | "timeout-noindex-no-cache"
-  | "resolved-code-only-noindex";
-
-const logProductSeoEvent = (
-  event: ProductSeoEvent,
-  payload: { rawCode: string; resolvedCode?: string; reason: string }
-) => {
-  console.log(
-    JSON.stringify({
-      type: "product-seo",
-      event,
-      rawCode: payload.rawCode,
-      resolvedCode: payload.resolvedCode ?? "",
-      reason: payload.reason,
-      ts: Date.now(),
-    })
-  );
-};
-
 const recoverProductRouteDataFromNameSlug = async (
   rawCode: string
 ): Promise<ResolvedProductRouteData | null> => {
@@ -1300,62 +1206,7 @@ export async function generateMetadata({
     ? getProductImagePath(routeProduct.code || resolvedCode, routeProduct.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const productImageUrl = `${getSiteUrl()}${productImagePath}`;
-
-  // ── Indexation decision ──────────────────────────────────────────────────
-  //
-  // Three mutually exclusive states:
-  //
-  // 1. INDEXED: product fully resolved from 1C → safe to index and cache.
-  //
-  // 2. UNCERTAIN (timeout-noindex): URL is structurally valid but 1C didn't
-  //    respond in time.  Emit noindex AND call unstable_noStore() so this
-  //    render is NOT cached in the ISR store.  The next crawler/user request
-  //    will re-run fresh and (if 1C is healthy) produce a real indexed page.
-  //    Without unstable_noStore(), ISR would cache the noindex response for
-  //    900 s and serve it to Googlebot for the entire revalidation window.
-  //
-  // 3. INVALID (bad-slug-noindex): URL fails structural validation — either
-  //    random garbage or a known-generic placeholder slug.  Emit noindex and
-  //    let ISR cache it normally (the URL is bad; no point re-checking it).
-  //
-  // Modal views are always noindex regardless of state.
-
-  const isProductResolved = routeProduct !== null;
-  const slugIsValid = isValidProductSlug(rawCode || "");
-
-  let shouldIndexProduct: boolean;
-
-  if (isModalView) {
-    shouldIndexProduct = false;
-    logProductSeoEvent("modal-noindex", {
-      rawCode: rawCode || "",
-      reason: "?view=modal overlay must never be indexed",
-    });
-  } else if (isProductResolved) {
-    shouldIndexProduct = true;
-    logProductSeoEvent("indexed", {
-      rawCode: rawCode || "",
-      resolvedCode,
-      reason: "product resolved from 1C",
-    });
-  } else if (slugIsValid) {
-    // Valid URL but product data unavailable — likely a 1C timeout.
-    // Opt this render out of ISR so the noindex is never persisted.
-    unstable_noStore();
-    shouldIndexProduct = false;
-    logProductSeoEvent("timeout-noindex-no-cache", {
-      rawCode: rawCode || "",
-      resolvedCode,
-      reason: "product not resolved within timeout; ISR cache bypassed",
-    });
-  } else {
-    // Structurally invalid URL — cache the noindex (won't change on retry).
-    shouldIndexProduct = false;
-    logProductSeoEvent("invalid-slug-noindex", {
-      rawCode: rawCode || "",
-      reason: "URL param failed isValidProductSlug structural check",
-    });
-  }
+  const shouldIndexProduct = !isModalView && Boolean(resolvedCode || fallbackCode);
 
   const seoTitle = [
     seoVisibleProductName
@@ -1420,18 +1271,16 @@ export async function generateMetadata({
     )
   );
 
-  const absoluteCanonical = `${getSiteUrl()}${canonicalPath}`;
-
   return {
     title: seoTitle,
     description,
     keywords,
     alternates: {
-      canonical: absoluteCanonical,
+      canonical: canonicalPath,
     },
     openGraph: {
       type: "website",
-      url: absoluteCanonical,
+      url: canonicalPath,
       title: seoTitle,
       description,
       images: [{
@@ -1813,12 +1662,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         href={productDisplayImagePath}
         fetchPriority="high"
       />
-      <ProductViewTracking
-        item_id={product.code || resolvedCode}
-        item_name={visibleProductName}
-        item_category={productSubgroup || productGroup || undefined}
-        price={initialPriceUah}
-      />
       <div
         className={
           isModalView
@@ -2138,3 +1981,4 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     </div>
   );
 }
+

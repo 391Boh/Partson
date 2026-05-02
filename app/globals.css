@@ -3,7 +3,8 @@
 
 @font-face {
   font-family: "Exo 2";
-  src: url("/fonts/exo2-variable.ttf") format("truetype-variations");
+  src: url("/fonts/exo2-variable.woff2") format("woff2-variations"),
+       url("/fonts/exo2-variable.ttf") format("truetype-variations");
   font-style: normal;
   font-weight: 400 900;
   font-display: optional;
@@ -11,35 +12,13 @@
 
 @font-face {
   font-family: "Exo 2";
-  src: url("/fonts/exo2-variable-italic.ttf") format("truetype-variations");
+  src: url("/fonts/exo2-variable-italic.woff2") format("woff2-variations"),
+       url("/fonts/exo2-variable-italic.ttf") format("truetype-variations");
   font-style: italic;
   font-weight: 400 900;
   font-display: optional;
 }
 
-@font-face {
-  font-family: "Montserrat";
-  src: url("/fonts/montserrat-500.ttf") format("truetype");
-  font-style: normal;
-  font-weight: 500;
-  font-display: optional;
-}
-
-@font-face {
-  font-family: "Montserrat";
-  src: url("/fonts/montserrat-700.ttf") format("truetype");
-  font-style: normal;
-  font-weight: 700;
-  font-display: optional;
-}
-
-@font-face {
-  font-family: "Montserrat";
-  src: url("/fonts/montserrat-800.ttf") format("truetype");
-  font-style: normal;
-  font-weight: 800;
-  font-display: optional;
-}
 
 @layer base {
   :root {
@@ -76,7 +55,7 @@
     height: auto;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    text-rendering: optimizeLegibility;
+    text-rendering: optimizeSpeed;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overscroll-behavior-y: auto;
@@ -334,13 +313,6 @@ h1, h2, h3, h4, h5, h6 {
     }
   }
 
-  @media (min-width: 1024px) {
-    .page-shell-inline {
-      --page-shell-inline-padding: clamp(1.75rem, 3.4vw, 3.5rem);
-      max-width: 1360px;
-    }
-  }
-
   .details-summary-reset::-webkit-details-marker {
     display: none;
   }
@@ -395,165 +367,20 @@ h1, h2, h3, h4, h5, h6 {
       align-items: center;
     }
 
-    .punmenu {
-      @apply absolute left-0 mt-12 w-50 text-white rounded-lg shadow-lg overflow-hidden transition-all duration-300 border-2 border-blue-400 ;
-    }
-
-    .menubut {
-      @menu-button flex items-center gap-2 p-3 rounded-full transition-all duration-300 ease-out 
-      hover:text-gray-400 hover:bg-gray-800/30 
-      active:scale-95;
-    }
-
-    .hero-bg {
-  background: linear-gradient(90deg, #1e3a8a, #2563eb, #3b82f6, #60a5fa, #2563eb, #1e3a8a);
-  background-size: 200% 200%;
-  animation: heroMove 14s ease-in-out infinite;
-}
-
-@keyframes heroMove {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-
     @keyframes fadeIn {
       from {
         opacity: 0;
-        transform: scale(2);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
-    }
-
-    @keyframes fadeIn {
-  0% {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fadeIn {
-  animation: fadeIn 0.5s ease-out;
-}
-
-    
-    .animate-fadeIn {
-      animation: fadeIn 0.4s ease-out forwards;
-    }
-    @keyframes underline {
-      from {
-        width: 0;
-        opacity: 0;
-      }
-      to {
-        width: 300px; /* відповідно до w-24 */
-        opacity: 1;
-      }
-    }
-
-    /* Анімація для градієнту */
-    @keyframes gradientBG {
-      0%, 100% {
-        background-position: 0% 50%;
-      }
-      50% {
-        background-position: 100% 50%;
-      }
-    }
-    @keyframes fadeUp {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(20px);
       }
       to {
         opacity: 1;
         transform: translateY(0);
       }
     }
-    .animate-fadeUp {
-      animation: fadeUp 0.6s ease-out;
-    }
 
-    
-    @keyframes gradientShift {
-      0% {
-        background-position: 0% 50%;
-      }
-      50% {
-        background-position: 100% 50%;
-      }
-      100% {
-        background-position: 0% 50%;
-      }
+    .animate-fadeIn {
+      animation: fadeIn 0.4s ease-out forwards;
     }
-    
-    .backface-hidden {
-    backface-visibility: hidden;
-    -webkit-backface-visibility: hidden;
-}
-
-    .animate-gradient {
-      background-size: 300% 300%;
-      animation: gradientShift 6s ease infinite;
-    }
-    
-    
-    .animate-gradient-slow {
-      background: linear-gradient(90deg, #a8c0ff, #b0d0e8, #f3a6a6);
-      background-size: 300% 300%;
-      animation: gradientBG 20s ease-in-out infinite;
-    }
-    
-    
-    .animate-underline {
-      animation: underline 0.7s ease-out forwards;
-    }
-
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    
-    .title {
-      text-align: center;
-      color: #2c3e50;
-      margin-bottom: 30px;
-    }
-    
-    .productsGrid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 20px;
-    }
-    
-    .productCard {
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 15px;
-      transition: transform 0.3s ease;
-      background-color: #fff;
-    }
-    
-    .productCard:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-    }
-    
 
 .perspective {
   perspective: 1000px;
@@ -561,6 +388,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .backface-hidden {
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 @keyframes adminGradient {
@@ -575,118 +403,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-    .productName {
-      color: #3498db;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 10px;
-      margin-bottom: 15px;
-    }
-    
-    .productDetails {
-      line-height: 1.6;
-    }
-    
-    .inStock {
-      color: #27ae60;
-      font-weight: bold;
-    }
-    
-    .outOfStock {
-      color: #e74c3c;
-      font-weight: bold;
-    }
-    
-    .updateDate {
-      font-size: 0.8em;
-      color: #7f8c8d;
-      margin-top: 10px;
-    }
-    
-    .loadingContainer {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 200px;
-    }
-    
-    .spinner {
-      border: 4px solid rgba(0, 0, 0, 0.1);
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      border-left-color: #3498db;
-      animation: spin 1s linear infinite;
-      margin-bottom: 15px;
-    }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    
-    .animate-fadeIn {
-      animation: fadeIn 0.3s ease-out;
-    }
-    
-    
-    .errorContainer {
-      text-align: center;
-      padding: 20px;
-      background-color: #fdecea;
-      border-radius: 8px;
-      max-width: 500px;
-      margin: 0 auto;
-    }
-    
-    .errorMessage {
-      color: #e74c3c;
-      margin: 15px 0;
-    }
-    
-    .perspective {
-      perspective: 1000px;
-    }
-    .transform-style {
-      transform-style: preserve-3d;
-    }
-    .backface-hidden {
-      backface-visibility: hidden;
-    }
-    .rotate-y-180 {
-      transform: rotateY(180deg);
-    }
-    .rotate-y-360 {
-      transform: rotateY(360deg);
-    }
-    
-    .retryButton {
-      background-color: #3498db;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background-color 0.3s;
-    }
-    
-    .retryButton:hover {
-      background-color: #2980b9;
-    }
-    
-    .noData {
-      text-align: center;
-      padding: 40px;
-      font-size: 1.2em;
-      color: #7f8c8d;
-    }
-    
 
 }
 
@@ -699,7 +415,6 @@ h1, h2, h3, h4, h5, h6 {
   margin: 0 auto 10px auto;
   background: radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.35), rgba(15, 23, 42, 0.1) 55%, transparent 60%);
   animation: loaderPulse 1.85s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-  will-change: transform, box-shadow;
 }
 .map-container {
   position: relative;
@@ -998,7 +713,7 @@ body::-webkit-scrollbar-corner,
     0 32px 74px rgba(15, 23, 42, 0.16),
     0 16px 34px rgba(13, 148, 136, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.54);
-  backdrop-filter: blur(24px) saturate(155%);
+  backdrop-filter: blur(8px) saturate(140%);
   border-radius: var(--soft-radius-panel);
   contain: layout paint;
   transform: translateZ(0);

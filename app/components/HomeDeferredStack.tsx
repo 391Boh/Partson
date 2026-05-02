@@ -38,7 +38,7 @@ export default function HomeDeferredStack() {
     <>
       <DeferredSection
         className="section-reveal relative w-full py-1"
-        minHeight="560px"
+        minHeight="520px"
         rootMargin="220px"
         fallbackDelayMs={10000}
         fallback={<HomeSectionFallback minHeight="520px" />}
@@ -52,7 +52,7 @@ export default function HomeDeferredStack() {
 
       <DeferredSection
         className="section-reveal relative w-full py-1"
-        minHeight="600px"
+        minHeight="560px"
         rootMargin="180px"
         fallbackDelayMs={12000}
         fallback={<HomeSectionFallback minHeight="560px" />}
@@ -69,7 +69,7 @@ export default function HomeDeferredStack() {
 
       <DeferredSection
         className="section-reveal relative w-full py-1"
-        minHeight="420px"
+        minHeight="380px"
         rootMargin="140px"
         fallbackDelayMs={14000}
         fallback={<HomeSectionFallback minHeight="380px" />}

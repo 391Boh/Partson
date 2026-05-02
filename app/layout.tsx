@@ -47,17 +47,6 @@ const googleTagManagerId = (() => {
 
   return /^GTM-[A-Z0-9]+$/.test(rawId) ? rawId : "";
 })();
-const googleAnalyticsId = (() => {
-  const rawId = (
-    process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID ||
-    process.env.GOOGLE_ANALYTICS_ID ||
-    "G-B56XGEPJPT"
-  )
-    .trim()
-    .toUpperCase();
-
-  return /^G-[A-Z0-9]+$/.test(rawId) ? rawId : "";
-})();
 
 export const metadata: Metadata = {
   metadataBase: siteUrlObject,
@@ -281,32 +270,18 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
         <link
           rel="preload"
-          href="/fonts/exo2-variable.ttf"
+          href="/fonts/exo2-variable.woff2"
           as="font"
-          type="font/ttf"
+          type="font/woff2"
           crossOrigin="anonymous"
         />
-        {googleAnalyticsId ? (
-          <>
-            <Script
-              id="google-analytics-src"
-              src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`}
-              strategy="afterInteractive"
-            />
-            <Script
-              id="google-analytics-config"
-              strategy="afterInteractive"
-              dangerouslySetInnerHTML={{
-                __html: `
-                  window.dataLayer = window.dataLayer || [];
-                  function gtag(){dataLayer.push(arguments);}
-                  gtag('js', new Date());
-                  gtag('config', '${googleAnalyticsId}');
-                `,
-              }}
-            />
-          </>
-        ) : null}
+        <link
+          rel="preload"
+          href="/fonts/exo2-variable-italic.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
         {googleTagManagerId ? (
           <Script
             id="google-tag-manager"

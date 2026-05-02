@@ -116,7 +116,6 @@ export default function AdvantagesPhotoSlider() {
           fill
           sizes="(min-width: 1280px) 332px, (min-width: 1024px) 30vw, 100vw"
           quality={68}
-          priority={displayedPhotoIndex === 0}
           className="object-cover"
         />
       </div>

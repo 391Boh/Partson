@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import AnalogProductThumb from "app/components/AnalogProductThumb";
@@ -143,8 +143,6 @@ export default function ProductRelatedItemsClientSection({
   const [items, setItems] = useState<RelatedItem[] | null>(normalizedInitialItems);
   const [itemMode, setItemMode] = useState<RecommendationMode>("related");
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
-  const [shouldLoad, setShouldLoad] = useState(Boolean(normalizedInitialItems));
-  const sectionRef = useRef<HTMLDivElement | null>(null);
 
   const sectionSummary = useMemo(() => {
     if (itemMode === "similar") {
@@ -213,7 +211,6 @@ export default function ProductRelatedItemsClientSection({
     if (normalizedInitialItems) {
       setItemMode("related");
       setItems(normalizedInitialItems);
-      setShouldLoad(true);
       return;
     }
 
@@ -226,43 +223,10 @@ export default function ProductRelatedItemsClientSection({
   }, [normalizedInitialItems, requestUrl]);
 
   useEffect(() => {
-    if (shouldLoad || !requestUrl) return;
-
-    const element = sectionRef.current;
-    if (typeof window === "undefined") return;
-
-    if (!element || !("IntersectionObserver" in window)) {
-      const timerId = window.setTimeout(() => setShouldLoad(true), 900);
-      return () => window.clearTimeout(timerId);
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setShouldLoad(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "1100px 0px" }
-    );
-
-    observer.observe(element);
-
-    const idleTimerId = window.setTimeout(() => setShouldLoad(true), 1200);
-
-    return () => {
-      observer.disconnect();
-      window.clearTimeout(idleTimerId);
-    };
-  }, [requestUrl, shouldLoad]);
-
-  useEffect(() => {
     if (!requestUrl) {
       setItems([]);
       return;
     }
-
-    if (!shouldLoad) return;
 
     const readCachedItems = (key: string) => {
       if (typeof window === "undefined" || !key) return null;
@@ -405,7 +369,7 @@ export default function ProductRelatedItemsClientSection({
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [cacheKey, normalizedInitialItems, requestUrl, shouldLoad, similarCacheKey, similarRequestUrl]);
+  }, [cacheKey, normalizedInitialItems, requestUrl, similarCacheKey, similarRequestUrl]);
 
   useEffect(() => {
     if (!items || items.length === 0) return;
@@ -479,11 +443,7 @@ export default function ProductRelatedItemsClientSection({
 
   if (!articleLabel && !productCode && !productDisplayName) return null;
   if (items === null) {
-    return (
-      <div ref={sectionRef}>
-        <Skeleton />
-      </div>
-    );
+    return <Skeleton />;
   }
   if (items.length === 0) return null;
 
@@ -493,12 +453,12 @@ export default function ProductRelatedItemsClientSection({
   );
   const listClass =
     itemMode === "similar"
-      ? "mt-2 flex snap-x gap-2 overflow-x-auto pb-1 text-left [scrollbar-width:thin] xl:overflow-visible"
-      : "mt-2 grid gap-2 text-left lg:grid-cols-2 2xl:grid-cols-3";
+      ? "mt-2 flex snap-x gap-2 overflow-x-auto pb-1 text-left [scrollbar-width:thin] md:grid md:overflow-visible lg:grid-cols-2 2xl:grid-cols-4"
+      : "mt-2 flex snap-x gap-2 overflow-x-auto pb-1 text-left [scrollbar-width:thin] md:grid md:overflow-visible lg:grid-cols-2 2xl:grid-cols-3";
   const cardClass =
     itemMode === "similar"
-      ? "group flex min-h-[174px] min-w-[min(82vw,258px)] snap-start flex-1 flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 text-left shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.12)] sm:min-w-[280px] sm:rounded-[18px] xl:min-w-0"
-      : "group flex min-h-[174px] flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 text-left shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.12)] sm:rounded-[18px]";
+      ? "group flex min-h-[174px] min-w-[min(84vw,258px)] shrink-0 snap-start flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 text-left shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.12)] sm:min-w-[280px] sm:rounded-[18px] md:min-w-0"
+      : "group flex min-h-[174px] min-w-[min(84vw,258px)] shrink-0 snap-start flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 text-left shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(234,247,255,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.12)] sm:min-w-[280px] sm:rounded-[18px] md:min-w-0";
 
   return (
     <section className="overflow-hidden rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(238,246,252,0.96),rgba(255,255,255,0.97))] p-3 text-left shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">

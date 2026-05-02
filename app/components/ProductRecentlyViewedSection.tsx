@@ -252,6 +252,10 @@ export default function ProductRecentlyViewedSection({
   }, [items, resolvedPrices]);
 
   if (items.length === 0) return null;
+  const listClass =
+    "mt-2 flex snap-x gap-2 overflow-x-auto pb-1 text-left [scrollbar-width:thin] md:grid md:overflow-visible lg:grid-cols-2 2xl:grid-cols-4";
+  const cardClass =
+    "group flex min-h-[174px] min-w-[min(84vw,258px)] shrink-0 snap-start flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 text-left shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(238,247,252,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.1)] sm:min-w-[280px] sm:rounded-[18px] md:min-w-0";
 
   return (
     <section className="overflow-hidden rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96),rgba(255,255,255,0.97))] p-3 text-left shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
@@ -272,7 +276,7 @@ export default function ProductRecentlyViewedSection({
         </span>
       </div>
 
-      <div className="mt-2 grid gap-2 text-left lg:grid-cols-2 2xl:grid-cols-4">
+      <div className={listClass}>
         {items.map((item) => {
           const visibleName = buildVisibleProductName(item.name);
           const stateKey = buildPriceStateKey(item);
@@ -301,7 +305,7 @@ export default function ProductRecentlyViewedSection({
               key={`${item.code}-${item.article}-${item.viewedAt}`}
               href={buildItemPath(item)}
               prefetch={false}
-              className="group flex min-h-[174px] flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))] p-2.5 text-left shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(238,247,252,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.1)] sm:rounded-[18px]"
+              className={cardClass}
             >
               <div className="flex items-start gap-2.5">
                 <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-slate-200 bg-gray-200 sm:h-16 sm:w-16">
