@@ -1,5 +1,7 @@
 node_modules
 .next
+logs/
+.pm2/
 .next-stale-*/
 .next-local
 .env
