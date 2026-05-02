@@ -1,6 +1,7 @@
 "use client";
 
 import { type ComponentProps, useEffect, useState } from "react";
+import { pushEcommerceEvent } from "app/lib/gtm";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import {
   getFirestore,
@@ -8,6 +9,7 @@ import {
   getDoc,
   collection,
   addDoc,
+  updateDoc,
   Timestamp,
 } from "firebase/firestore";
 import { X } from "lucide-react";
@@ -32,6 +34,7 @@ interface CartItem {
   price: number;
   quantity: number;
   code: string;
+  category?: string;
 }
 
 interface ZamovlProps {
@@ -101,6 +104,19 @@ const Zamovl: React.FC<ZamovlProps> = ({
   }, []);
 
   const handleSubmitOrder = async (paymentData?: PaymentConfirmationPayload) => {
+    pushEcommerceEvent("add_payment_info", {
+      currency: "UAH",
+      value: totalAmount,
+      payment_type: paymentMethod || undefined,
+      items: cartItems.map((item) => ({
+        item_id: item.code,
+        item_name: item.name,
+        ...(item.category ? { item_category: item.category } : {}),
+        price: item.price,
+        quantity: item.quantity,
+      })),
+    });
+
     const db = getFirestore();
     const isCardPayment = paymentMethod === "Картка";
     const isCardPaid = isCardPayment && paymentData?.paymentStatus === "paid";
@@ -121,7 +137,10 @@ const Zamovl: React.FC<ZamovlProps> = ({
     }));
 
     try {
-      await addDoc(collection(db, "orders"), {
+      // docRef.id is the canonical Firestore order identifier.
+      // orderId (timestamp) is kept as-is — it was already submitted to LiqPay
+      // at checkout step 2, before this function runs, so it cannot be changed here.
+      const docRef = await addDoc(collection(db, "orders"), {
         uid: firebaseUser?.uid || null,
         name,
         phone,
@@ -147,7 +166,56 @@ const Zamovl: React.FC<ZamovlProps> = ({
           typeof paymentData?.liqpayPaymentId === "string" ? paymentData.liqpayPaymentId : null,
         paidAt: isCardPaid ? Timestamp.now() : null,
         createdAt: Timestamp.now(),
+        ga4PurchaseTracked: false,
       });
+
+      // sessionStorage prevents duplicate purchase events within the same browser
+      // session (covers React Strict Mode double-invocations and accidental re-calls).
+      // Limitation: cleared when the tab is closed; does not protect across devices.
+      // GA4 also deduplicates by transaction_id, providing a second layer of protection.
+      // Must fire before onClearCart() so cartItems prop is still populated.
+      const purchaseKey = `partson:purchase:${docRef.id}`;
+      const alreadyFired = (() => {
+        try { return Boolean(sessionStorage.getItem(purchaseKey)); } catch { return false; }
+      })();
+      if (!alreadyFired) {
+        try { sessionStorage.setItem(purchaseKey, "1"); } catch {}
+
+        // Confirmation source by payment method:
+        //   Cash (Готівка)  — order created; cash collected on delivery, not yet received.
+        //   Card (Картка)   — LiqPay JS widget returned paymentStatus: "paid" client-side.
+        //                     This is a client-side signal, not a server-verified guarantee.
+        // TODO: for server-confirmed card accuracy, /api/liqpay/callback should write
+        // paymentStatus → "paid" to Firestore via firebase-admin, and this event should
+        // fire only after an onSnapshot listener detects that status change. This also
+        // requires creating the Firestore document before LiqPay checkout (not after),
+        // so the callback can locate the document by its ID used as the LiqPay order_id.
+        pushEcommerceEvent("purchase", {
+          currency: "UAH",
+          transaction_id: docRef.id,
+          value: totalAmount,
+          items: cartItems.map((item) => ({
+            item_id: item.code,
+            item_name: item.name,
+            ...(item.category ? { item_category: item.category } : {}),
+            price: Number(item.price),
+            quantity: Number(item.quantity),
+          })),
+        });
+
+        // Persist the tracking flag so the purchase cannot re-fire even if
+        // sessionStorage is cleared (different session, storage reset).
+        // Non-critical write: GA4 deduplication by transaction_id is the safety net
+        // if this updateDoc fails.
+        try {
+          await updateDoc(docRef, {
+            ga4PurchaseTracked: true,
+            ga4PurchaseTrackedAt: Timestamp.now(),
+          });
+        } catch {
+          // intentionally swallowed — order and GA4 event are already committed
+        }
+      }
 
       setConfirmedAmount(totalAmount);
       setConfirmedPaymentMethod(paymentMethod);
@@ -190,7 +258,21 @@ const Zamovl: React.FC<ZamovlProps> = ({
             selectedLvivStreet={selectedLvivStreet}
             setSelectedLvivStreet={setSelectedLvivStreet}
             onBack={() => setCurrentStep(0)}
-            onSubmit={() => setCurrentStep(2)}
+            onSubmit={() => {
+              pushEcommerceEvent("add_shipping_info", {
+                currency: "UAH",
+                value: totalAmount,
+                shipping_tier: deliveryMethod || undefined,
+                items: cartItems.map((item) => ({
+                  item_id: item.code,
+                  item_name: item.name,
+                  ...(item.category ? { item_category: item.category } : {}),
+                  price: item.price,
+                  quantity: item.quantity,
+                })),
+              });
+              setCurrentStep(2);
+            }}
           />
         );
       case 2:

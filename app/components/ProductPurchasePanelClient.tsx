@@ -16,6 +16,9 @@ type ProductPurchasePanelClientProps = {
     name: string;
     producer: string;
     quantity: number;
+    category?: string;
+    group?: string;
+    subGroup?: string;
   };
   isInStock: boolean;
 };
@@ -292,6 +295,7 @@ export default function ProductPurchasePanelClient(
           article={product.article}
           name={product.name}
           producer={product.producer}
+          category={product.subGroup || product.group || product.category || undefined}
           priceUah={priceUah ?? null}
           quantity={product.quantity}
           compact

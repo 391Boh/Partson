@@ -97,6 +97,13 @@ export async function POST(req: NextRequest) {
     return invalidData;
   }
 
+  // TODO: update Firestore order to paymentStatus: "paid" when decoded.status === "success".
+  // Requires firebase-admin (not yet installed) to write from a server route.
+  // Also requires a pre-existing Firestore document whose ID is used as the LiqPay
+  // order_id — the current client architecture creates the document after the widget
+  // fires, so the callback may arrive before the document exists.
+  // Until this is wired up, payment confirmation is client-side only (LiqPay widget
+  // callback) and the GA4 purchase event is fired from app/components/zamovl.tsx.
   const response = NextResponse.json({
     ok: true,
     status: decoded.status ?? null,

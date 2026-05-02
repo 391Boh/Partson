@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCart } from 'app/context/CartContext';
-import { pushDataLayer } from 'app/lib/gtm';
+import { pushEcommerceEvent } from 'app/lib/gtm';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import Zamovl from './zamovl';
 import { db, auth } from '../../firebase';
@@ -96,18 +96,30 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     0
   );
 
-  const handleBeginCheckout = () => {
-    pushDataLayer({
-      event: "begin_checkout",
+  const cartEcommerceItems = cartItems.map((item) => ({
+    item_id: item.code,
+    item_name: item.name,
+    ...(item.category ? { item_category: item.category } : {}),
+    price: item.price,
+    quantity: item.quantity,
+  }));
+
+  useEffect(() => {
+    if (cartItems.length === 0) return;
+    pushEcommerceEvent("view_cart", {
       currency: "UAH",
       value: totalAmount,
-      items: cartItems.map((item) => ({
-        item_id: item.code,
-        item_name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        currency: "UAH",
-      })),
+      items: cartEcommerceItems,
+    });
+    // Fires once when cart panel mounts with items.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleBeginCheckout = () => {
+    pushEcommerceEvent("begin_checkout", {
+      currency: "UAH",
+      value: totalAmount,
+      items: cartEcommerceItems,
     });
     setIsOrdering(true);
   };

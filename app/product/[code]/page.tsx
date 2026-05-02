@@ -298,8 +298,12 @@ const buildReadableNameFromRoute = (rawCode: string, fallbackCode: string) => {
   const nameSource = routeSlugs?.nameSlug || decodedParam || fallbackCode;
   const withoutInternalCode = nameSource.replace(/~[^~]+$/u, "");
   const readable = buildVisibleProductName(withoutInternalCode.replace(/[-_]+/g, " "));
+  const normalizedCode = (fallbackCode || "").trim() || "PartsON";
 
-  return readable && readable !== "Товар" ? readable : `Товар ${fallbackCode}`;
+  // URL slugs are transliterated Latin. Only use the slug-derived name when it
+  // contains Cyrillic characters; otherwise fall back to a Ukrainian placeholder.
+  const hasCyrillic = /[А-ЯҐЄІЇа-яґєії]/u.test(readable);
+  return hasCyrillic ? readable : `Товар ${normalizedCode}`;
 };
 
 const buildFallbackProductFromRoute = (
@@ -1812,6 +1816,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       <ProductViewTracking
         item_id={product.code || resolvedCode}
         item_name={visibleProductName}
+        item_category={productSubgroup || productGroup || undefined}
         price={initialPriceUah}
       />
       <div

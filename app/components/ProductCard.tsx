@@ -6,6 +6,7 @@ import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
+import { pushEcommerceEvent } from "app/lib/gtm";
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
@@ -379,7 +380,22 @@ useEffect(() => {
                                 href={productHref}
                                 prefetch={false}
                                 prefetchOnIntent
-                                onClick={(event) => event.stopPropagation()}
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    pushEcommerceEvent("select_item", {
+                                        currency: "UAH",
+                                        items: [
+                                            {
+                                                item_id: item.code,
+                                                item_name: item.name,
+                                                ...(item.subGroup || item.group || item.category
+                                                    ? { item_category: item.subGroup || item.group || item.category }
+                                                    : {}),
+                                                ...(priceUAH != null ? { price: priceUAH } : {}),
+                                            },
+                                        ],
+                                    });
+                                }}
                                 className="font-name-accent text-left text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 leading-[1.02] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
                             >
                                 {name}
@@ -560,6 +576,23 @@ useEffect(() => {
                                         return;
                                     }
                                     onAddToCart(item);
+                                    if (priceUAH != null) {
+                                        pushEcommerceEvent("add_to_cart", {
+                                            currency: "UAH",
+                                            value: priceUAH * (qty || 1),
+                                            items: [
+                                                {
+                                                    item_id: item.code,
+                                                    item_name: item.name,
+                                                    ...(item.subGroup || item.group || item.category
+                                                        ? { item_category: item.subGroup || item.group || item.category }
+                                                        : {}),
+                                                    price: priceUAH,
+                                                    quantity: qty || 1,
+                                                },
+                                            ],
+                                        });
+                                    }
                                 }}
                                 disabled={isCartButtonDisabled}
                                 aria-label={

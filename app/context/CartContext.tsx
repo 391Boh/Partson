@@ -2,12 +2,15 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+import { pushEcommerceEvent } from 'app/lib/gtm';
+
 interface CartItem {
   code: string;
-    article: string; 
+  article: string;
   name: string;
   price: number;
   quantity: number;
+  category?: string;
 }
 
 interface CartContextType {
@@ -45,6 +48,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             typeof item.quantity === 'number' && Number.isFinite(item.quantity)
               ? Math.max(1, Math.trunc(item.quantity))
               : 1,
+          category: typeof item.category === 'string' ? item.category : undefined,
         }))
         .filter((item) => item.code);
 
@@ -72,6 +76,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const removeFromCart = (code: string) => {
+    const removed = cartItems.find(p => p.code === code);
+    if (removed) {
+      pushEcommerceEvent("remove_from_cart", {
+        currency: "UAH",
+        value: removed.price * removed.quantity,
+        items: [
+          {
+            item_id: removed.code,
+            item_name: removed.name,
+            ...(removed.category ? { item_category: removed.category } : {}),
+            price: removed.price,
+            quantity: removed.quantity,
+          },
+        ],
+      });
+    }
     setCartItems(prev => prev.filter(p => p.code !== code));
   };
 
