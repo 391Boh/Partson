@@ -43,7 +43,7 @@ export default function Footer() {
 
   return (
     <footer
-      className="mt-2 relative overflow-hidden py-8 select-none transition-all duration-250 ease-in-out group shadow-[inset_0_1px_0_rgba(255,255,255,0.65),_0_12px_28px_-18px_rgba(2,6,23,0.35)]"
+      className="mt-2 relative overflow-hidden py-6 sm:py-8 select-none transition-all duration-250 ease-in-out group shadow-[inset_0_1px_0_rgba(255,255,255,0.65),_0_12px_28px_-18px_rgba(2,6,23,0.35)]"
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
     >
@@ -57,7 +57,7 @@ export default function Footer() {
       />
 
       <div className="page-shell-inline relative z-10">
-        <div className="grid grid-cols-1 gap-x-14 gap-y-8 md:grid-cols-3 lg:gap-x-20">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-8 sm:gap-x-14 md:grid-cols-3 lg:gap-x-20">
           <Link
             href="/"
             onClick={handleBrandClick}
@@ -117,7 +117,7 @@ export default function Footer() {
 
           <div className="relative md:border-r md:border-slate-200/40 md:pl-4 md:pr-8">
             <h3 className="mb-3 text-lg font-semibold text-slate-900">Інформація</h3>
-            <ul className="grid grid-cols-2 gap-x-28 gap-y-2 text-sm">
+            <ul className="grid grid-cols-2 gap-x-4 sm:gap-x-28 gap-y-2 text-sm">
               <li>
                 <Link className={infoLinkClass} href="/inform/about">
                   <FaInfoCircle className={infoIconClass} />

@@ -95,7 +95,7 @@ export default function AdvantagesPhotoSlider() {
 
   return (
     <div className="overflow-hidden rounded-[18px] border border-sky-200/80 bg-white/86 shadow-[0_16px_28px_rgba(56,189,248,0.12)] backdrop-blur-md transition-[background-image,box-shadow,border-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/advantages:border-cyan-100 group-hover/advantages:bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(236,254,255,0.95),rgba(224,242,254,0.92))] group-hover/advantages:shadow-[0_22px_38px_rgba(14,165,233,0.16)]">
-      <div className="relative aspect-[4/3] w-full bg-slate-900/30 lg:w-[332px]">
+      <div className="relative aspect-[4/3] w-full bg-slate-900/30 sm:w-[332px]">
         {previousPhotoSrc ? (
           <Image
             src={previousPhotoSrc}
@@ -114,36 +114,41 @@ export default function AdvantagesPhotoSlider() {
           src={activePhotoSrc}
           alt={`Фото магазину PartsON ${displayedPhotoIndex + 1}`}
           fill
-          sizes="(min-width: 1280px) 332px, (min-width: 1024px) 30vw, 100vw"
+          sizes="(min-width: 640px) 332px, (min-width: 1024px) 30vw, 100vw"
           quality={68}
           className="object-cover"
         />
       </div>
 
-      <div className="flex items-start justify-between gap-3 border-t border-sky-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.92))] px-4 py-3 transition-[background-image] duration-500 ease-out group-hover/advantages:bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(236,254,255,0.96),rgba(224,242,254,0.94))]">
-        <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-700/78">
-            Фото магазину PartsON
-          </p>
-          <p className="mt-1 text-[13px] font-semibold text-slate-700">
-            Місце локації Перфецького 8
-          </p>
-        </div>
+      <div className="border-t border-sky-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.92))] px-4 py-3 transition-[background-image] duration-500 ease-out group-hover/advantages:bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(236,254,255,0.96),rgba(224,242,254,0.94))]">
+        <div className="flex flex-col gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-700/78">
+              Фото магазину PartsON
+            </p>
+            <p className="mt-1 text-[13px] font-semibold text-slate-700">
+              Місце локації Перфецького 8
+            </p>
+            <p className="mt-1 text-[11px] text-slate-500 leading-relaxed">
+              Наш фізичний магазин автозапчастин у Львові. Тут ви можете отримати консультацію, оглянути товар та оформити замовлення.
+            </p>
+          </div>
 
-        <div className="flex shrink-0 items-center gap-1.5 pt-1">
-          {businessProfilePhotos.map((_, index) => (
-            <button
-              key={`photo-dot-${index}`}
-              type="button"
-              onClick={() => setActivePhotoIndex(index)}
-              aria-label={`Показати фото магазину ${index + 1}`}
-              className={`inline-flex h-6 items-center justify-center rounded-full transition-all duration-200 ${
-                index === activePhotoIndex
-                  ? "w-6 bg-sky-600"
-                  : "w-6 bg-sky-200 hover:bg-sky-300"
-              }`}
-            />
-          ))}
+          <div className="flex items-center gap-1.5">
+            {businessProfilePhotos.map((_, index) => (
+              <button
+                key={`photo-dot-${index}`}
+                type="button"
+                onClick={() => setActivePhotoIndex(index)}
+                aria-label={`Показати фото магазину ${index + 1}`}
+                className={`inline-flex h-6 w-6 items-center justify-center rounded-full transition-all duration-200 ${
+                  index === activePhotoIndex
+                    ? "bg-sky-600"
+                    : "bg-sky-200 hover:bg-sky-300"
+                }`}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

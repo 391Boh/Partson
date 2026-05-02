@@ -75,7 +75,7 @@ export default async function ProductSimilarItemsSection({
   if (!Array.isArray(items) || items.length === 0) return null;
   const visibleItems = items.slice(0, 8);
   const listClass =
-    "mt-2 flex snap-x gap-2 overflow-x-auto pb-1 text-left [scrollbar-width:thin] md:grid md:overflow-visible lg:grid-cols-2 2xl:grid-cols-4";
+    "mt-2 flex snap-x gap-2 overflow-x-auto pb-1 text-left [scrollbar-width:thin] [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:grid md:overflow-visible lg:grid-cols-2 2xl:grid-cols-4";
   const cardClass =
     "group flex min-h-[174px] min-w-[min(84vw,258px)] shrink-0 snap-start flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(247,250,253,1))] p-2.5 text-left shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(237,246,252,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.1)] sm:min-w-[280px] sm:rounded-[18px] md:min-w-0";
 
@@ -93,7 +93,7 @@ export default async function ProductSimilarItemsSection({
       : `Зібрали товари з цієї ж групи, щоб швидше знайти суміжні позиції для ${visibleProductName || "обраної запчастини"}.`;
 
   return (
-    <section className="overflow-hidden rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(242,247,252,0.96),rgba(255,255,255,0.97))] p-3 text-left shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
+    <section className="rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(242,247,252,0.96),rgba(255,255,255,0.97))] p-3 text-left shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-900/8 pb-2">
         <div className="min-w-0 max-w-3xl">
           <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-700 mb-0.5">

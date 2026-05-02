@@ -151,7 +151,7 @@ const AdvantagesSection = () => {
                 </div>
               </div>
 
-              <div className="relative lg:justify-self-end">
+              <div className="relative mx-auto max-w-md lg:mx-0 lg:max-w-none lg:justify-self-end">
                 <AdvantagesPhotoSlider />
               </div>
             </div>
