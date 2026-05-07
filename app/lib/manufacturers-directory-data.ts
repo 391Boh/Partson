@@ -35,6 +35,7 @@ const normalizeLabel = (value: string | null | undefined) =>
 const EMPTY_SEO_FACETS: CatalogSeoFacets = {
   groups: [],
   producers: [],
+  totalProductCount: 0,
   generatedAt: "",
 };
 

@@ -10,11 +10,30 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
       return;
     }
 
+    const isAdminCopyTarget = (target: EventTarget | null) => {
+      const element =
+        target instanceof Element
+          ? target
+          : target instanceof Node
+            ? target.parentElement
+            : null;
+
+      return Boolean(
+        element?.closest('[data-admin-copy="true"], .admin-panel-shell')
+      );
+    };
+
     const handleCopy = (event: ClipboardEvent) => {
+      if (isAdminCopyTarget(event.target)) {
+        return;
+      }
       event.preventDefault();
     };
 
     const handleCut = (event: ClipboardEvent) => {
+      if (isAdminCopyTarget(event.target)) {
+        return;
+      }
       event.preventDefault();
     };
 

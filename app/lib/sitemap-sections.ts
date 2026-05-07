@@ -12,6 +12,7 @@ import { getCategoryIconPath } from "app/lib/category-icons";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
+import { getConfiguredSitemapLastModified } from "app/lib/sitemap-dates";
 
 export type SitemapChangeFrequency =
   | "always"
@@ -35,10 +36,9 @@ export interface SitemapPathEntry {
 }
 
 export const PAGE_SITEMAP_SECTION_PATHS = [
-  "/groups-sitemap.xml",
-  "/manufacturers-sitemap.xml",
-  "/information-sitemap.xml",
-  "/other-pages-sitemap.xml",
+  "/sitemap-pages.xml",
+  "/sitemap-categories.xml",
+  "/sitemap-brands.xml",
 ] as const;
 
 const SITEMAP_REVALIDATE_SECONDS = 60 * 60;
@@ -128,7 +128,7 @@ const collectGroupListingPaths = (
 };
 
 const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
-  const now = new Date().toISOString();
+  const contentLastModified = getConfiguredSitemapLastModified();
   const maxGroupPages = parsePositiveInt(process.env.SITEMAP_MAX_GROUP_PAGES, 6000);
   const maxGroupListingPages = parsePositiveInt(
     process.env.SITEMAP_MAX_GROUP_LISTING_PAGES,
@@ -142,7 +142,7 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
   const entries: SitemapPathEntry[] = [
     {
       path: "/groups",
-      lastModified: now,
+      lastModified: contentLastModified,
       changeFrequency: "weekly",
       priority: 0.88,
       images: [
@@ -161,7 +161,7 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
   for (const group of dataset.groups.slice(0, maxGroupPages)) {
     entries.push({
       path: `/groups/${encodeURIComponent(group.slug)}`,
-      lastModified: now,
+      lastModified: contentLastModified,
       changeFrequency: "weekly",
       priority: 0.84,
       images: [buildCategorySitemapImage(group.label)],
@@ -173,7 +173,7 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
   for (const entry of subgroupPaths.slice(0, maxGroupListingPages)) {
     entries.push({
       path: entry.path,
-      lastModified: now,
+      lastModified: contentLastModified,
       changeFrequency: "weekly",
       priority: 0.81,
       images: [buildCategorySitemapImage(entry.iconLabel, entry.label)],
@@ -183,7 +183,7 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
   for (const entry of childPaths.slice(0, maxCategoryLeafPages)) {
     entries.push({
       path: entry.path,
-      lastModified: now,
+      lastModified: contentLastModified,
       changeFrequency: "weekly",
       priority: 0.82,
       images: [buildCategorySitemapImage(entry.iconLabel, entry.label)],
@@ -194,7 +194,7 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
 };
 
 const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
-  const now = new Date().toISOString();
+  const contentLastModified = getConfiguredSitemapLastModified();
   const maxManufacturerPages = parseOptionalPositiveInt(
     process.env.SITEMAP_MAX_MANUFACTURER_PAGES
   );
@@ -202,7 +202,7 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
   const entries: SitemapPathEntry[] = [
     {
       path: "/manufacturers",
-      lastModified: now,
+      lastModified: contentLastModified,
       changeFrequency: "weekly",
       priority: 0.88,
       images: [
@@ -218,7 +218,7 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
   const seenPaths = new Set<string>(entries.map((entry) => entry.path));
   const pushUniqueEntry = (
     path: string,
-    lastModified: string,
+    lastModified: string | undefined,
     image?: { loc: string; title?: string; caption?: string } | null
   ) => {
     if (!path || seenPaths.has(path)) return;
@@ -258,7 +258,7 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
     for (const producer of facets.producers) {
       pushUniqueEntry(
         buildManufacturerPath(producer.slug),
-        facets.generatedAt,
+        contentLastModified,
         buildProducerImage(producer.label)
       );
       if (maxManufacturerPages != null && entries.length >= maxManufacturerPages + 1) {
@@ -271,7 +271,7 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
   for (const brand of brands) {
     pushUniqueEntry(
       buildManufacturerPath(buildSeoSlug(brand.name)),
-      now,
+      contentLastModified,
       brand.logo
         ? {
             loc: brand.logo,
@@ -313,23 +313,23 @@ export const getManufacturersSitemapEntries = cache(
 );
 
 export const getInformationSitemapEntries = cache(async (): Promise<SitemapPathEntry[]> => {
-  const now = new Date().toISOString();
+  const contentLastModified = getConfiguredSitemapLastModified();
 
   return informationSections.map((section) => ({
     path: getInformationPath(section.key),
-    lastModified: now,
+    lastModified: contentLastModified,
     changeFrequency: "monthly",
     priority: section.key === "delivery" ? 0.74 : 0.64,
   }));
 });
 
 export const getOtherPagesSitemapEntries = cache(async (): Promise<SitemapPathEntry[]> => {
-  const now = new Date().toISOString();
+  const contentLastModified = getConfiguredSitemapLastModified();
 
   return [
     {
       path: "/",
-      lastModified: now,
+      lastModified: contentLastModified,
       changeFrequency: "daily",
       priority: 1,
       images: [
@@ -342,7 +342,7 @@ export const getOtherPagesSitemapEntries = cache(async (): Promise<SitemapPathEn
     },
     {
       path: "/auto",
-      lastModified: now,
+      lastModified: contentLastModified,
       changeFrequency: "weekly",
       priority: 0.9,
       images: [
@@ -355,7 +355,7 @@ export const getOtherPagesSitemapEntries = cache(async (): Promise<SitemapPathEn
     },
     {
       path: "/katalog",
-      lastModified: now,
+      lastModified: contentLastModified,
       changeFrequency: "daily",
       priority: 0.86,
       images: [

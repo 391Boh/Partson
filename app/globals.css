@@ -1279,6 +1279,23 @@ body::-webkit-scrollbar-corner,
     overflow: visible !important;
     padding-right: 0 !important;
   }
+
+  .admin-panel-shell.app-overlay-panel {
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .admin-panel-shell .admin-panel-scroll {
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-panel-shell .admin-chat-scroll {
+    min-height: 10rem;
+  }
 }
 
 @keyframes appPanelEnter {

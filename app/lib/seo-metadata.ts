@@ -20,7 +20,6 @@ const BASE_KEYWORDS = [
   "пошук запчастин за артикулом",
   "пошук запчастин за кодом",
   "магазин запчастин",
-  "магазин зачастин",
   "магазин автозапчастин",
   "магазин автозапчастин львів",
   "магазин автозапчастин перфецького",
@@ -83,7 +82,6 @@ export const buildPageMetadata = ({
   alternates: {
     canonical: canonicalPath,
     languages: {
-      "x-default": canonicalPath,
       "uk-UA": canonicalPath,
       uk: canonicalPath,
     },

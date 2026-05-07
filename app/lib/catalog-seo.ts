@@ -63,12 +63,14 @@ export interface SeoProducerFacet extends SeoFacetItem {
 export interface CatalogSeoFacets {
   groups: SeoGroupFacet[];
   producers: SeoProducerFacet[];
+  totalProductCount: number;
   generatedAt: string;
 }
 
 export const EMPTY_CATALOG_SEO_FACETS: CatalogSeoFacets = {
   groups: [],
   producers: [],
+  totalProductCount: 0,
   generatedAt: "",
 };
 
@@ -251,6 +253,7 @@ const resolveProductKey = (product: CatalogProduct) => {
 };
 
 const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
+  const allProductKeys = new Set<string>();
   const groupCounts = new Map<string, FacetCounterEntry>();
   const producerCounts = new Map<string, FacetCounterEntry>();
   const groupSubgroupCounts = new Map<string, FacetCounterMap>();
@@ -289,6 +292,7 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
     for (const product of batch) {
       const productKey = resolveProductKey(product);
       if (!productKey) continue;
+      allProductKeys.add(productKey);
 
       const { group, leaf } = resolveFacetHierarchy(
         product,
@@ -421,6 +425,7 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
   return {
     groups,
     producers,
+    totalProductCount: allProductKeys.size,
     generatedAt: new Date().toISOString(),
   };
 };
@@ -467,7 +472,6 @@ export const findSeoProducerBySlug = cache(async (slug: string) => {
   const data = await getCatalogSeoFacets();
   return data.producers.find((producer) => slugCandidates.includes(producer.slug)) || null;
 });
-
 
 
 

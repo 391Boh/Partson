@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-
+import { unstable_cache } from "next/cache";
 import KatalogPageShell from "app/katalog/KatalogPageShell";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import {
@@ -8,14 +8,22 @@ import {
   buildGroupPath,
   buildManufacturerPath,
 } from "app/lib/catalog-links";
+import {
+  EMPTY_CATALOG_SEO_FACETS,
+  getCatalogSeoFacetsWithTimeout,
+  type CatalogSeoFacets,
+} from "app/lib/catalog-seo";
 import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
+import { buildProductPath } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import { buildSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 
 const INITIAL_CATALOG_PAGE_LIMIT = 12;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS = 300;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 300;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS = 1200;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 1600;
+const CATALOG_SEO_FACETS_TIMEOUT_MS = 450;
 
 type InitialCatalogPagePayload = {
   items: Array<{
@@ -38,6 +46,8 @@ type InitialCatalogPagePayload = {
   serviceUnavailable?: boolean;
   message?: string;
 };
+
+type CatalogSeoProduct = InitialCatalogPagePayload["items"][number];
 
 const buildInlinePrices = (
   items: Array<{ code?: string; article?: string; priceEuro?: number | null }>
@@ -62,6 +72,88 @@ const buildInlinePrices = (
 
   return prices;
 };
+
+type CatalogSeoSnapshotQuery = {
+  searchQuery: string;
+  searchFilter: string;
+  group: string | null;
+  subcategory: string | null;
+  producer: string | null;
+};
+
+const toCatalogSeoSnapshotQuery = (value: unknown): CatalogSeoSnapshotQuery | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const readString = (key: keyof CatalogSeoSnapshotQuery) =>
+    typeof record[key] === "string" ? (record[key] as string).trim() : "";
+
+  return {
+    searchQuery: readString("searchQuery"),
+    searchFilter: readString("searchFilter") || "all",
+    group: readString("group") || null,
+    subcategory: readString("subcategory") || null,
+    producer: readString("producer") || null,
+  };
+};
+
+const buildCatalogSeoSnapshotCacheKey = (query: CatalogSeoSnapshotQuery) =>
+  JSON.stringify({
+    searchQuery: query.searchQuery,
+    searchFilter: query.searchFilter,
+    group: query.group || "",
+    subcategory: query.subcategory || "",
+    producer: query.producer || "",
+  });
+
+const fetchCatalogSeoSnapshotPayload = async (
+  serializedQuery: string
+): Promise<InitialCatalogPagePayload | null> => {
+  const query = toCatalogSeoSnapshotQuery(JSON.parse(serializedQuery));
+  if (!query) return null;
+
+  const result = await fetchCatalogProductsByQuery({
+    page: 1,
+    limit: INITIAL_CATALOG_PAGE_LIMIT,
+    selectedCars: [],
+    selectedCategories: [],
+    searchQuery: query.searchQuery,
+    searchFilter:
+      query.searchFilter === "article" ||
+      query.searchFilter === "name" ||
+      query.searchFilter === "code" ||
+      query.searchFilter === "producer" ||
+      query.searchFilter === "description"
+        ? query.searchFilter
+        : "all",
+    group: query.group,
+    subcategory: query.subcategory,
+    producer: query.producer,
+    sortOrder: "none",
+    timeoutMs: INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED,
+    retries: 1,
+    retryDelayMs: 140,
+    cacheTtlMs: 1000 * 60 * 15,
+    forceAllgoodsSource: true,
+  });
+
+  return {
+    items: result.items,
+    prices: buildInlinePrices(result.items),
+    images: {},
+    hasMore: result.hasMore,
+    nextCursor: result.nextCursor,
+    cursorField: result.cursorField || "",
+  };
+};
+
+const getCatalogSeoSnapshotPayloadCached = unstable_cache(
+  fetchCatalogSeoSnapshotPayload,
+  ["catalog-seo-snapshot-v1"],
+  {
+    revalidate: 60 * 15,
+    tags: ["catalog-seo-snapshot"],
+  }
+);
 
 interface KatalogPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -208,6 +300,78 @@ const resolveCatalogSeoState = (
     description,
     indexable,
   };
+};
+
+const normalizeFacetLookup = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
+
+const matchesFacetValue = (candidate: string | undefined, value: string) => {
+  const normalizedCandidate = normalizeFacetLookup(candidate || "");
+  const normalizedValue = normalizeFacetLookup(value);
+  if (!normalizedCandidate || !normalizedValue) return false;
+
+  return (
+    normalizedCandidate === normalizedValue ||
+    buildSeoSlug(normalizedCandidate) === buildSeoSlug(normalizedValue)
+  );
+};
+
+const resolveCatalogSeoTotalCount = (
+  state: CatalogSeoState,
+  facets: CatalogSeoFacets
+) => {
+  if (state.searchQuery || state.resetFlag) return null;
+
+  if (!state.group && !state.subcategory && !state.producer && !state.tab) {
+    return facets.totalProductCount > 0 ? facets.totalProductCount : null;
+  }
+
+  if (state.producer) {
+    const producerFacet = facets.producers.find(
+      (producer) =>
+        matchesFacetValue(producer.label, state.producer) ||
+        matchesFacetValue(producer.slug, state.producer)
+    );
+    if (!producerFacet) return null;
+
+    if (!state.group) return producerFacet.productCount || null;
+
+    const groupFacet = producerFacet.topGroups.find(
+      (group) =>
+        matchesFacetValue(group.filterValue, state.group) ||
+        matchesFacetValue(group.label, state.group) ||
+        matchesFacetValue(group.slug, state.group)
+    );
+    if (!groupFacet) return null;
+
+    if (!state.subcategory) return groupFacet.productCount || null;
+
+    const subgroupFacet = groupFacet.subgroups.find(
+      (subgroup) =>
+        matchesFacetValue(subgroup.label, state.subcategory) ||
+        matchesFacetValue(subgroup.slug, state.subcategory)
+    );
+    return subgroupFacet?.productCount || null;
+  }
+
+  if (state.group) {
+    const groupFacet = facets.groups.find(
+      (group) =>
+        matchesFacetValue(group.label, state.group) ||
+        matchesFacetValue(group.slug, state.group)
+    );
+    if (!groupFacet) return null;
+
+    if (!state.subcategory) return groupFacet.productCount || null;
+
+    const subgroupFacet = groupFacet.subgroups.find(
+      (subgroup) =>
+        matchesFacetValue(subgroup.label, state.subcategory) ||
+        matchesFacetValue(subgroup.slug, state.subcategory)
+    );
+    return subgroupFacet?.productCount || null;
+  }
+
+  return null;
 };
 
 const buildCatalogBreadcrumbJsonLd = (siteUrl: string, state: CatalogSeoState) => {
@@ -377,6 +541,146 @@ const buildCatalogCollectionJsonLd = (siteUrl: string, state: CatalogSeoState) =
   };
 };
 
+const buildSeoProductPath = (item: CatalogSeoProduct) =>
+  buildProductPath({
+    code: item.code,
+    article: item.article,
+    name: item.name,
+    producer: item.producer,
+    group: item.group || item.category,
+    subGroup: item.subGroup,
+    category: item.category || item.group,
+  });
+
+const buildCatalogItemListJsonLd = (
+  siteUrl: string,
+  state: CatalogSeoState,
+  items: CatalogSeoProduct[]
+) => {
+  const currentUrl = `${siteUrl}${state.canonicalPath}`;
+  const itemListElement = items
+    .filter((item) => item.code && item.name)
+    .slice(0, INITIAL_CATALOG_PAGE_LIMIT)
+    .map((item, index) => {
+      const url = `${siteUrl}${buildSeoProductPath(item)}`;
+
+      return {
+        "@type": "ListItem",
+        position: index + 1,
+        url,
+        item: {
+          "@type": "Product",
+          name: item.name,
+          sku: item.code,
+          mpn: item.article || item.code,
+          brand: item.producer
+            ? {
+                "@type": "Brand",
+                name: item.producer,
+              }
+            : undefined,
+          url,
+          offers:
+            typeof item.priceEuro === "number" && item.priceEuro > 0
+              ? {
+                  "@type": "Offer",
+                  priceCurrency: "UAH",
+                  price: Math.round(item.priceEuro * 50),
+                  availability:
+                    item.quantity > 0
+                      ? "https://schema.org/InStock"
+                      : "https://schema.org/PreOrder",
+                  itemCondition: "https://schema.org/NewCondition",
+                  url,
+                }
+              : undefined,
+        },
+      };
+    });
+
+  if (itemListElement.length === 0) return null;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "@id": `${currentUrl}#catalog-products`,
+    name: `${state.title} - товари`,
+    itemListOrder: "https://schema.org/ItemListOrderAscending",
+    numberOfItems: itemListElement.length,
+    itemListElement,
+  };
+};
+
+const CatalogSeoSnapshot = ({
+  state,
+  items,
+  hasMore,
+  totalCount,
+}: {
+  state: CatalogSeoState;
+  items: CatalogSeoProduct[];
+  hasMore?: boolean;
+  totalCount?: number | null;
+}) => {
+  const visibleItemsCount = items.filter((item) => item.code && item.name).length;
+  const foundProductsLabel =
+    typeof totalCount === "number" && totalCount > 0
+      ? `знайдено ${totalCount.toLocaleString("uk-UA")} товарів`
+      : visibleItemsCount > 0
+      ? hasMore
+        ? `показано перші ${visibleItemsCount.toLocaleString("uk-UA")} товарів, є ще результати`
+        : `показано ${visibleItemsCount.toLocaleString("uk-UA")} товарів`
+      : "товари не знайдено в первинній вибірці";
+  const searchFilterLabels: Record<string, string> = {
+    all: "усі поля",
+    article: "артикул",
+    name: "назва",
+    code: "код",
+    producer: "виробник",
+    description: "опис",
+  };
+  const selectedFilters = [
+    state.searchQuery
+      ? `пошук "${state.searchQuery}"${
+          state.searchFilter
+            ? ` у полі ${searchFilterLabels[state.searchFilter] || state.searchFilter}`
+            : ""
+        }`
+      : null,
+    state.producer ? `виробник ${state.producer}` : null,
+    state.group ? `група ${state.group}` : null,
+    state.subcategory ? `категорія ${state.subcategory}` : null,
+  ].filter((item): item is string => Boolean(item));
+  const selectedFiltersLabel =
+    selectedFilters.length > 0 ? selectedFilters.join(", ") : "без додаткових фільтрів";
+
+  return (
+    <section
+      aria-labelledby="catalog-seo-products-title"
+      className="mx-auto mt-6 w-full max-w-7xl px-3 pb-8 sm:px-4 lg:px-6"
+    >
+      <div className="rounded-2xl border border-slate-200 bg-white/92 p-4 text-sm leading-6 text-slate-600 shadow-sm sm:p-5">
+        <h2
+          id="catalog-seo-products-title"
+          className="text-lg font-semibold tracking-[-0.03em] text-slate-900 sm:text-xl"
+        >
+          Каталог автозапчастин PartsON
+        </h2>
+        <p className="mt-2">
+          {state.description} За поточним запитом {foundProductsLabel}. Обрані фільтри:
+          {" "}
+          <span className="font-semibold text-slate-800">{selectedFiltersLabel}</span>.
+        </p>
+        <p className="mt-2">
+          Для точного підбору використовуйте пошук за артикулом, кодом, назвою або
+          виробником, а також фільтри групи й категорії. Якщо потрібна перевірка
+          сумісності, менеджер PartsON допоможе підібрати деталь за VIN.
+        </p>
+      </div>
+    </section>
+  );
+};
+
 export async function generateMetadata({ searchParams }: KatalogPageProps): Promise<Metadata> {
   const resolvedSearchParams = await (
     searchParams ?? Promise.resolve({} as Record<string, string | string[] | undefined>)
@@ -431,44 +735,31 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   const initialCatalogTimeoutMs = shouldUseTighterInitialTimeout
     ? INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED
     : INITIAL_CATALOG_SSR_TIMEOUT_MS;
-  const initialPagePayload: InitialCatalogPagePayload | null = await resolveWithTimeout(
-    () =>
-      fetchCatalogProductsByQuery({
-        page: 1,
-        limit: INITIAL_CATALOG_PAGE_LIMIT,
-        selectedCars: [],
-        selectedCategories: [],
-        searchQuery: state.searchQuery,
-        searchFilter:
-          state.searchFilter === "article" ||
-          state.searchFilter === "name" ||
-          state.searchFilter === "code" ||
-          state.searchFilter === "producer" ||
-          state.searchFilter === "description"
-            ? state.searchFilter
-            : "all",
-        group: state.group || null,
-        subcategory: state.subcategory || null,
-        producer: state.producer || null,
-        sortOrder: "none",
-        timeoutMs: Math.max(220, initialCatalogTimeoutMs - 70),
-        retries: 0,
-        retryDelayMs: 120,
-        cacheTtlMs: 1000 * 20,
-        forceAllgoodsSource: true,
-      }).then((result) => ({
-        items: result.items,
-        prices: buildInlinePrices(result.items),
-        images: {},
-        hasMore: result.hasMore,
-        nextCursor: result.nextCursor,
-        cursorField: result.cursorField || "",
-      })),
-    null,
-    initialCatalogTimeoutMs
-  );
+  const snapshotCacheKey = buildCatalogSeoSnapshotCacheKey({
+    searchQuery: state.searchQuery,
+    searchFilter: state.searchFilter || "all",
+    group: state.group || null,
+    subcategory: state.subcategory || null,
+    producer: state.producer || null,
+  });
+  const [initialPagePayload, seoFacets] = await Promise.all([
+    resolveWithTimeout(
+      () => getCatalogSeoSnapshotPayloadCached(snapshotCacheKey),
+      null,
+      initialCatalogTimeoutMs
+    ),
+    getCatalogSeoFacetsWithTimeout(CATALOG_SEO_FACETS_TIMEOUT_MS).catch(
+      () => EMPTY_CATALOG_SEO_FACETS
+    ),
+  ]);
+  const seoTotalCount = resolveCatalogSeoTotalCount(state, seoFacets);
   const collectionJsonLd = buildCatalogCollectionJsonLd(siteUrl, state);
   const breadcrumbJsonLd = buildCatalogBreadcrumbJsonLd(siteUrl, state);
+  const catalogItemListJsonLd = buildCatalogItemListJsonLd(
+    siteUrl,
+    state,
+    initialPagePayload?.items ?? []
+  );
 
   return (
     <>
@@ -476,6 +767,12 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       <KatalogPageShell
         initialPagePayload={initialPagePayload}
         initialQuerySignature={initialQuerySignature}
+      />
+      <CatalogSeoSnapshot
+        state={state}
+        items={initialPagePayload?.items ?? []}
+        hasMore={initialPagePayload?.hasMore}
+        totalCount={seoTotalCount}
       />
       <script
         type="application/ld+json"
@@ -485,6 +782,12 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+      {catalogItemListJsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(catalogItemListJsonLd) }}
+        />
+      ) : null}
     </>
   );
 }

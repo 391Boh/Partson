@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import {
   ArrowLeft,
+  Check,
   ChevronDown,
   ChevronUp,
   Clock3,
@@ -42,7 +43,6 @@ import {
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
-import { COPY_PROTECTION_ENABLED } from 'app/lib/copy-protection';
 import { db } from '../../firebase';
 
 interface Message {
@@ -234,7 +234,7 @@ export default function AdminChatPanel({
   const [productLoading, setProductLoading] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [orderUserFilterId, setOrderUserFilterId] = useState<string | null>(null);
-  const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
+  const [copiedClipboardKey, setCopiedClipboardKey] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const managerPresenceSessionRef = useRef(
@@ -478,27 +478,49 @@ export default function AdminChatPanel({
     );
   };
 
-  const copyUserCode = async (uid: string, code: string) => {
-    if (COPY_PROTECTION_ENABLED || !code) {
+  const buildCopyKey = (uid: string, value: string) => `${uid}:${value}`;
+
+  const copyUserCode = async (
+    uid: string,
+    code: string,
+    copyKey = buildCopyKey(uid, code)
+  ) => {
+    if (!code) {
       return;
     }
 
     try {
+      let copied = false;
+
       if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(code);
-      } else {
+        copied = await navigator.clipboard
+          .writeText(code)
+          .then(() => true)
+          .catch(() => false);
+      }
+
+      if (!copied) {
         const textarea = document.createElement('textarea');
         textarea.value = code;
+        textarea.setAttribute('readonly', '');
+        textarea.setAttribute('data-admin-copy', 'true');
         textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
         textarea.style.opacity = '0';
         document.body.appendChild(textarea);
         textarea.focus();
         textarea.select();
-        document.execCommand('copy');
+        textarea.setSelectionRange(0, textarea.value.length);
+        copied = document.execCommand('copy');
         document.body.removeChild(textarea);
       }
-      setCopiedUserId(uid);
-      setTimeout(() => setCopiedUserId(null), 1200);
+
+      if (!copied) return;
+
+      setCopiedClipboardKey(copyKey);
+      setTimeout(() => {
+        setCopiedClipboardKey((current) => (current === copyKey ? null : current));
+      }, 1200);
     } catch {
       console.error('Не вдалося скопіювати код користувача.');
     }
@@ -919,44 +941,41 @@ export default function AdminChatPanel({
 
   return (
     <div
-      className="app-overlay-panel fixed inset-x-2 bottom-2 top-[4.25rem] z-50 flex max-h-[calc(100dvh-4.75rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-sky-200/20 bg-[image:linear-gradient(145deg,rgba(2,6,23,0.97),rgba(15,23,42,0.96)_48%,rgba(7,89,133,0.92))] shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:inset-x-3 sm:bottom-3 sm:top-[4.75rem] sm:max-h-[calc(100dvh-5.5rem)] md:left-auto md:right-4 md:bottom-auto md:top-[4.5rem] md:h-[min(860px,calc(100dvh-4.75rem))] md:w-[min(920px,calc(100vw-2rem))] md:max-h-none md:rounded-[32px] lg:right-6 lg:w-[min(980px,calc(100vw-3rem))] xl:w-[1040px]"
+      className="admin-panel-shell app-overlay-panel fixed inset-x-2 bottom-2 top-[4.25rem] z-50 flex max-h-[calc(100dvh-4.75rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-sky-200/20 bg-[image:linear-gradient(145deg,rgba(2,6,23,0.97),rgba(15,23,42,0.96)_48%,rgba(7,89,133,0.92))] shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:inset-x-3 sm:bottom-3 sm:top-[4.75rem] sm:max-h-[calc(100dvh-5.5rem)] md:left-auto md:right-4 md:bottom-auto md:top-[4.5rem] md:h-[min(860px,calc(100dvh-4.75rem))] md:w-[min(920px,calc(100vw-2rem))] md:max-h-none md:rounded-[32px] lg:right-6 lg:w-[min(980px,calc(100vw-3rem))] xl:w-[1040px]"
       style={{
         backgroundSize: '200% 200%',
         animation: 'adminGradient 12s ease infinite',
       }}
     >
-      <div className="border-b border-white/10 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.9),rgba(30,41,59,0.78),rgba(14,165,233,0.2))] px-3 py-3 text-white sm:px-5 sm:py-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] border border-sky-200/20 bg-white/10 text-sky-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_18px_32px_rgba(14,165,233,0.2)] sm:h-12 sm:w-12 sm:rounded-[18px]">
-              <ShieldCheck className="h-5 w-5 sm:h-6 sm:w-6" />
+      <div className="border-b border-white/10 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.9),rgba(30,41,59,0.78),rgba(14,165,233,0.2))] px-3 py-2 text-white sm:px-4 sm:py-2.5">
+        <div className="flex items-center justify-between gap-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] border border-sky-200/20 bg-white/10 text-sky-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_12px_24px_rgba(14,165,233,0.16)] sm:h-9 sm:w-9 sm:rounded-[15px]">
+              <ShieldCheck className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
             </span>
             <div className="min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-sky-200/80 sm:text-[10px] sm:tracking-[0.18em]">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.12em] text-sky-200/80 sm:text-[9px] sm:tracking-[0.15em]">
                 Керування магазином
               </p>
-              <h2 className="mt-0.5 text-[16px] font-black tracking-[-0.03em] text-white sm:mt-1 sm:text-2xl">
+              <h2 className="mt-0.5 truncate text-[15px] font-black tracking-[-0.03em] text-white sm:text-xl">
                 Панель адміністратора
               </h2>
-              <p className="mt-1 hidden max-w-2xl text-xs text-slate-300 sm:block sm:text-sm">
-                Єдине робоче вікно для діалогів, клієнтів, замовлень і заявок.
-              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 hover:text-white sm:h-11 sm:w-11 sm:rounded-2xl"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 hover:text-white sm:h-9 sm:w-9 sm:rounded-[15px]"
             aria-label="Закрити панель адміністратора"
             title="Закрити"
           >
-            <X className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
+            <X className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
           </button>
         </div>
       </div>
 
-      <div className="sticky top-0 z-10 grid grid-cols-2 gap-1.5 border-b border-white/10 bg-slate-950/55 px-1.5 py-1.5 backdrop-blur-xl sm:gap-2 sm:px-3 sm:py-2.5">
+      <div className="sticky top-0 z-10 grid grid-cols-2 gap-1 border-b border-white/10 bg-slate-950/55 px-1.5 py-1 backdrop-blur-xl sm:grid-cols-4 sm:gap-1.5 sm:px-2.5 sm:py-1.5">
         <Tab
-          icon={<ChatBubbleBottomCenterTextIcon className="h-6 w-6" />}
+          icon={<ChatBubbleBottomCenterTextIcon className="h-5 w-5" />}
           label="Повідомлення"
           value={totalThreads}
           meta="Діалоги"
@@ -965,7 +984,7 @@ export default function AdminChatPanel({
           onClick={() => setTab('messages')}
         />
         <Tab
-          icon={<UsersIcon className="h-6 w-6" />}
+          icon={<UsersIcon className="h-5 w-5" />}
           label="Користувачі"
           value={users.length}
           meta={`Онлайн ${onlineUsersCount}`}
@@ -973,7 +992,7 @@ export default function AdminChatPanel({
           onClick={() => setTab('users')}
         />
         <Tab
-          icon={<ShoppingBagIcon className="h-6 w-6" />}
+          icon={<ShoppingBagIcon className="h-5 w-5" />}
           label="Замовлення"
           value={orders.length}
           meta="Заявки"
@@ -982,7 +1001,7 @@ export default function AdminChatPanel({
           onClick={() => setTab('orders')}
         />
         <Tab
-          icon={<PhoneIcon className="h-6 w-6" />}
+          icon={<PhoneIcon className="h-5 w-5" />}
           label="Дзвінки"
           value={calls.length}
           meta="Запити"
@@ -992,7 +1011,7 @@ export default function AdminChatPanel({
         />
       </div>
 
-      <main className="app-panel-scroll flex-1 min-h-0 overflow-y-auto bg-[image:linear-gradient(180deg,rgba(15,23,42,0.5),rgba(2,6,23,0.56))] px-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] pt-0 text-slate-100 [touch-action:pan-y] sm:px-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pt-0">
+      <main className="admin-panel-scroll app-panel-scroll flex-1 min-h-0 overflow-y-auto bg-[image:linear-gradient(180deg,rgba(15,23,42,0.5),rgba(2,6,23,0.56))] px-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] pt-0 text-slate-100 [touch-action:pan-y] sm:px-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pt-0">
         {tab === 'messages' && (
           <>
             {!selectedUserId ? (
@@ -1094,82 +1113,81 @@ export default function AdminChatPanel({
               </div>
             ) : (
                 <div className="flex h-full min-h-0 flex-col">
-                  <div className="mb-2 rounded-[18px] border border-white/10 bg-[image:linear-gradient(135deg,rgba(30,41,59,0.92),rgba(15,23,42,0.9))] p-2.5 shadow-[0_18px_34px_rgba(2,6,23,0.22)] sm:mb-3 sm:rounded-[24px] sm:p-3.5">
-                    <div className="flex items-start gap-2.5 sm:gap-3">
-                      <button
-                        onClick={() => setSelectedUserId(null)}
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-slate-100 transition hover:bg-white/10 sm:h-11 sm:w-11 sm:rounded-2xl"
-                        title="Назад до списку чатів"
-                      >
-                        <ArrowLeft className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
-                      </button>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate text-[13px] font-semibold text-white sm:text-[15px]">
+                  <div className="mb-2 rounded-[16px] border border-white/10 bg-[image:linear-gradient(135deg,rgba(30,41,59,0.92),rgba(15,23,42,0.9))] p-2 shadow-[0_18px_34px_rgba(2,6,23,0.22)] sm:mb-2.5 sm:rounded-[20px] sm:p-2.5">
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex w-[74px] shrink-0 flex-col gap-1.5 sm:w-[90px]">
+                        <button
+                          onClick={() => setSelectedUserId(null)}
+                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[12px] border border-white/10 bg-white/5 text-slate-100 transition hover:bg-white/10 sm:h-8 sm:w-8 sm:rounded-[13px]"
+                          title="Назад до списку чатів"
+                        >
+                          <ArrowLeft className="h-4 w-4" />
+                        </button>
+                        <div className="min-w-0">
+                          <p className="line-clamp-2 text-[11px] font-semibold leading-tight text-white sm:text-[12px]">
                             {selectedDisplayName}
-                          </span>
+                          </p>
                           {selectedUserRecord && isUserOnline(selectedUserRecord) && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
-                              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-200">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                               Онлайн
                             </span>
                           )}
                         </div>
+                      </div>
 
-                        <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] text-slate-300 sm:mt-2 sm:gap-2 sm:text-[11px]">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap gap-1.5 text-[10px] text-slate-300 sm:gap-2 sm:text-[11px]">
                           {selectedUserRecord?.phone && (
                             <InfoChip icon={<PhoneCall className="h-3.5 w-3.5" />} label={selectedUserRecord.phone} />
                           )}
                           {selectedUserRecord?.email && (
                             <InfoChip icon={<Mail className="h-3.5 w-3.5" />} label={selectedUserRecord.email} />
                           )}
-                          {selectedUserRecord && getUserIdentityValue(selectedUserRecord) && (
+                          {selectedUserRecord?.code && (
                             <InfoChip
-                              icon={
-                                COPY_PROTECTION_ENABLED ? (
-                                  <ShieldCheck className="h-3.5 w-3.5" />
-                                ) : (
-                                  <Copy className="h-3.5 w-3.5" />
-                                )
-                              }
-                              label={`${getPrimaryVin(selectedUserRecord) ? 'VIN' : 'Код'}: ${getUserIdentityValue(selectedUserRecord)}`}
+                              icon={<Copy className="h-3.5 w-3.5" />}
+                              label={`Код: ${selectedUserRecord.code}`}
                             />
                           )}
                         </div>
+
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {selectedUserRecord && (
+                            <button
+                              onClick={() => openUserOrders(selectedUserRecord.id)}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-sky-300/15 bg-sky-500/10 px-2.5 py-1 text-[10px] font-semibold text-sky-100 transition hover:bg-sky-500/15 sm:text-[11px]"
+                            >
+                              <ShoppingBag className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Замовлення</span>
+                            </button>
+                          )}
+
+                          {selectedUserRecord?.vins.map((vin, vinIndex) => {
+                            const copyKey = buildCopyKey(selectedUserRecord.id, `vin:${vin}`);
+                            const isCopied = copiedClipboardKey === copyKey;
+
+                            return (
+                              <button
+                                key={`${selectedUserRecord.id}-vin-${vin}-${vinIndex}`}
+                                type="button"
+                                onClick={() => copyUserCode(selectedUserRecord.id, vin, copyKey)}
+                                className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-sky-300/20 bg-sky-400/10 px-2.5 py-1 font-mono text-[10px] font-semibold text-sky-50 transition hover:border-sky-200/40 hover:bg-sky-400/15 sm:text-[11px]"
+                                title="Копіювати VIN користувача"
+                              >
+                                <span className="truncate">VIN {vin}</span>
+                                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/8 text-sky-100 transition group-hover:bg-white/14">
+                                  {isCopied ? <Check className="h-3.5 w-3.5 text-emerald-200" /> : <Copy className="h-3.5 w-3.5" />}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-
-                    {selectedUserRecord && !COPY_PROTECTION_ENABLED && (
-                      <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
-                        <button
-                          onClick={() =>
-                            copyUserCode(
-                              selectedUserRecord.id,
-                              getUserIdentityValue(selectedUserRecord)
-                            )
-                          }
-                          disabled={!getUserIdentityValue(selectedUserRecord)}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Copy className="h-4 w-4" />
-                          <span className="hidden sm:inline">
-                            {getPrimaryVin(selectedUserRecord)
-                              ? 'Копіювати VIN'
-                              : 'Копіювати код'}
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => openUserOrders(selectedUserRecord.id)}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-sky-300/15 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/15"
-                        >
-                          <ShoppingBag className="h-4 w-4" />
-                          <span className="hidden sm:inline">Замовлення</span>
-                        </button>
-                      </div>
-                    )}
                   </div>
 
-                <div className="app-panel-scroll flex-1 min-h-0 space-y-1.5 overflow-y-auto pr-0.5 [touch-action:pan-y] sm:space-y-2 sm:pr-1">
+                <div className="admin-chat-scroll admin-panel-scroll app-panel-scroll flex-1 min-h-0 space-y-1.5 overflow-y-auto pr-0.5 [touch-action:pan-y] sm:space-y-2 sm:pr-1">
                   {selectedMessages.length === 0 && (
                     <EmptyPanelState
                       icon={<MessageCircle className="h-10 w-10" />}
@@ -1339,8 +1357,9 @@ export default function AdminChatPanel({
                 </span>
               </div>
             )}
-            {sortedUsers.map((userItem) => {
+            {sortedUsers.map((userItem, userIndex) => {
               const userChatId = getUserChatId(userItem);
+              const userRowKey = `${userItem.id}:${userChatId}:${userIndex}`;
               const unreadFromUser = messages.filter(
                 (m) =>
                   m.userId === userChatId &&
@@ -1350,10 +1369,10 @@ export default function AdminChatPanel({
               const online = isUserOnline(userItem);
               return (
                 <div
-                  key={userItem.id}
+                  key={userRowKey}
                   className="mb-1.5 flex w-full flex-col gap-1.5 rounded-[16px] border border-white/7 bg-[image:linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.64))] p-2 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] transition-colors hover:border-sky-300/20 hover:bg-white/[0.05] sm:mb-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:rounded-[20px] sm:p-3"
                 >
-                    <div className="truncate">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                       <span
                         className={`h-2.5 w-2.5 shrink-0 rounded-full ${
@@ -1393,17 +1412,30 @@ export default function AdminChatPanel({
                       )}
                     {userItem.vins.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {userItem.vins.slice(0, 2).map((vin) => (
-                          <span
-                            key={vin}
-                            className="rounded-full border border-sky-300/20 bg-sky-400/10 px-2 py-0.5 font-mono text-[10px] text-sky-100"
-                          >
-                            VIN {vin}
-                          </span>
-                        ))}
-                        {userItem.vins.length > 2 && (
+                        {userItem.vins.slice(0, 3).map((vin, vinIndex) => {
+                          const copyKey = buildCopyKey(userItem.id, `vin:${vin}`);
+                          const isCopied = copiedClipboardKey === copyKey;
+
+                          return (
+                            <button
+                              key={`${userRowKey}-vin-${vin}-${vinIndex}`}
+                              type="button"
+                              onClick={() => copyUserCode(userItem.id, vin, copyKey)}
+                              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-sky-300/20 bg-sky-400/10 px-2 py-1 font-mono text-[10px] font-semibold text-sky-100 transition hover:border-sky-200/40 hover:bg-sky-400/15"
+                              title="Копіювати VIN користувача"
+                            >
+                              <span className="truncate">VIN {vin}</span>
+                              {isCopied ? (
+                                <Check className="h-3.5 w-3.5 shrink-0 text-emerald-200" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5 shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                        {userItem.vins.length > 3 && (
                           <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-slate-300">
-                            +{userItem.vins.length - 2}
+                            +{userItem.vins.length - 3}
                           </span>
                         )}
                       </div>
@@ -1417,28 +1449,30 @@ export default function AdminChatPanel({
                       </span>
                     )}
 
-                    {!COPY_PROTECTION_ENABLED && copiedUserId === userItem.id && (
+                    {copiedClipboardKey === buildCopyKey(userItem.id, getUserIdentityValue(userItem)) && (
                       <span className="text-[10px] rounded-full bg-emerald-500/90 px-2 py-0.5 text-white">
                         Скопійовано
                       </span>
                     )}
 
-                    {!COPY_PROTECTION_ENABLED && (
-                      <button
-                        onClick={() =>
-                          copyUserCode(userItem.id, getUserIdentityValue(userItem))
-                        }
-                        disabled={!getUserIdentityValue(userItem)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:bg-white/15 sm:h-10 sm:w-10 sm:rounded-2xl"
-                        title={
-                          getPrimaryVin(userItem)
-                            ? 'Копіювати VIN користувача'
-                            : 'Копіювати код користувача'
-                        }
-                      >
+                    <button
+                      onClick={() =>
+                        copyUserCode(userItem.id, getUserIdentityValue(userItem))
+                      }
+                      disabled={!getUserIdentityValue(userItem)}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-45 sm:h-10 sm:w-10 sm:rounded-2xl"
+                      title={
+                        getPrimaryVin(userItem)
+                          ? 'Копіювати VIN користувача'
+                          : 'Копіювати код користувача'
+                      }
+                    >
+                      {copiedClipboardKey === buildCopyKey(userItem.id, getUserIdentityValue(userItem)) ? (
+                        <Check size={16} className="text-emerald-200" />
+                      ) : (
                         <Copy size={16} />
-                      </button>
-                    )}
+                      )}
+                    </button>
 
                     <button
                       onClick={() => openUserOrders(userItem.id)}
@@ -1679,14 +1713,14 @@ function Tab({
   return (
     <button
       onClick={onClick}
-      className={`relative flex min-h-[62px] items-center gap-2 rounded-[16px] border px-2.5 py-2 text-left transition sm:min-h-[72px] sm:gap-3 sm:px-3.5 sm:py-2.5 sm:rounded-[20px] ${
+      className={`relative flex min-h-[38px] items-center gap-1.5 rounded-[12px] border px-1.5 py-1 text-left transition sm:min-h-[40px] sm:gap-1.5 sm:px-2 sm:py-1 sm:rounded-[14px] ${
         active
           ? 'border-sky-300/40 bg-[image:linear-gradient(135deg,rgba(56,189,248,0.2),rgba(37,99,235,0.18))] text-white shadow-[0_14px_30px_rgba(14,165,233,0.18),inset_0_1px_0_rgba(255,255,255,0.1)]'
           : 'border-white/7 bg-white/[0.035] text-slate-300 hover:border-white/14 hover:bg-white/[0.07]'
       }`}
     >
       <span
-        className={`relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] sm:h-10 sm:w-10 sm:rounded-[14px] ${
+        className={`relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[9px] sm:h-6 sm:w-6 sm:rounded-[9px] ${
           active ? 'bg-white/14 text-sky-100' : 'bg-white/7 text-slate-200'
         }`}
       >
@@ -1698,16 +1732,16 @@ function Tab({
         )}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="break-words text-[10px] font-bold leading-tight text-slate-100 sm:text-[13px]">
+        <div className="flex items-center justify-between gap-1.5">
+          <div className="min-w-0 flex-1">
+            <div className="truncate whitespace-nowrap text-[8.5px] font-bold leading-tight text-slate-100 sm:text-[10px]">
               {label}
             </div>
-            <div className="mt-0.5 break-words text-[9px] font-medium leading-tight text-slate-300 sm:text-[11px]">
+            <div className="mt-0.5 hidden truncate whitespace-nowrap text-[8px] font-medium leading-tight text-slate-300 lg:block">
               {meta}
             </div>
           </div>
-          <div className="shrink-0 text-[17px] font-black tracking-[-0.04em] text-white sm:text-xl">
+          <div className="shrink-0 text-[12px] font-black tracking-[-0.04em] text-white sm:text-sm">
             {value}
           </div>
         </div>

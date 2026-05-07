@@ -1216,7 +1216,6 @@ export async function generateMetadata({
       ? `артикул ${productArticle}`
       : resolvedCode || null,
     "ціна і наявність Львів",
-    "PartsON",
   ]
     .filter(Boolean)
     .join(" | ");

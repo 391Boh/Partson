@@ -6,6 +6,7 @@ import {
   getProductEntriesBySitemapId,
   getProductSitemapIds,
 } from "app/lib/product-sitemap";
+import { getConfiguredSitemapLastModified } from "app/lib/sitemap-dates";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
@@ -28,8 +29,7 @@ export default async function sitemap(props: {
 }): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
   const id = String(await props.id);
-  const _now = new Date();
-  const lastModified = new Date(Date.UTC(_now.getUTCFullYear(), _now.getUTCMonth(), _now.getUTCDate()));
+  const lastModified = getConfiguredSitemapLastModified();
 
   let entries: Awaited<ReturnType<typeof getProductEntriesBySitemapId>> = [];
 
