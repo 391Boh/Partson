@@ -1063,6 +1063,11 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
   }
 
   const directCode = extractProductCodeFromParam(rawCode || "");
+  // When the URL is in CODE~slug format, directCode is the prefix before "~" and
+  // differs from the full decodedParam. In that case the decodedParam is not a valid
+  // name slug — skip slug-based resolution entirely to avoid burning the resolver
+  // budget on a guaranteed-miss global catalog scan.
+  const hasCodePrefix = Boolean(directCode) && directCode !== decodedParam;
   const directProduct = directCode
     ? await findCatalogProductByLookupToken(directCode)
     : null;
@@ -1075,22 +1080,24 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
     };
   }
 
-  const matchedProductRoute = await resolveProductFromSeoNameSlug(decodedParam);
-  if (matchedProductRoute) {
-    return {
-      code: matchedProductRoute.code,
-      isSeoRoute: true,
-      product: matchedProductRoute.product,
-    };
-  }
+  if (!hasCodePrefix) {
+    const matchedProductRoute = await resolveProductFromSeoNameSlug(decodedParam);
+    if (matchedProductRoute) {
+      return {
+        code: matchedProductRoute.code,
+        isSeoRoute: true,
+        product: matchedProductRoute.product,
+      };
+    }
 
-  const resolvedCodeByNameSlug = await resolveProductCodeFromNameSlug(decodedParam);
-  if (resolvedCodeByNameSlug) {
-    return {
-      code: resolvedCodeByNameSlug,
-      isSeoRoute: true,
-      product: null,
-    };
+    const resolvedCodeByNameSlug = await resolveProductCodeFromNameSlug(decodedParam);
+    if (resolvedCodeByNameSlug) {
+      return {
+        code: resolvedCodeByNameSlug,
+        isSeoRoute: true,
+        product: null,
+      };
+    }
   }
 
   // directCode was extracted from the URL but no product was confirmed in the
@@ -1352,6 +1359,7 @@ export async function generateMetadata({
 
 export default async function ProductPage({ params, searchParams }: ProductPageProps) {
   const { code: rawCode } = await params;
+  const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
   const fallbackCodeFromRoute = extractProductCodeFromParam(rawCode || "");
   const canUseDirectFallbackCode = canUseDirectProductCodeFallback(rawCode || "");
   // Warm caches in parallel while the route resolver runs its index lookup.
@@ -1404,6 +1412,25 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     }
   }
 
+  if (!resolvedCode && !canUseDirectFallbackCode && !routeSlugs) {
+    const legacySlugLookupToken = extractPrimaryLookupTokenFromSeoNameSlug(rawCode || "");
+    if (legacySlugLookupToken) {
+      const legacyFallbackProduct = await resolveWithTimeout(
+        () => getCatalogProduct(legacySlugLookupToken),
+        null,
+        PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
+      );
+      if (legacyFallbackProduct) {
+        product = legacyFallbackProduct;
+        resolvedCode = (
+          legacyFallbackProduct.code ||
+          legacyFallbackProduct.article ||
+          legacySlugLookupToken
+        ).trim();
+      }
+    }
+  }
+
   if (!resolvedCode) {
     // Only recover a fallback code for patterns that are plausibly real product codes:
     //   - codes without any dashes (e.g. "12345", "ABC123") — canUseDirectFallbackCode
@@ -1412,7 +1439,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     //     from the name slug portion so API-down renders don't 404 valid URLs
     // Do NOT expand arbitrary dash-separated strings (e.g. "invalid-product-xyz")
     // into a resolved code — those should fall through to notFound().
-    const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
     const recoveredToken = routeSlugs?.nameSlug
       ? extractPrimaryLookupTokenFromSeoNameSlug(routeSlugs.nameSlug)
       : null;

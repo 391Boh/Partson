@@ -146,7 +146,11 @@ export const extractProductRouteSlugsFromParam = (value: string) => {
 };
 
 export const buildProductPath = (input: ProductPathInput) => {
-  const stableCode = normalizeValue(input.code) || normalizeValue(input.article);
+  const rawCode = normalizeValue(input.code) || normalizeValue(input.article);
+  // Only use the code-prefixed format when the code itself does not contain the
+  // separator character. A code containing "~" would produce an ambiguous URL that
+  // extractProductCodeFromParam cannot parse correctly (indexOf stops at the first "~").
+  const stableCode = rawCode.includes(PRODUCT_URL_SEPARATOR) ? "" : rawCode;
   const nameSlug = buildProductNameSlug(input);
   const fallbackSlug =
     buildPlainSeoSlug(
