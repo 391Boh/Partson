@@ -146,6 +146,7 @@ export const extractProductRouteSlugsFromParam = (value: string) => {
 };
 
 export const buildProductPath = (input: ProductPathInput) => {
+  const stableCode = normalizeValue(input.code) || normalizeValue(input.article);
   const nameSlug = buildProductNameSlug(input);
   const fallbackSlug =
     buildPlainSeoSlug(
@@ -156,5 +157,9 @@ export const buildProductPath = (input: ProductPathInput) => {
     ) || "tovar";
   const routeSlug = nameSlug || fallbackSlug;
 
-  return `/product/${encodeURIComponent(routeSlug)}`;
+  if (!stableCode) {
+    return `/product/${encodeURIComponent(routeSlug)}`;
+  }
+
+  return `/product/${encodeURIComponent(`${stableCode}${PRODUCT_URL_SEPARATOR}${routeSlug}`)}`;
 };

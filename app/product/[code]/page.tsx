@@ -329,7 +329,9 @@ const buildReadableNameFromRoute = (rawCode: string, fallbackCode: string) => {
   const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
   const routeSlugs = extractProductRouteSlugsFromParam(decodedParam);
   const nameSource = routeSlugs?.nameSlug || decodedParam || fallbackCode;
-  const withoutInternalCode = nameSource.replace(/~[^~]+$/u, "");
+  const withoutInternalCode = nameSource.includes("~")
+    ? nameSource.slice(nameSource.indexOf("~") + 1).trim()
+    : nameSource;
   const readable = buildVisibleProductName(withoutInternalCode.replace(/[-_]+/g, " "));
 
   return readable && readable !== "Товар" ? readable : `Товар ${fallbackCode}`;
@@ -1352,6 +1354,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const { code: rawCode } = await params;
   const fallbackCodeFromRoute = extractProductCodeFromParam(rawCode || "");
   const canUseDirectFallbackCode = canUseDirectProductCodeFallback(rawCode || "");
+  // Warm caches in parallel while the route resolver runs its index lookup.
+  // Both values are needed unconditionally later; React cache() deduplicates
+  // these calls when they are awaited again below.
+  void getProductSeoEuroRate();
+  if (canUseDirectFallbackCode && fallbackCodeFromRoute) {
+    void getCatalogProduct(fallbackCodeFromRoute).catch(() => null);
+  }
   let routeData = await resolveWithTimeout(
     () => getResolvedProductRouteData(rawCode || ""),
     {

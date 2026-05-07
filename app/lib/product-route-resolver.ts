@@ -16,6 +16,7 @@ import {
   buildLegacyProductNameSlug,
   buildLegacyProductSeoName,
   buildProductNameSlug,
+  safeDecodeURIComponent,
 } from "app/lib/product-url";
 import { buildSeoSlug } from "app/lib/seo-slug";
 
@@ -47,7 +48,7 @@ const PRODUCT_ROUTE_LOOKUP_REQUEST_TIMEOUT_MS = parsePositiveInt(
   1200
 );
 
-const normalizeSlug = (value: string) => decodeURIComponent(value || "").trim();
+const normalizeSlug = (value: string) => safeDecodeURIComponent(value || "").trim();
 
 const toProductRouteKey = (item: ProductRouteFacetCandidate) =>
   `${(item.group || "").trim().toLowerCase()}::${(item.subGroup || "").trim().toLowerCase()}`;

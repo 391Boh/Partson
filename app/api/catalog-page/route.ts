@@ -17,7 +17,7 @@ type CatalogPageApiPayload = {
 
 const ROUTE_SUCCESS_CACHE_TTL_MS = 1000 * 60 * 2;
 const ROUTE_SUCCESS_STALE_TTL_MS = 1000 * 60 * 12;
-const ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS = 1000 * 60 * 6;
+const ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS = 1000 * 60 * 20;
 const CATALOG_ROUTE_RESPONSE_TIMEOUT_MS = 6500;
 
 type RouteSuccessCacheEntry = {
@@ -205,11 +205,15 @@ export async function POST(request: Request) {
         normalizedProducer
     );
 
+    // Unfiltered: 3100ms per source so allgoods + getdata fallback both fit within
+    // the 6500ms route budget (3100 + 3100 = 6200ms < 6500ms).
+    // Previously 5600ms caused allgoods timeout to consume the full route budget,
+    // leaving no room for the getdata fallback, which always returned 503 on allgoods slowness.
     const timeoutMs = isDescriptionSearch
       ? 5200
       : hasTightFilterContext
         ? 3200
-        : 5600;
+        : 3100;
     const retries = 0;
     const retryDelayMs = hasTightFilterContext ? 80 : 150;
     const cacheTtlMs = hasTightFilterContext ? 1000 * 20 : 1000 * 45;
