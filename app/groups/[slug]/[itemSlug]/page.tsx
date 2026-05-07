@@ -36,11 +36,12 @@ import {
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getProductTreeDataset } from "app/lib/product-tree";
-import { buildVisibleProductName } from "app/lib/product-url";
+import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getGroupItemSeoCopy } from "app/lib/seo-copy";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
+import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
@@ -50,6 +51,8 @@ const GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS = 6000;
 const GROUP_ITEM_PRODUCER_SPLIT_PAGE_SIZE = 220;
 const GROUP_ITEM_PRODUCER_SPLIT_MAX_PAGES = 3;
 const GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS = 2200;
+const CATEGORY_TOP_PRODUCTS_LIMIT = 10;
+const CATEGORY_TOP_PRODUCTS_TIMEOUT_MS = 1500;
 
 interface GroupItemPageParams {
   slug: string;
@@ -267,6 +270,39 @@ const collectDirectGroupItemProducerSplitCached = unstable_cache(
 const collectDirectGroupItemProducerSplit = cache(
   collectDirectGroupItemProducerSplitCached
 );
+
+const fetchCategoryTopProductsUncached = async (
+  groupLabel: string,
+  subcategoryLabel: string
+): Promise<CatalogProduct[]> => {
+  const normalizedGroup = normalizeValue(groupLabel);
+  const normalizedSubcategory = normalizeValue(subcategoryLabel);
+  if (!normalizedSubcategory) return [];
+
+  const result = await fetchCatalogProductsByQuery({
+    page: 1,
+    limit: CATEGORY_TOP_PRODUCTS_LIMIT,
+    group: normalizedGroup || null,
+    subcategory: normalizedSubcategory,
+    sortOrder: "none",
+    includePriceEnrichment: true,
+    forceAllgoodsSource: true,
+    timeoutMs: 1400,
+    retries: 0,
+    retryDelayMs: 100,
+    cacheTtlMs: 1000 * 60 * 30,
+  }).catch(() => ({ items: [] as CatalogProduct[] }));
+
+  return result.items.filter((item) => Boolean(item.code) && Boolean(item.name));
+};
+
+const getCategoryTopProductsCached = unstable_cache(
+  fetchCategoryTopProductsUncached,
+  ["group-item:top-products:v1"],
+  { revalidate: 60 * 30 }
+);
+
+const getCategoryTopProducts = cache(getCategoryTopProductsCached);
 
 const resolveGroupItemProducerSplit = async (options: {
   seoProducers: SeoProducerFacet[];
@@ -648,6 +684,16 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     permanentRedirect(buildGroupItemPath(item.groupSlug, item.itemSlug));
   }
 
+  // Effective catalog group filter: for child items use the parent subgroup label,
+  // for top-level subgroup items use the group label.
+  const catalogGroupLabel = item.parentSubgroupLabel || item.groupLabel;
+  const topProducts = await resolveWithTimeout(
+    () => getCategoryTopProducts(catalogGroupLabel, item.label),
+    [] as CatalogProduct[],
+    CATEGORY_TOP_PRODUCTS_TIMEOUT_MS
+  );
+  const visibleProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
+
   const siteUrl = getSiteUrl();
   const pagePath = buildGroupItemPath(item.groupSlug, item.itemSlug);
   const groupPagePath = buildGroupPagePath(item.groupSlug);
@@ -705,6 +751,41 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
       url: siteUrl,
     },
   };
+
+  const productItemListJsonLd = visibleProducts.length > 0
+    ? {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "@id": `${canonicalPageUrl}#product-list`,
+        name: `Популярні товари: ${visibleLabel}`,
+        numberOfItems: visibleProducts.length,
+        itemListElement: visibleProducts.map((product, index) => {
+          const productPath = buildProductPath({
+            code: product.code,
+            article: product.article,
+            name: product.name,
+            producer: product.producer,
+            group: product.group,
+            subGroup: product.subGroup,
+            category: product.category,
+          });
+          return {
+            "@type": "ListItem",
+            position: index + 1,
+            url: `${siteUrl}${productPath}`,
+            item: {
+              "@type": "Product",
+              name: buildVisibleProductName(product.name),
+              sku: product.article || undefined,
+              mpn: product.code || undefined,
+              brand: product.producer
+                ? { "@type": "Brand", name: product.producer }
+                : undefined,
+            },
+          };
+        }),
+      }
+    : null;
 
   const breadcrumbItems = [
     {
@@ -1037,6 +1118,47 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         </section>
       ) : null}
 
+      {visibleProducts.length > 0 && (
+        <section className={`${directoryPanelClass} mt-6`}>
+          <div className={directoryHeaderClass}>
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+              Товари категорії
+            </p>
+            <h2 className="font-display mt-1 text-xl font-[780] tracking-normal text-slate-950 sm:text-2xl">
+              Популярні товари: {visibleLabel}
+            </h2>
+          </div>
+          <ul className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 sm:p-4">
+            {visibleProducts.map((product) => {
+              const productPath = buildProductPath({
+                code: product.code,
+                article: product.article,
+                name: product.name,
+                producer: product.producer,
+                group: product.group,
+                subGroup: product.subGroup,
+                category: product.category,
+              });
+              return (
+                <li key={product.code}>
+                  <Link
+                    href={productPath}
+                    className={`${directoryListCardClass} flex flex-col gap-0.5 px-3 py-2.5`}
+                  >
+                    <span className="truncate text-sm font-semibold text-slate-800">
+                      {buildVisibleProductName(product.name)}
+                    </span>
+                    <span className="truncate text-xs text-slate-500">
+                      {[product.producer, product.article].filter(Boolean).join(" · ")}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -1051,6 +1173,12 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
           }),
         }}
       />
+      {productItemListJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(productItemListJsonLd) }}
+        />
+      )}
     </main>
   );
 }

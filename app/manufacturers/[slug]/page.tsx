@@ -1,5 +1,6 @@
 import { cache } from "react";
 import type { Metadata } from "next";
+import { unstable_cache } from "next/cache";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -33,8 +34,9 @@ import {
 import {
   findSeoProducerBySlug,
 } from "app/lib/catalog-seo";
-import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
+import { fetchCatalogProductsByQuery, type CatalogProduct } from "app/lib/catalog-server";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getProducerSeoCopy } from "app/lib/seo-copy";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -48,6 +50,8 @@ const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
 const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 2400;
 const MANUFACTURER_FALLBACK_MAX_PAGES_DEFAULT = 40;
 const MANUFACTURER_FALLBACK_MAX_ITEMS_DEFAULT = 4800;
+const MANUFACTURER_TOP_PRODUCTS_LIMIT = 10;
+const MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS = 1500;
 const isProductionBuildPhase =
   process.env.NEXT_PHASE === "phase-production-build" ||
   process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
@@ -101,16 +105,6 @@ const parseOptionalPositiveInt = (value: string | undefined) => {
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
 
-const decodeSafe = (value: string) => {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-};
-
-const buildProducerFallbackLabelFromSlug = (slug: string) =>
-  normalizeValue(decodeSafe(slug).replace(/-/g, " "));
 
 const buildManufacturerTitle = (label: string) =>
   `${normalizeValue(label)} - купити автозапчастини`;
@@ -395,6 +389,36 @@ const filterManufacturerGroupsWithCatalogResults = async (
     .map((entry) => entry.group);
 };
 
+const fetchManufacturerTopProductsUncached = async (
+  producerLabel: string
+): Promise<CatalogProduct[]> => {
+  const normalizedProducer = normalizeValue(producerLabel);
+  if (!normalizedProducer) return [];
+
+  const result = await fetchCatalogProductsByQuery({
+    page: 1,
+    limit: MANUFACTURER_TOP_PRODUCTS_LIMIT,
+    producer: normalizedProducer,
+    sortOrder: "none",
+    includePriceEnrichment: true,
+    forceAllgoodsSource: true,
+    timeoutMs: 1400,
+    retries: 0,
+    retryDelayMs: 100,
+    cacheTtlMs: 1000 * 60 * 30,
+  }).catch(() => ({ items: [] as CatalogProduct[] }));
+
+  return result.items.filter((item) => Boolean(item.code) && Boolean(item.name));
+};
+
+const getManufacturerTopProductsCached = unstable_cache(
+  fetchManufacturerTopProductsUncached,
+  ["manufacturer:top-products:v1"],
+  { revalidate: 60 * 30 }
+);
+
+const getManufacturerTopProducts = cache(getManufacturerTopProductsCached);
+
 const findBrandMeta = (label: string) => {
   const normalizedLabel = normalizeValue(label);
   const labelSlug = buildSeoSlug(normalizedLabel);
@@ -607,6 +631,13 @@ export default async function ManufacturerDetailPage({
     permanentRedirect(buildManufacturerPath(producer.slug));
   }
 
+  const topProducts = await resolveWithTimeout(
+    () => getManufacturerTopProducts(producer.label),
+    [] as CatalogProduct[],
+    MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS
+  );
+  const visibleProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
+
   const siteUrl = getSiteUrl();
   const pagePath = buildManufacturerPath(producer.slug);
   const catalogPath = buildCatalogProducerPath(producer.label);
@@ -637,16 +668,51 @@ export default async function ManufacturerDetailPage({
       "@type": "Brand",
       name: producer.label,
     },
-    mainEntity: {
-      "@type": "ItemList",
-      itemListElement: producer.topGroups.slice(0, 24).map((group, index) => ({
-        "@type": "ListItem",
-        position: index + 1,
-        name: group.label,
-        url: `${siteUrl}${buildCatalogProducerPath(producer.label, group.filterValue)}`,
-      })),
-    },
+    mainEntity: producer.topGroups.length > 0
+      ? {
+          "@type": "ItemList",
+          itemListElement: producer.topGroups.slice(0, 24).map((group, index) => ({
+            "@type": "ListItem",
+            position: index + 1,
+            name: group.label,
+            url: `${siteUrl}${buildCatalogProducerPath(producer.label, group.filterValue)}`,
+          })),
+        }
+      : undefined,
   };
+
+  const productItemListJsonLd = visibleProducts.length > 0
+    ? {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "@id": `${canonicalPageUrl}#product-list`,
+        name: `Популярні товари бренду ${producer.label}`,
+        numberOfItems: visibleProducts.length,
+        itemListElement: visibleProducts.map((product, index) => {
+          const productPath = buildProductPath({
+            code: product.code,
+            article: product.article,
+            name: product.name,
+            producer: product.producer,
+            group: product.group,
+            subGroup: product.subGroup,
+            category: product.category,
+          });
+          return {
+            "@type": "ListItem",
+            position: index + 1,
+            url: `${siteUrl}${productPath}`,
+            item: {
+              "@type": "Product",
+              name: buildVisibleProductName(product.name),
+              sku: product.article || undefined,
+              mpn: product.code || undefined,
+              brand: { "@type": "Brand", name: producer.label },
+            },
+          };
+        }),
+      }
+    : null;
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
@@ -926,6 +992,45 @@ export default async function ManufacturerDetailPage({
             </div>
           )}
         </section>
+
+        {visibleProducts.length > 0 && (
+          <section className={directoryPanelClass}>
+            <div className={directoryHeaderClass}>
+              <p className={directoryBadgeClass}>Популярні товари бренду</p>
+              <h2 className={directoryTitleClass}>
+                Товари {producer.label} у каталозі
+              </h2>
+            </div>
+            <ul className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 sm:p-4">
+              {visibleProducts.map((product) => {
+                const productPath = buildProductPath({
+                  code: product.code,
+                  article: product.article,
+                  name: product.name,
+                  producer: product.producer,
+                  group: product.group,
+                  subGroup: product.subGroup,
+                  category: product.category,
+                });
+                return (
+                  <li key={product.code}>
+                    <Link
+                      href={productPath}
+                      className={`${directoryListCardClass} flex flex-col gap-0.5 px-3 py-2.5`}
+                    >
+                      <span className="truncate text-sm font-semibold text-slate-800">
+                        {buildVisibleProductName(product.name)}
+                      </span>
+                      <span className="truncate text-xs text-slate-500">
+                        {[product.producer, product.article].filter(Boolean).join(" · ")}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
       </div>
       </div>
 
@@ -937,6 +1042,12 @@ export default async function ManufacturerDetailPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+      {productItemListJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(productItemListJsonLd) }}
+        />
+      )}
     </main>
   );
 }
