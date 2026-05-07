@@ -35,6 +35,7 @@ import {
   extractProductCodeFromParam,
   extractProductRouteSlugsFromParam,
   INTERNAL_PRODUCT_ROUTE_RESOLUTION_PARAM,
+  safeDecodeURIComponent,
 } from "app/lib/product-url";
 import {
   resolveProductCodeFromNameSlug,
@@ -79,7 +80,7 @@ export async function generateStaticParams() {
           subGroup: entry.subGroup,
           category: entry.category,
         });
-        return { code: decodeURIComponent(productPath.replace(/^\/product\//, "")) };
+        return { code: safeDecodeURIComponent(productPath.replace(/^\/product\//, "")) };
       });
   } catch {
     return [];
@@ -325,7 +326,7 @@ const buildFrontendProductHeading = (
 };
 
 const buildReadableNameFromRoute = (rawCode: string, fallbackCode: string) => {
-  const decodedParam = decodeURIComponent(rawCode || "").trim();
+  const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
   const routeSlugs = extractProductRouteSlugsFromParam(decodedParam);
   const nameSource = routeSlugs?.nameSlug || decodedParam || fallbackCode;
   const withoutInternalCode = nameSource.replace(/~[^~]+$/u, "");
@@ -879,7 +880,7 @@ const buildCanonicalProductPath = (
   });
 
 const extractLookupTokensFromSeoNameSlug = (rawNameSlug: string) => {
-  const normalized = decodeURIComponent(rawNameSlug || "").trim().toLowerCase();
+  const normalized = safeDecodeURIComponent(rawNameSlug || "").trim().toLowerCase();
   if (!normalized) return [] as string[];
 
   const parts = normalized.split("-").map((entry) => entry.trim()).filter(Boolean);
@@ -913,7 +914,7 @@ const extractLookupTokensFromSeoNameSlug = (rawNameSlug: string) => {
 };
 
 const extractPrimaryLookupTokenFromSeoNameSlug = (rawNameSlug: string) => {
-  const normalized = decodeURIComponent(rawNameSlug || "").trim().toLowerCase();
+  const normalized = safeDecodeURIComponent(rawNameSlug || "").trim().toLowerCase();
   if (!normalized) return "";
 
   const parts = normalized.split("-").map((entry) => entry.trim()).filter(Boolean);
@@ -948,7 +949,7 @@ const doesProductMatchSeoNameSlug = (
   product: NonNullable<Awaited<ReturnType<typeof getCatalogProductUncached>>>,
   rawNameSlug: string
 ) => {
-  const requestedSlug = decodeURIComponent(rawNameSlug || "").trim().toLowerCase();
+  const requestedSlug = safeDecodeURIComponent(rawNameSlug || "").trim().toLowerCase();
   if (!requestedSlug) return false;
 
   const canonicalSlug = buildProductNameSlug(product).toLowerCase();
@@ -1017,7 +1018,7 @@ const resolveProductFromSeoNameSlug = async (rawNameSlug: string) => {
 };
 
 const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
-  const decodedParam = decodeURIComponent(rawCode || "").trim();
+  const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
   const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
   if (routeSlugs) {
     const matchedProductRoute = await resolveProductFromSeoNameSlug(routeSlugs.nameSlug);
@@ -1158,7 +1159,7 @@ const getResolvedProductRouteData = cache(async (rawCode: string) => {
 });
 
 const canUseDirectProductCodeFallback = (rawCode: string) => {
-  const decodedParam = decodeURIComponent(rawCode || "").trim();
+  const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
   if (!decodedParam) return false;
   if (extractProductRouteSlugsFromParam(decodedParam)) return false;
 
@@ -1168,7 +1169,7 @@ const canUseDirectProductCodeFallback = (rawCode: string) => {
 const recoverProductRouteDataFromNameSlug = async (
   rawCode: string
 ): Promise<ResolvedProductRouteData | null> => {
-  const decodedParam = decodeURIComponent(rawCode || "").trim();
+  const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
   if (!decodedParam || extractProductRouteSlugsFromParam(decodedParam)) return null;
 
   const recoveredRoute = await resolveWithTimeout(
@@ -1213,7 +1214,7 @@ export async function generateMetadata({
     searchParams ?? Promise.resolve({} as ProductPageSearchParams),
   ]);
   const isModalView = normalizeView(resolvedSearchParams.view) === "modal";
-  const decodedParam = decodeURIComponent(rawCode || "").trim();
+  const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
   const routeSlugs = extractProductRouteSlugsFromParam(decodedParam);
   const fallbackCode = extractProductCodeFromParam(decodedParam);
   const routeData = await resolveWithTimeout(
@@ -1429,8 +1430,8 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     normalizedSearchParams[INTERNAL_PRODUCT_ROUTE_RESOLUTION_PARAM]
   );
   const canonicalPath = buildCanonicalProductPath(product, resolvedCode);
-  const currentRouteParam = decodeURIComponent(rawCode || "").trim();
-  const canonicalRouteParam = decodeURIComponent(
+  const currentRouteParam = safeDecodeURIComponent(rawCode || "").trim();
+  const canonicalRouteParam = safeDecodeURIComponent(
     canonicalPath.replace(/^\/product\//, "")
   ).trim();
 

@@ -1,5 +1,13 @@
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 
+export const safeDecodeURIComponent = (value: string): string => {
+  try {
+    return decodeURIComponent(value || "");
+  } catch {
+    return value || "";
+  }
+};
+
 const PRODUCT_URL_SEPARATOR = "~";
 const PRODUCT_ROUTE_SEGMENT_SEPARATOR = "--";
 const DEFAULT_PRODUCT_GROUP_LABEL = "Автозапчастини";
@@ -35,7 +43,7 @@ export const buildVisibleProductName = (value: string) => {
 };
 
 export const extractProductCodeFromParam = (value: string) => {
-  const decoded = decodeURIComponent(value || "").trim();
+  const decoded = safeDecodeURIComponent(value || "").trim();
   if (!decoded) return "";
 
   if (extractProductRouteSlugsFromParam(decoded)) return "";
@@ -121,7 +129,7 @@ export const buildProductNameSlug = (input: ProductPathInput) =>
   buildPlainSeoSlug(buildProductSeoName(input));
 
 export const extractProductRouteSlugsFromParam = (value: string) => {
-  const decoded = decodeURIComponent(value || "").trim();
+  const decoded = safeDecodeURIComponent(value || "").trim();
   if (!decoded) return null;
 
   const separatorIndex = decoded.indexOf(PRODUCT_ROUTE_SEGMENT_SEPARATOR);
