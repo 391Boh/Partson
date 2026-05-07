@@ -2,7 +2,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { permanentRedirect } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import { brands } from "app/components/brandsData";
@@ -42,7 +42,7 @@ import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 21600;
 export const dynamicParams = true;
-const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 0;
+const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 300;
 const MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS = 1800;
 const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
 const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 2400;
@@ -601,7 +601,7 @@ export default async function ManufacturerDetailPage({
   const producer = await getManufacturerBySlug(slug);
 
   if (!producer) {
-    permanentRedirect(buildCatalogProducerPath(buildProducerFallbackLabelFromSlug(slug)));
+    notFound();
   }
   if (slug !== producer.slug) {
     permanentRedirect(buildManufacturerPath(producer.slug));

@@ -34,7 +34,7 @@ import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
-const GROUP_STATIC_PARAMS_LIMIT_DEFAULT = 0;
+const GROUP_STATIC_PARAMS_LIMIT_DEFAULT = 200;
 const GROUP_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
 const GROUP_PAGE_SEO_FACETS_TIMEOUT_MS = 6000;
 

@@ -20,6 +20,8 @@ import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 
+export const revalidate = 300;
+
 const INITIAL_CATALOG_PAGE_LIMIT = 12;
 const INITIAL_CATALOG_SSR_TIMEOUT_MS = 1200;
 const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 1600;
@@ -611,18 +613,25 @@ const buildCatalogItemListJsonLd = (
   };
 };
 
+type CatalogSeoDiscoveryItem = { label: string; slug: string };
+
 const CatalogSeoSnapshot = ({
   state,
   items,
   hasMore,
   totalCount,
+  topGroups = [],
+  topProducers = [],
 }: {
   state: CatalogSeoState;
   items: CatalogSeoProduct[];
   hasMore?: boolean;
   totalCount?: number | null;
+  topGroups?: CatalogSeoDiscoveryItem[];
+  topProducers?: CatalogSeoDiscoveryItem[];
 }) => {
-  const visibleItemsCount = items.filter((item) => item.code && item.name).length;
+  const visibleItems = items.filter((item) => item.code && item.name);
+  const visibleItemsCount = visibleItems.length;
   const foundProductsLabel =
     typeof totalCount === "number" && totalCount > 0
       ? `знайдено ${totalCount.toLocaleString("uk-UA")} товарів`
@@ -654,6 +663,8 @@ const CatalogSeoSnapshot = ({
   const selectedFiltersLabel =
     selectedFilters.length > 0 ? selectedFilters.join(", ") : "без додаткових фільтрів";
 
+  const showDiscovery = topGroups.length > 0 || topProducers.length > 0;
+
   return (
     <section
       aria-labelledby="catalog-seo-products-title"
@@ -676,6 +687,66 @@ const CatalogSeoSnapshot = ({
           виробником, а також фільтри групи й категорії. Якщо потрібна перевірка
           сумісності, менеджер PartsON допоможе підібрати деталь за VIN.
         </p>
+        {visibleItems.length > 0 && (
+          <ul className="mt-3 grid grid-cols-1 gap-y-1 sm:grid-cols-2">
+            {visibleItems.slice(0, 12).map((item) => (
+              <li key={item.code}>
+                <a
+                  href={buildSeoProductPath(item)}
+                  className="text-sky-700 hover:underline"
+                >
+                  {item.name}
+                  {item.producer ? ` — ${item.producer}` : ""}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+        {showDiscovery && (
+          <nav
+            aria-label="Розділи каталогу"
+            className="mt-4 border-t border-slate-100 pt-4"
+          >
+            {topGroups.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Групи запчастин
+                </p>
+                <ul className="flex flex-wrap gap-x-4 gap-y-1">
+                  {topGroups.map((group) => (
+                    <li key={group.slug}>
+                      <a
+                        href={buildGroupPath(group.slug)}
+                        className="text-sky-700 hover:underline"
+                      >
+                        {group.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {topProducers.length > 0 && (
+              <div className="mt-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Виробники
+                </p>
+                <ul className="flex flex-wrap gap-x-4 gap-y-1">
+                  {topProducers.map((producer) => (
+                    <li key={producer.slug}>
+                      <a
+                        href={buildManufacturerPath(producer.slug)}
+                        className="text-sky-700 hover:underline"
+                      >
+                        {producer.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </nav>
+        )}
       </div>
     </section>
   );
@@ -760,6 +831,12 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     state,
     initialPagePayload?.items ?? []
   );
+  const topGroups = seoFacets.groups
+    .slice(0, 24)
+    .map((g) => ({ label: g.label, slug: g.slug }));
+  const topProducers = seoFacets.producers
+    .slice(0, 24)
+    .map((p) => ({ label: p.label, slug: p.slug }));
 
   return (
     <>
@@ -773,6 +850,8 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         items={initialPagePayload?.items ?? []}
         hasMore={initialPagePayload?.hasMore}
         totalCount={seoTotalCount}
+        topGroups={topGroups}
+        topProducers={topProducers}
       />
       <script
         type="application/ld+json"

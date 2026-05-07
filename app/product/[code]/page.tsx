@@ -43,6 +43,7 @@ import {
 import { getSiteUrl } from "app/lib/site-url";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 
 const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 2400;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 2200;
@@ -51,7 +52,39 @@ const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 120;
 const PRODUCT_PAGE_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
 
+const parseProductStaticParamsLimit = (value: string | undefined) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+  return Math.floor(numeric);
+};
+
 export const revalidate = 900;
+
+export async function generateStaticParams() {
+  const limit = parseProductStaticParamsLimit(process.env.SEO_PRODUCT_STATIC_PARAMS_LIMIT);
+  if (limit <= 0) return [];
+
+  try {
+    const entries = await getAllProductSitemapEntries();
+    return entries
+      .filter((entry) => Boolean(entry.code))
+      .slice(0, limit)
+      .map((entry) => {
+        const productPath = buildProductPath({
+          code: entry.code,
+          article: entry.article,
+          name: entry.name,
+          producer: entry.producer,
+          group: entry.group,
+          subGroup: entry.subGroup,
+          category: entry.category,
+        });
+        return { code: decodeURIComponent(productPath.replace(/^\/product\//, "")) };
+      });
+  } catch {
+    return [];
+  }
+}
 
 const ProductPurchasePanelClient = dynamic(
   () => import("app/components/ProductPurchasePanelClient"),
@@ -1057,8 +1090,11 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
     };
   }
 
+  // directCode was extracted from the URL but no product was confirmed in the
+  // catalog via any lookup path. Return empty code so the caller can apply
+  // canUseDirectFallbackCode heuristics rather than always showing a fallback page.
   return {
-    code: directCode,
+    code: "",
     isSeoRoute: false,
     product: null,
   };
@@ -1359,12 +1395,23 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   }
 
   if (!resolvedCode) {
+    // Only recover a fallback code for patterns that are plausibly real product codes:
+    //   - codes without any dashes (e.g. "12345", "ABC123") — canUseDirectFallbackCode
+    //   - codes/slugs that contain the "~" segment separator — canonical SEO routes
+    //   - SEO routes with the "--" group/name separator — recover the embedded code
+    //     from the name slug portion so API-down renders don't 404 valid URLs
+    // Do NOT expand arbitrary dash-separated strings (e.g. "invalid-product-xyz")
+    // into a resolved code — those should fall through to notFound().
     const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
     const recoveredToken = routeSlugs?.nameSlug
       ? extractPrimaryLookupTokenFromSeoNameSlug(routeSlugs.nameSlug)
-      : extractPrimaryLookupTokenFromSeoNameSlug(rawCode || "");
+      : null;
 
-    resolvedCode = (fallbackCodeFromRoute || recoveredToken || "").trim();
+    resolvedCode = (
+      (canUseDirectFallbackCode ? fallbackCodeFromRoute : null) ||
+      recoveredToken ||
+      ""
+    ).trim();
   }
 
   if (!resolvedCode) notFound();

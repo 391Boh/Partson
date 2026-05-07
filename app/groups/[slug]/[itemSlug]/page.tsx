@@ -44,7 +44,7 @@ import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
-const GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT = 0;
+const GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT = 750;
 const GROUP_ITEM_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
 const GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS = 6000;
 const GROUP_ITEM_PRODUCER_SPLIT_PAGE_SIZE = 220;
