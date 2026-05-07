@@ -34,7 +34,6 @@ import {
   buildVisibleProductName,
   extractProductCodeFromParam,
   extractProductRouteSlugsFromParam,
-  INTERNAL_PRODUCT_ROUTE_RESOLUTION_PARAM,
   safeDecodeURIComponent,
 } from "app/lib/product-url";
 import {
@@ -147,14 +146,8 @@ interface ProductPageParams {
   code: string;
 }
 
-interface ProductPageSearchParams {
-  view?: string | string[];
-  [INTERNAL_PRODUCT_ROUTE_RESOLUTION_PARAM]?: string | string[];
-}
-
 interface ProductPageProps {
   params: Promise<ProductPageParams>;
-  searchParams?: Promise<ProductPageSearchParams>;
 }
 
 const pageBackground: CSSProperties = {
@@ -355,43 +348,6 @@ const buildFallbackProductFromRoute = (
     category: "",
     hasPhoto: false,
   };
-};
-
-const normalizeView = (view: string | string[] | undefined) => {
-  if (Array.isArray(view)) return (view[0] || "").trim().toLowerCase();
-  return (view || "").trim().toLowerCase();
-};
-
-const hasInternalSeoResolution = (value: string | string[] | undefined) => {
-  if (Array.isArray(value)) {
-    return value.some((entry) => (entry || "").trim() === "1");
-  }
-
-  return (value || "").trim() === "1";
-};
-
-const buildSearchParamsString = (searchParams: ProductPageSearchParams) => {
-  const params = new URLSearchParams();
-
-  for (const [key, rawValue] of Object.entries(searchParams)) {
-    if (key === INTERNAL_PRODUCT_ROUTE_RESOLUTION_PARAM || rawValue == null) continue;
-
-    if (Array.isArray(rawValue)) {
-      for (const value of rawValue) {
-        const normalizedValue = (value || "").trim();
-        if (!normalizedValue) continue;
-        params.append(key, normalizedValue);
-      }
-      continue;
-    }
-
-    const normalizedValue = rawValue.trim();
-    if (!normalizedValue) continue;
-    params.set(key, normalizedValue);
-  }
-
-  const serialized = params.toString();
-  return serialized ? `?${serialized}` : "";
 };
 
 const buildProductJsonLd = (options: {
@@ -1216,13 +1172,9 @@ const recoverProductRouteDataFromNameSlug = async (
 
 export async function generateMetadata({
   params,
-  searchParams,
 }: ProductPageProps): Promise<Metadata> {
-  const [{ code: rawCode }, resolvedSearchParams] = await Promise.all([
-    params,
-    searchParams ?? Promise.resolve({} as ProductPageSearchParams),
-  ]);
-  const isModalView = normalizeView(resolvedSearchParams.view) === "modal";
+  const { code: rawCode } = await params;
+  const isModalView = false;
   const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
   const routeSlugs = extractProductRouteSlugsFromParam(decodedParam);
   const fallbackCode = extractProductCodeFromParam(decodedParam);
@@ -1357,7 +1309,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function ProductPage({ params, searchParams }: ProductPageProps) {
+export default async function ProductPage({ params }: ProductPageProps) {
   const { code: rawCode } = await params;
   const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
   const fallbackCodeFromRoute = extractProductCodeFromParam(rawCode || "");
@@ -1452,18 +1404,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
   if (!resolvedCode) notFound();
 
-  const [normalizedSearchParams] = await Promise.all([
-    searchParams ?? Promise.resolve({} as ProductPageSearchParams),
-  ]);
   const hasResolvedCatalogProduct = Boolean(product);
   if (!product) {
     product = buildFallbackProductFromRoute(rawCode || "", resolvedCode);
   }
 
-  const isModalView = normalizeView(normalizedSearchParams.view) === "modal";
-  const isSeoResolvedInternally = hasInternalSeoResolution(
-    normalizedSearchParams[INTERNAL_PRODUCT_ROUTE_RESOLUTION_PARAM]
-  );
+  const isModalView = false;
+  const isSeoResolvedInternally = false;
   const canonicalPath = buildCanonicalProductPath(product, resolvedCode);
   const currentRouteParam = safeDecodeURIComponent(rawCode || "").trim();
   const canonicalRouteParam = safeDecodeURIComponent(
@@ -1475,7 +1422,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     !isSeoResolvedInternally &&
     currentRouteParam !== canonicalRouteParam
   ) {
-    redirect(`${canonicalPath}${buildSearchParamsString(normalizedSearchParams)}`);
+    redirect(canonicalPath);
   }
 
   const primaryLookupKey =

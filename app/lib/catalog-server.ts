@@ -125,6 +125,7 @@ let cachedEuroRate = 50;
 let lastEuroFetchAt = 0;
 let euroRateRefreshPromise: Promise<number> | null = null;
 const EURO_RATE_TTL_MS = 1000 * 60 * 30;
+const EURO_RATE_REVALIDATE_SECONDS = Math.max(1, Math.floor(EURO_RATE_TTL_MS / 1000));
 
 const maybeFixMojibake = (input: string) => {
   const value = input.trim();
@@ -1760,7 +1761,7 @@ const refreshEuroRate = async () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1200);
       const response = await fetch(PRIVAT_URL, {
-        cache: "no-store",
+        next: { revalidate: EURO_RATE_REVALIDATE_SECONDS },
         signal: controller.signal,
       }).finally(() => clearTimeout(timeoutId));
       if (!response.ok) return cachedEuroRate;
