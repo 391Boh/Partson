@@ -15,7 +15,7 @@ interface InformationRedirectPageProps {
 }
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "Інформація для клієнтів | PartsON",
+  title: "Інформація для клієнтів",
   description:
     "Переадресація на актуальний інформаційний розділ PartsON: доставка, оплата, про нас та локація.",
   canonicalPath: "/inform",

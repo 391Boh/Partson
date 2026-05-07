@@ -50,7 +50,7 @@ export async function generateMetadata(): Promise<Metadata> {
   );
 
   return buildPageMetadata({
-    title: "Категорії автозапчастин: групи товарів PartsON",
+    title: "Категорії автозапчастин: групи товарів",
     description,
     canonicalPath: "/groups",
     keywords: [

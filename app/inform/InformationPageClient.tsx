@@ -56,6 +56,8 @@ const iconMap: Record<InformationSectionKey, LucideIcon> = {
   about: Info,
   location: MapPin,
   privacy: ShieldCheck,
+  warranty: Award,
+  returns: RefreshCcw,
 };
 
 const tabs = informationSections.map((s) => ({ ...s, icon: iconMap[s.key] }));
@@ -363,6 +365,111 @@ const PrivacyTab = () => (
   </div>
 );
 
+const WarrantyTab = () => (
+  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="sm:col-span-2">
+      <InfoCard title="Гарантія на автозапчастини" icon={Award} accent="emerald" featured>
+        <p>
+          Усі товари, що продаються в PartsON, є{" "}
+          <strong className="font-semibold text-slate-700">новими та оригінальними</strong> або
+          сертифікованими аналогами від перевірених постачальників. Гарантійні строки залежать
+          від товарної групи та виробника і уточнюються при оформленні замовлення.
+        </p>
+      </InfoCard>
+    </div>
+
+    <InfoCard title="Гарантійний строк" icon={Clock} accent="sky">
+      <ul className="space-y-3">
+        <Li icon={CheckCircle} cls="text-sky-500">Стандартний строк гарантії — <strong className="font-semibold text-slate-700">від 12 місяців</strong> залежно від виробника і категорії товару</Li>
+        <Li icon={Info} cls="text-sky-500">Точний строк для конкретної позиції уточнюйте у менеджера при оформленні замовлення</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Порядок гарантійного звернення" icon={MessageCircle} accent="cyan">
+      <ul className="space-y-3">
+        <Li icon={CheckCircle} cls="text-cyan-500">Зв&apos;яжіться з менеджером по телефону або у Viber з описом проблеми і датою покупки</Li>
+        <Li icon={Package} cls="text-cyan-500">Підготуйте товар у вигляді, в якому він надійшов, разом з документами про покупку</Li>
+        <Li icon={ShieldCheck} cls="text-cyan-500">Гарантія не поширюється на дефекти, спричинені неправильним монтажем або механічними пошкодженнями</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Якість товарів" icon={Star} accent="amber">
+      <ul className="space-y-3">
+        <Li icon={CheckCircle} cls="text-amber-500">Постачаємо лише <strong className="font-semibold text-slate-700">перевірені бренди</strong> — виробники з підтвердженою якістю</Li>
+        <Li icon={Award} cls="text-amber-500">Перед відправленням кожне замовлення проходить перевірку комплектності та відповідності</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Контакти для гарантійних питань" icon={Phone} accent="violet">
+      <div className="flex flex-col gap-2.5">
+        <a
+          href="tel:+380634211851"
+          className="inline-flex items-center gap-2.5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-[15px] font-bold text-violet-900 transition hover:bg-violet-100 active:scale-95"
+        >
+          <Phone size={15} strokeWidth={2} className="shrink-0 text-violet-500" />
+          +38 (063) 421-18-51
+        </a>
+      </div>
+    </InfoCard>
+  </div>
+);
+
+const ReturnsTab = () => (
+  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="sm:col-span-2">
+      <InfoCard title="Умови повернення товару" icon={RefreshCcw} accent="sky" featured>
+        <p>
+          Повернення та обмін товарів здійснюються відповідно до{" "}
+          <strong className="font-semibold text-slate-700">Закону України «Про захист прав споживачів»</strong>.
+          Якщо товар не підійшов або виявився дефектним, зверніться до менеджера для узгодження
+          порядку повернення.
+        </p>
+      </InfoCard>
+    </div>
+
+    <InfoCard title="Строки повернення" icon={Clock} accent="emerald">
+      <ul className="space-y-3">
+        <Li icon={CheckCircle} cls="text-emerald-500">Товар належної якості можна повернути або обміняти протягом <strong className="font-semibold text-slate-700">14 днів</strong> з дати отримання</Li>
+        <Li icon={CheckCircle} cls="text-emerald-500">Товар неналежної якості (виробничий дефект) — протягом гарантійного строку</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Вимоги до товару" icon={Package} accent="cyan">
+      <ul className="space-y-3">
+        <Li icon={CheckCircle} cls="text-cyan-500">Товар має бути у <strong className="font-semibold text-slate-700">незміненому вигляді</strong>: не встановлювався, не монтувався, збережена заводська упаковка</Li>
+        <Li icon={Info} cls="text-cyan-500">Збережіть документи, що підтверджують покупку (накладна, квитанція, чек)</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Процедура повернення" icon={MessageCircle} accent="amber">
+      <ul className="space-y-3">
+        <Li icon={CheckCircle} cls="text-amber-500">Зв&apos;яжіться з менеджером телефоном або у Viber для узгодження деталей повернення</Li>
+        <Li icon={Truck} cls="text-amber-500">Спосіб повернення (самовивіз у Львові або відправлення перевізником) узгоджується індивідуально</Li>
+        <Li icon={Wallet} cls="text-amber-500">Кошти за товар повертаються після підтвердження стану і комплектності повернутої позиції</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Винятки та обмеження" icon={Info} accent="rose">
+      <ul className="space-y-3">
+        <Li icon={Info} cls="text-rose-500">Деякі категорії товарів (зокрема, електронні компоненти) можуть мати обмеження повернення згідно із законодавством</Li>
+        <Li icon={ShieldCheck} cls="text-rose-500">Точні умови для конкретної позиції уточнюйте у менеджера перед покупкою</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Контакти для звернень" icon={Phone} accent="violet">
+      <div className="flex flex-col gap-2.5">
+        <a
+          href="tel:+380634211851"
+          className="inline-flex items-center gap-2.5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-[15px] font-bold text-violet-900 transition hover:bg-violet-100 active:scale-95"
+        >
+          <Phone size={15} strokeWidth={2} className="shrink-0 text-violet-500" />
+          +38 (063) 421-18-51
+        </a>
+      </div>
+    </InfoCard>
+  </div>
+);
+
 // ─── Вміст по ключу вкладки ────────────────────────────────────────────────
 const renderTabContent = (key: InformationSectionKey) => {
   switch (key) {
@@ -371,6 +478,8 @@ const renderTabContent = (key: InformationSectionKey) => {
     case 'about':    return <AboutTab />;
     case 'location': return <LocationTab />;
     case 'privacy':  return <PrivacyTab />;
+    case 'warranty': return <WarrantyTab />;
+    case 'returns':  return <ReturnsTab />;
     default:         return <DeliveryTab />;
   }
 };
@@ -422,7 +531,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
 
         {/* Навігаційні вкладки */}
         <nav className="relative overflow-hidden rounded-2xl border border-white/80 bg-white/70 p-2 shadow-[0_4px_18px_rgba(15,23,42,0.07)] backdrop-blur-xl">
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5 sm:gap-2">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-7 sm:gap-2">
             {tabs.map((tab) => {
               const isActive = tab.key === activeTab.key;
               const Icon = tab.icon;

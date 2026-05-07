@@ -42,7 +42,7 @@ export async function generateMetadata(): Promise<Metadata> {
     await getFastManufacturersDirectoryData();
 
   return buildPageMetadata({
-    title: "Виробники автозапчастин: бренди PartsON",
+    title: "Виробники автозапчастин і бренди",
     description: buildManufacturersPageDescription(
       clientProducers.length,
       indexedBrands,

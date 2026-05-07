@@ -15,11 +15,11 @@ interface LegacySeoProductRouteProps {
 }
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "Переадресація товару | PartsON",
+  title: "Переадресація товару",
   description:
     "Службовий маршрут переадресації на канонічну сторінку товару PartsON.",
   canonicalPath: "/product",
-  index: true,
+  index: false,
   follow: true,
 });
 

@@ -6,7 +6,9 @@ export type InformationSectionKey =
   | "payment"
   | "about"
   | "location"
-  | "privacy";
+  | "privacy"
+  | "warranty"
+  | "returns";
 
 type InformationSection = {
   key: InformationSectionKey;
@@ -40,7 +42,7 @@ export const informationSections: InformationSection[] = [
     key: "payment",
     title: "Оплата",
     subtitle: "Карта та готівка",
-    seoTitle: "Оплата автозапчастин у PartsON",
+    seoTitle: "Оплата автозапчастин",
     seoDescription:
       "Способи оплати автозапчастин у PartsON: онлайн-оплата карткою, післяплата, безготівковий рахунок для СТО, ФОП та компаній.",
     keywords: [
@@ -54,7 +56,7 @@ export const informationSections: InformationSection[] = [
     key: "about",
     title: "Про нас",
     subtitle: "Детально",
-    seoTitle: "Магазин автозапчастин PartsON у Львові",
+    seoTitle: "Магазин автозапчастин у Львові",
     seoDescription:
       "Інформація про магазин автозапчастин PartsON: професійний підбір деталей, консультації по сумісності, підбір по VIN і супровід замовлення.",
     keywords: [
@@ -71,7 +73,7 @@ export const informationSections: InformationSection[] = [
     key: "location",
     title: "Локація",
     subtitle: "Адреса, карта і самовивіз",
-    seoTitle: "Адреса магазину автозапчастин PartsON у Львові",
+    seoTitle: "Адреса магазину автозапчастин у Львові",
     seoDescription:
       "Магазин автозапчастин PartsON у Львові розташований на вул. Перфецького, 8. На сторінці локації зібрані адреса магазину, карта проїзду, маршрут, графік роботи, контакти для швидкого зв'язку та умови самовивозу замовлень.",
     keywords: [
@@ -100,7 +102,7 @@ export const informationSections: InformationSection[] = [
     key: "privacy",
     title: "Конфіденційність",
     subtitle: "Дані та безпека",
-    seoTitle: "Політика конфіденційності PartsON",
+    seoTitle: "Політика конфіденційності",
     seoDescription:
       "Політика конфіденційності PartsON: які персональні дані ми збираємо, для чого обробляємо, кому передаємо, як захищаємо та як користувач може реалізувати свої права.",
     keywords: [
@@ -110,6 +112,38 @@ export const informationSections: InformationSection[] = [
       "обробка персональних даних",
       "конфіденційність інтернет-магазин",
       "права користувача персональні дані",
+    ],
+  },
+  {
+    key: "warranty",
+    title: "Гарантія",
+    subtitle: "Умови та строки",
+    seoTitle: "Гарантія на автозапчастини",
+    seoDescription:
+      "Умови гарантійного обслуговування автозапчастин у PartsON: строки гарантії залежно від виробника, порядок звернення та захист покупця.",
+    keywords: [
+      "гарантія автозапчастини",
+      "гарантія PartsON",
+      "гарантійне обслуговування автозапчастин",
+      "умови гарантії",
+      "якість автозапчастин",
+      "гарантія запчастини львів",
+    ],
+  },
+  {
+    key: "returns",
+    title: "Повернення",
+    subtitle: "Повернення і обмін",
+    seoTitle: "Умови повернення автозапчастин",
+    seoDescription:
+      "Умови і порядок повернення автозапчастин у PartsON: строки повернення, вимоги до стану товару та процедура оформлення заявки.",
+    keywords: [
+      "повернення автозапчастин",
+      "обмін автозапчастин",
+      "умови повернення PartsON",
+      "права покупця автозапчастини",
+      "повернення товару автозапчастини",
+      "повернення запчастин львів",
     ],
   },
 ];
@@ -122,7 +156,7 @@ export const getInformationPath = (key: InformationSectionKey) => `/inform/${key
 export const getInformationMetadata = (key: InformationSectionKey): Metadata => {
   const section = getInformationSection(key) || getInformationSection(DEFAULT_INFORMATION_SECTION);
   const resolvedKey = section?.key || DEFAULT_INFORMATION_SECTION;
-  const title = `${section?.seoTitle || "Інформація"} | PartsON`;
+  const title = section?.seoTitle || "Інформація";
   const description =
     section?.seoDescription ||
     "Інформаційні сторінки PartsON: доставка, оплата, контакти та інформація про магазин автозапчастин.";
@@ -133,10 +167,10 @@ export const getInformationMetadata = (key: InformationSectionKey): Metadata => 
     description,
     canonicalPath,
     keywords: section?.keywords || [],
-    openGraphTitle: title,
+    openGraphTitle: `${title} | PartsON`,
     image: {
       url: "/Car-parts-fullwidth.png",
-      alt: title,
+      alt: `${title} | PartsON`,
     },
   });
 };
