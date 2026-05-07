@@ -591,7 +591,7 @@ const buildCatalogItemListJsonLd = (
                   availability:
                     item.quantity > 0
                       ? "https://schema.org/InStock"
-                      : "https://schema.org/PreOrder",
+                      : "https://schema.org/BackOrder",
                   itemCondition: "https://schema.org/NewCondition",
                   url,
                 }
