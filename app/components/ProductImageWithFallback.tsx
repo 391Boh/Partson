@@ -26,6 +26,7 @@ interface ProductImageWithFallbackProps {
   productCode?: string;
   articleHint?: string;
   hasKnownPhoto?: boolean;
+  preferCachedPreview?: boolean;
 }
 
 const BLUR_DATA_URL =
@@ -56,6 +57,7 @@ export default function ProductImageWithFallback({
   productCode,
   articleHint,
   hasKnownPhoto = true,
+  preferCachedPreview = true,
 }: ProductImageWithFallbackProps) {
   const noPhotoLabel = "\u0417\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f \u0432\u0456\u0434\u0441\u0443\u0442\u043d\u0454";
   const openPhotoTitle = "\u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0438 \u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f";
@@ -133,7 +135,7 @@ export default function ProductImageWithFallback({
       return;
     }
 
-    if (normalizedProductCode) {
+    if (preferCachedPreview && normalizedProductCode) {
       const cached = readProductImageSuccess(
         normalizedProductCode,
         normalizedArticleHint || undefined
@@ -142,7 +144,7 @@ export default function ProductImageWithFallback({
     } else {
       setCachedPreviewSrc("");
     }
-  }, [hasKnownPhoto, normalizedArticleHint, normalizedProductCode]);
+  }, [hasKnownPhoto, normalizedArticleHint, normalizedProductCode, preferCachedPreview]);
 
   useEffect(() => {
     setLightboxOpen(false);
@@ -232,6 +234,7 @@ export default function ProductImageWithFallback({
           sizes="(max-width: 767px) 100vw, (max-width: 1279px) 46vw, 520px"
           placeholder="blur"
           blurDataURL={BLUR_DATA_URL}
+          unoptimized={activeSrc.startsWith("data:image/")}
           className={`h-full w-full object-contain transition-[opacity,transform] ${
             preferImmediateDecode ? "duration-100" : "duration-180"
           } ${

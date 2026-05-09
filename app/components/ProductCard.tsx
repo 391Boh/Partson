@@ -63,6 +63,9 @@ const ProductCard: React.FC<Props> = ({
     imageLoadingMode,
     imageFetchPriority,
     prefetchedImageSrc,
+    batchImagePending = false,
+    batchImageMissing = false,
+    batchImageOnly = false,
     isFlipped,
     motionEnabled: motionEnabledProp,
     onAddToCart,
@@ -365,13 +368,14 @@ useEffect(() => {
                             <ProductCardImage
                                 productCode={code}
                                 articleHint={item.article}
-                                hasKnownPhoto={item.hasPhoto !== false}
+                                hasKnownPhoto={item.hasPhoto !== false && !batchImageMissing}
                                 className="w-full h-full transition-transform duration-200 group-hover:scale-[1.02]"
                                 onClick={() => onImageOpen(code, item.article)}
                                 loadingMode={imageLoadingMode}
                                 fetchPriority={imageFetchPriority}
                                 prefetchedSrc={prefetchedImageSrc}
-                                // batch props removed
+                                deferDirectLoad={batchImageOnly && !prefetchedImageSrc && !batchImageMissing}
+                                batchImagePending={batchImagePending}
                             />
                         </div>
 

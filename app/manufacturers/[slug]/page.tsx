@@ -44,7 +44,7 @@ import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 21600;
 export const dynamicParams = true;
-const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 300;
+const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 120;
 const MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS = 1800;
 const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
 const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 2400;
@@ -219,7 +219,8 @@ const collectProducerFallbackStats = cache(async (producerLabel: string) => {
       sortOrder: "none",
       cursor: cursor || undefined,
       cursorField: cursorField || undefined,
-      forceAllgoodsSource: true,
+      preferLegacySource: !cursor,
+      forceAllgoodsSource: Boolean(cursor),
       timeoutMs: 900,
       retries: 0,
       retryDelayMs: 100,
@@ -346,7 +347,8 @@ const manufacturerGroupHasCatalogResults = async (
         producer: normalizedProducer,
         group: normalizedGroup,
         sortOrder: "none",
-        forceAllgoodsSource: true,
+        preferLegacySource: true,
+        forceAllgoodsSource: false,
         timeoutMs: 650,
         retries: 0,
         retryDelayMs: 80,
@@ -400,8 +402,9 @@ const fetchManufacturerTopProductsUncached = async (
     limit: MANUFACTURER_TOP_PRODUCTS_LIMIT,
     producer: normalizedProducer,
     sortOrder: "none",
-    includePriceEnrichment: true,
-    forceAllgoodsSource: true,
+    includePriceEnrichment: false,
+    preferLegacySource: true,
+    forceAllgoodsSource: false,
     timeoutMs: 1400,
     retries: 0,
     retryDelayMs: 100,
@@ -631,11 +634,13 @@ export default async function ManufacturerDetailPage({
     permanentRedirect(buildManufacturerPath(producer.slug));
   }
 
-  const topProducts = await resolveWithTimeout(
-    () => getManufacturerTopProducts(producer.label),
-    [] as CatalogProduct[],
-    MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS
-  );
+  const topProducts = isProductionBuildPhase
+    ? ([] as CatalogProduct[])
+    : await resolveWithTimeout(
+        () => getManufacturerTopProducts(producer.label),
+        [] as CatalogProduct[],
+        MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS
+      );
   const visibleProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
 
   const siteUrl = getSiteUrl();

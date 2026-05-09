@@ -50,23 +50,29 @@ export interface Product {
 const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v14-price-unknown-state";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v24-cursor-sorted-prefetch";
 const PRICE_CACHE_PREFIX = "partson:v8:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
 const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 45;
 const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE;
+const PRICE_FULL_LOOKUP_MAX_ITEMS = 6;
+const PRICE_FULL_LOOKUP_DELAY_MS = 850;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 20;
-const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 90;
-const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
-const BACKGROUND_PAGE_PREFETCH_DEPTH = 0;
+const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 60 * 4;
+const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60 * 4;
+const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 900;
 const IMAGE_PRIORITY_ITEMS_COUNT = 4;
-const IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT = 8;
-const IMAGE_DEEP_RECOVERY_BATCH_COUNT = 4;
-const IMAGE_DEEP_RECOVERY_DELAY_MS = 300;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 6;
+// Fetch all visible non-priority images in one batch to avoid waterfall round-trips.
+// Priority items (first IMAGE_PRIORITY_ITEMS_COUNT) load via the individual route and
+// must not be included in the batch (they'd bloat the response without being rendered).
+const IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT = 18;
+const IMAGE_DEEP_RECOVERY_BATCH_COUNT = 2;
+const IMAGE_DEEP_RECOVERY_DELAY_MS = 800;
+// Chunk size matches max so the visible effect covers all candidates in one pass.
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 18;
 const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = 18;
 const LOAD_MORE_SCROLL_BUFFER_PX = 1200;
 const LOAD_MORE_OBSERVER_ROOT_MARGIN = "0px 0px 1400px 0px";
@@ -77,8 +83,8 @@ const NEXT_PAGE_REQUEST_COOLDOWN_MS = 90;
 const VIRTUAL_WINDOW_THRESHOLD_ITEMS = 1000000;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
 const VIRTUAL_OVERSCAN_ROWS = 6;
-const SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT = 2;
-const SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS = 520;
+const SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT = 1;
+const SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS = 420;
 const DEFAULT_EURO_RATE = 50;
 const EURO_RATE_CACHE_KEY = "partson:v1:euro-rate";
 const EURO_RATE_CACHE_TTL_MS = 1000 * 60 * 30;
@@ -1215,12 +1221,27 @@ function useCatalogData(params: {
         }
         commitResolvedPrices(normalizedFastPrices, PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS);
 
-        const unresolvedItems = requestItems.filter((item) => {
-          const value = normalizedFastPrices[item.stateKey];
-          return !(typeof value === "number" && Number.isFinite(value) && value > 0);
-        });
+        const unresolvedItems = requestItems
+          .filter((item) => {
+            const value = normalizedFastPrices[item.stateKey];
+            return !(typeof value === "number" && Number.isFinite(value) && value > 0);
+          })
+          .slice(0, PRICE_FULL_LOOKUP_MAX_ITEMS);
 
         if (unresolvedItems.length === 0) return;
+
+        if (PRICE_FULL_LOOKUP_DELAY_MS > 0) {
+          await awaitWithAbortSignal(
+            new Promise<void>((resolve) => {
+              const timer = setTimeout(resolve, PRICE_FULL_LOOKUP_DELAY_MS);
+              if (options?.signal?.aborted) {
+                clearTimeout(timer);
+                resolve();
+              }
+            }),
+            options?.signal
+          );
+        }
 
         const fullPrices = await postBatch(unresolvedItems, "full");
         const positiveFullPrices: Record<string, number> = {};
@@ -1263,6 +1284,9 @@ function useCatalogData(params: {
         ttlMs?: number;
         querySignatureSnapshot?: string;
         signal?: AbortSignal;
+        // Items before this index are loaded via the individual image route (priority).
+        // Excluding them from the batch keeps the batch response smaller.
+        skipFirst?: number;
       }
     ) => {
       if (typeof window === "undefined") return;
@@ -1270,6 +1294,7 @@ function useCatalogData(params: {
 
       const prefetchedImages = options?.prefetchedImages ?? {};
       const batchItems = items
+        .slice(options?.skipFirst ?? 0)
         .filter((item) => item.hasPhoto !== false)
         .slice(0, IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT)
         .map((item) => {
@@ -1458,14 +1483,8 @@ function useCatalogData(params: {
             return;
           }
 
-          setPageImageMissing((prev) => {
-            const next = { ...prev };
-            for (const key of pendingKeys) {
-              next[key] = true;
-            }
-            return next;
-          });
-
+          // On network errors, only release pending state — do NOT mark as missing.
+          // deferDirectLoad in ProductCardImage will fall back to the individual route.
           setPageImagePending((prev) => {
             const next = { ...prev };
             for (const key of pendingKeys) {
@@ -1580,8 +1599,11 @@ function useCatalogData(params: {
       cursor = "",
       cursorField = ""
     ) => {
+      // Use cursor-based pagination for sorted pages when the cursor is available
+      // (allgoods returned a stable cursor for page 1). Fall back to the progressive
+      // window (fetches items 1..N*limit) only when no cursor exists, e.g. getdata path.
       const useSortedProgressiveWindow =
-        effectiveServerSortOrder !== "none" && pageNum > 1;
+        effectiveServerSortOrder !== "none" && pageNum > 1 && !cursor;
       const requestPage = useSortedProgressiveWindow ? 1 : pageNum;
       const requestLimit = useSortedProgressiveWindow
         ? ITEMS_PER_PAGE * pageNum
@@ -1923,9 +1945,9 @@ function useCatalogData(params: {
         duplicatePageStreakRef.current = 0;
       }
 
-      // Some backend pages can overlap; stop only after a long duplicate streak.
+      // Some backend pages can overlap; stop after 3 consecutive duplicate pages.
       const shouldStopPaginationOnDuplicatePage =
-        !isCursorlessSortedMode && !payload.nextCursor && duplicatePageStreakRef.current >= 6;
+        !isCursorlessSortedMode && !payload.nextCursor && duplicatePageStreakRef.current >= 3;
 
       setHasMore(
         shouldStopPaginationOnDuplicatePage ? false : resolvedHasMore
@@ -1956,6 +1978,14 @@ function useCatalogData(params: {
         ttlMs: ttl,
         querySignatureSnapshot: currentQuerySignature,
         signal: controller.signal,
+        // Page 1: skip items that use the individual high-priority route so they
+        // don't occupy batch capacity. Count is viewport-dependent (mobile=1, tablet=2, desktop=4).
+        // Page 2+: all items are below-the-fold, no skip needed.
+        skipFirst: page === 1
+          ? (typeof window !== "undefined" && window.innerWidth > 0
+              ? window.innerWidth < 640 ? 1 : window.innerWidth < 1024 ? 2 : IMAGE_PRIORITY_ITEMS_COUNT
+              : 1)
+          : 0,
       });
 
       pagingRequestedRef.current = false;
@@ -2693,12 +2723,28 @@ const Data: React.FC<DataProps> = ({
       priceUAH: getResolvedProductPriceUAH(item, prices, euroRate),
     }));
   }, [visibleSortedData, sortedData, sortedEntries, prices, euroRate]);
+  const gridColumnCount = useMemo(() => {
+    if (viewportWidth >= 1024) return 4;
+    if (viewportWidth >= 768) return 3;
+    if (viewportWidth >= 640) return 2;
+    return 1;
+  }, [viewportWidth]);
+  const imagePriorityItemsCount = useMemo(() => {
+    if (viewportWidth <= 0) return IMAGE_PRIORITY_ITEMS_COUNT;
+    if (viewportWidth < 640) return 1;
+    if (viewportWidth < 1024) return 2;
+    return IMAGE_PRIORITY_ITEMS_COUNT;
+  }, [viewportWidth]);
   const visibleCatalogImageCandidates = useMemo(
     () =>
       visibleSortedData
+        // Skip priority items that load via individual high-priority route.
+        // Use reactive imagePriorityItemsCount so mobile (count=1) doesn't
+        // exclude items 1-3 from the batch.
+        .slice(imagePriorityItemsCount)
         .filter((item) => item.hasPhoto !== false)
         .slice(0, VISIBLE_IMAGE_PREFETCH_MAX_ITEMS),
-    [visibleSortedData]
+    [visibleSortedData, imagePriorityItemsCount]
   );
   const shouldShowInitialSkeleton =
     (filterLoading || loading) && visibleSortedData.length === 0;
@@ -2713,18 +2759,6 @@ const Data: React.FC<DataProps> = ({
     visibleSortedData.length > 0 && loading && !isRefetching;
   const shouldShowCatalogGrid =
     visibleSortedData.length > 0 || shouldShowInitialSkeleton;
-  const gridColumnCount = useMemo(() => {
-    if (viewportWidth >= 1024) return 4;
-    if (viewportWidth >= 768) return 3;
-    if (viewportWidth >= 640) return 2;
-    return 1;
-  }, [viewportWidth]);
-  const imagePriorityItemsCount = useMemo(() => {
-    if (viewportWidth <= 0) return IMAGE_PRIORITY_ITEMS_COUNT;
-    if (viewportWidth < 640) return 1;
-    if (viewportWidth < 1024) return 2;
-    return IMAGE_PRIORITY_ITEMS_COUNT;
-  }, [viewportWidth]);
   const shouldUseVirtualWindow =
     visibleSortedEntries.length >= VIRTUAL_WINDOW_THRESHOLD_ITEMS && !shouldShowInitialSkeleton;
   const virtualizedEntries = useMemo(() => {
@@ -2904,6 +2938,22 @@ const Data: React.FC<DataProps> = ({
     window.addEventListener("resize", maybeLoadMore, { passive: true });
     return () => window.removeEventListener("resize", maybeLoadMore);
   }, [hasMore, loading, requestNextPageOnScroll, shouldShowInitialSkeleton, sortedData.length]);
+
+  // Re-check scroll position when the next-page loader finishes hiding (isLoadingNextPage → false).
+  // The three effects above fire on sortedData.length change but bail early because
+  // isLoadingNextPage is still true during the 80ms minimum-visible window. Once it
+  // clears, the sentinel is often still in the viewport — kick the trigger again.
+  useEffect(() => {
+    if (isLoadingNextPage) return;
+    if (loading || shouldShowInitialSkeleton || !hasMore || sortedData.length === 0) return;
+    if (typeof window === "undefined") return;
+
+    const scrolledBottom = window.scrollY + window.innerHeight;
+    const distanceToBottom = document.documentElement.scrollHeight - scrolledBottom;
+    if (distanceToBottom <= LOAD_MORE_SCROLL_BUFFER_PX) {
+      requestNextPageOnScroll();
+    }
+  }, [hasMore, isLoadingNextPage, loading, requestNextPageOnScroll, shouldShowInitialSkeleton, sortedData.length]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

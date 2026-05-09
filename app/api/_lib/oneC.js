@@ -1,17 +1,110 @@
 import http from "node:http";
 import https from "node:https";
 
+function parsePositiveIntEnv(name, fallbackValue) {
+  const numeric = Number(process.env[name]);
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackValue;
+  return Math.floor(numeric);
+}
+
+const ONEC_MAX_SOCKETS = parsePositiveIntEnv("ONEC_MAX_SOCKETS", 12);
+const ONEC_DEFAULT_CONCURRENCY = parsePositiveIntEnv("ONEC_MAX_CONCURRENT_REQUESTS", 12);
+
 const ONEC_HTTP_AGENT = new http.Agent({
   keepAlive: true,
-  maxSockets: 24,
+  maxSockets: ONEC_MAX_SOCKETS,
   keepAliveMsecs: 12_000,
 });
 
 const ONEC_HTTPS_AGENT = new https.Agent({
   keepAlive: true,
-  maxSockets: 24,
+  maxSockets: ONEC_MAX_SOCKETS,
   keepAliveMsecs: 12_000,
 });
+
+const endpointActiveRequests = new Map();
+const endpointQueues = new Map();
+
+function getEndpointConcurrencyLimit(endpoint) {
+  const normalizedEndpoint = String(endpoint || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "_");
+  const envLimit = parsePositiveIntEnv(
+    normalizedEndpoint ? `ONEC_${normalizedEndpoint}_CONCURRENCY` : "",
+    0
+  );
+  if (envLimit > 0) return Math.min(envLimit, ONEC_DEFAULT_CONCURRENCY);
+
+  switch (endpoint) {
+    case "allgoods":
+      return Math.min(4, ONEC_DEFAULT_CONCURRENCY);
+    case "getimages":
+    case "getimagesbatch":
+    case "getimages_batch":
+    case "getimagebatch":
+    case "getphotosbatch":
+    case "getphotobatch":
+    case "getimagespack":
+      return Math.min(5, ONEC_DEFAULT_CONCURRENCY);
+    case "prices":
+    case "pricespost":
+    case "getinfo":
+      return Math.min(4, ONEC_DEFAULT_CONCURRENCY);
+    case "getprod":
+      return Math.min(2, ONEC_DEFAULT_CONCURRENCY);
+    case "getauto":
+      return Math.min(3, ONEC_DEFAULT_CONCURRENCY);
+    case "getdata":
+      return Math.min(8, ONEC_DEFAULT_CONCURRENCY);
+    default:
+      return ONEC_DEFAULT_CONCURRENCY;
+  }
+}
+
+function runWithEndpointConcurrency(endpoint, task) {
+  const limit = getEndpointConcurrencyLimit(endpoint);
+  if (!Number.isFinite(limit) || limit <= 0) {
+    return Promise.resolve().then(task);
+  }
+
+  return new Promise((resolve, reject) => {
+    const start = () => {
+      endpointActiveRequests.set(
+        endpoint,
+        (endpointActiveRequests.get(endpoint) || 0) + 1
+      );
+
+      Promise.resolve()
+        .then(task)
+        .then(resolve, reject)
+        .finally(() => {
+          const active = Math.max(0, (endpointActiveRequests.get(endpoint) || 1) - 1);
+          if (active > 0) {
+            endpointActiveRequests.set(endpoint, active);
+          } else {
+            endpointActiveRequests.delete(endpoint);
+          }
+
+          const queue = endpointQueues.get(endpoint);
+          const next = queue?.shift();
+          if (queue && queue.length === 0) {
+            endpointQueues.delete(endpoint);
+          }
+          if (next) next();
+        });
+    };
+
+    if ((endpointActiveRequests.get(endpoint) || 0) < limit) {
+      start();
+      return;
+    }
+
+    const queue = endpointQueues.get(endpoint) || [];
+    queue.push(start);
+    endpointQueues.set(endpoint, queue);
+  });
+}
 
 function normalizeBaseUrl(url) {
   return String(url || "").trim().replace(/\/+$/, "");
@@ -173,7 +266,7 @@ export async function oneCRequest(endpoint, options = {}) {
     return inFlight;
   }
 
-  const requestPromise = (async () => {
+  const requestPromise = runWithEndpointConcurrency(endpoint, async () => {
     const url = getOneCUrl(endpoint);
     const parsedUrl = new URL(url);
     const transport = parsedUrl.protocol === "https:" ? https : http;
@@ -281,7 +374,7 @@ export async function oneCRequest(endpoint, options = {}) {
         await sleep(delay);
       }
     }
-  })().finally(() => {
+  }).finally(() => {
     inFlightRequests.delete(resolvedCacheKey);
   });
 

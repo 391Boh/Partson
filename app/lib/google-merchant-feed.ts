@@ -1,6 +1,10 @@
 import "server-only";
 
-import { fetchEuroRate, toPriceUah } from "app/lib/catalog-server";
+import {
+  fetchEuroRate,
+  fetchPriceEuroMapByLookupKeys,
+  toPriceUah,
+} from "app/lib/catalog-server";
 import {
   PRODUCT_IMAGE_FALLBACK_PATH,
   getProductImagePath,
@@ -49,6 +53,8 @@ const DEFAULT_SITE_URL = "https://partson.ua";
 const MERCHANT_FEED_MAX_ITEMS = parseOptionalPositiveInt(
   process.env.MERCHANT_FEED_MAX_ITEMS
 );
+const MERCHANT_FEED_PRICE_LOOKUP_LIMIT =
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_LOOKUP_LIMIT) ?? 180;
 
 const escapeXml = (value: string) =>
   value
@@ -103,6 +109,64 @@ const buildProductDescription = (entry: ProductSitemapEntry) => {
     .join(" ");
 };
 
+const hasPositivePriceEuro = (entry: ProductSitemapEntry) =>
+  typeof entry.priceEuro === "number" &&
+  Number.isFinite(entry.priceEuro) &&
+  entry.priceEuro > 0;
+
+const enrichMerchantFeedPrices = async (
+  entries: ProductSitemapEntry[]
+): Promise<ProductSitemapEntry[]> => {
+  const missingPriceEntries = entries
+    .filter((entry) => !hasPositivePriceEuro(entry))
+    .slice(0, MERCHANT_FEED_PRICE_LOOKUP_LIMIT);
+  if (missingPriceEntries.length === 0) return entries;
+
+  const lookupKeys = Array.from(
+    new Set(
+      missingPriceEntries
+        .flatMap((entry) => [entry.article, entry.code])
+        .map((value) => (value || "").trim())
+        .filter(Boolean)
+    )
+  );
+  if (lookupKeys.length === 0) return entries;
+
+  const prices = await fetchPriceEuroMapByLookupKeys(lookupKeys, {
+    sourceTimeoutMs: 900,
+    sourceCacheTtlMs: 1000 * 60 * 5,
+    timeoutMs: 900,
+    retries: 0,
+    retryDelayMs: 80,
+    cacheTtlMs: 1000 * 60 * 10,
+    includeDirectLookup: false,
+    includePricesPost: true,
+    maxKeys: Math.min(lookupKeys.length, MERCHANT_FEED_PRICE_LOOKUP_LIMIT * 2),
+  }).catch(() => ({} as Record<string, number>));
+
+  if (Object.keys(prices).length === 0) return entries;
+
+  return entries.map((entry) => {
+    if (hasPositivePriceEuro(entry)) return entry;
+
+    const articleKey = (entry.article || "").trim().toLowerCase();
+    const codeKey = (entry.code || "").trim().toLowerCase();
+    const priceEuro = (articleKey ? prices[articleKey] : undefined) ?? prices[codeKey];
+    if (
+      typeof priceEuro !== "number" ||
+      !Number.isFinite(priceEuro) ||
+      priceEuro <= 0
+    ) {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      priceEuro,
+    };
+  });
+};
+
 const toGoogleMerchantFeedItem = (
   entry: ProductSitemapEntry,
   siteUrl: string,
@@ -111,7 +175,7 @@ const toGoogleMerchantFeedItem = (
   const code = (entry.code || "").trim();
   if (!code) return null;
 
-  const priceUah = toPriceUah(entry.priceEuro, euroRate);
+  const priceUah = toPriceUah(entry.priceEuro ?? null, euroRate);
   if (priceUah == null) return null;
 
   const article = (entry.article || "").trim() || undefined;
@@ -198,7 +262,8 @@ export const getGoogleMerchantFeedSnapshot = async (options?: {
 
   const sourceEntries =
     maxItems && maxItems > 0 ? entries.slice(0, maxItems) : entries;
-  const items = sourceEntries
+  const pricedEntries = await enrichMerchantFeedPrices(sourceEntries);
+  const items = pricedEntries
     .map((entry) => toGoogleMerchantFeedItem(entry, siteUrl, euroRate))
     .filter((item): item is GoogleMerchantFeedItem => item !== null);
 

@@ -58,8 +58,8 @@ export async function POST(request: Request) {
       cacheTtlMs: 1000 * 60 * 5,
       includeDirectLookup: isFullMode,
       includePricesPost: true,
-      directConcurrency: 12,
-      maxKeys: isFullMode ? 72 : 48,
+      directConcurrency: isFullMode ? 4 : 3,
+      maxKeys: isFullMode ? 36 : 24,
     }).catch(() => ({} as Record<string, number>));
 
     const prices: Record<string, number | null> = {};

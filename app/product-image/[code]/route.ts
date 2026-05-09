@@ -50,7 +50,7 @@ const FULL_IMAGE_LOOKUP_OPTIONS = {
   skipMissCache: true,
 };
 const CATALOG_IMAGE_LOOKUP_OPTIONS = {
-  timeoutMs: 520,
+  timeoutMs: 700,
   retries: 0,
   retryDelayMs: 60,
   cacheTtlMs: 1000 * 60 * 60 * 2,
@@ -422,12 +422,13 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   const requestUrl = new URL(request.url);
   const strictMode = requestUrl.searchParams.get("strict") === "1";
   const catalogMode = requestUrl.searchParams.get("catalog") === "1";
+  const noRedirectFallback = requestUrl.searchParams.get("fallback") === "404";
   const retryAttempt = Math.min(
     2,
     Math.max(0, Number(requestUrl.searchParams.get("retry") || "0") || 0)
   );
   const catalogMissCacheControl =
-    "public, max-age=3, s-maxage=3, stale-while-revalidate=8";
+    "public, max-age=60, s-maxage=60, stale-while-revalidate=300";
   const articleHint = safeDecode(requestUrl.searchParams.get("article") || "").trim();
   const allowDeepCatalogRecovery = catalogMode && (retryAttempt > 0 || !articleHint);
   const acceptsAvif = (request.headers.get("accept") || "").includes("image/avif");
@@ -444,7 +445,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   pruneRouteImageHitCache();
 
   if (!normalizedCode) {
-    if (strictMode || catalogMode) {
+    if (strictMode || catalogMode || noRedirectFallback) {
       return fallbackNotFound(catalogMissCacheControl);
     }
     return fallbackRedirect(request);
@@ -465,6 +466,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   const routeMissCacheKey = [
     strictMode ? "strict" : "normal",
     catalogMode ? "catalog" : "full",
+    noRedirectFallback ? "404" : "redirect",
     retryAttempt,
     normalizedCode.toLowerCase(),
     articleHint.toLowerCase(),
@@ -473,6 +475,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   const routeHitCacheKey = [
     strictMode ? "strict" : "normal",
     catalogMode ? "catalog" : "full",
+    noRedirectFallback ? "404" : "redirect",
     retryAttempt,
     normalizedCode.toLowerCase(),
     articleHint.toLowerCase(),
@@ -580,7 +583,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     if (routeMissTtlMs > 0) {
       routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
     }
-    if (strictMode || catalogMode) {
+    if (strictMode || catalogMode || noRedirectFallback) {
       return fallbackNotFound(catalogMissCacheControl);
     }
     return fallbackRedirect(request);
@@ -592,7 +595,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       if (routeMissTtlMs > 0) {
         routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
       }
-      if (strictMode || catalogMode) {
+      if (strictMode || catalogMode || noRedirectFallback) {
         return fallbackNotFound(catalogMissCacheControl);
       }
       return fallbackRedirect(request);
@@ -604,7 +607,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       if (routeMissTtlMs > 0) {
         routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
       }
-      if (strictMode || catalogMode) {
+      if (strictMode || catalogMode || noRedirectFallback) {
         return fallbackNotFound(catalogMissCacheControl);
       }
       return fallbackRedirect(request);
@@ -641,7 +644,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     if (routeMissTtlMs > 0) {
       routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
     }
-    if (strictMode || catalogMode) {
+    if (strictMode || catalogMode || noRedirectFallback) {
       return fallbackNotFound(catalogMissCacheControl);
     }
     return fallbackRedirect(request);

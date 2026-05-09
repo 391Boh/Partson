@@ -10,6 +10,7 @@ import {
   writeCatalogBrowserCache,
 } from "app/lib/catalog-client-cache";
 import { buildVisibleProductName } from "app/lib/product-url";
+import { safeSetStorageItem } from "app/lib/safe-storage";
 
 interface CategoryProps {
   selectedCategories: string[];
@@ -680,7 +681,7 @@ const Category: React.FC<CategoryProps> = ({
     const href = buildSelectionHref(group, subcategory);
     if (!href) return;
     if (typeof window !== "undefined") {
-      window.sessionStorage.setItem("catalogScrollTarget", "results");
+      safeSetStorageItem(window.sessionStorage, "catalogScrollTarget", "results");
     }
     router.replace(href, { scroll: false });
   };

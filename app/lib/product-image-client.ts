@@ -3,7 +3,10 @@ import { buildProductImageBatchKey } from "app/lib/product-image-path";
 export const PRODUCT_IMAGE_CLIENT_CACHE_PREFIX = "partson:v9:img:";
 export const PRODUCT_IMAGE_CLIENT_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_PREFIX = "partson:v3:img-miss:";
-export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_TTL_MS = 1000 * 5;
+export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_TTL_MS = 1000 * 60 * 5;
+const PRODUCT_IMAGE_MEMORY_CACHE_MAX_ENTRIES = 160;
+const PRODUCT_IMAGE_PERSISTED_SRC_MAX_LENGTH = 4096;
+let persistedImageCachePruned = false;
 
 export type ProductImageCacheRecord = {
   src: string;
@@ -12,6 +15,49 @@ export type ProductImageCacheRecord = {
 
 export type ProductImageMissingCacheRecord = {
   t: number;
+};
+
+const productImageMemoryCache = new Map<string, ProductImageCacheRecord>();
+
+const pruneProductImageMemoryCache = () => {
+  const now = Date.now();
+  for (const [key, value] of productImageMemoryCache.entries()) {
+    if (!value || now - value.t > PRODUCT_IMAGE_CLIENT_CACHE_TTL_MS) {
+      productImageMemoryCache.delete(key);
+    }
+  }
+
+  while (productImageMemoryCache.size > PRODUCT_IMAGE_MEMORY_CACHE_MAX_ENTRIES) {
+    const oldestKey = productImageMemoryCache.keys().next().value;
+    if (!oldestKey) break;
+    productImageMemoryCache.delete(oldestKey);
+  }
+};
+
+const prunePersistedImageCache = (storage: Storage | null | undefined) => {
+  if (!storage) return;
+
+  try {
+    const keys: string[] = [];
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (key?.startsWith(PRODUCT_IMAGE_CLIENT_CACHE_PREFIX)) {
+        keys.push(key);
+      }
+    }
+    for (const key of keys) {
+      storage.removeItem(key);
+    }
+  } catch {
+    // Ignore storage access issues.
+  }
+};
+
+const ensurePersistedImageCachePruned = () => {
+  if (persistedImageCachePruned || typeof window === "undefined") return;
+  persistedImageCachePruned = true;
+  prunePersistedImageCache(window.sessionStorage);
+  prunePersistedImageCache(window.localStorage);
 };
 
 export const getProductImageClientCacheKey = (
@@ -92,6 +138,13 @@ export const readProductImageSuccess = (
   const cacheKey = getProductImageClientCacheKey(productCode, articleHint);
   if (!cacheKey) return null;
 
+  pruneProductImageMemoryCache();
+  ensurePersistedImageCachePruned();
+  const memoryHit = productImageMemoryCache.get(cacheKey);
+  if (memoryHit?.src && Date.now() - memoryHit.t <= PRODUCT_IMAGE_CLIENT_CACHE_TTL_MS) {
+    return normalizeProductImageCachedSrc(memoryHit.src);
+  }
+
   return (
     readProductImageSuccessFromStorage(window.sessionStorage, cacheKey) ??
     readProductImageSuccessFromStorage(window.localStorage, cacheKey)
@@ -149,7 +202,21 @@ export const writeProductImageSuccess = (
   const normalizedSrc = normalizeProductImageCachedSrc(src);
   if (!cacheKey || !normalizedSrc) return;
 
+  ensurePersistedImageCachePruned();
   clearProductImageMissing(productCode, articleHint);
+
+  pruneProductImageMemoryCache();
+  productImageMemoryCache.set(cacheKey, {
+    src: normalizedSrc,
+    t: Date.now(),
+  });
+
+  if (
+    normalizedSrc.startsWith("data:image/") ||
+    normalizedSrc.length > PRODUCT_IMAGE_PERSISTED_SRC_MAX_LENGTH
+  ) {
+    return;
+  }
 
   const payload = JSON.stringify({
     src: normalizedSrc,
@@ -159,13 +226,13 @@ export const writeProductImageSuccess = (
   try {
     window.sessionStorage.setItem(cacheKey, payload);
   } catch {
-    // Ignore storage quota issues.
+    prunePersistedImageCache(window.sessionStorage);
   }
 
   try {
     window.localStorage.setItem(cacheKey, payload);
   } catch {
-    // Ignore storage quota issues.
+    prunePersistedImageCache(window.localStorage);
   }
 };
 
@@ -205,6 +272,8 @@ export const clearProductImageSuccess = (
 
   const cacheKey = getProductImageClientCacheKey(productCode, articleHint);
   if (!cacheKey) return;
+
+  productImageMemoryCache.delete(cacheKey);
 
   try {
     window.sessionStorage.removeItem(cacheKey);

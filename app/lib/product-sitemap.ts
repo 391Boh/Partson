@@ -40,12 +40,12 @@ const PRODUCT_SITEMAP_MAX_BATCHES = parseOptionalPositiveInt(
 
 const PRODUCT_SITEMAP_QUERY_PAGE_SIZE = Math.min(
   500,
-  parsePositiveInt(process.env.PRODUCT_SITEMAP_PAGE_SIZE, 500)
+  parsePositiveInt(process.env.PRODUCT_SITEMAP_PAGE_SIZE, 180)
 );
 
 const PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS = parsePositiveInt(
   process.env.PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
-  16000
+  6000
 );
 
 const PRODUCT_SITEMAP_BUILD_TIMEOUT_MS = parseOptionalPositiveInt(
@@ -86,7 +86,7 @@ export type ProductSitemapEntry = {
   category?: string;
   hasPhoto?: boolean;
   quantity: number;
-  priceEuro: number;
+  priceEuro?: number | null;
 };
 
 const normalizeProductCodes = (codes: string[]) => {
@@ -113,15 +113,18 @@ const normalizeProductCodes = (codes: string[]) => {
   return uniqueCodes;
 };
 
-const hasSitemapEligiblePrice = (product: CatalogProduct) =>
-  typeof product.priceEuro === "number" && Number.isFinite(product.priceEuro) && product.priceEuro > 0;
-
 const toProductSitemapEntry = (product: CatalogProduct): ProductSitemapEntry | null => {
   const code = (product.code || "").trim();
 
-  if (!code || !hasSitemapEligiblePrice(product)) {
+  if (!code) {
     return null;
   }
+  const priceEuro =
+    typeof product.priceEuro === "number" &&
+    Number.isFinite(product.priceEuro) &&
+    product.priceEuro > 0
+      ? product.priceEuro
+      : null;
 
   return {
     code,
@@ -133,7 +136,7 @@ const toProductSitemapEntry = (product: CatalogProduct): ProductSitemapEntry | n
     category: product.category,
     hasPhoto: product.hasPhoto,
     quantity: Number.isFinite(product.quantity) ? Math.max(0, product.quantity) : 0,
-    priceEuro: product.priceEuro as number,
+    priceEuro,
   };
 };
 
@@ -203,9 +206,11 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
         page,
         limit: PRODUCT_SITEMAP_QUERY_PAGE_SIZE,
         cursor,
-        includePriceEnrichment: true,
+        includePriceEnrichment: false,
+        preferLegacySource: !cursor,
+        forceAllgoodsSource: Boolean(cursor),
         timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
-        retries: 2,
+        retries: 0,
         retryDelayMs: 180,
         cacheTtlMs: 1000 * 60,
       }),
@@ -281,7 +286,7 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
 const getProductSitemapEntryBatchesWithCache = unstable_cache(
   buildProductSitemapEntryBatches,
   [
-    `product-sitemap-entries-v21-priced-canonical-images-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_BATCHES ?? "all"}-${PRODUCT_SITEMAP_QUERY_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ?? "none"}-${PRODUCT_SITEMAP_MAX_SOURCE_PAGES ?? "all"}`,
+    `product-sitemap-entries-v22-fast-canonical-images-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_BATCHES ?? "all"}-${PRODUCT_SITEMAP_QUERY_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ?? "none"}-${PRODUCT_SITEMAP_MAX_SOURCE_PAGES ?? "all"}`,
   ],
   {
     revalidate: 60 * 60,

@@ -45,7 +45,7 @@ import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
-const GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT = 750;
+const GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT = 80;
 const GROUP_ITEM_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
 const GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS = 6000;
 const GROUP_ITEM_PRODUCER_SPLIT_PAGE_SIZE = 220;
@@ -53,6 +53,10 @@ const GROUP_ITEM_PRODUCER_SPLIT_MAX_PAGES = 3;
 const GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS = 2200;
 const CATEGORY_TOP_PRODUCTS_LIMIT = 10;
 const CATEGORY_TOP_PRODUCTS_TIMEOUT_MS = 1500;
+const isProductionBuildPhase =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
+  process.env.npm_lifecycle_event === "build";
 
 interface GroupItemPageParams {
   slug: string;
@@ -203,7 +207,8 @@ const collectDirectGroupItemProducerSplitUncached = async (
         cursorField: cursorField || undefined,
         sortOrder: "none",
         includePriceEnrichment: false,
-        forceAllgoodsSource: true,
+        preferLegacySource: true,
+        forceAllgoodsSource: false,
         timeoutMs: GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS,
         retries: 0,
         retryDelayMs: 100,
@@ -285,8 +290,9 @@ const fetchCategoryTopProductsUncached = async (
     group: normalizedGroup || null,
     subcategory: normalizedSubcategory,
     sortOrder: "none",
-    includePriceEnrichment: true,
-    forceAllgoodsSource: true,
+    includePriceEnrichment: false,
+    preferLegacySource: true,
+    forceAllgoodsSource: false,
     timeoutMs: 1400,
     retries: 0,
     retryDelayMs: 100,
@@ -317,6 +323,7 @@ const resolveGroupItemProducerSplit = async (options: {
     itemLabels: options.seoItemLabels,
   });
   if (seoSplit.length > 0) return seoSplit;
+  if (isProductionBuildPhase) return seoSplit;
 
   const directSplit = await collectDirectGroupItemProducerSplit(
     options.catalogGroupLabel,
@@ -687,11 +694,13 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   // Effective catalog group filter: for child items use the parent subgroup label,
   // for top-level subgroup items use the group label.
   const catalogGroupLabel = item.parentSubgroupLabel || item.groupLabel;
-  const topProducts = await resolveWithTimeout(
-    () => getCategoryTopProducts(catalogGroupLabel, item.label),
-    [] as CatalogProduct[],
-    CATEGORY_TOP_PRODUCTS_TIMEOUT_MS
-  );
+  const topProducts = isProductionBuildPhase
+    ? ([] as CatalogProduct[])
+    : await resolveWithTimeout(
+        () => getCategoryTopProducts(catalogGroupLabel, item.label),
+        [] as CatalogProduct[],
+        CATEGORY_TOP_PRODUCTS_TIMEOUT_MS
+      );
   const visibleProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
 
   const siteUrl = getSiteUrl();

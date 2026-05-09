@@ -1200,10 +1200,12 @@ export async function generateMetadata({
     ? buildCanonicalProductPath(routeProduct, resolvedCode || fallbackCode)
     : `/product/${encodeURIComponent(decodedParam || resolvedCode || fallbackCode || "")}`;
 
-  const productImagePath = routeProduct
+  const productImagePath = routeProduct && routeProduct.hasPhoto !== false
     ? getProductImagePath(routeProduct.code || resolvedCode, routeProduct.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
-  const productImageUrl = `${getSiteUrl()}${productImagePath}`;
+  const siteUrl = getSiteUrl();
+  const productImageUrl = `${siteUrl}${productImagePath}`;
+  const canonicalUrl = `${siteUrl}${canonicalPath}`;
   const shouldIndexProduct = !isModalView && Boolean(resolvedCode || fallbackCode);
 
   const seoTitle = [
@@ -1277,7 +1279,7 @@ export async function generateMetadata({
     },
     openGraph: {
       type: "website",
-      url: canonicalPath,
+      url: canonicalUrl,
       title: seoTitle,
       description,
       images: [{
@@ -1496,7 +1498,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     : PRODUCT_PAGE_LOGO_FALLBACK_PATH;
   const productDisplayImagePath = productHasKnownPhoto
     ? buildProductImagePath(product.code || resolvedCode, product.article, {
-        catalog: true,
+        noFallback: true,
       })
     : PRODUCT_PAGE_LOGO_FALLBACK_PATH;
   const productImageUrl = `${siteUrl}${productFullImagePath}`;
@@ -1744,6 +1746,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       productCode={product.code || resolvedCode}
                       articleHint={product.article}
                       hasKnownPhoto={productHasKnownPhoto}
+                      preferCachedPreview={false}
                       className={heroProductImageClass}
                     />
                   </div>
@@ -2010,4 +2013,3 @@ export default async function ProductPage({ params }: ProductPageProps) {
     </div>
   );
 }
-

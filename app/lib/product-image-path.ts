@@ -18,7 +18,12 @@ export const buildProductImageBatchKey = (
 export const buildProductImagePath = (
   productCode: string,
   articleHint?: string,
-  options?: { catalog?: boolean; retryToken?: number; strict?: boolean }
+  options?: {
+    catalog?: boolean;
+    retryToken?: number;
+    strict?: boolean;
+    noFallback?: boolean;
+  }
 ) => {
   const normalizedCode = normalizeSegment(productCode);
   if (!normalizedCode) return "";
@@ -32,6 +37,10 @@ export const buildProductImagePath = (
 
   if (options?.strict === true) {
     params.set("strict", "1");
+  }
+
+  if (options?.noFallback === true) {
+    params.set("fallback", "404");
   }
 
   if ((options?.retryToken || 0) > 0) {

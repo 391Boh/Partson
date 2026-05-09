@@ -11,6 +11,7 @@ import {
   writeCatalogBrowserCache,
 } from "app/lib/catalog-client-cache";
 import { buildVisibleProductName } from "app/lib/product-url";
+import { safeSetStorageItem } from "app/lib/safe-storage";
 
 interface CategoryRow {
   group: string;
@@ -707,7 +708,7 @@ const ProductFetcher: React.FC<Props> = ({
     }
     setSelectedCategories([row.id]);
     if (typeof window !== "undefined") {
-      window.sessionStorage.setItem("catalogScrollTarget", "results");
+      safeSetStorageItem(window.sessionStorage, "catalogScrollTarget", "results");
     }
     router.push(`/katalog?${searchParams.toString()}`);
   };

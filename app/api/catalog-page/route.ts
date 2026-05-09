@@ -15,10 +15,10 @@ type CatalogPageApiPayload = {
   stale?: boolean;
 };
 
-const ROUTE_SUCCESS_CACHE_TTL_MS = 1000 * 60 * 2;
-const ROUTE_SUCCESS_STALE_TTL_MS = 1000 * 60 * 12;
-const ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS = 1000 * 60 * 20;
-const CATALOG_ROUTE_RESPONSE_TIMEOUT_MS = 6500;
+const ROUTE_SUCCESS_CACHE_TTL_MS = 1000 * 60 * 4;
+const ROUTE_SUCCESS_STALE_TTL_MS = 1000 * 60 * 45;
+const ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS = 1000 * 60 * 30;
+const CATALOG_ROUTE_RESPONSE_TIMEOUT_MS = 7500;
 
 type RouteSuccessCacheEntry = {
   freshUntil: number;
@@ -45,7 +45,7 @@ const toPositiveInt = (value: unknown, fallback: number) => {
 
 const buildRouteCacheKey = (body: Record<string, unknown>) =>
   JSON.stringify({
-    source: "allgoods-photo-price-unknown-state:v6-description-all-words",
+    source: "catalog-page:v10-cursor-sorted-7500ms",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -205,10 +205,8 @@ export async function POST(request: Request) {
         normalizedProducer
     );
 
-    // Unfiltered: 3100ms per source so allgoods + getdata fallback both fit within
-    // the 6500ms route budget (3100 + 3100 = 6200ms < 6500ms).
-    // Previously 5600ms caused allgoods timeout to consume the full route budget,
-    // leaving no room for the getdata fallback, which always returned 503 on allgoods slowness.
+    // Default catalog and facet pages use the lighter getdata path first. allgoods is
+    // reserved for cursor continuation, price sorting and description search.
     const timeoutMs = isDescriptionSearch
       ? 5200
       : hasTightFilterContext
@@ -255,21 +253,84 @@ export async function POST(request: Request) {
       cursorField: result.cursorField || "",
     });
 
-    const runQuery = (runtime: {
+    const runQuery = async (runtime: {
       timeoutMs: number;
       retries: number;
       retryDelayMs: number;
       cacheTtlMs: number;
-    }) =>
-      fetchCatalogProductsByQuery({
+    }) => {
+      const needsAllgoods =
+        Boolean(queryBase.cursor || queryBase.cursorField) ||
+        queryBase.sortOrder !== "none" ||
+        isDescriptionSearch;
+
+      if (needsAllgoods) {
+        return fetchCatalogProductsByQuery({
+          ...queryBase,
+          timeoutMs: runtime.timeoutMs,
+          retries: runtime.retries,
+          retryDelayMs: runtime.retryDelayMs,
+          cacheTtlMs: runtime.cacheTtlMs,
+          includePriceEnrichment: false,
+          preferLegacySource: false,
+          forceAllgoodsSource: true,
+        });
+      }
+
+      const legacyResult = await fetchCatalogProductsByQuery({
         ...queryBase,
         timeoutMs: runtime.timeoutMs,
         retries: runtime.retries,
         retryDelayMs: runtime.retryDelayMs,
         cacheTtlMs: runtime.cacheTtlMs,
         includePriceEnrichment: false,
+        preferLegacySource: true,
+        forceAllgoodsSource: false,
+      }).catch((error) => {
+        if (queryBase.selectedCars.length > 0) throw error;
+        return null;
+      });
+
+      if (legacyResult && (legacyResult.items.length > 0 || queryBase.selectedCars.length > 0)) {
+        return legacyResult;
+      }
+
+      if (queryBase.selectedCars.length > 0) {
+        return legacyResult ?? {
+          items: [] as CatalogProduct[],
+          hasMore: false,
+          nextCursor: "",
+          cursorField: null,
+        };
+      }
+
+      const allgoodsFallback = await fetchCatalogProductsByQuery({
+        ...queryBase,
+        timeoutMs: Math.min(Math.max(runtime.timeoutMs, 4200), 5200),
+        retries: 0,
+        retryDelayMs: runtime.retryDelayMs,
+        cacheTtlMs: runtime.cacheTtlMs,
+        includePriceEnrichment: false,
+        preferLegacySource: false,
+        forceAllgoodsSource: true,
+      }).catch(() => null);
+
+      if (allgoodsFallback && allgoodsFallback.items.length > 0) {
+        return allgoodsFallback;
+      }
+
+      return fetchCatalogProductsByQuery({
+        ...queryBase,
+        sortOrder: "asc",
+        timeoutMs: Math.min(Math.max(runtime.timeoutMs, 4200), 5200),
+        retries: 0,
+        retryDelayMs: runtime.retryDelayMs,
+        cacheTtlMs: runtime.cacheTtlMs,
+        includePriceEnrichment: false,
+        preferLegacySource: false,
         forceAllgoodsSource: true,
       });
+    };
 
     let inFlight = routeInFlightRequests.get(routeCacheKey);
     if (!inFlight) {

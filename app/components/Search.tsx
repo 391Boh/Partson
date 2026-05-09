@@ -3,6 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Clock, XCircle } from "lucide-react";
+import {
+  safeGetStorageItem,
+  safeRemoveStorageItem,
+  safeSetStorageItem,
+} from "app/lib/safe-storage";
 
 interface SearchBarProps {
   onSearch: (
@@ -26,12 +31,14 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
 
   // --- 1. Завантаження історії з localStorage ---
   useEffect(() => {
-    const saved = localStorage.getItem("searchHistory");
+    if (typeof window === "undefined") return;
+
+    const saved = safeGetStorageItem(window.localStorage, "searchHistory");
     if (!saved) return;
     try {
       const parsed = JSON.parse(saved) as unknown;
       if (!Array.isArray(parsed)) {
-        localStorage.removeItem("searchHistory");
+        safeRemoveStorageItem(window.localStorage, "searchHistory");
         return;
       }
       const normalized = parsed
@@ -41,7 +48,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         .slice(0, MAX_HISTORY);
       setHistory(normalized);
     } catch {
-      localStorage.removeItem("searchHistory");
+      safeRemoveStorageItem(window.localStorage, "searchHistory");
     }
   }, []);
 
@@ -62,7 +69,13 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     if (newHistory.length > MAX_HISTORY) newHistory = newHistory.slice(0, MAX_HISTORY);
 
     setHistory(newHistory);
-    localStorage.setItem("searchHistory", JSON.stringify(newHistory));
+    if (typeof window !== "undefined") {
+      safeSetStorageItem(
+        window.localStorage,
+        "searchHistory",
+        JSON.stringify(newHistory)
+      );
+    }
   };
 
   // --- 4. Пошук ---
@@ -90,7 +103,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
 
   // --- 5. Видалення історії ---
   const clearHistory = () => {
-    localStorage.removeItem("searchHistory");
+    if (typeof window !== "undefined") {
+      safeRemoveStorageItem(window.localStorage, "searchHistory");
+    }
     setHistory([]);
   };
 

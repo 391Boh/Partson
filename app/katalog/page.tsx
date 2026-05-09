@@ -112,6 +112,7 @@ const fetchCatalogSeoSnapshotPayload = async (
 ): Promise<InitialCatalogPagePayload | null> => {
   const query = toCatalogSeoSnapshotQuery(JSON.parse(serializedQuery));
   if (!query) return null;
+  const needsAllgoods = query.searchFilter === "description" && Boolean(query.searchQuery);
 
   const result = await fetchCatalogProductsByQuery({
     page: 1,
@@ -135,7 +136,8 @@ const fetchCatalogSeoSnapshotPayload = async (
     retries: 1,
     retryDelayMs: 140,
     cacheTtlMs: 1000 * 60 * 15,
-    forceAllgoodsSource: true,
+    preferLegacySource: !needsAllgoods,
+    forceAllgoodsSource: needsAllgoods,
   });
 
   return {

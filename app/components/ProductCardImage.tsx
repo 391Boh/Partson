@@ -18,6 +18,7 @@ import {
 
 // Delay before final image retry (ms)
 const FINAL_RETRY_DELAY_MS = 400;
+const DEFERRED_DIRECT_LOAD_DELAY_MS = 500;
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
@@ -40,6 +41,8 @@ interface Props {
   onClick?: () => void;
   loadingMode?: "lazy" | "eager";
   fetchPriority?: "high" | "low" | "auto";
+  deferDirectLoad?: boolean;
+  batchImagePending?: boolean;
 }
 
 type ImageStatus = "loading" | "retrying" | "loaded" | "missing";
@@ -56,6 +59,8 @@ const ProductCardImage: React.FC<Props> = ({
   onClick,
   loadingMode = "lazy",
   fetchPriority = "low",
+  deferDirectLoad = false,
+  batchImagePending = false,
 }) => {
   const [requestSrc, setRequestSrc] = useState("");
   const [status, setStatus] = useState<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
@@ -77,6 +82,7 @@ const ProductCardImage: React.FC<Props> = ({
   );
   const [finalRetryQueued, setFinalRetryQueued] = useState(false);
   const lastSuccessfulSrcRef = useRef("");
+  const deferredDirectLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleLoad = useCallback((event: React.SyntheticEvent<HTMLImageElement>) => {
     const currentTarget = event.currentTarget;
@@ -103,6 +109,11 @@ const ProductCardImage: React.FC<Props> = ({
   }, [normalizedArticle, normalizedCode, requestSrc]);
 
   useEffect(() => {
+    if (deferredDirectLoadTimerRef.current) {
+      clearTimeout(deferredDirectLoadTimerRef.current);
+      deferredDirectLoadTimerRef.current = null;
+    }
+
     if (!hasKnownPhoto) {
       writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
       setRequestSrc("");
@@ -123,6 +134,24 @@ const ProductCardImage: React.FC<Props> = ({
       setFinalRetryQueued(false);
       return;
     }
+    if (deferDirectLoad) {
+      setRequestSrc("");
+      setStatus("loading");
+      setFinalRetryQueued(false);
+
+      deferredDirectLoadTimerRef.current = setTimeout(() => {
+        deferredDirectLoadTimerRef.current = null;
+        setRequestSrc(primarySrc);
+        setStatus("loading");
+      }, DEFERRED_DIRECT_LOAD_DELAY_MS);
+
+      return () => {
+        if (deferredDirectLoadTimerRef.current) {
+          clearTimeout(deferredDirectLoadTimerRef.current);
+          deferredDirectLoadTimerRef.current = null;
+        }
+      };
+    }
     setRequestSrc(primarySrc);
     setStatus("loading");
     setFinalRetryQueued(false);
@@ -132,6 +161,7 @@ const ProductCardImage: React.FC<Props> = ({
     normalizedCode,
     normalizedPrefetchedSrc,
     primarySrc,
+    deferDirectLoad,
   ]);
   useEffect(() => {
     if (!hasKnownPhoto) return;
@@ -194,7 +224,7 @@ const ProductCardImage: React.FC<Props> = ({
 
   const canOpen = Boolean(onClick) && status === "loaded";
   // Show skeleton until image is fully loaded (not just while requestSrc is empty)
-  const showLoadingSkeleton = status === "loading";
+  const showLoadingSkeleton = status === "loading" || batchImagePending;
   const showPlaceholder = status === "missing";
   const imageDecodingMode = fetchPriority === "high" ? "sync" : "async";
 
@@ -238,9 +268,10 @@ const ProductCardImage: React.FC<Props> = ({
               src={requestSrc}
               alt="product"
               fill
-              sizes="(max-width: 640px) 30vw, (max-width: 1024px) 22vw, 150px"
+              sizes="(max-width: 639px) 33vw, (max-width: 767px) 18vw, (max-width: 1023px) 13vw, 10vw"
               loading={loadingMode}
               fetchPriority={fetchPriority}
+              unoptimized={requestSrc.startsWith("data:image/")}
               decoding={imageDecodingMode}
               draggable={false}
               onLoad={handleLoad}
