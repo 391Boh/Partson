@@ -17,6 +17,7 @@ import {
   directorySecondaryButtonClass,
 } from "app/components/catalog-directory-styles";
 import {
+  EMPTY_CATALOG_SEO_FACETS,
   getCatalogSeoFacetsWithTimeout,
 } from "app/lib/catalog-seo";
 import {
@@ -34,9 +35,13 @@ import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
-const GROUP_STATIC_PARAMS_LIMIT_DEFAULT = 48;
+const GROUP_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
 const GROUP_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
 const GROUP_PAGE_SEO_FACETS_TIMEOUT_MS = 6000;
+const isProductionBuildPhase =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
+  process.env.npm_lifecycle_event === "build";
 
 interface GroupPageParams {
   slug: string;
@@ -74,10 +79,11 @@ const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
 
 const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null> => {
-  const [dataset, seoFacets] = await Promise.all([
-    getProductTreeDataset().catch(() => null),
-    getCatalogSeoFacetsWithTimeout(GROUP_PAGE_SEO_FACETS_TIMEOUT_MS),
-  ]);
+  const dataset = await getProductTreeDataset().catch(() => null);
+  const seoFacets =
+    isProductionBuildPhase && dataset
+      ? EMPTY_CATALOG_SEO_FACETS
+      : await getCatalogSeoFacetsWithTimeout(GROUP_PAGE_SEO_FACETS_TIMEOUT_MS);
   const group = dataset?.groups.find(
     (item) => item.slug === slug || item.legacySlug === slug
   );

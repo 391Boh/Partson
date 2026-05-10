@@ -50,15 +50,15 @@ export interface Product {
 const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v24-cursor-sorted-prefetch";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v25-price-scroll-fast-media";
 const PRICE_CACHE_PREFIX = "partson:v8:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
 const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 45;
 const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE;
-const PRICE_FULL_LOOKUP_MAX_ITEMS = 6;
-const PRICE_FULL_LOOKUP_DELAY_MS = 850;
+const PRICE_FULL_LOOKUP_MAX_ITEMS = ITEMS_PER_PAGE;
+const PRICE_FULL_LOOKUP_DELAY_MS = 140;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 20;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 60 * 4;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60 * 4;
@@ -69,8 +69,8 @@ const IMAGE_PRIORITY_ITEMS_COUNT = 4;
 // Priority items (first IMAGE_PRIORITY_ITEMS_COUNT) load via the individual route and
 // must not be included in the batch (they'd bloat the response without being rendered).
 const IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT = 18;
-const IMAGE_DEEP_RECOVERY_BATCH_COUNT = 2;
-const IMAGE_DEEP_RECOVERY_DELAY_MS = 800;
+const IMAGE_DEEP_RECOVERY_BATCH_COUNT = 4;
+const IMAGE_DEEP_RECOVERY_DELAY_MS = 380;
 // Chunk size matches max so the visible effect covers all candidates in one pass.
 const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 18;
 const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = 18;
@@ -1150,6 +1150,17 @@ function useCatalogData(params: {
           const resolvedPrice = resolvedPrices[item.stateKey];
           if (resolvedPrice === undefined) continue;
 
+          if (resolvedPrice === null) {
+            const currentPrice = pricesRef.current[item.stateKey];
+            if (
+              typeof currentPrice === "number" &&
+              Number.isFinite(currentPrice) &&
+              currentPrice > 0
+            ) {
+              continue;
+            }
+          }
+
           nextUpdates[item.stateKey] = resolvedPrice;
           writeCachedPriceEntry(item.stateKey, resolvedPrice);
           for (const lookupKey of item.lookupKeys) {
@@ -1165,6 +1176,7 @@ function useCatalogData(params: {
 
         if (Object.keys(nextUpdates).length === 0) return;
 
+        pricesRef.current = { ...pricesRef.current, ...nextUpdates };
         setPrices((prev) => {
           let didChange = false;
           const next = { ...prev };
@@ -1208,59 +1220,75 @@ function useCatalogData(params: {
       };
 
       try {
-        const fastPrices = await postBatch(requestItems, "fast");
-        const normalizedFastPrices: Record<string, number | null> = {};
-        for (const item of requestItems) {
-          const resolvedPrice = fastPrices[item.stateKey];
-          normalizedFastPrices[item.stateKey] =
-            typeof resolvedPrice === "number" &&
-            Number.isFinite(resolvedPrice) &&
-            resolvedPrice > 0
-              ? resolvedPrice
-              : null;
-        }
-        commitResolvedPrices(normalizedFastPrices, PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS);
-
         const unresolvedItems = requestItems
-          .filter((item) => {
-            const value = normalizedFastPrices[item.stateKey];
-            return !(typeof value === "number" && Number.isFinite(value) && value > 0);
-          })
           .slice(0, PRICE_FULL_LOOKUP_MAX_ITEMS);
 
-        if (unresolvedItems.length === 0) return;
+        const fastLookup = postBatch(requestItems, "fast").then((fastPrices) => {
+          const normalizedFastPrices: Record<string, number | null> = {};
+          for (const item of requestItems) {
+            const resolvedPrice = fastPrices[item.stateKey];
+            normalizedFastPrices[item.stateKey] =
+              typeof resolvedPrice === "number" &&
+              Number.isFinite(resolvedPrice) &&
+              resolvedPrice > 0
+                ? resolvedPrice
+                : null;
+          }
+          commitResolvedPrices(normalizedFastPrices, PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS);
+        });
 
-        if (PRICE_FULL_LOOKUP_DELAY_MS > 0) {
-          await awaitWithAbortSignal(
-            new Promise<void>((resolve) => {
-              const timer = setTimeout(resolve, PRICE_FULL_LOOKUP_DELAY_MS);
-              if (options?.signal?.aborted) {
-                clearTimeout(timer);
-                resolve();
-              }
-            }),
-            options?.signal
-          );
-        }
+        const fullLookup = (async () => {
+          if (unresolvedItems.length === 0) return;
 
-        const fullPrices = await postBatch(unresolvedItems, "full");
-        const positiveFullPrices: Record<string, number> = {};
-        for (const item of unresolvedItems) {
-          const resolvedPrice = fullPrices[item.stateKey];
-          if (
-            typeof resolvedPrice !== "number" ||
-            !Number.isFinite(resolvedPrice) ||
-            resolvedPrice <= 0
-          ) {
-            continue;
+          if (PRICE_FULL_LOOKUP_DELAY_MS > 0) {
+            await awaitWithAbortSignal(
+              new Promise<void>((resolve) => {
+                const timer = setTimeout(resolve, PRICE_FULL_LOOKUP_DELAY_MS);
+                if (options?.signal?.aborted) {
+                  clearTimeout(timer);
+                  resolve();
+                }
+              }),
+              options?.signal
+            );
           }
 
-          positiveFullPrices[item.stateKey] = resolvedPrice;
-        }
+          const fullPrices = await postBatch(unresolvedItems, "full");
+          const positiveFullPrices: Record<string, number> = {};
+          for (const item of unresolvedItems) {
+            const resolvedPrice = fullPrices[item.stateKey];
+            if (
+              typeof resolvedPrice !== "number" ||
+              !Number.isFinite(resolvedPrice) ||
+              resolvedPrice <= 0
+            ) {
+              continue;
+            }
 
-        if (Object.keys(positiveFullPrices).length > 0) {
-          commitResolvedPrices(positiveFullPrices, PRICE_REVALIDATE_AFTER_NULL_MS);
-        }
+            positiveFullPrices[item.stateKey] = resolvedPrice;
+          }
+
+          if (Object.keys(positiveFullPrices).length > 0) {
+            commitResolvedPrices(positiveFullPrices, PRICE_REVALIDATE_AFTER_NULL_MS);
+          }
+        })();
+
+        const results = await Promise.allSettled([fastLookup, fullLookup]);
+        const rejectedResults = results.filter((result) => result.status === "rejected");
+        if (rejectedResults.length !== results.length) return;
+
+        const allAborted = rejectedResults.every(
+          (result) =>
+            result.status === "rejected" &&
+            result.reason instanceof Error &&
+            result.reason.name === "AbortError"
+        );
+        if (allAborted) return;
+
+        const fallbackNulls = Object.fromEntries(
+          requestItems.map((item) => [item.stateKey, null])
+        ) as Record<string, null>;
+        commitResolvedPrices(fallbackNulls, PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS);
       } catch (error) {
         if (!(error instanceof Error && error.name === "AbortError")) {
           const fallbackNulls = Object.fromEntries(
@@ -1599,11 +1627,11 @@ function useCatalogData(params: {
       cursor = "",
       cursorField = ""
     ) => {
-      // Use cursor-based pagination for sorted pages when the cursor is available
-      // (allgoods returned a stable cursor for page 1). Fall back to the progressive
-      // window (fetches items 1..N*limit) only when no cursor exists, e.g. getdata path.
+      // Price-sorted cursor continuation can be empty on the 1C side even when
+      // the first response returns a cursor. Use a progressive sorted window
+      // instead: page 2 asks for 24 items, page 3 for 36, then we merge only new rows.
       const useSortedProgressiveWindow =
-        effectiveServerSortOrder !== "none" && pageNum > 1 && !cursor;
+        effectiveServerSortOrder !== "none" && pageNum > 1;
       const requestPage = useSortedProgressiveWindow ? 1 : pageNum;
       const requestLimit = useSortedProgressiveWindow
         ? ITEMS_PER_PAGE * pageNum
@@ -1852,14 +1880,18 @@ function useCatalogData(params: {
     const cancelPageWarmup = () => {};
 
     const trimmed = normalizedSearch;
-    const requestCursor =
+    const shouldUseSortedProgressivePage =
+      effectiveServerSortOrder !== "none" && page > 1;
+    const rawRequestCursor =
       canUseCursorPagination && page > 1
         ? nextCursorByPageRef.current[page] ?? ""
         : "";
-    const requestCursorField =
+    const rawRequestCursorField =
       canUseCursorPagination && page > 1
         ? nextCursorFieldByPageRef.current[page] ?? ""
         : "";
+    const requestCursor = shouldUseSortedProgressivePage ? "" : rawRequestCursor;
+    const requestCursorField = shouldUseSortedProgressivePage ? "" : rawRequestCursorField;
     const cacheKey = buildCacheKey(page, trimmed, requestCursor, requestCursorField);
 
     const applyCachedItems = (payload: CatalogPagePayload) => {
@@ -1884,6 +1916,10 @@ function useCatalogData(params: {
         page === 1
           ? nextData.length > 0
           : nextData.length > previousData.length;
+      const newlyIntroducedItems =
+        page === 1 ? uniqueIncoming : nextData.slice(previousData.length);
+      const sideEffectItems =
+        newlyIntroducedItems.length > 0 ? newlyIntroducedItems : items;
       if (payload.prices && Object.keys(payload.prices).length > 0) {
         setPrices((prev) => {
           let didChange = false;
@@ -1910,8 +1946,12 @@ function useCatalogData(params: {
       });
       dataRef.current = nextData;
       setData(nextData);
-      if (payload.nextCursor) {
-        nextCursorByPageRef.current[page + 1] = payload.nextCursor;
+      const payloadNextCursor = payload.nextCursor || "";
+      const hasUsableNextCursor =
+        Boolean(payloadNextCursor) && !shouldUseSortedProgressivePage;
+
+      if (hasUsableNextCursor) {
+        nextCursorByPageRef.current[page + 1] = payloadNextCursor;
         nextCursorFieldByPageRef.current[page + 1] = payload.cursorField || "";
       } else {
         delete nextCursorByPageRef.current[page + 1];
@@ -1925,29 +1965,26 @@ function useCatalogData(params: {
           ? payload.hasMore
           : items.length === ITEMS_PER_PAGE;
       const shouldOptimisticallyKeepLoadingSortedPages =
-        sortOrder !== "none" && items.length === ITEMS_PER_PAGE;
+        sortOrder !== "none" &&
+        items.length >= ITEMS_PER_PAGE &&
+        (hasUsableNextCursor || pageIntroducedNewItems);
       const resolvedHasMore =
         payloadHasMore || shouldOptimisticallyKeepLoadingSortedPages;
       const isDuplicatePageChunk =
         page > 1 &&
         items.length > 0 &&
         !pageIntroducedNewItems &&
-        !payload.nextCursor;
+        !hasUsableNextCursor;
 
-      // Price-sorted pages can legally overlap when backend has no stable cursor.
-      // Do not stop infinite scroll on duplicate chunks in this mode.
-      const isCursorlessSortedMode =
-        sortOrder !== "none" && !payload.nextCursor;
-
-      if (isDuplicatePageChunk && !isCursorlessSortedMode) {
+      if (isDuplicatePageChunk) {
         duplicatePageStreakRef.current += 1;
       } else {
         duplicatePageStreakRef.current = 0;
       }
 
-      // Some backend pages can overlap; stop after 3 consecutive duplicate pages.
+      // Some backend pages can overlap; stop after repeated duplicate chunks.
       const shouldStopPaginationOnDuplicatePage =
-        !isCursorlessSortedMode && !payload.nextCursor && duplicatePageStreakRef.current >= 3;
+        !hasUsableNextCursor && duplicatePageStreakRef.current >= 2;
 
       setHasMore(
         shouldStopPaginationOnDuplicatePage ? false : resolvedHasMore
@@ -1964,15 +2001,15 @@ function useCatalogData(params: {
 
       cancelPageWarmup();
       // Одразу паралельно з оновленням даних запускаємо fetchCatalogPagePrices та fetchCatalogPageImages
-      applyResolvedPagePrices(items, payload.prices);
-      void fetchCatalogPagePrices(items, {
+      applyResolvedPagePrices(sideEffectItems, payload.prices);
+      void fetchCatalogPagePrices(sideEffectItems, {
         prefetchedPrices: payload.prices,
         cacheKey,
         ttlMs: ttl,
         querySignatureSnapshot: currentQuerySignature,
         signal: controller.signal,
       });
-      fetchCatalogPageImages(items, {
+      fetchCatalogPageImages(sideEffectItems, {
         prefetchedImages: payload.images,
         cacheKey,
         ttlMs: ttl,
@@ -2124,6 +2161,7 @@ function useCatalogData(params: {
     hideNextPageLoader,
     scheduleCatalogBackgroundTask,
     sortOrder,
+    effectiveServerSortOrder,
   ]);
 
   useEffect(() => {
@@ -2152,8 +2190,14 @@ function useCatalogData(params: {
         if (cancelled) return;
 
         const targetPage = page + depth;
-        const targetCursor = canUseCursorPagination ? upcomingCursor : "";
-        const targetCursorField = canUseCursorPagination ? upcomingCursorField : "";
+        const targetUsesSortedProgressivePage =
+          effectiveServerSortOrder !== "none" && targetPage > 1;
+        const targetCursor =
+          targetUsesSortedProgressivePage || !canUseCursorPagination ? "" : upcomingCursor;
+        const targetCursorField =
+          targetUsesSortedProgressivePage || !canUseCursorPagination
+            ? ""
+            : upcomingCursorField;
 
         const targetCacheKey = buildCacheKey(
           targetPage,
@@ -2168,7 +2212,11 @@ function useCatalogData(params: {
         const memoryHit = readPageFromMemory(targetCacheKey);
 
         if (memoryHit) {
-          if (canUseCursorPagination && memoryHit.nextCursor) {
+          if (
+            canUseCursorPagination &&
+            !targetUsesSortedProgressivePage &&
+            memoryHit.nextCursor
+          ) {
             nextCursorByPageRef.current[targetPage + 1] = memoryHit.nextCursor;
             nextCursorFieldByPageRef.current[targetPage + 1] =
               memoryHit.cursorField || "";
@@ -2176,15 +2224,18 @@ function useCatalogData(params: {
             upcomingCursorField = memoryHit.cursorField || "";
           }
           if (memoryHit.items.length === 0) return;
+          const memorySideEffectItems = targetUsesSortedProgressivePage
+            ? memoryHit.items.slice(-ITEMS_PER_PAGE)
+            : memoryHit.items;
           // Prefetch images and prices for memoryHit
-          void fetchCatalogPagePrices(memoryHit.items, {
+          void fetchCatalogPagePrices(memorySideEffectItems, {
             prefetchedPrices: memoryHit.prices,
             cacheKey: targetCacheKey,
             ttlMs: ttl,
             querySignatureSnapshot: querySignature,
             signal: controller.signal,
           });
-          fetchCatalogPageImages(memoryHit.items, {
+          fetchCatalogPageImages(memorySideEffectItems, {
             prefetchedImages: memoryHit.images,
             cacheKey: targetCacheKey,
             ttlMs: ttl,
@@ -2206,7 +2257,14 @@ function useCatalogData(params: {
 
           writePageToMemory(targetCacheKey, payload, ttl);
           writePageToSession(targetCacheKey, payload);
-          if (canUseCursorPagination && payload.nextCursor) {
+          const payloadSideEffectItems = targetUsesSortedProgressivePage
+            ? payload.items.slice(-ITEMS_PER_PAGE)
+            : payload.items;
+          if (
+            canUseCursorPagination &&
+            !targetUsesSortedProgressivePage &&
+            payload.nextCursor
+          ) {
             nextCursorByPageRef.current[targetPage + 1] = payload.nextCursor;
             nextCursorFieldByPageRef.current[targetPage + 1] =
               payload.cursorField || "";
@@ -2219,14 +2277,14 @@ function useCatalogData(params: {
             upcomingCursorField = "";
           }
           // Prefetch images and prices for payload
-          void fetchCatalogPagePrices(payload.items, {
+          void fetchCatalogPagePrices(payloadSideEffectItems, {
             prefetchedPrices: payload.prices,
             cacheKey: targetCacheKey,
             ttlMs: ttl,
             querySignatureSnapshot: querySignature,
             signal: controller.signal,
           });
-          fetchCatalogPageImages(payload.items, {
+          fetchCatalogPageImages(payloadSideEffectItems, {
             prefetchedImages: payload.images,
             cacheKey: targetCacheKey,
             ttlMs: ttl,
@@ -2262,6 +2320,7 @@ function useCatalogData(params: {
     safeData.length,
     selectedCars.length,
     sortOrder,
+    effectiveServerSortOrder,
   ]);
 // --- Р†РЅС–С†С–Р°Р»С–Р·Р°С†С–СЏ РєС–Р»СЊРєРѕСЃС‚РµР№ ---
   useEffect(() => {

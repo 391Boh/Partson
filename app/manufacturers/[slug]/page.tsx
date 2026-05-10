@@ -439,11 +439,13 @@ const getManufacturerBySlug = cache(
   async (slug: string): Promise<ManufacturerPageData | null> => {
     const fallbackBrand =
       brands.find((brand) => buildSeoSlug(brand.name) === slug) || null;
-    const producer = await resolveWithTimeout(
-      () => findSeoProducerBySlug(slug),
-      null,
-      MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS
-    ).catch(() => null);
+    const producer = isProductionBuildPhase && fallbackBrand
+      ? null
+      : await resolveWithTimeout(
+          () => findSeoProducerBySlug(slug),
+          null,
+          MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS
+        ).catch(() => null);
     if (!producer && !fallbackBrand) return null;
 
     const label = producer?.label || fallbackBrand?.name || "";

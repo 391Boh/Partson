@@ -18,7 +18,7 @@ import {
 
 // Delay before final image retry (ms)
 const FINAL_RETRY_DELAY_MS = 400;
-const DEFERRED_DIRECT_LOAD_DELAY_MS = 500;
+const DEFERRED_DIRECT_LOAD_DELAY_MS = 300;
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
@@ -224,7 +224,8 @@ const ProductCardImage: React.FC<Props> = ({
 
   const canOpen = Boolean(onClick) && status === "loaded";
   // Show skeleton until image is fully loaded (not just while requestSrc is empty)
-  const showLoadingSkeleton = status === "loading" || batchImagePending;
+  const showLoadingSkeleton =
+    status !== "loaded" && (status === "loading" || batchImagePending);
   const showPlaceholder = status === "missing";
   const imageDecodingMode = fetchPriority === "high" ? "sync" : "async";
 

@@ -18,7 +18,7 @@ type CatalogPageApiPayload = {
 const ROUTE_SUCCESS_CACHE_TTL_MS = 1000 * 60 * 4;
 const ROUTE_SUCCESS_STALE_TTL_MS = 1000 * 60 * 45;
 const ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS = 1000 * 60 * 30;
-const CATALOG_ROUTE_RESPONSE_TIMEOUT_MS = 7500;
+const CATALOG_ROUTE_RESPONSE_TIMEOUT_MS = 9000;
 
 type RouteSuccessCacheEntry = {
   freshUntil: number;
@@ -45,7 +45,7 @@ const toPositiveInt = (value: unknown, fallback: number) => {
 
 const buildRouteCacheKey = (body: Record<string, unknown>) =>
   JSON.stringify({
-    source: "catalog-page:v10-cursor-sorted-7500ms",
+    source: "catalog-page:v11-cursor-sorted-9000ms",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -210,8 +210,8 @@ export async function POST(request: Request) {
     const timeoutMs = isDescriptionSearch
       ? 5200
       : hasTightFilterContext
-        ? 3200
-        : 3100;
+        ? 4200
+        : 3600;
     const retries = 0;
     const retryDelayMs = hasTightFilterContext ? 80 : 150;
     const cacheTtlMs = hasTightFilterContext ? 1000 * 20 : 1000 * 45;

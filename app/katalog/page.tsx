@@ -14,7 +14,7 @@ import {
   type CatalogSeoFacets,
 } from "app/lib/catalog-seo";
 import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
-import { buildProductPath } from "app/lib/product-url";
+import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -691,17 +691,21 @@ const CatalogSeoSnapshot = ({
         </p>
         {visibleItems.length > 0 && (
           <ul className="mt-3 grid grid-cols-1 gap-y-1 sm:grid-cols-2">
-            {visibleItems.slice(0, 12).map((item) => (
-              <li key={item.code}>
-                <a
-                  href={buildSeoProductPath(item)}
-                  className="text-sky-700 hover:underline"
-                >
-                  {item.name}
-                  {item.producer ? ` — ${item.producer}` : ""}
-                </a>
-              </li>
-            ))}
+            {visibleItems.slice(0, 12).map((item) => {
+              const visibleName = buildVisibleProductName(item.name);
+
+              return (
+                <li key={item.code}>
+                  <a
+                    href={buildSeoProductPath(item)}
+                    className="text-sky-700 hover:underline"
+                  >
+                    {visibleName}
+                    {item.producer ? ` — ${item.producer}` : ""}
+                  </a>
+                </li>
+              );
+            })}
           </ul>
         )}
         {showDiscovery && (

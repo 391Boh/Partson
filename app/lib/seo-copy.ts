@@ -1,3 +1,5 @@
+import { buildVisibleProductName } from "app/lib/product-url";
+
 type HomeSeoContent = {
   title: string;
   intro: string;
@@ -42,6 +44,7 @@ type GroupItemSeoCopy = {
 };
 
 const normalizeLabel = (value: string) => value.trim().toLowerCase();
+const normalizeSeoLabel = (value: string) => buildVisibleProductName(value).trim();
 
 export const homeSeoContent: HomeSeoContent = {
   title: "PartsON — автозапчастини Львів",
@@ -381,7 +384,8 @@ const GROUP_COPY_MAP: Record<string, Omit<GroupSeoCopy, "title">> = {
 };
 
 export const getGroupSeoCopy = (label: string, productCount: number): GroupSeoCopy => {
-  const normalized = normalizeLabel(label);
+  const seoLabel = normalizeSeoLabel(label);
+  const normalized = normalizeLabel(seoLabel);
   const entry = GROUP_COPY_MAP[normalized];
   const productCountLabel =
     productCount > 0
@@ -390,27 +394,27 @@ export const getGroupSeoCopy = (label: string, productCount: number): GroupSeoCo
 
   if (entry) {
     return {
-      title: `${label} — купити автозапчастини у Львові | PartsON`,
+      title: `${seoLabel} — купити автозапчастини у Львові | PartsON`,
       intro: entry.intro,
       paragraphs: [
         ...entry.paragraphs,
-        `У PartsON ця категорія містить ${productCountLabel} і підгрупи для переходу в каталог. Сторінка закриває запити купити ${label}, автозапчастини ${label} Львів, підбір ${label} за артикулом і доставка запчастин по Україні.`,
+        `У PartsON ця категорія містить ${productCountLabel} і підгрупи для переходу в каталог. Сторінка закриває запити купити ${seoLabel}, автозапчастини ${seoLabel} Львів, підбір ${seoLabel} за артикулом і доставка запчастин по Україні.`,
       ],
       highlights: entry.highlights,
     };
   }
 
   return {
-    title: `${label} — автозапчастини у Львові | PartsON`,
+    title: `${seoLabel} — автозапчастини у Львові | PartsON`,
     intro:
-      `${label} у PartsON — це сторінка для швидкого переходу до конкретних автозапчастин, підгруп і товарів у каталозі автозапчастин у Львові з доставкою по Україні.`,
+      `${seoLabel} у PartsON — це сторінка для швидкого переходу до конкретних автозапчастин, підгруп і товарів у каталозі автозапчастин у Львові з доставкою по Україні.`,
     paragraphs: [
-      `Сторінка ${label} підходить під запити автозапчастини ${label}, купити ${label}, запчастини ${label} Львів, каталог ${label}, підбір запчастин за кодом, артикулом і виробником.`,
+      `Сторінка ${seoLabel} підходить під запити автозапчастини ${seoLabel}, купити ${seoLabel}, запчастини ${seoLabel} Львів, каталог ${seoLabel}, підбір запчастин за кодом, артикулом і виробником.`,
       `У каталозі PartsON можна швидко перейти до підгруп, знайти релевантні запчастини, відкрити сторінку товару, перевірити наявність, ціну або сформувати запит менеджеру.`,
       `У цьому розділі доступні ${productCountLabel} і підгрупи для замовлення у Львові та доставки по Україні.`,
     ],
     highlights: [
-      `${label} та суміжні підгрупи;`,
+      `${seoLabel} та суміжні підгрупи;`,
       "конкретні автозапчастини і товарні сторінки;",
       "підбір за кодом, артикулом, назвою і виробником;",
       "замовлення у Львові та доставка по Україні;",
@@ -429,9 +433,11 @@ export const getGroupItemSeoCopy = (options: {
   producersCount: number;
   childrenCount: number;
 }): GroupItemSeoCopy => {
-  const label = options.label.trim();
-  const groupLabel = options.groupLabel.trim();
-  const parentSubgroupLabel = (options.parentSubgroupLabel || "").trim();
+  const label = normalizeSeoLabel(options.label);
+  const groupLabel = normalizeSeoLabel(options.groupLabel);
+  const parentSubgroupLabel = options.parentSubgroupLabel
+    ? normalizeSeoLabel(options.parentSubgroupLabel)
+    : "";
   const productCountLabel =
     options.productCount > 0
       ? `${options.productCount.toLocaleString("uk-UA")} товарів`

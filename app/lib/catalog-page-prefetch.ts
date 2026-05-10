@@ -2,7 +2,7 @@
 
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_ITEMS_PER_PAGE = 12;
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v23-sorted-rescue-media";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v25-price-scroll-fast-media";
 
 type CatalogSearchFilter = "all" | "article" | "name" | "code" | "producer" | "description";
 
