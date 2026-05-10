@@ -375,6 +375,7 @@ useEffect(() => {
                                 fetchPriority={imageFetchPriority}
                                 prefetchedSrc={prefetchedImageSrc}
                                 deferDirectLoad={batchImageOnly && !prefetchedImageSrc && !batchImageMissing}
+                                disableDirectLoad={batchImageOnly && !prefetchedImageSrc && !batchImageMissing}
                                 batchImagePending={batchImagePending}
                             />
                         </div>

@@ -105,6 +105,7 @@ const ALLGOODS_PRODUCER_FIELD = "\u041f\u0440\u043e\u0438\u0437\u0432\u043e\u043
 const ALLGOODS_GROUP_FIELD = "\u0413\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SUBGROUP_FIELD = "\u041f\u043e\u0434\u0433\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SORT_PRICE_FIELD = "\u0421\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u043a\u0430\u041f\u043e\u0426\u0435\u043d\u0435";
+const ALLGOODS_PRICE_MAX_FIELD = "\u0426\u0435\u043d\u0430\u0414\u043e";
 const ALLGOODS_INCLUDE_DESCRIPTION_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435";
 const ALLGOODS_SORT_WINDOW_MAX_LIMIT = 2500;
 const INFO_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443";
@@ -497,6 +498,84 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     requestBodyBase[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = false;
   }
 
+  if (isPriceSorted && !requestedCursor) {
+    const start = (page - 1) * limit;
+    const targetCount = start + limit + 1;
+    const collected: CatalogProduct[] = [];
+    const seen = new Set<string>();
+    let priceMax: number | null = null;
+    let sourceMayHaveMore = false;
+
+    for (let attempt = 0; attempt < 8 && collected.length < targetCount; attempt += 1) {
+      const remainingCount = targetCount - collected.length;
+      const requestLimit = Math.min(500, Math.max(limit, remainingCount));
+      const body: Record<string, unknown> = {
+        ...requestBodyBase,
+        [ALLGOODS_LIMIT_FIELD]: requestLimit,
+      };
+
+      if (priceMax != null) {
+        body[ALLGOODS_PRICE_MAX_FIELD] = priceMax;
+      }
+
+      const response = await oneCRequest("allgoods", {
+        method: "POST",
+        body,
+        timeoutMs: options.timeoutMs,
+        retries: options.retries ?? 1,
+        retryDelayMs: options.retryDelayMs ?? 250,
+        cacheTtlMs: options.cacheTtlMs,
+      });
+
+      if (response.status < 200 || response.status >= 300) {
+        const details = extractResponseErrorDetails(response.text);
+        throw new Error(
+          details
+            ? `Catalog allgoods failed: ${response.status} ${details}`
+            : `Catalog allgoods failed: ${response.status}`
+        );
+      }
+
+      const parsed = parseAllgoodsPayload(response.text);
+      sourceMayHaveMore = parsed.hasMore || parsed.items.length >= requestLimit;
+      let addedCount = 0;
+
+      for (const item of parsed.items) {
+        const key =
+          normalizeFacetValue(item.code) ||
+          normalizeFacetValue(item.article) ||
+          `${normalizeFacetValue(item.name)}:${normalizeFacetValue(item.producer)}`;
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        collected.push(item);
+        addedCount += 1;
+      }
+
+      const lastPrice = parsed.items
+        .map((item) => item.priceEuro)
+        .filter((value): value is number =>
+          typeof value === "number" && Number.isFinite(value) && value > 0
+        )
+        .at(-1);
+
+      if (!sourceMayHaveMore || addedCount === 0 || lastPrice == null) {
+        break;
+      }
+
+      const nextPriceMax = Math.max(0, lastPrice - 0.000001);
+      if (priceMax != null && nextPriceMax >= priceMax) {
+        break;
+      }
+      priceMax = nextPriceMax;
+    }
+
+    return {
+      items: collected.slice(start, start + limit),
+      hasMore: collected.length > start + limit || sourceMayHaveMore,
+      nextCursor: "",
+    };
+  }
+
   if (requestedCursor) {
     const response = await oneCRequest("allgoods", {
       method: "POST",
@@ -574,7 +653,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       };
     }
 
-    if (isPriceSorted && !parsed.nextCursor && parsed.items.length >= limit) {
+    if (isPriceSorted && parsed.items.length >= limit) {
       const start = (page - 1) * limit;
       const targetCount = start + limit + 1;
       let requestedLimit = Math.min(

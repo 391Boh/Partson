@@ -45,7 +45,7 @@ const toPositiveInt = (value: unknown, fallback: number) => {
 
 const buildRouteCacheKey = (body: Record<string, unknown>) =>
   JSON.stringify({
-    source: "catalog-page:v11-cursor-sorted-9000ms",
+    source: "catalog-page:v12-allgoods-primary-9000ms",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -196,17 +196,19 @@ export async function POST(request: Request) {
     const normalizedGroup = toTrimmedString(body.group);
     const normalizedSubcategory = toTrimmedString(body.subcategory);
     const normalizedProducer = toTrimmedString(body.producer);
+    const normalizedSelectedCategories = toStringArray(body.selectedCategories);
     const isDescriptionSearch =
       body.searchFilter === "description" && Boolean(normalizedSearchQuery);
     const hasTightFilterContext = Boolean(
       normalizedSearchQuery ||
         normalizedGroup ||
         normalizedSubcategory ||
-        normalizedProducer
+        normalizedProducer ||
+        normalizedSelectedCategories.length > 0
     );
 
-    // Default catalog and facet pages use the lighter getdata path first. allgoods is
-    // reserved for cursor continuation, price sorting and description search.
+    // Catalog browsing without car binding should prefer the complete allgoods feed.
+    // Keep getdata as fallback and as the only source for selectedCars queries.
     const timeoutMs = isDescriptionSearch
       ? 5200
       : hasTightFilterContext
@@ -225,7 +227,7 @@ export async function POST(request: Request) {
       cursor: toTrimmedString(body.cursor),
       cursorField: toTrimmedString(body.cursorField),
       selectedCars: toStringArray(body.selectedCars),
-      selectedCategories: toStringArray(body.selectedCategories),
+      selectedCategories: normalizedSelectedCategories,
       searchQuery: normalizedSearchQuery,
       searchFilter:
         body.searchFilter === "article" ||
@@ -259,13 +261,14 @@ export async function POST(request: Request) {
       retryDelayMs: number;
       cacheTtlMs: number;
     }) => {
-      const needsAllgoods =
+      const canUseCompleteAllgoodsCatalog = queryBase.selectedCars.length === 0;
+      const shouldUseCursorBackedSource =
         Boolean(queryBase.cursor || queryBase.cursorField) ||
         queryBase.sortOrder !== "none" ||
         isDescriptionSearch;
 
-      if (needsAllgoods) {
-        return fetchCatalogProductsByQuery({
+      const runAllgoodsQuery = () =>
+        fetchCatalogProductsByQuery({
           ...queryBase,
           timeoutMs: runtime.timeoutMs,
           retries: runtime.retries,
@@ -275,6 +278,27 @@ export async function POST(request: Request) {
           preferLegacySource: false,
           forceAllgoodsSource: true,
         });
+
+      let allgoodsPrimary: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>> | null = null;
+
+      if (canUseCompleteAllgoodsCatalog) {
+        allgoodsPrimary = await runAllgoodsQuery().catch(() => null);
+
+        if (
+          allgoodsPrimary &&
+          (allgoodsPrimary.items.length > 0 ||
+            Boolean(queryBase.cursor || queryBase.cursorField))
+        ) {
+          return allgoodsPrimary;
+        }
+      }
+
+      if (shouldUseCursorBackedSource) {
+        if (allgoodsPrimary) {
+          return allgoodsPrimary;
+        }
+
+        return runAllgoodsQuery();
       }
 
       const legacyResult = await fetchCatalogProductsByQuery({
@@ -291,7 +315,18 @@ export async function POST(request: Request) {
         return null;
       });
 
-      if (legacyResult && (legacyResult.items.length > 0 || queryBase.selectedCars.length > 0)) {
+      const shouldCheckAllgoodsCoverage =
+        Boolean(legacyResult) &&
+        queryBase.selectedCars.length === 0 &&
+        hasTightFilterContext &&
+        legacyResult!.items.length > 0 &&
+        (!legacyResult!.hasMore || legacyResult!.items.length < queryBase.limit);
+
+      if (
+        legacyResult &&
+        (legacyResult.items.length > 0 || queryBase.selectedCars.length > 0) &&
+        !shouldCheckAllgoodsCoverage
+      ) {
         return legacyResult;
       }
 
@@ -314,6 +349,20 @@ export async function POST(request: Request) {
         preferLegacySource: false,
         forceAllgoodsSource: true,
       }).catch(() => null);
+
+      if (allgoodsFallback && allgoodsFallback.items.length > 0) {
+        if (
+          !legacyResult ||
+          allgoodsFallback.items.length > legacyResult.items.length ||
+          (!legacyResult.hasMore && allgoodsFallback.hasMore)
+        ) {
+          return allgoodsFallback;
+        }
+      }
+
+      if (legacyResult && legacyResult.items.length > 0) {
+        return legacyResult;
+      }
 
       if (allgoodsFallback && allgoodsFallback.items.length > 0) {
         return allgoodsFallback;

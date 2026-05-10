@@ -682,6 +682,8 @@ const Category: React.FC<CategoryProps> = ({
     if (!href) return;
     if (typeof window !== "undefined") {
       safeSetStorageItem(window.sessionStorage, "catalogScrollTarget", "results");
+      window.history.replaceState(null, "", href);
+      return;
     }
     router.replace(href, { scroll: false });
   };

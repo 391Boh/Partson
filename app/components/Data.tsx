@@ -48,6 +48,7 @@ export interface Product {
 // --- Constants ---
 // Keep pages small to avoid overloading 1C and shorten perceived waits.
 const ITEMS_PER_PAGE = 12;
+const PRICE_SORT_ITEMS_PER_PAGE = 250;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
 const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v25-price-scroll-fast-media";
@@ -56,9 +57,9 @@ const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
 const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 45;
-const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE;
-const PRICE_FULL_LOOKUP_MAX_ITEMS = ITEMS_PER_PAGE;
-const PRICE_FULL_LOOKUP_DELAY_MS = 140;
+const PRICE_PAGE_BATCH_SIZE = PRICE_SORT_ITEMS_PER_PAGE;
+const PRICE_FULL_LOOKUP_MAX_ITEMS = 12;
+const PRICE_FULL_LOOKUP_DELAY_MS = 0;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 20;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 60 * 4;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60 * 4;
@@ -76,6 +77,8 @@ const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 18;
 const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = 18;
 const LOAD_MORE_SCROLL_BUFFER_PX = 1200;
 const LOAD_MORE_OBSERVER_ROOT_MARGIN = "0px 0px 1400px 0px";
+const PRICE_SORT_AUTOLOAD_MAX_ITEMS = 1200;
+const PRICE_SORT_AUTOLOAD_DELAY_MS = 140;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 80;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 90;
 // Keep the old safety fallback for grid windowing; card-level content visibility
@@ -83,6 +86,7 @@ const NEXT_PAGE_REQUEST_COOLDOWN_MS = 90;
 const VIRTUAL_WINDOW_THRESHOLD_ITEMS = 1000000;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
 const VIRTUAL_OVERSCAN_ROWS = 6;
+const FILTER_SCROLL_RETRY_DELAYS_MS = [0, 80, 180] as const;
 const SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT = 1;
 const SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS = 420;
 const DEFAULT_EURO_RATE = 50;
@@ -481,6 +485,21 @@ const mergeUniqueProducts = (current: Product[], incoming: Product[]) => {
   return Array.from(map.values());
 };
 
+const hasNewProductsForList = (current: Product[], incoming: Product[]) => {
+  if (incoming.length === 0) return false;
+
+  const seen = new Set(
+    current
+      .map(getProductIdentity)
+      .filter((key): key is string => Boolean(key))
+  );
+
+  return incoming.some((item) => {
+    const key = getProductIdentity(item);
+    return Boolean(key) && !seen.has(key);
+  });
+};
+
 const CATALOG_GRID_CLASS =
   "mx-auto mt-2 grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4";
 
@@ -560,6 +579,35 @@ const abortControllerSafely = (controller: AbortController) => {
     controller.abort();
   } catch {
     // Prevent teardown-time abort edge cases from surfacing as runtime errors.
+  }
+};
+
+const scrollCatalogResultsToTop = () => {
+  if (typeof window === "undefined") return;
+
+  const scroll = () => {
+    const target = document.getElementById("catalog-results");
+    const filterShell = document.querySelector<HTMLElement>(".catalog-filter-shell");
+    const headerHeight = Number.parseFloat(
+      window
+        .getComputedStyle(document.documentElement)
+        .getPropertyValue("--header-height")
+    );
+    const headerOffset = Number.isFinite(headerHeight) ? headerHeight + 12 : 76;
+    const filterOffset = filterShell
+      ? Math.ceil(filterShell.getBoundingClientRect().bottom) + 12
+      : 0;
+    const offset = Math.max(headerOffset, filterOffset);
+    const top = target
+      ? Math.max(0, window.scrollY + target.getBoundingClientRect().top - offset)
+      : 0;
+
+    window.scrollTo({ top, behavior: "auto" });
+  };
+
+  window.requestAnimationFrame(scroll);
+  for (const delay of FILTER_SCROLL_RETRY_DELAYS_MS) {
+    window.setTimeout(scroll, delay);
   }
 };
 
@@ -811,7 +859,9 @@ function useCatalogData(params: {
     () => (hasUrlCategoryFilter ? [] : selectedCategories),
     [hasUrlCategoryFilter, selectedCategories]
   );
-  const effectiveServerSortOrder = sortOrder;
+  const effectiveServerSortOrder = sortOrder === "none" ? "none" : "desc";
+  const catalogItemsPerPage =
+    sortOrder === "none" ? ITEMS_PER_PAGE : PRICE_SORT_ITEMS_PER_PAGE;
   const canUseCursorPagination = selectedCars.length === 0;
   const [data, setData] = useState<Product[]>([]);
   const [prices, setPrices] = useState<Record<string, number | null>>({});
@@ -840,7 +890,7 @@ function useCatalogData(params: {
         group: groupFromURL,
         subcategory: subcategoryFromURL,
         producer: producerFromURL,
-        sortOrder: effectiveServerSortOrder,
+        sortOrder,
       }),
     [
       normalizedSearch,
@@ -850,7 +900,7 @@ function useCatalogData(params: {
       groupFromURL,
       subcategoryFromURL,
       producerFromURL,
-      effectiveServerSortOrder,
+      sortOrder,
     ]
   );
   const activeQuerySignatureRef = useRef(querySignature);
@@ -1593,11 +1643,17 @@ function useCatalogData(params: {
 
   // РєР»СЋС‡ РєРµС€Сѓ
   const buildCacheKey = useCallback(
-    (pageNum: number, trimmed: string, cursor = "", cursorField = "") =>
+    (
+      pageNum: number,
+      trimmed: string,
+      cursor = "",
+      cursorField = "",
+      limit = catalogItemsPerPage
+    ) =>
       JSON.stringify({
         endpoint: CATALOG_PAGE_CACHE_VERSION,
         page: pageNum,
-        limit: ITEMS_PER_PAGE,
+        limit,
         cursor,
         cursorField,
         q: trimmed,
@@ -1617,6 +1673,7 @@ function useCatalogData(params: {
       subcategoryFromURL,
       producerFromURL,
       effectiveServerSortOrder,
+      catalogItemsPerPage,
     ]
   );
 
@@ -1627,15 +1684,16 @@ function useCatalogData(params: {
       cursor = "",
       cursorField = ""
     ) => {
-      // Price-sorted cursor continuation can be empty on the 1C side even when
-      // the first response returns a cursor. Use a progressive sorted window
-      // instead: page 2 asks for 24 items, page 3 for 36, then we merge only new rows.
+      // Prefer cursor continuation for sorted catalog pages. The progressive
+      // sorted window is only a fallback when 1C does not provide a cursor.
       const useSortedProgressiveWindow =
         effectiveServerSortOrder !== "none" && pageNum > 1;
+      const baseRequestLimit =
+        sortOrder === "none" ? ITEMS_PER_PAGE : PRICE_SORT_ITEMS_PER_PAGE;
       const requestPage = useSortedProgressiveWindow ? 1 : pageNum;
       const requestLimit = useSortedProgressiveWindow
-        ? ITEMS_PER_PAGE * pageNum
-        : ITEMS_PER_PAGE;
+        ? baseRequestLimit * pageNum
+        : baseRequestLimit;
       const requestCursor = useSortedProgressiveWindow ? "" : cursor;
       const requestCursorField = useSortedProgressiveWindow ? "" : cursorField;
 
@@ -1643,7 +1701,8 @@ function useCatalogData(params: {
         pageNum,
         normalizedSearch,
         requestCursor,
-        requestCursorField
+        requestCursorField,
+        requestLimit
       );
       const existing = inFlightPageRequests.get(cacheKey);
       if (existing) {
@@ -1730,6 +1789,7 @@ function useCatalogData(params: {
       searchFilter,
       selectedCars,
       effectiveServerSortOrder,
+      sortOrder,
       subcategoryFromURL,
     ]
   );
@@ -1780,8 +1840,13 @@ function useCatalogData(params: {
             ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
             querySignatureSnapshot: querySignature,
           });
-          // Не обмежуємо prefetch для першої сторінки, images вже є
-          // fetchCatalogPageImages(memoryHit.items, { ... });
+          fetchCatalogPageImages(memoryHit.items, {
+            prefetchedImages: memoryHit.images,
+            cacheKey,
+            ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
+            querySignatureSnapshot: querySignature,
+            skipFirst: 0,
+          });
         });
         dataRef.current = nextItems;
         setData(nextItems);
@@ -1790,7 +1855,7 @@ function useCatalogData(params: {
         setHasMore(
           typeof memoryHit.hasMore === "boolean"
             ? memoryHit.hasMore
-            : memoryHit.items.length === ITEMS_PER_PAGE
+            : memoryHit.items.length >= catalogItemsPerPage
         );
         setLoading(false);
         setError(null);
@@ -1815,8 +1880,13 @@ function useCatalogData(params: {
             ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
             querySignatureSnapshot: querySignature,
           });
-          // Не обмежуємо prefetch для першої сторінки, images вже є
-          // fetchCatalogPageImages(sessionHit.items, { ... });
+          fetchCatalogPageImages(sessionHit.items, {
+            prefetchedImages: sessionHit.images,
+            cacheKey,
+            ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
+            querySignatureSnapshot: querySignature,
+            skipFirst: 0,
+          });
         });
         dataRef.current = nextItems;
         setData(nextItems);
@@ -1825,7 +1895,7 @@ function useCatalogData(params: {
         setHasMore(
           typeof sessionHit.hasMore === "boolean"
             ? sessionHit.hasMore
-            : sessionHit.items.length === ITEMS_PER_PAGE
+            : sessionHit.items.length >= catalogItemsPerPage
         );
         setLoading(false);
         setError(null);
@@ -1858,6 +1928,7 @@ function useCatalogData(params: {
     initialQuerySignature,
     normalizedSearch,
     buildCacheKey,
+    catalogItemsPerPage,
     hideNextPageLoader,
     scheduleCatalogBackgroundTask,
   ]);
@@ -1880,8 +1951,6 @@ function useCatalogData(params: {
     const cancelPageWarmup = () => {};
 
     const trimmed = normalizedSearch;
-    const shouldUseSortedProgressivePage =
-      effectiveServerSortOrder !== "none" && page > 1;
     const rawRequestCursor =
       canUseCursorPagination && page > 1
         ? nextCursorByPageRef.current[page] ?? ""
@@ -1890,6 +1959,8 @@ function useCatalogData(params: {
       canUseCursorPagination && page > 1
         ? nextCursorFieldByPageRef.current[page] ?? ""
         : "";
+    const shouldUseSortedProgressivePage =
+      effectiveServerSortOrder !== "none" && page > 1;
     const requestCursor = shouldUseSortedProgressivePage ? "" : rawRequestCursor;
     const requestCursorField = shouldUseSortedProgressivePage ? "" : rawRequestCursorField;
     const cacheKey = buildCacheKey(page, trimmed, requestCursor, requestCursorField);
@@ -1948,7 +2019,10 @@ function useCatalogData(params: {
       setData(nextData);
       const payloadNextCursor = payload.nextCursor || "";
       const hasUsableNextCursor =
-        Boolean(payloadNextCursor) && !shouldUseSortedProgressivePage;
+        Boolean(payloadNextCursor) &&
+        effectiveServerSortOrder === "none" &&
+        !shouldUseSortedProgressivePage &&
+        payloadNextCursor !== rawRequestCursor;
 
       if (hasUsableNextCursor) {
         nextCursorByPageRef.current[page + 1] = payloadNextCursor;
@@ -1963,28 +2037,38 @@ function useCatalogData(params: {
       const payloadHasMore =
         typeof payload.hasMore === "boolean"
           ? payload.hasMore
-          : items.length === ITEMS_PER_PAGE;
+          : items.length >= catalogItemsPerPage;
       const shouldOptimisticallyKeepLoadingSortedPages =
         sortOrder !== "none" &&
-        items.length >= ITEMS_PER_PAGE &&
+        items.length >= catalogItemsPerPage &&
         (hasUsableNextCursor || pageIntroducedNewItems);
       const resolvedHasMore =
         payloadHasMore || shouldOptimisticallyKeepLoadingSortedPages;
+      // Price-sorted pages can legally overlap when the backend has no stable cursor.
+      // Never stop infinite scroll on duplicate chunks in that mode.
+      const isCursorlessSortedMode =
+        sortOrder !== "none" && !hasUsableNextCursor;
+
       const isDuplicatePageChunk =
         page > 1 &&
         items.length > 0 &&
         !pageIntroducedNewItems &&
         !hasUsableNextCursor;
 
-      if (isDuplicatePageChunk) {
+      if (isDuplicatePageChunk && !isCursorlessSortedMode) {
         duplicatePageStreakRef.current += 1;
       } else {
         duplicatePageStreakRef.current = 0;
       }
 
-      // Some backend pages can overlap; stop after repeated duplicate chunks.
+      // Some backend pages can overlap; stop only after a sustained duplicate streak
+      // AND the server itself reports no more pages. Never stop early if payloadHasMore
+      // is true — that means the upstream still has products to deliver.
       const shouldStopPaginationOnDuplicatePage =
-        !hasUsableNextCursor && duplicatePageStreakRef.current >= 2;
+        !isCursorlessSortedMode &&
+        !hasUsableNextCursor &&
+        !payloadHasMore &&
+        duplicatePageStreakRef.current >= 5;
 
       setHasMore(
         shouldStopPaginationOnDuplicatePage ? false : resolvedHasMore
@@ -2019,9 +2103,7 @@ function useCatalogData(params: {
         // don't occupy batch capacity. Count is viewport-dependent (mobile=1, tablet=2, desktop=4).
         // Page 2+: all items are below-the-fold, no skip needed.
         skipFirst: page === 1
-          ? (typeof window !== "undefined" && window.innerWidth > 0
-              ? window.innerWidth < 640 ? 1 : window.innerWidth < 1024 ? 2 : IMAGE_PRIORITY_ITEMS_COUNT
-              : 1)
+          ? 0
           : 0,
       });
 
@@ -2065,6 +2147,26 @@ function useCatalogData(params: {
           requestCursor,
           requestCursorField
         );
+
+        const shouldFallbackSortedCursorPage =
+          effectiveServerSortOrder !== "none" &&
+          page > 1 &&
+          Boolean(requestCursor) &&
+          payload.items.length > 0 &&
+          !hasNewProductsForList(dataRef.current, payload.items);
+
+        if (shouldFallbackSortedCursorPage) {
+          const fallbackPayload = await fetchCatalogPagePayload(
+            page,
+            controller.signal,
+            "",
+            ""
+          );
+
+          if (hasNewProductsForList(dataRef.current, fallbackPayload.items)) {
+            payload = fallbackPayload;
+          }
+        }
 
         const shouldSoftRetryServiceUnavailable =
           payload.serviceUnavailable && payload.items.length === 0;
@@ -2162,6 +2264,7 @@ function useCatalogData(params: {
     scheduleCatalogBackgroundTask,
     sortOrder,
     effectiveServerSortOrder,
+    catalogItemsPerPage,
   ]);
 
   useEffect(() => {
@@ -2617,6 +2720,7 @@ const Data: React.FC<DataProps> = ({
   const subcategoryFromURL = currentSearchParams.get("subcategory");
   const producerFromURL = (currentSearchParams.get("producer") || "").trim() || null;
   const lastFilterSignatureRef = useRef<string | null>(null);
+  const didScrollInitialCatalogRef = useRef(false);
   const lastStableSortedSignatureRef = useRef("");
   const softTransitionStartedAtRef = useRef(0);
   const softTransitionHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2818,6 +2922,29 @@ const Data: React.FC<DataProps> = ({
     visibleSortedData.length > 0 && loading && !isRefetching;
   const shouldShowCatalogGrid =
     visibleSortedData.length > 0 || shouldShowInitialSkeleton;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (sortOrder === "none") return;
+    if (loading || isLoadingNextPage || shouldShowInitialSkeleton) return;
+    if (!hasMore || sortedData.length === 0) return;
+    if (sortedData.length >= PRICE_SORT_AUTOLOAD_MAX_ITEMS) return;
+
+    const timerId = window.setTimeout(() => {
+      loadNextPage();
+    }, PRICE_SORT_AUTOLOAD_DELAY_MS);
+
+    return () => window.clearTimeout(timerId);
+  }, [
+    hasMore,
+    isLoadingNextPage,
+    loadNextPage,
+    loading,
+    shouldShowInitialSkeleton,
+    sortOrder,
+    sortedData.length,
+  ]);
+
   const shouldUseVirtualWindow =
     visibleSortedEntries.length >= VIRTUAL_WINDOW_THRESHOLD_ITEMS && !shouldShowInitialSkeleton;
   const virtualizedEntries = useMemo(() => {
@@ -2886,6 +3013,27 @@ const Data: React.FC<DataProps> = ({
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("scrollRestoration" in window.history)) return;
+
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+
+    return () => {
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (didScrollInitialCatalogRef.current) return;
+    if (!hasLoadedOnce || shouldShowInitialSkeleton) return;
+
+    didScrollInitialCatalogRef.current = true;
+    scrollCatalogResultsToTop();
+  }, [hasLoadedOnce, shouldShowInitialSkeleton]);
+
+  useEffect(() => {
     if (visibleCatalogImageCandidates.length === 0) return;
 
     const nextChunk = visibleCatalogImageCandidates
@@ -2912,6 +3060,14 @@ const Data: React.FC<DataProps> = ({
 
   // Keep filter/loading transitions in sync with the current query signature.
   useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      lastFilterSignatureRef.current != null &&
+      lastFilterSignatureRef.current !== filterSignature
+    ) {
+      scrollCatalogResultsToTop();
+    }
+
     lastFilterSignatureRef.current = filterSignature;
   }, [filterSignature, setFilterLoading]);
 
@@ -3240,10 +3396,14 @@ const Data: React.FC<DataProps> = ({
                 const cartQty = cartMap[code] ?? 0;
                 const absoluteIndex = effectiveVirtualWindowStartIndex + index;
 
+                const hasResolvedPriceState = Object.prototype.hasOwnProperty.call(
+                  prices,
+                  priceKey
+                );
                 const priceStatus =
                   priceUAH != null
                     ? "ready"
-                    : Object.prototype.hasOwnProperty.call(prices, priceKey)
+                    : hasResolvedPriceState || item.priceEuro == null
                       ? "request"
                       : "loading";
                 const shouldPrioritizeImage = absoluteIndex < imagePriorityItemsCount;
@@ -3286,7 +3446,7 @@ const Data: React.FC<DataProps> = ({
                       imageLoadingMode={shouldPrioritizeImage ? "eager" : "lazy"}
                       imageFetchPriority={shouldPrioritizeImage ? "high" : "low"}
                       prefetchedImageSrc={
-                        !shouldPrioritizeImage && imageBatchKey
+                        imageBatchKey
                           ? pageImages[imageBatchKey] ?? null
                           : null
                       }
@@ -3295,7 +3455,7 @@ const Data: React.FC<DataProps> = ({
                         !hasPhoto ||
                         Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
                       }
-                      batchImageOnly={hasPhoto && !shouldPrioritizeImage}
+                      batchImageOnly={hasPhoto}
                       isFlipped={flippedCard === code}
                       motionEnabled={shouldAnimateList}
                       onAddToCart={handleAddToCart}

@@ -50,16 +50,16 @@ export async function POST(request: Request) {
 
     const isFullMode = mode === "full";
     const lookupPrices = await fetchPriceEuroMapByLookupKeys(allLookupKeys, {
-      sourceTimeoutMs: isFullMode ? 1200 : 850,
+      sourceTimeoutMs: isFullMode ? 900 : 850,
       sourceCacheTtlMs: 1000 * 20,
-      timeoutMs: isFullMode ? 1250 : 850,
+      timeoutMs: isFullMode ? 900 : 850,
       retries: 0,
       retryDelayMs: 80,
       cacheTtlMs: 1000 * 60 * 5,
       includeDirectLookup: isFullMode,
       includePricesPost: true,
-      directConcurrency: isFullMode ? 5 : 4,
-      maxKeys: isFullMode ? 48 : 36,
+      directConcurrency: isFullMode ? 4 : 6,
+      maxKeys: isFullMode ? 24 : 60,
     }).catch(() => ({} as Record<string, number>));
 
     const prices: Record<string, number | null> = {};

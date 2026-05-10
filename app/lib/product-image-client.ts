@@ -1,10 +1,10 @@
 import { buildProductImageBatchKey } from "app/lib/product-image-path";
 
 export const PRODUCT_IMAGE_CLIENT_CACHE_PREFIX = "partson:v9:img:";
-export const PRODUCT_IMAGE_CLIENT_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
+export const PRODUCT_IMAGE_CLIENT_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_PREFIX = "partson:v3:img-miss:";
 export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_TTL_MS = 1000 * 60 * 5;
-const PRODUCT_IMAGE_MEMORY_CACHE_MAX_ENTRIES = 160;
+const PRODUCT_IMAGE_MEMORY_CACHE_MAX_ENTRIES = 512;
 const PRODUCT_IMAGE_PERSISTED_SRC_MAX_LENGTH = 4096;
 let persistedImageCachePruned = false;
 
@@ -38,14 +38,35 @@ const prunePersistedImageCache = (storage: Storage | null | undefined) => {
   if (!storage) return;
 
   try {
-    const keys: string[] = [];
+    const expiredKeys: string[] = [];
+    const now = Date.now();
+
     for (let index = 0; index < storage.length; index += 1) {
       const key = storage.key(index);
-      if (key?.startsWith(PRODUCT_IMAGE_CLIENT_CACHE_PREFIX)) {
-        keys.push(key);
+      if (!key?.startsWith(PRODUCT_IMAGE_CLIENT_CACHE_PREFIX)) continue;
+
+      const raw = storage.getItem(key);
+      if (!raw) {
+        expiredKeys.push(key);
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(raw) as ProductImageCacheRecord;
+        if (
+          !parsed ||
+          typeof parsed.t !== "number" ||
+          typeof parsed.src !== "string" ||
+          now - parsed.t > PRODUCT_IMAGE_CLIENT_CACHE_TTL_MS
+        ) {
+          expiredKeys.push(key);
+        }
+      } catch {
+        expiredKeys.push(key);
       }
     }
-    for (const key of keys) {
+
+    for (const key of expiredKeys) {
       storage.removeItem(key);
     }
   } catch {

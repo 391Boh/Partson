@@ -9,6 +9,8 @@ import { ImageOff } from "lucide-react";
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import {
+  readProductImageSuccess,
+  readProductImageMissing,
   writeProductImageSuccess,
   writeProductImageMissing,
   clearProductImageSuccess,
@@ -18,7 +20,7 @@ import {
 
 // Delay before final image retry (ms)
 const FINAL_RETRY_DELAY_MS = 400;
-const DEFERRED_DIRECT_LOAD_DELAY_MS = 300;
+const DEFERRED_DIRECT_LOAD_DELAY_MS = 120;
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
@@ -42,6 +44,7 @@ interface Props {
   loadingMode?: "lazy" | "eager";
   fetchPriority?: "high" | "low" | "auto";
   deferDirectLoad?: boolean;
+  disableDirectLoad?: boolean;
   batchImagePending?: boolean;
 }
 
@@ -60,6 +63,7 @@ const ProductCardImage: React.FC<Props> = ({
   loadingMode = "lazy",
   fetchPriority = "low",
   deferDirectLoad = false,
+  disableDirectLoad = false,
   batchImagePending = false,
 }) => {
   const [requestSrc, setRequestSrc] = useState("");
@@ -128,9 +132,32 @@ const ProductCardImage: React.FC<Props> = ({
       setFinalRetryQueued(true);
       return;
     }
+
+    const cachedSrc = readProductImageSuccess(normalizedCode, normalizedArticle || undefined);
+    if (cachedSrc) {
+      lastSuccessfulSrcRef.current = cachedSrc;
+      setRequestSrc(cachedSrc);
+      setStatus("loaded");
+      setFinalRetryQueued(true);
+      return;
+    }
+
+    if (readProductImageMissing(normalizedCode, normalizedArticle || undefined)) {
+      setRequestSrc("");
+      setStatus("missing");
+      setFinalRetryQueued(false);
+      return;
+    }
+
     if (!primarySrc) {
       setRequestSrc("");
       setStatus("missing");
+      setFinalRetryQueued(false);
+      return;
+    }
+    if (disableDirectLoad) {
+      setRequestSrc("");
+      setStatus(batchImagePending ? "loading" : "missing");
       setFinalRetryQueued(false);
       return;
     }
@@ -162,6 +189,8 @@ const ProductCardImage: React.FC<Props> = ({
     normalizedPrefetchedSrc,
     primarySrc,
     deferDirectLoad,
+    disableDirectLoad,
+    batchImagePending,
   ]);
   useEffect(() => {
     if (!hasKnownPhoto) return;
