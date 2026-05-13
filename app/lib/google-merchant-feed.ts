@@ -53,20 +53,23 @@ const DEFAULT_SITE_URL = "https://partson.ua";
 const MERCHANT_FEED_MAX_ITEMS = parseOptionalPositiveInt(
   process.env.MERCHANT_FEED_MAX_ITEMS
 );
+const DEFAULT_MERCHANT_FEED_LOOKUP_LIMIT = 50000;
 const MERCHANT_FEED_PRICE_LOOKUP_LIMIT =
   parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_LOOKUP_LIMIT) ??
+  parseOptionalPositiveInt(process.env.PRODUCT_SITEMAP_MAX_ITEMS) ??
   MERCHANT_FEED_MAX_ITEMS ??
-  50000;
+  DEFAULT_MERCHANT_FEED_LOOKUP_LIMIT;
 const MERCHANT_FEED_PRICE_LOOKUP_CHUNK_SIZE =
   parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_LOOKUP_CHUNK_SIZE) ?? 60;
 const MERCHANT_FEED_PRICE_LOOKUP_CONCURRENCY =
   parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_CONCURRENCY) ?? 6;
 const MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT =
-  parseOptionalPositiveInt(process.env.MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT) ?? 120;
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT) ??
+  MERCHANT_FEED_PRICE_LOOKUP_LIMIT;
 
-const getMerchantFeedSourceChunkSize = (maxItems: number) => {
-  if (!Number.isFinite(maxItems) || maxItems <= 0) {
-    return 500;
+const getMerchantFeedSourceChunkSize = (maxItems: number | null) => {
+  if (maxItems == null || !Number.isFinite(maxItems) || maxItems <= 0) {
+    return 2000;
   }
 
   return Math.max(250, Math.min(Math.floor(maxItems), 2000));
@@ -373,7 +376,7 @@ export const getGoogleMerchantFeedSnapshot = async (options?: {
     requestedMaxItems > 0
       ? Math.floor(requestedMaxItems)
       : null;
-  const chunkSize = maxItems == null ? entries.length : getMerchantFeedSourceChunkSize(maxItems);
+  const chunkSize = getMerchantFeedSourceChunkSize(maxItems);
   const items: GoogleMerchantFeedItem[] = [];
   let sourceCount = 0;
 
