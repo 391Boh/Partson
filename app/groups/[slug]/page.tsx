@@ -182,6 +182,14 @@ const buildGroupHeroDetails = (
   return `Цей розділ зібраний як окрема сторінка групи ${visibleLabel}, щоб каталог відкривався напряму за зрозумілим посиланням.`;
 };
 
+const buildGroupHeroSupportLabel = (label: string, hasSubgroups: boolean) => {
+  const visibleLabel = buildVisibleProductName(label);
+
+  return hasSubgroups
+    ? `${visibleLabel}: назви підгруп і кінцевих категорій`
+    : `${visibleLabel}: прямий перехід у каталог групи`;
+};
+
 const buildSubgroupLead = (options: {
   groupLabel: string;
   subgroupLabel: string;
@@ -467,18 +475,12 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
               <span className="inline-flex rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
                 {pageBadge}
               </span>
-              {group.productCount > 0 ? (
-                <span className={directoryCompactMetricClass}>
-                  <span>{group.productCount.toLocaleString("uk-UA")}</span>
-                  <span className="font-semibold text-slate-500">товарів</span>
-                </span>
-              ) : null}
-              {group.subgroupsCount > 0 ? (
-                <span className={directoryCompactMetricAccentClass}>
-                  <span>{group.subgroupsCount.toLocaleString("uk-UA")}</span>
-                  <span className="font-semibold text-teal-700">підгруп</span>
-                </span>
-              ) : null}
+              <span className={directoryCompactMetricClass}>
+                {buildGroupHeroSupportLabel(group.label, hasSubgroups)}
+              </span>
+              <span className={directoryCompactMetricAccentClass}>
+                Пошук за назвою, брендом і артикулом
+              </span>
             </div>
 
             <h1 className="font-display-italic mt-4 text-3xl tracking-[-0.048em] text-slate-900 sm:text-[2.2rem]">
@@ -525,18 +527,12 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
               </p>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {group.productCount > 0 ? (
-                <span className={directoryCompactMetricClass}>
-                  <span>{group.productCount.toLocaleString("uk-UA")}</span>
-                  <span className="font-semibold text-slate-500">товарів</span>
-                </span>
-              ) : null}
-              {group.subgroupsCount > 0 ? (
-                <span className={directoryCompactMetricAccentClass}>
-                  <span>{group.subgroupsCount.toLocaleString("uk-UA")}</span>
-                  <span className="font-semibold text-teal-700">напрямків</span>
-                </span>
-              ) : null}
+              <span className={directoryCompactMetricClass}>
+                Опис, назви і структура групи
+              </span>
+              <span className={directoryCompactMetricAccentClass}>
+                SEO-навігація до каталогу
+              </span>
             </div>
           </div>
         </div>

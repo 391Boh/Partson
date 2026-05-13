@@ -78,6 +78,23 @@ const buildManufacturerCardDescription = (item: ManufacturerItem) =>
   stripLeadingManufacturerName(item.label, item.description ?? "") ||
   "Бренд автозапчастин у каталозі PartsON з прямим переходом до товарів виробника.";
 
+const buildManufacturerCardSupportText = (item: ManufacturerItem) => {
+  const groupSummary =
+    item.groupsCount > 0
+      ? `${item.groupsCount.toLocaleString("uk-UA")} груп`
+      : "популярні групи каталогу";
+  const categorySummary =
+    item.categoriesCount > 0
+      ? `${item.categoriesCount.toLocaleString("uk-UA")} категорій`
+      : "категорії бренду";
+  const productSummary =
+    item.productCount > 0
+      ? `${item.productCount.toLocaleString("uk-UA")} товарних позицій`
+      : "товари бренду";
+
+  return `${groupSummary} і ${categorySummary} для переходу до ${productSummary} ${item.label} у каталозі PartsON.`;
+};
+
 const ManufacturerCard = memo(function ManufacturerCard({
   item,
 }: ManufacturerCardProps) {
@@ -114,8 +131,11 @@ const ManufacturerCard = memo(function ManufacturerCard({
               <p className="mt-1.5 truncate text-[17px] font-extrabold leading-tight text-slate-950">
                 {item.label}
               </p>
-              <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-slate-600">
+              <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-600">
                 {buildManufacturerCardDescription(item)}
+              </p>
+              <p className="mt-2 text-[12px] leading-5 text-slate-500">
+                {buildManufacturerCardSupportText(item)}
               </p>
             </div>
           </div>
@@ -125,33 +145,14 @@ const ManufacturerCard = memo(function ManufacturerCard({
           </span>
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2.5">
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
-              Товари
-            </p>
-            <p className="mt-0.5 text-sm font-extrabold text-slate-900">
-              {item.productCount > 0 ? item.productCount.toLocaleString("uk-UA") : "-"}
-            </p>
-          </div>
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
-              Групи
-            </p>
-            <p className="mt-0.5 text-sm font-extrabold text-slate-900">
-              {item.groupsCount > 0 ? item.groupsCount.toLocaleString("uk-UA") : "-"}
-            </p>
-          </div>
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
-              Катег.
-            </p>
-            <p className="mt-0.5 text-sm font-extrabold text-slate-900">
-              {item.categoriesCount > 0
-                ? item.categoriesCount.toLocaleString("uk-UA")
-                : "-"}
-            </p>
-          </div>
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-2.5">
+          <span className={directoryMetricClass}>Сторінка бренду</span>
+          {(item.groupsCount > 0 || item.categoriesCount > 0) ? (
+            <span className={directoryMetricAccentClass}>Групи та категорії</span>
+          ) : null}
+          {item.productCount > 0 ? (
+            <span className={directoryMetricClass}>Товари й аналоги</span>
+          ) : null}
         </div>
       </div>
     </SmartLink>

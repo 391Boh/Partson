@@ -21,6 +21,7 @@ import {
 // Delay before final image retry (ms)
 const FINAL_RETRY_DELAY_MS = 400;
 const DEFERRED_DIRECT_LOAD_DELAY_MS = 120;
+const BATCH_DIRECT_FALLBACK_DELAY_MS = 900;
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
@@ -157,9 +158,21 @@ const ProductCardImage: React.FC<Props> = ({
     }
     if (disableDirectLoad) {
       setRequestSrc("");
-      setStatus(batchImagePending ? "loading" : "missing");
+      setStatus("loading");
       setFinalRetryQueued(false);
-      return;
+
+      deferredDirectLoadTimerRef.current = setTimeout(() => {
+        deferredDirectLoadTimerRef.current = null;
+        setRequestSrc(primarySrc);
+        setStatus("loading");
+      }, BATCH_DIRECT_FALLBACK_DELAY_MS);
+
+      return () => {
+        if (deferredDirectLoadTimerRef.current) {
+          clearTimeout(deferredDirectLoadTimerRef.current);
+          deferredDirectLoadTimerRef.current = null;
+        }
+      };
     }
     if (deferDirectLoad) {
       setRequestSrc("");

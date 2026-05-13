@@ -35,6 +35,18 @@ const buildGroupsPageDescription = (
   return `Категорії автозапчастин PartsON: ${countSummary} для підбору деталей за групою, назвою, артикулом або VIN. Купівля у Львові й доставка по Україні.${indexedSummary}`;
 };
 
+const groupsIntroParagraphs = [
+  "Сторінка груп товарів потрібна не для перегляду сухих лічильників, а для швидкої навігації по вузлах автомобіля. Тут користувач бачить зрозумілі назви груп, підгруп і кінцевих категорій, щоб відразу перейти до релевантного каталогу без зайвого ручного пошуку.",
+  "Кожна SEO-сторінка групи на PartsON веде до конкретного каталожного напрямку: підвіска, гальмівна система, деталі двигуна, фільтри, електрика, охолодження та інші вузли. Це допомагає знаходити потрібні запчастини за логікою ремонту, а не лише за кількістю товарів у вибірці.",
+];
+
+const groupsIntroHighlights = [
+  "зрозумілі назви груп, підгруп і кінцевих категорій;",
+  "швидкий перехід у каталог з уже підготовленою структурою підбору;",
+  "SEO-сторінки під комерційні запити по вузлах і типах автозапчастин;",
+  "пошук деталей за категорією, артикулом, назвою або VIN;",
+];
+
 export async function generateMetadata(): Promise<Metadata> {
   const {
     totalGroups,
@@ -77,14 +89,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function GroupsPage() {
   const siteUrl = getSiteUrl();
-  const {
-    clientGroups,
-    totalGroups,
-    totalSubgroups,
-    totalThirdLevelItems,
-    totalProductCount,
-    hasProductCounts,
-  } = await getFastGroupsDirectoryData();
+	  const {
+	    clientGroups,
+	    totalGroups,
+	    totalSubgroups,
+	    totalProductCount,
+	    hasProductCounts,
+	  } = await getFastGroupsDirectoryData();
 
   const hasResolvedGroups = totalGroups > 0;
 
@@ -92,11 +103,7 @@ export default async function GroupsPage() {
     .sort((left, right) => right.subgroupsCount - left.subgroupsCount)
     .slice(0, 2);
 
-  const totalGroupsLabel = hasResolvedGroups
-    ? totalGroups.toLocaleString("uk-UA")
-    : "оновлюється";
-
-  const groupsStructuredData: Record<string, unknown> = {
+	  const groupsStructuredData: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     "@id": `${siteUrl}/groups#collection-page`,
@@ -160,29 +167,26 @@ export default async function GroupsPage() {
             title="Категорії автозапчастин і групи товарів"
             description="Оберіть групу, підгрупу або кінцеву категорію, щоб швидко перейти до релевантних товарів, брендів і запчастин для авто."
             highlights={[
-              `${totalGroupsLabel} груп у структурі`,
-              `${totalSubgroups.toLocaleString("uk-UA")} підгруп у каталозі`,
+              "Навігація по групах, підгрупах і кінцевих категоріях",
+              "Підбір за вузлом автомобіля, назвою, артикулом або VIN",
               hasProductCounts
-                ? `${totalProductCount.toLocaleString("uk-UA")} товарів у групах`
-                : "Лічильники товарів догружаються з кешу",
+                ? "Швидкий перехід у каталог із готовою структурою підбору"
+                : "SEO-сторінки груп оновлюються з кешу каталогу",
             ]}
             stats={[
               {
-                label: "Групи",
-                value: totalGroupsLabel,
+                label: "Маршрут",
+                value: "Група / підгрупа",
                 icon: Layers3,
               },
               {
-                label: "Підгрупи",
-                value: totalSubgroups.toLocaleString("uk-UA"),
+                label: "Пошук",
+                value: "Назва / VIN / артикул",
                 icon: FolderTree,
               },
               {
-                label: hasProductCounts ? "Товари" : "Категорії",
-                value:
-                  hasProductCounts
-                    ? totalProductCount.toLocaleString("uk-UA")
-                    : totalThirdLevelItems.toLocaleString("uk-UA"),
+                label: "Результат",
+                value: "Каталог товарів",
                 icon: ChevronRight,
               },
             ]}
@@ -205,6 +209,45 @@ export default async function GroupsPage() {
           <h1 className="sr-only">Категорії автозапчастин і групи товарів PartsON</h1>
         </div>
       </div>
+
+      <section className="relative pb-2 pt-0 sm:pb-3">
+        <div className={catalogShellClass}>
+          <div className="rounded-[28px] border border-white/80 bg-white/88 p-5 shadow-[0_22px_48px_rgba(14,165,233,0.12)] backdrop-blur-xl sm:p-6">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.95fr)]">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-sky-800">
+                  SEO-опис каталогу груп
+                </p>
+                <h2 className="mt-2 text-xl font-[780] tracking-normal text-slate-950 sm:text-2xl">
+                  Як користуватися сторінкою груп товарів
+                </h2>
+                <div className="mt-3 space-y-3 text-sm leading-6 text-slate-600 sm:text-[15px]">
+                  {groupsIntroParagraphs.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </div>
+              </div>
+
+              <aside className="rounded-[22px] border border-sky-100/80 bg-[linear-gradient(165deg,rgba(240,249,255,0.96),rgba(236,254,255,0.92),rgba(255,255,255,0.98))] p-4 shadow-[0_16px_34px_rgba(14,165,233,0.08)]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-sky-800">
+                  Що дає ця сторінка
+                </p>
+                <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">
+                  {groupsIntroHighlights.map((highlight) => (
+                    <li
+                      key={highlight}
+                      className="flex items-start gap-2 border-b border-white/70 pb-2 last:border-b-0 last:pb-0"
+                    >
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
+                      <span>{highlight}</span>
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {hasResolvedGroups ? (
         <GroupsDirectoryClient

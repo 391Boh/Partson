@@ -501,6 +501,43 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   if (isPriceSorted && !requestedCursor) {
     const start = (page - 1) * limit;
     const targetCount = start + limit + 1;
+    const priceSortDirection = String(requestBodyBase[ALLGOODS_SORT_PRICE_FIELD] || "")
+      .trim()
+      .toUpperCase();
+
+    if (priceSortDirection === "ASC") {
+      const requestLimit = ALLGOODS_SORT_WINDOW_MAX_LIMIT;
+      const response = await oneCRequest("allgoods", {
+        method: "POST",
+        body: {
+          ...requestBodyBase,
+          [ALLGOODS_LIMIT_FIELD]: requestLimit,
+        },
+        timeoutMs: options.timeoutMs,
+        retries: options.retries ?? 1,
+        retryDelayMs: options.retryDelayMs ?? 250,
+        cacheTtlMs: options.cacheTtlMs,
+      });
+
+      if (response.status < 200 || response.status >= 300) {
+        const details = extractResponseErrorDetails(response.text);
+        throw new Error(
+          details
+            ? `Catalog allgoods failed: ${response.status} ${details}`
+            : `Catalog allgoods failed: ${response.status}`
+        );
+      }
+
+      const parsed = parseAllgoodsPayload(response.text);
+      const pricedItems = parsed.items.filter(hasPositiveCatalogPrice);
+
+      return {
+        items: pricedItems.slice(start, start + limit),
+        hasMore: pricedItems.length > start + limit || parsed.hasMore,
+        nextCursor: "",
+      };
+    }
+
     const collected: CatalogProduct[] = [];
     const seen = new Set<string>();
     let priceMax: number | null = null;
@@ -538,9 +575,10 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
 
       const parsed = parseAllgoodsPayload(response.text);
       sourceMayHaveMore = parsed.hasMore || parsed.items.length >= requestLimit;
+      const pricedItems = parsed.items.filter(hasPositiveCatalogPrice);
       let addedCount = 0;
 
-      for (const item of parsed.items) {
+      for (const item of pricedItems) {
         const key =
           normalizeFacetValue(item.code) ||
           normalizeFacetValue(item.article) ||
@@ -551,14 +589,10 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
         addedCount += 1;
       }
 
-      const lastPrice = parsed.items
-        .map((item) => item.priceEuro)
-        .filter((value): value is number =>
-          typeof value === "number" && Number.isFinite(value) && value > 0
-        )
-        .at(-1);
+      const lastPrice = pricedItems.at(-1)?.priceEuro ?? null;
 
       if (!sourceMayHaveMore || addedCount === 0 || lastPrice == null) {
+        sourceMayHaveMore = false;
         break;
       }
 
@@ -756,6 +790,11 @@ const safeDecode = (value: string) => {
 
 const normalizeFacetValue = (value: string | null | undefined) =>
   maybeFixMojibake((value || "").replace(/\s+/g, " ").trim()).toLowerCase();
+
+const hasPositiveCatalogPrice = (item: Pick<CatalogProduct, "priceEuro">) =>
+  typeof item.priceEuro === "number" &&
+  Number.isFinite(item.priceEuro) &&
+  item.priceEuro > 0;
 
 const buildDescriptionSearchTokens = (value: string) =>
   Array.from(

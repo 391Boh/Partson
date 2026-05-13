@@ -28,6 +28,10 @@ import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import { getProductImagePath } from "app/lib/product-image";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import {
+  EMPTY_CATALOG_SEO_FACETS,
+  getCatalogSeoFacetsWithTimeout,
+} from "app/lib/catalog-seo";
+import {
   buildLegacyProductNameSlug,
   buildProductPath,
   buildProductNameSlug,
@@ -159,6 +163,26 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\
 
 const normalizeLandingValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
+
+const normalizeLandingLookupValue = (value: string | null | undefined) =>
+  normalizeLandingValue(value).toLocaleLowerCase("uk-UA");
+
+const matchesLandingFacet = (
+  candidate: { label: string; slug: string },
+  value: string | null | undefined
+) => {
+  const normalizedValue = normalizeLandingValue(value);
+  if (!normalizedValue) return false;
+
+  const normalizedLookupValue = normalizeLandingLookupValue(normalizedValue);
+  const normalizedSlug = buildPlainSeoSlug(normalizedValue);
+
+  return (
+    normalizeLandingLookupValue(candidate.label) === normalizedLookupValue ||
+    normalizeLandingLookupValue(candidate.slug) === normalizedLookupValue ||
+    candidate.slug === normalizedSlug
+  );
+};
 
 const buildProductGroupLandingFallbackPath = (
   productCategory: string,
@@ -1024,7 +1048,9 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
   // name slug — skip slug-based resolution entirely to avoid burning the resolver
   // budget on a guaranteed-miss global catalog scan.
   const hasCodePrefix = Boolean(directCode) && directCode !== decodedParam;
-  const directProduct = directCode
+  const looksLikeSeoNameSlug =
+    !hasCodePrefix && decodedParam.includes("-") && !decodedParam.includes("~");
+  const directProduct = directCode && !looksLikeSeoNameSlug
     ? await findCatalogProductByLookupToken(directCode)
     : null;
   const directProductCode = (directProduct?.code || directProduct?.article || "").trim();
@@ -1068,7 +1094,7 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
 
 const resolveProductCodeFromRouteParamCached = unstable_cache(
   resolveProductCodeFromRouteParamUncached,
-  ["product-page:resolve-route-v11-short-name-article"],
+  ["product-page:resolve-route-v12-skip-direct-slug-lookup"],
   { revalidate: 900 }
 );
 
@@ -1110,7 +1136,7 @@ const getResolvedProductRouteDataUncached = async (
 
 const getResolvedProductRouteDataCached = unstable_cache(
   getResolvedProductRouteDataUncached,
-  ["product-page:resolved-route-product-v11-short-name-article"],
+  ["product-page:resolved-route-product-v12-skip-direct-slug-lookup"],
   { revalidate: 900 }
 );
 
@@ -1316,10 +1342,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
   const fallbackCodeFromRoute = extractProductCodeFromParam(rawCode || "");
   const canUseDirectFallbackCode = canUseDirectProductCodeFallback(rawCode || "");
-  // Warm caches in parallel while the route resolver runs its index lookup.
-  // Both values are needed unconditionally later; React cache() deduplicates
-  // these calls when they are awaited again below.
-  void getProductSeoEuroRate();
+  // Warm direct-code product cache only for legacy/code URLs while the route
+  // resolver runs its index lookup.
   if (canUseDirectFallbackCode && fallbackCodeFromRoute) {
     void getCatalogProduct(fallbackCodeFromRoute).catch(() => null);
   }
@@ -1437,7 +1461,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const inlineInitialPriceEuro = toPositiveNumberOrNull(product.priceEuro);
   const pagePrice = await resolveProductSeoPrice(inlineInitialPriceEuro);
   const initialPriceUah = pagePrice.priceUah;
-  const recommendationEuroRate = await getProductSeoEuroRate();
+  const recommendationEuroRate =
+    pagePrice.priceEuro != null ? await getProductSeoEuroRate() : undefined;
   const shouldEmitProductStructuredData = !isModalView && hasResolvedCatalogProduct;
   const productCategory = (product.category || "").trim();
   const productGroup = (product.group || productCategory || "").trim();
@@ -1467,11 +1492,34 @@ export default async function ProductPage({ params }: ProductPageProps) {
   });
 
   const siteUrl = getSiteUrl();
+  const seoFacets =
+    productGroup || productCategory || productSubgroup || product.producer
+      ? await getCatalogSeoFacetsWithTimeout(350).catch(() => EMPTY_CATALOG_SEO_FACETS)
+      : EMPTY_CATALOG_SEO_FACETS;
+  const producerFacet = product.producer
+    ? seoFacets.producers.find((producer) =>
+        matchesLandingFacet(producer, product.producer)
+      ) || null
+    : null;
+  const groupFacet = (productGroup || productCategory)
+    ? seoFacets.groups.find((group) =>
+        matchesLandingFacet(group, productGroup) ||
+        matchesLandingFacet(group, productCategory)
+      ) || null
+    : null;
+  const subgroupFacet =
+    groupFacet && productSubgroup
+      ? groupFacet.subgroups.find((subgroup) =>
+          matchesLandingFacet(subgroup, productSubgroup)
+        ) || null
+      : null;
   const groupSeoFallbackPath = productGroup
-    ? buildProductGroupLandingFallbackPath(productCategory, productGroup)
+    ? groupFacet
+      ? buildGroupPath(groupFacet.slug)
+      : buildProductGroupLandingFallbackPath(productCategory, productGroup)
     : null;
   const producerLandingPath = product.producer
-    ? buildManufacturerPath(product.producer)
+    ? buildManufacturerPath(producerFacet?.slug || product.producer)
     : null;
   const categoryCatalogPath = productSubgroup
     ? buildCatalogCategoryPath(productSubgroup)
@@ -1483,7 +1531,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
     : null;
   const groupLandingPath = groupSeoFallbackPath;
   const categoryLandingPath = productSubgroup
-    ? buildProductGroupLandingFallbackPath(productGroup || productCategory, productSubgroup)
+    ? groupFacet
+      ? buildGroupItemPath(
+          groupFacet.slug,
+          subgroupFacet?.slug || buildPlainSeoSlug(productSubgroup)
+        )
+      : buildProductGroupLandingFallbackPath(productGroup || productCategory, productSubgroup)
     : groupSeoFallbackPath;
   const categoryLandingHref =
     categoryLandingPath ||

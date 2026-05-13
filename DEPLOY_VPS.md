@@ -11,6 +11,28 @@ npm ci
 npm run build
 ```
 
+### Google Merchant feed auto-update
+
+Install a daily cron job that regenerates `public/google-merchant-feed.xml` at 04:00:
+
+```bash
+npm run merchant:cron:install
+```
+
+Check the installed cron entry:
+
+```bash
+npm run merchant:cron:list
+```
+
+Run the feed update manually:
+
+```bash
+npm run merchant:feed:update
+```
+
+Logs are written to `logs/merchant-feed.log`.
+
 ### Memory Optimization (IMPORTANT!)
 
 To prevent memory leaks and optimize resource usage, use the provided `ecosystem.config.js`:

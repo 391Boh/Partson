@@ -2,7 +2,7 @@
 
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_ITEMS_PER_PAGE = 12;
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v25-price-scroll-fast-media";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v26-cursor-scroll";
 
 type CatalogSearchFilter = "all" | "article" | "name" | "code" | "producer" | "description";
 
@@ -137,6 +137,7 @@ export const prefetchCatalogListing = async (href: string) => {
           images?: Record<string, string>;
           hasMore?: boolean;
           nextCursor?: string;
+          cursorField?: string;
         }
       | null;
 
@@ -150,6 +151,7 @@ export const prefetchCatalogListing = async (href: string) => {
         payload.images && typeof payload.images === "object" ? payload.images : {},
       hasMore: payload.hasMore === true,
       nextCursor: typeof payload.nextCursor === "string" ? payload.nextCursor : "",
+      cursorField: typeof payload.cursorField === "string" ? payload.cursorField : "",
     });
   })().finally(() => {
     catalogPagePrefetchInFlight.delete(cacheKey);

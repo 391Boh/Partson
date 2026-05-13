@@ -58,18 +58,15 @@ const buildInlinePrices = (
 
   for (const item of items) {
     const price = item?.priceEuro;
-    if (price === undefined) continue;
-
-    const resolvedPrice =
-      typeof price === "number" && Number.isFinite(price) && price > 0
-        ? price
-        : null;
+    if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) {
+      continue;
+    }
 
     const code = typeof item.code === "string" ? item.code.trim() : "";
     const article = typeof item.article === "string" ? item.article.trim() : "";
 
-    if (code && prices[code] === undefined) prices[code] = resolvedPrice;
-    if (article && prices[article] === undefined) prices[article] = resolvedPrice;
+    if (code && prices[code] === undefined) prices[code] = price;
+    if (article && prices[article] === undefined) prices[article] = price;
   }
 
   return prices;

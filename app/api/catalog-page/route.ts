@@ -45,7 +45,7 @@ const toPositiveInt = (value: unknown, fallback: number) => {
 
 const buildRouteCacheKey = (body: Record<string, unknown>) =>
   JSON.stringify({
-    source: "catalog-page:v12-allgoods-primary-9000ms",
+    source: "catalog-page:v13-priced-sort-only",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -155,21 +155,18 @@ const buildInlinePrices = (
 
   for (const item of items) {
     const price = item?.priceEuro;
-    if (price === undefined) continue;
-
-    const resolvedPrice =
-      typeof price === "number" && Number.isFinite(price) && price > 0
-        ? price
-        : null;
+    if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) {
+      continue;
+    }
 
     const code = typeof item.code === "string" ? item.code.trim() : "";
     const article = typeof item.article === "string" ? item.article.trim() : "";
 
     if (code && prices[code] === undefined) {
-      prices[code] = resolvedPrice;
+      prices[code] = price;
     }
     if (article && prices[article] === undefined) {
-      prices[article] = resolvedPrice;
+      prices[article] = price;
     }
   }
 

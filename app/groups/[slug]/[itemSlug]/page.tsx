@@ -569,6 +569,18 @@ const buildChildCategoryLead = (options: {
   return `Категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel} відкриває ${productCountLabel} і веде до точнішого підбору автозапчастин за брендом, назвою або артикулом.`;
 };
 
+const buildProducerCategoryLead = (options: {
+  producerLabel: string;
+  categoryLabel: string;
+  groupLabel: string;
+}) => {
+  const visibleProducerLabel = buildVisibleProductName(options.producerLabel);
+  const visibleCategoryLabel = buildVisibleProductName(options.categoryLabel);
+  const visibleGroupLabel = buildVisibleProductName(options.groupLabel);
+
+  return `Виробник ${visibleProducerLabel} у категорії ${visibleCategoryLabel} групи ${visibleGroupLabel} з переходом на сторінку бренду або у відфільтрований каталог.`;
+};
+
 export async function generateStaticParams() {
   const limit = parsePositiveInt(
     process.env.SEO_GROUP_ITEM_STATIC_PARAMS_LIMIT,
@@ -717,12 +729,6 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   const pageDescription = item.parentSubgroupLabel
     ? `Кінцева категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel}. Тут можна перейти до товарів, брендів, аналогів і перевірити наявність у каталозі.`
     : `Підгрупа ${visibleLabel} у групі ${visibleGroupLabel} з прямим переходом до товарів, виробників і суміжних категорій автозапчастин.`;
-  const pageStats =
-    item.productCount > 0
-      ? `${item.productCount.toLocaleString("uk-UA")} товарів у розділі`
-      : item.children.length > 0
-        ? `${item.children.length} підкатегорій у розділі`
-      : "Прямий перехід у каталог";
   const producerProductsTotal = item.producerSplit.reduce(
     (sum, producer) => sum + producer.productCount,
     0
@@ -892,14 +898,13 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                 {item.parentSubgroupLabel ? "Кінцева категорія" : "Підгрупа"}
               </span>
               <span className={directoryCompactMetricClass}>
-                {pageStats}
+                {item.parentSubgroupLabel
+                  ? `Підгрупа ${visibleParentLabel}`
+                  : `Група ${visibleGroupLabel}`}
               </span>
-              {item.producersCount > 0 ? (
-                <span className={directoryCompactMetricAccentClass}>
-                  <span>{item.producersCount.toLocaleString("uk-UA")}</span>
-                  <span className="font-semibold text-teal-700">виробників</span>
-                </span>
-              ) : null}
+              <span className={directoryCompactMetricAccentClass}>
+                Пошук за брендом, артикулом і назвою
+              </span>
             </div>
 
             <h1 className="font-display-italic mt-4 text-3xl tracking-[-0.048em] text-slate-900 sm:text-[2.2rem]">
@@ -944,15 +949,11 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
             </div>
             <div className="flex flex-wrap gap-1.5">
               <span className={directoryCompactMetricClass}>
-                <span>{(item.productCount || producerProductsTotal).toLocaleString("uk-UA")}</span>
-                <span className="font-semibold text-slate-500">товарів</span>
+                Категорія з SEO-описом і переходом у каталог
               </span>
-              {item.producersCount > 0 ? (
-                <span className={directoryCompactMetricAccentClass}>
-                  <span>{item.producersCount.toLocaleString("uk-UA")}</span>
-                  <span className="font-semibold text-teal-700">виробників</span>
-                </span>
-              ) : null}
+              <span className={directoryCompactMetricAccentClass}>
+                Виробники, бренди та аналоги
+              </span>
             </div>
           </div>
         </div>
@@ -994,7 +995,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                 Виробники у категорії {visibleLabel}
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                Лічильники рахуються по товарах цієї кінцевої категорії і допомагають одразу перейти до потрібного бренду у каталозі.
+                На сторінці зібрані бренди, які реально зустрічаються в цій категорії. Це дає змогу перейти або на сторінку виробника, або одразу у вже відфільтрований каталог потрібного бренду.
               </p>
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -1035,6 +1036,14 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                       <span className="font-semibold text-teal-700">тов.</span>
                     </span>
                   </div>
+
+                  <p className="mt-2 text-[13px] leading-5 text-slate-600">
+                    {buildProducerCategoryLead({
+                      producerLabel: producer.label,
+                      categoryLabel: item.label,
+                      groupLabel: item.groupLabel,
+                    })}
+                  </p>
 
                   <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
                     <p className="text-[11px] font-semibold text-slate-500">

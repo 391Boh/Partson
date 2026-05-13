@@ -54,7 +54,11 @@ const MERCHANT_FEED_MAX_ITEMS = parseOptionalPositiveInt(
   process.env.MERCHANT_FEED_MAX_ITEMS
 );
 const MERCHANT_FEED_PRICE_LOOKUP_LIMIT =
-  parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_LOOKUP_LIMIT) ?? 180;
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_LOOKUP_LIMIT) ?? 0;
+const MERCHANT_FEED_PRICE_LOOKUP_CHUNK_SIZE =
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_LOOKUP_CHUNK_SIZE) ?? 60;
+const MERCHANT_FEED_PRICE_LOOKUP_CONCURRENCY =
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_CONCURRENCY) ?? 6;
 
 const escapeXml = (value: string) =>
   value
@@ -114,35 +118,103 @@ const hasPositivePriceEuro = (entry: ProductSitemapEntry) =>
   Number.isFinite(entry.priceEuro) &&
   entry.priceEuro > 0;
 
+const hasResolvedPrice = (
+  prices: Record<string, number>,
+  entry: ProductSitemapEntry
+) => {
+  const articleKey = (entry.article || "").trim().toLowerCase();
+  const codeKey = (entry.code || "").trim().toLowerCase();
+  const price = (articleKey ? prices[articleKey] : undefined) ?? prices[codeKey];
+
+  return typeof price === "number" && Number.isFinite(price) && price > 0;
+};
+
+const lookupMerchantFeedPrices = async (
+  entries: ProductSitemapEntry[],
+  getLookupKeys: (entry: ProductSitemapEntry) => Array<string | undefined>
+) => {
+  const prices: Record<string, number> = {};
+  const chunkSize = Math.max(1, MERCHANT_FEED_PRICE_LOOKUP_CHUNK_SIZE);
+  const chunks: ProductSitemapEntry[][] = [];
+
+  for (let start = 0; start < entries.length; start += chunkSize) {
+    chunks.push(entries.slice(start, start + chunkSize));
+  }
+
+  let nextChunkIndex = 0;
+  const workerCount = Math.min(
+    Math.max(1, MERCHANT_FEED_PRICE_LOOKUP_CONCURRENCY),
+    chunks.length
+  );
+
+  const runWorker = async () => {
+    while (nextChunkIndex < chunks.length) {
+      const chunkIndex = nextChunkIndex;
+      nextChunkIndex += 1;
+      const chunk = chunks[chunkIndex] ?? [];
+      const lookupKeys = Array.from(
+        new Set(
+          chunk
+            .flatMap(getLookupKeys)
+            .map((value) => (value || "").trim())
+            .filter(Boolean)
+        )
+      );
+      if (lookupKeys.length === 0) continue;
+
+      const chunkPrices = await fetchPriceEuroMapByLookupKeys(lookupKeys, {
+        sourceTimeoutMs: 1800,
+        sourceCacheTtlMs: 1000 * 60 * 5,
+        timeoutMs: 1600,
+        retries: 0,
+        retryDelayMs: 80,
+        cacheTtlMs: 1000 * 60 * 10,
+        includeDirectLookup: true,
+        includePricesPost: true,
+        directConcurrency: 4,
+        maxKeys: lookupKeys.length,
+      }).catch(() => ({} as Record<string, number>));
+
+      for (const [key, value] of Object.entries(chunkPrices)) {
+        if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue;
+        prices[key] = value;
+      }
+    }
+  };
+
+  await Promise.allSettled(Array.from({ length: workerCount }, runWorker));
+  return prices;
+};
+
 const enrichMerchantFeedPrices = async (
   entries: ProductSitemapEntry[]
 ): Promise<ProductSitemapEntry[]> => {
-  const missingPriceEntries = entries
-    .filter((entry) => !hasPositivePriceEuro(entry))
-    .slice(0, MERCHANT_FEED_PRICE_LOOKUP_LIMIT);
+  const allMissingPriceEntries = entries.filter((entry) => !hasPositivePriceEuro(entry));
+  if (MERCHANT_FEED_PRICE_LOOKUP_LIMIT <= 0) return entries;
+
+  const missingPriceEntries = allMissingPriceEntries.slice(
+    0,
+    MERCHANT_FEED_PRICE_LOOKUP_LIMIT
+  );
   if (missingPriceEntries.length === 0) return entries;
 
-  const lookupKeys = Array.from(
-    new Set(
-      missingPriceEntries
-        .flatMap((entry) => [entry.article, entry.code])
-        .map((value) => (value || "").trim())
-        .filter(Boolean)
-    )
+  const codePrices = await lookupMerchantFeedPrices(
+    missingPriceEntries,
+    (entry) => [entry.code]
   );
-  if (lookupKeys.length === 0) return entries;
 
-  const prices = await fetchPriceEuroMapByLookupKeys(lookupKeys, {
-    sourceTimeoutMs: 900,
-    sourceCacheTtlMs: 1000 * 60 * 5,
-    timeoutMs: 900,
-    retries: 0,
-    retryDelayMs: 80,
-    cacheTtlMs: 1000 * 60 * 10,
-    includeDirectLookup: false,
-    includePricesPost: true,
-    maxKeys: Math.min(lookupKeys.length, MERCHANT_FEED_PRICE_LOOKUP_LIMIT * 2),
-  }).catch(() => ({} as Record<string, number>));
+  const articleLookupEntries = missingPriceEntries.filter(
+    (entry) => entry.article && !hasResolvedPrice(codePrices, entry)
+  );
+  const articlePrices =
+    articleLookupEntries.length > 0
+      ? await lookupMerchantFeedPrices(articleLookupEntries, (entry) => [entry.article])
+      : {};
+
+  const prices = {
+    ...codePrices,
+    ...articlePrices,
+  };
 
   if (Object.keys(prices).length === 0) return entries;
 
@@ -260,8 +332,7 @@ export const getGoogleMerchantFeedSnapshot = async (options?: {
     getAllProductSitemapEntries(),
   ]);
 
-  const sourceEntries =
-    maxItems && maxItems > 0 ? entries.slice(0, maxItems) : entries;
+  const sourceEntries = maxItems && maxItems > 0 ? entries.slice(0, maxItems) : entries;
   const pricedEntries = await enrichMerchantFeedPrices(sourceEntries);
   const items = pricedEntries
     .map((entry) => toGoogleMerchantFeedItem(entry, siteUrl, euroRate))

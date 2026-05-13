@@ -155,6 +155,31 @@ const buildManufacturerKeywords = (label: string) => {
   );
 };
 
+const buildManufacturerHeroSupportLabel = (label: string) =>
+  `Каталог бренду ${normalizeValue(label)} з переходом до груп і категорій`;
+
+const buildManufacturerGroupLead = (options: {
+  producerLabel: string;
+  groupLabel: string;
+  subgroupCount: number;
+}) => {
+  const producerLabel = normalizeValue(options.producerLabel);
+  const groupLabel = normalizeValue(options.groupLabel);
+
+  if (options.subgroupCount > 0) {
+    return `Група ${groupLabel} для бренду ${producerLabel} веде до конкретних категорій і товарів виробника в каталозі PartsON.`;
+  }
+
+  return `Група ${groupLabel} відкриває прямий перехід до товарів бренду ${producerLabel} у каталозі PartsON.`;
+};
+
+const buildManufacturerSubgroupLead = (options: {
+  producerLabel: string;
+  groupLabel: string;
+  subgroupLabel: string;
+}) =>
+  `Категорія ${normalizeValue(options.subgroupLabel)} бренду ${normalizeValue(options.producerLabel)} у групі ${normalizeValue(options.groupLabel)}.`;
+
 const buildProductDedupeKey = (item: {
   code?: string;
   article?: string;
@@ -778,18 +803,11 @@ export default async function ManufacturerDetailPage({
                 Сторінка бренду
               </span>
               <span className={directoryCompactMetricClass}>
-                {producer.productCount.toLocaleString("uk-UA")} тов.
+                {buildManufacturerHeroSupportLabel(producer.label)}
               </span>
-              {producer.groupsCount > 0 ? (
-                <span className={directoryCompactMetricClass}>
-                  {producer.groupsCount.toLocaleString("uk-UA")} груп
-                </span>
-              ) : null}
-              {producer.categoriesCount > 0 ? (
-                <span className={directoryCompactMetricAccentClass}>
-                  {producer.categoriesCount.toLocaleString("uk-UA")} кат.
-                </span>
-              ) : null}
+              <span className={directoryCompactMetricAccentClass}>
+                Пошук по групах, категоріях і товарах
+              </span>
             </div>
 
             <div className="mt-5 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
@@ -868,13 +886,11 @@ export default async function ManufacturerDetailPage({
               </div>
               <div className="flex flex-wrap gap-1.5">
                 <span className={directoryCompactMetricClass}>
-                  {producer.productCount.toLocaleString("uk-UA")} тов.
+                  Опис бренду і популярних напрямків
                 </span>
-                {producer.groupsCount > 0 ? (
-                  <span className={directoryCompactMetricAccentClass}>
-                    {producer.groupsCount.toLocaleString("uk-UA")} груп
-                  </span>
-                ) : null}
+                <span className={directoryCompactMetricAccentClass}>
+                  SEO-сторінка з переходом у каталог
+                </span>
               </div>
             </div>
           </div>
@@ -938,6 +954,13 @@ export default async function ManufacturerDetailPage({
                         >
                           {normalizeValue(group.label)}
                         </CatalogPrefetchLink>
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                          {buildManufacturerGroupLead({
+                            producerLabel: producer.label,
+                            groupLabel: group.label,
+                            subgroupCount: group.subgroups.length,
+                          })}
+                        </p>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
@@ -963,9 +986,20 @@ export default async function ManufacturerDetailPage({
                               subgroup.label
                             )}
                             prefetchCatalogOnViewport
-                            className="flex items-center justify-between rounded-lg border border-slate-200/90 bg-white/90 px-3.5 py-3 text-sm text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition hover:border-teal-200 hover:bg-teal-50/45 hover:text-teal-800"
+                            className="flex items-start justify-between gap-3 rounded-lg border border-slate-200/90 bg-white/90 px-3.5 py-3 text-sm text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition hover:border-teal-200 hover:bg-teal-50/45 hover:text-teal-800"
                           >
-                            <span className="pr-3 font-medium">{normalizeValue(subgroup.label)}</span>
+                            <span className="min-w-0 pr-3">
+                              <span className="block font-medium text-slate-800">
+                                {normalizeValue(subgroup.label)}
+                              </span>
+                              <span className="mt-0.5 block text-[12px] leading-4 text-slate-500">
+                                {buildManufacturerSubgroupLead({
+                                  producerLabel: producer.label,
+                                  groupLabel: group.label,
+                                  subgroupLabel: subgroup.label,
+                                })}
+                              </span>
+                            </span>
                             <span className={directoryCompactMetricAccentClass}>
                               {subgroup.productCount.toLocaleString("uk-UA")} тов.
                             </span>

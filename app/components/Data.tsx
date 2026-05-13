@@ -9,6 +9,7 @@ import React, {
   useDeferredValue,
 } from "react";
 import { useSearchParams } from "next/navigation";
+import { AnimatePresence } from "framer-motion";
 import { Search } from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
@@ -48,37 +49,27 @@ export interface Product {
 // --- Constants ---
 // Keep pages small to avoid overloading 1C and shorten perceived waits.
 const ITEMS_PER_PAGE = 12;
-const PRICE_SORT_ITEMS_PER_PAGE = 250;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v25-price-scroll-fast-media";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v26-priced-sort-only";
 const PRICE_CACHE_PREFIX = "partson:v8:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
 const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 45;
-const PRICE_PAGE_BATCH_SIZE = PRICE_SORT_ITEMS_PER_PAGE;
-const PRICE_FULL_LOOKUP_MAX_ITEMS = 12;
-const PRICE_FULL_LOOKUP_DELAY_MS = 0;
+const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 20;
-const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 60 * 4;
-const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60 * 4;
-const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
-const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 900;
-const IMAGE_PRIORITY_ITEMS_COUNT = 4;
-// Fetch all visible non-priority images in one batch to avoid waterfall round-trips.
-// Priority items (first IMAGE_PRIORITY_ITEMS_COUNT) load via the individual route and
-// must not be included in the batch (they'd bloat the response without being rendered).
-const IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT = 18;
+const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 90;
+const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
+const BACKGROUND_PAGE_PREFETCH_DEPTH = 0;
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 0;
+const IMAGE_PRIORITY_ITEMS_COUNT = 2;
 const IMAGE_DEEP_RECOVERY_BATCH_COUNT = 4;
-const IMAGE_DEEP_RECOVERY_DELAY_MS = 380;
-// Chunk size matches max so the visible effect covers all candidates in one pass.
+const IMAGE_DEEP_RECOVERY_DELAY_MS = 650;
 const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 18;
-const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = 18;
+const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = 24;
 const LOAD_MORE_SCROLL_BUFFER_PX = 1200;
 const LOAD_MORE_OBSERVER_ROOT_MARGIN = "0px 0px 1400px 0px";
-const PRICE_SORT_AUTOLOAD_MAX_ITEMS = 1200;
-const PRICE_SORT_AUTOLOAD_DELAY_MS = 140;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 80;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 90;
 // Keep the old safety fallback for grid windowing; card-level content visibility
@@ -86,9 +77,8 @@ const NEXT_PAGE_REQUEST_COOLDOWN_MS = 90;
 const VIRTUAL_WINDOW_THRESHOLD_ITEMS = 1000000;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
 const VIRTUAL_OVERSCAN_ROWS = 6;
-const FILTER_SCROLL_RETRY_DELAYS_MS = [0, 80, 180] as const;
-const SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT = 1;
-const SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS = 420;
+const SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT = 2;
+const SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS = 520;
 const DEFAULT_EURO_RATE = 50;
 const EURO_RATE_CACHE_KEY = "partson:v1:euro-rate";
 const EURO_RATE_CACHE_TTL_MS = 1000 * 60 * 30;
@@ -145,6 +135,7 @@ const CATEGORY_FIELDS = [
   "category",
 ]; // РљР°С‚РµРіРѕСЂРёСЏ
 const PRICE_VALUE_FIELDS = [
+  "priceEuro",
   "\u0426\u0456\u043d\u0430\u041f\u0440\u043e\u0434", // Р¦С–РЅР°РџСЂРѕРґ
   "\u0426\u0435\u043d\u0430\u041f\u0440\u043e\u0434", // Р¦РµРЅР°РџСЂРѕРґ
   "\u0426\u0435\u043d\u0430", // Р¦РµРЅР°
@@ -193,9 +184,6 @@ const readFirstNumber = (
   }
   return fallback;
 };
-
-const hasAnyField = (source: Record<string, unknown>, keys: readonly string[]) =>
-  keys.some((key) => Object.prototype.hasOwnProperty.call(source, key));
 
 const readFirstBoolean = (
   source: Record<string, unknown>,
@@ -366,6 +354,14 @@ const getProductPriceLookupKeys = (item: Pick<Product, "code" | "article">) =>
     new Set([(item.article || "").trim(), (item.code || "").trim()].filter(Boolean))
   );
 
+const hasKnownNoPrice = (
+  item: Pick<Product, "code" | "article" | "priceEuro">,
+  prices: Record<string, number | null>
+) => {
+  const priceKey = getProductPriceStateKey(item);
+  return item.priceEuro === null || Boolean(priceKey && prices[priceKey] === null);
+};
+
 const getResolvedProductPriceUAH = (
   item: Pick<Product, "code" | "article" | "priceEuro">,
   prices: Record<string, number | null>,
@@ -419,10 +415,7 @@ const normalizeProduct = (raw: unknown): Product => {
     return trimmed;
   })();
   const quantity = readFirstNumber(record, QTY_FIELDS, 0);
-  const hasPriceField = hasAnyField(record, PRICE_VALUE_FIELDS);
-  const priceEuro = hasPriceField
-    ? readFirstNumber(record, PRICE_VALUE_FIELDS, Number.NaN)
-    : Number.NaN;
+  const priceEuro = readFirstNumber(record, PRICE_VALUE_FIELDS, Number.NaN);
 
   const group = readFirstString(record, GROUP_FIELDS);
   const subGroup = readFirstString(record, SUBGROUP_FIELDS);
@@ -442,11 +435,7 @@ const normalizeProduct = (raw: unknown): Product => {
     name,
     producer,
     quantity,
-    priceEuro: hasPriceField
-      ? Number.isFinite(priceEuro) && priceEuro > 0
-        ? priceEuro
-        : null
-      : undefined,
+    priceEuro: Number.isFinite(priceEuro) && priceEuro > 0 ? priceEuro : null,
     group,
     subGroup,
     category,
@@ -485,21 +474,6 @@ const mergeUniqueProducts = (current: Product[], incoming: Product[]) => {
   return Array.from(map.values());
 };
 
-const hasNewProductsForList = (current: Product[], incoming: Product[]) => {
-  if (incoming.length === 0) return false;
-
-  const seen = new Set(
-    current
-      .map(getProductIdentity)
-      .filter((key): key is string => Boolean(key))
-  );
-
-  return incoming.some((item) => {
-    const key = getProductIdentity(item);
-    return Boolean(key) && !seen.has(key);
-  });
-};
-
 const CATALOG_GRID_CLASS =
   "mx-auto mt-2 grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4";
 
@@ -524,41 +498,6 @@ const CatalogTransitionLoader = ({
   </div>
 );
 
-const CatalogCardSkeleton = ({ index }: { index: number }) => (
-  <div
-    className="flex h-[320px] flex-col rounded-xl border border-slate-200/70 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-2.5 shadow-sm"
-    aria-hidden="true"
-  >
-    <div className="flex h-20 rounded-xl border border-slate-200/70 bg-gradient-to-r from-slate-100 to-slate-200 p-1.5">
-      <div className="h-full w-2/5 rounded-lg bg-white" />
-      <div className="ml-2 flex w-3/5 flex-col justify-center gap-2">
-        <div className="h-3.5 w-full rounded-full bg-slate-200" />
-        <div className="h-3.5 w-5/6 rounded-full bg-slate-200" />
-        <div className="h-3.5 w-3/5 rounded-full bg-slate-200" />
-      </div>
-    </div>
-    <div className="mt-5 space-y-2.5 px-1">
-      <div className="h-3 rounded-full bg-slate-200/80" />
-      <div className="h-3 rounded-full bg-slate-200/80" />
-      <div className="h-3 rounded-full bg-slate-200/80" />
-    </div>
-    <div className="mt-5 flex justify-end">
-      <div className="h-9 w-40 rounded-full border border-blue-100 bg-white/90" />
-    </div>
-    <div className="mt-auto flex items-end justify-between border-t border-slate-200 pt-3">
-      <div className="space-y-2">
-        <div className="h-3 w-24 rounded-full bg-slate-200/80" />
-        <div className="h-6 w-20 rounded-full border border-slate-200 bg-white" />
-      </div>
-      <div className="flex gap-2">
-        <div className="h-9 w-9 rounded-lg bg-slate-200/80" />
-        <div className="h-9 w-9 rounded-lg bg-slate-200/80" />
-      </div>
-    </div>
-    <span className="sr-only">Завантаження товару {index + 1}</span>
-  </div>
-);
-
 type CatalogPagePayload = {
   items: Product[];
   prices?: Record<string, number | null>;
@@ -579,35 +518,6 @@ const abortControllerSafely = (controller: AbortController) => {
     controller.abort();
   } catch {
     // Prevent teardown-time abort edge cases from surfacing as runtime errors.
-  }
-};
-
-const scrollCatalogResultsToTop = () => {
-  if (typeof window === "undefined") return;
-
-  const scroll = () => {
-    const target = document.getElementById("catalog-results");
-    const filterShell = document.querySelector<HTMLElement>(".catalog-filter-shell");
-    const headerHeight = Number.parseFloat(
-      window
-        .getComputedStyle(document.documentElement)
-        .getPropertyValue("--header-height")
-    );
-    const headerOffset = Number.isFinite(headerHeight) ? headerHeight + 12 : 76;
-    const filterOffset = filterShell
-      ? Math.ceil(filterShell.getBoundingClientRect().bottom) + 12
-      : 0;
-    const offset = Math.max(headerOffset, filterOffset);
-    const top = target
-      ? Math.max(0, window.scrollY + target.getBoundingClientRect().top - offset)
-      : 0;
-
-    window.scrollTo({ top, behavior: "auto" });
-  };
-
-  window.requestAnimationFrame(scroll);
-  for (const delay of FILTER_SCROLL_RETRY_DELAYS_MS) {
-    window.setTimeout(scroll, delay);
   }
 };
 
@@ -700,7 +610,11 @@ const normalizePageImageMap = (value: unknown): Record<string, string> => {
   return next;
 };
 
-const normalizePageHasMore = (value: unknown, itemCount: number) => {
+const normalizePageHasMore = (
+  value: unknown,
+  itemCount: number,
+  requestedItemCount = ITEMS_PER_PAGE
+) => {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value !== 0;
   if (typeof value === "string") {
@@ -708,7 +622,7 @@ const normalizePageHasMore = (value: unknown, itemCount: number) => {
     if (["true", "1", "yes", "y", "так", "да"].includes(normalized)) return true;
     if (["false", "0", "no", "n", "ні", "нет"].includes(normalized)) return false;
   }
-  return itemCount === ITEMS_PER_PAGE;
+  return itemCount >= requestedItemCount;
 };
 
 const normalizePageCursor = (value: unknown) =>
@@ -826,7 +740,7 @@ function useCatalogData(params: {
   selectedCars: string[];
   selectedCategories: string[];
   rawSearchQuery: string;
-  searchFilter: "all" | "article" | "name" | "code" | "producer" | "description";
+  searchFilter: "all" | "article" | "name" | "code" | "producer";
   groupFromURL: string | null;
   subcategoryFromURL: string | null;
   producerFromURL: string | null;
@@ -859,9 +773,7 @@ function useCatalogData(params: {
     () => (hasUrlCategoryFilter ? [] : selectedCategories),
     [hasUrlCategoryFilter, selectedCategories]
   );
-  const effectiveServerSortOrder = sortOrder === "none" ? "none" : "desc";
-  const catalogItemsPerPage =
-    sortOrder === "none" ? ITEMS_PER_PAGE : PRICE_SORT_ITEMS_PER_PAGE;
+  const effectiveServerSortOrder = sortOrder;
   const canUseCursorPagination = selectedCars.length === 0;
   const [data, setData] = useState<Product[]>([]);
   const [prices, setPrices] = useState<Record<string, number | null>>({});
@@ -890,7 +802,7 @@ function useCatalogData(params: {
         group: groupFromURL,
         subcategory: subcategoryFromURL,
         producer: producerFromURL,
-        sortOrder,
+        sortOrder: effectiveServerSortOrder,
       }),
     [
       normalizedSearch,
@@ -900,7 +812,7 @@ function useCatalogData(params: {
       groupFromURL,
       subcategoryFromURL,
       producerFromURL,
-      sortOrder,
+      effectiveServerSortOrder,
     ]
   );
   const activeQuerySignatureRef = useRef(querySignature);
@@ -1200,17 +1112,6 @@ function useCatalogData(params: {
           const resolvedPrice = resolvedPrices[item.stateKey];
           if (resolvedPrice === undefined) continue;
 
-          if (resolvedPrice === null) {
-            const currentPrice = pricesRef.current[item.stateKey];
-            if (
-              typeof currentPrice === "number" &&
-              Number.isFinite(currentPrice) &&
-              currentPrice > 0
-            ) {
-              continue;
-            }
-          }
-
           nextUpdates[item.stateKey] = resolvedPrice;
           writeCachedPriceEntry(item.stateKey, resolvedPrice);
           for (const lookupKey of item.lookupKeys) {
@@ -1226,7 +1127,6 @@ function useCatalogData(params: {
 
         if (Object.keys(nextUpdates).length === 0) return;
 
-        pricesRef.current = { ...pricesRef.current, ...nextUpdates };
         setPrices((prev) => {
           let didChange = false;
           const next = { ...prev };
@@ -1270,75 +1170,72 @@ function useCatalogData(params: {
       };
 
       try {
-        const unresolvedItems = requestItems
-          .slice(0, PRICE_FULL_LOOKUP_MAX_ITEMS);
-
-        const fastLookup = postBatch(requestItems, "fast").then((fastPrices) => {
-          const normalizedFastPrices: Record<string, number | null> = {};
-          for (const item of requestItems) {
-            const resolvedPrice = fastPrices[item.stateKey];
-            normalizedFastPrices[item.stateKey] =
-              typeof resolvedPrice === "number" &&
-              Number.isFinite(resolvedPrice) &&
-              resolvedPrice > 0
-                ? resolvedPrice
-                : null;
+        const fastPrices = await postBatch(requestItems, "fast");
+        const normalizedFastPrices: Record<string, number | null> = {};
+        for (const item of requestItems) {
+          const resolvedPrice = fastPrices[item.stateKey];
+          if (
+            typeof resolvedPrice === "number" &&
+            Number.isFinite(resolvedPrice) &&
+            resolvedPrice > 0
+          ) {
+            normalizedFastPrices[item.stateKey] = resolvedPrice;
           }
-          commitResolvedPrices(normalizedFastPrices, PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS);
+        }
+        if (Object.keys(normalizedFastPrices).length > 0) {
+          commitResolvedPrices(
+            normalizedFastPrices,
+            PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS
+          );
+        }
+
+        const unresolvedItems = requestItems.filter((item) => {
+          const value = normalizedFastPrices[item.stateKey];
+          return !(typeof value === "number" && Number.isFinite(value) && value > 0);
         });
 
-        const fullLookup = (async () => {
-          if (unresolvedItems.length === 0) return;
+        if (unresolvedItems.length === 0) {
+          return;
+        }
 
-          if (PRICE_FULL_LOOKUP_DELAY_MS > 0) {
-            await awaitWithAbortSignal(
-              new Promise<void>((resolve) => {
-                const timer = setTimeout(resolve, PRICE_FULL_LOOKUP_DELAY_MS);
-                if (options?.signal?.aborted) {
-                  clearTimeout(timer);
-                  resolve();
-                }
-              }),
-              options?.signal
-            );
+        let fullPrices: Record<string, number | null> = {};
+        try {
+          fullPrices = await postBatch(unresolvedItems, "full");
+        } catch (error) {
+          if (error instanceof Error && error.name === "AbortError") {
+            throw error;
+          }
+          const fallbackNulls = Object.fromEntries(
+            unresolvedItems.map((item) => [item.stateKey, null])
+          ) as Record<string, null>;
+          commitResolvedPrices(
+            fallbackNulls,
+            PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS
+          );
+          return;
+        }
+
+        const resolvedFullPrices: Record<string, number | null> = {};
+        for (const item of unresolvedItems) {
+          const resolvedPrice = fullPrices[item.stateKey];
+          if (
+            typeof resolvedPrice === "number" &&
+            Number.isFinite(resolvedPrice) &&
+            resolvedPrice > 0
+          ) {
+            resolvedFullPrices[item.stateKey] = resolvedPrice;
+            continue;
           }
 
-          const fullPrices = await postBatch(unresolvedItems, "full");
-          const positiveFullPrices: Record<string, number> = {};
-          for (const item of unresolvedItems) {
-            const resolvedPrice = fullPrices[item.stateKey];
-            if (
-              typeof resolvedPrice !== "number" ||
-              !Number.isFinite(resolvedPrice) ||
-              resolvedPrice <= 0
-            ) {
-              continue;
-            }
+          resolvedFullPrices[item.stateKey] = null;
+        }
 
-            positiveFullPrices[item.stateKey] = resolvedPrice;
-          }
-
-          if (Object.keys(positiveFullPrices).length > 0) {
-            commitResolvedPrices(positiveFullPrices, PRICE_REVALIDATE_AFTER_NULL_MS);
-          }
-        })();
-
-        const results = await Promise.allSettled([fastLookup, fullLookup]);
-        const rejectedResults = results.filter((result) => result.status === "rejected");
-        if (rejectedResults.length !== results.length) return;
-
-        const allAborted = rejectedResults.every(
-          (result) =>
-            result.status === "rejected" &&
-            result.reason instanceof Error &&
-            result.reason.name === "AbortError"
-        );
-        if (allAborted) return;
-
-        const fallbackNulls = Object.fromEntries(
-          requestItems.map((item) => [item.stateKey, null])
-        ) as Record<string, null>;
-        commitResolvedPrices(fallbackNulls, PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS);
+        if (Object.keys(resolvedFullPrices).length > 0) {
+          commitResolvedPrices(
+            resolvedFullPrices,
+            PRICE_REVALIDATE_AFTER_NULL_MS
+          );
+        }
       } catch (error) {
         if (!(error instanceof Error && error.name === "AbortError")) {
           const fallbackNulls = Object.fromEntries(
@@ -1362,19 +1259,17 @@ function useCatalogData(params: {
         ttlMs?: number;
         querySignatureSnapshot?: string;
         signal?: AbortSignal;
-        // Items before this index are loaded via the individual image route (priority).
-        // Excluding them from the batch keeps the batch response smaller.
-        skipFirst?: number;
       }
     ) => {
       if (typeof window === "undefined") return;
-      if (IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT <= 0) return;
+      const imagePrefetchCount =
+        window.innerWidth >= 1024 ? 16 : window.innerWidth >= 768 ? 10 : 6;
+      if (imagePrefetchCount <= 0) return;
 
       const prefetchedImages = options?.prefetchedImages ?? {};
       const batchItems = items
-        .slice(options?.skipFirst ?? 0)
         .filter((item) => item.hasPhoto !== false)
-        .slice(0, IMAGE_PREFETCH_ON_PAGE_FETCH_COUNT)
+        .slice(0, imagePrefetchCount)
         .map((item) => {
           const code = (item.code || "").trim();
           const article = (item.article || "").trim() || undefined;
@@ -1561,8 +1456,6 @@ function useCatalogData(params: {
             return;
           }
 
-          // On network errors, only release pending state — do NOT mark as missing.
-          // deferDirectLoad in ProductCardImage will fall back to the individual route.
           setPageImagePending((prev) => {
             const next = { ...prev };
             for (const key of pendingKeys) {
@@ -1643,17 +1536,11 @@ function useCatalogData(params: {
 
   // РєР»СЋС‡ РєРµС€Сѓ
   const buildCacheKey = useCallback(
-    (
-      pageNum: number,
-      trimmed: string,
-      cursor = "",
-      cursorField = "",
-      limit = catalogItemsPerPage
-    ) =>
+    (pageNum: number, trimmed: string, cursor = "", cursorField = "") =>
       JSON.stringify({
         endpoint: CATALOG_PAGE_CACHE_VERSION,
         page: pageNum,
-        limit,
+        limit: ITEMS_PER_PAGE,
         cursor,
         cursorField,
         q: trimmed,
@@ -1673,7 +1560,6 @@ function useCatalogData(params: {
       subcategoryFromURL,
       producerFromURL,
       effectiveServerSortOrder,
-      catalogItemsPerPage,
     ]
   );
 
@@ -1684,25 +1570,16 @@ function useCatalogData(params: {
       cursor = "",
       cursorField = ""
     ) => {
-      // Prefer cursor continuation for sorted catalog pages. The progressive
-      // sorted window is only a fallback when 1C does not provide a cursor.
-      const useSortedProgressiveWindow =
-        effectiveServerSortOrder !== "none" && pageNum > 1;
-      const baseRequestLimit =
-        sortOrder === "none" ? ITEMS_PER_PAGE : PRICE_SORT_ITEMS_PER_PAGE;
-      const requestPage = useSortedProgressiveWindow ? 1 : pageNum;
-      const requestLimit = useSortedProgressiveWindow
-        ? baseRequestLimit * pageNum
-        : baseRequestLimit;
-      const requestCursor = useSortedProgressiveWindow ? "" : cursor;
-      const requestCursorField = useSortedProgressiveWindow ? "" : cursorField;
+      const requestPage = pageNum;
+      const requestLimit = ITEMS_PER_PAGE;
+      const requestCursor = cursor;
+      const requestCursorField = cursorField;
 
       const cacheKey = buildCacheKey(
         pageNum,
         normalizedSearch,
         requestCursor,
-        requestCursorField,
-        requestLimit
+        requestCursorField
       );
       const existing = inFlightPageRequests.get(cacheKey);
       if (existing) {
@@ -1760,7 +1637,7 @@ function useCatalogData(params: {
           items: itemsArray.map(normalizeProduct),
           prices: normalizePagePriceMap(raw?.prices),
           images: normalizePageImageMap(raw?.images),
-          hasMore: normalizePageHasMore(raw?.hasMore, itemsArray.length),
+          hasMore: normalizePageHasMore(raw?.hasMore, itemsArray.length, requestLimit),
           nextCursor: normalizePageCursor(raw?.nextCursor),
           cursorField:
             typeof raw?.cursorField === "string" && raw.cursorField.trim()
@@ -1789,7 +1666,6 @@ function useCatalogData(params: {
       searchFilter,
       selectedCars,
       effectiveServerSortOrder,
-      sortOrder,
       subcategoryFromURL,
     ]
   );
@@ -1840,13 +1716,8 @@ function useCatalogData(params: {
             ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
             querySignatureSnapshot: querySignature,
           });
-          fetchCatalogPageImages(memoryHit.items, {
-            prefetchedImages: memoryHit.images,
-            cacheKey,
-            ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
-            querySignatureSnapshot: querySignature,
-            skipFirst: 0,
-          });
+          // Не обмежуємо prefetch для першої сторінки, images вже є
+          // fetchCatalogPageImages(memoryHit.items, { ... });
         });
         dataRef.current = nextItems;
         setData(nextItems);
@@ -1855,7 +1726,7 @@ function useCatalogData(params: {
         setHasMore(
           typeof memoryHit.hasMore === "boolean"
             ? memoryHit.hasMore
-            : memoryHit.items.length >= catalogItemsPerPage
+            : memoryHit.items.length === ITEMS_PER_PAGE
         );
         setLoading(false);
         setError(null);
@@ -1880,13 +1751,8 @@ function useCatalogData(params: {
             ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
             querySignatureSnapshot: querySignature,
           });
-          fetchCatalogPageImages(sessionHit.items, {
-            prefetchedImages: sessionHit.images,
-            cacheKey,
-            ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
-            querySignatureSnapshot: querySignature,
-            skipFirst: 0,
-          });
+          // Не обмежуємо prefetch для першої сторінки, images вже є
+          // fetchCatalogPageImages(sessionHit.items, { ... });
         });
         dataRef.current = nextItems;
         setData(nextItems);
@@ -1895,7 +1761,7 @@ function useCatalogData(params: {
         setHasMore(
           typeof sessionHit.hasMore === "boolean"
             ? sessionHit.hasMore
-            : sessionHit.items.length >= catalogItemsPerPage
+            : sessionHit.items.length === ITEMS_PER_PAGE
         );
         setLoading(false);
         setError(null);
@@ -1928,7 +1794,6 @@ function useCatalogData(params: {
     initialQuerySignature,
     normalizedSearch,
     buildCacheKey,
-    catalogItemsPerPage,
     hideNextPageLoader,
     scheduleCatalogBackgroundTask,
   ]);
@@ -1951,18 +1816,14 @@ function useCatalogData(params: {
     const cancelPageWarmup = () => {};
 
     const trimmed = normalizedSearch;
-    const rawRequestCursor =
+    const requestCursor =
       canUseCursorPagination && page > 1
         ? nextCursorByPageRef.current[page] ?? ""
         : "";
-    const rawRequestCursorField =
+    const requestCursorField =
       canUseCursorPagination && page > 1
         ? nextCursorFieldByPageRef.current[page] ?? ""
         : "";
-    const shouldUseSortedProgressivePage =
-      effectiveServerSortOrder !== "none" && page > 1;
-    const requestCursor = shouldUseSortedProgressivePage ? "" : rawRequestCursor;
-    const requestCursorField = shouldUseSortedProgressivePage ? "" : rawRequestCursorField;
     const cacheKey = buildCacheKey(page, trimmed, requestCursor, requestCursorField);
 
     const applyCachedItems = (payload: CatalogPagePayload) => {
@@ -1979,18 +1840,24 @@ function useCatalogData(params: {
         page === 1 ? MEMORY_CACHE_TTL_MS_FIRST_PAGE : MEMORY_CACHE_TTL_MS_NEXT_PAGES;
       const uniqueIncoming = mergeUniqueProducts([], items);
       const previousData = page === 1 ? [] : dataRef.current;
+      const previousStableKeySet = new Set(
+        previousData.map((item) => getProductStableListKey(item))
+      );
       const nextData =
         page === 1
           ? uniqueIncoming
           : mergeUniqueProducts(previousData, uniqueIncoming);
+      const appendedItems =
+        page === 1
+          ? uniqueIncoming
+          : uniqueIncoming.filter(
+              (item) => !previousStableKeySet.has(getProductStableListKey(item))
+            );
+      const itemsForIncrementalWarmup = appendedItems.length > 0 ? appendedItems : items;
       const pageIntroducedNewItems =
         page === 1
           ? nextData.length > 0
           : nextData.length > previousData.length;
-      const newlyIntroducedItems =
-        page === 1 ? uniqueIncoming : nextData.slice(previousData.length);
-      const sideEffectItems =
-        newlyIntroducedItems.length > 0 ? newlyIntroducedItems : items;
       if (payload.prices && Object.keys(payload.prices).length > 0) {
         setPrices((prev) => {
           let didChange = false;
@@ -2017,15 +1884,8 @@ function useCatalogData(params: {
       });
       dataRef.current = nextData;
       setData(nextData);
-      const payloadNextCursor = payload.nextCursor || "";
-      const hasUsableNextCursor =
-        Boolean(payloadNextCursor) &&
-        effectiveServerSortOrder === "none" &&
-        !shouldUseSortedProgressivePage &&
-        payloadNextCursor !== rawRequestCursor;
-
-      if (hasUsableNextCursor) {
-        nextCursorByPageRef.current[page + 1] = payloadNextCursor;
+      if (payload.nextCursor) {
+        nextCursorByPageRef.current[page + 1] = payload.nextCursor;
         nextCursorFieldByPageRef.current[page + 1] = payload.cursorField || "";
       } else {
         delete nextCursorByPageRef.current[page + 1];
@@ -2034,26 +1894,26 @@ function useCatalogData(params: {
       if (page === 1) {
         firstPageReadySignatureRef.current = currentQuerySignature;
       }
+      const requestedPageItemCount =
+        sortOrder !== "none" && page > 1 ? ITEMS_PER_PAGE * page : ITEMS_PER_PAGE;
       const payloadHasMore =
         typeof payload.hasMore === "boolean"
           ? payload.hasMore
-          : items.length >= catalogItemsPerPage;
+          : items.length >= requestedPageItemCount;
       const shouldOptimisticallyKeepLoadingSortedPages =
-        sortOrder !== "none" &&
-        items.length >= catalogItemsPerPage &&
-        (hasUsableNextCursor || pageIntroducedNewItems);
+        sortOrder !== "none" && pageIntroducedNewItems;
       const resolvedHasMore =
         payloadHasMore || shouldOptimisticallyKeepLoadingSortedPages;
-      // Price-sorted pages can legally overlap when the backend has no stable cursor.
-      // Never stop infinite scroll on duplicate chunks in that mode.
-      const isCursorlessSortedMode =
-        sortOrder !== "none" && !hasUsableNextCursor;
-
       const isDuplicatePageChunk =
         page > 1 &&
         items.length > 0 &&
         !pageIntroducedNewItems &&
-        !hasUsableNextCursor;
+        !payload.nextCursor;
+
+      // Price-sorted pages can legally overlap when backend has no stable cursor.
+      // Do not stop infinite scroll on duplicate chunks in this mode.
+      const isCursorlessSortedMode =
+        sortOrder !== "none" && !payload.nextCursor;
 
       if (isDuplicatePageChunk && !isCursorlessSortedMode) {
         duplicatePageStreakRef.current += 1;
@@ -2061,14 +1921,9 @@ function useCatalogData(params: {
         duplicatePageStreakRef.current = 0;
       }
 
-      // Some backend pages can overlap; stop only after a sustained duplicate streak
-      // AND the server itself reports no more pages. Never stop early if payloadHasMore
-      // is true — that means the upstream still has products to deliver.
+      // Some backend pages can overlap; stop only after a long duplicate streak.
       const shouldStopPaginationOnDuplicatePage =
-        !isCursorlessSortedMode &&
-        !hasUsableNextCursor &&
-        !payloadHasMore &&
-        duplicatePageStreakRef.current >= 5;
+        !isCursorlessSortedMode && !payload.nextCursor && duplicatePageStreakRef.current >= 6;
 
       setHasMore(
         shouldStopPaginationOnDuplicatePage ? false : resolvedHasMore
@@ -2085,26 +1940,20 @@ function useCatalogData(params: {
 
       cancelPageWarmup();
       // Одразу паралельно з оновленням даних запускаємо fetchCatalogPagePrices та fetchCatalogPageImages
-      applyResolvedPagePrices(sideEffectItems, payload.prices);
-      void fetchCatalogPagePrices(sideEffectItems, {
+      applyResolvedPagePrices(itemsForIncrementalWarmup, payload.prices);
+      void fetchCatalogPagePrices(itemsForIncrementalWarmup, {
         prefetchedPrices: payload.prices,
         cacheKey,
         ttlMs: ttl,
         querySignatureSnapshot: currentQuerySignature,
         signal: controller.signal,
       });
-      fetchCatalogPageImages(sideEffectItems, {
+      fetchCatalogPageImages(itemsForIncrementalWarmup, {
         prefetchedImages: payload.images,
         cacheKey,
         ttlMs: ttl,
         querySignatureSnapshot: currentQuerySignature,
         signal: controller.signal,
-        // Page 1: skip items that use the individual high-priority route so they
-        // don't occupy batch capacity. Count is viewport-dependent (mobile=1, tablet=2, desktop=4).
-        // Page 2+: all items are below-the-fold, no skip needed.
-        skipFirst: page === 1
-          ? 0
-          : 0,
       });
 
       pagingRequestedRef.current = false;
@@ -2147,26 +1996,6 @@ function useCatalogData(params: {
           requestCursor,
           requestCursorField
         );
-
-        const shouldFallbackSortedCursorPage =
-          effectiveServerSortOrder !== "none" &&
-          page > 1 &&
-          Boolean(requestCursor) &&
-          payload.items.length > 0 &&
-          !hasNewProductsForList(dataRef.current, payload.items);
-
-        if (shouldFallbackSortedCursorPage) {
-          const fallbackPayload = await fetchCatalogPagePayload(
-            page,
-            controller.signal,
-            "",
-            ""
-          );
-
-          if (hasNewProductsForList(dataRef.current, fallbackPayload.items)) {
-            payload = fallbackPayload;
-          }
-        }
 
         const shouldSoftRetryServiceUnavailable =
           payload.serviceUnavailable && payload.items.length === 0;
@@ -2263,8 +2092,6 @@ function useCatalogData(params: {
     hideNextPageLoader,
     scheduleCatalogBackgroundTask,
     sortOrder,
-    effectiveServerSortOrder,
-    catalogItemsPerPage,
   ]);
 
   useEffect(() => {
@@ -2293,14 +2120,8 @@ function useCatalogData(params: {
         if (cancelled) return;
 
         const targetPage = page + depth;
-        const targetUsesSortedProgressivePage =
-          effectiveServerSortOrder !== "none" && targetPage > 1;
-        const targetCursor =
-          targetUsesSortedProgressivePage || !canUseCursorPagination ? "" : upcomingCursor;
-        const targetCursorField =
-          targetUsesSortedProgressivePage || !canUseCursorPagination
-            ? ""
-            : upcomingCursorField;
+        const targetCursor = canUseCursorPagination ? upcomingCursor : "";
+        const targetCursorField = canUseCursorPagination ? upcomingCursorField : "";
 
         const targetCacheKey = buildCacheKey(
           targetPage,
@@ -2315,11 +2136,7 @@ function useCatalogData(params: {
         const memoryHit = readPageFromMemory(targetCacheKey);
 
         if (memoryHit) {
-          if (
-            canUseCursorPagination &&
-            !targetUsesSortedProgressivePage &&
-            memoryHit.nextCursor
-          ) {
+          if (canUseCursorPagination && memoryHit.nextCursor) {
             nextCursorByPageRef.current[targetPage + 1] = memoryHit.nextCursor;
             nextCursorFieldByPageRef.current[targetPage + 1] =
               memoryHit.cursorField || "";
@@ -2327,18 +2144,15 @@ function useCatalogData(params: {
             upcomingCursorField = memoryHit.cursorField || "";
           }
           if (memoryHit.items.length === 0) return;
-          const memorySideEffectItems = targetUsesSortedProgressivePage
-            ? memoryHit.items.slice(-ITEMS_PER_PAGE)
-            : memoryHit.items;
           // Prefetch images and prices for memoryHit
-          void fetchCatalogPagePrices(memorySideEffectItems, {
+          void fetchCatalogPagePrices(memoryHit.items, {
             prefetchedPrices: memoryHit.prices,
             cacheKey: targetCacheKey,
             ttlMs: ttl,
             querySignatureSnapshot: querySignature,
             signal: controller.signal,
           });
-          fetchCatalogPageImages(memorySideEffectItems, {
+          fetchCatalogPageImages(memoryHit.items, {
             prefetchedImages: memoryHit.images,
             cacheKey: targetCacheKey,
             ttlMs: ttl,
@@ -2360,14 +2174,7 @@ function useCatalogData(params: {
 
           writePageToMemory(targetCacheKey, payload, ttl);
           writePageToSession(targetCacheKey, payload);
-          const payloadSideEffectItems = targetUsesSortedProgressivePage
-            ? payload.items.slice(-ITEMS_PER_PAGE)
-            : payload.items;
-          if (
-            canUseCursorPagination &&
-            !targetUsesSortedProgressivePage &&
-            payload.nextCursor
-          ) {
+          if (canUseCursorPagination && payload.nextCursor) {
             nextCursorByPageRef.current[targetPage + 1] = payload.nextCursor;
             nextCursorFieldByPageRef.current[targetPage + 1] =
               payload.cursorField || "";
@@ -2380,14 +2187,14 @@ function useCatalogData(params: {
             upcomingCursorField = "";
           }
           // Prefetch images and prices for payload
-          void fetchCatalogPagePrices(payloadSideEffectItems, {
+          void fetchCatalogPagePrices(payload.items, {
             prefetchedPrices: payload.prices,
             cacheKey: targetCacheKey,
             ttlMs: ttl,
             querySignatureSnapshot: querySignature,
             signal: controller.signal,
           });
-          fetchCatalogPageImages(payloadSideEffectItems, {
+          fetchCatalogPageImages(payload.items, {
             prefetchedImages: payload.images,
             cacheKey: targetCacheKey,
             ttlMs: ttl,
@@ -2409,22 +2216,21 @@ function useCatalogData(params: {
       window.clearTimeout(timerId);
       abortControllerSafely(controller);
     };
-  }, [
-    buildCacheKey,
-    canUseCursorPagination,
-    fetchCatalogPageImages,
-    fetchCatalogPagePayload,
-    fetchCatalogPagePrices,
-    hasMore,
-    loading,
-    normalizedSearch,
-    page,
-    querySignature,
-    safeData.length,
-    selectedCars.length,
-    sortOrder,
-    effectiveServerSortOrder,
-  ]);
+	  }, [
+	    buildCacheKey,
+	    canUseCursorPagination,
+	    fetchCatalogPageImages,
+	    fetchCatalogPagePayload,
+	    fetchCatalogPagePrices,
+	    hasMore,
+	    loading,
+	    normalizedSearch,
+	    page,
+	    querySignature,
+	    safeData.length,
+	    selectedCars.length,
+	    sortOrder,
+	  ]);
 // --- Р†РЅС–С†С–Р°Р»С–Р·Р°С†С–СЏ РєС–Р»СЊРєРѕСЃС‚РµР№ ---
   useEffect(() => {
     setQuantities((prev) => {
@@ -2544,8 +2350,6 @@ function useCatalogData(params: {
                 ? codeLower.includes(q)
                 : searchFilter === "producer"
                   ? producerLower.includes(q)
-                  : searchFilter === "description"
-                    ? true
                   : codeLower.includes(q) ||
                     articleLower.includes(q) ||
                     nameLower.includes(q) ||
@@ -2713,19 +2517,17 @@ const Data: React.FC<DataProps> = ({
 
   const rawSearchQuery = currentSearchParams.get("search") || "";
   const searchFilter =
-    (currentSearchParams.get("filter") as "all" | "article" | "name" | "code" | "producer" | "description") ||
+    (currentSearchParams.get("filter") as "all" | "article" | "name" | "code" | "producer") ||
     "all";
 
   const groupFromURL = currentSearchParams.get("group");
   const subcategoryFromURL = currentSearchParams.get("subcategory");
   const producerFromURL = (currentSearchParams.get("producer") || "").trim() || null;
   const lastFilterSignatureRef = useRef<string | null>(null);
-  const didScrollInitialCatalogRef = useRef(false);
   const lastStableSortedSignatureRef = useRef("");
   const softTransitionStartedAtRef = useRef(0);
   const softTransitionHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lastStableSortedData, setLastStableSortedData] = useState<Product[]>([]);
-  const [lastStableFilterSignature, setLastStableFilterSignature] = useState("");
   const [isSoftTransitioning, setIsSoftTransitioning] = useState(false);
   const [virtualWindowRange, setVirtualWindowRange] = useState({
     startIndex: 0,
@@ -2805,27 +2607,27 @@ const Data: React.FC<DataProps> = ({
   }, [loadNextPage]);
 
   const sortedEntries = useMemo(() => {
-    if (sortOrder === "none") {
-      return filteredData.map((item, index) => ({
-        item,
-        index,
-        code: item.code,
-        stableKey: getProductStableListKey(item),
-        priceKey: getProductPriceStateKey(item),
-        priceUAH: null as number | null,
-      }));
-    }
-
     const entries = filteredData.map((item, index) => ({
       item,
       index,
       code: item.code,
       stableKey: getProductStableListKey(item),
       priceKey: getProductPriceStateKey(item),
-      priceUAH: getResolvedProductPriceUAH(item, prices, euroRate),
+      priceUAH:
+        sortOrder === "none"
+          ? null
+          : getResolvedProductPriceUAH(item, prices, euroRate),
     }));
 
-    entries.sort((a, b) => {
+    if (sortOrder === "none") return entries;
+
+    const pricedEntries = entries.filter((entry) => entry.priceUAH != null);
+
+    // Price order is resolved on the catalog API/1C side. Keeping that order
+    // avoids local re-shuffling while prices/images arrive asynchronously.
+    if (selectedCars.length === 0) return pricedEntries;
+
+    pricedEntries.sort((a, b) => {
       const aHasPrice = a.priceUAH != null ? 0 : 1;
       const bHasPrice = b.priceUAH != null ? 0 : 1;
       if (aHasPrice !== bHasPrice) return aHasPrice - bHasPrice;
@@ -2843,8 +2645,8 @@ const Data: React.FC<DataProps> = ({
       return a.index - b.index;
     });
 
-    return entries;
-  }, [filteredData, prices, euroRate, sortOrder]);
+    return pricedEntries;
+  }, [filteredData, prices, euroRate, selectedCars.length, sortOrder]);
   const sortedData = useMemo(
     () => sortedEntries.map(({ item }) => item),
     [sortedEntries]
@@ -2861,13 +2663,11 @@ const Data: React.FC<DataProps> = ({
     if (lastStableSortedSignatureRef.current === sortedDataSignature) return;
 
     lastStableSortedSignatureRef.current = sortedDataSignature;
-    setLastStableFilterSignature(filterSignature);
     setLastStableSortedData(sortedData);
-  }, [filterSignature, sortedData, sortedDataSignature]);
+  }, [sortedData, sortedDataSignature]);
   const shouldKeepStableGrid =
     (filterLoading || isRefetching) &&
-    lastStableSortedData.length > 0 &&
-    lastStableFilterSignature === filterSignature;
+    lastStableSortedData.length > 0;
   const visibleSortedData =
     shouldKeepStableGrid && lastStableSortedData.length > 0
       ? lastStableSortedData
@@ -2886,28 +2686,12 @@ const Data: React.FC<DataProps> = ({
       priceUAH: getResolvedProductPriceUAH(item, prices, euroRate),
     }));
   }, [visibleSortedData, sortedData, sortedEntries, prices, euroRate]);
-  const gridColumnCount = useMemo(() => {
-    if (viewportWidth >= 1024) return 4;
-    if (viewportWidth >= 768) return 3;
-    if (viewportWidth >= 640) return 2;
-    return 1;
-  }, [viewportWidth]);
-  const imagePriorityItemsCount = useMemo(() => {
-    if (viewportWidth <= 0) return IMAGE_PRIORITY_ITEMS_COUNT;
-    if (viewportWidth < 640) return 1;
-    if (viewportWidth < 1024) return 2;
-    return IMAGE_PRIORITY_ITEMS_COUNT;
-  }, [viewportWidth]);
   const visibleCatalogImageCandidates = useMemo(
     () =>
       visibleSortedData
-        // Skip priority items that load via individual high-priority route.
-        // Use reactive imagePriorityItemsCount so mobile (count=1) doesn't
-        // exclude items 1-3 from the batch.
-        .slice(imagePriorityItemsCount)
         .filter((item) => item.hasPhoto !== false)
         .slice(0, VISIBLE_IMAGE_PREFETCH_MAX_ITEMS),
-    [visibleSortedData, imagePriorityItemsCount]
+    [visibleSortedData]
   );
   const shouldShowInitialSkeleton =
     (filterLoading || loading) && visibleSortedData.length === 0;
@@ -2922,29 +2706,12 @@ const Data: React.FC<DataProps> = ({
     visibleSortedData.length > 0 && loading && !isRefetching;
   const shouldShowCatalogGrid =
     visibleSortedData.length > 0 || shouldShowInitialSkeleton;
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (sortOrder === "none") return;
-    if (loading || isLoadingNextPage || shouldShowInitialSkeleton) return;
-    if (!hasMore || sortedData.length === 0) return;
-    if (sortedData.length >= PRICE_SORT_AUTOLOAD_MAX_ITEMS) return;
-
-    const timerId = window.setTimeout(() => {
-      loadNextPage();
-    }, PRICE_SORT_AUTOLOAD_DELAY_MS);
-
-    return () => window.clearTimeout(timerId);
-  }, [
-    hasMore,
-    isLoadingNextPage,
-    loadNextPage,
-    loading,
-    shouldShowInitialSkeleton,
-    sortOrder,
-    sortedData.length,
-  ]);
-
+  const gridColumnCount = useMemo(() => {
+    if (viewportWidth >= 1024) return 4;
+    if (viewportWidth >= 768) return 3;
+    if (viewportWidth >= 640) return 2;
+    return 1;
+  }, [viewportWidth]);
   const shouldUseVirtualWindow =
     visibleSortedEntries.length >= VIRTUAL_WINDOW_THRESHOLD_ITEMS && !shouldShowInitialSkeleton;
   const virtualizedEntries = useMemo(() => {
@@ -3013,27 +2780,6 @@ const Data: React.FC<DataProps> = ({
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!("scrollRestoration" in window.history)) return;
-
-    const previousScrollRestoration = window.history.scrollRestoration;
-    window.history.scrollRestoration = "manual";
-
-    return () => {
-      window.history.scrollRestoration = previousScrollRestoration;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (didScrollInitialCatalogRef.current) return;
-    if (!hasLoadedOnce || shouldShowInitialSkeleton) return;
-
-    didScrollInitialCatalogRef.current = true;
-    scrollCatalogResultsToTop();
-  }, [hasLoadedOnce, shouldShowInitialSkeleton]);
-
-  useEffect(() => {
     if (visibleCatalogImageCandidates.length === 0) return;
 
     const nextChunk = visibleCatalogImageCandidates
@@ -3060,14 +2806,6 @@ const Data: React.FC<DataProps> = ({
 
   // Keep filter/loading transitions in sync with the current query signature.
   useEffect(() => {
-    if (
-      typeof window !== "undefined" &&
-      lastFilterSignatureRef.current != null &&
-      lastFilterSignatureRef.current !== filterSignature
-    ) {
-      scrollCatalogResultsToTop();
-    }
-
     lastFilterSignatureRef.current = filterSignature;
   }, [filterSignature, setFilterLoading]);
 
@@ -3153,22 +2891,6 @@ const Data: React.FC<DataProps> = ({
     window.addEventListener("resize", maybeLoadMore, { passive: true });
     return () => window.removeEventListener("resize", maybeLoadMore);
   }, [hasMore, loading, requestNextPageOnScroll, shouldShowInitialSkeleton, sortedData.length]);
-
-  // Re-check scroll position when the next-page loader finishes hiding (isLoadingNextPage → false).
-  // The three effects above fire on sortedData.length change but bail early because
-  // isLoadingNextPage is still true during the 80ms minimum-visible window. Once it
-  // clears, the sentinel is often still in the viewport — kick the trigger again.
-  useEffect(() => {
-    if (isLoadingNextPage) return;
-    if (loading || shouldShowInitialSkeleton || !hasMore || sortedData.length === 0) return;
-    if (typeof window === "undefined") return;
-
-    const scrolledBottom = window.scrollY + window.innerHeight;
-    const distanceToBottom = document.documentElement.scrollHeight - scrolledBottom;
-    if (distanceToBottom <= LOAD_MORE_SCROLL_BUFFER_PX) {
-      requestNextPageOnScroll();
-    }
-  }, [hasMore, isLoadingNextPage, loading, requestNextPageOnScroll, shouldShowInitialSkeleton, sortedData.length]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -3396,18 +3118,17 @@ const Data: React.FC<DataProps> = ({
                 const cartQty = cartMap[code] ?? 0;
                 const absoluteIndex = effectiveVirtualWindowStartIndex + index;
 
-                const hasResolvedPriceState = Object.prototype.hasOwnProperty.call(
-                  prices,
-                  priceKey
-                );
                 const priceStatus =
                   priceUAH != null
                     ? "ready"
-                    : hasResolvedPriceState || item.priceEuro == null
+                    : hasKnownNoPrice(item, prices) ||
+                        Object.prototype.hasOwnProperty.call(prices, priceKey)
                       ? "request"
                       : "loading";
-                const shouldPrioritizeImage = absoluteIndex < imagePriorityItemsCount;
+                const shouldPrioritizeImage = absoluteIndex < IMAGE_PRIORITY_ITEMS_COUNT;
                 const imageBatchKey = buildProductImageBatchKey(item.code, item.article);
+                const prefetchedImageSrc =
+                  (imageBatchKey ? pageImages[imageBatchKey] : null) ?? null;
                 const hasPhoto = item.hasPhoto !== false;
                 const normalizedGroup =
                   (item.group || "").trim() ||
@@ -3430,11 +3151,6 @@ const Data: React.FC<DataProps> = ({
                   <div
                     key={stableKey || `${code || "item"}-${index}`}
                     data-catalog-card="1"
-                    className={
-                      absoluteIndex > imagePriorityItemsCount + gridColumnCount
-                        ? "[content-visibility:auto] [contain-intrinsic-size:352px]"
-                        : undefined
-                    }
                   >
                     <ProductCard
                       item={item}
@@ -3445,17 +3161,13 @@ const Data: React.FC<DataProps> = ({
                       priceStatus={priceStatus}
                       imageLoadingMode={shouldPrioritizeImage ? "eager" : "lazy"}
                       imageFetchPriority={shouldPrioritizeImage ? "high" : "low"}
-                      prefetchedImageSrc={
-                        imageBatchKey
-                          ? pageImages[imageBatchKey] ?? null
-                          : null
-                      }
+                      prefetchedImageSrc={prefetchedImageSrc}
                       batchImagePending={Boolean(imageBatchKey && pageImagePending[imageBatchKey])}
                       batchImageMissing={
                         !hasPhoto ||
                         Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
                       }
-                      batchImageOnly={hasPhoto}
+                      batchImageOnly={hasPhoto && !prefetchedImageSrc}
                       isFlipped={flippedCard === code}
                       motionEnabled={shouldAnimateList}
                       onAddToCart={handleAddToCart}
@@ -3480,14 +3192,7 @@ const Data: React.FC<DataProps> = ({
               )}
 
               {shouldShowInitialSkeleton && (
-                <>
-                  <div className="sr-only" role="status">
-                    {filterTransitionLabel}
-                  </div>
-                  {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
-                    <CatalogCardSkeleton key={`catalog-skeleton-${index}`} index={index} />
-                  ))}
-                </>
+                <CatalogTransitionLoader label={filterTransitionLabel} />
               )}
 
               {showInlineLoader && (
@@ -3550,7 +3255,9 @@ const Data: React.FC<DataProps> = ({
 
       </div>
 
-      {selectedImage && <ImageModal src={selectedImage} onClose={handleImageClose} />}
+      <AnimatePresence>
+        {selectedImage && <ImageModal src={selectedImage} onClose={handleImageClose} />}
+      </AnimatePresence>
     </>
   );
 };

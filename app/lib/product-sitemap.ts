@@ -1,5 +1,3 @@
-import { unstable_cache } from "next/cache";
-
 import {
   fetchCatalogProductsByQuery,
   type CatalogProduct,
@@ -58,6 +56,9 @@ const PRODUCT_SITEMAP_MAX_SOURCE_PAGES = parseOptionalPositiveInt(
 
 const shouldBypassProductSitemapCache = () =>
   process.env.PRODUCT_SITEMAP_DISABLE_CACHE === "1";
+
+let productSitemapEntryBatchesMemory: ProductSitemapEntry[][] | null = null;
+let productSitemapEntryBatchesPromise: Promise<ProductSitemapEntry[][]> | null = null;
 
 const formatLoggedError = (error: unknown) => {
   if (error instanceof Error) {
@@ -207,12 +208,12 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
         limit: PRODUCT_SITEMAP_QUERY_PAGE_SIZE,
         cursor,
         includePriceEnrichment: false,
-        preferLegacySource: !cursor,
-        forceAllgoodsSource: Boolean(cursor),
+        preferLegacySource: false,
+        forceAllgoodsSource: true,
         timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
         retries: 0,
         retryDelayMs: 180,
-        cacheTtlMs: 1000 * 60,
+        cacheTtlMs: 1000 * 60 * 5,
       }),
       PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000,
       fallbackPageResult
@@ -270,10 +271,6 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
 
     cursor = "";
     page += 1;
-
-    if (pageResult.items.length < PRODUCT_SITEMAP_QUERY_PAGE_SIZE) {
-      break;
-    }
   }
 
   if (currentBatch.length > 0) {
@@ -283,36 +280,33 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
   return batches;
 };
 
-const getProductSitemapEntryBatchesWithCache = unstable_cache(
-  buildProductSitemapEntryBatches,
-  [
-    `product-sitemap-entries-v22-fast-canonical-images-${PRODUCT_SITEMAP_MAX_ITEMS}-${PRODUCT_SITEMAP_MAX_BATCHES ?? "all"}-${PRODUCT_SITEMAP_QUERY_PAGE_SIZE}-${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}-${PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ?? "none"}-${PRODUCT_SITEMAP_MAX_SOURCE_PAGES ?? "all"}`,
-  ],
-  {
-    revalidate: 60 * 60,
-    tags: ["product-sitemap"],
-  }
-);
-
 const getProductSitemapEntryBatchesSafe = async () => {
   if (shouldBypassProductSitemapCache()) {
     return buildProductSitemapEntryBatches();
   }
 
-  try {
-    return await getProductSitemapEntryBatchesWithCache();
-  } catch (error) {
-    logProductSitemapFailure("Failed to resolve cached product sitemap entry batches", error);
+  if (productSitemapEntryBatchesMemory) {
+    return productSitemapEntryBatchesMemory;
+  }
 
-    try {
-      return await buildProductSitemapEntryBatches();
-    } catch (fallbackError) {
-      logProductSitemapFailure(
-        "Failed to resolve uncached product sitemap entry batches",
-        fallbackError
-      );
-      return [] as ProductSitemapEntry[][];
-    }
+  if (productSitemapEntryBatchesPromise) {
+    return productSitemapEntryBatchesPromise;
+  }
+
+  productSitemapEntryBatchesPromise = buildProductSitemapEntryBatches()
+    .then((batches) => {
+      productSitemapEntryBatchesMemory = batches;
+      return batches;
+    })
+    .finally(() => {
+      productSitemapEntryBatchesPromise = null;
+    });
+
+  try {
+    return await productSitemapEntryBatchesPromise;
+  } catch (error) {
+    logProductSitemapFailure("Failed to resolve product sitemap entry batches", error);
+    return [] as ProductSitemapEntry[][];
   }
 };
 

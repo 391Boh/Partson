@@ -107,16 +107,48 @@ const filterGroups = (groups: GroupsDirectoryItem[], query: string) => {
   });
 };
 
+const buildGroupDirectoryLead = (group: GroupsDirectoryItem) => {
+  const visibleGroupLabel = buildVisibleProductName(group.label);
+
+  if (group.subgroups.length > 0) {
+    return `${visibleGroupLabel} відкриває добірку підгруп і кінцевих категорій для швидкого переходу до потрібного вузла автомобіля, брендів і релевантних товарів у каталозі.`;
+  }
+
+  return `${visibleGroupLabel} веде напряму до окремої сторінки групи, де можна перейти в каталог і підібрати запчастини за назвою, артикулом або виробником.`;
+};
+
+const buildSubgroupDirectoryLead = (
+  groupLabel: string,
+  subgroup: GroupsDirectoryItem["subgroups"][number]
+) => {
+  const visibleGroupLabel = buildVisibleProductName(groupLabel);
+  const visibleSubgroupLabel = buildVisibleProductName(subgroup.label);
+
+  if (subgroup.children.length > 0) {
+    return `${visibleSubgroupLabel} у групі ${visibleGroupLabel} об'єднує кінцеві категорії для точнішого підбору деталей і переходу до каталогу без зайвих кроків.`;
+  }
+
+  return `${visibleSubgroupLabel} у групі ${visibleGroupLabel} веде безпосередньо до каталогу товарів цієї категорії.`;
+};
+
+const buildChildDirectoryLead = (
+  groupLabel: string,
+  subgroupLabel: string,
+  childLabel: string
+) => {
+  const visibleGroupLabel = buildVisibleProductName(groupLabel);
+  const visibleSubgroupLabel = buildVisibleProductName(subgroupLabel);
+  const visibleChildLabel = buildVisibleProductName(childLabel);
+
+  return `${visibleChildLabel} у підгрупі ${visibleSubgroupLabel} групи ${visibleGroupLabel}.`;
+};
+
 function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
   const hasSubgroups = group.subgroups.length > 0;
   const visibleGroupLabel = buildVisibleProductName(group.label);
   const groupHint = hasSubgroups
-    ? group.productCount > 0
-      ? `${group.subgroupsCount.toLocaleString("uk-UA")} напрямків і ${group.productCount.toLocaleString("uk-UA")} товарів у групі`
-      : `${group.subgroupsCount.toLocaleString("uk-UA")} напрямків у каталозі`
-    : group.productCount > 0
-      ? `${group.productCount.toLocaleString("uk-UA")} товарів у групі`
-      : "Прямий перехід до сторінки групи";
+    ? buildGroupDirectoryLead(group)
+    : buildGroupDirectoryLead(group);
 
   return (
     <article
@@ -210,16 +242,27 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                 </div>
               </div>
 
+              <p className="mt-2 text-[13px] leading-5 text-slate-600">
+                {buildSubgroupDirectoryLead(group.label, subgroup)}
+              </p>
+
               {subgroup.children.length > 0 ? (
                 <div className="mt-2 grid grid-cols-1 gap-1.5 pl-0 sm:grid-cols-2">
                   {subgroup.children.map((child) => (
                     <CatalogPrefetchLink
                       key={child.slug}
                       href={buildGroupItemPath(group.slug, child.slug)}
-                      className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-2.5 py-2 text-[13px] font-medium text-slate-700 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800"
+                      className="flex items-start justify-between gap-3 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-[13px] text-slate-700 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800"
                     >
-                      <span>{buildVisibleProductName(child.label)}</span>
-                      <ChevronRight size={14} strokeWidth={2.1} />
+                      <span className="min-w-0">
+                        <span className="block font-semibold text-slate-800">
+                          {buildVisibleProductName(child.label)}
+                        </span>
+                        <span className="mt-0.5 block text-[12px] leading-4 text-slate-500">
+                          {buildChildDirectoryLead(group.label, subgroup.label, child.label)}
+                        </span>
+                      </span>
+                      <ChevronRight size={14} strokeWidth={2.1} className="mt-0.5 shrink-0" />
                     </CatalogPrefetchLink>
                   ))}
                 </div>
