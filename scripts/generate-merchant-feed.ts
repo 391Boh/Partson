@@ -9,6 +9,17 @@ async function main() {
   process.env.PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ??= "180000";
   process.env.PRODUCT_SITEMAP_PAGE_SIZE ??= "120";
 
+  const merchantFeedMaxItems = Number(process.env.MERCHANT_FEED_MAX_ITEMS);
+  const merchantFeedLookupTarget =
+    Number.isFinite(merchantFeedMaxItems) && merchantFeedMaxItems > 0
+      ? Math.floor(merchantFeedMaxItems)
+      : 1000;
+
+  process.env.MERCHANT_FEED_PRICE_LOOKUP_LIMIT ??= String(merchantFeedLookupTarget);
+  process.env.MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT ??= String(
+    Math.min(merchantFeedLookupTarget, 2000)
+  );
+
   const { getGoogleMerchantFeedSnapshot } = await import(
     "app/lib/google-merchant-feed"
   );

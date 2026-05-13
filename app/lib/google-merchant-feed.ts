@@ -64,6 +64,14 @@ const MERCHANT_FEED_PRICE_LOOKUP_CONCURRENCY =
 const MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT =
   parseOptionalPositiveInt(process.env.MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT) ?? 120;
 
+const getMerchantFeedSourceChunkSize = (maxItems: number) => {
+  if (!Number.isFinite(maxItems) || maxItems <= 0) {
+    return 500;
+  }
+
+  return Math.max(250, Math.min(Math.floor(maxItems), 2000));
+};
+
 const escapeXml = (value: string) =>
   value
     .replace(/&/g, "&amp;")
@@ -352,23 +360,53 @@ export const getGoogleMerchantFeedSnapshot = async (options?: {
   maxItems?: number | null;
 }): Promise<GoogleMerchantFeedSnapshot> => {
   const siteUrl = normalizeSiteUrl(options?.siteUrl || process.env.NEXT_PUBLIC_SITE_URL);
-  const maxItems =
+  const requestedMaxItems =
     options?.maxItems === undefined ? MERCHANT_FEED_MAX_ITEMS : options.maxItems;
   const [euroRate, entries] = await Promise.all([
     fetchEuroRate(),
     getAllProductSitemapEntries(),
   ]);
 
-  const sourceEntries = maxItems && maxItems > 0 ? entries.slice(0, maxItems) : entries;
-  const pricedEntries = await enrichMerchantFeedPrices(sourceEntries);
-  const items = pricedEntries
-    .map((entry) => toGoogleMerchantFeedItem(entry, siteUrl, euroRate))
-    .filter((item): item is GoogleMerchantFeedItem => item !== null);
+  const maxItems =
+    typeof requestedMaxItems === "number" &&
+    Number.isFinite(requestedMaxItems) &&
+    requestedMaxItems > 0
+      ? Math.floor(requestedMaxItems)
+      : null;
+  const chunkSize = maxItems == null ? entries.length : getMerchantFeedSourceChunkSize(maxItems);
+  const items: GoogleMerchantFeedItem[] = [];
+  let sourceCount = 0;
+
+  for (let start = 0; start < entries.length; start += chunkSize) {
+    if (maxItems != null && items.length >= maxItems) {
+      break;
+    }
+
+    const sourceChunk = entries.slice(start, start + chunkSize);
+    if (sourceChunk.length === 0) {
+      continue;
+    }
+
+    sourceCount += sourceChunk.length;
+
+    const pricedEntries = await enrichMerchantFeedPrices(sourceChunk);
+    for (const entry of pricedEntries) {
+      const item = toGoogleMerchantFeedItem(entry, siteUrl, euroRate);
+      if (!item) {
+        continue;
+      }
+
+      items.push(item);
+      if (maxItems != null && items.length >= maxItems) {
+        break;
+      }
+    }
+  }
 
   return {
     xml: buildGoogleMerchantFeedXml(siteUrl, items),
     itemCount: items.length,
-    skippedCount: sourceEntries.length - items.length,
-    sourceCount: sourceEntries.length,
+    skippedCount: Math.max(0, sourceCount - items.length),
+    sourceCount,
   };
 };
