@@ -5,6 +5,9 @@ async function main() {
   console.log("🚀 Генерація Google Merchant Feed...");
   const startedAt = Date.now();
   process.env.PRODUCT_SITEMAP_DISABLE_CACHE = "1";
+  process.env.PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS ??= "22000";
+  process.env.PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ??= "180000";
+  process.env.PRODUCT_SITEMAP_PAGE_SIZE ??= "120";
 
   const { getGoogleMerchantFeedSnapshot } = await import(
     "app/lib/google-merchant-feed"
