@@ -53,6 +53,7 @@ const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 2400;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 2200;
 const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 1000;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 120;
+const PRODUCT_PAGE_SEO_FACETS_TIMEOUT_MS = 120;
 const PRODUCT_PAGE_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
 
@@ -1494,7 +1495,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const siteUrl = getSiteUrl();
   const seoFacets =
     productGroup || productCategory || productSubgroup || product.producer
-      ? await getCatalogSeoFacetsWithTimeout(350).catch(() => EMPTY_CATALOG_SEO_FACETS)
+      ? await getCatalogSeoFacetsWithTimeout(PRODUCT_PAGE_SEO_FACETS_TIMEOUT_MS).catch(
+          () => EMPTY_CATALOG_SEO_FACETS
+        )
       : EMPTY_CATALOG_SEO_FACETS;
   const producerFacet = product.producer
     ? seoFacets.producers.find((producer) =>

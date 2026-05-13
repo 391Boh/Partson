@@ -9,7 +9,7 @@ import ProductRelatedItemsClientSection from "app/components/ProductRelatedItems
 // On cache hit (unstable_cache, 10 min TTL) the call returns in < 100 ms.
 // On a cold miss the sequential 1C lookups can be slow; bail out quickly and
 // let the client component continue after the main product content is visible.
-const RELATED_SSR_TIMEOUT_MS = 900;
+const RELATED_SSR_TIMEOUT_MS = 250;
 
 type ProductRelatedItemsSectionProps = {
   product: {

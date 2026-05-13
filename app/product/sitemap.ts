@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 import { getProductImagePath } from "app/lib/product-image";
 import { buildProductPath } from "app/lib/product-url";
 import {
-  getProductEntriesBySitemapId,
-  getProductSitemapIds,
+  getPricedProductEntriesBySitemapId,
+  getPricedProductSitemapIds,
 } from "app/lib/product-sitemap";
 import { getConfiguredSitemapLastModified } from "app/lib/sitemap-dates";
 import { getSiteUrl } from "app/lib/site-url";
@@ -13,7 +13,7 @@ export const revalidate = 3600;
 
 export async function generateSitemaps() {
   try {
-    return await getProductSitemapIds();
+    return await getPricedProductSitemapIds();
   } catch (error) {
     console.error("Failed to generate product sitemap ids", error);
     return [];
@@ -31,10 +31,10 @@ export default async function sitemap(props: {
   const id = String(await props.id);
   const lastModified = getConfiguredSitemapLastModified();
 
-  let entries: Awaited<ReturnType<typeof getProductEntriesBySitemapId>> = [];
+  let entries: Awaited<ReturnType<typeof getPricedProductEntriesBySitemapId>> = [];
 
   try {
-    entries = await getProductEntriesBySitemapId(id);
+    entries = await getPricedProductEntriesBySitemapId(id);
   } catch (error) {
     console.error(`Failed to build product sitemap for id "${id}"`, error);
     return [];

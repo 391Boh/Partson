@@ -24,13 +24,13 @@ const CATALOG_IMAGE_MAX_HEIGHT = 320;
 const CATALOG_IMAGE_QUALITY = 58;
 
 const PRIMARY_LOOKUP_OPTIONS = {
-  timeoutMs: 1200,
-  retries: 1,
+  timeoutMs: 850,
+  retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 60 * 2,
   missCacheTtlMs: 1000 * 60 * 5,
   allowUrlDownload: false,
-  batchConcurrency: 5,
+  batchConcurrency: 4,
   maxKeys: MAX_BATCH_ITEMS * 2,
 };
 const DEEP_RECOVERY_LOOKUP_OPTIONS = {

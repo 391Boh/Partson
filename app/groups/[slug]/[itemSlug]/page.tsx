@@ -104,6 +104,9 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
 
+const formatCount = (value: number) =>
+  Number.isFinite(value) && value > 0 ? value.toLocaleString("uk-UA") : "0";
+
 const normalizeLookupKey = (value: string | null | undefined) =>
   normalizeValue(value).toLocaleLowerCase("uk-UA");
 
@@ -1026,14 +1029,14 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                       </p>
                       <Link
                         href={producer.manufacturerPath}
-                        className="mt-1 block truncate text-[15px] font-extrabold text-slate-950 transition hover:text-teal-800"
+                        className="mt-1 block text-[15px] font-extrabold leading-snug text-slate-950 transition hover:text-teal-800"
                       >
                         {producer.label}
                       </Link>
                     </div>
                     <span className={directoryCompactMetricAccentClass}>
-                      <span>{producer.productCount.toLocaleString("uk-UA")}</span>
-                      <span className="font-semibold text-teal-700">тов.</span>
+                      <span>{formatCount(producer.productCount)}</span>
+                      <span className="font-semibold text-teal-700">товарів</span>
                     </span>
                   </div>
 
@@ -1099,7 +1102,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                 </h2>
               </div>
               <span className={directoryCompactMetricAccentClass}>
-                {item.children.length} підгр.
+                {formatCount(item.children.length)} підгруп
               </span>
             </div>
           </div>
@@ -1111,7 +1114,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                   className={`${directoryListCardClass} flex items-start justify-between gap-3 px-3 py-2.5 text-sm text-slate-700`}
                 >
                   <div className="min-w-0">
-                    <span className="block truncate font-semibold">
+                    <span className="block font-semibold leading-snug">
                       {buildVisibleProductName(child.label)}
                     </span>
                     <span className="mt-1 block text-[13px] leading-5 text-slate-500">
@@ -1165,10 +1168,10 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                     href={productPath}
                     className={`${directoryListCardClass} flex flex-col gap-0.5 px-3 py-2.5`}
                   >
-                    <span className="truncate text-sm font-semibold text-slate-800">
+                    <span className="text-sm font-semibold leading-snug text-slate-800">
                       {buildVisibleProductName(product.name)}
                     </span>
-                    <span className="truncate text-xs text-slate-500">
+                    <span className="text-xs leading-snug text-slate-500">
                       {[product.producer, product.article].filter(Boolean).join(" · ")}
                     </span>
                   </Link>

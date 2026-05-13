@@ -51,7 +51,7 @@ export interface Product {
 const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v26-priced-sort-only";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v27-fast-list-media";
 const PRICE_CACHE_PREFIX = "partson:v8:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -775,6 +775,7 @@ function useCatalogData(params: {
   );
   const effectiveServerSortOrder = sortOrder;
   const canUseCursorPagination = selectedCars.length === 0;
+  const shouldAllowCatalogDirectPriceLookup = selectedCars.length > 0;
   const [data, setData] = useState<Product[]>([]);
   const [prices, setPrices] = useState<Record<string, number | null>>({});
   const [pageImages, setPageImages] = useState<Record<string, string>>({});
@@ -973,11 +974,13 @@ function useCatalogData(params: {
         ttlMs?: number;
         querySignatureSnapshot?: string;
         signal?: AbortSignal;
+        allowFullLookup?: boolean;
       }
     ) => {
       if (typeof window === "undefined") return;
 
       const prefetchedPrices = options?.prefetchedPrices ?? {};
+      const allowFullLookup = options?.allowFullLookup === true;
       const nowTs = Date.now();
       const immediateUpdates: Record<string, number | null> = {};
       const requestItems: Array<{ stateKey: string; lookupKeys: string[] }> = [];
@@ -1198,6 +1201,17 @@ function useCatalogData(params: {
           return;
         }
 
+        if (!allowFullLookup) {
+          const fallbackNulls = Object.fromEntries(
+            unresolvedItems.map((item) => [item.stateKey, null])
+          ) as Record<string, null>;
+          commitResolvedPrices(
+            fallbackNulls,
+            PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS
+          );
+          return;
+        }
+
         let fullPrices: Record<string, number | null> = {};
         try {
           fullPrices = await postBatch(unresolvedItems, "full");
@@ -1269,7 +1283,7 @@ function useCatalogData(params: {
       const prefetchedImages = options?.prefetchedImages ?? {};
       const batchItems = items
         .filter((item) => item.hasPhoto !== false)
-        .slice(0, imagePrefetchCount)
+        .slice(IMAGE_PRIORITY_ITEMS_COUNT, imagePrefetchCount)
         .map((item) => {
           const code = (item.code || "").trim();
           const article = (item.article || "").trim() || undefined;
@@ -1715,6 +1729,7 @@ function useCatalogData(params: {
             cacheKey,
             ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
             querySignatureSnapshot: querySignature,
+            allowFullLookup: shouldAllowCatalogDirectPriceLookup,
           });
           // Не обмежуємо prefetch для першої сторінки, images вже є
           // fetchCatalogPageImages(memoryHit.items, { ... });
@@ -1750,6 +1765,7 @@ function useCatalogData(params: {
             cacheKey,
             ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
             querySignatureSnapshot: querySignature,
+            allowFullLookup: shouldAllowCatalogDirectPriceLookup,
           });
           // Не обмежуємо prefetch для першої сторінки, images вже є
           // fetchCatalogPageImages(sessionHit.items, { ... });
@@ -1789,6 +1805,7 @@ function useCatalogData(params: {
     applyResolvedPagePrices,
     fetchCatalogPagePrices,
     fetchCatalogPageImages,
+    shouldAllowCatalogDirectPriceLookup,
     querySignature,
     initialPagePayload,
     initialQuerySignature,
@@ -1947,6 +1964,7 @@ function useCatalogData(params: {
         ttlMs: ttl,
         querySignatureSnapshot: currentQuerySignature,
         signal: controller.signal,
+        allowFullLookup: shouldAllowCatalogDirectPriceLookup,
       });
       fetchCatalogPageImages(itemsForIncrementalWarmup, {
         prefetchedImages: payload.images,
@@ -2091,6 +2109,7 @@ function useCatalogData(params: {
     fetchCatalogPageImages,
     hideNextPageLoader,
     scheduleCatalogBackgroundTask,
+    shouldAllowCatalogDirectPriceLookup,
     sortOrder,
   ]);
 
@@ -2151,6 +2170,7 @@ function useCatalogData(params: {
             ttlMs: ttl,
             querySignatureSnapshot: querySignature,
             signal: controller.signal,
+            allowFullLookup: shouldAllowCatalogDirectPriceLookup,
           });
           fetchCatalogPageImages(memoryHit.items, {
             prefetchedImages: memoryHit.images,
@@ -2193,6 +2213,7 @@ function useCatalogData(params: {
             ttlMs: ttl,
             querySignatureSnapshot: querySignature,
             signal: controller.signal,
+            allowFullLookup: shouldAllowCatalogDirectPriceLookup,
           });
           fetchCatalogPageImages(payload.items, {
             prefetchedImages: payload.images,
@@ -2226,6 +2247,7 @@ function useCatalogData(params: {
 	    loading,
 	    normalizedSearch,
 	    page,
+	    shouldAllowCatalogDirectPriceLookup,
 	    querySignature,
 	    safeData.length,
 	    selectedCars.length,
@@ -3167,7 +3189,9 @@ const Data: React.FC<DataProps> = ({
                         !hasPhoto ||
                         Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
                       }
-                      batchImageOnly={hasPhoto && !prefetchedImageSrc}
+                      batchImageOnly={
+                        hasPhoto && !prefetchedImageSrc && !shouldPrioritizeImage
+                      }
                       isFlipped={flippedCard === code}
                       motionEnabled={shouldAnimateList}
                       onAddToCart={handleAddToCart}

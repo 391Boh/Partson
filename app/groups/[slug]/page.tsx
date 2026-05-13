@@ -78,6 +78,9 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
 
+const formatCount = (value: number) =>
+  Number.isFinite(value) && value > 0 ? value.toLocaleString("uk-UA") : "0";
+
 const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null> => {
   const dataset = await getProductTreeDataset().catch(() => null);
   const seoFacets =
@@ -130,7 +133,7 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
 });
 
 const buildGroupTitle = (label: string) =>
-  `${buildVisibleProductName(label)} - купити автозапчастини`;
+  `${buildVisibleProductName(label)} - каталог автозапчастин`;
 
 const buildGroupDescription = (
   label: string,
@@ -147,7 +150,7 @@ const buildGroupDescription = (
       ? ` і ${subgroupsCount.toLocaleString("uk-UA")} підгруп`
       : "";
 
-  return `Купити автозапчастини ${visibleLabel} у PartsON: ${productLabel}${subgroupLabel}. Підбір за назвою, артикулом і VIN, самовивіз у Львові та доставка по Україні.`;
+  return `${visibleLabel} у PartsON: ${productLabel}${subgroupLabel}. Каталог із цінами, наявністю, підбором за назвою, артикулом і VIN.`;
 };
 
 const buildGroupHeroDescription = (
@@ -573,7 +576,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                     <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-teal-800">
                       Підгрупа
                     </p>
-                    <h2 className="mt-1 truncate text-base font-extrabold tracking-normal text-slate-950">
+                    <h2 className="mt-1 text-base font-extrabold leading-snug tracking-normal text-slate-950">
                       {buildVisibleProductName(subgroup.label)}
                     </h2>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
@@ -588,12 +591,12 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                   <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                     {subgroup.productCount > 0 ? (
                       <span className={directoryCompactMetricClass}>
-                        <span>{subgroup.productCount.toLocaleString("uk-UA")}</span>
-                        <span className="font-semibold text-slate-500">тов.</span>
+                        <span>{formatCount(subgroup.productCount)}</span>
+                        <span className="font-semibold text-slate-500">товарів</span>
                       </span>
                     ) : null}
                     <span className={directoryCompactMetricAccentClass}>
-                      {subgroup.children.length} підгр.
+                      {formatCount(subgroup.children.length)} підгруп
                     </span>
                   </div>
                 </div>
@@ -604,7 +607,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                         href={buildGroupItemPath(group.slug, child.slug)}
                         className={`${directoryListCardClass} flex items-center justify-between gap-3 px-3 py-2.5 text-sm text-slate-700`}
                       >
-                        <span className="min-w-0 truncate font-semibold">
+                        <span className="min-w-0 font-semibold leading-snug">
                           {buildVisibleProductName(child.label)}
                         </span>
                         <span className="flex shrink-0 items-center gap-1.5">
@@ -627,7 +630,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                   className="flex items-start justify-between gap-3 rounded-lg px-4 py-3 text-sm text-slate-700"
                 >
                   <div className="min-w-0">
-                    <span className="block truncate font-semibold">
+                    <span className="block font-semibold leading-snug">
                       {buildVisibleProductName(subgroup.label)}
                     </span>
                     <span className="mt-1 block text-[13px] leading-5 text-slate-500">
@@ -642,8 +645,8 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                   <span className="flex shrink-0 items-center gap-1.5">
                     {subgroup.productCount > 0 ? (
                       <span className={directoryCompactMetricClass}>
-                        <span>{subgroup.productCount.toLocaleString("uk-UA")}</span>
-                        <span className="font-semibold text-slate-500">тов.</span>
+                        <span>{formatCount(subgroup.productCount)}</span>
+                        <span className="font-semibold text-slate-500">товарів</span>
                       </span>
                     ) : null}
                     <span className="text-teal-700">&rarr;</span>

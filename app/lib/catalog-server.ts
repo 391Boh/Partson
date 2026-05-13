@@ -479,6 +479,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   retries?: number;
   retryDelayMs?: number;
   cacheTtlMs?: number;
+  pricedItemsOnly?: boolean;
 }): Promise<CatalogQueryPageResult> => {
   const page =
     Number.isFinite(options.page) && (options.page || 0) > 0
@@ -529,7 +530,10 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       }
 
       const parsed = parseAllgoodsPayload(response.text);
-      const pricedItems = parsed.items.filter(hasPositiveCatalogPrice);
+      const pricedItems =
+        options.pricedItemsOnly === false
+          ? parsed.items
+          : parsed.items.filter(hasPositiveCatalogPrice);
 
       return {
         items: pricedItems.slice(start, start + limit),
@@ -1107,6 +1111,7 @@ export const fetchCatalogProductsByQuery = async (options: {
   includePriceEnrichment?: boolean;
   preferLegacySource?: boolean;
   forceAllgoodsSource?: boolean;
+  pricedItemsOnly?: boolean;
 }): Promise<CatalogQueryPageResult> => {
   const page =
     Number.isFinite(options.page) && (options.page || 0) > 0
@@ -1254,6 +1259,7 @@ export const fetchCatalogProductsByQuery = async (options: {
         cacheTtlMs:
           options.cacheTtlMs ??
           (page === 1 ? 1000 * 20 : 1000 * 15),
+        pricedItemsOnly: options.pricedItemsOnly,
       });
     };
 

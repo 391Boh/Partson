@@ -59,6 +59,8 @@ const shouldBypassProductSitemapCache = () =>
 
 let productSitemapEntryBatchesMemory: ProductSitemapEntry[][] | null = null;
 let productSitemapEntryBatchesPromise: Promise<ProductSitemapEntry[][]> | null = null;
+let pricedProductSitemapEntryBatchesMemory: ProductSitemapEntry[][] | null = null;
+let pricedProductSitemapEntryBatchesPromise: Promise<ProductSitemapEntry[][]> | null = null;
 
 const formatLoggedError = (error: unknown) => {
   if (error instanceof Error) {
@@ -210,6 +212,7 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
         includePriceEnrichment: false,
         preferLegacySource: false,
         forceAllgoodsSource: true,
+        pricedItemsOnly: false,
         timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
         retries: 0,
         retryDelayMs: 180,
@@ -310,6 +313,57 @@ const getProductSitemapEntryBatchesSafe = async () => {
   }
 };
 
+const isPricedProductSitemapEntry = (entry: ProductSitemapEntry) =>
+  typeof entry.priceEuro === "number" &&
+  Number.isFinite(entry.priceEuro) &&
+  entry.priceEuro > 0;
+
+const chunkProductSitemapEntries = (entries: ProductSitemapEntry[]) => {
+  const batches: ProductSitemapEntry[][] = [];
+
+  for (let index = 0; index < entries.length; index += PRODUCT_SITEMAP_MAX_ITEMS) {
+    batches.push(entries.slice(index, index + PRODUCT_SITEMAP_MAX_ITEMS));
+  }
+
+  return batches;
+};
+
+const getPricedProductSitemapEntryBatchesSafe = async () => {
+  if (shouldBypassProductSitemapCache()) {
+    const allEntries = (await buildProductSitemapEntryBatches()).flat();
+    return chunkProductSitemapEntries(allEntries.filter(isPricedProductSitemapEntry));
+  }
+
+  if (pricedProductSitemapEntryBatchesMemory) {
+    return pricedProductSitemapEntryBatchesMemory;
+  }
+
+  if (pricedProductSitemapEntryBatchesPromise) {
+    return pricedProductSitemapEntryBatchesPromise;
+  }
+
+  pricedProductSitemapEntryBatchesPromise = getProductSitemapEntryBatchesSafe()
+    .then((batches) =>
+      chunkProductSitemapEntries(
+        batches.flat().filter(isPricedProductSitemapEntry)
+      )
+    )
+    .then((batches) => {
+      pricedProductSitemapEntryBatchesMemory = batches;
+      return batches;
+    })
+    .finally(() => {
+      pricedProductSitemapEntryBatchesPromise = null;
+    });
+
+  try {
+    return await pricedProductSitemapEntryBatchesPromise;
+  } catch (error) {
+    logProductSitemapFailure("Failed to resolve priced product sitemap batches", error);
+    return [] as ProductSitemapEntry[][];
+  }
+};
+
 export const getProductSitemapIds = async () => {
   const batches = await getProductSitemapEntryBatchesSafe();
 
@@ -336,4 +390,22 @@ export const getAllProductSitemapEntries = async () => {
 export const getProductCodesBySitemapId = async (id: string) => {
   const entries = await getProductEntriesBySitemapId(id);
   return normalizeProductCodes(entries.map((entry) => entry.code));
+};
+
+export const getPricedProductSitemapIds = async () => {
+  const batches = await getPricedProductSitemapEntryBatchesSafe();
+
+  return batches.map((_, index) => ({
+    id: String(index),
+  }));
+};
+
+export const getPricedProductEntriesBySitemapId = async (id: string) => {
+  const numericId = Number.parseInt(id, 10);
+
+  if (!Number.isFinite(numericId) || numericId < 0) {
+    return [];
+  }
+
+  return (await getPricedProductSitemapEntryBatchesSafe())[numericId] ?? [];
 };

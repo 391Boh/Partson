@@ -4,7 +4,7 @@ import { fetchProductDescription } from "app/lib/catalog-server";
 
 export const revalidate = 1800;
 
-const DESCRIPTION_LOOKUP_LIMIT = 6;
+const DESCRIPTION_LOOKUP_LIMIT = 4;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
   for (const lookupKey of lookupKeys) {
     const description = await fetchProductDescription(lookupKey, {
-      timeoutMs: 4500,
+      timeoutMs: 1800,
       retries: 0,
       retryDelayMs: 150,
       cacheTtlMs: 1000 * 60 * 30,

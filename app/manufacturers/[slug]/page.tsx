@@ -105,9 +105,11 @@ const parseOptionalPositiveInt = (value: string | undefined) => {
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
 
+const formatCount = (value: number) =>
+  Number.isFinite(value) && value > 0 ? value.toLocaleString("uk-UA") : "0";
 
 const buildManufacturerTitle = (label: string) =>
-  `${normalizeValue(label)} - купити автозапчастини`;
+  `${normalizeValue(label)} - каталог автозапчастин`;
 
 const buildManufacturerDescription = (
   label: string,
@@ -124,7 +126,7 @@ const buildManufacturerDescription = (
       ? ` і добірка популярних груп (${groupsCount.toLocaleString("uk-UA")})`
       : "";
 
-  return `Купити автозапчастини ${normalizedLabel} у PartsON: ${productCountLabel}${groupLabel}. Підбір за артикулом, групою і VIN, самовивіз у Львові та доставка по Україні.`;
+  return `${normalizedLabel} у PartsON: ${productCountLabel}${groupLabel}. Каталог бренду з цінами, наявністю, підбором за артикулом і доставкою по Україні.`;
 };
 
 const buildManufacturerKeywords = (label: string) => {
@@ -167,10 +169,10 @@ const buildManufacturerGroupLead = (options: {
   const groupLabel = normalizeValue(options.groupLabel);
 
   if (options.subgroupCount > 0) {
-    return `Група ${groupLabel} для бренду ${producerLabel} веде до конкретних категорій і товарів виробника в каталозі PartsON.`;
+    return `Група ${groupLabel} бренду ${producerLabel} веде до конкретних категорій і товарів у каталозі PartsON.`;
   }
 
-  return `Група ${groupLabel} відкриває прямий перехід до товарів бренду ${producerLabel} у каталозі PartsON.`;
+  return `Група ${groupLabel} відкриває товари бренду ${producerLabel} без додаткового налаштування фільтрів.`;
 };
 
 const buildManufacturerSubgroupLead = (options: {
@@ -244,9 +246,9 @@ const collectProducerFallbackStats = cache(async (producerLabel: string) => {
       sortOrder: "none",
       cursor: cursor || undefined,
       cursorField: cursorField || undefined,
-      preferLegacySource: !cursor,
-      forceAllgoodsSource: Boolean(cursor),
-      timeoutMs: 900,
+      preferLegacySource: false,
+      forceAllgoodsSource: true,
+      timeoutMs: 1400,
       retries: 0,
       retryDelayMs: 100,
       cacheTtlMs: 1000 * 60 * 20,
@@ -362,9 +364,9 @@ const manufacturerGroupHasCatalogResults = async (
 ) => {
   const normalizedProducer = normalizeValue(producerLabel);
   const normalizedGroup = normalizeValue(group.filterValue || group.label);
-  if (!normalizedProducer || !normalizedGroup) return false;
+  if (!normalizedProducer || !normalizedGroup) return true;
 
-  const result = await resolveWithTimeout(
+  const legacyResult = await resolveWithTimeout(
     () =>
       fetchCatalogProductsByQuery({
         page: 1,
@@ -383,7 +385,32 @@ const manufacturerGroupHasCatalogResults = async (
     900
   ).catch(() => null);
 
-  return Array.isArray(result?.items) && result.items.length > 0;
+  if (legacyResult === null) return true;
+  if (Array.isArray(legacyResult.items) && legacyResult.items.length > 0) {
+    return true;
+  }
+
+  const allgoodsResult = await resolveWithTimeout(
+    () =>
+      fetchCatalogProductsByQuery({
+        page: 1,
+        limit: 1,
+        producer: normalizedProducer,
+        group: normalizedGroup,
+        sortOrder: "none",
+        preferLegacySource: false,
+        forceAllgoodsSource: true,
+        timeoutMs: 900,
+        retries: 0,
+        retryDelayMs: 80,
+        cacheTtlMs: 1000 * 60 * 20,
+      }),
+    null,
+    1000
+  ).catch(() => null);
+
+  if (allgoodsResult === null) return true;
+  return Array.isArray(allgoodsResult.items) && allgoodsResult.items.length > 0;
 };
 
 const filterManufacturerGroupsWithCatalogResults = async (
@@ -965,11 +992,11 @@ export default async function ManufacturerDetailPage({
 
                       <div className="flex flex-wrap gap-2">
                         <span className={directoryCompactMetricClass}>
-                          {group.productCount.toLocaleString("uk-UA")} тов.
+                          {formatCount(group.productCount)} товарів
                         </span>
                         {group.subgroups.length > 0 ? (
                           <span className={directoryCompactMetricAccentClass}>
-                            {group.subgroups.length.toLocaleString("uk-UA")} кат.
+                            {formatCount(group.subgroups.length)} категорій
                           </span>
                         ) : null}
                       </div>
@@ -1001,7 +1028,7 @@ export default async function ManufacturerDetailPage({
                               </span>
                             </span>
                             <span className={directoryCompactMetricAccentClass}>
-                              {subgroup.productCount.toLocaleString("uk-UA")} тов.
+                              {formatCount(subgroup.productCount)} товарів
                             </span>
                           </CatalogPrefetchLink>
                         ))}
@@ -1059,10 +1086,10 @@ export default async function ManufacturerDetailPage({
                       href={productPath}
                       className={`${directoryListCardClass} flex flex-col gap-0.5 px-3 py-2.5`}
                     >
-                      <span className="truncate text-sm font-semibold text-slate-800">
+                      <span className="text-sm font-semibold leading-snug text-slate-800">
                         {buildVisibleProductName(product.name)}
                       </span>
-                      <span className="truncate text-xs text-slate-500">
+                      <span className="text-xs leading-snug text-slate-500">
                         {[product.producer, product.article].filter(Boolean).join(" · ")}
                       </span>
                     </Link>
