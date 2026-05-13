@@ -60,12 +60,22 @@ const MERCHANT_FEED_PRICE_LOOKUP_LIMIT =
   MERCHANT_FEED_MAX_ITEMS ??
   DEFAULT_MERCHANT_FEED_LOOKUP_LIMIT;
 const MERCHANT_FEED_PRICE_LOOKUP_CHUNK_SIZE =
-  parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_LOOKUP_CHUNK_SIZE) ?? 60;
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_LOOKUP_CHUNK_SIZE) ?? 40;
 const MERCHANT_FEED_PRICE_LOOKUP_CONCURRENCY =
-  parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_CONCURRENCY) ?? 6;
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_CONCURRENCY) ?? 2;
 const MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT =
   parseOptionalPositiveInt(process.env.MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT) ??
   MERCHANT_FEED_PRICE_LOOKUP_LIMIT;
+const MERCHANT_FEED_SOURCE_TIMEOUT_MS =
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_SOURCE_TIMEOUT_MS) ?? 6000;
+const MERCHANT_FEED_DIRECT_TIMEOUT_MS =
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_DIRECT_TIMEOUT_MS) ?? 6000;
+const MERCHANT_FEED_DIRECT_RETRIES =
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_DIRECT_RETRIES) ?? 2;
+const MERCHANT_FEED_DIRECT_RETRY_DELAY_MS =
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_DIRECT_RETRY_DELAY_MS) ?? 250;
+const MERCHANT_FEED_DIRECT_CONCURRENCY =
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_DIRECT_CONCURRENCY) ?? 2;
 
 const getMerchantFeedSourceChunkSize = (maxItems: number | null) => {
   if (maxItems == null || !Number.isFinite(maxItems) || maxItems <= 0) {
@@ -179,15 +189,15 @@ const lookupMerchantFeedPrices = async (
       if (lookupKeys.length === 0) continue;
 
       const chunkPrices = await fetchPriceEuroMapByLookupKeys(lookupKeys, {
-        sourceTimeoutMs: 1800,
+        sourceTimeoutMs: MERCHANT_FEED_SOURCE_TIMEOUT_MS,
         sourceCacheTtlMs: 1000 * 60 * 5,
-        timeoutMs: 1600,
-        retries: 0,
-        retryDelayMs: 80,
+        timeoutMs: MERCHANT_FEED_DIRECT_TIMEOUT_MS,
+        retries: MERCHANT_FEED_DIRECT_RETRIES,
+        retryDelayMs: MERCHANT_FEED_DIRECT_RETRY_DELAY_MS,
         cacheTtlMs: 1000 * 60 * 10,
         includeDirectLookup: options?.includeDirectLookup === true,
         includePricesPost: true,
-        directConcurrency: 4,
+        directConcurrency: MERCHANT_FEED_DIRECT_CONCURRENCY,
         maxKeys: lookupKeys.length,
       }).catch(() => ({} as Record<string, number>));
 

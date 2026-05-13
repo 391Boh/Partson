@@ -19,13 +19,20 @@ const ensureEnvIntAtLeast = (name: string, minimumValue: number) => {
   );
 };
 
+const ensureEnvIntAtMost = (name: string, maximumValue: number) => {
+  const currentValue = parseOptionalPositiveInt(process.env[name]);
+  process.env[name] = String(
+    currentValue == null ? maximumValue : Math.min(currentValue, maximumValue)
+  );
+};
+
 async function main() {
   console.log("🚀 Генерація Google Merchant Feed...");
   const startedAt = Date.now();
   process.env.PRODUCT_SITEMAP_DISABLE_CACHE = "1";
-  process.env.PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS ??= "22000";
-  process.env.PRODUCT_SITEMAP_BUILD_TIMEOUT_MS ??= "180000";
-  process.env.PRODUCT_SITEMAP_PAGE_SIZE ??= "120";
+  ensureEnvIntAtLeast("PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS", 22000);
+  ensureEnvIntAtLeast("PRODUCT_SITEMAP_BUILD_TIMEOUT_MS", 900000);
+  ensureEnvIntAtLeast("PRODUCT_SITEMAP_PAGE_SIZE", 120);
 
   const productSitemapTarget = Math.max(
     parseOptionalPositiveInt(process.env.PRODUCT_SITEMAP_MAX_ITEMS) ?? 0,
@@ -42,6 +49,13 @@ async function main() {
     "MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT",
     productSitemapTarget
   );
+  ensureEnvIntAtLeast("MERCHANT_FEED_SOURCE_TIMEOUT_MS", 6000);
+  ensureEnvIntAtLeast("MERCHANT_FEED_DIRECT_TIMEOUT_MS", 6000);
+  ensureEnvIntAtLeast("MERCHANT_FEED_DIRECT_RETRIES", 2);
+  ensureEnvIntAtLeast("MERCHANT_FEED_DIRECT_RETRY_DELAY_MS", 250);
+
+  ensureEnvIntAtMost("MERCHANT_FEED_PRICE_CONCURRENCY", 2);
+  ensureEnvIntAtMost("MERCHANT_FEED_DIRECT_CONCURRENCY", 2);
 
   const { getGoogleMerchantFeedSnapshot } = await import(
     "app/lib/google-merchant-feed"
