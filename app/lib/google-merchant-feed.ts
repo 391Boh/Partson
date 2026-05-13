@@ -54,11 +54,15 @@ const MERCHANT_FEED_MAX_ITEMS = parseOptionalPositiveInt(
   process.env.MERCHANT_FEED_MAX_ITEMS
 );
 const MERCHANT_FEED_PRICE_LOOKUP_LIMIT =
-  parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_LOOKUP_LIMIT) ?? 0;
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_LOOKUP_LIMIT) ??
+  MERCHANT_FEED_MAX_ITEMS ??
+  50000;
 const MERCHANT_FEED_PRICE_LOOKUP_CHUNK_SIZE =
   parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_LOOKUP_CHUNK_SIZE) ?? 60;
 const MERCHANT_FEED_PRICE_LOOKUP_CONCURRENCY =
   parseOptionalPositiveInt(process.env.MERCHANT_FEED_PRICE_CONCURRENCY) ?? 6;
+const MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT =
+  parseOptionalPositiveInt(process.env.MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT) ?? 120;
 
 const escapeXml = (value: string) =>
   value
@@ -131,7 +135,8 @@ const hasResolvedPrice = (
 
 const lookupMerchantFeedPrices = async (
   entries: ProductSitemapEntry[],
-  getLookupKeys: (entry: ProductSitemapEntry) => Array<string | undefined>
+  getLookupKeys: (entry: ProductSitemapEntry) => Array<string | undefined>,
+  options?: { includeDirectLookup?: boolean }
 ) => {
   const prices: Record<string, number> = {};
   const chunkSize = Math.max(1, MERCHANT_FEED_PRICE_LOOKUP_CHUNK_SIZE);
@@ -169,7 +174,7 @@ const lookupMerchantFeedPrices = async (
         retries: 0,
         retryDelayMs: 80,
         cacheTtlMs: 1000 * 60 * 10,
-        includeDirectLookup: true,
+        includeDirectLookup: options?.includeDirectLookup === true,
         includePricesPost: true,
         directConcurrency: 4,
         maxKeys: lookupKeys.length,
@@ -200,7 +205,8 @@ const enrichMerchantFeedPrices = async (
 
   const codePrices = await lookupMerchantFeedPrices(
     missingPriceEntries,
-    (entry) => [entry.code]
+    (entry) => [entry.code],
+    { includeDirectLookup: false }
   );
 
   const articleLookupEntries = missingPriceEntries.filter(
@@ -208,13 +214,34 @@ const enrichMerchantFeedPrices = async (
   );
   const articlePrices =
     articleLookupEntries.length > 0
-      ? await lookupMerchantFeedPrices(articleLookupEntries, (entry) => [entry.article])
+      ? await lookupMerchantFeedPrices(
+          articleLookupEntries,
+          (entry) => [entry.article],
+          { includeDirectLookup: false }
+        )
       : {};
 
-  const prices = {
+  let prices = {
     ...codePrices,
     ...articlePrices,
   };
+
+  const directLookupEntries = missingPriceEntries
+    .filter((entry) => !hasResolvedPrice(prices, entry))
+    .slice(0, MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT);
+
+  if (directLookupEntries.length > 0) {
+    const directPrices = await lookupMerchantFeedPrices(
+      directLookupEntries,
+      (entry) => [entry.article, entry.code],
+      { includeDirectLookup: true }
+    );
+
+    prices = {
+      ...prices,
+      ...directPrices,
+    };
+  }
 
   if (Object.keys(prices).length === 0) return entries;
 
