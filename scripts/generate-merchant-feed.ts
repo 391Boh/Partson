@@ -44,6 +44,8 @@ async function main() {
   delete process.env.PRODUCT_SITEMAP_MAX_BATCHES;
   delete process.env.PRODUCT_SITEMAP_MAX_SOURCE_PAGES;
 
+  process.env.MERCHANT_FEED_ENABLE_PRICE_LOOKUP ??= "0";
+
   ensureEnvIntAtLeast("MERCHANT_FEED_PRICE_LOOKUP_LIMIT", productSitemapTarget);
   ensureEnvIntAtLeast(
     "MERCHANT_FEED_DIRECT_PRICE_LOOKUP_LIMIT",

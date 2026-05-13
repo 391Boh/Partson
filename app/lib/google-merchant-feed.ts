@@ -76,6 +76,8 @@ const MERCHANT_FEED_DIRECT_RETRY_DELAY_MS =
   parseOptionalPositiveInt(process.env.MERCHANT_FEED_DIRECT_RETRY_DELAY_MS) ?? 250;
 const MERCHANT_FEED_DIRECT_CONCURRENCY =
   parseOptionalPositiveInt(process.env.MERCHANT_FEED_DIRECT_CONCURRENCY) ?? 2;
+const MERCHANT_FEED_ENABLE_PRICE_LOOKUP =
+  process.env.MERCHANT_FEED_ENABLE_PRICE_LOOKUP === "1";
 
 const getMerchantFeedSourceChunkSize = (maxItems: number | null) => {
   if (maxItems == null || !Number.isFinite(maxItems) || maxItems <= 0) {
@@ -215,6 +217,10 @@ const lookupMerchantFeedPrices = async (
 const enrichMerchantFeedPrices = async (
   entries: ProductSitemapEntry[]
 ): Promise<ProductSitemapEntry[]> => {
+  if (!MERCHANT_FEED_ENABLE_PRICE_LOOKUP) {
+    return entries;
+  }
+
   const allMissingPriceEntries = entries.filter((entry) => !hasPositivePriceEuro(entry));
   if (MERCHANT_FEED_PRICE_LOOKUP_LIMIT <= 0) return entries;
 
