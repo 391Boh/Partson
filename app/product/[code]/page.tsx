@@ -53,7 +53,7 @@ const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 2400;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 2200;
 const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 1000;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 120;
-const PRODUCT_PAGE_SEO_FACETS_TIMEOUT_MS = 120;
+const PRODUCT_PAGE_SEO_FACETS_TIMEOUT_MS = 80;
 const PRODUCT_PAGE_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
 
@@ -788,6 +788,47 @@ const buildProductFallbackDescription = (options: {
     .join(" ");
 };
 
+const appendSeoPartIfMissing = (base: string, addition: string) => {
+  const normalizedBase = base.toLocaleLowerCase("uk-UA");
+  const normalizedAddition = addition.toLocaleLowerCase("uk-UA").trim();
+  if (!normalizedAddition || normalizedBase.includes(normalizedAddition)) {
+    return base;
+  }
+
+  return `${base} ${addition}`.replace(/\s{2,}/g, " ").trim();
+};
+
+const buildProductSeoKeywords = (options: {
+  productName: string;
+  article: string;
+  code: string;
+  producer: string;
+  category: string;
+}) => {
+  const { productName, article, code, producer, category } = options;
+  const entries = [
+    productName,
+    article ? `${productName} ${article}` : null,
+    producer ? `${productName} ${producer}` : null,
+    category ? `${productName} ${category}` : null,
+    article ? `${article} купити` : null,
+    code && code !== article ? `${code} купити` : null,
+    producer ? `${producer} запчастини` : null,
+    category ? `${category} купити` : null,
+    "автозапчастини Львів",
+    "підбір запчастин за VIN",
+    "PartsON",
+  ];
+
+  return Array.from(
+    new Set(
+      entries
+        .map((entry) => (entry || "").replace(/\s+/g, " ").trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 12);
+};
+
 const getFirstResolvedNonNull = async <T,>(promises: Array<Promise<T | null>>) => {
   if (promises.length === 0) return null;
 
@@ -1215,13 +1256,19 @@ export async function generateMetadata({
   const resolvedCode = (routeData.code || fallbackCode || "").trim();
   const fallbackTitleSource =
     routeSlugs?.nameSlug || resolvedCode || decodedParam || "Товар";
-  const seoVisibleProductName = buildVisibleProductName(
-    (routeProduct?.name || fallbackTitleSource).replace(/-/g, " ")
-  );
   const productProducer = (routeProduct?.producer || "").trim();
   const productArticle = (routeProduct?.article || "").trim();
   const productGroup = (routeProduct?.group || routeProduct?.category || "").trim();
   const productSubGroup = (routeProduct?.subGroup || "").trim();
+  const seoVisibleProductName = buildPureProductName(
+    (routeProduct?.name || fallbackTitleSource).replace(/-/g, " "),
+    {
+      producer: productProducer,
+      article: productArticle,
+      group: productGroup,
+      subGroup: productSubGroup,
+    }
+  );
   const categoryLabel = buildVisibleProductName(productSubGroup || productGroup);
   const canonicalPath = routeProduct
     ? buildCanonicalProductPath(routeProduct, resolvedCode || fallbackCode)
@@ -1235,9 +1282,12 @@ export async function generateMetadata({
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
   const shouldIndexProduct = !isModalView && Boolean(resolvedCode || fallbackCode);
 
+  const productNameWithProducer = productProducer
+    ? appendSeoPartIfMissing(seoVisibleProductName, productProducer)
+    : seoVisibleProductName;
   const seoTitle = [
-    seoVisibleProductName
-      ? `Купити ${seoVisibleProductName}${productProducer ? ` ${productProducer}` : ""}`
+    productNameWithProducer
+      ? `Купити ${productNameWithProducer}`
       : "Купити автозапчастину",
     productArticle
       ? `артикул ${productArticle}`
@@ -1248,54 +1298,20 @@ export async function generateMetadata({
     .join(" | ");
 
   const description = [
-    `Купити ${seoVisibleProductName}${productProducer ? ` ${productProducer}` : ""}${productArticle ? ` (артикул ${productArticle})` : resolvedCode ? ` (код ${resolvedCode})` : ""} у Львові.`,
+    `Купити ${productNameWithProducer}${productArticle ? `, артикул ${productArticle}` : resolvedCode ? `, код ${resolvedCode}` : ""} у Львові.`,
     categoryLabel ? `Категорія: ${categoryLabel}.` : null,
     "Ціна, наявність, підбір за VIN, аналоги та доставка по Україні в PartsON.",
   ]
     .filter(Boolean)
     .join(" ");
 
-  const normalizedName = seoVisibleProductName.toLowerCase();
-  const seoNameParts = normalizedName
-    .split(/\s+/)
-    .map((part) => part.replace(/[^\p{L}\p{N}-]+/gu, "").trim())
-    .filter((part) => part.length >= 3)
-    .slice(0, 8);
-  const keywords = Array.from(
-    new Set(
-      [
-        seoVisibleProductName,
-        resolvedCode,
-        productArticle,
-        productProducer,
-        categoryLabel,
-        resolvedCode ? `${seoVisibleProductName} ${resolvedCode}` : null,
-        productArticle ? `${seoVisibleProductName} ${productArticle}` : null,
-        productProducer ? `${seoVisibleProductName} ${productProducer}` : null,
-        categoryLabel ? `купити ${seoVisibleProductName} ${categoryLabel}` : null,
-        productArticle ? `${productArticle} купити` : null,
-        resolvedCode ? `${resolvedCode} купити` : null,
-        resolvedCode ? `${resolvedCode} ціна` : null,
-        categoryLabel ? `${categoryLabel} купити` : null,
-        categoryLabel ? `${categoryLabel} ціна` : null,
-        productProducer ? `${productProducer} запчастини` : null,
-        productProducer ? `${productProducer} купити` : null,
-        productArticle ? `${productArticle} PartsON` : null,
-        resolvedCode ? `${resolvedCode} PartsON` : null,
-        "автозапчастини",
-        "купити автозапчастини",
-        "каталог автозапчастин",
-        "ціна автозапчастин",
-        "наявність автозапчастин",
-        "підбір запчастин за кодом",
-        "запчастини за артикулом",
-        "PartsON",
-        ...seoNameParts,
-      ]
-        .map((entry) => (entry || "").trim())
-        .filter(Boolean)
-    )
-  );
+  const keywords = buildProductSeoKeywords({
+    productName: seoVisibleProductName,
+    article: productArticle,
+    code: resolvedCode,
+    producer: productProducer,
+    category: categoryLabel,
+  });
 
   return {
     title: seoTitle,
@@ -1486,7 +1502,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     quantity: product.quantity,
   });
   const schemaDescription = buildProductMetaDescription({
-    name: product.name,
+    name: visibleProductName,
     article: product.article,
     producer: product.producer,
     quantity: product.quantity,

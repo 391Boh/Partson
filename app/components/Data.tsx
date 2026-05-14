@@ -51,10 +51,11 @@ export interface Product {
 const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v27-fast-list-media";
-const PRICE_CACHE_PREFIX = "partson:v8:price:";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v28-price-null-lookup";
+const PRICE_CACHE_PREFIX = "partson:v9:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
+const PRICE_STALE_POSITIVE_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
 const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 45;
 const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE;
@@ -280,6 +281,39 @@ const readCachedPriceEntry = (code: string) => {
   }
 };
 
+const readStalePositivePriceFromStorage = (storage: Storage, code: string) => {
+  try {
+    const raw = storage.getItem(`${PRICE_CACHE_PREFIX}${code}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { v?: unknown; t?: unknown };
+    if (!parsed || typeof parsed.t !== "number") return null;
+    if (Date.now() - parsed.t > PRICE_STALE_POSITIVE_CACHE_TTL_MS) return null;
+    if (
+      typeof parsed.v === "number" &&
+      Number.isFinite(parsed.v) &&
+      parsed.v > 0
+    ) {
+      return parsed.v;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const readStalePositivePriceEntry = (code: string) => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return (
+      readStalePositivePriceFromStorage(window.sessionStorage, code) ??
+      readStalePositivePriceFromStorage(window.localStorage, code)
+    );
+  } catch {
+    return null;
+  }
+};
+
 const writeCachedPriceEntry = (code: string, price: number | null) => {
   if (typeof window === "undefined") return;
   const payload = JSON.stringify({ v: price, t: Date.now() });
@@ -353,14 +387,6 @@ const getProductPriceLookupKeys = (item: Pick<Product, "code" | "article">) =>
   Array.from(
     new Set([(item.article || "").trim(), (item.code || "").trim()].filter(Boolean))
   );
-
-const hasKnownNoPrice = (
-  item: Pick<Product, "code" | "article" | "priceEuro">,
-  prices: Record<string, number | null>
-) => {
-  const priceKey = getProductPriceStateKey(item);
-  return item.priceEuro === null || Boolean(priceKey && prices[priceKey] === null);
-};
 
 const getResolvedProductPriceUAH = (
   item: Pick<Product, "code" | "article" | "priceEuro">,
@@ -603,7 +629,12 @@ const normalizePageImageMap = (value: unknown): Record<string, string> => {
     if (typeof entry !== "string") continue;
 
     const normalizedValue = entry.trim();
-    if (!normalizedValue.startsWith("data:image/")) continue;
+    if (
+      !normalizedValue.startsWith("data:image/") &&
+      !normalizedValue.startsWith("/product-image/")
+    ) {
+      continue;
+    }
     next[normalizedKey] = normalizedValue;
   }
 
@@ -989,7 +1020,8 @@ function useCatalogData(params: {
         const stateKey = getProductPriceStateKey(item);
         if (!stateKey) continue;
 
-        const hasKnownNoInlinePrice = item.priceEuro === null;
+        const hasKnownNoInlinePrice =
+          item.priceEuro === null && !allowFullLookup;
         const inlinePrice =
           typeof item.priceEuro === "number" &&
           Number.isFinite(item.priceEuro) &&
@@ -1061,6 +1093,20 @@ function useCatalogData(params: {
             delete priceRetryCooldownUntilRef.current[stateKey];
           }
           continue;
+        }
+
+        const stalePrice =
+          readStalePositivePriceEntry(stateKey) ??
+          lookupKeys
+            .map((lookupKey) => readStalePositivePriceEntry(lookupKey))
+            .find((value) => typeof value === "number" && value > 0);
+        if (
+          typeof stalePrice === "number" &&
+          Number.isFinite(stalePrice) &&
+          stalePrice > 0
+        ) {
+          immediateUpdates[stateKey] = stalePrice;
+          delete priceRetryCooldownUntilRef.current[stateKey];
         }
 
         requestItems.push({ stateKey, lookupKeys });
@@ -1619,6 +1665,7 @@ function useCatalogData(params: {
             sortOrder: effectiveServerSortOrder,
           }),
           cache: "no-store",
+          signal,
         });
         const raw = (await res.json()) as {
           items?: unknown[];
@@ -2280,7 +2327,8 @@ function useCatalogData(params: {
         const stateKey = getProductPriceStateKey(item);
         if (!stateKey) continue;
 
-        const hasKnownNoInlinePrice = item.priceEuro === null;
+        const hasKnownNoInlinePrice =
+          item.priceEuro === null && !shouldAllowCatalogDirectPriceLookup;
         const inlinePrice =
           typeof item.priceEuro === "number" &&
           Number.isFinite(item.priceEuro) &&
@@ -2307,7 +2355,8 @@ function useCatalogData(params: {
 
     for (const item of safeData) {
       const stateKey = getProductPriceStateKey(item);
-      const hasKnownNoInlinePrice = item.priceEuro === null;
+      const hasKnownNoInlinePrice =
+        item.priceEuro === null && !shouldAllowCatalogDirectPriceLookup;
       const inlinePrice =
         typeof item.priceEuro === "number" &&
         Number.isFinite(item.priceEuro) &&
@@ -2325,7 +2374,7 @@ function useCatalogData(params: {
         writeCachedPriceEntry(lookupKey, nextPrice);
       }
     }
-  }, [safeData]);
+  }, [safeData, shouldAllowCatalogDirectPriceLookup]);
 
   // --- РЈРЅС–РєР°Р»СЊРЅС– С‚РѕРІР°СЂРё ---
   const uniqueData = useMemo(() => {
@@ -2715,12 +2764,25 @@ const Data: React.FC<DataProps> = ({
         .slice(0, VISIBLE_IMAGE_PREFETCH_MAX_ITEMS),
     [visibleSortedData]
   );
+  const hasPendingSortedPriceResolution = useMemo(() => {
+    if (sortOrder === "none" || selectedCars.length === 0) return false;
+
+    return filteredData.some((item) => {
+      const priceKey = getProductPriceStateKey(item);
+      if (!priceKey) return false;
+      const priceUAH = getResolvedProductPriceUAH(item, prices, euroRate);
+      if (priceUAH != null) return false;
+      return !Object.prototype.hasOwnProperty.call(prices, priceKey);
+    });
+  }, [filteredData, prices, euroRate, selectedCars.length, sortOrder]);
   const shouldShowInitialSkeleton =
-    (filterLoading || loading) && visibleSortedData.length === 0;
+    (filterLoading || loading || hasPendingSortedPriceResolution) &&
+    visibleSortedData.length === 0;
   const isEmptyState =
     hasLoadedOnce &&
     !shouldShowInitialSkeleton &&
     !loading &&
+    !hasPendingSortedPriceResolution &&
     sortedData.length === 0 &&
     !error;
   const showEmptyState = isEmptyState && !isRefetching;
@@ -3139,12 +3201,19 @@ const Data: React.FC<DataProps> = ({
                 const qty = quantities[code] ?? 1;
                 const cartQty = cartMap[code] ?? 0;
                 const absoluteIndex = effectiveVirtualWindowStartIndex + index;
+                const hasResolvedPriceState =
+                  priceKey
+                    ? Object.prototype.hasOwnProperty.call(prices, priceKey)
+                    : false;
+                const isKnownNoPrice =
+                  hasResolvedPriceState && prices[priceKey] === null;
+                const hasInlineNoPrice =
+                  selectedCars.length === 0 && item.priceEuro === null;
 
                 const priceStatus =
                   priceUAH != null
                     ? "ready"
-                    : hasKnownNoPrice(item, prices) ||
-                        Object.prototype.hasOwnProperty.call(prices, priceKey)
+                    : isKnownNoPrice || hasInlineNoPrice || hasResolvedPriceState
                       ? "request"
                       : "loading";
                 const shouldPrioritizeImage = absoluteIndex < IMAGE_PRIORITY_ITEMS_COUNT;

@@ -3,25 +3,23 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { NextResponse } from "next/server";
-import sharp from "sharp";
 
 import { findCatalogProductByCode } from "app/lib/catalog-server";
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import {
   fetchProductImageBase64Batch,
 } from "app/lib/product-image";
-import { buildProductImageBatchKey } from "app/lib/product-image-path";
+import {
+  buildProductImageBatchKey,
+  buildProductImagePath,
+} from "app/lib/product-image-path";
 
 export const runtime = "nodejs";
 
 const MAX_BATCH_ITEMS = 36;
 const BATCH_CONCURRENCY = 6;
-const OPTIMIZED_IMAGE_CACHE_TTL_MS = 1000 * 60 * 60;
 const CATALOG_IMAGE_READY_CACHE_TTL_MS = 1000 * 60 * 60;
 const CATALOG_IMAGE_MISSING_CACHE_TTL_MS = 1000 * 60 * 5;
-const CATALOG_IMAGE_MAX_WIDTH = 320;
-const CATALOG_IMAGE_MAX_HEIGHT = 320;
-const CATALOG_IMAGE_QUALITY = 58;
 
 const PRIMARY_LOOKUP_OPTIONS = {
   timeoutMs: 850,
@@ -68,11 +66,6 @@ type CatalogImageBatchResult = {
   src?: string;
 };
 
-const optimizedCatalogDataUriCache = new Map<
-  string,
-  { expiresAt: number; value: string }
->();
-const optimizedCatalogDataUriInFlight = new Map<string, Promise<string | null>>();
 const catalogImageResultCache = new Map<
   string,
   { expiresAt: number; result: CatalogImageBatchResult }
@@ -91,14 +84,8 @@ const getFallbackImageHash = async () => {
   return fallbackImageHashPromise;
 };
 
-const pruneOptimizedCatalogDataUriCache = () => {
+const pruneCatalogImageResultCache = () => {
   const now = Date.now();
-  for (const [key, entry] of optimizedCatalogDataUriCache.entries()) {
-    if (!entry || entry.expiresAt <= now) {
-      optimizedCatalogDataUriCache.delete(key);
-    }
-  }
-
   for (const [key, entry] of catalogImageResultCache.entries()) {
     if (!entry || entry.expiresAt <= now) {
       catalogImageResultCache.delete(key);
@@ -111,7 +98,7 @@ const buildMissingResultCacheKey = (key: string, deep: boolean) =>
   `${deep ? "deep" : "fast"}:missing:${key}`;
 
 const getCachedCatalogImageResult = (key: string, deep: boolean) => {
-  pruneOptimizedCatalogDataUriCache();
+  pruneCatalogImageResultCache();
 
   const readyEntry = catalogImageResultCache.get(buildReadyResultCacheKey(key));
   if (readyEntry && readyEntry.expiresAt > Date.now()) {
@@ -247,7 +234,10 @@ const normalizeBatchItems = (payload: unknown) => {
   return items;
 };
 
-const optimizeCatalogImageToDataUri = async (imageBase64: string) => {
+const resolveCatalogImageSrc = async (
+  item: CatalogImageBatchItem,
+  imageBase64: string
+) => {
   if (!imageBase64) return null;
 
   try {
@@ -263,58 +253,7 @@ const optimizeCatalogImageToDataUri = async (imageBase64: string) => {
     const originalContentType = detectImageContentType(imageBuffer);
     if (!originalContentType.startsWith("image/")) return null;
 
-    pruneOptimizedCatalogDataUriCache();
-    const cacheKey = buildBufferHash(imageBuffer);
-    const cached = optimizedCatalogDataUriCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now() && cached.value) {
-      return cached.value;
-    }
-
-    const inFlight = optimizedCatalogDataUriInFlight.get(cacheKey);
-    if (inFlight) {
-      return await inFlight;
-    }
-
-    const optimizationPromise = (async () => {
-      const originalDataUri = `data:${originalContentType};base64,${imageBuffer.toString("base64")}`;
-
-      let optimizedDataUri = originalDataUri;
-      try {
-        const transformed = await sharp(imageBuffer, {
-          failOn: "none",
-          animated: false,
-        })
-          .rotate()
-          .resize({
-            width: CATALOG_IMAGE_MAX_WIDTH,
-            height: CATALOG_IMAGE_MAX_HEIGHT,
-            fit: "inside",
-            withoutEnlargement: true,
-          })
-          .webp({
-            quality: CATALOG_IMAGE_QUALITY,
-            effort: 2,
-          })
-          .toBuffer();
-
-        if (transformed.length > 0 && transformed.length < imageBuffer.length) {
-          optimizedDataUri = `data:image/webp;base64,${transformed.toString("base64")}`;
-        }
-      } catch {
-        optimizedDataUri = originalDataUri;
-      }
-
-      optimizedCatalogDataUriCache.set(cacheKey, {
-        expiresAt: Date.now() + OPTIMIZED_IMAGE_CACHE_TTL_MS,
-        value: optimizedDataUri,
-      });
-      return optimizedDataUri;
-    })().finally(() => {
-      optimizedCatalogDataUriInFlight.delete(cacheKey);
-    });
-
-    optimizedCatalogDataUriInFlight.set(cacheKey, optimizationPromise);
-    return await optimizationPromise;
+    return buildProductImagePath(item.code, item.article, { catalog: true });
   } catch {
     return null;
   }
@@ -514,7 +453,7 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const src = await optimizeCatalogImageToDataUri(imageBase64);
+      const src = await resolveCatalogImageSrc(item, imageBase64);
       if (!src) {
         const result: CatalogImageBatchResult = {
           key,

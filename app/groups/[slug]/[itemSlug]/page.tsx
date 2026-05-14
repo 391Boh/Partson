@@ -1102,7 +1102,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                 </h2>
               </div>
               <span className={directoryCompactMetricAccentClass}>
-                {formatCount(item.children.length)} підгруп
+                {formatCount(item.children.length)} категорій
               </span>
             </div>
           </div>
@@ -1129,7 +1129,8 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                   <span className="flex shrink-0 items-center gap-1.5">
                     {child.productCount > 0 ? (
                       <span className={directoryCompactMetricClass}>
-                        {child.productCount.toLocaleString("uk-UA")}
+                        <span>{formatCount(child.productCount)}</span>
+                        <span className="font-semibold text-slate-500">товарів</span>
                       </span>
                     ) : null}
                     <span className="text-teal-700">&rarr;</span>

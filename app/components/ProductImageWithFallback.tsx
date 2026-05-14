@@ -7,6 +7,7 @@ import { ImageOff, Maximize2 } from "lucide-react";
 import ImageModal from "app/components/ImageModal";
 import {
   clearProductImageMissing,
+  readProductImageMissing,
   readProductImageSuccess,
   writeProductImageMissing,
   writeProductImageSuccess,
@@ -71,11 +72,16 @@ export default function ProductImageWithFallback({
   const [loadedSrc, setLoadedSrc] = useState("");
   const [failedSrc, setFailedSrc] = useState("");
   const [cachedPreviewSrc, setCachedPreviewSrc] = useState("");
+  const [cachedMissingSrc, setCachedMissingSrc] = useState("");
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
 
   const activeSrc = cachedPreviewSrc || candidateSrc;
-  const showPlaceholder = !hasKnownPhoto || !activeSrc || failedSrc === activeSrc;
+  const showPlaceholder =
+    !hasKnownPhoto ||
+    !activeSrc ||
+    failedSrc === activeSrc ||
+    cachedMissingSrc === activeSrc;
   const isLoaded = !showPlaceholder && loadedSrc === activeSrc;
   const showPlaceholderOverlay = !showPlaceholder && !isLoaded;
   const canOpen = zoomEnabled && isLoaded;
@@ -118,6 +124,12 @@ export default function ProductImageWithFallback({
 
   const handleImageError = () => {
     if (!activeSrc) return;
+    if (normalizedProductCode) {
+      writeProductImageMissing(
+        normalizedProductCode,
+        normalizedArticleHint || undefined
+      );
+    }
     setFailedSrc(activeSrc);
   };
 
@@ -136,15 +148,33 @@ export default function ProductImageWithFallback({
     }
 
     if (preferCachedPreview && normalizedProductCode) {
+      const isKnownMissing = readProductImageMissing(
+        normalizedProductCode,
+        normalizedArticleHint || undefined
+      );
+      if (isKnownMissing && candidateSrc) {
+        setCachedPreviewSrc("");
+        setCachedMissingSrc(candidateSrc);
+        return;
+      }
+
       const cached = readProductImageSuccess(
         normalizedProductCode,
         normalizedArticleHint || undefined
       );
       setCachedPreviewSrc(cached || "");
+      setCachedMissingSrc("");
     } else {
       setCachedPreviewSrc("");
+      setCachedMissingSrc("");
     }
-  }, [hasKnownPhoto, normalizedArticleHint, normalizedProductCode, preferCachedPreview]);
+  }, [
+    candidateSrc,
+    hasKnownPhoto,
+    normalizedArticleHint,
+    normalizedProductCode,
+    preferCachedPreview,
+  ]);
 
   useEffect(() => {
     setLightboxOpen(false);

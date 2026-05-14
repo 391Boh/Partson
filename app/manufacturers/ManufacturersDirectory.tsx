@@ -128,7 +128,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
                 Виробник
               </span>
 
-              <p className="mt-1.5 truncate text-[17px] font-extrabold leading-tight text-slate-950">
+              <p className="mt-1.5 text-[17px] font-extrabold leading-tight text-slate-950">
                 {item.label}
               </p>
               <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-600">

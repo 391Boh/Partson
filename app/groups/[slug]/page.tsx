@@ -147,7 +147,7 @@ const buildGroupDescription = (
       : "товари групи";
   const subgroupLabel =
     subgroupsCount > 0
-      ? ` і ${subgroupsCount.toLocaleString("uk-UA")} підгруп`
+      ? ` і ${subgroupsCount.toLocaleString("uk-UA")} підгруп каталогу`
       : "";
 
   return `${visibleLabel} у PartsON: ${productLabel}${subgroupLabel}. Каталог із цінами, наявністю, підбором за назвою, артикулом і VIN.`;
@@ -162,7 +162,7 @@ const buildGroupHeroDescription = (
   const visibleLabel = buildVisibleProductName(label);
 
   if (hasSubgroups) {
-    return `У групі ${visibleLabel} зібрано ${productCount.toLocaleString("uk-UA")} товарів і ${subgroupsCount.toLocaleString("uk-UA")} підгруп. Оберіть напрямок, щоб перейти до запчастин з актуальною ціною, брендами й доставкою по Україні.`;
+    return `У групі ${visibleLabel} зібрано ${productCount.toLocaleString("uk-UA")} товарів і ${subgroupsCount.toLocaleString("uk-UA")} підгруп каталогу. Оберіть напрямок, щоб перейти до запчастин з актуальною ціною, брендами й доставкою по Україні.`;
   }
 
   if (productCount > 0) {
@@ -207,7 +207,7 @@ const buildSubgroupLead = (options: {
       : "актуальні позиції каталогу";
 
   if (options.childCount > 0) {
-    return `Підгрупа ${visibleSubgroupLabel} у групі ${visibleGroupLabel} об'єднує ${productCountLabel} і ${options.childCount.toLocaleString("uk-UA")} кінцевих напрямків для точнішого підбору автозапчастин.`;
+    return `Підгрупа ${visibleSubgroupLabel} у групі ${visibleGroupLabel} об'єднує ${productCountLabel} і ${options.childCount.toLocaleString("uk-UA")} кінцевих категорій для точнішого підбору автозапчастин.`;
   }
 
   return `Розділ ${visibleSubgroupLabel} веде прямо до каталогу товарів групи ${visibleGroupLabel} і допомагає швидко знайти потрібні автозапчастини за назвою, артикулом або брендом.`;
@@ -596,7 +596,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                       </span>
                     ) : null}
                     <span className={directoryCompactMetricAccentClass}>
-                      {formatCount(subgroup.children.length)} підгруп
+                      {formatCount(subgroup.children.length)} категорій
                     </span>
                   </div>
                 </div>
@@ -613,7 +613,8 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                         <span className="flex shrink-0 items-center gap-1.5">
                           {child.productCount > 0 ? (
                             <span className={directoryCompactMetricClass}>
-                              {child.productCount.toLocaleString("uk-UA")}
+                              <span>{formatCount(child.productCount)}</span>
+                              <span className="font-semibold text-slate-500">товарів</span>
                             </span>
                           ) : null}
                           <span className="text-teal-700">&rarr;</span>

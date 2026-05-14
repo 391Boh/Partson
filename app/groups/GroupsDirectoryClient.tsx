@@ -37,6 +37,7 @@ export type GroupsDirectoryItem = {
     children: Array<{
       label: string;
       slug: string;
+      productCount?: number;
     }>;
   }>;
 };
@@ -173,18 +174,12 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                 <span className="inline-flex rounded-md border border-teal-200/70 bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-teal-800">
                   Група
                 </span>
-                {hasSubgroups ? (
-                  <span className="mt-2 block text-lg font-extrabold leading-tight tracking-normal text-slate-950">
-                    {visibleGroupLabel}
-                  </span>
-                ) : (
-                  <SmartLink
-                    href={buildGroupPath(group.slug)}
-                    className="mt-2 block text-lg font-extrabold leading-tight tracking-normal text-slate-950 transition hover:text-teal-700"
-                  >
-                    {visibleGroupLabel}
-                  </SmartLink>
-                )}
+                <SmartLink
+                  href={buildGroupPath(group.slug)}
+                  className="mt-2 block text-lg font-extrabold leading-tight tracking-normal text-slate-950 transition hover:text-teal-700"
+                >
+                  {visibleGroupLabel}
+                </SmartLink>
 
                 <p className="mt-1.5 text-sm leading-5 text-slate-600">
                   {groupHint}
@@ -195,12 +190,12 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                 {group.productCount > 0 ? (
                   <span className={directoryCompactMetricClass}>
                     <span>{group.productCount.toLocaleString("uk-UA")}</span>
-                    <span className="font-semibold text-slate-500">тов.</span>
+                    <span className="font-semibold text-slate-500">товарів</span>
                   </span>
                 ) : null}
                 <span className={directoryCompactMetricAccentClass}>
                   {hasSubgroups
-                    ? `${group.subgroupsCount.toLocaleString("uk-UA")} підгр.`
+                    ? `${group.subgroupsCount.toLocaleString("uk-UA")} підгруп`
                     : "окрема сторінка"}
                 </span>
               </div>
@@ -224,19 +219,19 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                   <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-teal-200 bg-teal-50 text-teal-700">
                     <ChevronRight size={14} strokeWidth={2.3} />
                   </span>
-                  <span className="truncate">{buildVisibleProductName(subgroup.label)}</span>
+                  <span>{buildVisibleProductName(subgroup.label)}</span>
                 </CatalogPrefetchLink>
 
                 <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                   {subgroup.productCount > 0 ? (
                     <span className={directoryCompactMetricClass}>
                       <span>{subgroup.productCount.toLocaleString("uk-UA")}</span>
-                      <span className="font-semibold text-slate-500">тов.</span>
+                      <span className="font-semibold text-slate-500">товарів</span>
                     </span>
                   ) : null}
                   {subgroup.children.length > 0 ? (
                     <span className={directoryCompactMetricAccentClass}>
-                      {subgroup.children.length} підгр.
+                      {subgroup.children.length.toLocaleString("uk-UA")} категорій
                     </span>
                   ) : null}
                 </div>
@@ -262,7 +257,15 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                           {buildChildDirectoryLead(group.label, subgroup.label, child.label)}
                         </span>
                       </span>
-                      <ChevronRight size={14} strokeWidth={2.1} className="mt-0.5 shrink-0" />
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {(child.productCount ?? 0) > 0 ? (
+                          <span className={directoryCompactMetricClass}>
+                            <span>{Number(child.productCount).toLocaleString("uk-UA")}</span>
+                            <span className="font-semibold text-slate-500">товарів</span>
+                          </span>
+                        ) : null}
+                        <ChevronRight size={14} strokeWidth={2.1} className="mt-0.5 shrink-0" />
+                      </span>
                     </CatalogPrefetchLink>
                   ))}
                 </div>

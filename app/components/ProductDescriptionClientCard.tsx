@@ -25,7 +25,9 @@ export default function ProductDescriptionClientCard({
   const [descriptionText, setDescriptionText] = useState(
     normalizedInitialText || fallbackText
   );
-  const hasCatalogDescription = Boolean(normalizedInitialText);
+  const [hasCatalogDescription, setHasCatalogDescription] = useState(
+    Boolean(normalizedInitialText)
+  );
 
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -51,6 +53,7 @@ export default function ProductDescriptionClientCard({
 
   useEffect(() => {
     setDescriptionText(normalizedInitialText || fallbackText);
+    setHasCatalogDescription(Boolean(normalizedInitialText));
   }, [fallbackText, normalizedInitialText]);
 
   useEffect(() => {
@@ -110,11 +113,13 @@ export default function ProductDescriptionClientCard({
     const cachedDescription = readCachedDescription();
     if (cachedDescription) {
       setDescriptionText(cachedDescription);
+      setHasCatalogDescription(true);
       return;
     }
 
     if (normalizedInitialText) {
       setDescriptionText(normalizedInitialText);
+      setHasCatalogDescription(true);
       writeCachedDescription(normalizedInitialText);
       return;
     }
@@ -141,6 +146,7 @@ export default function ProductDescriptionClientCard({
         if (nextDescription) {
           writeCachedDescription(nextDescription);
           setDescriptionText(nextDescription);
+          setHasCatalogDescription(true);
         }
       } catch {
         // Keep fallback description on network issues.
