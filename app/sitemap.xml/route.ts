@@ -1,5 +1,5 @@
 import { PAGE_SITEMAP_SECTION_PATHS } from "app/lib/sitemap-sections";
-import { getProductSitemapIds } from "app/lib/product-sitemap";
+import { getPricedProductSitemapIds } from "app/lib/product-sitemap";
 import { getConfiguredSitemapLastModified } from "app/lib/sitemap-dates";
 import { buildSitemapIndexXml, createSitemapXmlResponse } from "app/lib/sitemap-xml";
 import { getSiteUrl } from "app/lib/site-url";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const siteUrl = getSiteUrl();
   const lastModified = getConfiguredSitemapLastModified();
-  const productSitemapIds = await getProductSitemapIds().catch(() => []);
+  const productSitemapIds = await getPricedProductSitemapIds().catch(() => []);
   const productPaths = productSitemapIds.map(
     ({ id }) => `/product/sitemap/${encodeURIComponent(String(id))}.xml`
   );
