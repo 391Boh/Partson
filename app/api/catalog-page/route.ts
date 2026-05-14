@@ -274,6 +274,7 @@ export async function POST(request: Request) {
           includePriceEnrichment: false,
           preferLegacySource: false,
           forceAllgoodsSource: true,
+          pricedItemsOnly: false,
         });
 
       let allgoodsPrimary: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>> | null = null;

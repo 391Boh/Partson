@@ -16,7 +16,6 @@ import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
 import ProductCard from "app/components/ProductCard";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
-import { fetchCatalogImageBatch } from "app/lib/product-image-batch-client";
 import {
   buildProductImageBatchKey,
   buildProductImagePath,
@@ -51,7 +50,7 @@ export interface Product {
 const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v29-price-pending-fallback";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v31-price-sort-keeps-unpriced";
 const PRICE_CACHE_PREFIX = "partson:v10:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -65,19 +64,15 @@ const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 0;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 0;
 const IMAGE_PRIORITY_ITEMS_COUNT = 2;
-const IMAGE_DEEP_RECOVERY_BATCH_COUNT = 4;
-const IMAGE_DEEP_RECOVERY_DELAY_MS = 650;
 const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 18;
 const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = 24;
 const LOAD_MORE_SCROLL_BUFFER_PX = 1200;
 const LOAD_MORE_OBSERVER_ROOT_MARGIN = "0px 0px 1400px 0px";
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 80;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 90;
-// Keep the old safety fallback for grid windowing; card-level content visibility
-// gives smoother long-scroll performance without changing scroll geometry.
-const VIRTUAL_WINDOW_THRESHOLD_ITEMS = 1000000;
+const VIRTUAL_WINDOW_THRESHOLD_ITEMS = 72;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
-const VIRTUAL_OVERSCAN_ROWS = 6;
+const VIRTUAL_OVERSCAN_ROWS = 4;
 const SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT = 2;
 const SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS = 520;
 const DEFAULT_EURO_RATE = 50;
@@ -137,11 +132,23 @@ const CATEGORY_FIELDS = [
 ]; // РљР°С‚РµРіРѕСЂРёСЏ
 const PRICE_VALUE_FIELDS = [
   "priceEuro",
+  "price_euro",
+  "PriceEuro",
   "\u0426\u0456\u043d\u0430\u041f\u0440\u043e\u0434", // Р¦С–РЅР°РџСЂРѕРґ
   "\u0426\u0435\u043d\u0430\u041f\u0440\u043e\u0434", // Р¦РµРЅР°РџСЂРѕРґ
+  "\u0426\u0456\u043d\u0430\u041f\u0440\u043e\u0434\u0430\u0436\u0443",
+  "\u0426\u0435\u043d\u0430\u041f\u0440\u043e\u0434\u0430\u0436\u0438",
+  "\u0426\u0456\u043d\u0430\u0421\u0430\u0439\u0442",
+  "\u0426\u0435\u043d\u0430\u0421\u0430\u0439\u0442",
+  "\u0426\u0456\u043d\u0430\u0420\u043e\u0437\u0434\u0440\u0456\u0431",
+  "\u0426\u0435\u043d\u0430\u0420\u043e\u0437\u043d\u0438\u0446\u0430",
+  "\u0420\u043e\u0437\u043d\u0438\u0447\u043d\u0430\u044f\u0426\u0435\u043d\u0430",
   "\u0426\u0435\u043d\u0430", // Р¦РµРЅР°
   "\u0426\u0456\u043d\u0430", // Р¦С–РЅР°
   "price",
+  "Price",
+  "cost",
+  "Cost",
 ];
 const PHOTO_FIELDS = [
   "\u0415\u0441\u0442\u044c\u0424\u043e\u0442\u043e",
@@ -176,7 +183,10 @@ const readFirstNumber = (
     const value = source?.[key];
     if (typeof value === "number" && Number.isFinite(value)) return value;
     if (typeof value === "string") {
-      const cleaned = value.replace(/\s+/g, "").replace(",", "."); // handle "1 200", "1,5"
+      const cleaned = value
+        .replace(/\s+/g, "")
+        .replace(",", ".")
+        .replace(/[^\d.+-]/g, ""); // handle "1 200", "1,5", "123 EUR"
       const num = Number(cleaned);
       if (Number.isFinite(num)) return num;
     }
@@ -557,6 +567,14 @@ const createAbortError = () => {
   }
 };
 
+const swallowAbortError = (error: unknown) => {
+  if (error instanceof Error && error.name === "AbortError") {
+    return;
+  }
+
+  throw error;
+};
+
 const awaitWithAbortSignal = async <T,>(
   promise: Promise<T>,
   signal?: AbortSignal
@@ -712,28 +730,6 @@ const writePageToSession = (key: string, payload: CatalogPagePayload) => {
   }
 };
 
-const mergePageImagesIntoCache = (
-  cacheKey: string,
-  images: Record<string, string>,
-  ttlMs: number
-) => {
-  if (!cacheKey || Object.keys(images).length === 0) return;
-
-  const currentPayload = readPageFromMemory(cacheKey) ?? readPageFromSession(cacheKey);
-  if (!currentPayload) return;
-
-  const nextPayload: CatalogPagePayload = {
-    ...currentPayload,
-    images: {
-      ...(currentPayload.images ?? {}),
-      ...images,
-    },
-  };
-
-  writePageToMemory(cacheKey, nextPayload, ttlMs);
-  writePageToSession(cacheKey, nextPayload);
-};
-
 const mergePagePricesIntoCache = (
   cacheKey: string,
   prices: Record<string, number | null>,
@@ -810,8 +806,8 @@ function useCatalogData(params: {
   const [data, setData] = useState<Product[]>([]);
   const [prices, setPrices] = useState<Record<string, number | null>>({});
   const [pageImages, setPageImages] = useState<Record<string, string>>({});
-  const [pageImagePending, setPageImagePending] = useState<Record<string, true>>({});
-  const [pageImageMissing, setPageImageMissing] = useState<Record<string, true>>({});
+  const [pageImagePending] = useState<Record<string, true>>({});
+  const [pageImageMissing] = useState<Record<string, true>>({});
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [flippedCard, setFlippedCard] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -1318,209 +1314,12 @@ function useCatalogData(params: {
         signal?: AbortSignal;
       }
     ) => {
+      void items;
+      void options;
       if (typeof window === "undefined") return;
-      const imagePrefetchCount =
-        window.innerWidth >= 1024 ? 16 : window.innerWidth >= 768 ? 10 : 6;
-      if (imagePrefetchCount <= 0) return;
-
-      const prefetchedImages = options?.prefetchedImages ?? {};
-      const batchItems = items
-        .filter((item) => item.hasPhoto !== false)
-        .slice(IMAGE_PRIORITY_ITEMS_COUNT, imagePrefetchCount)
-        .map((item) => {
-          const code = (item.code || "").trim();
-          const article = (item.article || "").trim() || undefined;
-          const key = buildProductImageBatchKey(code, article);
-          return { code, article, key };
-        })
-        .filter((item) => item.code && item.key)
-        .filter((item) => {
-          const key = item.key;
-          if (!key) return false;
-          if (prefetchedImages[key]) return false;
-          if (pageImagesRef.current[key]) return false;
-          if (pageImagePendingRef.current[key]) return false;
-          if (pageImageMissingRef.current[key]) return false;
-          return true;
-        });
-
-      if (batchItems.length === 0) return;
-
-      const pendingKeys = batchItems
-        .map((item) => item.key)
-        .filter((key): key is string => Boolean(key));
-      const pendingKeySet = new Set(pendingKeys);
-
-      setPageImagePending((prev) => {
-        const next = { ...prev };
-        for (const key of pendingKeys) {
-          next[key] = true;
-        }
-        return next;
-      });
-
-      setPageImageMissing((prev) => {
-        if (pendingKeys.length === 0) return prev;
-        let didChange = false;
-        const next = { ...prev };
-        for (const key of pendingKeys) {
-          if (!next[key]) continue;
-          delete next[key];
-          didChange = true;
-        }
-        return didChange ? next : prev;
-      });
-
-      const mergeResolvedImages = (nextImages: Record<string, string>) => {
-        if (Object.keys(nextImages).length === 0) return;
-
-        setPageImages((prev) => ({ ...prev, ...nextImages }));
-        if (options?.cacheKey && options?.ttlMs) {
-          mergePageImagesIntoCache(options.cacheKey, nextImages, options.ttlMs);
-        }
-      };
-
-      void fetchCatalogImageBatch(
-        batchItems.map((item) => ({
-          code: item.code,
-          article: item.article,
-        })),
-        {
-          signal: options?.signal,
-        }
-      )
-        .then((results) => {
-          if (
-            options?.querySignatureSnapshot &&
-            activeQuerySignatureRef.current !== options.querySignatureSnapshot
-          ) {
-            return;
-          }
-
-          const nextImages: Record<string, string> = {};
-          const unresolvedKeys = new Set(pendingKeys);
-
-          for (const result of results) {
-            if (!result.key) continue;
-            if (result.status === "ready" && result.src) {
-              nextImages[result.key] = result.src;
-              unresolvedKeys.delete(result.key);
-              continue;
-            }
-          }
-
-          mergeResolvedImages(nextImages);
-
-          setPageImageMissing((prev) => {
-            const next = { ...prev };
-            for (const key of pendingKeys) {
-              if (!unresolvedKeys.has(key) || nextImages[key]) {
-                delete next[key];
-                continue;
-              }
-              next[key] = true;
-            }
-            return next;
-          });
-          setPageImagePending((prev) => {
-            const next = { ...prev };
-            for (const key of pendingKeys) {
-              delete next[key];
-            }
-            return next;
-          });
-
-          const deepRecoveryItems = batchItems
-            .filter(
-              (item) =>
-                item.key &&
-                unresolvedKeys.has(item.key)
-            )
-            .slice(0, IMAGE_DEEP_RECOVERY_BATCH_COUNT);
-
-          if (deepRecoveryItems.length === 0) {
-            return;
-          }
-
-          const runDeepRecovery = () => {
-            if (options?.signal?.aborted) return;
-
-            void fetchCatalogImageBatch(
-              deepRecoveryItems.map((item) => ({
-                code: item.code,
-                article: item.article,
-              })),
-              {
-                deep: true,
-                signal: options?.signal,
-              }
-            )
-              .then((deepResults) => {
-              if (
-                options?.querySignatureSnapshot &&
-                activeQuerySignatureRef.current !== options.querySignatureSnapshot
-              ) {
-                return;
-              }
-
-              const recoveredImages: Record<string, string> = {};
-              const recoveredKeys = new Set<string>();
-
-              for (const result of deepResults) {
-                if (!result.key) continue;
-                if (result.status !== "ready" || !result.src) continue;
-                if (!pendingKeySet.has(result.key)) continue;
-                recoveredImages[result.key] = result.src;
-                recoveredKeys.add(result.key);
-              }
-
-              if (recoveredKeys.size === 0) {
-                return;
-              }
-
-              mergeResolvedImages(recoveredImages);
-              setPageImageMissing((prev) => {
-                const next = { ...prev };
-                for (const key of recoveredKeys) {
-                  delete next[key];
-                }
-                return next;
-              });
-            })
-            .catch(() => {
-              // Keep the fast missing placeholder when deep recovery fails.
-            });
-          };
-
-          window.setTimeout(runDeepRecovery, IMAGE_DEEP_RECOVERY_DELAY_MS);
-        })
-        .catch((error) => {
-          if (
-            options?.querySignatureSnapshot &&
-            activeQuerySignatureRef.current !== options.querySignatureSnapshot
-          ) {
-            return;
-          }
-
-          if (error instanceof Error && error.name === "AbortError") {
-            setPageImagePending((prev) => {
-              const next = { ...prev };
-              for (const key of pendingKeys) {
-                delete next[key];
-              }
-              return next;
-            });
-            return;
-          }
-
-          setPageImagePending((prev) => {
-            const next = { ...prev };
-            for (const key of pendingKeys) {
-              delete next[key];
-            }
-            return next;
-          });
-        });
+      // Кожен товар має стабільний /product-image/... route, який сам кешує,
+      // оптимізує і робить fallback. Не блокуємо каталог додатковим batch-fetch.
+      return;
     },
     []
   );
@@ -1662,7 +1461,6 @@ function useCatalogData(params: {
             sortOrder: effectiveServerSortOrder,
           }),
           cache: "no-store",
-          signal,
         });
         const raw = (await res.json()) as {
           items?: unknown[];
@@ -1710,9 +1508,11 @@ function useCatalogData(params: {
       })();
 
       inFlightPageRequests.set(cacheKey, requestPromise);
-      requestPromise.finally(() => {
-        inFlightPageRequests.delete(cacheKey);
-      });
+      requestPromise
+        .catch(swallowAbortError)
+        .finally(() => {
+          inFlightPageRequests.delete(cacheKey);
+        });
       return await awaitWithAbortSignal(requestPromise, signal);
     },
     [
@@ -2093,7 +1893,11 @@ function useCatalogData(params: {
           }
         }
       } catch (err) {
-        if (cancelled) return;
+        if (cancelled) {
+          pagingRequestedRef.current = false;
+          hideNextPageLoader(true);
+          return;
+        }
         if (err instanceof Error && err.name === "AbortError") {
           setFilterLoading(false);
           setLoading(false);
@@ -2110,7 +1914,11 @@ function useCatalogData(params: {
         return;
       }
 
-      if (cancelled) return;
+      if (cancelled) {
+        pagingRequestedRef.current = false;
+        hideNextPageLoader(true);
+        return;
+      }
       applyCachedItems(payload);
 
       const ttl =
@@ -2215,7 +2023,7 @@ function useCatalogData(params: {
             querySignatureSnapshot: querySignature,
             signal: controller.signal,
             allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-          });
+          }).catch(swallowAbortError);
           fetchCatalogPageImages(memoryHit.items, {
             prefetchedImages: memoryHit.images,
             cacheKey: targetCacheKey,
@@ -2258,7 +2066,7 @@ function useCatalogData(params: {
             querySignatureSnapshot: querySignature,
             signal: controller.signal,
             allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-          });
+          }).catch(swallowAbortError);
           fetchCatalogPageImages(payload.items, {
             prefetchedImages: payload.images,
             cacheKey: targetCacheKey,
@@ -2273,7 +2081,7 @@ function useCatalogData(params: {
     };
 
     const timerId = window.setTimeout(() => {
-      void prefetchUpcomingPages();
+      void prefetchUpcomingPages().catch(swallowAbortError);
     }, BACKGROUND_PAGE_PREFETCH_DELAY_MS);
 
     return () => {
@@ -2689,13 +2497,7 @@ const Data: React.FC<DataProps> = ({
 
     if (sortOrder === "none") return entries;
 
-    const pricedEntries = entries.filter((entry) => entry.priceUAH != null);
-
-    // Price order is resolved on the catalog API/1C side. Keeping that order
-    // avoids local re-shuffling while prices/images arrive asynchronously.
-    if (selectedCars.length === 0) return pricedEntries;
-
-    pricedEntries.sort((a, b) => {
+    const sortedWithUnpricedLast = [...entries].sort((a, b) => {
       const aHasPrice = a.priceUAH != null ? 0 : 1;
       const bHasPrice = b.priceUAH != null ? 0 : 1;
       if (aHasPrice !== bHasPrice) return aHasPrice - bHasPrice;
@@ -2713,8 +2515,8 @@ const Data: React.FC<DataProps> = ({
       return a.index - b.index;
     });
 
-    return pricedEntries;
-  }, [filteredData, prices, euroRate, selectedCars.length, sortOrder]);
+    return sortedWithUnpricedLast;
+  }, [filteredData, prices, euroRate, sortOrder]);
   const sortedData = useMemo(
     () => sortedEntries.map(({ item }) => item),
     [sortedEntries]
@@ -2762,7 +2564,7 @@ const Data: React.FC<DataProps> = ({
     [visibleSortedData]
   );
   const hasPendingSortedPriceResolution = useMemo(() => {
-    if (sortOrder === "none" || selectedCars.length === 0) return false;
+    if (sortOrder === "none") return false;
 
     return filteredData.some((item) => {
       const priceKey = getProductPriceStateKey(item);
@@ -2771,7 +2573,7 @@ const Data: React.FC<DataProps> = ({
       if (priceUAH != null) return false;
       return !Object.prototype.hasOwnProperty.call(prices, priceKey);
     });
-  }, [filteredData, prices, euroRate, selectedCars.length, sortOrder]);
+  }, [filteredData, prices, euroRate, sortOrder]);
   const shouldShowInitialSkeleton =
     (filterLoading || loading || hasPendingSortedPriceResolution) &&
     visibleSortedData.length === 0;
@@ -2968,7 +2770,6 @@ const Data: React.FC<DataProps> = ({
       }
     };
 
-    maybeLoadMore();
     window.addEventListener("resize", maybeLoadMore, { passive: true });
     return () => window.removeEventListener("resize", maybeLoadMore);
   }, [hasMore, loading, requestNextPageOnScroll, shouldShowInitialSkeleton, sortedData.length]);
@@ -3256,7 +3057,7 @@ const Data: React.FC<DataProps> = ({
                         Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
                       }
                       batchImageOnly={
-                        hasPhoto && !prefetchedImageSrc && !shouldPrioritizeImage
+                        false
                       }
                       isFlipped={flippedCard === code}
                       motionEnabled={shouldAnimateList}

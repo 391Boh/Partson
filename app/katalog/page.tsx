@@ -23,8 +23,8 @@ import { getSiteUrl } from "app/lib/site-url";
 export const revalidate = 300;
 
 const INITIAL_CATALOG_PAGE_LIMIT = 12;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS = 1200;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 1600;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS = 1800;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 2200;
 const CATALOG_SEO_FACETS_TIMEOUT_MS = 450;
 
 type InitialCatalogPagePayload = {
@@ -109,8 +109,6 @@ const fetchCatalogSeoSnapshotPayload = async (
 ): Promise<InitialCatalogPagePayload | null> => {
   const query = toCatalogSeoSnapshotQuery(JSON.parse(serializedQuery));
   if (!query) return null;
-  const needsAllgoods = query.searchFilter === "description" && Boolean(query.searchQuery);
-
   const result = await fetchCatalogProductsByQuery({
     page: 1,
     limit: INITIAL_CATALOG_PAGE_LIMIT,
@@ -133,8 +131,9 @@ const fetchCatalogSeoSnapshotPayload = async (
     retries: 1,
     retryDelayMs: 140,
     cacheTtlMs: 1000 * 60 * 15,
-    preferLegacySource: !needsAllgoods,
-    forceAllgoodsSource: needsAllgoods,
+    includePriceEnrichment: false,
+    preferLegacySource: false,
+    forceAllgoodsSource: true,
   });
 
   return {
@@ -149,7 +148,7 @@ const fetchCatalogSeoSnapshotPayload = async (
 
 const getCatalogSeoSnapshotPayloadCached = unstable_cache(
   fetchCatalogSeoSnapshotPayload,
-  ["catalog-seo-snapshot-v1"],
+  ["catalog-seo-snapshot-v2-allgoods-inline-price"],
   {
     revalidate: 60 * 15,
     tags: ["catalog-seo-snapshot"],

@@ -81,11 +81,24 @@ const SUBGROUP_FIELDS = [
 ];
 const CATEGORY_FIELDS = ["\u041a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f", "Category"];
 const PRICE_FIELDS = [
+  "priceEuro",
+  "price_euro",
+  "PriceEuro",
   "\u0426\u0456\u043d\u0430\u041f\u0440\u043e\u0434",
   "\u0426\u0435\u043d\u0430\u041f\u0440\u043e\u0434",
+  "\u0426\u0456\u043d\u0430\u041f\u0440\u043e\u0434\u0430\u0436\u0443",
+  "\u0426\u0435\u043d\u0430\u041f\u0440\u043e\u0434\u0430\u0436\u0438",
+  "\u0426\u0456\u043d\u0430\u0421\u0430\u0439\u0442",
+  "\u0426\u0435\u043d\u0430\u0421\u0430\u0439\u0442",
+  "\u0426\u0456\u043d\u0430\u0420\u043e\u0437\u0434\u0440\u0456\u0431",
+  "\u0426\u0435\u043d\u0430\u0420\u043e\u0437\u043d\u0438\u0446\u0430",
+  "\u0420\u043e\u0437\u043d\u0438\u0447\u043d\u0430\u044f\u0426\u0435\u043d\u0430",
   "\u0426\u0435\u043d\u0430",
   "\u0426\u0456\u043d\u0430",
   "price",
+  "Price",
+  "cost",
+  "Cost",
 ];
 const PHOTO_FIELDS = [
   "\u0415\u0441\u0442\u044c\u0424\u043e\u0442\u043e",
@@ -168,7 +181,10 @@ const readFirstNumber = (
     const value = source?.[key];
     if (typeof value === "number" && Number.isFinite(value)) return value;
     if (typeof value === "string") {
-      const cleaned = value.replace(/\s+/g, "").replace(",", ".");
+      const cleaned = value
+        .replace(/\s+/g, "")
+        .replace(",", ".")
+        .replace(/[^\d.+-]/g, "");
       const numberValue = Number(cleaned);
       if (Number.isFinite(numberValue)) return numberValue;
     }
@@ -508,10 +524,18 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
 
     if (priceSortDirection === "ASC") {
       const requestLimit = ALLGOODS_SORT_WINDOW_MAX_LIMIT;
+      const ascRequestBody =
+        options.pricedItemsOnly === false
+          ? Object.fromEntries(
+              Object.entries(requestBodyBase).filter(
+                ([key]) => key !== ALLGOODS_SORT_PRICE_FIELD
+              )
+            )
+          : requestBodyBase;
       const response = await oneCRequest("allgoods", {
         method: "POST",
         body: {
-          ...requestBodyBase,
+          ...ascRequestBody,
           [ALLGOODS_LIMIT_FIELD]: requestLimit,
         },
         timeoutMs: options.timeoutMs,
@@ -530,19 +554,26 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       }
 
       const parsed = parseAllgoodsPayload(response.text);
-      const pricedItems =
+      const pricedItems = parsed.items
+        .filter(hasPositiveCatalogPrice)
+        .sort((left, right) => (left.priceEuro ?? 0) - (right.priceEuro ?? 0));
+      const sortedItems =
         options.pricedItemsOnly === false
-          ? parsed.items
-          : parsed.items.filter(hasPositiveCatalogPrice);
+          ? [
+              ...pricedItems,
+              ...parsed.items.filter((item) => !hasPositiveCatalogPrice(item)),
+            ]
+          : pricedItems;
 
       return {
-        items: pricedItems.slice(start, start + limit),
-        hasMore: pricedItems.length > start + limit || parsed.hasMore,
+        items: sortedItems.slice(start, start + limit),
+        hasMore: sortedItems.length > start + limit || parsed.hasMore,
         nextCursor: "",
       };
     }
 
     const collected: CatalogProduct[] = [];
+    const unpricedCollected: CatalogProduct[] = [];
     const seen = new Set<string>();
     let priceMax: number | null = null;
     let sourceMayHaveMore = false;
@@ -581,16 +612,26 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       sourceMayHaveMore = parsed.hasMore || parsed.items.length >= requestLimit;
       const pricedItems = parsed.items.filter(hasPositiveCatalogPrice);
       let addedCount = 0;
-
-      for (const item of pricedItems) {
+      const addUniqueItem = (item: CatalogProduct, target: CatalogProduct[]) => {
         const key =
           normalizeFacetValue(item.code) ||
           normalizeFacetValue(item.article) ||
           `${normalizeFacetValue(item.name)}:${normalizeFacetValue(item.producer)}`;
-        if (!key || seen.has(key)) continue;
+        if (!key || seen.has(key)) return false;
         seen.add(key);
-        collected.push(item);
-        addedCount += 1;
+        target.push(item);
+        return true;
+      };
+
+      for (const item of pricedItems) {
+        if (addUniqueItem(item, collected)) addedCount += 1;
+      }
+
+      if (options.pricedItemsOnly === false) {
+        for (const item of parsed.items) {
+          if (hasPositiveCatalogPrice(item)) continue;
+          addUniqueItem(item, unpricedCollected);
+        }
       }
 
       const lastPrice = pricedItems.at(-1)?.priceEuro ?? null;
@@ -607,9 +648,14 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       priceMax = nextPriceMax;
     }
 
+    const combined =
+      options.pricedItemsOnly === false
+        ? [...collected, ...unpricedCollected]
+        : collected;
+
     return {
-      items: collected.slice(start, start + limit),
-      hasMore: collected.length > start + limit || sourceMayHaveMore,
+      items: combined.slice(start, start + limit),
+      hasMore: combined.length > start + limit || sourceMayHaveMore,
       nextCursor: "",
     };
   }
