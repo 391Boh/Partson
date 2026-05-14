@@ -6,8 +6,8 @@ import { unstable_cache } from "next/cache";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
+import GroupItemProducerList from "app/components/GroupItemProducerList";
 import {
-  directoryCardClass,
   directoryCompactMetricAccentClass,
   directoryCompactMetricClass,
   directoryHeaderClass,
@@ -211,8 +211,8 @@ const collectDirectGroupItemProducerSplitUncached = async (
         cursorField: cursorField || undefined,
         sortOrder: "none",
         includePriceEnrichment: false,
-        preferLegacySource: true,
-        forceAllgoodsSource: false,
+        preferLegacySource: false,
+        forceAllgoodsSource: true,
         timeoutMs: GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS,
         retries: 0,
         retryDelayMs: 100,
@@ -276,7 +276,7 @@ const collectDirectGroupItemProducerSplitCached = unstable_cache(
   { revalidate: 60 * 30 }
 );
 
-const collectDirectGroupItemProducerSplit = cache(
+export const collectDirectGroupItemProducerSplit = cache(
   collectDirectGroupItemProducerSplitCached
 );
 
@@ -295,8 +295,8 @@ const fetchCategoryTopProductsUncached = async (
     subcategory: normalizedSubcategory,
     sortOrder: "none",
     includePriceEnrichment: false,
-    preferLegacySource: true,
-    forceAllgoodsSource: false,
+    preferLegacySource: false,
+    forceAllgoodsSource: true,
     timeoutMs: 1400,
     retries: 0,
     retryDelayMs: 100,
@@ -572,18 +572,6 @@ const buildChildCategoryLead = (options: {
   return `Категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel} відкриває ${productCountLabel} і веде до точнішого підбору автозапчастин за брендом, назвою або артикулом.`;
 };
 
-const buildProducerCategoryLead = (options: {
-  producerLabel: string;
-  categoryLabel: string;
-  groupLabel: string;
-}) => {
-  const visibleProducerLabel = buildVisibleProductName(options.producerLabel);
-  const visibleCategoryLabel = buildVisibleProductName(options.categoryLabel);
-  const visibleGroupLabel = buildVisibleProductName(options.groupLabel);
-
-  return `Виробник ${visibleProducerLabel} у категорії ${visibleCategoryLabel} групи ${visibleGroupLabel} з переходом на сторінку бренду або у відфільтрований каталог.`;
-};
-
 export async function generateStaticParams() {
   const limit = parsePositiveInt(
     process.env.SEO_GROUP_ITEM_STATIC_PARAMS_LIMIT,
@@ -737,7 +725,6 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     0
   );
   const topProducerSplit = item.producerSplit.slice(0, 24);
-  const hasProducerSplit = topProducerSplit.length > 0;
   const seoCopy = getGroupItemSeoCopy({
     label: item.label,
     groupLabel: item.groupLabel,
@@ -1014,79 +1001,13 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
           </div>
         </div>
 
-        {hasProducerSplit ? (
-          <div className="grid gap-2.5 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-4">
-            {topProducerSplit.map((producer) => {
-              return (
-                <article
-                  key={producer.slug || producer.label}
-                  className={`${directoryCardClass} border-l-4 border-l-teal-100 p-3 hover:border-l-teal-300`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                        Виробник
-                      </p>
-                      <Link
-                        href={producer.manufacturerPath}
-                        className="mt-1 block text-[15px] font-extrabold leading-snug text-slate-950 transition hover:text-teal-800"
-                      >
-                        {producer.label}
-                      </Link>
-                    </div>
-                    <span className={directoryCompactMetricAccentClass}>
-                      <span>{formatCount(producer.productCount)}</span>
-                      <span className="font-semibold text-teal-700">товарів</span>
-                    </span>
-                  </div>
-
-                  <p className="mt-2 text-[13px] leading-5 text-slate-600">
-                    {buildProducerCategoryLead({
-                      producerLabel: producer.label,
-                      categoryLabel: item.label,
-                      groupLabel: item.groupLabel,
-                    })}
-                  </p>
-
-                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
-                    <p className="text-[11px] font-semibold text-slate-500">
-                      У цій категорії
-                    </p>
-                    <CatalogPrefetchLink
-                      href={producer.catalogPath}
-                      prefetchCatalogOnViewport
-                      className="inline-flex rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-900 transition hover:border-teal-300 hover:bg-teal-100"
-                    >
-                      В каталог
-                    </CatalogPrefetchLink>
-                  </div>
-
-                  <Link
-                    href={producer.manufacturerPath}
-                    className="mt-2 inline-flex text-xs font-bold text-slate-500 transition hover:text-teal-800"
-                  >
-                    Сторінка виробника
-                  </Link>
-                </article>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="p-4 sm:p-5">
-            <div className="rounded-lg border border-dashed border-slate-300 bg-white/80 px-4 py-5 text-sm leading-6 text-slate-600">
-              Для цієї категорії ще немає готового розподілу за виробниками. Перейдіть у каталог, щоб побачити актуальні товари і фільтри.
-              <div className="mt-3">
-                <CatalogPrefetchLink
-                  href={item.catalogPath}
-                  prefetchCatalogOnViewport
-                  className={directoryPrimaryButtonClass}
-                >
-                  Перейти в каталог
-                </CatalogPrefetchLink>
-              </div>
-            </div>
-          </div>
-        )}
+        <GroupItemProducerList
+          initialItems={topProducerSplit}
+          groupLabel={item.groupLabel}
+          catalogGroupLabel={catalogGroupLabel}
+          categoryLabel={item.label}
+          catalogPath={item.catalogPath}
+        />
       </section>
 
       {item.children.length > 0 ? (

@@ -51,8 +51,8 @@ export interface Product {
 const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v28-price-null-lookup";
-const PRICE_CACHE_PREFIX = "partson:v9:price:";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v29-price-pending-fallback";
+const PRICE_CACHE_PREFIX = "partson:v10:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PRICE_STALE_POSITIVE_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
@@ -1248,13 +1248,10 @@ function useCatalogData(params: {
         }
 
         if (!allowFullLookup) {
-          const fallbackNulls = Object.fromEntries(
-            unresolvedItems.map((item) => [item.stateKey, null])
-          ) as Record<string, null>;
-          commitResolvedPrices(
-            fallbackNulls,
-            PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS
-          );
+          for (const item of unresolvedItems) {
+            priceRetryCooldownUntilRef.current[item.stateKey] =
+              Date.now() + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
+          }
           return;
         }
 
@@ -1298,10 +1295,10 @@ function useCatalogData(params: {
         }
       } catch (error) {
         if (!(error instanceof Error && error.name === "AbortError")) {
-          const fallbackNulls = Object.fromEntries(
-            requestItems.map((item) => [item.stateKey, null])
-          ) as Record<string, null>;
-          commitResolvedPrices(fallbackNulls, PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS);
+          const cooldownUntil = Date.now() + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
+          for (const item of requestItems) {
+            priceRetryCooldownUntilRef.current[item.stateKey] = cooldownUntil;
+          }
         }
       } finally {
         releaseRequestItems();
