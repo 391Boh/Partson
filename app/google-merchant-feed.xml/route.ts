@@ -3,12 +3,13 @@ import { join } from "path";
 
 import { getGoogleMerchantFeedSnapshot } from "app/lib/google-merchant-feed";
 import { getSiteUrl } from "app/lib/site-url";
+import { normalizeInvalidXmlEntities } from "app/lib/xml-entities";
 
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
 const buildXmlResponse = (xml: string) =>
-  new Response(xml, {
+  new Response(normalizeInvalidXmlEntities(xml), {
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
       "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",

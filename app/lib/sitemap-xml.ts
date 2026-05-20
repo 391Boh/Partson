@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { toAbsoluteSitePath } from "app/lib/catalog-links";
 import type { SitemapChangeFrequency } from "app/lib/sitemap-sections";
+import { normalizeInvalidXmlEntities } from "app/lib/xml-entities";
 
 interface SitemapXmlPathEntry {
   path: string;
@@ -100,7 +101,7 @@ export const buildSitemapIndexXml = (siteUrl: string, entries: SitemapXmlIndexEn
 };
 
 export const createSitemapXmlResponse = (xml: string) =>
-  new NextResponse(xml, {
+  new NextResponse(normalizeInvalidXmlEntities(xml), {
     headers: {
       "content-type": "application/xml; charset=utf-8",
       "cache-control": "public, s-maxage=3600, stale-while-revalidate=86400",
