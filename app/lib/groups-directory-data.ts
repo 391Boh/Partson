@@ -9,7 +9,9 @@ import {
   type SeoFacetItem,
   type SeoGroupFacet,
 } from "app/lib/catalog-seo";
+import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
+import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import {
   getProductTreeDataset,
   type ProductTreeDataset,
@@ -27,6 +29,7 @@ export type GroupsDirectoryItem = {
     children: Array<{
       label: string;
       slug: string;
+      productCount: number;
     }>;
   }>;
 };
@@ -118,6 +121,7 @@ const buildGroupsDirectoryData = (
         children: (Array.isArray(subgroup.children) ? subgroup.children : []).map((child) => ({
           label: child.label,
           slug: child.slug,
+          productCount: counts.childProductCounts.get(child.slug) ?? 0,
         })),
       })),
     };
@@ -166,12 +170,16 @@ export const getFastGroupsDirectoryData = cache(async () => {
 });
 
 export const getFullGroupsDirectoryData = cache(async () => {
-  const [dataset, seoFacets] = await Promise.all([
+  const [dataset, rawSeoFacets] = await Promise.all([
     getProductTreeDataset().catch(() => EMPTY_DATASET),
     getCatalogSeoFacetsWithTimeout(GROUPS_DIRECTORY_FULL_COUNTS_TIMEOUT_MS).catch(
       () => EMPTY_CATALOG_SEO_FACETS
     ),
   ]);
+  const seoFacets = await resolveCatalogSeoFacetsWithFallback(
+    rawSeoFacets,
+    getAllProductSitemapEntries
+  );
 
   if (dataset.groups.length > 0) {
     return buildGroupsDirectoryData(dataset, seoFacets);

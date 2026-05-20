@@ -24,7 +24,7 @@ const advantagePanels: AdvantagePanel[] = [
     title: "Підбір і сумісність",
     eyebrow: "VIN-код, артикул, параметри авто",
     summary:
-      "Допомагаємо швидко знайти сумісні автозапчастини для вашого авто, щоб ви не витрачали час на повторний пошук і не ризикували з помилковим замовленням.",
+      "Підбираємо сумісні автозапчастини за VIN-кодом, артикулом і параметрами авто, щоб зменшити ризик помилки до оформлення замовлення.",
     points: [
       "Підбір запчастин за VIN-кодом, артикулом і моделлю автомобіля.",
       "Пояснюємо різницю між оригінальними автозапчастинами та перевіреними аналогами.",
@@ -39,7 +39,7 @@ const advantagePanels: AdvantagePanel[] = [
     title: "Каталог і вигідний вибір",
     eyebrow: "Оригінали, аналоги, популярні категорії",
     summary:
-      "У каталозі автозапчастин PartsON зручно купити запчастини для технічного обслуговування, підвіски, двигуна, гальмівної системи, охолодження та автоелектроніки.",
+      "У каталозі PartsON зручно шукати оригінальні автозапчастини й аналоги для ТО, підвіски, двигуна, гальм, охолодження та електроніки.",
     points: [
       "Каталог автозапчастин онлайн для популярних марок і моделей авто.",
       "Розумний баланс між ціною, якістю та реальною наявністю товару.",
@@ -54,7 +54,7 @@ const advantagePanels: AdvantagePanel[] = [
     title: "Доставка, оплата і підтримка",
     eyebrow: "Львів, самовивіз, Україна і зручний розрахунок",
     summary:
-      "Замовити запчастини онлайн можна зі швидкою доставкою по Україні або із самовивозом у Львові, а також обрати зручний спосіб оплати з консультацією по термінах, сумісності та наявності.",
+      "Замовляйте запчастини онлайн із доставкою по Україні або самовивозом у Львові. Підкажемо терміни, наявність і зручний спосіб оплати.",
     points: [
       "Купити автозапчастини у Львові можна зі зручним самовивозом із магазину.",
       "Швидка доставка автозапчастин по Україні для приватних і бізнес-клієнтів.",
@@ -69,17 +69,17 @@ const advantagePanels: AdvantagePanel[] = [
 
 const headerHighlights = [
   {
-    label: "Підбір за VIN-кодом",
+    label: "VIN, артикул або модель авто",
     icon: CheckBadgeIcon,
     tone: "border-sky-200/80 bg-white/78 text-sky-700",
   },
   {
-    label: "Оплата онлайн і при отриманні",
+    label: "Оригінали та перевірені аналоги",
     icon: CreditCardIcon,
     tone: "border-cyan-200/80 bg-white/78 text-cyan-700",
   },
   {
-    label: "Самовивіз у Львові та доставка по Україні",
+    label: "Самовивіз у Львові і доставка",
     icon: TruckIcon,
     tone: "border-emerald-200/80 bg-white/78 text-emerald-700",
   },
@@ -88,14 +88,14 @@ const headerHighlights = [
 const AdvantagesSection = () => {
   return (
     <section
-      className="section-reveal font-ui group/advantages relative isolate w-full overflow-hidden bg-gradient-to-br from-cyan-50/96 via-sky-100/70 to-blue-100/80 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.08),0_12px_24px_rgba(37,99,235,0.08)] sm:py-5"
+      className="home-glow-section home-glow-section-cyan section-reveal font-ui group/advantages relative isolate w-full overflow-hidden bg-gradient-to-br from-cyan-50/96 via-sky-100/70 to-blue-100/80 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.08),0_12px_24px_rgba(37,99,235,0.08)] sm:py-5"
     >
       <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_16%,rgba(103,232,249,0.22),transparent_36%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.16),transparent_40%),radial-gradient(circle_at_52%_88%,rgba(96,165,250,0.12),transparent_34%)]" />
 
       <div
         className="page-shell-inline relative z-10"
       >
-        <div className="relative overflow-hidden rounded-[22px] border border-white/82 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(236,254,255,0.92),rgba(219,234,254,0.9))] shadow-[0_16px_32px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.92)] transition-[background-image,box-shadow,border-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/advantages:border-cyan-100 group-hover/advantages:bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(236,254,255,0.96),rgba(224,242,254,0.94),rgba(191,219,254,0.92))] group-hover/advantages:shadow-[0_22px_44px_rgba(14,165,233,0.1),0_10px_22px_rgba(37,99,235,0.08),inset_0_1px_0_rgba(255,255,255,0.95)]">
+        <div className="home-panel-hover relative overflow-hidden rounded-[22px] border border-white/82 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(236,254,255,0.92),rgba(219,234,254,0.9))] shadow-[0_16px_32px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.92)] transition-[background-image,box-shadow,border-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/advantages:border-cyan-100 group-hover/advantages:bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(236,254,255,0.96),rgba(224,242,254,0.94),rgba(191,219,254,0.92))] group-hover/advantages:shadow-[0_22px_44px_rgba(14,165,233,0.1),0_10px_22px_rgba(37,99,235,0.08),inset_0_1px_0_rgba(255,255,255,0.95)]">
           <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/95 to-transparent" />
           <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_16%,rgba(103,232,249,0.14),transparent_32%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.1),transparent_36%),radial-gradient(circle_at_50%_88%,rgba(96,165,250,0.08),transparent_32%)]" />
 
@@ -103,9 +103,9 @@ const AdvantagesSection = () => {
             <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(103,232,249,0.24),transparent_28%),radial-gradient(circle_at_88%_22%,rgba(186,230,253,0.2),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.46),transparent_52%)]" />
             <span className="pointer-events-none absolute -left-12 top-6 h-28 w-28 rounded-full bg-cyan-200/30 blur-3xl" />
             <span className="pointer-events-none absolute -right-10 bottom-8 h-32 w-32 rounded-full bg-sky-200/24 blur-3xl" />
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,332px)] lg:items-start">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,340px)] lg:items-center">
               <div className="min-w-0">
-                <div className="flex items-start gap-3 sm:gap-4">
+                <div className="grid gap-4 sm:grid-cols-[48px_minmax(0,1fr)] sm:items-start">
                   <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center sm:h-12 sm:w-12">
                     <span className="absolute inset-0 rounded-[16px] bg-sky-300/30 blur-lg" />
                     <span className="relative inline-flex h-11 w-11 items-center justify-center rounded-[16px] border border-sky-200/80 bg-white/82 text-sky-700 shadow-[0_10px_24px_rgba(56,189,248,0.14)] backdrop-blur-sm sm:h-12 sm:w-12">
@@ -113,23 +113,28 @@ const AdvantagesSection = () => {
                     </span>
                   </span>
 
-                  <div className="min-w-0 max-w-[78ch]">
-                    <h2 className="font-display text-[28px] font-black leading-[0.96] tracking-[-0.06em] text-slate-900 sm:text-[32px] lg:text-[35px]">
-                      Купити автозапчастини у Львові з підбором за VIN-кодом і доставкою по Україні
+                  <div className="min-w-0 max-w-[74ch]">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700/80">
+                      PartsON - автозапчастини у Львові
+                    </p>
+                    <h2 className="mt-2 font-display text-[26px] font-black leading-[1.02] tracking-[-0.045em] text-slate-900 sm:text-[31px] lg:text-[34px]">
+                      Купити автозапчастини у Львові з підбором за VIN, артикулом і маркою авто
                     </h2>
 
-                    <p className="mt-4 text-[14px] leading-relaxed text-slate-700 sm:text-[15px]">
-                      PartsON це інтернет-магазин автозапчастин у Львові, де можна купити
-                      автозапчастини для популярних марок авто без довгого пошуку та зайвих
-                      сумнівів. Ми допомагаємо підібрати запчастини за VIN-кодом, артикулом,
-                      брендом виробника й ключовими параметрами автомобіля, а також підкажемо
-                      найкращий варіант під ваш бюджет і сценарій ремонту.
+                    <p className="mt-4 max-w-[68ch] text-[14px] leading-relaxed text-slate-700 sm:text-[15px]">
+                      PartsON - інтернет-магазин автозапчастин у Львові на вул. Перфецького, 8.
+                      Ми допомагаємо швидко знайти сумісні запчастини за VIN-кодом, артикулом,
+                      виробником або параметрами автомобіля, щоб ви могли замовити потрібну деталь
+                      без зайвого ризику помилки.
                     </p>
-                    <p className="mt-3 text-[14px] leading-relaxed text-slate-600 sm:text-[15px]">
-                      У нашому каталозі автозапчастин є оригінальні автозапчастини та перевірені
-                      аналоги для технічного обслуговування, підвіски, гальмівної системи,
-                      двигуна, охолодження й автоелектроніки. Замовити запчастини онлайн можна
-                      зі швидкою доставкою по Львову та Україні або із самовивозом у Львові.
+                    <p className="mt-3 max-w-[68ch] text-[14px] leading-relaxed text-slate-600 sm:text-[15px]">
+                      У каталозі PartsON доступні оригінальні автозапчастини та перевірені аналоги
+                      для ТО, підвіски, двигуна, гальмівної системи, охолодження й автоелектроніки.
+                      Замовлення можна забрати самовивозом у Львові або отримати доставкою по Україні.
+                    </p>
+                    <p className="mt-3 max-w-[68ch] text-[13px] leading-relaxed text-slate-500 sm:text-[14px]">
+                      Підкажемо наявність, терміни постачання, варіанти оплати та допоможемо обрати
+                      оптимальну деталь під ваш бюджет і ремонтну задачу.
                     </p>
 
                     <div className="mt-5 flex flex-wrap gap-2.5">
@@ -139,7 +144,7 @@ const AdvantagesSection = () => {
                         return (
                           <span
                             key={item.label}
-                            className={`inline-flex items-center gap-2 rounded-[999px] border px-3.5 py-2 text-[12px] font-semibold shadow-[0_10px_20px_rgba(125,211,252,0.14)] backdrop-blur-sm ${item.tone}`}
+                            className={`inline-flex items-center gap-2 rounded-[999px] border px-3 py-1.5 text-[12px] font-semibold shadow-[0_10px_20px_rgba(125,211,252,0.14)] backdrop-blur-sm ${item.tone}`}
                           >
                             <Icon className="h-4 w-4" />
                             <span>{item.label}</span>
@@ -164,7 +169,7 @@ const AdvantagesSection = () => {
               return (
                 <article
                   key={item.title}
-                  className="relative flex h-full min-w-0 flex-col px-5 py-5 sm:px-6 sm:py-6 transition-[background-image,box-shadow] duration-500 ease-out hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.42),rgba(236,254,255,0.36),rgba(224,242,254,0.26),rgba(191,219,254,0.16))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.42)]"
+                  className="home-card-hover relative flex h-full min-w-0 flex-col px-5 py-5 sm:px-6 sm:py-6 transition-[background-image,box-shadow] duration-500 ease-out hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.42),rgba(236,254,255,0.36),rgba(224,242,254,0.26),rgba(191,219,254,0.16))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.42)]"
                 >
                   <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(125,211,252,0.12),transparent_42%)]" />
 
@@ -190,7 +195,7 @@ const AdvantagesSection = () => {
                     </div>
                   </div>
 
-                  <p className="relative mt-4 min-h-[6.25rem] text-[14px] leading-relaxed text-slate-700 sm:text-[15px]">
+                  <p className="relative mt-4 min-h-[5.3rem] text-[14px] leading-relaxed text-slate-700 sm:text-[15px]">
                     {item.summary}
                   </p>
 

@@ -25,7 +25,7 @@ export async function GET() {
       {
         status: 200,
         headers: {
-          "cache-control": "no-store",
+          "cache-control": "public, max-age=60, stale-while-revalidate=300",
         },
       }
     );

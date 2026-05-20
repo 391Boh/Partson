@@ -62,11 +62,48 @@ const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v2:product-similar:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
 const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 2600;
 const SIMILAR_ITEMS_VISIBLE_LIMIT = 4;
+const RECOMMENDATIONS_IDLE_TIMEOUT_MS = 1200;
 
 type RecommendationMode = "related" | "similar";
 
 const normalizeRelatedKeyPart = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
+
+const scheduleProductRecommendationTask = (task: () => void) => {
+  if (typeof window === "undefined") {
+    task();
+    return () => {};
+  }
+
+  let cancelled = false;
+  const runTask = () => {
+    if (cancelled) return;
+    task();
+  };
+  const win = window as Window & {
+    requestIdleCallback?: (
+      callback: () => void,
+      options?: { timeout: number }
+    ) => number;
+    cancelIdleCallback?: (id: number) => void;
+  };
+
+  if (typeof win.requestIdleCallback === "function") {
+    const idleId = win.requestIdleCallback(runTask, {
+      timeout: RECOMMENDATIONS_IDLE_TIMEOUT_MS,
+    });
+    return () => {
+      cancelled = true;
+      win.cancelIdleCallback?.(idleId);
+    };
+  }
+
+  const timeoutId = window.setTimeout(runTask, 180);
+  return () => {
+    cancelled = true;
+    window.clearTimeout(timeoutId);
+  };
+};
 
 const normalizeRelatedItems = (value: RelatedItem[] | null | undefined) => {
   if (!Array.isArray(value)) return null;
@@ -362,10 +399,13 @@ export default function ProductRelatedItemsClientSection({
       }
     };
 
-    void loadItems();
+    const cancelScheduledLoad = scheduleProductRecommendationTask(() => {
+      void loadItems();
+    });
 
     return () => {
       cancelled = true;
+      cancelScheduledLoad();
       controller.abort();
       window.clearTimeout(timeoutId);
     };
@@ -433,10 +473,13 @@ export default function ProductRelatedItemsClientSection({
       }
     };
 
-    void loadPrices();
+    const cancelScheduledLoad = scheduleProductRecommendationTask(() => {
+      void loadPrices();
+    });
 
     return () => {
       cancelled = true;
+      cancelScheduledLoad();
       controller.abort();
     };
   }, [items, resolvedPrices]);

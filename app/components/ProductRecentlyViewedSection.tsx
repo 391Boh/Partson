@@ -40,6 +40,7 @@ type ProductRecentlyViewedSectionProps = {
 const RECENTLY_VIEWED_KEY = "partson:v1:recently-viewed-products";
 const RECENTLY_VIEWED_LIMIT = 12;
 const VISIBLE_RECENTLY_VIEWED_LIMIT = 4;
+const RECENTLY_VIEWED_IDLE_TIMEOUT_MS = 1000;
 
 const normalizeIdentity = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -77,6 +78,42 @@ const buildPriceStateKey = (item: Pick<RecentlyViewedProduct, "code" | "article"
 
 const buildPriceLookupKeys = (item: Pick<RecentlyViewedProduct, "code" | "article">) =>
   Array.from(new Set([item.code, item.article].map((value) => (value || "").trim()).filter(Boolean)));
+
+const scheduleRecentlyViewedTask = (task: () => void) => {
+  if (typeof window === "undefined") {
+    task();
+    return () => {};
+  }
+
+  let cancelled = false;
+  const runTask = () => {
+    if (cancelled) return;
+    task();
+  };
+  const win = window as Window & {
+    requestIdleCallback?: (
+      callback: () => void,
+      options?: { timeout: number }
+    ) => number;
+    cancelIdleCallback?: (id: number) => void;
+  };
+
+  if (typeof win.requestIdleCallback === "function") {
+    const idleId = win.requestIdleCallback(runTask, {
+      timeout: RECENTLY_VIEWED_IDLE_TIMEOUT_MS,
+    });
+    return () => {
+      cancelled = true;
+      win.cancelIdleCallback?.(idleId);
+    };
+  }
+
+  const timeoutId = window.setTimeout(runTask, 160);
+  return () => {
+    cancelled = true;
+    window.clearTimeout(timeoutId);
+  };
+};
 
 const readRecentlyViewed = () => {
   if (typeof window === "undefined") return [];
@@ -159,26 +196,28 @@ export default function ProductRecentlyViewedSection({
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
 
   useEffect(() => {
-    const currentCode = normalizeIdentity(currentItem.code);
-    const currentArticle = normalizeIdentity(currentItem.article);
-    const storedItems = readRecentlyViewed();
-    const visibleItems = storedItems.filter((item) => {
-      const itemCode = normalizeIdentity(item.code);
-      const itemArticle = normalizeIdentity(item.article);
-      return !(
-        (currentCode && itemCode === currentCode) ||
-        (currentArticle && itemArticle === currentArticle)
-      );
+    return scheduleRecentlyViewedTask(() => {
+      const currentCode = normalizeIdentity(currentItem.code);
+      const currentArticle = normalizeIdentity(currentItem.article);
+      const storedItems = readRecentlyViewed();
+      const visibleItems = storedItems.filter((item) => {
+        const itemCode = normalizeIdentity(item.code);
+        const itemArticle = normalizeIdentity(item.article);
+        return !(
+          (currentCode && itemCode === currentCode) ||
+          (currentArticle && itemArticle === currentArticle)
+        );
+      });
+
+      setItems(visibleItems.slice(0, VISIBLE_RECENTLY_VIEWED_LIMIT));
+
+      if (!currentCode && !currentArticle) return;
+
+      writeRecentlyViewed([
+        { ...currentItem, viewedAt: Date.now() },
+        ...visibleItems,
+      ]);
     });
-
-    setItems(visibleItems.slice(0, VISIBLE_RECENTLY_VIEWED_LIMIT));
-
-    if (!currentCode && !currentArticle) return;
-
-    writeRecentlyViewed([
-      { ...currentItem, viewedAt: Date.now() },
-      ...visibleItems,
-    ]);
   }, [currentItem]);
 
   useEffect(() => {
@@ -243,10 +282,13 @@ export default function ProductRecentlyViewedSection({
       }
     };
 
-    void loadPrices();
+    const cancelScheduledLoad = scheduleRecentlyViewedTask(() => {
+      void loadPrices();
+    });
 
     return () => {
       cancelled = true;
+      cancelScheduledLoad();
       controller.abort();
     };
   }, [items, resolvedPrices]);

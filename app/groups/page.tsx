@@ -4,7 +4,7 @@ import { ChevronRight, FolderTree, Layers3 } from "lucide-react";
 import CatalogHubHero from "app/components/CatalogHubHero";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import GroupsDirectoryClient from "app/groups/GroupsDirectoryClient";
-import { getFastGroupsDirectoryData } from "app/lib/groups-directory-data";
+import { getFullGroupsDirectoryData } from "app/lib/groups-directory-data";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
@@ -53,7 +53,7 @@ export async function generateMetadata(): Promise<Metadata> {
     totalSubgroups,
     totalThirdLevelItems,
     totalProductCount,
-  } = await getFastGroupsDirectoryData();
+  } = await getFullGroupsDirectoryData();
   const description = buildGroupsPageDescription(
     totalGroups,
     totalSubgroups,
@@ -95,7 +95,7 @@ export default async function GroupsPage() {
 	    totalSubgroups,
 	    totalProductCount,
 	    hasProductCounts,
-	  } = await getFastGroupsDirectoryData();
+	  } = await getFullGroupsDirectoryData();
 
   const hasResolvedGroups = totalGroups > 0;
 

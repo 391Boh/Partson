@@ -17,15 +17,16 @@ import {
   directorySecondaryButtonClass,
 } from "app/components/catalog-directory-styles";
 import {
-  EMPTY_CATALOG_SEO_FACETS,
   getCatalogSeoFacetsWithTimeout,
 } from "app/lib/catalog-seo";
 import {
   buildCatalogCategoryPath,
   buildGroupItemPath,
 } from "app/lib/catalog-links";
+import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
+import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { getGroupSeoCopy } from "app/lib/seo-copy";
@@ -38,11 +39,6 @@ export const dynamicParams = true;
 const GROUP_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
 const GROUP_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
 const GROUP_PAGE_SEO_FACETS_TIMEOUT_MS = 6000;
-const isProductionBuildPhase =
-  process.env.NEXT_PHASE === "phase-production-build" ||
-  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
-  process.env.npm_lifecycle_event === "build";
-
 interface GroupPageParams {
   slug: string;
 }
@@ -83,10 +79,10 @@ const formatCount = (value: number) =>
 
 const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null> => {
   const dataset = await getProductTreeDataset().catch(() => null);
-  const seoFacets =
-    isProductionBuildPhase && dataset
-      ? EMPTY_CATALOG_SEO_FACETS
-      : await getCatalogSeoFacetsWithTimeout(GROUP_PAGE_SEO_FACETS_TIMEOUT_MS);
+  const seoFacets = await resolveCatalogSeoFacetsWithFallback(
+    await getCatalogSeoFacetsWithTimeout(GROUP_PAGE_SEO_FACETS_TIMEOUT_MS),
+    getAllProductSitemapEntries
+  );
   const group = dataset?.groups.find(
     (item) => item.slug === slug || item.legacySlug === slug
   );

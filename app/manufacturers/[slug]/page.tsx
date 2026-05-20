@@ -33,8 +33,14 @@ import {
 } from "app/lib/brand-logo";
 import {
   findSeoProducerBySlug,
+  type SeoProducerFacet,
 } from "app/lib/catalog-seo";
 import { fetchCatalogProductsByQuery, type CatalogProduct } from "app/lib/catalog-server";
+import {
+  buildCatalogSeoFacetsFromSitemapEntries,
+  readCatalogSeoFacetsSnapshot,
+} from "app/lib/catalog-count-fallback";
+import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getProducerSeoCopy } from "app/lib/seo-copy";
@@ -46,6 +52,7 @@ export const revalidate = 21600;
 export const dynamicParams = true;
 const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 120;
 const MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS = 1800;
+const MANUFACTURER_BUILD_SEO_LOOKUP_TIMEOUT_MS = 6000;
 const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
 const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 2400;
 const MANUFACTURER_FALLBACK_MAX_PAGES_DEFAULT = 40;
@@ -487,17 +494,33 @@ const findBrandMeta = (label: string) => {
   );
 };
 
+const findFallbackProducerBySlug = cache(async (slug: string) => {
+  const snapshot = await readCatalogSeoFacetsSnapshot();
+  const facets = snapshot || buildCatalogSeoFacetsFromSitemapEntries(
+    await getAllProductSitemapEntries().catch(() => [])
+  );
+  const normalizedSlug = normalizeValue(slug);
+
+  return (
+    facets.producers.find(
+      (producer) =>
+        producer.slug === normalizedSlug ||
+        buildSeoSlug(producer.label) === normalizedSlug
+    ) || null
+  );
+});
+
 const getManufacturerBySlug = cache(
   async (slug: string): Promise<ManufacturerPageData | null> => {
     const fallbackBrand =
       brands.find((brand) => buildSeoSlug(brand.name) === slug) || null;
-    const producer = isProductionBuildPhase && fallbackBrand
-      ? null
-      : await resolveWithTimeout(
-          () => findSeoProducerBySlug(slug),
-          null,
-          MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS
-        ).catch(() => null);
+    const producer = await resolveWithTimeout<SeoProducerFacet | null>(
+      () => findSeoProducerBySlug(slug),
+      null,
+      isProductionBuildPhase
+        ? MANUFACTURER_BUILD_SEO_LOOKUP_TIMEOUT_MS
+        : MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS
+    ).catch(() => null) || await findFallbackProducerBySlug(slug);
     if (!producer && !fallbackBrand) return null;
 
     const label = producer?.label || fallbackBrand?.name || "";
@@ -726,6 +749,8 @@ export default async function ManufacturerDetailPage({
     about: {
       "@type": "Brand",
       name: producer.label,
+      description: producer.description,
+      logo: producer.logoPath ? `${siteUrl}${producer.logoPath}` : undefined,
     },
     mainEntity: producer.topGroups.length > 0
       ? {
@@ -863,9 +888,14 @@ export default async function ManufacturerDetailPage({
                   <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
                     {pageDescription}
                   </p>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 sm:text-[15px]">
-                    {producer.description}
-                  </p>
+                  <div className="mt-4 max-w-3xl rounded-xl border border-sky-100/90 bg-white/72 p-4 shadow-[0_14px_30px_rgba(14,165,233,0.08)] ring-1 ring-white/70">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-sky-700">
+                      Про виробника {producer.label}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-600 sm:text-[15px]">
+                      {producer.description}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -924,6 +954,9 @@ export default async function ManufacturerDetailPage({
 
           <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.95fr)]">
             <div className="space-y-3 text-sm leading-6 text-slate-600">
+              <p className="rounded-lg border border-sky-100/80 bg-sky-50/55 px-3.5 py-3 font-semibold text-slate-700">
+                {producer.description}
+              </p>
               {seoCopy.paragraphs.map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
               ))}

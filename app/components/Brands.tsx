@@ -72,31 +72,36 @@ function BrandCard({
       type="button"
       aria-label={`Обрати ${brand.name}`}
       onClick={() => onOpen(brand.name)}
-      className="group relative isolate flex w-full min-h-[148px] items-center gap-3.5 overflow-hidden rounded-2xl border border-slate-100/85 bg-white/94 px-3 py-3 text-left shadow-[0_12px_28px_rgba(15,23,42,0.12)] ring-1 ring-transparent transition-[border-color,background-color,box-shadow,ring-color] duration-300 ease-out hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/75 hover:to-blue-50 hover:shadow-[0_18px_42px_rgba(59,130,246,0.16),0_8px_22px_rgba(14,165,233,0.12)] hover:ring-2 hover:ring-sky-200/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 sm:min-h-[146px] sm:gap-4"
+      className="group relative isolate grid h-[146px] w-full grid-cols-[minmax(0,1fr)_92px] items-stretch gap-3 overflow-hidden rounded-2xl border border-sky-100/85 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(240,249,255,0.9))] px-3 py-3.5 text-left shadow-[0_10px_22px_rgba(15,23,42,0.09)] ring-1 ring-white/70 transition-[border-color,background-color,box-shadow,ring-color] duration-300 ease-out hover:border-sky-200 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/80 hover:to-blue-50 hover:shadow-[0_16px_34px_rgba(59,130,246,0.14),0_7px_18px_rgba(14,165,233,0.1)] hover:ring-sky-200/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 sm:h-[152px] sm:grid-cols-[minmax(0,1fr)_98px] sm:px-3.5"
     >
-      <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
-      <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
-      <span className="pointer-events-none absolute -right-12 -top-16 h-28 w-28 rounded-full bg-sky-200/26 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[6px] group-hover:-translate-y-[6px]" />
-      <span className="pointer-events-none absolute -left-14 -bottom-16 h-32 w-32 rounded-full bg-cyan-200/22 blur-3xl transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-x-[4px] group-hover:translate-y-[4px]" />
-      <span className="pointer-events-none absolute inset-y-[-30%] left-[-28%] w-[58%] rotate-[16deg] bg-gradient-to-br from-white/0 via-white/28 to-white/0 opacity-0 blur-[2px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[18%] group-hover:opacity-80" />
+      <span className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.2),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.14),transparent_34%)] opacity-70 transition-opacity duration-300 ease-out group-hover:opacity-95" />
+      <span className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-colors duration-300 ease-out group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
 
-      <span className="relative flex h-[68px] w-[68px] shrink-0 items-center justify-center rounded-xl border border-sky-100/70 bg-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(15,23,42,0.08)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04] group-active:scale-[0.99] sm:h-[82px] sm:w-[82px]">
-        <Image
-          src={brand.logo}
-          alt={`${brand.name} logo`}
-          width={320}
-          height={200}
-          quality={100}
-          draggable={false}
-          className="h-[42px] w-auto object-contain drop-shadow-[0_8px_14px_rgba(15,23,42,0.14)] sm:h-[56px]"
-          style={{ imageRendering: "auto" }}
-          sizes="(max-width: 640px) 120px, (max-width: 1024px) 160px, 200px"
-          onError={handleBrandLogoLoadError}
-        />
+      <span className="relative z-10 flex min-w-0 flex-col justify-center border-r border-sky-100/90 pr-3">
+        <span className="font-ui block min-w-0 break-words text-left text-[11px] font-semibold leading-snug text-slate-600 transition-colors duration-300 group-hover:text-slate-700 line-clamp-4 sm:text-[12px]">
+          {brand.description}
+        </span>
       </span>
-      <p className="font-ui relative min-w-0 flex-1 break-words text-left text-[11px] font-medium leading-relaxed text-slate-600 transition-colors duration-300 group-hover:text-slate-700 line-clamp-4 sm:text-[12px] sm:line-clamp-4">
-        {brand.description}
-      </p>
+      <span className="relative z-10 flex min-w-0 flex-col items-center justify-center gap-2 py-0.5">
+        <span className="flex h-[54px] w-[76px] items-center justify-center rounded-xl border border-sky-100/80 bg-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_7px_16px_rgba(15,23,42,0.08)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04] group-active:scale-[0.99] sm:w-[82px]">
+          <Image
+            src={brand.logo}
+            alt={`${brand.name} logo`}
+            width={320}
+            height={200}
+            quality={100}
+            draggable={false}
+            className="max-h-[34px] w-auto max-w-[62px] object-contain drop-shadow-[0_7px_12px_rgba(15,23,42,0.12)] sm:max-w-[66px]"
+            style={{ imageRendering: "auto" }}
+            sizes="(max-width: 640px) 96px, (max-width: 1024px) 128px, 150px"
+            onError={handleBrandLogoLoadError}
+          />
+        </span>
+        <span className="block max-w-full break-words text-center text-[13px] font-black leading-tight tracking-[-0.02em] text-slate-800 transition-colors duration-300 group-hover:text-sky-800 sm:text-[14px]">
+          {brand.name}
+        </span>
+        <span className="block h-0.5 w-9 rounded-full bg-gradient-to-r from-transparent via-cyan-400 to-sky-500 transition-all duration-300 group-hover:w-12" />
+      </span>
     </button>
   );
 }
@@ -179,7 +184,7 @@ export default function BrandCarousel({
 
   return (
     <section
-      className="font-ui group/brandcars relative min-h-[320px] w-full select-none overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-5 pt-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)]"
+      className="home-glow-section home-glow-section-indigo font-ui group/brandcars relative min-h-[320px] w-full select-none overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-5 pt-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)]"
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
     >
@@ -190,14 +195,14 @@ export default function BrandCarousel({
         animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
         transition={shouldAnimate ? { duration: 0.32, ease: "easeOut" } : undefined}
       >
-        <div className="flex flex-col gap-3 group/brands">
-          <div className="flex flex-wrap items-center gap-3 w-full sm:flex-nowrap sm:items-center sm:justify-between">
-            <div className="order-1 w-full sm:w-auto flex items-center gap-3 sm:gap-4 group hover:[&_span[data-underline]]:scale-x-100 group-hover/brands:[&_span[data-underline]]:scale-x-100">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shadow-inner">
+        <div className="flex flex-col gap-4 group/brands">
+          <div className="grid w-full gap-3 rounded-2xl border border-white/80 bg-white/62 p-3 shadow-[0_12px_28px_rgba(37,99,235,0.08)] backdrop-blur-md sm:grid-cols-[minmax(0,1fr)_240px_auto] sm:items-center">
+            <div className="flex min-w-0 items-center gap-3 group hover:[&_span[data-underline]]:scale-x-100 group-hover/brands:[&_span[data-underline]]:scale-x-100">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shadow-inner">
                 <Factory size={18} />
               </span>
-              <h3 className="font-display relative inline-block text-[22px] tracking-[-0.045em] text-slate-700 sm:text-[25px]">
-                <span className="relative inline-flex items-center">
+              <h3 className="font-display relative min-w-0 text-[21px] leading-tight tracking-[-0.035em] text-slate-800 sm:text-[25px]">
+                <span className="relative inline-block max-w-full break-words">
                   {"Вибір із"} {filteredBrands.length} {"виробників авто"}
                   <span
                     data-underline
@@ -208,13 +213,13 @@ export default function BrandCarousel({
             </div>
 
             <BrandSearchInput
-              className="order-2 relative min-w-0 flex-1 sm:w-[240px] sm:mx-auto sm:flex-none"
+              className="relative min-w-0"
               value={search}
               onChange={setSearch}
               brandNames={brandNames}
             />
 
-            <div className="order-2 shrink-0 max-w-full overflow-x-auto no-scrollbar sm:mr-1">
+            <div className="max-w-full overflow-x-auto no-scrollbar sm:justify-self-end">
               <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
                 <button
                   type="button"
@@ -256,7 +261,7 @@ export default function BrandCarousel({
             initial={shouldAnimate ? { opacity: 0, y: 8 } : false}
             animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
             transition={shouldAnimate ? { duration: 0.22, ease: "easeOut" } : undefined}
-            className="group/logogrid mt-5 grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5 place-items-stretch"
+            className="group/logogrid mt-4 grid grid-cols-1 gap-3.5 place-items-stretch min-[420px]:grid-cols-2 sm:grid-cols-4 sm:gap-4"
           >
             {pagedBrands.map((brand, idx) => (
               <BrandCard

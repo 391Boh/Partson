@@ -61,6 +61,9 @@ const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 20;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 90;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
+const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
+const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
+const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 0;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 0;
 const IMAGE_PRIORITY_ITEMS_COUNT = 2;
@@ -70,7 +73,6 @@ const LOAD_MORE_SCROLL_BUFFER_PX = 1200;
 const LOAD_MORE_OBSERVER_ROOT_MARGIN = "0px 0px 1400px 0px";
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 80;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 90;
-const VIRTUAL_WINDOW_THRESHOLD_ITEMS = 72;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
 const VIRTUAL_OVERSCAN_ROWS = 4;
 const SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT = 2;
@@ -544,9 +546,22 @@ type CatalogPagePayload = {
   serviceUnavailable?: boolean;
   message?: string;
 };
-type PageCacheEntry = { payload: CatalogPagePayload; expiresAt: number };
+type PageCacheEntry = {
+  payload: CatalogPagePayload;
+  expiresAt: number;
+  lastAccessedAt: number;
+};
+type PageSessionCacheIndexEntry = {
+  key: string;
+  expiresAt: number;
+  lastAccessedAt: number;
+};
 const pageCache = new Map<string, PageCacheEntry>();
 const inFlightPageRequests = new Map<string, Promise<CatalogPagePayload>>();
+const inFlightPriceBatchRequests = new Map<
+  string,
+  Promise<Record<string, number | null>>
+>();
 const now = () => Date.now();
 const abortControllerSafely = (controller: AbortController) => {
   if (controller.signal.aborted) return;
@@ -602,6 +617,54 @@ const awaitWithAbortSignal = async <T,>(
   });
 };
 
+const normalizeCacheString = (value: string | null | undefined) =>
+  (value || "").replace(/\s+/g, " ").trim();
+
+const normalizeOptionalCacheString = (value: string | null | undefined) => {
+  const normalized = normalizeCacheString(value);
+  return normalized || null;
+};
+
+const normalizeCacheList = (values: string[]) =>
+  Array.from(
+    new Set(values.map((value) => normalizeCacheString(value)).filter(Boolean))
+  ).sort();
+
+const buildPriceBatchRequestKey = (
+  mode: "fast" | "full",
+  batch: Array<{ stateKey: string; lookupKeys: string[] }>
+) =>
+  JSON.stringify({
+    mode,
+    items: batch
+      .map((item) => ({
+        stateKey: item.stateKey,
+        lookupKeys: Array.from(new Set(item.lookupKeys)).sort(),
+      }))
+      .sort((left, right) => left.stateKey.localeCompare(right.stateKey)),
+  });
+
+const prunePageMemoryCache = () => {
+  const nowTs = now();
+  for (const [key, entry] of pageCache.entries()) {
+    if (!entry || entry.expiresAt <= nowTs) {
+      pageCache.delete(key);
+    }
+  }
+
+  if (pageCache.size <= PAGE_MEMORY_CACHE_MAX_ENTRIES) return;
+
+  const overflowEntries = Array.from(pageCache.entries()).sort(
+    (left, right) => left[1].lastAccessedAt - right[1].lastAccessedAt
+  );
+  for (const [key] of overflowEntries.slice(
+    0,
+    Math.max(0, pageCache.size - PAGE_MEMORY_CACHE_MAX_ENTRIES)
+  )) {
+    pageCache.delete(key);
+  }
+};
+
 const readPageFromMemory = (key: string) => {
   const entry = pageCache.get(key);
   if (!entry) return null;
@@ -609,6 +672,7 @@ const readPageFromMemory = (key: string) => {
     pageCache.delete(key);
     return null;
   }
+  entry.lastAccessedAt = now();
   return entry.payload;
 };
 
@@ -679,7 +743,114 @@ const normalizePageCursor = (value: unknown) =>
 
 const writePageToMemory = (key: string, payload: CatalogPagePayload, ttlMs: number) => {
   if (ttlMs <= 0) return;
-  pageCache.set(key, { payload, expiresAt: now() + ttlMs });
+  const nowTs = now();
+  pageCache.set(key, {
+    payload,
+    expiresAt: nowTs + ttlMs,
+    lastAccessedAt: nowTs,
+  });
+  prunePageMemoryCache();
+};
+
+const readSessionCacheIndex = (): PageSessionCacheIndexEntry[] => {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.sessionStorage.getItem(PAGE_SESSION_CACHE_INDEX_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return null;
+        const record = entry as Record<string, unknown>;
+        const key = typeof record.key === "string" ? record.key : "";
+        const expiresAt =
+          typeof record.expiresAt === "number" ? record.expiresAt : 0;
+        const lastAccessedAt =
+          typeof record.lastAccessedAt === "number"
+            ? record.lastAccessedAt
+            : expiresAt;
+        return key ? { key, expiresAt, lastAccessedAt } : null;
+      })
+      .filter((entry): entry is PageSessionCacheIndexEntry => Boolean(entry));
+  } catch {
+    return [];
+  }
+};
+
+const writeSessionCacheIndex = (index: PageSessionCacheIndexEntry[]) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(
+      PAGE_SESSION_CACHE_INDEX_KEY,
+      JSON.stringify(index)
+    );
+  } catch {
+    // Ignore sessionStorage quota issues.
+  }
+};
+
+const listSessionPageCacheKeys = () => {
+  if (typeof window === "undefined") return [] as string[];
+  const keys: string[] = [];
+  try {
+    for (let index = 0; index < window.sessionStorage.length; index += 1) {
+      const key = window.sessionStorage.key(index);
+      if (key && key.includes(CATALOG_PAGE_CACHE_VERSION)) {
+        keys.push(key);
+      }
+    }
+  } catch {
+    return [];
+  }
+  return keys.filter((key) => key !== PAGE_SESSION_CACHE_INDEX_KEY);
+};
+
+const prunePageSessionCache = (activeKey?: string) => {
+  if (typeof window === "undefined") return;
+  const nowTs = now();
+  const indexed = new Map(readSessionCacheIndex().map((entry) => [entry.key, entry]));
+  const candidates: PageSessionCacheIndexEntry[] = [];
+
+  for (const key of listSessionPageCacheKeys()) {
+    let entry = indexed.get(key);
+    try {
+      const raw = window.sessionStorage.getItem(key);
+      const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
+      const expiresAt =
+        typeof parsed?.expiresAt === "number"
+          ? parsed.expiresAt
+          : entry?.expiresAt ?? nowTs + MEMORY_CACHE_TTL_MS_NEXT_PAGES;
+      const lastAccessedAt =
+        key === activeKey
+          ? nowTs
+          : entry?.lastAccessedAt ??
+            (typeof parsed?.t === "number" ? parsed.t : expiresAt);
+
+      if (expiresAt <= nowTs) {
+        window.sessionStorage.removeItem(key);
+        continue;
+      }
+
+      entry = { key, expiresAt, lastAccessedAt };
+      candidates.push(entry);
+    } catch {
+      window.sessionStorage.removeItem(key);
+    }
+  }
+
+  const kept = candidates.sort((left, right) => {
+    if (left.key === activeKey) return -1;
+    if (right.key === activeKey) return 1;
+    return right.lastAccessedAt - left.lastAccessedAt;
+  });
+
+  for (const entry of kept.slice(PAGE_SESSION_CACHE_MAX_ENTRIES)) {
+    try {
+      window.sessionStorage.removeItem(entry.key);
+    } catch {}
+  }
+
+  writeSessionCacheIndex(kept.slice(0, PAGE_SESSION_CACHE_MAX_ENTRIES));
 };
 
 const readPageFromSession = (key: string): CatalogPagePayload | null => {
@@ -688,30 +859,52 @@ const readPageFromSession = (key: string): CatalogPagePayload | null => {
     const cached = window.sessionStorage.getItem(key);
     if (!cached) return null;
     const parsed: unknown = JSON.parse(cached);
+    const record = parsed as Record<string, unknown>;
+    const expiresAt =
+      typeof record?.expiresAt === "number"
+        ? record.expiresAt
+        : now() + MEMORY_CACHE_TTL_MS_NEXT_PAGES;
+    if (expiresAt <= now()) {
+      window.sessionStorage.removeItem(key);
+      prunePageSessionCache();
+      return null;
+    }
     const cachedItems = Array.isArray(parsed)
       ? parsed
-      : Array.isArray((parsed as Record<string, unknown>)?.items)
-        ? (parsed as { items: unknown[] }).items
+      : Array.isArray(record?.items)
+        ? (record as { items: unknown[] }).items
         : [];
-    if (!Array.isArray(cachedItems) || cachedItems.length === 0) return null;
+    if (!Array.isArray(cachedItems) || cachedItems.length === 0) {
+      window.sessionStorage.removeItem(key);
+      prunePageSessionCache();
+      return null;
+    }
+    prunePageSessionCache(key);
     return {
       items: cachedItems.map(normalizeProduct),
-      prices: normalizePagePriceMap((parsed as Record<string, unknown>)?.prices),
-      images: normalizePageImageMap((parsed as Record<string, unknown>)?.images),
+      prices: normalizePagePriceMap(record?.prices),
+      images: normalizePageImageMap(record?.images),
       hasMore: normalizePageHasMore(
-        (parsed as Record<string, unknown>)?.hasMore,
+        record?.hasMore,
         cachedItems.length
       ),
-      nextCursor: normalizePageCursor((parsed as Record<string, unknown>)?.nextCursor),
+      nextCursor: normalizePageCursor(record?.nextCursor),
+      cursorField: normalizePageCursor(record?.cursorField),
     };
   } catch {
     return null;
   }
 };
 
-const writePageToSession = (key: string, payload: CatalogPagePayload) => {
+const writePageToSession = (
+  key: string,
+  payload: CatalogPagePayload,
+  ttlMs = MEMORY_CACHE_TTL_MS_NEXT_PAGES
+) => {
   if (typeof window === "undefined") return;
   try {
+    const nowTs = now();
+    const expiresAt = nowTs + ttlMs;
     window.sessionStorage.setItem(
       key,
       JSON.stringify({
@@ -723,8 +916,15 @@ const writePageToSession = (key: string, payload: CatalogPagePayload) => {
             ? payload.hasMore
             : payload.items.length === ITEMS_PER_PAGE,
         nextCursor: payload.nextCursor ?? "",
+        cursorField: payload.cursorField ?? "",
+        t: nowTs,
+        expiresAt,
       })
     );
+    const index = readSessionCacheIndex().filter((entry) => entry.key !== key);
+    index.unshift({ key, expiresAt, lastAccessedAt: nowTs });
+    writeSessionCacheIndex(index.slice(0, PAGE_SESSION_CACHE_MAX_ENTRIES));
+    prunePageSessionCache(key);
   } catch {
     // Ignore sessionStorage quota issues to avoid blocking UI.
   }
@@ -749,7 +949,7 @@ const mergePagePricesIntoCache = (
   };
 
   writePageToMemory(cacheKey, nextPayload, ttlMs);
-  writePageToSession(cacheKey, nextPayload);
+  writePageToSession(cacheKey, nextPayload, ttlMs);
 };
 
 // --- Р—Р°РІР°РЅС‚Р°Р¶РµРЅРЅСЏ РІРµР»РёРєРѕС— РєР°СЂС‚РёРЅРєРё ---
@@ -930,15 +1130,23 @@ function useCatalogData(params: {
       task();
     };
 
-    if (typeof window.requestAnimationFrame === "function") {
-      const frameId = window.requestAnimationFrame(runTask);
+    const win = window as Window & {
+      requestIdleCallback?: (
+        callback: () => void,
+        options?: { timeout: number }
+      ) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    if (typeof win.requestIdleCallback === "function") {
+      const idleId = win.requestIdleCallback(runTask, { timeout: 900 });
       return () => {
         cancelled = true;
-        window.cancelAnimationFrame(frameId);
+        win.cancelIdleCallback?.(idleId);
       };
     }
 
-    const timeoutId = window.setTimeout(runTask, 16);
+    const timeoutId = window.setTimeout(runTask, 120);
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);
@@ -1196,22 +1404,41 @@ function useCatalogData(params: {
       ) => {
         if (batch.length === 0) return {} as Record<string, number | null>;
 
-        const response = await fetch(`${CATALOG_PRICE_BATCH_ROUTE}?mode=${mode}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: batch }),
-          signal: options?.signal,
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error(`Price batch failed: ${response.status}`);
+        const requestKey = buildPriceBatchRequestKey(mode, batch);
+        const existing = inFlightPriceBatchRequests.get(requestKey);
+        if (existing) {
+          return await awaitWithAbortSignal(existing, options?.signal);
         }
 
-        const payload = (await response.json()) as {
-          prices?: Record<string, number | null>;
-        };
-        return payload?.prices ?? {};
+        const requestPromise = (async () => {
+          const response = await fetch(`${CATALOG_PRICE_BATCH_ROUTE}?mode=${mode}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items: batch }),
+            cache: "no-store",
+          });
+
+          if (!response.ok) {
+            throw new Error(`Price batch failed: ${response.status}`);
+          }
+
+          const payload = (await response.json()) as {
+            prices?: Record<string, number | null>;
+          };
+          return payload?.prices ?? {};
+        })();
+
+        inFlightPriceBatchRequests.set(requestKey, requestPromise);
+        requestPromise.then(
+          () => {
+            inFlightPriceBatchRequests.delete(requestKey);
+          },
+          () => {
+            inFlightPriceBatchRequests.delete(requestKey);
+          }
+        );
+
+        return await awaitWithAbortSignal(requestPromise, options?.signal);
       };
 
       try {
@@ -1357,9 +1584,18 @@ function useCatalogData(params: {
       }
     };
 
-    loadEuroRate();
+    const timeoutId =
+      typeof window !== "undefined"
+        ? window.setTimeout(() => {
+            void loadEuroRate();
+          }, 220)
+        : null;
+
     return () => {
       cancelled = true;
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
     };
   }, []);
 
@@ -1397,16 +1633,16 @@ function useCatalogData(params: {
         endpoint: CATALOG_PAGE_CACHE_VERSION,
         page: pageNum,
         limit: ITEMS_PER_PAGE,
-        cursor,
-        cursorField,
-        q: trimmed,
-        filter: searchFilter,
-        cars: selectedCars,
-        cats: effectiveSelectedCategories,
-        group: groupFromURL,
-        subcat: subcategoryFromURL,
-        producer: producerFromURL,
-        sort: effectiveServerSortOrder,
+        cursor: normalizeCacheString(cursor),
+        cursorField: normalizeCacheString(cursorField),
+        q: normalizeCacheString(trimmed),
+        filter: searchFilter || "all",
+        cars: normalizeCacheList(selectedCars),
+        cats: normalizeCacheList(effectiveSelectedCategories),
+        group: normalizeOptionalCacheString(groupFromURL),
+        subcat: normalizeOptionalCacheString(subcategoryFromURL),
+        producer: normalizeOptionalCacheString(producerFromURL),
+        sort: effectiveServerSortOrder || "none",
       }),
     [
       searchFilter,
@@ -1509,6 +1745,18 @@ function useCatalogData(params: {
 
       inFlightPageRequests.set(cacheKey, requestPromise);
       requestPromise
+        .then((payload) => {
+          // Cache result even if the caller's signal already fired — the fetch
+          // completed and the data is valid for future requests with this key.
+          const ttl =
+            pageNum === 1
+              ? MEMORY_CACHE_TTL_MS_FIRST_PAGE
+              : MEMORY_CACHE_TTL_MS_NEXT_PAGES;
+          writePageToMemory(cacheKey, payload, ttl);
+          if (payload.items.length > 0) {
+            writePageToSession(cacheKey, payload, ttl);
+          }
+        })
         .catch(swallowAbortError)
         .finally(() => {
           inFlightPageRequests.delete(cacheKey);
@@ -1525,6 +1773,50 @@ function useCatalogData(params: {
       selectedCars,
       effectiveServerSortOrder,
       subcategoryFromURL,
+    ]
+  );
+
+  const revalidateCachedPagePayload = useCallback(
+    (options: {
+      pageNum: number;
+      cacheKey: string;
+      cursor?: string;
+      cursorField?: string;
+      querySignatureSnapshot: string;
+      ttlMs: number;
+    }) => {
+      const controller = new AbortController();
+      const cancelSchedule = scheduleCatalogBackgroundTask(() => {
+        void fetchCatalogPagePayload(
+          options.pageNum,
+          controller.signal,
+          options.cursor ?? "",
+          options.cursorField ?? ""
+        )
+          .then((payload) => {
+            if (
+              activeQuerySignatureRef.current !== options.querySignatureSnapshot ||
+              payload.items.length === 0
+            ) {
+              return;
+            }
+
+            writePageToMemory(options.cacheKey, payload, options.ttlMs);
+            writePageToSession(options.cacheKey, payload, options.ttlMs);
+            applyResolvedPagePrices(payload.items, payload.prices);
+          })
+          .catch(swallowAbortError);
+      });
+
+      return () => {
+        cancelSchedule();
+        abortControllerSafely(controller);
+      };
+    },
+    [
+      applyResolvedPagePrices,
+      fetchCatalogPagePayload,
+      scheduleCatalogBackgroundTask,
     ]
   );
 
@@ -1557,7 +1849,11 @@ function useCatalogData(params: {
         primedInitialPayloadSignatureRef.current !== querySignature
       ) {
         writePageToMemory(cacheKey, initialPagePayload, MEMORY_CACHE_TTL_MS_FIRST_PAGE);
-        writePageToSession(cacheKey, initialPagePayload);
+        writePageToSession(
+          cacheKey,
+          initialPagePayload,
+          MEMORY_CACHE_TTL_MS_FIRST_PAGE
+        );
         primedInitialPayloadSignatureRef.current = querySignature;
       }
 
@@ -1593,7 +1889,16 @@ function useCatalogData(params: {
         setFilterLoading(false);
         firstPageReadySignatureRef.current = querySignature;
         hideNextPageLoader(true);
-        return cancelWarmup;
+        const cancelRevalidate = revalidateCachedPagePayload({
+          pageNum: 1,
+          cacheKey,
+          querySignatureSnapshot: querySignature,
+          ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
+        });
+        return () => {
+          cancelWarmup();
+          cancelRevalidate();
+        };
       }
 
       const sessionHit = readPageFromSession(cacheKey);
@@ -1629,7 +1934,16 @@ function useCatalogData(params: {
         setFilterLoading(false);
         firstPageReadySignatureRef.current = querySignature;
         hideNextPageLoader(true);
-        return cancelWarmup;
+        const cancelRevalidate = revalidateCachedPagePayload({
+          pageNum: 1,
+          cacheKey,
+          querySignatureSnapshot: querySignature,
+          ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
+        });
+        return () => {
+          cancelWarmup();
+          cancelRevalidate();
+        };
       }
 
       // No immediate cache hit for this filter/query, so clear stale products first.
@@ -1656,6 +1970,7 @@ function useCatalogData(params: {
     normalizedSearch,
     buildCacheKey,
     hideNextPageLoader,
+    revalidateCachedPagePayload,
     scheduleCatalogBackgroundTask,
   ]);
 
@@ -1824,9 +2139,20 @@ function useCatalogData(params: {
 
     const memoryHit = readPageFromMemory(cacheKey);
     if (memoryHit && memoryHit.items.length > 0) {
+      const ttl =
+        page === 1 ? MEMORY_CACHE_TTL_MS_FIRST_PAGE : MEMORY_CACHE_TTL_MS_NEXT_PAGES;
       applyCachedItems(memoryHit);
+      const cancelRevalidate = revalidateCachedPagePayload({
+        pageNum: page,
+        cacheKey,
+        cursor: requestCursor,
+        cursorField: requestCursorField,
+        querySignatureSnapshot: currentQuerySignature,
+        ttlMs: ttl,
+      });
       return () => {
         cancelled = true;
+        cancelRevalidate();
         cancelPageWarmup();
       };
     }
@@ -1837,8 +2163,17 @@ function useCatalogData(params: {
         page === 1 ? MEMORY_CACHE_TTL_MS_FIRST_PAGE : MEMORY_CACHE_TTL_MS_NEXT_PAGES;
       writePageToMemory(cacheKey, sessionHit, ttl);
       applyCachedItems(sessionHit);
+      const cancelRevalidate = revalidateCachedPagePayload({
+        pageNum: page,
+        cacheKey,
+        cursor: requestCursor,
+        cursorField: requestCursorField,
+        querySignatureSnapshot: currentQuerySignature,
+        ttlMs: ttl,
+      });
       return () => {
         cancelled = true;
+        cancelRevalidate();
         cancelPageWarmup();
       };
     }
@@ -1925,7 +2260,7 @@ function useCatalogData(params: {
         page === 1 ? MEMORY_CACHE_TTL_MS_FIRST_PAGE : MEMORY_CACHE_TTL_MS_NEXT_PAGES;
       writePageToMemory(cacheKey, payload, ttl);
       if (payload.items.length > 0) {
-        writePageToSession(cacheKey, payload);
+        writePageToSession(cacheKey, payload, ttl);
       }
     };
 
@@ -1960,7 +2295,7 @@ function useCatalogData(params: {
     fetchCatalogPagePayload,
     fetchCatalogPageImages,
     hideNextPageLoader,
-    scheduleCatalogBackgroundTask,
+    revalidateCachedPagePayload,
     shouldAllowCatalogDirectPriceLookup,
     sortOrder,
   ]);
@@ -2045,7 +2380,7 @@ function useCatalogData(params: {
           if (payload.items.length === 0) return;
 
           writePageToMemory(targetCacheKey, payload, ttl);
-          writePageToSession(targetCacheKey, payload);
+          writePageToSession(targetCacheKey, payload, ttl);
           if (canUseCursorPagination && payload.nextCursor) {
             nextCursorByPageRef.current[targetPage + 1] = payload.nextCursor;
             nextCursorFieldByPageRef.current[targetPage + 1] =
@@ -2466,6 +2801,7 @@ const Data: React.FC<DataProps> = ({
         producerFromURL,
         selectedCategories,
         selectedCars,
+        sortOrder,
       }),
     [
       rawSearchQuery,
@@ -2475,6 +2811,7 @@ const Data: React.FC<DataProps> = ({
       producerFromURL,
       selectedCategories,
       selectedCars,
+      sortOrder,
     ]
   );
 
@@ -2589,14 +2926,17 @@ const Data: React.FC<DataProps> = ({
     visibleSortedData.length > 0 && loading && !isRefetching;
   const shouldShowCatalogGrid =
     visibleSortedData.length > 0 || shouldShowInitialSkeleton;
+  const catalogCardRenderStyle = {
+    contentVisibility: "auto",
+    containIntrinsicSize: "320px",
+  } as React.CSSProperties;
   const gridColumnCount = useMemo(() => {
     if (viewportWidth >= 1024) return 4;
     if (viewportWidth >= 768) return 3;
     if (viewportWidth >= 640) return 2;
     return 1;
   }, [viewportWidth]);
-  const shouldUseVirtualWindow =
-    visibleSortedEntries.length >= VIRTUAL_WINDOW_THRESHOLD_ITEMS && !shouldShowInitialSkeleton;
+  const shouldUseVirtualWindow = false;
   const virtualizedEntries = useMemo(() => {
     if (!shouldUseVirtualWindow) return visibleSortedEntries;
 
@@ -2687,10 +3027,20 @@ const Data: React.FC<DataProps> = ({
     visibleCatalogImageCandidates,
   ]);
 
-  // Keep filter/loading transitions in sync with the current query signature.
+  // New catalog/filter states should start from the top of the result list.
   useEffect(() => {
+    const previousFilterSignature = lastFilterSignatureRef.current;
     lastFilterSignatureRef.current = filterSignature;
-  }, [filterSignature, setFilterLoading]);
+
+    if (!previousFilterSignature || previousFilterSignature === filterSignature) {
+      return;
+    }
+    if (typeof window === "undefined") return;
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
+  }, [filterSignature]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -3040,6 +3390,7 @@ const Data: React.FC<DataProps> = ({
                   <div
                     key={stableKey || `${code || "item"}-${index}`}
                     data-catalog-card="1"
+                    style={catalogCardRenderStyle}
                   >
                     <ProductCard
                       item={item}

@@ -95,7 +95,7 @@ const Hero: FC<HeroProps> = ({
         <div className="relative grid gap-4 text-slate-100 md:grid-cols-2 lg:grid-cols-3 lg:items-stretch">
           <div className="h-full min-w-0">
             <div
-              className={`relative flex min-h-[180px] h-full flex-col justify-start gap-1.5 overflow-hidden rounded-2xl border border-white/10 p-3 shadow-[0_10px_24px_rgba(2,6,23,0.26)] ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/12 hover:shadow-[0_14px_28px_rgba(2,6,23,0.3)] sm:min-h-0 sm:justify-center`}
+              className={`home-glass-card relative flex min-h-[180px] h-full flex-col justify-start gap-1.5 overflow-hidden rounded-2xl border border-white/10 p-3 shadow-[0_10px_24px_rgba(2,6,23,0.26)] ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/12 hover:shadow-[0_14px_28px_rgba(2,6,23,0.3)] sm:min-h-0 sm:justify-center`}
             >
               <span className="pointer-events-none absolute inset-0 rounded-2xl border border-sky-200/10" />
               <div className="pointer-events-none absolute inset-0 opacity-30 bg-[image:radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.16),transparent_44%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,0.12),transparent_48%)]" />
@@ -146,6 +146,7 @@ const Hero: FC<HeroProps> = ({
                   alt="PartsOn Logo"
                   width={98}
                   height={49}
+                  priority
                   className="relative z-[2] h-auto w-[72px] object-contain drop-shadow-[0_10px_20px_rgba(15,23,42,0.18)] transition-transform duration-500 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:transform-gpu md:w-[108px] motion-safe:group-hover/logo:-translate-y-0.5 motion-safe:group-hover/logo:scale-[1.04]"
                   sizes="(min-width: 768px) 108px, 72px"
                   onError={handleLogoLoadError}
@@ -190,7 +191,7 @@ const Hero: FC<HeroProps> = ({
           </div>
 
           <div
-            className={`flex min-h-[180px] h-full min-w-0 flex-col space-y-2 rounded-2xl border border-white/10 p-3 shadow-[0_10px_24px_rgba(2,6,23,0.26)] ${cardInteractionStatic} md:col-span-2 lg:col-span-1 ${cardGradientBase} ${cardGradientHover} bg-white/10 motion-safe:hover:bg-white/12 sm:min-h-0`}
+            className={`home-glass-card flex min-h-[180px] h-full min-w-0 flex-col space-y-2 rounded-2xl border border-white/10 p-3 shadow-[0_10px_24px_rgba(2,6,23,0.26)] ${cardInteractionStatic} md:col-span-2 lg:col-span-1 ${cardGradientBase} ${cardGradientHover} bg-white/10 motion-safe:hover:bg-white/12 sm:min-h-0`}
           >
             <div className="flex items-center gap-3">
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-sky-200/30 text-sky-200/90 shadow-[0_0_16px_rgba(56,189,248,0.3)]">
@@ -213,7 +214,7 @@ const Hero: FC<HeroProps> = ({
               {benefitItems.map((benefit) => (
                 <li
                   key={benefit}
-                  className="flex items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-white/30 motion-safe:hover:bg-white/15"
+                  className="home-chip-hover flex items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-white/30 motion-safe:hover:bg-white/15"
                 >
                   <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm border border-emerald-400/70 text-emerald-300/90">
                     <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

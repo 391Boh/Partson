@@ -1,4 +1,5 @@
 import {
+  fetchPriceEuroMapByLookupKeys,
   fetchCatalogProductsByQuery,
   type CatalogProduct,
 } from "app/lib/catalog-server";
@@ -45,6 +46,24 @@ const PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS = parsePositiveInt(
   process.env.PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
   6000
 );
+
+const PRODUCT_SITEMAP_PRICE_LOOKUP_CHUNK_SIZE = parsePositiveInt(
+  process.env.PRODUCT_SITEMAP_PRICE_LOOKUP_CHUNK_SIZE,
+  40
+);
+
+const PRODUCT_SITEMAP_PRICE_LOOKUP_CONCURRENCY = parsePositiveInt(
+  process.env.PRODUCT_SITEMAP_PRICE_LOOKUP_CONCURRENCY,
+  2
+);
+
+const PRODUCT_SITEMAP_PRICE_LOOKUP_TIMEOUT_MS = parsePositiveInt(
+  process.env.PRODUCT_SITEMAP_PRICE_LOOKUP_TIMEOUT_MS,
+  5000
+);
+
+const PRODUCT_SITEMAP_PRICE_LOOKUP_LIMIT =
+  parseOptionalPositiveInt(process.env.PRODUCT_SITEMAP_PRICE_LOOKUP_LIMIT) ?? 0;
 
 const PRODUCT_SITEMAP_BUILD_TIMEOUT_MS = parseOptionalPositiveInt(
   process.env.PRODUCT_SITEMAP_BUILD_TIMEOUT_MS
@@ -318,6 +337,134 @@ const isPricedProductSitemapEntry = (entry: ProductSitemapEntry) =>
   Number.isFinite(entry.priceEuro) &&
   entry.priceEuro > 0;
 
+const getProductSitemapEntryLookupKeys = (entry: ProductSitemapEntry) =>
+  Array.from(
+    new Set(
+      [entry.article, entry.code]
+        .map((value) => (value || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+const hasResolvedPrice = (
+  prices: Record<string, number>,
+  entry: ProductSitemapEntry
+) => {
+  const articleKey = (entry.article || "").trim().toLowerCase();
+  const codeKey = (entry.code || "").trim().toLowerCase();
+  const price = (articleKey ? prices[articleKey] : undefined) ?? prices[codeKey];
+
+  return typeof price === "number" && Number.isFinite(price) && price > 0;
+};
+
+const lookupProductSitemapPrices = async (
+  entries: ProductSitemapEntry[],
+  options?: { includeDirectLookup?: boolean }
+) => {
+  const prices: Record<string, number> = {};
+  const chunkSize = Math.max(1, PRODUCT_SITEMAP_PRICE_LOOKUP_CHUNK_SIZE);
+  const chunks: ProductSitemapEntry[][] = [];
+
+  for (let start = 0; start < entries.length; start += chunkSize) {
+    chunks.push(entries.slice(start, start + chunkSize));
+  }
+
+  let nextChunkIndex = 0;
+  const workerCount = Math.min(
+    Math.max(1, PRODUCT_SITEMAP_PRICE_LOOKUP_CONCURRENCY),
+    chunks.length
+  );
+
+  const runWorker = async () => {
+    while (nextChunkIndex < chunks.length) {
+      const chunkIndex = nextChunkIndex;
+      nextChunkIndex += 1;
+      const chunk = chunks[chunkIndex] ?? [];
+      const lookupKeys = Array.from(
+        new Set(chunk.flatMap(getProductSitemapEntryLookupKeys))
+      );
+      if (lookupKeys.length === 0) continue;
+
+      const chunkPrices = await fetchPriceEuroMapByLookupKeys(lookupKeys, {
+        sourceTimeoutMs: PRODUCT_SITEMAP_PRICE_LOOKUP_TIMEOUT_MS,
+        sourceCacheTtlMs: 1000 * 60 * 5,
+        timeoutMs: PRODUCT_SITEMAP_PRICE_LOOKUP_TIMEOUT_MS,
+        retries: 1,
+        retryDelayMs: 180,
+        cacheTtlMs: 1000 * 60 * 10,
+        includeDirectLookup: options?.includeDirectLookup === true,
+        includePricesPost: true,
+        directConcurrency: 2,
+        maxKeys: lookupKeys.length,
+      }).catch(() => ({} as Record<string, number>));
+
+      for (const [key, value] of Object.entries(chunkPrices)) {
+        if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue;
+        prices[key] = value;
+      }
+    }
+  };
+
+  await Promise.allSettled(Array.from({ length: workerCount }, runWorker));
+  return prices;
+};
+
+const enrichProductSitemapEntriesWithPrices = async (
+  entries: ProductSitemapEntry[]
+) => {
+  const missingPriceEntries = entries
+    .filter((entry) => !isPricedProductSitemapEntry(entry))
+    .slice(0, PRODUCT_SITEMAP_PRICE_LOOKUP_LIMIT);
+
+  if (missingPriceEntries.length === 0) {
+    return entries;
+  }
+
+  const sourcePrices = await lookupProductSitemapPrices(missingPriceEntries, {
+    includeDirectLookup: false,
+  });
+  const directLookupEntries = missingPriceEntries.filter(
+    (entry) => !hasResolvedPrice(sourcePrices, entry)
+  );
+  const directPrices =
+    directLookupEntries.length > 0
+      ? await lookupProductSitemapPrices(directLookupEntries, {
+          includeDirectLookup: true,
+        })
+      : {};
+  const prices = {
+    ...sourcePrices,
+    ...directPrices,
+  };
+
+  if (Object.keys(prices).length === 0) {
+    return entries;
+  }
+
+  return entries.map((entry) => {
+    if (isPricedProductSitemapEntry(entry)) {
+      return entry;
+    }
+
+    const articleKey = (entry.article || "").trim().toLowerCase();
+    const codeKey = (entry.code || "").trim().toLowerCase();
+    const priceEuro = (articleKey ? prices[articleKey] : undefined) ?? prices[codeKey];
+
+    if (
+      typeof priceEuro !== "number" ||
+      !Number.isFinite(priceEuro) ||
+      priceEuro <= 0
+    ) {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      priceEuro,
+    };
+  });
+};
+
 const chunkProductSitemapEntries = (entries: ProductSitemapEntry[]) => {
   const batches: ProductSitemapEntry[][] = [];
 
@@ -331,7 +478,10 @@ const chunkProductSitemapEntries = (entries: ProductSitemapEntry[]) => {
 const getPricedProductSitemapEntryBatchesSafe = async () => {
   if (shouldBypassProductSitemapCache()) {
     const allEntries = (await buildProductSitemapEntryBatches()).flat();
-    return chunkProductSitemapEntries(allEntries.filter(isPricedProductSitemapEntry));
+    const enrichedEntries = await enrichProductSitemapEntriesWithPrices(allEntries);
+    return chunkProductSitemapEntries(
+      enrichedEntries.filter(isPricedProductSitemapEntry)
+    );
   }
 
   if (pricedProductSitemapEntryBatchesMemory) {
@@ -344,9 +494,10 @@ const getPricedProductSitemapEntryBatchesSafe = async () => {
 
   pricedProductSitemapEntryBatchesPromise = getProductSitemapEntryBatchesSafe()
     .then((batches) =>
-      chunkProductSitemapEntries(
-        batches.flat().filter(isPricedProductSitemapEntry)
-      )
+      enrichProductSitemapEntriesWithPrices(batches.flat())
+    )
+    .then((entries) =>
+      chunkProductSitemapEntries(entries.filter(isPricedProductSitemapEntry))
     )
     .then((batches) => {
       pricedProductSitemapEntryBatchesMemory = batches;

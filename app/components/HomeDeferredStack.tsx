@@ -37,13 +37,13 @@ export default function HomeDeferredStack() {
   return (
     <>
       <DeferredSection
-        className="section-reveal relative w-full py-1"
+        className="section-reveal home-section-stage relative w-full"
         minHeight="520px"
-        rootMargin="220px"
-        fallbackDelayMs={10000}
+        rootMargin="760px"
+        fallbackDelayMs={5000}
         fallback={<HomeSectionFallback minHeight="520px" />}
       >
-        <section className="relative w-full py-1">
+        <section className="relative w-full">
           <SectionBoundary title="Модуль товарів тимчасово недоступний">
             <ProductFetcher playEntranceAnimations={false} />
           </SectionBoundary>
@@ -51,13 +51,13 @@ export default function HomeDeferredStack() {
       </DeferredSection>
 
       <DeferredSection
-        className="section-reveal relative w-full py-1"
+        className="section-reveal home-section-stage relative w-full"
         minHeight="560px"
-        rootMargin="180px"
-        fallbackDelayMs={12000}
+        rootMargin="700px"
+        fallbackDelayMs={6000}
         fallback={<HomeSectionFallback minHeight="560px" />}
       >
-        <section className="relative w-full py-1">
+        <section className="relative w-full">
           <SectionBoundary title="Модуль підбору авто тимчасово недоступний">
             <Auto
               playEntranceAnimations={false}
@@ -68,13 +68,13 @@ export default function HomeDeferredStack() {
       </DeferredSection>
 
       <DeferredSection
-        className="section-reveal relative w-full py-1"
+        className="section-reveal home-section-stage relative w-full"
         minHeight="380px"
-        rootMargin="140px"
-        fallbackDelayMs={14000}
+        rootMargin="620px"
+        fallbackDelayMs={7000}
         fallback={<HomeSectionFallback minHeight="380px" />}
       >
-        <section className="relative w-full py-1">
+        <section className="relative w-full">
           <SectionBoundary title="Модуль брендів тимчасово недоступний">
             <BrandCarousel playEntranceAnimations={false} />
           </SectionBoundary>

@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-import { getProductImagePath } from "app/lib/product-image";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
 import {
   getPricedProductEntriesBySitemapId,
@@ -60,7 +60,11 @@ export default async function sitemap(props: {
       const productImages =
         entry.hasPhoto === false
           ? undefined
-          : [`${siteUrl}${getProductImagePath(normalizedCode, entry.article)}`];
+          : [
+              `${siteUrl}${buildProductImagePath(normalizedCode, entry.article, {
+                noFallback: true,
+              })}`,
+            ];
 
       return {
         url: `${siteUrl}${productPath}`,

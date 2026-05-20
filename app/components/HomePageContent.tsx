@@ -33,7 +33,10 @@ const placeholderHeights = ["520px", "560px", "380px"] as const; // must match H
 const HomeDeferredStackPlaceholder = () => (
   <>
     {placeholderHeights.map((minHeight, index) => (
-      <section key={`home-placeholder-${minHeight}`} className="relative w-full py-1">
+      <section
+        key={`home-placeholder-${minHeight}`}
+        className="home-section-stage relative w-full"
+      >
         <div className="page-shell-inline">
           <div className="rounded-[28px] border border-sky-100/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.88))] p-5 shadow-[0_18px_36px_rgba(15,23,42,0.06)]">
             <div
@@ -154,7 +157,7 @@ export default function HomePageContent() {
               }
             },
             {
-              rootMargin: "220px 0px",
+              rootMargin: "820px 0px",
             }
           )
         : null;
@@ -167,9 +170,9 @@ export default function HomePageContent() {
     let idleId: number | null = null;
 
     if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(markReady, { timeout: 9000 });
+      idleId = win.requestIdleCallback(markReady, { timeout: 2800 });
     } else {
-      timeoutId = window.setTimeout(markReady, 8200);
+      timeoutId = window.setTimeout(markReady, 2400);
     }
 
     return () => {
@@ -214,8 +217,8 @@ export default function HomePageContent() {
   }, []);
 
   return (
-    <div className="home-static relative min-h-screen bg-blue-100 text-white">
-      <div className="section-reveal">
+    <div className="home-static relative min-h-screen overflow-hidden bg-blue-100 text-white">
+      <div className="section-reveal home-section-stage home-section-stage-hero">
         <Hero
           isAuthenticated={isAuthenticated}
           authReady={authReady}
@@ -229,9 +232,11 @@ export default function HomePageContent() {
 
       {HomeDeferredStackComponent ? <HomeDeferredStackComponent /> : <HomeDeferredStackPlaceholder />}
 
-      <SectionBoundary title="Інформаційний блок тимчасово недоступний">
-        <AdvantagesSection />
-      </SectionBoundary>
+      <div className="home-section-stage">
+        <SectionBoundary title="Інформаційний блок тимчасово недоступний">
+          <AdvantagesSection />
+        </SectionBoundary>
+      </div>
 
       <Footer />
     </div>

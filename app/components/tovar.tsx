@@ -443,6 +443,7 @@ const ProductFetcher: React.FC<Props> = ({
   const [flippedId, setFlippedId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const lastFocusVersionCheckRef = useRef<number>(0);
   const [canHover, setCanHover] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
   const router = useRouter();
@@ -593,6 +594,13 @@ const ProductFetcher: React.FC<Props> = ({
     setLoadError(null);
 
     const syncCatalogTree = async () => {
+      // Fresh cache (< 5 min): trust it without a version round-trip.
+      if (cache.fresh && cache.nodes.length > 0) {
+        setIsLoading(false);
+        setLoadError(null);
+        return;
+      }
+
       const latestHash = await fetchCatalogVersionHash();
       if (!active) return;
 
@@ -652,6 +660,10 @@ const ProductFetcher: React.FC<Props> = ({
     let active = true;
 
     const refreshOnFocus = async () => {
+      const now = Date.now();
+      if (now - lastFocusVersionCheckRef.current < 1000 * 60 * 2) return;
+      lastFocusVersionCheckRef.current = now;
+
       const latestHash = await fetchCatalogVersionHash({ force: true });
       if (!active || !latestHash) return;
 
@@ -716,7 +728,7 @@ const ProductFetcher: React.FC<Props> = ({
   return (
     <section
       ref={sectionRef}
-      className={`font-ui group/tovar relative tovar-touch min-h-[420px] w-full overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-4 pt-4 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)] ${
+      className={`home-glow-section home-glow-section-sky font-ui group/tovar relative tovar-touch min-h-[420px] w-full overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-4 pt-4 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)] ${
         canHover
           ? "transition-[box-shadow,background-image,filter] duration-300 ease-out hover:from-cyan-50/95 hover:via-sky-100/80 hover:to-blue-100/85 hover:brightness-[1.015] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(30,64,175,0.18),0_18px_38px_rgba(37,99,235,0.18)]"
           : ""
@@ -726,7 +738,7 @@ const ProductFetcher: React.FC<Props> = ({
       <div className="page-shell-inline relative z-10 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <motion.aside
         {...entryMotion}
-        className={`${canHover ? "group " : ""}relative z-10 min-w-0 self-start overflow-hidden rounded-2xl border border-sky-100/90 bg-gradient-to-br from-white/96 via-sky-50/82 to-blue-100/72 backdrop-blur-sm shadow-[0_18px_44px_rgba(2,132,199,0.2),0_10px_26px_rgba(30,64,175,0.14)] px-5 pb-1 pt-3 text-gray-800 transition-all duration-300 hover:shadow-[0_26px_56px_rgba(2,132,199,0.28),0_12px_30px_rgba(30,64,175,0.18)]`}
+        className={`${canHover ? "group " : ""}home-panel-hover relative z-10 min-w-0 self-start overflow-hidden rounded-2xl border border-sky-100/90 bg-gradient-to-br from-white/96 via-sky-50/82 to-blue-100/72 backdrop-blur-sm shadow-[0_18px_44px_rgba(2,132,199,0.2),0_10px_26px_rgba(30,64,175,0.14)] px-5 pb-1 pt-3 text-gray-800 transition-all duration-300 hover:shadow-[0_26px_56px_rgba(2,132,199,0.28),0_12px_30px_rgba(30,64,175,0.18)]`}
       >
             <div className="absolute inset-0 pointer-events-none opacity-75 bg-[image:radial-gradient(circle_at_20%_20%,rgba(224,242,254,0.95),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(59,130,246,0.18),transparent_36%)]" />
             <div className="relative">

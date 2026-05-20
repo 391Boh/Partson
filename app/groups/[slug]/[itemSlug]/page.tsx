@@ -20,7 +20,6 @@ import {
 } from "app/components/catalog-directory-styles";
 import SmartLink from "app/components/SmartLink";
 import {
-  EMPTY_CATALOG_SEO_FACETS,
   getCatalogSeoFacetsWithTimeout,
   type SeoProducerFacet,
 } from "app/lib/catalog-seo";
@@ -34,8 +33,10 @@ import {
   buildGroupItemPath,
   buildManufacturerPath,
 } from "app/lib/catalog-links";
+import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
+import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getGroupItemSeoCopy } from "app/lib/seo-copy";
@@ -340,10 +341,10 @@ const resolveGroupItemProducerSplit = async (options: {
 const getGroupItemBySlugs = cache(
   async (groupSlug: string, itemSlug: string): Promise<GroupItemPageData | null> => {
     const dataset = await getProductTreeDataset().catch(() => null);
-    const seoFacets =
-      isProductionBuildPhase && dataset
-        ? EMPTY_CATALOG_SEO_FACETS
-        : await getCatalogSeoFacetsWithTimeout(GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS);
+    const seoFacets = await resolveCatalogSeoFacetsWithFallback(
+      await getCatalogSeoFacetsWithTimeout(GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS),
+      getAllProductSitemapEntries
+    );
     const group = dataset?.groups.find(
       (entry) => entry.slug === groupSlug || entry.legacySlug === groupSlug
     );

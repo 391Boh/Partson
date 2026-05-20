@@ -4,7 +4,7 @@ import { Factory, Layers3 } from "lucide-react";
 import CatalogHubHero from "app/components/CatalogHubHero";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import { buildManufacturerPath } from "app/lib/catalog-links";
-import { getFastManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
+import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 import ManufacturersDirectory from "app/manufacturers/ManufacturersDirectory";
@@ -51,7 +51,7 @@ const manufacturersIntroHighlights = [
 
 export async function generateMetadata(): Promise<Metadata> {
   const { clientProducers, indexedBrands, indexedProducts } =
-    await getFastManufacturersDirectoryData();
+    await getFullManufacturersDirectoryData();
 
   return buildPageMetadata({
     title: "Виробники автозапчастин і бренди",
@@ -85,7 +85,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function ManufacturersPage() {
   const siteUrl = getSiteUrl();
   const { clientProducers, indexedProducts, hasIndexedCounts } =
-    await getFastManufacturersDirectoryData();
+    await getFullManufacturersDirectoryData();
   const featuredManufacturers = clientProducers.slice(0, 2);
   const manufacturersStructuredData = {
     "@context": "https://schema.org",

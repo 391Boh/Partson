@@ -9,6 +9,8 @@ import {
   resolveProducerLogo,
 } from "app/lib/brand-logo";
 import { getCatalogSeoFacets, type CatalogSeoFacets } from "app/lib/catalog-seo";
+import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
+import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { buildSeoSlug } from "app/lib/seo-slug";
 
 export type ManufacturerListItem = {
@@ -107,6 +109,10 @@ export const getFastManufacturersDirectoryData = cache(async () =>
 );
 
 export const getFullManufacturersDirectoryData = cache(async () => {
-  const seoFacets = await getCatalogSeoFacets().catch(() => EMPTY_SEO_FACETS);
+  const rawSeoFacets = await getCatalogSeoFacets().catch(() => EMPTY_SEO_FACETS);
+  const seoFacets = await resolveCatalogSeoFacetsWithFallback(
+    rawSeoFacets,
+    getAllProductSitemapEntries
+  );
   return buildManufacturersDirectoryData(seoFacets);
 });

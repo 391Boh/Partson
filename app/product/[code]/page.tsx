@@ -25,7 +25,6 @@ import {
   buildManufacturerPath,
 } from "app/lib/catalog-links";
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
-import { getProductImagePath } from "app/lib/product-image";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import {
   EMPTY_CATALOG_SEO_FACETS,
@@ -1275,7 +1274,9 @@ export async function generateMetadata({
     : `/product/${encodeURIComponent(decodedParam || resolvedCode || fallbackCode || "")}`;
 
   const productImagePath = routeProduct && routeProduct.hasPhoto !== false
-    ? getProductImagePath(routeProduct.code || resolvedCode, routeProduct.article)
+    ? buildProductImagePath(routeProduct.code || resolvedCode, routeProduct.article, {
+        noFallback: true,
+      })
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const siteUrl = getSiteUrl();
   const productImageUrl = `${siteUrl}${productImagePath}`;
@@ -1540,13 +1541,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const producerLandingPath = product.producer
     ? buildManufacturerPath(producerFacet?.slug || product.producer)
     : null;
-  const categoryCatalogPath = productSubgroup
-    ? buildCatalogCategoryPath(productSubgroup)
-    : productGroup
-      ? buildCatalogCategoryPath(productGroup)
-      : "/katalog";
+  const categoryCatalogPath = productGroup || productSubgroup
+    ? buildCatalogCategoryPath(productGroup || productSubgroup, productSubgroup || undefined)
+    : "/katalog";
   const producerCatalogPath = product.producer
-    ? buildCatalogProducerPath(product.producer, productGroup || undefined)
+    ? buildCatalogProducerPath(
+        product.producer,
+        productGroup || undefined,
+        productSubgroup || undefined
+      )
     : null;
   const groupLandingPath = groupSeoFallbackPath;
   const categoryLandingPath = productSubgroup
@@ -1566,7 +1569,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const fallbackImagePath = PRODUCT_PAGE_LOGO_FALLBACK_PATH;
   const productHasKnownPhoto = product.hasPhoto !== false;
   const productFullImagePath = productHasKnownPhoto
-    ? getProductImagePath(product.code || resolvedCode, product.article)
+    ? buildProductImagePath(product.code || resolvedCode, product.article, {
+        noFallback: true,
+      })
     : PRODUCT_PAGE_LOGO_FALLBACK_PATH;
   const productDisplayImagePath = productHasKnownPhoto
     ? buildProductImagePath(product.code || resolvedCode, product.article, {

@@ -16,7 +16,7 @@ export type CatalogBrowserCacheSnapshot<T> = {
   timestamp: number;
 };
 
-const CATALOG_VERSION_CLIENT_TTL_MS = 1000 * 15;
+const CATALOG_VERSION_CLIENT_TTL_MS = 1000 * 60;
 
 let catalogVersionPromise: Promise<string | null> | null = null;
 let catalogVersionHash: string | null = null;
@@ -150,7 +150,7 @@ export const fetchCatalogVersionHash = async (options?: { force?: boolean }) => 
   catalogVersionPromise = fetch("/api/catalog-version", {
     method: "GET",
     headers: { Accept: "application/json" },
-    cache: "no-store",
+    cache: force ? "no-store" : "default",
   })
     .then(async (response) => {
       if (!response.ok) return catalogVersionHash;

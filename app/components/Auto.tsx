@@ -67,6 +67,56 @@ const handleBrandLogoLoadError = (event: React.SyntheticEvent<HTMLImageElement>)
   image.src = BRAND_LOGO_FALLBACK_PATH;
 };
 
+type CarBrandButtonProps = {
+  brand: CarBrand;
+  isCompact: boolean;
+  onSelect: (brand: CarBrand) => void;
+};
+
+const CarBrandButton = React.memo(function CarBrandButton({
+  brand,
+  isCompact,
+  onSelect,
+}: CarBrandButtonProps) {
+  return (
+    <button
+      type="button"
+      aria-label={`Обрати ${brand.name}`}
+      onClick={() => onSelect(brand)}
+      className={`group relative isolate flex w-full flex-col items-center justify-center gap-3 overflow-hidden bg-white/94 px-3 shadow-[0_14px_34px_rgba(15,23,42,0.12)] border border-slate-100/80 ring-1 ring-transparent transition-[border-color,background-color,box-shadow,ring-color,transform] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(59,130,246,0.14),0_6px_18px_rgba(14,165,233,0.1)] hover:ring-1 hover:ring-sky-200/80 hover:border-sky-100 hover:bg-sky-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-0 ${
+        isCompact
+          ? "rounded-[16px] py-2.5 min-h-[94px]"
+          : "rounded-xl py-3.5 min-h-[108px]"
+      }`}
+    >
+      <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.18),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.14),transparent_34%)] opacity-70 transition-opacity duration-300 ease-out group-hover:opacity-100" />
+      <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46" />
+      <span className="pointer-events-none absolute -right-12 -top-16 h-28 w-28 rounded-full bg-sky-200/22 blur-3xl opacity-70" />
+      <span className="pointer-events-none absolute -left-14 -bottom-16 h-32 w-32 rounded-full bg-cyan-200/18 blur-3xl opacity-70" />
+
+      <span className="relative flex h-[82px] w-[82px] items-center justify-center transition-transform duration-300 ease-out group-hover:scale-[1.03] group-active:scale-[0.99]">
+        <Image
+          src={brand.logo}
+          alt={`${brand.name} logo`}
+          width={320}
+          height={200}
+          quality={100}
+          draggable={false}
+          className="h-[66px] w-auto object-contain drop-shadow-[0_14px_22px_rgba(15,23,42,0.2)]"
+          style={{ imageRendering: "auto" }}
+          sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 240px"
+          onError={handleBrandLogoLoadError}
+          unoptimized
+        />
+      </span>
+
+      <span className="relative block w-full max-w-full truncate whitespace-nowrap text-center text-[10px] font-bold italic uppercase tracking-[0.08em] text-slate-800 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)] transition-colors duration-300 ease-out group-hover:text-sky-800 sm:text-[11px]">
+        {brand.name}
+      </span>
+    </button>
+  );
+});
+
 const normalizeCars = (value: unknown): string[] =>
   Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "")
@@ -549,6 +599,17 @@ const AutoSection: React.FC<AutoProps> = ({
     setBrandPage((prev) => Math.min(totalBrandPages - 1, prev + 1));
   };
 
+  const handleBrandSelect = useCallback((brand: CarBrand) => {
+    if (isSwiping.current) return;
+    setSelectedBrand(brand);
+    setSelectedModel(null);
+    setSelectedYear(null);
+    setSelectedModDetails(null);
+    setSelectedCarLabel(null);
+    lastSelectedLabelRef.current = null;
+    setActiveTab("model");
+  }, []);
+
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
     touchStartX.current = event.touches[0]?.clientX ?? null;
     touchDeltaX.current = 0;
@@ -897,7 +958,7 @@ const AutoSection: React.FC<AutoProps> = ({
 
   return (
     <div className="group/auto relative w-full select-none">
-      <div className="relative isolate overflow-hidden rounded-none border border-white/10 shadow-[0_22px_70px_rgba(15,23,42,0.35)]">
+      <div className="home-glow-section home-glow-section-indigo relative isolate overflow-hidden rounded-none border border-white/10 shadow-[0_22px_70px_rgba(15,23,42,0.35)]">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 transition-opacity duration-700 ease-out"
@@ -909,7 +970,7 @@ const AutoSection: React.FC<AutoProps> = ({
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-0"
+          className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-700 ease-out group-hover/auto:opacity-100"
           style={{
             backgroundImage: AUTO_BG_HOVER,
             backgroundSize: "220% 220%",
@@ -1003,57 +1064,18 @@ const AutoSection: React.FC<AutoProps> = ({
                     </div>
                     ) : (
                     <div
-                      key={`${safeBrandPage}-${filteredBrands.length}`}
                       className="group/logogrid mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 place-items-stretch group-hover/brands:[&_span[data-underline]]:scale-x-100 group-hover/logogrid:[&_span[data-underline]]:scale-x-100"
                       onTouchStart={handleTouchStart}
                       onTouchMove={handleTouchMove}
                       onTouchEnd={handleTouchEnd}
                     >
                         {pagedBrands.map((brand) => (
-                          <button
+                          <CarBrandButton
                             key={brand.id}
-                            type="button"
-                            aria-label={`Обрати ${brand.name}`}
-                            onClick={() => {
-                              if (isSwiping.current) return;
-                              setSelectedBrand(brand);
-                              setSelectedModel(null);
-                              setSelectedYear(null);
-                              setSelectedModDetails(null);
-                              setSelectedCarLabel(null);
-                              lastSelectedLabelRef.current = null;
-                              setActiveTab("model");
-                            }}
-                            className={`group relative isolate flex w-full flex-col items-center justify-center gap-3 overflow-hidden bg-white/94 px-3 sm:px-3.5 shadow-[0_14px_34px_rgba(15,23,42,0.12)] border border-slate-100/80 ring-1 ring-transparent transition-[border-color,background-color,box-shadow,ring-color] duration-300 ease-out hover:shadow-[0_18px_38px_rgba(59,130,246,0.14),0_6px_18px_rgba(14,165,233,0.1)] hover:ring-1 hover:ring-sky-200/80 hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-0 ${
-                              isCompact
-                                ? "rounded-[16px] py-2.5 min-h-[94px]"
-                                : "rounded-xl py-3.5 min-h-[108px]"
-                            }`}
-                          >
-                            <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
-                            <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
-                            <span className="pointer-events-none absolute -right-12 -top-16 h-28 w-28 rounded-full bg-sky-200/26 blur-3xl opacity-80" />
-                            <span className="pointer-events-none absolute -left-14 -bottom-16 h-32 w-32 rounded-full bg-cyan-200/22 blur-3xl opacity-75" />
-
-                          <div className="relative flex h-[82px] w-[82px] items-center justify-center transition-transform duration-300 ease-out group-active:scale-[0.99]">
-                              <Image
-                                src={brand.logo}
-                                alt={`${brand.name} logo`}
-                                width={320}
-                                height={200}
-                                quality={100}
-                                draggable={false}
-                                className="h-[66px] w-auto object-contain drop-shadow-[0_14px_22px_rgba(15,23,42,0.2)]"
-                                style={{ imageRendering: "auto" }}
-                                sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 240px"
-                                onError={handleBrandLogoLoadError}
-                              />
-                            </div>
-
-                          <span className="relative block w-full max-w-full truncate whitespace-nowrap text-[10px] sm:text-[11px] font-bold italic text-slate-800 text-center uppercase tracking-[0.08em] drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)] transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800">
-                            {brand.name}
-                          </span>
-                          </button>
+                            brand={brand}
+                            isCompact={isCompact}
+                            onSelect={handleBrandSelect}
+                          />
                         ))}
                       </div>
                   )}
