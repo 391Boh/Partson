@@ -61,9 +61,7 @@ export default async function sitemap(props: {
         entry.hasPhoto === false
           ? undefined
           : [
-              `${siteUrl}${buildProductImagePath(normalizedCode, entry.article, {
-                noFallback: true,
-              })}`,
+              `${siteUrl}${buildProductImagePath(normalizedCode)}`,
             ];
 
       return {
