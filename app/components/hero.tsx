@@ -1,8 +1,10 @@
 ﻿"use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import type { FC, SyntheticEvent } from "react";
-import { LogIn, UserPlus } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, LogIn, Sparkles, UserPlus, Wrench } from "lucide-react";
 
 interface HeroProps {
   isAuthenticated: boolean;
@@ -70,6 +72,7 @@ const Hero: FC<HeroProps> = ({
   onRegister,
   onAddVin,
 }) => {
+  const [isIntroExpanded, setIsIntroExpanded] = useState(false);
   const logoFallbackPath = "/favicon-192x192.png";
   const handleLogoClick = () => {
     window.location.reload();
@@ -84,7 +87,7 @@ const Hero: FC<HeroProps> = ({
 
   return (
     <section
-      className="font-ui relative isolate flex min-h-[calc(100svh-var(--header-height,4rem)-0.75rem)] w-full select-none items-center overflow-hidden py-6 sm:min-h-0 sm:py-8"
+      className="home-glow-section home-glow-section-indigo group/hero font-ui relative isolate flex min-h-[calc(100svh-var(--header-height,4rem)-0.75rem)] w-full select-none items-center overflow-hidden py-6 transition-[filter] duration-300 ease-out hover:saturate-[1.06] sm:min-h-0 sm:py-8"
       style={{
         backgroundImage: depthBackground,
       }}
@@ -95,7 +98,17 @@ const Hero: FC<HeroProps> = ({
         <div className="relative grid gap-4 text-slate-100 md:grid-cols-2 lg:grid-cols-3 lg:items-stretch">
           <div className="h-full min-w-0">
             <div
-              className={`home-glass-card relative flex min-h-[180px] h-full flex-col justify-start gap-1.5 overflow-hidden rounded-2xl border border-white/10 p-3 shadow-[0_10px_24px_rgba(2,6,23,0.26)] ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/12 hover:shadow-[0_14px_28px_rgba(2,6,23,0.3)] sm:min-h-0 sm:justify-center`}
+              role="button"
+              tabIndex={0}
+              aria-expanded={isIntroExpanded}
+              onClick={() => setIsIntroExpanded((value) => !value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setIsIntroExpanded((value) => !value);
+                }
+              }}
+              className={`home-glass-card relative flex min-h-[180px] h-full cursor-pointer flex-col justify-start gap-1.5 overflow-hidden rounded-2xl border border-white/10 p-3 shadow-[0_10px_24px_rgba(2,6,23,0.26)] outline-none ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/12 hover:shadow-[0_14px_28px_rgba(2,6,23,0.3)] focus-visible:ring-2 focus-visible:ring-sky-200/80 sm:min-h-0 sm:justify-center`}
             >
               <span className="pointer-events-none absolute inset-0 rounded-2xl border border-sky-200/10" />
               <div className="pointer-events-none absolute inset-0 opacity-30 bg-[image:radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.16),transparent_44%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,0.12),transparent_48%)]" />
@@ -109,26 +122,60 @@ const Hero: FC<HeroProps> = ({
                   </svg>
                 </span>
                 <div className="flex min-w-0 flex-col gap-1">
-                  <h1 className="font-display break-words text-[15px] font-extrabold italic leading-snug tracking-[0.04em] text-sky-50 sm:text-[18px] md:text-[20px] md:leading-tight">
-                    Інтернет-магазин автозапчастин у Львові
-                  </h1>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="font-display break-words text-[15px] font-extrabold italic leading-snug tracking-[0.04em] text-sky-50 sm:text-[18px] md:text-[20px] md:leading-tight">
+                      Інтернет-магазин автозапчастин у Львові
+                    </h1>
+                    <span className="relative inline-flex items-center gap-1 rounded-full border border-emerald-200/45 bg-emerald-300/14 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-100 shadow-[0_0_18px_rgba(52,211,153,0.22)]">
+                      <Sparkles className="h-3 w-3" strokeWidth={2} aria-hidden="true" />
+                      New
+                      <span className="pointer-events-none absolute inset-0 rounded-full border border-emerald-100/20 motion-safe:animate-ping" />
+                    </span>
+                  </div>
                   <span className="mt-1 h-0.5 w-32 bg-gradient-to-r from-sky-300/80 via-white/30 to-transparent" />
                 </div>
               </div>
-              <div className="relative z-10 space-y-2 pt-1.5">
-                <p
-                  className={`${heroHeadingText} mt-1 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[18px] leading-tight sm:text-[20px] md:mb-2 md:flex-nowrap md:items-baseline md:text-[22px] lg:text-[24px]`}
+              <div className="relative z-10 min-h-[82px] pt-1.5">
+                <div
+                  className={`space-y-2 transition-all duration-300 ease-out ${
+                    isIntroExpanded
+                      ? "pointer-events-none absolute inset-x-0 top-1.5 -translate-y-2 opacity-0"
+                      : "translate-y-0 opacity-100"
+                  }`}
                 >
-                  <span className="text-[20px] sm:text-[23px] md:text-[25px] lg:text-[27px]">
-                    PartsON
-                  </span>
-                  <span className="text-[17px] sm:text-[19px] md:text-[21px] lg:text-[23px]">
-                    — знайдеться все!
-                  </span>
-                </p>
-                <p className="font-display relative ml-auto max-w-[34ch] pr-2 text-right text-sm font-semibold italic leading-relaxed tracking-[0.05em] text-sky-100/90 sm:pr-3 sm:text-base md:text-[17px] after:mt-2 after:ml-auto after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-sky-300/80 after:via-white/30 after:to-transparent">
-                  Кожна деталь важлива...
-                </p>
+                  <p
+                    className={`${heroHeadingText} mt-1 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[18px] leading-tight sm:text-[20px] md:mb-2 md:flex-nowrap md:items-baseline md:text-[22px] lg:text-[24px]`}
+                  >
+                    <span className="text-[20px] sm:text-[23px] md:text-[25px] lg:text-[27px]">
+                      PartsON
+                    </span>
+                    <span className="text-[17px] sm:text-[19px] md:text-[21px] lg:text-[23px]">
+                      — знайдеться все!
+                    </span>
+                  </p>
+                  <p className="font-display relative ml-auto max-w-[34ch] pr-2 text-right text-sm font-semibold italic leading-relaxed tracking-[0.05em] text-sky-100/90 sm:pr-3 sm:text-base md:text-[17px] after:mt-2 after:ml-auto after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-sky-300/80 after:via-white/30 after:to-transparent">
+                    Кожна деталь важлива...
+                  </p>
+                </div>
+                <div
+                  className={`transition-all duration-300 ease-out ${
+                    isIntroExpanded
+                      ? "translate-y-0 opacity-100"
+                      : "pointer-events-none absolute inset-x-0 top-1.5 translate-y-2 opacity-0"
+                  }`}
+                >
+                  <Link
+                    href="/inform/diagnostics"
+                    onClick={(event) => event.stopPropagation()}
+                    className="inline-flex w-full items-center justify-between rounded-xl border border-emerald-100/35 bg-emerald-200/16 px-3.5 py-3 text-[12px] font-black uppercase tracking-[0.12em] text-emerald-50 transition-[border-color,background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-emerald-50/60 hover:bg-emerald-200/24 hover:shadow-[0_10px_22px_rgba(16,185,129,0.18)]"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Wrench className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+                      Комп&apos;ютерна діагностика
+                    </span>
+                    <ChevronRight className="h-4 w-4" strokeWidth={2.2} aria-hidden="true" />
+                  </Link>
+                </div>
               </div>
             </div>
           </div>

@@ -13,6 +13,7 @@ import {
   FaWallet,
   FaBoxes,
   FaShieldAlt,
+  FaTools,
 } from "react-icons/fa";
 import { SiFacebook, SiInstagram, SiTelegram } from "react-icons/si";
 import React from "react";
@@ -152,6 +153,12 @@ export default function Footer() {
                 <Link className={infoLinkClass} href="/auto">
                   <FaCarSide className={infoIconClass} />
                   <span>Марки і моделі авто</span>
+                </Link>
+              </li>
+              <li>
+                <Link className={infoLinkClass} href="/inform/diagnostics">
+                  <FaTools className={infoIconClass} />
+                  <span>Комп&apos;ютерна діагностика</span>
                 </Link>
               </li>
               <li>

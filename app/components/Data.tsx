@@ -37,6 +37,7 @@ export interface Product {
   article: string;
   name: string;
   producer: string;
+  description?: string;
   quantity: number;
   priceEuro?: number | null;
   group?: string;
@@ -50,7 +51,7 @@ export interface Product {
 const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v31-price-sort-keeps-unpriced";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v33-description-cursor-search";
 const PRICE_CACHE_PREFIX = "partson:v10:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -66,7 +67,7 @@ const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 0;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 0;
-const IMAGE_PRIORITY_ITEMS_COUNT = 2;
+const IMAGE_PRIORITY_ITEMS_COUNT = 4;
 const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 18;
 const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = 24;
 const LOAD_MORE_SCROLL_BUFFER_PX = 1200;
@@ -106,6 +107,15 @@ const PRODUCER_FIELDS = [
   "\u041f\u0440\u043e\u0438\u0437\u0432\u043e\u0434\u0438\u0442\u0435\u043b\u044c", // РџСЂРѕРёР·РІРѕРґРёС‚РµР»СЊ
   "\u0411\u0440\u0435\u043d\u0434", // Р‘СЂРµРЅРґ
   "producer",
+];
+const DESCRIPTION_FIELDS = [
+  "\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435",
+  "\u041e\u043f\u0438\u0441",
+  "Description",
+  "description",
+  "\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435\u041d\u043e\u043c\u0435\u043d\u043a\u043b\u0430\u0442\u0443\u0440\u044b",
+  "\u041d\u043e\u043c\u0435\u043d\u043a\u043b\u0430\u0442\u0443\u0440\u0430\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435",
+  "\u0422\u0435\u043a\u0441\u0442\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u044f",
 ];
 const QTY_FIELDS = [
   "\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e", // РљРѕР»РёС‡РµСЃС‚РІРѕ
@@ -400,22 +410,61 @@ const getProductPriceLookupKeys = (item: Pick<Product, "code" | "article">) =>
     new Set([(item.article || "").trim(), (item.code || "").trim()].filter(Boolean))
   );
 
+const getResolvedProductPriceEuro = (
+  item: Pick<Product, "code" | "article" | "priceEuro">,
+  prices: Record<string, number | null>
+) => {
+  const priceKeys = Array.from(
+    new Set([getProductPriceStateKey(item), ...getProductPriceLookupKeys(item)].filter(Boolean))
+  );
+
+  for (const key of priceKeys) {
+    const cachedEuro = prices[key];
+    if (typeof cachedEuro === "number" && Number.isFinite(cachedEuro) && cachedEuro > 0) {
+      return cachedEuro;
+    }
+  }
+
+  if (
+    typeof item.priceEuro === "number" &&
+    Number.isFinite(item.priceEuro) &&
+    item.priceEuro > 0
+  ) {
+    return item.priceEuro;
+  }
+
+  if (priceKeys.some((key) => prices[key] === null)) {
+    return null;
+  }
+
+  return item.priceEuro ?? null;
+};
+
+const hasResolvedProductPriceState = (
+  item: Pick<Product, "code" | "article" | "priceEuro">,
+  prices: Record<string, number | null>
+) => {
+  if (
+    typeof item.priceEuro === "number" &&
+    Number.isFinite(item.priceEuro) &&
+    item.priceEuro > 0
+  ) {
+    return true;
+  }
+
+  const priceKeys = Array.from(
+    new Set([getProductPriceStateKey(item), ...getProductPriceLookupKeys(item)].filter(Boolean))
+  );
+
+  return priceKeys.some((key) => Object.prototype.hasOwnProperty.call(prices, key));
+};
+
 const getResolvedProductPriceUAH = (
   item: Pick<Product, "code" | "article" | "priceEuro">,
   prices: Record<string, number | null>,
   euroRate: number
 ) => {
-  const priceKey = getProductPriceStateKey(item);
-  const cachedEuro = priceKey ? prices[priceKey] : undefined;
-  const resolvedEuro =
-    typeof cachedEuro === "number" && Number.isFinite(cachedEuro) && cachedEuro > 0
-      ? cachedEuro
-      : typeof item.priceEuro === "number" && Number.isFinite(item.priceEuro) && item.priceEuro > 0
-        ? item.priceEuro
-        : cachedEuro === null
-          ? null
-          : item.priceEuro ?? null;
-
+  const resolvedEuro = getResolvedProductPriceEuro(item, prices);
   return toPriceUAH(resolvedEuro, euroRate);
 };
 
@@ -454,6 +503,7 @@ const normalizeProduct = (raw: unknown): Product => {
   })();
   const quantity = readFirstNumber(record, QTY_FIELDS, 0);
   const priceEuro = readFirstNumber(record, PRICE_VALUE_FIELDS, Number.NaN);
+  const description = readFirstString(record, DESCRIPTION_FIELDS);
 
   const group = readFirstString(record, GROUP_FIELDS);
   const subGroup = readFirstString(record, SUBGROUP_FIELDS);
@@ -472,6 +522,7 @@ const normalizeProduct = (raw: unknown): Product => {
     article,
     name,
     producer,
+    description,
     quantity,
     priceEuro: Number.isFinite(priceEuro) && priceEuro > 0 ? priceEuro : null,
     group,
@@ -624,6 +675,9 @@ const normalizeOptionalCacheString = (value: string | null | undefined) => {
   const normalized = normalizeCacheString(value);
   return normalized || null;
 };
+
+const normalizeFilterToken = (value: string | null | undefined) =>
+  (value || "").replace(/\s+/g, " ").trim().toLowerCase();
 
 const normalizeCacheList = (values: string[]) =>
   Array.from(
@@ -967,7 +1021,7 @@ function useCatalogData(params: {
   selectedCars: string[];
   selectedCategories: string[];
   rawSearchQuery: string;
-  searchFilter: "all" | "article" | "name" | "code" | "producer";
+  searchFilter: "all" | "article" | "name" | "code" | "producer" | "description";
   groupFromURL: string | null;
   subcategoryFromURL: string | null;
   producerFromURL: string | null;
@@ -1166,12 +1220,22 @@ function useCatalogData(params: {
         const stateKey = getProductPriceStateKey(item);
         if (!stateKey) continue;
 
-        const resolvedPrice = resolvedPrices[stateKey];
+        const lookupKeys = getProductPriceLookupKeys(item);
+        const resolvedPrice = Object.prototype.hasOwnProperty.call(resolvedPrices, stateKey)
+          ? resolvedPrices[stateKey]
+          : lookupKeys
+              .filter((lookupKey) =>
+                Object.prototype.hasOwnProperty.call(resolvedPrices, lookupKey)
+              )
+              .map((lookupKey) => resolvedPrices[lookupKey])[0];
         if (resolvedPrice === undefined) continue;
 
         nextUpdates[stateKey] = resolvedPrice;
+        for (const lookupKey of lookupKeys) {
+          nextUpdates[lookupKey] = resolvedPrice;
+        }
         writeCachedPriceEntry(stateKey, resolvedPrice);
-        for (const lookupKey of getProductPriceLookupKeys(item)) {
+        for (const lookupKey of lookupKeys) {
           writeCachedPriceEntry(lookupKey, resolvedPrice);
         }
 
@@ -1241,7 +1305,19 @@ function useCatalogData(params: {
           continue;
         }
 
-        const prefetchedPrice = prefetchedPrices[stateKey];
+        const lookupKeys = getProductPriceLookupKeys(item);
+        if (lookupKeys.length === 0) continue;
+
+        const prefetchedPrice = Object.prototype.hasOwnProperty.call(
+          prefetchedPrices,
+          stateKey
+        )
+          ? prefetchedPrices[stateKey]
+          : lookupKeys
+              .filter((lookupKey) =>
+                Object.prototype.hasOwnProperty.call(prefetchedPrices, lookupKey)
+              )
+              .map((lookupKey) => prefetchedPrices[lookupKey])[0];
         if (
           typeof prefetchedPrice === "number" &&
           Number.isFinite(prefetchedPrice) &&
@@ -1277,9 +1353,6 @@ function useCatalogData(params: {
         }
 
         if (priceLoadingKeysRef.current.has(stateKey)) continue;
-
-        const lookupKeys = getProductPriceLookupKeys(item);
-        if (lookupKeys.length === 0) continue;
 
         const cachedStateEntry = readCachedPriceEntry(stateKey);
         const cachedEntry = cachedStateEntry.hit
@@ -1366,6 +1439,9 @@ function useCatalogData(params: {
           if (resolvedPrice === undefined) continue;
 
           nextUpdates[item.stateKey] = resolvedPrice;
+          for (const lookupKey of item.lookupKeys) {
+            nextUpdates[lookupKey] = resolvedPrice;
+          }
           writeCachedPriceEntry(item.stateKey, resolvedPrice);
           for (const lookupKey of item.lookupKeys) {
             writeCachedPriceEntry(lookupKey, resolvedPrice);
@@ -2535,6 +2611,7 @@ function useCatalogData(params: {
         articleLower: (item.article || "").toLowerCase(),
         nameLower: (item.name || "").toLowerCase(),
         producerLower: (item.producer || "").toLowerCase(),
+        descriptionLower: (item.description || "").toLowerCase(),
       })),
     [uniqueData]
   );
@@ -2544,13 +2621,18 @@ function useCatalogData(params: {
     const q = normalizedSearchLower;
     const selectedCategorySet =
       effectiveSelectedCategories.length > 0
-        ? new Set(effectiveSelectedCategories)
+        ? new Set(
+            effectiveSelectedCategories
+              .map((value) => normalizeFilterToken(value))
+              .filter(Boolean)
+          )
         : null;
-    const producerQuery = (producerFromURL || "").toLowerCase();
+    const producerQuery = normalizeFilterToken(producerFromURL);
 
     return searchableUniqueData
-      .filter(({ item, codeLower, articleLower, nameLower, producerLower }) => {
+      .filter(({ item, codeLower, articleLower, nameLower, producerLower, descriptionLower }) => {
         const producerMatch = !producerQuery || producerLower.includes(producerQuery);
+        const isDescriptionSearch = searchFilter === "description" && q.length > 0;
 
         const match =
           searchFilter === "article"
@@ -2561,18 +2643,21 @@ function useCatalogData(params: {
                 ? codeLower.includes(q)
                 : searchFilter === "producer"
                   ? producerLower.includes(q)
+                  : searchFilter === "description"
+                    ? true
                   : codeLower.includes(q) ||
                     articleLower.includes(q) ||
                     nameLower.includes(q) ||
-                    producerLower.includes(q);
+                    producerLower.includes(q) ||
+                    descriptionLower.includes(q);
 
         const catMatch =
           selectedCategorySet == null ||
-          selectedCategorySet.has(item.subGroup || "") ||
-          selectedCategorySet.has(item.group || "") ||
-          selectedCategorySet.has(item.category || "");
+          selectedCategorySet.has(normalizeFilterToken(item.subGroup)) ||
+          selectedCategorySet.has(normalizeFilterToken(item.group)) ||
+          selectedCategorySet.has(normalizeFilterToken(item.category));
 
-        return match && catMatch && producerMatch;
+        return (isDescriptionSearch || match) && catMatch && producerMatch;
       })
       .map(({ item }) => item);
   }, [
@@ -2613,8 +2698,7 @@ function useCatalogData(params: {
         return;
       }
 
-      const priceKey = getProductPriceStateKey(item);
-      const euro = prices[priceKey] ?? null;
+      const euro = getResolvedProductPriceEuro(item, prices);
       const priceUAH = toPriceUAH(euro, euroRate);
 
       if (priceUAH == null) {
@@ -2728,7 +2812,7 @@ const Data: React.FC<DataProps> = ({
 
   const rawSearchQuery = currentSearchParams.get("search") || "";
   const searchFilter =
-    (currentSearchParams.get("filter") as "all" | "article" | "name" | "code" | "producer") ||
+    (currentSearchParams.get("filter") as "all" | "article" | "name" | "code" | "producer" | "description") ||
     "all";
 
   const groupFromURL = currentSearchParams.get("group");
@@ -2904,11 +2988,9 @@ const Data: React.FC<DataProps> = ({
     if (sortOrder === "none") return false;
 
     return filteredData.some((item) => {
-      const priceKey = getProductPriceStateKey(item);
-      if (!priceKey) return false;
       const priceUAH = getResolvedProductPriceUAH(item, prices, euroRate);
       if (priceUAH != null) return false;
-      return !Object.prototype.hasOwnProperty.call(prices, priceKey);
+      return !hasResolvedProductPriceState(item, prices);
     });
   }, [filteredData, prices, euroRate, sortOrder]);
   const shouldShowInitialSkeleton =
@@ -3340,7 +3422,7 @@ const Data: React.FC<DataProps> = ({
               )}
 
               {entriesToRender.map((entry, index) => {
-                const { item, priceKey, stableKey } = entry;
+                const { item, stableKey } = entry;
                 const priceUAH =
                   entry.priceUAH ?? getResolvedProductPriceUAH(item, prices, euroRate);
                 if (!item?.code) return null;
@@ -3349,12 +3431,9 @@ const Data: React.FC<DataProps> = ({
                 const qty = quantities[code] ?? 1;
                 const cartQty = cartMap[code] ?? 0;
                 const absoluteIndex = effectiveVirtualWindowStartIndex + index;
-                const hasResolvedPriceState =
-                  priceKey
-                    ? Object.prototype.hasOwnProperty.call(prices, priceKey)
-                    : false;
+                const hasResolvedPriceState = hasResolvedProductPriceState(item, prices);
                 const isKnownNoPrice =
-                  hasResolvedPriceState && prices[priceKey] === null;
+                  hasResolvedPriceState && getResolvedProductPriceEuro(item, prices) === null;
                 const hasInlineNoPrice =
                   selectedCars.length === 0 && item.priceEuro === null;
 

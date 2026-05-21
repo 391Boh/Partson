@@ -1312,26 +1312,16 @@ export const fetchCatalogProductsByQuery = async (options: {
     const runAllgoodsDescriptionSearch = async () => {
       const descriptionQuery = normalizeFacetValue(searchQuery);
       const descriptionTokens = buildDescriptionSearchTokens(searchQuery);
-      const targetCount = page * limit + 1;
-      const scanLimit = Math.min(500, Math.max(limit * 12, 120));
-      const maxScannedItems = Math.min(2500, Math.max(targetCount * 16, scanLimit));
-      const minScannedItems = Math.min(
-        maxScannedItems,
-        Math.max(scanLimit, targetCount * 8)
-      );
-      const scoredByKey = new Map<
-        string,
-        { item: CatalogProduct; score: number; index: number }
-      >();
-      let scanCursor = "";
+      const targetCount = limit;
+      const scanLimit = Math.min(240, Math.max(limit * 8, 96));
+      const maxScannedItems = Math.min(1200, Math.max(targetCount * 24, scanLimit));
+      const matches: CatalogProduct[] = [];
+      const seen = new Set<string>();
+      let scanCursor = cursor;
       let scannedItems = 0;
       let hasMoreSource = false;
-      let scanIndex = 0;
 
-      while (
-        scannedItems < maxScannedItems &&
-        (scannedItems < minScannedItems || scoredByKey.size < targetCount)
-      ) {
+      while (scannedItems < maxScannedItems && matches.length < targetCount) {
         const pageResult = await fetchAllgoodsProductsPageDetailed({
           page: 1,
           limit: scanLimit,
@@ -1353,7 +1343,6 @@ export const fetchCatalogProductsByQuery = async (options: {
             descriptionTokens
           );
           if (score <= 0) {
-            scanIndex += 1;
             continue;
           }
 
@@ -1362,15 +1351,14 @@ export const fetchCatalogProductsByQuery = async (options: {
             normalizeFacetValue(item.article) ||
             `${normalizeFacetValue(item.name)}:${normalizeFacetValue(item.producer)}`;
           if (!dedupeKey) {
-            scanIndex += 1;
+            continue;
+          }
+          if (seen.has(dedupeKey)) {
             continue;
           }
 
-          const existing = scoredByKey.get(dedupeKey);
-          if (!existing || score > existing.score) {
-            scoredByKey.set(dedupeKey, { item, score, index: scanIndex });
-          }
-          scanIndex += 1;
+          seen.add(dedupeKey);
+          matches.push(item);
         }
 
         if (!pageResult.hasMore || !pageResult.nextCursor || pageResult.items.length === 0) {
@@ -1378,26 +1366,46 @@ export const fetchCatalogProductsByQuery = async (options: {
         }
 
         scanCursor = pageResult.nextCursor;
+        if (matches.length >= targetCount) {
+          break;
+        }
       }
 
-      const matches = Array.from(scoredByKey.values())
-        .sort((left, right) => {
-          if (right.score !== left.score) return right.score - left.score;
-          return left.index - right.index;
-        })
-        .map(({ item }) => item);
-      const start = (page - 1) * limit;
-      const pageItems = matches.slice(start, start + limit);
+      const hasMore = hasMoreSource && Boolean(scanCursor);
 
       return {
-        items: pageItems,
-        hasMore: matches.length > start + limit || (hasMoreSource && scannedItems >= maxScannedItems),
-        nextCursor: "",
+        items: matches,
+        hasMore,
+        nextCursor: hasMore ? scanCursor : "",
       };
     };
 
     try {
       if (searchFilter === "description" && searchQuery) {
+        const directDescriptionQuery = normalizeFacetValue(searchQuery);
+        const directDescriptionTokens = buildDescriptionSearchTokens(searchQuery);
+
+        for (const searchKey of ALLGOODS_DESC_FIELDS.slice(0, 3)) {
+          const directPageResult = await runAllgoods(searchKey);
+          const directMatches = directPageResult.items.filter(
+            (item) =>
+              scoreDescriptionSearchItem(
+                item,
+                directDescriptionQuery,
+                directDescriptionTokens
+              ) > 0
+          );
+
+          if (directMatches.length > 0 || cursor) {
+            return {
+              ...directPageResult,
+              items: directMatches,
+              hasMore: directPageResult.hasMore || directMatches.length >= limit,
+              cursorField: searchKey,
+            };
+          }
+        }
+
         const pageResult = await runAllgoodsDescriptionSearch();
         return {
           ...pageResult,

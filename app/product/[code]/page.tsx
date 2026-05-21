@@ -30,6 +30,7 @@ import {
   EMPTY_CATALOG_SEO_FACETS,
   getCatalogSeoFacetsWithTimeout,
 } from "app/lib/catalog-seo";
+import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import {
   buildLegacyProductNameSlug,
   buildProductPath,
@@ -183,6 +184,15 @@ const matchesLandingFacet = (
     candidate.slug === normalizedSlug
   );
 };
+
+const matchesProducerGroupFacet = (
+  candidate: { label: string; slug: string; filterValue?: string },
+  value: string | null | undefined
+) =>
+  matchesLandingFacet(candidate, value) ||
+  (candidate.filterValue
+    ? matchesLandingFacet({ label: candidate.filterValue, slug: candidate.slug }, value)
+    : false);
 
 const buildProductGroupLandingFallbackPath = (
   productCategory: string,
@@ -1510,12 +1520,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
   });
 
   const siteUrl = getSiteUrl();
-  const seoFacets =
+  const hasSeoFacetHints = Boolean(
     productGroup || productCategory || productSubgroup || product.producer
-      ? await getCatalogSeoFacetsWithTimeout(PRODUCT_PAGE_SEO_FACETS_TIMEOUT_MS).catch(
-          () => EMPTY_CATALOG_SEO_FACETS
-        )
-      : EMPTY_CATALOG_SEO_FACETS;
+  );
+  const rawSeoFacets = hasSeoFacetHints
+    ? await getCatalogSeoFacetsWithTimeout(PRODUCT_PAGE_SEO_FACETS_TIMEOUT_MS).catch(
+        () => EMPTY_CATALOG_SEO_FACETS
+      )
+    : EMPTY_CATALOG_SEO_FACETS;
+  const seoFacets = hasSeoFacetHints
+    ? await resolveCatalogSeoFacetsWithFallback(rawSeoFacets, getAllProductSitemapEntries)
+    : rawSeoFacets;
   const producerFacet = product.producer
     ? seoFacets.producers.find((producer) =>
         matchesLandingFacet(producer, product.producer)
@@ -1533,6 +1548,33 @@ export default async function ProductPage({ params }: ProductPageProps) {
           matchesLandingFacet(subgroup, productSubgroup)
         ) || null
       : null;
+  const producerGroupFacet =
+    producerFacet && (productGroup || productCategory)
+      ? producerFacet.topGroups.find(
+          (group) =>
+            matchesProducerGroupFacet(group, productGroup) ||
+            matchesProducerGroupFacet(group, productCategory)
+        ) || null
+      : null;
+  const producerSubgroupFacet =
+    producerGroupFacet && productSubgroup
+      ? producerGroupFacet.subgroups.find((subgroup) =>
+          matchesLandingFacet(subgroup, productSubgroup)
+        ) || null
+      : null;
+  const catalogGroupFilterValue =
+    producerGroupFacet?.filterValue ||
+    producerGroupFacet?.label ||
+    groupFacet?.label ||
+    productGroup ||
+    productCategory ||
+    undefined;
+  const catalogSubcategoryFilterValue =
+    producerSubgroupFacet?.label || subgroupFacet?.label || productSubgroup || undefined;
+  const categoryCatalogGroupValue =
+    groupFacet?.label || productGroup || productCategory || productSubgroup;
+  const categoryCatalogSubcategoryValue =
+    subgroupFacet?.label || productSubgroup || undefined;
   const groupSeoFallbackPath = productGroup
     ? groupFacet
       ? buildGroupPath(groupFacet.slug)
@@ -1541,14 +1583,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const producerLandingPath = product.producer
     ? buildManufacturerPath(producerFacet?.slug || product.producer)
     : null;
-  const categoryCatalogPath = productGroup || productSubgroup
-    ? buildCatalogCategoryPath(productGroup || productSubgroup, productSubgroup || undefined)
+  const categoryCatalogPath = categoryCatalogGroupValue
+    ? buildCatalogCategoryPath(categoryCatalogGroupValue, categoryCatalogSubcategoryValue)
     : "/katalog";
   const producerCatalogPath = product.producer
     ? buildCatalogProducerPath(
         product.producer,
-        productGroup || undefined,
-        productSubgroup || undefined
+        catalogGroupFilterValue,
+        catalogSubcategoryFilterValue
       )
     : null;
   const groupLandingPath = groupSeoFallbackPath;

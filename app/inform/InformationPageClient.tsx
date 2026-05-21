@@ -2,11 +2,15 @@ import { memo, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   Award,
+  Activity,
+  AlertTriangle,
   Building2,
   Car,
   CheckCircle,
   Clock,
+  Cpu,
   CreditCard,
+  Gauge,
   Info,
   MapPin,
   MessageCircle,
@@ -19,6 +23,7 @@ import {
   Truck,
   Users,
   Wallet,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -27,10 +32,13 @@ import {
   informationSections,
   type InformationSectionKey,
 } from './section-config';
+import DiagnosticsConsultationForm from './DiagnosticsConsultationForm';
 
 // ─── Константи контактів ───────────────────────────────────────────────────
 const PHONE_RAW = '+380634211851';
 const PHONE_DISPLAY = '+38 (063) 421-18-51';
+const DIAGNOSTICS_PHONE_RAW = '+380934804261';
+const DIAGNOSTICS_PHONE_DISPLAY = '+38 (093) 480-42-61';
 const ADDRESS = 'Львів, вул. Перфецького, 8';
 const MAPS_URL = 'https://www.google.com/maps?cid=11517394092669341405';
 const MAPS_EMBED_URL = 'https://www.google.com/maps?cid=11517394092669341405&output=embed';
@@ -58,6 +66,7 @@ const iconMap: Record<InformationSectionKey, LucideIcon> = {
   privacy: ShieldCheck,
   warranty: Award,
   returns: RefreshCcw,
+  diagnostics: Wrench,
 };
 
 const tabs = informationSections.map((s) => ({ ...s, icon: iconMap[s.key] }));
@@ -200,6 +209,144 @@ const AboutTab = () => (
     <InfoCard title={"Зв'язок та підтримка"} icon={MessageCircle} accent="cyan">
       <p>{"Оперативний зв'язок через чат у робочий час. Менеджер зорієнтує по наявності, термінах і доставці."}</p>
     </InfoCard>
+  </div>
+);
+
+const diagnosticsBrandModels = [
+  { brand: 'Audi', models: ['A3', 'A4', 'A5', 'A6', 'Q3', 'Q5', 'Q7'] },
+  { brand: 'BMW', models: ['1 Series', '3 Series', '5 Series', 'X1', 'X3', 'X5'] },
+  { brand: 'Mercedes-Benz', models: ['A-Class', 'C-Class', 'E-Class', 'GLA', 'GLC', 'Vito', 'Sprinter'] },
+  { brand: 'Volkswagen', models: ['Golf', 'Passat', 'Polo', 'Tiguan', 'Touareg', 'Transporter', 'Caddy'] },
+  { brand: 'Skoda', models: ['Fabia', 'Octavia', 'Superb', 'Rapid', 'Kodiaq', 'Karoq'] },
+  { brand: 'Seat', models: ['Ibiza', 'Leon', 'Altea', 'Ateca', 'Tarraco'] },
+  { brand: 'Opel', models: ['Astra', 'Vectra', 'Insignia', 'Zafira', 'Corsa', 'Vivaro'] },
+  { brand: 'Ford', models: ['Fiesta', 'Focus', 'Mondeo', 'Kuga', 'Transit', 'S-Max'] },
+  { brand: 'Renault', models: ['Clio', 'Megane', 'Scenic', 'Laguna', 'Logan', 'Duster', 'Trafic'] },
+  { brand: 'Peugeot', models: ['206', '207', '308', '3008', '5008', 'Partner', 'Boxer'] },
+  { brand: 'Citroen', models: ['C3', 'C4', 'C5', 'Berlingo', 'Jumpy', 'Jumper'] },
+  { brand: 'Toyota', models: ['Yaris', 'Corolla', 'Camry', 'Avensis', 'RAV4', 'Land Cruiser'] },
+  { brand: 'Lexus', models: ['IS', 'ES', 'GS', 'NX', 'RX', 'LX'] },
+  { brand: 'Nissan', models: ['Micra', 'Juke', 'Qashqai', 'X-Trail', 'Note', 'Navara'] },
+  { brand: 'Mazda', models: ['2', '3', '5', '6', 'CX-3', 'CX-5', 'CX-7'] },
+  { brand: 'Honda', models: ['Civic', 'Accord', 'CR-V', 'HR-V', 'Jazz'] },
+  { brand: 'Hyundai', models: ['i20', 'i30', 'Elantra', 'Sonata', 'Tucson', 'Santa Fe'] },
+  { brand: 'Kia', models: ['Rio', 'Ceed', 'Cerato', 'Sportage', 'Sorento', 'Optima'] },
+  { brand: 'Mitsubishi', models: ['Lancer', 'Outlander', 'Pajero', 'ASX', 'L200'] },
+  { brand: 'Volvo', models: ['S40', 'S60', 'S80', 'V50', 'V70', 'XC60', 'XC90'] },
+  { brand: 'Fiat', models: ['500', 'Panda', 'Punto', 'Doblo', 'Ducato'] },
+  { brand: 'Jeep', models: ['Renegade', 'Compass', 'Cherokee', 'Grand Cherokee', 'Wrangler'] },
+  { brand: 'Chevrolet', models: ['Aveo', 'Lacetti', 'Cruze', 'Captiva', 'Orlando'] },
+];
+
+const DiagnosticsTab = () => (
+  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="lg:col-span-2">
+      <InfoCard title="Комп'ютерна діагностика авто у Львові" icon={Wrench} accent="sky" featured>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(320px,1.05fr)] lg:items-stretch">
+          <div className="flex h-full flex-col justify-between gap-3 lg:py-1">
+            <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-200/80 bg-sky-50/90 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">
+              <Wrench size={14} strokeWidth={2} aria-hidden="true" />
+              Діагностика + консультація
+            </div>
+            <p className="text-[14px] leading-7 text-slate-600">
+              PartsON виконує <strong className="font-semibold text-slate-700">комп&apos;ютерну діагностику автомобіля у Львові</strong>:
+              зчитуємо помилки OBD-II/EOBD, перевіряємо електронні блоки, пояснюємо причину
+              несправності зрозумілою мовою та допомагаємо підібрати потрібні автозапчастини.
+            </p>
+            <ul className="grid gap-2 text-[13px] font-semibold leading-relaxed text-slate-600">
+              <Li icon={CheckCircle} cls="text-sky-500">Check Engine, ABS, ESP, SRS Airbag, АКПП, датчики та електроніка.</Li>
+              <Li icon={CheckCircle} cls="text-sky-500">Зчитування кодів, пояснення причини та рекомендації щодо ремонту.</Li>
+              <Li icon={CheckCircle} cls="text-sky-500">Підбір потрібних запчастин після перевірки авто.</Li>
+            </ul>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              <a
+                href={`tel:${DIAGNOSTICS_PHONE_RAW}`}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-600 px-4 py-2.5 text-[13px] font-extrabold text-white shadow-[0_10px_24px_rgba(14,165,233,0.22)] transition hover:bg-sky-700 active:scale-[0.98]"
+              >
+                <Phone size={15} strokeWidth={2} />
+                {DIAGNOSTICS_PHONE_DISPLAY}
+              </a>
+              <span className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white/75 px-3 py-2 text-center text-[12px] font-semibold text-slate-600">
+                {ADDRESS}
+              </span>
+            </div>
+          </div>
+          <div className="h-full">
+            <DiagnosticsConsultationForm
+              phoneRaw={DIAGNOSTICS_PHONE_RAW}
+              phoneDisplay={DIAGNOSTICS_PHONE_DISPLAY}
+            />
+          </div>
+        </div>
+      </InfoCard>
+    </div>
+
+    <InfoCard title="Що перевіряємо комп'ютером" icon={Cpu} accent="emerald">
+      <ul className="space-y-3">
+        <Li icon={Activity} cls="text-emerald-500">Блок керування двигуном ECU: пропуски запалювання, суміш, датчики кисню, MAF/MAP, тиск палива, EGR, турбіна.</Li>
+        <Li icon={ShieldCheck} cls="text-emerald-500">ABS, ESP, SRS Airbag, електропідсилювач керма, гальмівні системи та датчики швидкості коліс.</Li>
+        <Li icon={Gauge} cls="text-emerald-500">АКПП, DSG, CVT, роботизовані коробки, температура, соленоїди, адаптації та аварійні режими.</Li>
+        <Li icon={Car} cls="text-emerald-500">Комфортна електроніка: клімат, парктроніки, світло, центральний замок, CAN/LIN мережі.</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Типи помилок і симптомів" icon={AlertTriangle} accent="amber">
+      <ul className="space-y-3">
+        <Li icon={AlertTriangle} cls="text-amber-500">Коди <strong className="font-semibold text-slate-700">P0/P1</strong> — двигун, паливна система, запалювання, екологія, турбіна.</Li>
+        <Li icon={AlertTriangle} cls="text-amber-500">Коди <strong className="font-semibold text-slate-700">C</strong> — ходова, ABS, ESP, кермо, гальмівна електроніка.</Li>
+        <Li icon={AlertTriangle} cls="text-amber-500">Коди <strong className="font-semibold text-slate-700">B</strong> — кузовна електроніка, SRS Airbag, комфорт, клімат і салонні модулі.</Li>
+        <Li icon={AlertTriangle} cls="text-amber-500">Коди <strong className="font-semibold text-slate-700">U</strong> — зв&apos;язок між блоками, CAN/LIN, втрата комунікації та переривчасті несправності.</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Як проходить діагностика" icon={CheckCircle} accent="cyan">
+      <ul className="space-y-3">
+        <Li icon={CheckCircle} cls="text-cyan-500">Підключаємо діагностичний сканер до OBD-роз&apos;єму та визначаємо доступні електронні блоки авто.</Li>
+        <Li icon={CheckCircle} cls="text-cyan-500">Зчитуємо активні, збережені, очікувані та періодичні помилки, дивимося параметри в реальному часі.</Li>
+        <Li icon={CheckCircle} cls="text-cyan-500">Пояснюємо, що саме означають коди, які причини найбільш ймовірні та які вузли варто перевірити першими.</Li>
+        <Li icon={Package} cls="text-cyan-500">За потреби підбираємо запчастини: датчики, котушки, свічки, фільтри, гальмівні компоненти, елементи підвіски та електрики.</Li>
+      </ul>
+    </InfoCard>
+
+    <InfoCard title="Коли варто приїхати" icon={Clock} accent="rose">
+      <ul className="space-y-3">
+        <Li icon={AlertTriangle} cls="text-rose-500">Горить Check Engine, ABS, ESP, Airbag, EPC, DPF, акумулятор або індикатор коробки передач.</Li>
+        <Li icon={Activity} cls="text-rose-500">Авто погано заводиться, троїть, втрачає тягу, збільшилась витрата пального або з&apos;явились ривки.</Li>
+        <Li icon={Gauge} cls="text-rose-500">Коробка переходить в аварійний режим, є затримки перемикання, поштовхи або помилки трансмісії.</Li>
+        <Li icon={Car} cls="text-rose-500">Потрібна перевірка перед покупкою авто або після ремонту для контролю електронних систем.</Li>
+      </ul>
+    </InfoCard>
+
+    <div className="lg:col-span-2">
+      <InfoCard title="Марки та моделі, які можемо продіагностувати" icon={Car} accent="violet" featured>
+        <div className="space-y-3">
+          <p className="text-[13.5px] leading-relaxed text-slate-600">
+            Виконуємо комп&apos;ютерну діагностику популярних європейських, японських,
+            корейських та американських авто з підтримкою OBD-II/EOBD. Нижче наведені
+            найчастіші марки й моделі, з якими працюємо у Львові.
+          </p>
+          <ul className="grid gap-x-5 gap-y-1.5 md:grid-cols-2 xl:grid-cols-3">
+            {diagnosticsBrandModels.map(({ brand, models }) => (
+              <li
+                key={brand}
+                className="border-b border-slate-200/70 py-1.5 text-[12.5px] leading-relaxed text-slate-600"
+              >
+                <strong className="font-extrabold text-slate-900">
+                  Комп&apos;ютерна діагностика {brand}:
+                </strong>{" "}
+                <span>моделі {models.join(', ')}.</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[12.5px] font-semibold leading-relaxed text-slate-500">
+            Також можемо перевірити інші моделі та модифікації авто. Для точного запису
+            вкажіть марку, модель, рік випуску, двигун або VIN у формі консультації.
+          </p>
+        </div>
+      </InfoCard>
+    </div>
   </div>
 );
 
@@ -480,6 +627,7 @@ const renderTabContent = (key: InformationSectionKey) => {
     case 'privacy':  return <PrivacyTab />;
     case 'warranty': return <WarrantyTab />;
     case 'returns':  return <ReturnsTab />;
+    case 'diagnostics': return <DiagnosticsTab />;
     default:         return <DeliveryTab />;
   }
 };
@@ -490,7 +638,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
 
   return (
     <div
-      className="relative min-h-[calc(100vh-4rem)] overflow-hidden select-none"
+      className="font-ui relative min-h-[calc(100vh-4rem)] overflow-hidden select-none"
       style={{ background: 'linear-gradient(160deg,#f0f9ff 0%,#e8f4fd 40%,#eef2ff 100%)' }}
     >
       {/* Декоративний фон */}
@@ -531,7 +679,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
 
         {/* Навігаційні вкладки */}
         <nav className="relative overflow-hidden rounded-2xl border border-white/80 bg-white/70 p-2 shadow-[0_4px_18px_rgba(15,23,42,0.07)] backdrop-blur-xl">
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-7 sm:gap-2">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
             {tabs.map((tab) => {
               const isActive = tab.key === activeTab.key;
               const Icon = tab.icon;

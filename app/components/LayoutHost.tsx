@@ -107,7 +107,7 @@ const normalizeAdminToken = (value: string) =>
 const normalizeEmail = (value: unknown) =>
   typeof value === "string" ? value.trim().toLowerCase() : "";
 
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v31-price-sort-keeps-unpriced";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v33-description-cursor-search";
 
 const ADMIN_EMAIL_VALUES = new Set(
   (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")

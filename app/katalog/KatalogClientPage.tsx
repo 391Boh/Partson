@@ -148,6 +148,8 @@ const Katalog: React.FC<KatalogProps> = ({
     name: 'Назва',
     code: 'Код',
     article: 'Артикул',
+    producer: 'Виробник',
+    description: 'Опис',
   };
   const searchFilterLabel = searchFilterLabels[searchFilter] || '';
   const searchLabel = searchFilterLabel

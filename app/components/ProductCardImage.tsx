@@ -129,8 +129,8 @@ const ProductCardImage: React.FC<Props> = ({
     if (normalizedPrefetchedSrc) {
       lastSuccessfulSrcRef.current = normalizedPrefetchedSrc;
       setRequestSrc(normalizedPrefetchedSrc);
-      setStatus("loaded");
-      setFinalRetryQueued(true);
+      setStatus("loading");
+      setFinalRetryQueued(false);
       return;
     }
 
@@ -138,8 +138,8 @@ const ProductCardImage: React.FC<Props> = ({
     if (cachedSrc) {
       lastSuccessfulSrcRef.current = cachedSrc;
       setRequestSrc(cachedSrc);
-      setStatus("loaded");
-      setFinalRetryQueued(true);
+      setStatus("loading");
+      setFinalRetryQueued(false);
       return;
     }
 
@@ -270,6 +270,8 @@ const ProductCardImage: React.FC<Props> = ({
     status !== "loaded" && (status === "loading" || batchImagePending);
   const showPlaceholder = status === "missing";
   const imageDecodingMode = fetchPriority === "high" ? "sync" : "async";
+  const imageFadeClass =
+    fetchPriority === "high" ? "duration-100" : "duration-200";
 
   return (
     <div
@@ -302,7 +304,7 @@ const ProductCardImage: React.FC<Props> = ({
         <>
           {/* Skeleton always present, fades out when image is loaded */}
           <div
-            className={`absolute inset-0 transition-opacity duration-300 pointer-events-none bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 ${showLoadingSkeleton ? 'opacity-100' : 'opacity-0'}`}
+            className={`absolute inset-0 transition-opacity ${imageFadeClass} pointer-events-none bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 ${showLoadingSkeleton ? 'opacity-100' : 'opacity-0'}`}
             aria-hidden="true"
           />
           {requestSrc && (
@@ -319,7 +321,7 @@ const ProductCardImage: React.FC<Props> = ({
               draggable={false}
               onLoad={handleLoad}
               onError={handleError}
-              className={`object-contain transition-opacity duration-300 ${showLoadingSkeleton ? 'opacity-0' : 'opacity-100'}`}
+              className={`object-contain transition-opacity ${imageFadeClass} ${showLoadingSkeleton ? 'opacity-0' : 'opacity-100'}`}
             />
           )}
         </>

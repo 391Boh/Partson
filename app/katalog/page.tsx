@@ -13,6 +13,7 @@ import {
   getCatalogSeoFacetsWithTimeout,
   type CatalogSeoFacets,
 } from "app/lib/catalog-seo";
+import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
@@ -613,6 +614,19 @@ const buildCatalogItemListJsonLd = (
 
 type CatalogSeoDiscoveryItem = { label: string; slug: string };
 
+const formatCatalogCount = (count: number) => count.toLocaleString("uk-UA");
+
+const getCatalogProductWord = (count: number) => {
+  const abs = Math.abs(count);
+  const lastTwo = abs % 100;
+  const last = abs % 10;
+
+  if (lastTwo >= 11 && lastTwo <= 14) return "товарів";
+  if (last === 1) return "товар";
+  if (last >= 2 && last <= 4) return "товари";
+  return "товарів";
+};
+
 const CatalogSeoSnapshot = ({
   state,
   items,
@@ -630,14 +644,19 @@ const CatalogSeoSnapshot = ({
 }) => {
   const visibleItems = items.filter((item) => item.code && item.name);
   const visibleItemsCount = visibleItems.length;
-  const foundProductsLabel =
-    typeof totalCount === "number" && totalCount > 0
-      ? `знайдено ${totalCount.toLocaleString("uk-UA")} товарів`
-      : visibleItemsCount > 0
+  const hasExactCount = typeof totalCount === "number" && totalCount > 0;
+  const displayCount = hasExactCount ? totalCount : visibleItemsCount;
+  const countLabel =
+    displayCount > 0
+      ? `${formatCatalogCount(displayCount)} ${getCatalogProductWord(displayCount)}`
+      : "0 товарів";
+  const countCaption = hasExactCount
+    ? "точний лічильник сторінки"
+    : visibleItemsCount > 0
       ? hasMore
-        ? `показано перші ${visibleItemsCount.toLocaleString("uk-UA")} товарів, є ще результати`
-        : `показано ${visibleItemsCount.toLocaleString("uk-UA")} товарів`
-      : "товари не знайдено в первинній вибірці";
+        ? "показано першу вибірку, нижче є ще товари"
+        : "товари в поточній вибірці"
+      : "у первинній вибірці нічого не знайдено";
   const searchFilterLabels: Record<string, string> = {
     all: "усі поля",
     article: "артикул",
@@ -666,27 +685,73 @@ const CatalogSeoSnapshot = ({
   return (
     <section
       aria-labelledby="catalog-seo-products-title"
-      className="mx-auto mt-6 w-full max-w-7xl px-3 pb-8 sm:px-4 lg:px-6"
+      className="mx-auto mt-8 w-full max-w-7xl px-3 pb-10 sm:px-4 lg:px-6"
     >
-      <div className="rounded-2xl border border-slate-200 bg-white/92 p-4 text-sm leading-6 text-slate-600 shadow-sm sm:p-5">
-        <h2
-          id="catalog-seo-products-title"
-          className="text-lg font-semibold tracking-[-0.03em] text-slate-900 sm:text-xl"
-        >
-          Каталог автозапчастин PartsON
-        </h2>
-        <p className="mt-2">
-          {state.description} За поточним запитом {foundProductsLabel}. Обрані фільтри:
-          {" "}
-          <span className="font-semibold text-slate-800">{selectedFiltersLabel}</span>.
-        </p>
-        <p className="mt-2">
-          Для точного підбору використовуйте пошук за артикулом, кодом, назвою або
-          виробником, а також фільтри групи й категорії. Якщо потрібна перевірка
-          сумісності, менеджер PartsON допоможе підібрати деталь за VIN.
-        </p>
+      <div className="overflow-hidden rounded-[1.35rem] border border-sky-100/90 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="p-5 sm:p-6 lg:p-7">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">
+                  SEO каталог
+                </p>
+                <h2
+                  id="catalog-seo-products-title"
+                  className="mt-1 text-xl font-black tracking-[-0.04em] text-slate-950 sm:text-2xl"
+                >
+                  Каталог автозапчастин PartsON
+                </h2>
+              </div>
+              <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-right">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-sky-700">
+                  У каталозі
+                </p>
+                <p className="mt-0.5 text-2xl font-black tracking-[-0.04em] text-slate-950">
+                  {countLabel}
+                </p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                  {countCaption}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 text-[15px] leading-7 text-slate-600 md:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
+              <div className="space-y-3">
+                <p>
+                  {state.description} Поточна сторінка показує{" "}
+                  <span className="font-bold text-slate-900">{countLabel}</span>
+                  {hasExactCount ? "." : hasMore ? ", а каталог має додаткові результати для підвантаження." : "."}
+                </p>
+                <p>
+                  Для точного підбору використовуйте пошук за артикулом, кодом,
+                  назвою, описом або виробником. Якщо потрібна перевірка
+                  сумісності, менеджер PartsON допоможе підібрати деталь за VIN.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                  Обрані фільтри
+                </p>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-800">
+                  {selectedFiltersLabel}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <aside className="border-t border-sky-100 bg-[linear-gradient(135deg,#f0f9ff_0%,#ffffff_48%,#eef6ff_100%)] p-5 sm:p-6 lg:border-l lg:border-t-0 lg:p-7">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-700">
+              Швидкий підбір
+            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Відкрийте товар, перевірте фото, артикул, виробника, ціну та
+              наявність. Для складних позицій залиште заявку на підбір за VIN.
+            </p>
+          </aside>
+        </div>
+
         {visibleItems.length > 0 && (
-          <ul className="mt-3 grid grid-cols-1 gap-y-1 sm:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/55 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
             {visibleItems.slice(0, 12).map((item) => {
               const visibleName = buildVisibleProductName(item.name);
 
@@ -694,10 +759,14 @@ const CatalogSeoSnapshot = ({
                 <li key={item.code}>
                   <a
                     href={buildSeoProductPath(item)}
-                    className="text-sky-700 hover:underline"
+                    className="block rounded-xl border border-transparent bg-white/75 px-3 py-2 text-sm font-semibold leading-5 text-slate-700 transition hover:border-sky-200 hover:bg-white hover:text-sky-700"
                   >
                     {visibleName}
-                    {item.producer ? ` — ${item.producer}` : ""}
+                    {item.producer ? (
+                      <span className="block text-xs font-bold uppercase tracking-[0.08em] text-slate-400">
+                        {item.producer}
+                      </span>
+                    ) : null}
                   </a>
                 </li>
               );
@@ -707,19 +776,19 @@ const CatalogSeoSnapshot = ({
         {showDiscovery && (
           <nav
             aria-label="Розділи каталогу"
-            className="mt-4 border-t border-slate-100 pt-4"
+            className="border-t border-slate-100 p-5 sm:p-6"
           >
             {topGroups.length > 0 && (
               <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
                   Групи запчастин
                 </p>
-                <ul className="flex flex-wrap gap-x-4 gap-y-1">
+                <ul className="flex flex-wrap gap-2">
                   {topGroups.map((group) => (
                     <li key={group.slug}>
                       <a
                         href={buildGroupPath(group.slug)}
-                        className="text-sky-700 hover:underline"
+                        className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-sky-200 hover:text-sky-700"
                       >
                         {group.label}
                       </a>
@@ -729,16 +798,16 @@ const CatalogSeoSnapshot = ({
               </div>
             )}
             {topProducers.length > 0 && (
-              <div className="mt-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <div className="mt-5">
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
                   Виробники
                 </p>
-                <ul className="flex flex-wrap gap-x-4 gap-y-1">
+                <ul className="flex flex-wrap gap-2">
                   {topProducers.map((producer) => (
                     <li key={producer.slug}>
                       <a
                         href={buildManufacturerPath(producer.slug)}
-                        className="text-sky-700 hover:underline"
+                        className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-sky-200 hover:text-sky-700"
                       >
                         {producer.label}
                       </a>
@@ -815,7 +884,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     subcategory: state.subcategory || null,
     producer: state.producer || null,
   });
-  const [initialPagePayload, seoFacets] = await Promise.all([
+  const [initialPagePayload, rawSeoFacets] = await Promise.all([
     resolveWithTimeout(
       () => getCatalogSeoSnapshotPayloadCached(snapshotCacheKey),
       null,
@@ -825,6 +894,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       () => EMPTY_CATALOG_SEO_FACETS
     ),
   ]);
+  const seoFacets = await resolveCatalogSeoFacetsWithFallback(rawSeoFacets);
   const seoTotalCount = resolveCatalogSeoTotalCount(state, seoFacets);
   const collectionJsonLd = buildCatalogCollectionJsonLd(siteUrl, state);
   const breadcrumbJsonLd = buildCatalogBreadcrumbJsonLd(siteUrl, state);

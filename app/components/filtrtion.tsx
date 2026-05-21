@@ -197,6 +197,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     code: 'Код',
     article: 'Артикул',
     producer: 'Виробник',
+    description: 'Опис',
   };
   const searchFilterLabel = searchFilterLabels[searchFilter] || '';
   const searchLabel = searchFilterLabel

@@ -45,7 +45,7 @@ const toPositiveInt = (value: unknown, fallback: number) => {
 
 const buildRouteCacheKey = (body: Record<string, unknown>) =>
   JSON.stringify({
-    source: "catalog-page:v13-priced-sort-only",
+    source: "catalog-page:v15-description-cursor-search",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
