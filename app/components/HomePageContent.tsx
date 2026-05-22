@@ -1,34 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
-import type { Auth } from "firebase/auth";
 import AdvantagesSection from "./AdvantagesSection";
 import Footer from "./footer";
 import Hero from "./hero";
 import SectionBoundary from "./SectionBoundary";
+import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 
 type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
 
-type HomeAuthDeps = {
-  auth: Auth;
-  onAuthStateChanged: typeof import("firebase/auth").onAuthStateChanged;
-};
-
-let homeAuthDepsPromise: Promise<HomeAuthDeps> | null = null;
-
-const loadHomeAuthDeps = () => {
-  homeAuthDepsPromise ??= Promise.all([
-    import("../../firebase"),
-    import("firebase/auth"),
-  ]).then(([firebaseModule, authModule]) => ({
-    auth: firebaseModule.auth,
-    onAuthStateChanged: authModule.onAuthStateChanged,
-  }));
-
-  return homeAuthDepsPromise;
-};
-
-const placeholderHeights = ["520px", "560px", "380px"] as const; // must match HomeSectionFallback heights in HomeDeferredStack.tsx
+const placeholderHeights = [
+  "clamp(360px, 74svh, 520px)",
+  "clamp(400px, 78svh, 560px)",
+  "clamp(300px, 62svh, 380px)",
+] as const; // must match HomeSectionFallback heights in HomeDeferredStack.tsx
 
 const HomeDeferredStackPlaceholder = () => (
   <>
@@ -38,7 +23,7 @@ const HomeDeferredStackPlaceholder = () => (
         className="home-section-stage relative w-full"
       >
         <div className="page-shell-inline">
-          <div className="rounded-[28px] border border-sky-100/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.88))] p-5 shadow-[0_18px_36px_rgba(15,23,42,0.06)]">
+          <div className="rounded-[20px] border border-sky-100/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.88))] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-5 sm:shadow-[0_18px_36px_rgba(15,23,42,0.06)]">
             <div
               className="h-5 rounded-full bg-slate-200/80"
               style={{ width: index === 0 ? "9rem" : index === 1 ? "10rem" : "8rem" }}
@@ -55,62 +40,12 @@ const HomeDeferredStackPlaceholder = () => (
 );
 
 export default function HomePageContent() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authReady, setAuthReady] = useState(true);
+  const { ready: authReady, user } = useFirebaseAuthState();
+  const isAuthenticated = Boolean(user);
   const [HomeDeferredStackComponent, setHomeDeferredStackComponent] =
     useState<ComponentType | null>(null);
   const [shouldLoadDeferredHome, setShouldLoadDeferredHome] = useState(false);
   const deferredHomeSentinelRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    let unsubscribe: (() => void) | null = null;
-    let timeoutId: number | null = null;
-
-    const loadAuth = () => {
-      void loadHomeAuthDeps()
-        .then(({ auth, onAuthStateChanged }) => {
-          if (cancelled) return;
-          setIsAuthenticated(Boolean(auth.currentUser));
-          setAuthReady(true);
-          unsubscribe = onAuthStateChanged(auth, (authUser) => {
-            setIsAuthenticated(Boolean(authUser));
-            setAuthReady(true);
-          });
-        })
-        .catch((error) => {
-          console.error("Failed to load home auth deps:", error);
-          setAuthReady(true);
-        });
-    };
-
-    const triggerAuthLoad = () => {
-      window.removeEventListener("pointerdown", triggerAuthLoad);
-      window.removeEventListener("keydown", triggerAuthLoad);
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
-      loadAuth();
-    };
-
-    window.addEventListener("pointerdown", triggerAuthLoad, {
-      once: true,
-      passive: true,
-    });
-    window.addEventListener("keydown", triggerAuthLoad, { once: true });
-
-    timeoutId = window.setTimeout(triggerAuthLoad, 5000);
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener("pointerdown", triggerAuthLoad);
-      window.removeEventListener("keydown", triggerAuthLoad);
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
-      unsubscribe?.();
-    };
-  }, []);
 
   useEffect(() => {
     if (!shouldLoadDeferredHome || HomeDeferredStackComponent) return;

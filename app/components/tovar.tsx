@@ -799,21 +799,31 @@ const ProductFetcher: React.FC<Props> = ({
                         <button
                           key={row.id}
                           type="button"
-                          onClick={() => handleRowSelect(row)}
+                          onClick={(event) => {
+                            event.currentTarget.blur();
+                            handleRowSelect(row);
+                          }}
+                          onMouseLeave={(event) => event.currentTarget.blur()}
                           className={`group/row relative w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-all duration-300 ${
                             isActive
-                              ? "border-cyan-300/90 bg-[image:linear-gradient(115deg,rgba(207,250,254,0.97)_0%,rgba(224,242,254,0.95)_52%,rgba(209,250,229,0.92)_100%)] shadow-[0_14px_30px_rgba(6,182,212,0.28)] ring-1 ring-cyan-200/80"
+                              ? "border-cyan-300/80 bg-[image:linear-gradient(115deg,rgba(224,242,254,0.96)_0%,rgba(240,249,255,0.95)_52%,rgba(220,252,231,0.88)_100%)] shadow-[0_10px_22px_rgba(6,182,212,0.18)] ring-1 ring-cyan-200/60"
                               : [
                                   "border-sky-100/95 bg-[image:linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] shadow-[0_8px_18px_rgba(8,145,178,0.14)]",
-                                  "hover:border-cyan-300/80",
-                                  "hover:shadow-[0_18px_36px_rgba(6,182,212,0.22)]",
-                                  "hover:ring-1 hover:ring-cyan-200/80",
-                                  "hover:bg-[image:linear-gradient(112deg,rgba(236,254,255,0.98)_0%,rgba(224,242,254,0.96)_48%,rgba(209,250,229,0.93)_100%)]",
-                                  "hover:saturate-[1.06]",
+                                  "hover:border-cyan-200/90",
+                                  "hover:shadow-[0_10px_22px_rgba(8,145,178,0.16)]",
+                                  "hover:ring-1 hover:ring-cyan-100/70",
+                                  "hover:bg-[image:linear-gradient(116deg,rgba(255,255,255,0.97)_0%,rgba(235,248,255,0.94)_50%,rgba(224,247,250,0.9)_100%)]",
+                                  "hover:saturate-[1.02]",
                                 ].join(" ")
                           }`}
                         >
-                          <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover/row:opacity-100 bg-[image:radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.22),transparent_42%),radial-gradient(circle_at_86%_16%,rgba(56,189,248,0.2),transparent_38%),radial-gradient(circle_at_52%_100%,rgba(45,212,191,0.16),transparent_38%)]" />
+                          <div
+                            className={`pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 ${
+                              isActive
+                                ? ""
+                                : "group-hover/row:opacity-45 bg-[image:radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.08),transparent_42%),radial-gradient(circle_at_86%_16%,rgba(56,189,248,0.07),transparent_38%)]"
+                            }`}
+                          />
                           <div className="relative flex items-center gap-2.5">
                             <div className="min-w-0 flex-1 space-y-0.5">
                               <div className="truncate text-sm font-semibold text-slate-800">

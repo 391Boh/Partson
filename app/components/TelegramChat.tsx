@@ -674,11 +674,11 @@ export default function TelegramChat({
               borderRadius: 26,
             }
           : {
-              left: 12,
-              right: 12,
-              top: 72,
-              bottom: 14,
-              borderRadius: 24,
+              left: 'max(0.35rem, env(safe-area-inset-left))',
+              right: 'max(0.35rem, env(safe-area-inset-right))',
+              top: 'calc(var(--header-height, 3.5rem) + 0.45rem)',
+              bottom: 'max(0.5rem, env(safe-area-inset-bottom))',
+              borderRadius: 18,
             }
       }
     >
@@ -752,10 +752,10 @@ export default function TelegramChat({
         </AnimatePresence>
       </div>
 
-      <div className="relative flex-1 overflow-y-auto brand-scroll px-3 py-3">
+      <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain brand-scroll px-2.5 py-2.5 sm:px-3 sm:py-3">
         <div className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.65),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(56,189,248,0.12),transparent_26%),linear-gradient(180deg,rgba(248,250,252,0.46),rgba(241,245,249,0.2))]" />
         <div className="relative space-y-3 pb-1">
-          <div className="flex max-w-[92%] items-start gap-3 rounded-[22px] border border-sky-100/70 bg-white/90 px-4 py-3 text-sm text-slate-700 shadow-[0_14px_28px_rgba(15,23,42,0.08)] backdrop-blur">
+          <div className="flex max-w-[96%] items-start gap-2.5 rounded-[18px] border border-sky-100/70 bg-white/90 px-3 py-2.5 text-[13px] text-slate-700 shadow-[0_10px_22px_rgba(15,23,42,0.07)] backdrop-blur sm:max-w-[92%] sm:gap-3 sm:rounded-[22px] sm:px-4 sm:py-3 sm:text-sm">
             <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border border-sky-100/80 bg-[image:linear-gradient(135deg,rgba(239,246,255,0.95),rgba(224,242,254,0.92))] text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.12)]">
               <Headphones size={16} strokeWidth={2} />
             </span>
@@ -782,7 +782,7 @@ export default function TelegramChat({
                 className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[86%] ${
+                  className={`max-w-[92%] sm:max-w-[86%] ${
                     isRichCard
                       ? 'bg-transparent p-0 shadow-none'
                       : 'rounded-[22px] px-4 py-3 text-sm leading-relaxed'
@@ -815,8 +815,8 @@ export default function TelegramChat({
         </div>
       </div>
       {orderItems.length > 0 && (
-        <div className="border-t border-slate-200/80 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.95),rgba(240,249,255,0.92))] px-3 py-3">
-          <div className="rounded-[20px] border border-sky-100/70 bg-white/88 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.08)] backdrop-blur">
+        <div className="border-t border-slate-200/80 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.95),rgba(240,249,255,0.92))] px-2.5 py-2.5 sm:px-3 sm:py-3">
+          <div className="rounded-[18px] border border-sky-100/70 bg-white/88 p-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.07)] backdrop-blur sm:rounded-[20px] sm:p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-[14px] border border-sky-100/80 bg-[image:linear-gradient(135deg,rgba(239,246,255,0.96),rgba(224,242,254,0.92))] text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.12)]">
@@ -882,11 +882,11 @@ export default function TelegramChat({
               ))}
             </div>
 
-            <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-700">
+            <div className="mt-3 flex flex-col gap-2.5 text-xs text-slate-700 min-[380px]:flex-row min-[380px]:items-center min-[380px]:justify-between min-[380px]:gap-3">
               <span className="font-semibold text-slate-800">
                 Разом: {orderTotal.toLocaleString('uk-UA')} грн
               </span>
-              <div className="flex items-center gap-2">
+              <div className="grid grid-cols-2 gap-2 min-[380px]:flex min-[380px]:items-center">
                 <button onClick={addOrderToCart} className={chatSecondaryPillButton}>
                   <ShoppingCart size={14} />
                   В кошик
@@ -900,8 +900,8 @@ export default function TelegramChat({
         </div>
       )}
 
-      <div className="border-t border-slate-200/80 bg-white/92 px-3 py-3">
-        <div className="rounded-[20px] border border-slate-200/80 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.86))] p-2 shadow-[0_12px_26px_rgba(15,23,42,0.05)]">
+      <div className="border-t border-slate-200/80 bg-white/92 px-2.5 py-2.5 sm:px-3 sm:py-3">
+        <div className="rounded-[18px] border border-slate-200/80 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.86))] p-1.5 shadow-[0_8px_20px_rgba(15,23,42,0.05)] sm:rounded-[20px] sm:p-2">
           <input
             ref={fileInputRef}
             type="file"

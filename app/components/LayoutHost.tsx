@@ -310,10 +310,15 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     };
 
     let timeoutId: number | null = null;
+    let idleId: number | null = null;
     const triggerDepsLoad = () => {
       window.removeEventListener("pointerdown", triggerDepsLoad);
       window.removeEventListener("keydown", triggerDepsLoad);
       if (timeoutId != null) window.clearTimeout(timeoutId);
+      if (idleId != null && "cancelIdleCallback" in window) {
+        (window as Window & { cancelIdleCallback?: (id: number) => void })
+          .cancelIdleCallback?.(idleId);
+      }
       loadDeps();
     };
 
@@ -323,13 +328,25 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     });
     window.addEventListener("keydown", triggerDepsLoad, { once: true });
 
-    timeoutId = window.setTimeout(triggerDepsLoad, 5000);
+    const win = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+    };
+
+    if (typeof win.requestIdleCallback === "function") {
+      idleId = win.requestIdleCallback(triggerDepsLoad, { timeout: 900 });
+    } else {
+      timeoutId = window.setTimeout(triggerDepsLoad, 900);
+    }
 
     return () => {
       cancelled = true;
       window.removeEventListener("pointerdown", triggerDepsLoad);
       window.removeEventListener("keydown", triggerDepsLoad);
       if (timeoutId != null) window.clearTimeout(timeoutId);
+      if (idleId != null && "cancelIdleCallback" in window) {
+        (window as Window & { cancelIdleCallback?: (id: number) => void })
+          .cancelIdleCallback?.(idleId);
+      }
     };
   }, [firebaseDeps]);
 
@@ -1154,7 +1171,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       </Suspense>
 
       {!isEmbeddedProductView && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-16">
+        <div className="fixed top-0 left-0 right-0 z-50 h-[var(--header-height,4rem)] bg-slate-800">
           <Header />
         </div>
       )}

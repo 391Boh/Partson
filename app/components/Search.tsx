@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Clock, XCircle } from "lucide-react";
 import {
@@ -28,6 +28,13 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
 
   const router = useRouter();
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const catalogPrefetchedRef = useRef(false);
+
+  const prefetchCatalog = useCallback(() => {
+    if (catalogPrefetchedRef.current) return;
+    catalogPrefetchedRef.current = true;
+    router.prefetch("/katalog");
+  }, [router]);
 
   // --- 1. Завантаження історії з localStorage ---
   useEffect(() => {
@@ -89,6 +96,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     const trimmed = sanitizeQuery(query ?? searchQuery, filterBy);
     if (!trimmed) return;
 
+    prefetchCatalog();
     router.push(`/katalog?search=${encodeURIComponent(trimmed)}&filter=${filterBy}`);
 
     onSearch(trimmed, filterBy);
@@ -125,10 +133,14 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           className="font-ui w-full bg-gray-800 px-3 py-2 text-base font-semibold tracking-normal text-white outline-none placeholder:font-medium placeholder:text-gray-400 focus:bg-gray-700 sm:text-sm"
           value={searchQuery}
           onChange={(e) => {
+            prefetchCatalog();
             setSearchQuery(e.target.value);
             setShowDropdown(true);
           }}
-          onFocus={() => setShowDropdown(true)}
+          onFocus={() => {
+            prefetchCatalog();
+            setShowDropdown(true);
+          }}
           onKeyDown={handleKeyPress}
           data-search="true"
         />
@@ -147,7 +159,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         <select
           className="font-ui h-9 border-l border-gray-600 bg-gray-700 px-2 py-2 text-base font-semibold tracking-normal text-white outline-none sm:text-sm"
           value={filterBy}
-          onChange={(e) => setFilterBy(e.target.value as SearchFilter)}
+          onFocus={prefetchCatalog}
+          onChange={(e) => {
+            prefetchCatalog();
+            setFilterBy(e.target.value as SearchFilter);
+          }}
         >
           <option value="all">Всі</option>
           <option value="article">Артикул</option>

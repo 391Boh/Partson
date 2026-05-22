@@ -27,11 +27,11 @@ const depthBackground = [
 ].join(", ");
 
 const cardGradientBase =
-  "bg-gradient-to-b from-slate-950/42 via-slate-900/24 to-sky-200/12";
+  "bg-gradient-to-b from-slate-950/44 via-slate-900/24 to-sky-200/12";
 const cardGradientHover =
-  "motion-safe:hover:from-slate-950/36 motion-safe:hover:via-slate-900/20 motion-safe:hover:to-sky-200/18";
+  "motion-safe:hover:from-slate-950/42 motion-safe:hover:via-slate-900/23 motion-safe:hover:to-sky-200/14";
 const cardInteractionStatic =
-  "transition-[box-shadow,background-color,border-color] duration-300 ease-out";
+  "transition-[box-shadow,background-color,border-color,transform] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]";
 const heroHeadingText =
   "font-display font-black italic leading-[0.98] tracking-[-0.06em] text-transparent bg-clip-text bg-gradient-to-r from-sky-100 via-white to-sky-200";
 
@@ -87,13 +87,13 @@ const Hero: FC<HeroProps> = ({
 
   return (
     <section
-      className="home-glow-section home-glow-section-indigo group/hero font-ui relative isolate flex min-h-[calc(100svh-var(--header-height,4rem)-0.75rem)] w-full select-none items-center overflow-hidden py-6 transition-[filter] duration-300 ease-out hover:saturate-[1.06] sm:min-h-0 sm:py-8"
+      className="home-glow-section home-glow-section-indigo hero-section-smooth group/hero font-ui relative isolate flex min-h-0 w-full select-none items-start overflow-hidden py-4 sm:items-center sm:py-7 lg:py-8"
       style={{
         backgroundImage: depthBackground,
       }}
       >
-      <span className="pointer-events-none absolute -inset-20 bg-[image:radial-gradient(circle_at_20%_5%,rgba(56,189,248,0.24),transparent_42%),radial-gradient(circle_at_88%_10%,rgba(37,99,235,0.14),transparent_46%),radial-gradient(circle_at_60%_80%,rgba(14,165,233,0.1),transparent_54%)] opacity-60 blur-[32px]" />
-      <span className="pointer-events-none absolute inset-0 bg-[image:linear-gradient(132deg,rgba(15,23,42,0.18)_0%,rgba(14,165,233,0.12)_28%,rgba(56,189,248,0.12)_58%,rgba(2,6,23,0.1)_100%)] opacity-60" />
+      <span className="pointer-events-none absolute -inset-20 bg-[image:radial-gradient(circle_at_20%_5%,rgba(56,189,248,0.2),transparent_42%),radial-gradient(circle_at_88%_10%,rgba(37,99,235,0.11),transparent_46%),radial-gradient(circle_at_60%_80%,rgba(14,165,233,0.08),transparent_54%)] opacity-48 blur-[32px] transition-opacity duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/hero:opacity-56" />
+      <span className="pointer-events-none absolute inset-0 bg-[image:linear-gradient(132deg,rgba(15,23,42,0.16)_0%,rgba(14,165,233,0.1)_28%,rgba(56,189,248,0.09)_58%,rgba(2,6,23,0.09)_100%)] opacity-46 transition-opacity duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/hero:opacity-52" />
       <div className="page-shell-inline">
         <div className="relative grid gap-4 text-slate-100 md:grid-cols-2 lg:grid-cols-3 lg:items-stretch">
           <div className="h-full min-w-0">
@@ -101,19 +101,23 @@ const Hero: FC<HeroProps> = ({
               role="button"
               tabIndex={0}
               aria-expanded={isIntroExpanded}
-              onClick={() => setIsIntroExpanded((value) => !value)}
+              onClick={(event) => {
+                event.currentTarget.blur();
+                setIsIntroExpanded((value) => !value);
+              }}
+              onMouseLeave={(event) => event.currentTarget.blur()}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   setIsIntroExpanded((value) => !value);
                 }
               }}
-              className={`home-glass-card relative flex min-h-[180px] h-full cursor-pointer flex-col justify-start gap-1.5 overflow-hidden rounded-2xl border border-white/10 p-3 shadow-[0_10px_24px_rgba(2,6,23,0.26)] outline-none ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/12 hover:shadow-[0_14px_28px_rgba(2,6,23,0.3)] focus-visible:ring-2 focus-visible:ring-sky-200/80 sm:min-h-0 sm:justify-center`}
+              className={`home-glass-card hero-intro-card relative flex min-h-[214px] h-full cursor-pointer flex-col justify-between gap-3 overflow-hidden rounded-2xl border border-sky-100/18 p-4 shadow-[0_12px_28px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] outline-none ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/[0.11] hover:shadow-[0_14px_30px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.1)] focus-visible:ring-2 focus-visible:ring-sky-200/80 sm:min-h-[230px] sm:p-4.5 lg:min-h-0`}
             >
-              <span className="pointer-events-none absolute inset-0 rounded-2xl border border-sky-200/10" />
-              <div className="pointer-events-none absolute inset-0 opacity-30 bg-[image:radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.16),transparent_44%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,0.12),transparent_48%)]" />
-              <div className="relative z-10 flex items-center gap-3 pb-1">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-sky-200/30 text-sky-200/90 shadow-[0_0_18px_rgba(56,189,248,0.35)]">
+              <span className="pointer-events-none absolute inset-0 rounded-2xl border border-sky-200/14" />
+              <div className="pointer-events-none absolute inset-0 opacity-38 transition-opacity duration-700 bg-[image:radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_44%),radial-gradient(circle_at_88%_82%,rgba(37,99,235,0.09),transparent_48%)] group-hover/hero:opacity-44" />
+              <div className="relative z-10 flex items-start gap-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-sky-200/34 bg-sky-100/10 text-sky-100 shadow-[0_0_18px_rgba(56,189,248,0.24)]">
                   <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M3 9l2-5h14l2 5" />
                     <path d="M3 9h18" />
@@ -121,30 +125,31 @@ const Hero: FC<HeroProps> = ({
                     <path d="M9 21v-6h6v6" />
                   </svg>
                 </span>
-                <div className="flex min-w-0 flex-col gap-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="font-display break-words text-[15px] font-extrabold italic leading-snug tracking-[0.04em] text-sky-50 sm:text-[18px] md:text-[20px] md:leading-tight">
-                      Інтернет-магазин автозапчастин у Львові
+                <div className="relative flex min-w-0 flex-1 flex-col">
+                  <div className="flex w-full items-start">
+                    <h1 className="font-display min-w-0 flex-1 pr-12 text-[15px] font-extrabold italic leading-[1.12] tracking-[0.01em] text-sky-50 min-[380px]:text-[16px] sm:text-[18px] md:text-[19px]">
+                      <span className="block whitespace-nowrap">Інтернет-магазин</span>
+                      <span className="block whitespace-nowrap text-sky-100/92">
+                        автозапчастин у Львові
+                      </span>
                     </h1>
-                    <span className="relative inline-flex items-center gap-1 rounded-full border border-emerald-200/45 bg-emerald-300/14 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-100 shadow-[0_0_18px_rgba(52,211,153,0.22)]">
+                    <span className="absolute right-0 top-0 inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200/36 bg-emerald-300/12 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.13em] text-emerald-100 shadow-[0_0_12px_rgba(52,211,153,0.12)] sm:px-2 sm:text-[9px]">
                       <Sparkles className="h-3 w-3" strokeWidth={2} aria-hidden="true" />
                       New
-                      <span className="pointer-events-none absolute inset-0 rounded-full border border-emerald-100/20 motion-safe:animate-ping" />
                     </span>
                   </div>
-                  <span className="mt-1 h-0.5 w-32 bg-gradient-to-r from-sky-300/80 via-white/30 to-transparent" />
                 </div>
               </div>
-              <div className="relative z-10 min-h-[82px] pt-1.5">
+              <div className="relative z-10 min-h-[94px]">
                 <div
-                  className={`space-y-2 transition-all duration-300 ease-out ${
+                  className={`space-y-2 transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                     isIntroExpanded
-                      ? "pointer-events-none absolute inset-x-0 top-1.5 -translate-y-2 opacity-0"
+                      ? "pointer-events-none absolute inset-x-0 top-0 -translate-y-2 opacity-0"
                       : "translate-y-0 opacity-100"
                   }`}
                 >
                   <p
-                    className={`${heroHeadingText} mt-1 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[18px] leading-tight sm:text-[20px] md:mb-2 md:flex-nowrap md:items-baseline md:text-[22px] lg:text-[24px]`}
+                    className={`${heroHeadingText} mt-1 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[18px] leading-tight sm:text-[20px] md:mb-2 md:flex-nowrap md:items-baseline md:text-[22px] lg:text-[24px]`}
                   >
                     <span className="text-[20px] sm:text-[23px] md:text-[25px] lg:text-[27px]">
                       PartsON
@@ -153,21 +158,21 @@ const Hero: FC<HeroProps> = ({
                       — знайдеться все!
                     </span>
                   </p>
-                  <p className="font-display relative ml-auto max-w-[34ch] pr-2 text-right text-sm font-semibold italic leading-relaxed tracking-[0.05em] text-sky-100/90 sm:pr-3 sm:text-base md:text-[17px] after:mt-2 after:ml-auto after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-sky-300/80 after:via-white/30 after:to-transparent">
+                  <p className="font-display relative max-w-[34ch] text-left text-sm font-semibold italic leading-relaxed tracking-[0.04em] text-sky-100/90 sm:text-base md:text-[17px] after:mt-2 after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-sky-300/80 after:via-white/30 after:to-transparent">
                     Кожна деталь важлива...
                   </p>
                 </div>
                 <div
-                  className={`transition-all duration-300 ease-out ${
+                  className={`transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                     isIntroExpanded
                       ? "translate-y-0 opacity-100"
-                      : "pointer-events-none absolute inset-x-0 top-1.5 translate-y-2 opacity-0"
+                      : "pointer-events-none absolute inset-x-0 top-0 translate-y-2 opacity-0"
                   }`}
                 >
                   <Link
                     href="/inform/diagnostics"
                     onClick={(event) => event.stopPropagation()}
-                    className="inline-flex w-full items-center justify-between rounded-xl border border-emerald-100/35 bg-emerald-200/16 px-3.5 py-3 text-[12px] font-black uppercase tracking-[0.12em] text-emerald-50 transition-[border-color,background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-emerald-50/60 hover:bg-emerald-200/24 hover:shadow-[0_10px_22px_rgba(16,185,129,0.18)]"
+                    className="inline-flex w-full items-center justify-between rounded-xl border border-emerald-100/35 bg-emerald-200/16 px-3.5 py-3 text-[12px] font-black uppercase tracking-[0.12em] text-emerald-50 transition-[border-color,background-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:border-emerald-50/60 hover:bg-emerald-200/24 hover:shadow-[0_10px_22px_rgba(16,185,129,0.18)]"
                   >
                     <span className="inline-flex items-center gap-2">
                       <Wrench className="h-4 w-4" strokeWidth={2} aria-hidden="true" />

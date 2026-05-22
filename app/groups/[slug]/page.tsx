@@ -39,6 +39,10 @@ export const dynamicParams = true;
 const GROUP_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
 const GROUP_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
 const GROUP_PAGE_SEO_FACETS_TIMEOUT_MS = 6000;
+const isProductionBuildPhase =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
+  process.env.npm_lifecycle_event === "build";
 interface GroupPageParams {
   slug: string;
 }
@@ -240,10 +244,13 @@ export async function generateStaticParams() {
   const dataset = await getProductTreeDataset().catch(() => null);
   const treeParams = dedupeStaticParams(
     dataset?.groups.flatMap((group) =>
-      buildStaticSlugCandidates(
-        group.slug,
-        group.legacySlug,
-        buildPlainSeoSlug(group.label)
+      (isProductionBuildPhase
+        ? buildStaticSlugCandidates(group.slug)
+        : buildStaticSlugCandidates(
+            group.slug,
+            group.legacySlug,
+            buildPlainSeoSlug(group.label)
+          )
       ).map((slug) => ({ slug }))
     ) ?? []
   );

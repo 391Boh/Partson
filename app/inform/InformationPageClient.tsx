@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Navigation,
   Package,
+  Route,
   Phone,
   RefreshCcw,
   ShieldCheck,
@@ -40,7 +41,7 @@ const PHONE_DISPLAY = '+38 (063) 421-18-51';
 const DIAGNOSTICS_PHONE_RAW = '+380934804261';
 const DIAGNOSTICS_PHONE_DISPLAY = '+38 (093) 480-42-61';
 const ADDRESS = 'Львів, вул. Перфецького, 8';
-const MAPS_URL = 'https://www.google.com/maps?cid=11517394092669341405';
+const MAPS_URL = 'https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu&g_ep=EgoyMDI2MDUxNy4wIKXMDSoASAFQAw%3D%3D';
 const MAPS_EMBED_URL = 'https://www.google.com/maps?cid=11517394092669341405&output=embed';
 const VIBER_URL = 'https://connect.viber.com/business/36969536-f36d-11f0-84df-f601f1189001';
 
@@ -71,6 +72,17 @@ const iconMap: Record<InformationSectionKey, LucideIcon> = {
 
 const tabs = informationSections.map((s) => ({ ...s, icon: iconMap[s.key] }));
 
+const AddressMapLink = ({ className = '' }: { className?: string }) => (
+  <a
+    href={MAPS_URL}
+    target="_blank"
+    rel="noreferrer"
+    className={`font-semibold text-slate-700 underline decoration-sky-300/70 underline-offset-4 transition hover:text-sky-700 hover:decoration-sky-500 ${className}`}
+  >
+    {ADDRESS}
+  </a>
+);
+
 // ─── Стилі акцентів ────────────────────────────────────────────────────────
 const ACCENT = {
   sky:     { wrap: 'border-sky-200     bg-sky-50      text-sky-700',     glow: 'group-hover:from-sky-50/80     group-hover:to-cyan-50/60',   border: 'border-sky-200/60',   shadow: 'shadow-[0_4px_18px_rgba(14,165,233,0.14)]',   ring: 'ring-sky-200/40'     },
@@ -89,11 +101,11 @@ const InfoCard = memo(function InfoCard({ title, icon: Icon, accent = 'sky', fea
     <article className={`group relative overflow-hidden rounded-2xl border-2 bg-white p-5 transition-all duration-300 hover:-translate-y-0.5 ${a.border} ${a.shadow} hover:shadow-[0_14px_38px_rgba(15,23,42,0.16)] ${featured ? `ring-2 ${a.ring}` : ''}`}>
       <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br from-transparent to-transparent transition-all duration-300 ${a.glow}`} />
       <div className="relative">
-        <div className="mb-4 flex items-center gap-3">
+        <div className="mb-4 flex items-start gap-3 sm:items-center">
           <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 shadow-md ${a.wrap}`}>
             <Icon size={18} strokeWidth={1.8} />
           </span>
-          <h3 className="text-[15px] font-bold leading-tight text-slate-800">{title}</h3>
+          <h3 className="min-w-0 flex-1 text-[15px] font-bold leading-tight text-slate-800">{title}</h3>
         </div>
         <div className="text-[13.5px] leading-relaxed text-slate-600">{children}</div>
       </div>
@@ -238,46 +250,105 @@ const diagnosticsBrandModels = [
   { brand: 'Chevrolet', models: ['Aveo', 'Lacetti', 'Cruze', 'Captiva', 'Orlando'] },
 ];
 
+const diagnosticsVisualCards = [
+  {
+    icon: Gauge,
+    label: 'Двигун',
+    text: 'ECU, Check Engine, паливна система',
+    tone: 'from-sky-500/18 via-cyan-400/10 to-white/72 text-sky-700 border-sky-200/70',
+  },
+  {
+    icon: Cpu,
+    label: 'Електроніка',
+    text: 'OBD-II/EOBD, блоки керування, CAN',
+    tone: 'from-indigo-500/16 via-sky-400/10 to-white/72 text-indigo-700 border-indigo-200/70',
+  },
+  {
+    icon: Activity,
+    label: 'Датчики',
+    text: 'MAF/MAP, ABS, кисень, температура',
+    tone: 'from-emerald-500/16 via-cyan-400/10 to-white/72 text-emerald-700 border-emerald-200/70',
+  },
+] as const;
+
 const DiagnosticsTab = () => (
   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
     <div className="lg:col-span-2">
       <InfoCard title="Комп'ютерна діагностика авто у Львові" icon={Wrench} accent="sky" featured>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(320px,1.05fr)] lg:items-stretch">
-          <div className="flex h-full flex-col justify-between gap-3 lg:py-1">
-            <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-sky-200/80 bg-sky-50/90 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">
-              <Wrench size={14} strokeWidth={2} aria-hidden="true" />
-              Діагностика + консультація
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.85fr)] lg:items-stretch">
+          <div className="flex h-full flex-col justify-between gap-3 rounded-2xl border border-sky-100/80 bg-[linear-gradient(145deg,rgba(248,250,252,0.82),rgba(240,249,255,0.72))] p-3 ring-1 ring-white/80">
+            <div className="space-y-2.5">
+              <p className="text-[13.5px] leading-6 text-slate-600">
+                PartsON виконує <strong className="font-semibold text-slate-700">комп&apos;ютерну діагностику автомобіля у Львові</strong>
+                {" "}за адресою <AddressMapLink />:
+                зчитуємо помилки OBD-II/EOBD, перевіряємо електронні блоки, пояснюємо причину
+                несправності зрозумілою мовою та допомагаємо підібрати потрібні автозапчастини.
+              </p>
+              <ul className="grid gap-1.5 text-[12.5px] font-semibold leading-relaxed text-slate-600">
+                <Li icon={CheckCircle} cls="text-sky-500">Check Engine, ECU, ABS, ESP, SRS Airbag, АКПП, датчики та електроніка.</Li>
+                <Li icon={CheckCircle} cls="text-sky-500">Вартість комп&apos;ютерної діагностики узгоджується за попередньою домовленістю після уточнення авто й симптомів.</Li>
+                <Li icon={Route} cls="text-sky-500">Можливий виїзд у межах Львова або за межі міста за додаткову плату. Орієнтовна вартість виїзду — від 500 грн залежно від відстані.</Li>
+                <Li icon={CheckCircle} cls="text-sky-500">Після перевірки пояснюємо коди помилок і підбираємо потрібні запчастини.</Li>
+              </ul>
             </div>
-            <p className="text-[14px] leading-7 text-slate-600">
-              PartsON виконує <strong className="font-semibold text-slate-700">комп&apos;ютерну діагностику автомобіля у Львові</strong>:
-              зчитуємо помилки OBD-II/EOBD, перевіряємо електронні блоки, пояснюємо причину
-              несправності зрозумілою мовою та допомагаємо підібрати потрібні автозапчастини.
-            </p>
-            <ul className="grid gap-2 text-[13px] font-semibold leading-relaxed text-slate-600">
-              <Li icon={CheckCircle} cls="text-sky-500">Check Engine, ABS, ESP, SRS Airbag, АКПП, датчики та електроніка.</Li>
-              <Li icon={CheckCircle} cls="text-sky-500">Зчитування кодів, пояснення причини та рекомендації щодо ремонту.</Li>
-              <Li icon={CheckCircle} cls="text-sky-500">Підбір потрібних запчастин після перевірки авто.</Li>
-            </ul>
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              {diagnosticsVisualCards.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <figure
+                    key={item.label}
+                    className={`group/diagnostic-icon relative min-h-[94px] overflow-hidden rounded-xl border bg-gradient-to-br p-2.5 shadow-[0_8px_20px_rgba(14,165,233,0.08)] backdrop-blur-md transition-[box-shadow,border-color] duration-300 hover:shadow-[0_12px_24px_rgba(14,165,233,0.12)] ${item.tone}`}
+                  >
+                    <span className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-current opacity-[0.06] blur-2xl" />
+                    <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(255,255,255,0.76),transparent_34%)] opacity-80" />
+                    <figcaption className="relative flex h-full flex-col justify-between gap-3">
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/80 bg-white/45 text-current shadow-[inset_0_1px_0_rgba(255,255,255,0.86),0_7px_16px_rgba(15,23,42,0.07)] backdrop-blur-md">
+                        <Icon size={20} strokeWidth={1.9} aria-hidden="true" />
+                      </span>
+                      <span className="block">
+                        <span className="block text-[12.5px] font-black leading-tight text-slate-900">
+                          {item.label}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-600">
+                          {item.text}
+                        </span>
+                      </span>
+                    </figcaption>
+                  </figure>
+                );
+              })}
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+
+            <div className="grid gap-2 sm:grid-cols-2">
               <a
                 href={`tel:${DIAGNOSTICS_PHONE_RAW}`}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-600 px-4 py-2.5 text-[13px] font-extrabold text-white shadow-[0_10px_24px_rgba(14,165,233,0.22)] transition hover:bg-sky-700 active:scale-[0.98]"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-600 px-4 py-2 text-[12.5px] font-extrabold text-white shadow-[0_10px_22px_rgba(14,165,233,0.2)] transition hover:bg-sky-700 active:scale-[0.98]"
               >
                 <Phone size={15} strokeWidth={2} />
                 {DIAGNOSTICS_PHONE_DISPLAY}
               </a>
-              <span className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white/75 px-3 py-2 text-center text-[12px] font-semibold text-slate-600">
+              <a
+                href={MAPS_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white/75 px-3 py-2 text-center text-[12px] font-semibold text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800"
+              >
                 {ADDRESS}
+              </a>
+            </div>
+            <div className="grid gap-2 text-[12px] font-semibold leading-relaxed text-slate-600 sm:grid-cols-2">
+              <span className="rounded-xl border border-amber-200/80 bg-amber-50/80 px-3 py-2">
+                Вартість діагностики: за попередньою домовленістю.
+              </span>
+              <span className="rounded-xl border border-emerald-200/80 bg-emerald-50/80 px-3 py-2">
+                Виїзд: Львів або за межі міста, орієнтовно від 500 грн.
               </span>
             </div>
           </div>
-          <div className="h-full">
-            <DiagnosticsConsultationForm
-              phoneRaw={DIAGNOSTICS_PHONE_RAW}
-              phoneDisplay={DIAGNOSTICS_PHONE_DISPLAY}
-            />
+          <div className="h-full self-stretch">
+            <DiagnosticsConsultationForm />
           </div>
         </div>
       </InfoCard>
@@ -356,7 +427,7 @@ const LocationTab = () => (
       <div className="space-y-3">
         <p>
           Магазин автозапчастин <strong className="font-semibold text-slate-700">PartsON</strong>{" "}
-          розташований у Львові за адресою <strong className="font-semibold text-slate-700">{ADDRESS}</strong>.
+          розташований у Львові за адресою <AddressMapLink />.
           Тут можна швидко отримати консультацію, уточнити наявність деталей, погодити
           самовивіз замовлення та одразу побудувати маршрут до магазину.
         </p>
@@ -372,7 +443,7 @@ const LocationTab = () => (
       <div className="grid gap-4 content-start">
       <InfoCard title="Адреса" icon={MapPin} accent="sky" featured>
         <ul className="space-y-3">
-          <Li icon={MapPin} cls="text-sky-500">{ADDRESS}</Li>
+          <Li icon={MapPin} cls="text-sky-500"><AddressMapLink /></Li>
           <li className="pt-1">
             <a
               href={MAPS_URL}
@@ -428,9 +499,9 @@ const LocationTab = () => (
         />
         <div className="border-t border-slate-200/80 bg-white/95 px-4 py-3.5">
           <p className="text-[13px] leading-relaxed text-slate-600">
-            Карта допоможе швидко побудувати маршрут до магазину PartsON на вулиці
-            Перфецького, 8 у Львові, перевірити локацію для самовивозу та зорієнтуватися
-            перед візитом у магазин автозапчастин.
+            Карта допоможе швидко побудувати маршрут до магазину PartsON за адресою{" "}
+            <AddressMapLink className="text-sky-700" />, перевірити локацію для самовивозу
+            та зорієнтуватися перед візитом у магазин автозапчастин.
           </p>
         </div>
       </div>
@@ -660,14 +731,14 @@ export default function InformationPageClient({ initialSectionKey }: Information
         </nav>
 
         {/* Заголовок сторінки */}
-        <div className="relative overflow-hidden rounded-3xl border border-white/80 bg-white/70 px-6 py-5 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:px-8 sm:py-6">
+        <div className="relative overflow-hidden rounded-3xl border border-white/80 bg-white/70 px-4 py-4 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:px-8 sm:py-6">
           <div className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_0%_0%,rgba(56,189,248,0.12),transparent_52%),radial-gradient(circle_at_100%_100%,rgba(99,102,241,0.08),transparent_52%)]" />
-          <div className="relative flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
-            <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-sky-100 bg-sky-50 text-sky-600 shadow-sm">
+          <div className="relative flex items-start gap-3 sm:items-center sm:gap-4">
+            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-sky-100 bg-sky-50 text-sky-600 shadow-sm sm:h-12 sm:w-12">
               {(() => { const I = activeTab.icon; return <I size={22} strokeWidth={1.7} />; })()}
             </span>
-            <div>
-              <h1 className="text-[1.45rem] font-extrabold leading-tight text-slate-900 sm:text-[1.7rem]">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-[1.2rem] font-extrabold leading-tight text-slate-900 min-[380px]:text-[1.32rem] sm:text-[1.7rem]">
                 {activeTab.seoTitle}
               </h1>
               <p className="mt-1 max-w-2xl text-[13.5px] leading-relaxed text-slate-500 sm:text-[14px]">

@@ -82,19 +82,23 @@ const CarBrandButton = React.memo(function CarBrandButton({
     <button
       type="button"
       aria-label={`Обрати ${brand.name}`}
-      onClick={() => onSelect(brand)}
-      className={`group relative isolate flex w-full flex-col items-center justify-center gap-3 overflow-hidden bg-white/94 px-3 shadow-[0_14px_34px_rgba(15,23,42,0.12)] border border-slate-100/80 ring-1 ring-transparent transition-[border-color,background-color,box-shadow,ring-color,transform] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(59,130,246,0.14),0_6px_18px_rgba(14,165,233,0.1)] hover:ring-1 hover:ring-sky-200/80 hover:border-sky-100 hover:bg-sky-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-0 ${
+      onClick={(event) => {
+        event.currentTarget.blur();
+        onSelect(brand);
+      }}
+      onMouseLeave={(event) => event.currentTarget.blur()}
+      className={`group relative isolate flex w-full flex-col items-center justify-center gap-3 overflow-hidden bg-white/94 px-3 shadow-[0_10px_24px_rgba(15,23,42,0.1)] border border-slate-100/80 ring-1 ring-transparent transition-[border-color,background-color,box-shadow,ring-color] duration-300 ease-out hover:shadow-[0_12px_26px_rgba(59,130,246,0.11),0_4px_14px_rgba(14,165,233,0.08)] hover:ring-1 hover:ring-sky-200/60 hover:border-sky-100 hover:bg-sky-50/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-0 touch-pan-y ${
         isCompact
           ? "rounded-[16px] py-2.5 min-h-[94px]"
           : "rounded-xl py-3.5 min-h-[108px]"
       }`}
     >
-      <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.18),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.14),transparent_34%)] opacity-70 transition-opacity duration-300 ease-out group-hover:opacity-100" />
+      <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.12),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.08),transparent_34%)] opacity-55 transition-opacity duration-300 ease-out group-hover:opacity-68" />
       <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46" />
-      <span className="pointer-events-none absolute -right-12 -top-16 h-28 w-28 rounded-full bg-sky-200/22 blur-3xl opacity-70" />
-      <span className="pointer-events-none absolute -left-14 -bottom-16 h-32 w-32 rounded-full bg-cyan-200/18 blur-3xl opacity-70" />
+      <span className="pointer-events-none absolute -right-12 -top-16 h-24 w-24 rounded-full bg-sky-200/12 blur-2xl opacity-55" />
+      <span className="pointer-events-none absolute -left-14 -bottom-16 h-28 w-28 rounded-full bg-cyan-200/10 blur-2xl opacity-55" />
 
-      <span className="relative flex h-[82px] w-[82px] items-center justify-center transition-transform duration-300 ease-out group-hover:scale-[1.03] group-active:scale-[0.99]">
+      <span className="relative flex h-[82px] w-[82px] items-center justify-center transition-transform duration-300 ease-out group-hover:scale-[1.015] group-active:scale-[0.99]">
         <Image
           src={brand.logo}
           alt={`${brand.name} logo`}
@@ -102,7 +106,7 @@ const CarBrandButton = React.memo(function CarBrandButton({
           height={200}
           quality={100}
           draggable={false}
-          className="h-[66px] w-auto object-contain drop-shadow-[0_14px_22px_rgba(15,23,42,0.2)]"
+          className="h-[66px] w-auto object-contain drop-shadow-[0_8px_14px_rgba(15,23,42,0.16)]"
           style={{ imageRendering: "auto" }}
           sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 240px"
           onError={handleBrandLogoLoadError}
@@ -970,7 +974,7 @@ const AutoSection: React.FC<AutoProps> = ({
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-700 ease-out group-hover/auto:opacity-100"
+          className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-700 ease-out group-hover/auto:opacity-25"
           style={{
             backgroundImage: AUTO_BG_HOVER,
             backgroundSize: "220% 220%",

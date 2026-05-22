@@ -1,7 +1,6 @@
 import "server-only";
 
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 
 import type {
   CatalogSeoFacets,
@@ -21,9 +20,7 @@ type CounterEntry = {
 type CounterMap = Map<string, CounterEntry>;
 type NestedCounterMap = Map<string, CounterMap>;
 
-const SEO_COUNTS_SNAPSHOT_PATH =
-  process.env.SEO_COUNTS_SNAPSHOT_PATH ||
-  path.join(process.cwd(), ".cache", "seo-counts.json");
+const SEO_COUNTS_SNAPSHOT_PATH = ".cache/seo-counts.json";
 
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();

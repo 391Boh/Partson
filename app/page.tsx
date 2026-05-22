@@ -5,7 +5,7 @@ import HomePageContent from "./components/HomePageContent";
 
 const homeTitle = "Інтернет-магазин автозапчастин у Львові";
 const homeDescription =
-  "Купити автозапчастини у Львові в PartsON (вул. Перфецького, 8): каталог деталей за кодом, артикулом, VIN і виробником з доставкою по Львову та Україні.";
+  "PartsON - інтернет-магазин автозапчастин у Львові, вул. Перфецького, 8, тел. +38 (063) 421-18-51. Купити деталі за кодом, артикулом, VIN і виробником з доставкою по Львову та Україні.";
 
 export const metadata: Metadata = buildPageMetadata({
   title: homeTitle,

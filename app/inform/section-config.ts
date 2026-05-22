@@ -153,7 +153,7 @@ export const informationSections: InformationSection[] = [
     subtitle: "OBD, помилки, електроніка",
     seoTitle: "Комп'ютерна діагностика авто у Львові",
     seoDescription:
-      "Комп'ютерна діагностика авто у Львові в PartsON: зчитування та розшифрування помилок Check Engine, ECU, ABS, ESP, SRS, АКПП, датчиків, електроніки та підбір запчастин після перевірки.",
+      "PartsON виконує комп'ютерну діагностику автомобіля у Львові, вул. Перфецького, 8, тел. +38 (093) 480-42-61: OBD-II/EOBD, ECU, ABS, ESP, SRS, АКПП. Вартість за домовленістю, можливий виїзд по Львову.",
     keywords: [
       "комп'ютерна діагностика авто львів",
       "компютерна діагностика авто львів",
@@ -173,6 +173,10 @@ export const informationSections: InformationSection[] = [
       "діагностика датчиків авто",
       "діагностика двигуна",
       "автодіагностика львів",
+      "комп'ютерна діагностика перфецького",
+      "діагностика авто з виїздом львів",
+      "виїзна діагностика авто львів",
+      "комп'ютерна діагностика ціна львів",
     ],
   },
 ];
@@ -198,7 +202,10 @@ export const getInformationMetadata = (key: InformationSectionKey): Metadata => 
     keywords: section?.keywords || [],
     openGraphTitle: `${title} | PartsON`,
     image: {
-      url: "/Car-parts-fullwidth.png",
+      url:
+        resolvedKey === "diagnostics"
+          ? "/elektronika.png"
+          : "/Car-parts-fullwidth.png",
       alt: `${title} | PartsON`,
     },
   });

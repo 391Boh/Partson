@@ -8,8 +8,10 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import type { Auth, User as FirebaseUser } from 'firebase/auth';
+import type { User as FirebaseUser } from 'firebase/auth';
 import { useCart } from 'app/context/CartContext';
+import { useFirebaseAuthState } from 'app/lib/firebase-auth-state';
+import SearchBar from './Search';
 import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { createPortal } from 'react-dom';
 
@@ -64,31 +66,12 @@ type SearchBarComponentProps = {
   ) => void;
 };
 
-type HeaderAuthDeps = {
-  auth: Auth;
-  onAuthStateChanged: typeof import('firebase/auth').onAuthStateChanged;
-};
-
-let headerAuthDepsPromise: Promise<HeaderAuthDeps> | null = null;
-
-const loadHeaderAuthDeps = () => {
-  headerAuthDepsPromise ??= Promise.all([
-    import('../../firebase'),
-    import('firebase/auth'),
-  ]).then(([firebaseModule, authModule]) => ({
-    auth: firebaseModule.auth,
-    onAuthStateChanged: authModule.onAuthStateChanged,
-  }));
-
-  return headerAuthDepsPromise;
-};
-
 const Header: React.FC = () => {
   const { cartItems } = useCart();
   const logoFallbackPath = '/favicon-192x192.png';
   const [hasMounted, setHasMounted] = useState(false);
+  const { user } = useFirebaseAuthState();
 
-  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [activeMenu, setActiveMenu] = useState<string>('');
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register' | undefined>(
@@ -108,8 +91,6 @@ const Header: React.FC = () => {
     useState<ComponentType<OrderComponentProps> | null>(null);
   const [AuthModalComponent, setAuthModalComponent] =
     useState<ComponentType<AuthModalComponentProps> | null>(null);
-  const [SearchBarComponent, setSearchBarComponent] =
-    useState<ComponentType<SearchBarComponentProps> | null>(null);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const prefetchedRoutesRef = useRef<Set<string>>(new Set());
   const skipManualPrefetchRef = useRef(false);
@@ -129,94 +110,6 @@ const Header: React.FC = () => {
     if (skipManualPrefetchRef.current) return;
     prefetchRouteList(router, prefetchedRoutesRef.current, INFO_PREFETCH_ROUTES);
   };
-
-  useEffect(() => {
-    let cancelled = false;
-    let unsubscribe: (() => void) | null = null;
-    let timeoutId: number | null = null;
-
-    const loadAuth = () => {
-      void loadHeaderAuthDeps()
-        .then(({ auth, onAuthStateChanged }) => {
-          if (cancelled) return;
-          setUser(auth.currentUser ?? null);
-          unsubscribe = onAuthStateChanged(auth, (authUser) => {
-            setUser(authUser ?? null);
-          });
-        })
-        .catch((error) => {
-          console.error('Failed to load header auth deps:', error);
-        });
-    };
-
-    const triggerAuthLoad = () => {
-      window.removeEventListener('pointerdown', triggerAuthLoad);
-      window.removeEventListener('keydown', triggerAuthLoad);
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
-      loadAuth();
-    };
-
-    window.addEventListener('pointerdown', triggerAuthLoad, {
-      once: true,
-      passive: true,
-    });
-    window.addEventListener('keydown', triggerAuthLoad, { once: true });
-
-    timeoutId = window.setTimeout(triggerAuthLoad, 5000);
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener('pointerdown', triggerAuthLoad);
-      window.removeEventListener('keydown', triggerAuthLoad);
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
-      unsubscribe?.();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (SearchBarComponent) return;
-
-    let cancelled = false;
-    const loadSearch = () => {
-      void import('app/components/Search').then((module) => {
-        if (!cancelled) {
-          setSearchBarComponent(() => module.default);
-        }
-      });
-    };
-    let timeoutId: number | null = null;
-
-    const triggerSearchLoad = () => {
-      window.removeEventListener('pointerdown', triggerSearchLoad);
-      window.removeEventListener('keydown', triggerSearchLoad);
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
-      loadSearch();
-    };
-
-    window.addEventListener('pointerdown', triggerSearchLoad, {
-      once: true,
-      passive: true,
-    });
-    window.addEventListener('keydown', triggerSearchLoad, { once: true });
-
-    timeoutId = window.setTimeout(triggerSearchLoad, 5000);
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener('pointerdown', triggerSearchLoad);
-      window.removeEventListener('keydown', triggerSearchLoad);
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
-    };
-  }, [SearchBarComponent]);
 
   // CLOSE MENUS ON CLICK OUTSIDE
   useEffect(() => {
@@ -477,15 +370,9 @@ const Header: React.FC = () => {
 
   const renderPortal = (node: React.ReactNode) =>
     portalRoot ? createPortal(node, portalRoot) : null;
-  const renderSearchBar = (onSearch: SearchBarComponentProps['onSearch']) => {
-    if (!SearchBarComponent) {
-      return (
-        <div className="h-10 w-full rounded-xl border border-gray-500 bg-gray-800/80 shadow-md" />
-      );
-    }
-
-    return <SearchBarComponent onSearch={onSearch} />;
-  };
+  const renderSearchBar = (onSearch: SearchBarComponentProps['onSearch']) => (
+    <SearchBar onSearch={onSearch} />
+  );
   const hasOverlayPortalOpen =
     showSearchModal || modals.contact || modals.order || modals.auth;
 
@@ -509,7 +396,7 @@ const Header: React.FC = () => {
   return (
     <header
       suppressHydrationWarning
-      className="site-header-shell font-ui relative z-50 flex h-14 items-center justify-center bg-gradient-to-b from-gray-600 to-gray-800 text-white sm:h-16"
+      className="site-header-shell font-ui relative z-50 flex w-full items-center justify-center text-white"
     >
 
       <div className="page-shell-inline flex items-center justify-between gap-2 sm:gap-4">

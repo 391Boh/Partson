@@ -7,13 +7,8 @@ import { CheckCircle, Send, Wrench } from "lucide-react";
 
 import { auth, db } from "../../firebase";
 
-type DiagnosticsConsultationFormProps = {
-  phoneRaw: string;
-  phoneDisplay: string;
-};
-
 const fieldClass =
-  "w-full rounded-lg border border-slate-200/90 bg-white/92 px-3 py-2.5 text-[13px] font-semibold text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] outline-none transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:shadow-[0_0_0_3px_rgba(125,211,252,0.18)] disabled:cursor-wait disabled:bg-slate-50";
+  "w-full rounded-lg border border-slate-200/90 bg-white/92 px-3 py-1.5 text-[13px] font-semibold leading-5 text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] outline-none transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:shadow-[0_0_0_3px_rgba(125,211,252,0.18)] disabled:cursor-wait disabled:bg-slate-50";
 
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
@@ -31,10 +26,7 @@ const readVinList = (data: Record<string, unknown>) => {
     .filter((value, index, list) => list.indexOf(value) === index);
 };
 
-export default function DiagnosticsConsultationForm({
-  phoneRaw,
-  phoneDisplay,
-}: DiagnosticsConsultationFormProps) {
+export default function DiagnosticsConsultationForm() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [car, setCar] = useState("");
@@ -115,23 +107,27 @@ export default function DiagnosticsConsultationForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="relative grid h-full gap-2.5 overflow-hidden rounded-2xl border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.86)_52%,rgba(236,253,245,0.82)_100%)] p-3 shadow-[0_14px_34px_rgba(15,23,42,0.08)] ring-1 ring-sky-100/70">
-      <span className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[12px] font-black uppercase tracking-[0.16em] text-sky-700">
-          Замовити консультацію
-        </p>
-        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
-          Швидкий запис
+    <form onSubmit={handleSubmit} className="relative grid h-full gap-2 overflow-hidden rounded-2xl border border-sky-100/90 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.92)_48%,rgba(236,253,245,0.86)_100%)] p-3 shadow-[0_12px_28px_rgba(14,165,233,0.1)] ring-1 ring-white/80 transition-[border-color,box-shadow,background-image,transform] duration-300 focus-within:border-sky-300/90 focus-within:bg-[linear-gradient(145deg,rgba(255,255,255,0.99)_0%,rgba(224,242,254,0.94)_48%,rgba(220,252,231,0.88)_100%)] focus-within:shadow-[0_18px_38px_rgba(14,165,233,0.18),0_0_0_3px_rgba(125,211,252,0.16)] focus-within:ring-sky-200/90 sm:p-3.5">
+      <div className="flex items-start gap-2.5 rounded-xl border border-sky-100/80 bg-white/72 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.86)]">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-sky-50 text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.12)]">
+          <Wrench size={17} strokeWidth={2} aria-hidden="true" />
         </span>
+        <div className="min-w-0">
+          <p className="text-[12px] font-black uppercase tracking-[0.13em] text-sky-800">
+            Замовити консультацію
+          </p>
+          <p className="mt-0.5 text-[12px] font-semibold leading-snug text-slate-500">
+            Коротко опишіть авто й симптоми.
+          </p>
+        </div>
       </div>
       {profileLoaded && (
-        <p className="inline-flex items-center gap-2 rounded-lg border border-sky-200/80 bg-sky-50/90 px-3 py-2 text-[12px] font-semibold text-sky-800">
+        <p className="inline-flex items-center gap-2 rounded-lg border border-sky-200/80 bg-sky-50/90 px-3 py-1.5 text-[12px] font-semibold text-sky-800">
           <CheckCircle size={14} strokeWidth={2} className="shrink-0" aria-hidden="true" />
           Дані з профілю підставлено автоматично.
         </p>
       )}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         <input
           type="text"
           name="name"
@@ -172,32 +168,23 @@ export default function DiagnosticsConsultationForm({
         value={message}
         onChange={(event) => setMessage(event.target.value)}
         placeholder="Що турбує: Check Engine, ABS, коробка, запуск, датчики..."
-        rows={3}
+        rows={2}
         disabled={isProfileLoading}
         className={`${fieldClass} resize-none`}
       />
 
-      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-        <button
-          type="submit"
-          disabled={status === "loading" || isProfileLoading}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-[linear-gradient(135deg,#0284c7_0%,#0ea5e9_52%,#06b6d4_100%)] px-4 py-2.5 text-[12px] font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_24px_rgba(14,165,233,0.24)] transition-[transform,box-shadow,filter] duration-200 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_16px_30px_rgba(14,165,233,0.28)] disabled:cursor-not-allowed disabled:opacity-65 disabled:hover:translate-y-0"
-        >
-          <Send size={16} strokeWidth={2} aria-hidden="true" />
-          {isProfileLoading
-            ? "Підтягуємо дані..."
-            : status === "loading"
-              ? "Надсилаємо..."
-              : "Замовити консультацію"}
-        </button>
-        <a
-          href={`tel:${phoneRaw}`}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-emerald-200/90 bg-emerald-50/90 px-3.5 py-2.5 text-[12px] font-extrabold text-emerald-900 transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-100 hover:shadow-[0_10px_22px_rgba(16,185,129,0.12)]"
-        >
-          <Wrench size={16} strokeWidth={2} aria-hidden="true" />
-          {phoneDisplay}
-        </a>
-      </div>
+      <button
+        type="submit"
+        disabled={status === "loading" || isProfileLoading}
+        className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-[linear-gradient(135deg,#0369a1_0%,#0284c7_44%,#06b6d4_100%)] px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.11em] text-white shadow-[0_12px_24px_rgba(14,165,233,0.22)] transition-[transform,box-shadow,filter] duration-200 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_16px_30px_rgba(14,165,233,0.26)] disabled:cursor-not-allowed disabled:opacity-65 disabled:hover:translate-y-0"
+      >
+        <Send size={16} strokeWidth={2} aria-hidden="true" />
+        {isProfileLoading
+          ? "Підтягуємо дані..."
+          : status === "loading"
+            ? "Надсилаємо..."
+            : "Надіслати заявку"}
+      </button>
 
       {status === "success" && (
         <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12.5px] font-semibold text-emerald-800">

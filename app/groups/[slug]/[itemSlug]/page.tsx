@@ -583,24 +583,30 @@ export async function generateStaticParams() {
   const dataset = await getProductTreeDataset().catch(() => null);
   const treeParams = dedupeGroupItemStaticParams(
     dataset?.groups.flatMap((group) => {
-      const groupSlugs = buildStaticSlugCandidates(
-        group.slug,
-        group.legacySlug,
-        buildPlainSeoSlug(group.label)
-      );
+      const groupSlugs = isProductionBuildPhase
+        ? buildStaticSlugCandidates(group.slug)
+        : buildStaticSlugCandidates(
+            group.slug,
+            group.legacySlug,
+            buildPlainSeoSlug(group.label)
+          );
 
       return group.subgroups.flatMap((subgroup) => {
-        const subgroupSlugs = buildStaticSlugCandidates(
-          subgroup.slug,
-          subgroup.legacySlug,
-          buildPlainSeoSlug(subgroup.label)
-        );
+        const subgroupSlugs = isProductionBuildPhase
+          ? buildStaticSlugCandidates(subgroup.slug)
+          : buildStaticSlugCandidates(
+              subgroup.slug,
+              subgroup.legacySlug,
+              buildPlainSeoSlug(subgroup.label)
+            );
         const childParams = subgroup.children.flatMap((child) => {
-          const childSlugs = buildStaticSlugCandidates(
-            child.slug,
-            child.legacySlug,
-            buildPlainSeoSlug(child.label)
-          );
+          const childSlugs = isProductionBuildPhase
+            ? buildStaticSlugCandidates(child.slug)
+            : buildStaticSlugCandidates(
+                child.slug,
+                child.legacySlug,
+                buildPlainSeoSlug(child.label)
+              );
 
           return groupSlugs.flatMap((slug) =>
             childSlugs.map((itemSlug) => ({ slug, itemSlug }))

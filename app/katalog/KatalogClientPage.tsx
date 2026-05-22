@@ -77,22 +77,39 @@ const scheduleCatalogFirebaseLoad = (callback: () => void) => {
   if (typeof window === 'undefined') return () => {};
 
   let didRun = false;
+  let idleId: number | null = null;
   const run = () => {
     if (didRun) return;
     didRun = true;
     window.clearTimeout(timerId);
+    if (idleId != null && 'cancelIdleCallback' in window) {
+      (window as Window & { cancelIdleCallback?: (id: number) => void })
+        .cancelIdleCallback?.(idleId);
+    }
     window.removeEventListener('pointerdown', run);
     window.removeEventListener('keydown', run);
     callback();
   };
 
-  const timerId = window.setTimeout(run, 18000);
+  const timerId = window.setTimeout(run, 1600);
+  const win = window as Window & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+  };
+
+  if (typeof win.requestIdleCallback === 'function') {
+    idleId = win.requestIdleCallback(run, { timeout: 1600 });
+  }
+
   window.addEventListener('pointerdown', run, { passive: true, once: true });
   window.addEventListener('keydown', run, { once: true });
 
   return () => {
     didRun = true;
     window.clearTimeout(timerId);
+    if (idleId != null && 'cancelIdleCallback' in window) {
+      (window as Window & { cancelIdleCallback?: (id: number) => void })
+        .cancelIdleCallback?.(idleId);
+    }
     window.removeEventListener('pointerdown', run);
     window.removeEventListener('keydown', run);
   };

@@ -71,19 +71,19 @@ function BrandCard({
     <button
       type="button"
       aria-label={`Обрати ${brand.name}`}
-      onClick={() => onOpen(brand.name)}
-      className="group relative isolate grid h-[146px] w-full grid-cols-[minmax(0,1fr)_92px] items-stretch gap-3 overflow-hidden rounded-2xl border border-sky-100/85 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(240,249,255,0.9))] px-3 py-3.5 text-left shadow-[0_10px_22px_rgba(15,23,42,0.09)] ring-1 ring-white/70 transition-[border-color,background-color,box-shadow,ring-color] duration-300 ease-out hover:border-sky-200 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/80 hover:to-blue-50 hover:shadow-[0_16px_34px_rgba(59,130,246,0.14),0_7px_18px_rgba(14,165,233,0.1)] hover:ring-sky-200/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 sm:h-[152px] sm:grid-cols-[minmax(0,1fr)_98px] sm:px-3.5"
+      onClick={(event) => {
+        event.currentTarget.blur();
+        onOpen(brand.name);
+      }}
+      onMouseLeave={(event) => event.currentTarget.blur()}
+      className="group relative isolate flex h-[198px] w-full flex-col gap-3 overflow-hidden rounded-2xl border-2 border-cyan-100/90 bg-[linear-gradient(145deg,rgba(255,255,255,0.97),rgba(240,249,255,0.91))] px-3.5 py-3.5 text-left shadow-[0_10px_22px_rgba(15,23,42,0.08),0_0_0_1px_rgba(255,255,255,0.82)_inset] ring-1 ring-sky-200/35 transition-[border-color,background-color,box-shadow,ring-color] duration-300 ease-out hover:border-sky-200/95 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/80 hover:to-blue-50/80 hover:shadow-[0_12px_26px_rgba(59,130,246,0.11),0_5px_16px_rgba(14,165,233,0.08),0_0_0_1px_rgba(34,211,238,0.2)_inset] hover:ring-cyan-200/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 touch-pan-y sm:h-[206px] sm:px-4"
     >
-      <span className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.2),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.14),transparent_34%)] opacity-70 transition-opacity duration-300 ease-out group-hover:opacity-95" />
-      <span className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-colors duration-300 ease-out group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
+      <span className="pointer-events-none absolute inset-0 z-0 rounded-[14px] border border-white/80" />
+      <span className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.12),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.08),transparent_34%)] opacity-55 transition-opacity duration-300 ease-out group-hover:opacity-68" />
+      <span className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-br from-white via-sky-50/50 to-blue-50/40 transition-colors duration-300 ease-out group-hover:from-white group-hover:via-sky-50/80 group-hover:to-blue-50/70" />
 
-      <span className="relative z-10 flex min-w-0 flex-col justify-center border-r border-sky-100/90 pr-3">
-        <span className="font-ui block min-w-0 break-words text-left text-[11px] font-semibold leading-snug text-slate-600 transition-colors duration-300 group-hover:text-slate-700 line-clamp-4 sm:text-[12px]">
-          {brand.description}
-        </span>
-      </span>
-      <span className="relative z-10 flex min-w-0 flex-col items-center justify-center gap-2 py-0.5">
-        <span className="flex h-[54px] w-[76px] items-center justify-center rounded-xl border border-sky-100/80 bg-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_7px_16px_rgba(15,23,42,0.08)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04] group-active:scale-[0.99] sm:w-[82px]">
+      <span className="relative z-10 flex min-w-0 items-center gap-3">
+        <span className="flex h-[54px] w-[78px] shrink-0 items-center justify-center rounded-xl border border-sky-100/80 bg-white/92 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_6px_14px_rgba(15,23,42,0.07)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.015] group-active:scale-[0.99] sm:h-[58px] sm:w-[86px]">
           <Image
             src={brand.logo}
             alt={`${brand.name} logo`}
@@ -91,16 +91,23 @@ function BrandCard({
             height={200}
             quality={100}
             draggable={false}
-            className="max-h-[34px] w-auto max-w-[62px] object-contain drop-shadow-[0_7px_12px_rgba(15,23,42,0.12)] sm:max-w-[66px]"
+            className="max-h-[34px] w-auto max-w-[64px] object-contain drop-shadow-[0_5px_10px_rgba(15,23,42,0.1)] sm:max-h-[38px] sm:max-w-[72px]"
             style={{ imageRendering: "auto" }}
             sizes="(max-width: 640px) 96px, (max-width: 1024px) 128px, 150px"
             onError={handleBrandLogoLoadError}
           />
         </span>
-        <span className="block max-w-full break-words text-center text-[13px] font-black leading-tight tracking-[-0.02em] text-slate-800 transition-colors duration-300 group-hover:text-sky-800 sm:text-[14px]">
-          {brand.name}
+        <span className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
+          <span className="block max-w-full break-words text-left text-[15px] font-black leading-tight tracking-[-0.02em] text-slate-800 transition-colors duration-300 group-hover:text-sky-800 sm:text-[16px]">
+            {brand.name}
+          </span>
+          <span className="block h-0.5 w-14 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-blue-500 transition-all duration-300 group-hover:w-20" />
         </span>
-        <span className="block h-0.5 w-9 rounded-full bg-gradient-to-r from-transparent via-cyan-400 to-sky-500 transition-all duration-300 group-hover:w-12" />
+      </span>
+      <span className="relative z-10 block min-w-0 border-t border-sky-100/80 pt-2.5">
+        <span className="font-ui block min-w-0 break-words text-left text-[11.5px] font-semibold leading-[1.48] text-slate-600 transition-colors duration-300 group-hover:text-slate-700 line-clamp-5 sm:text-[12.5px]">
+          {brand.description}
+        </span>
       </span>
     </button>
   );
@@ -188,7 +195,7 @@ export default function BrandCarousel({
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
     >
-      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/brandcars:opacity-100 bg-[image:radial-gradient(circle_at_12%_16%,rgba(125,211,252,0.26),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.22),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(147,197,253,0.2),transparent_36%)]" />
+      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/brandcars:opacity-30 bg-[image:radial-gradient(circle_at_12%_16%,rgba(125,211,252,0.16),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.12),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(147,197,253,0.1),transparent_36%)]" />
       <motion.div
         className="page-shell-inline relative z-10"
         initial={shouldAnimate ? { opacity: 0, y: 14 } : false}

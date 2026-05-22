@@ -18,6 +18,9 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 
+const STORE_MAPS_URL =
+  "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu&g_ep=EgoyMDI2MDUxNy4wIKXMDSoASAFQAw%3D%3D";
+
 interface ContactsProps {
   onClose: () => void;
 }
@@ -297,9 +300,14 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                       </span>
                       <div className="min-w-0">
                         <p className="text-[14px] font-semibold text-slate-800 sm:text-[15px]">Наш магазин</p>
-                        <p className="mt-0.5 text-[13px] leading-relaxed text-slate-600 sm:mt-1 sm:text-sm">
+                        <a
+                          href={STORE_MAPS_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-0.5 inline-flex text-[13px] leading-relaxed text-sky-700 underline decoration-sky-300 underline-offset-4 transition hover:text-sky-800 hover:decoration-sky-500 sm:mt-1 sm:text-sm"
+                        >
                           м. Львів, вул. Перфецького, 8
-                        </p>
+                        </a>
                         <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] sm:mt-2.5 sm:gap-2 sm:text-xs">
                           <span className="soft-chip px-3 py-1.5 text-slate-600">
                             <Clock3 size={13} className="mr-1.5" />

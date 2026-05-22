@@ -16,6 +16,8 @@ const businessProfilePhotos = [
 
 const PHOTO_FADE_DURATION_MS = 480;
 const PHOTO_AUTO_INTERVAL_MS = 5200;
+const STORE_MAPS_URL =
+  "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu&g_ep=EgoyMDI2MDUxNy4wIKXMDSoASAFQAw%3D%3D";
 
 export default function AdvantagesPhotoSlider() {
   const sliderRef = useRef<HTMLDivElement | null>(null);
@@ -189,9 +191,14 @@ export default function AdvantagesPhotoSlider() {
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-700/78">
               Фото магазину PartsON
             </p>
-            <p className="mt-1 text-[13px] font-semibold text-slate-700">
+            <a
+              href={STORE_MAPS_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-flex text-[13px] font-semibold text-slate-700 underline decoration-sky-300/70 underline-offset-4 transition hover:text-sky-700 hover:decoration-sky-500"
+            >
               Магазин на Перфецького, 8
-            </p>
+            </a>
             <p className="mt-1 text-[11px] text-slate-500 leading-relaxed">
               Тут можна отримати консультацію, оглянути товар і оформити замовлення на автозапчастини.
             </p>

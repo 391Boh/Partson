@@ -1,4 +1,3 @@
-import path from "node:path";
 import type { NextConfig } from "next";
 
 const contentSecurityPolicy = [
@@ -33,7 +32,9 @@ const isProduction = process.env.NODE_ENV === "production";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  outputFileTracingRoot: path.resolve(process.cwd()),
+  turbopack: {
+    root: process.cwd(),
+  },
   allowedDevOrigins: [
     "localhost",
     "127.0.0.1",
@@ -52,6 +53,15 @@ const nextConfig: NextConfig = {
       // Allow article hint query for dynamic product image endpoint.
       { pathname: "/product-image/**" },
     ],
+  },
+  async redirects() {
+    return [
+      {
+        source: "/inform",
+        destination: "/inform/delivery",
+        permanent: false,
+      },
+    ];
   },
   async headers() {
     if (!isProduction) {

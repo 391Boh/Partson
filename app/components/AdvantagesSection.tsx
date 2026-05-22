@@ -1,12 +1,17 @@
 import type { ComponentType, SVGProps } from "react";
 import {
+  BuildingStorefrontIcon,
   CheckBadgeIcon,
   CreditCardIcon,
+  PhoneIcon,
   SparklesIcon,
   TruckIcon,
   WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
 import AdvantagesPhotoSlider from "./AdvantagesPhotoSlider";
+
+const STORE_MAPS_URL =
+  "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu&g_ep=EgoyMDI2MDUxNy4wIKXMDSoASAFQAw%3D%3D";
 
 type AdvantagePanel = {
   title: string;
@@ -79,6 +84,17 @@ const headerHighlights = [
     tone: "border-cyan-200/80 bg-white/78 text-cyan-700",
   },
   {
+    label: "вул. Перфецького, 8",
+    icon: BuildingStorefrontIcon,
+    tone: "border-indigo-200/80 bg-white/78 text-indigo-700",
+    href: STORE_MAPS_URL,
+  },
+  {
+    label: "+38 (063) 421-18-51",
+    icon: PhoneIcon,
+    tone: "border-emerald-200/80 bg-white/78 text-emerald-700",
+  },
+  {
     label: "Самовивіз у Львові і доставка",
     icon: TruckIcon,
     tone: "border-emerald-200/80 bg-white/78 text-emerald-700",
@@ -122,15 +138,28 @@ const AdvantagesSection = () => {
                     </h2>
 
                     <p className="mt-4 max-w-[68ch] text-[14px] leading-relaxed text-slate-700 sm:text-[15px]">
-                      PartsON - інтернет-магазин автозапчастин у Львові на вул. Перфецького, 8.
-                      Ми допомагаємо швидко знайти сумісні запчастини за VIN-кодом, артикулом,
-                      виробником або параметрами автомобіля, щоб ви могли замовити потрібну деталь
-                      без зайвого ризику помилки.
+                      PartsON - інтернет-магазин і магазин автозапчастин у Львові за адресою
+                      {" "}
+                      <a
+                        href={STORE_MAPS_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-extrabold text-sky-800 underline decoration-sky-300/70 underline-offset-4 transition hover:text-sky-600 hover:decoration-sky-500"
+                      >
+                        вул. Перфецького, 8
+                      </a>
+                      . Телефон для консультації:{" "}
+                      <a href="tel:+380634211851" className="font-extrabold text-sky-800 transition hover:text-sky-600">
+                        +38 (063) 421-18-51
+                      </a>
+                      . Ми допомагаємо швидко знайти сумісні запчастини за VIN-кодом, артикулом,
+                      кодом товару, виробником або параметрами автомобіля.
                     </p>
                     <p className="mt-3 max-w-[68ch] text-[14px] leading-relaxed text-slate-600 sm:text-[15px]">
                       У каталозі PartsON доступні оригінальні автозапчастини та перевірені аналоги
                       для ТО, підвіски, двигуна, гальмівної системи, охолодження й автоелектроніки.
-                      Замовлення можна забрати самовивозом у Львові або отримати доставкою по Україні.
+                      Замовлення можна забрати самовивозом у Львові або отримати доставкою по Львову
+                      та Україні.
                     </p>
                     <p className="mt-3 max-w-[68ch] text-[13px] leading-relaxed text-slate-500 sm:text-[14px]">
                       Підкажемо наявність, терміни постачання, варіанти оплати та допоможемо обрати
@@ -140,18 +169,34 @@ const AdvantagesSection = () => {
                     <div className="mt-5 flex flex-wrap gap-2.5">
                       {headerHighlights.map((item) => {
                         const Icon = item.icon;
+                        const content = (
+                          <>
+                            <Icon className="h-4 w-4" />
+                            <span>{item.label}</span>
+                          </>
+                        );
 
-                        return (
+                        return "href" in item ? (
+                          <a
+                            key={item.label}
+                            href={item.href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`inline-flex items-center gap-2 rounded-[999px] border px-3 py-1.5 text-[12px] font-semibold shadow-[0_10px_20px_rgba(125,211,252,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 ${item.tone}`}
+                          >
+                            {content}
+                          </a>
+                        ) : (
                           <span
                             key={item.label}
                             className={`inline-flex items-center gap-2 rounded-[999px] border px-3 py-1.5 text-[12px] font-semibold shadow-[0_10px_20px_rgba(125,211,252,0.14)] backdrop-blur-sm ${item.tone}`}
                           >
-                            <Icon className="h-4 w-4" />
-                            <span>{item.label}</span>
+                            {content}
                           </span>
                         );
                       })}
                     </div>
+
                   </div>
                 </div>
               </div>

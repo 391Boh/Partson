@@ -3,6 +3,9 @@
 import { ArrowLeft, Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+const STORE_MAPS_URL =
+  "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu&g_ep=EgoyMDI2MDUxNy4wIKXMDSoASAFQAw%3D%3D";
+
 // Debounce function
 function debounce<TArgs extends unknown[]>(func: (...args: TArgs) => void, delay: number) {
   let timer: NodeJS.Timeout;
@@ -300,7 +303,14 @@ const DeliveryMethod: React.FC<Props> = ({
       {deliveryMethod === 'Самовивіз' && (
         <div className="soft-surface-card mt-3.5 rounded-[16px] p-3.5 text-sm text-slate-600">
           <p><strong>Адреса самовивозу:</strong></p>
-           <p>м. Львів, вул. Перфецького, 8</p>
+           <a
+             href={STORE_MAPS_URL}
+             target="_blank"
+             rel="noreferrer"
+             className="inline-flex text-sky-700 underline decoration-sky-300 underline-offset-4 transition hover:text-sky-800 hover:decoration-sky-500"
+           >
+             м. Львів, вул. Перфецького, 8
+           </a>
         </div>
       )}
 
