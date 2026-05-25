@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getSimilarProducts } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
-const PRODUCT_SIMILAR_API_TIMEOUT_MS = 2600;
+const PRODUCT_SIMILAR_API_TIMEOUT_MS = 1700;
 const PRODUCT_SIMILAR_LIMIT = 4;
 
 export async function GET(request: Request) {

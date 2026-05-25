@@ -39,6 +39,7 @@ interface Props {
   articleHint?: string;
   hasKnownPhoto?: boolean;
   prefetchedSrc?: string | null;
+  alt?: string;
   // batch props removed
   className?: string;
   onClick?: () => void;
@@ -59,6 +60,7 @@ const ProductCardImage: React.FC<Props> = ({
   articleHint,
   hasKnownPhoto = true,
   prefetchedSrc,
+  alt,
   className = "",
   onClick,
   loadingMode = "lazy",
@@ -265,6 +267,7 @@ const ProductCardImage: React.FC<Props> = ({
 
 
   const canOpen = Boolean(onClick) && status === "loaded";
+  const imageAlt = (alt || "Фото товару").trim();
   // Show skeleton until image is fully loaded (not just while requestSrc is empty)
   const showLoadingSkeleton =
     status !== "loaded" && (status === "loading" || batchImagePending);
@@ -275,14 +278,25 @@ const ProductCardImage: React.FC<Props> = ({
 
   return (
     <div
+      role={canOpen ? "button" : "img"}
+      tabIndex={canOpen ? 0 : undefined}
+      aria-label={canOpen ? `Відкрити ${imageAlt}` : imageAlt}
       onClick={(event) => {
         if (!canOpen || !onClick) return;
+        event.stopPropagation();
+        onClick();
+      }}
+      onKeyDown={(event) => {
+        if (!canOpen || !onClick) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
         event.stopPropagation();
         onClick();
       }}
       className={`
         relative flex h-full w-full items-center justify-center overflow-hidden rounded-md
         bg-gray-200
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 focus-visible:ring-offset-2
         ${canOpen ? "cursor-pointer" : "cursor-default"}
         ${className}
       `}
@@ -311,7 +325,7 @@ const ProductCardImage: React.FC<Props> = ({
             <Image
               key={requestSrc}
               src={requestSrc}
-              alt="product"
+              alt={imageAlt}
               fill
               sizes="(max-width: 639px) 33vw, (max-width: 767px) 18vw, (max-width: 1023px) 13vw, 10vw"
               loading={loadingMode}

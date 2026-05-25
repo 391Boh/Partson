@@ -17,7 +17,7 @@ const parseRootMarginBuffer = (value: string) => {
   const match = value.trim().match(/-?\d+/);
   const numeric = match ? Number(match[0]) : 200;
   if (!Number.isFinite(numeric)) return 200;
-  return Math.min(320, Math.max(120, Math.abs(numeric)));
+  return Math.min(1600, Math.max(160, Math.abs(numeric)));
 };
 
 const DeferredSection = ({

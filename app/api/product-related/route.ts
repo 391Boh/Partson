@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getRelatedProducts } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
-const PRODUCT_RELATED_API_TIMEOUT_MS = 3200;
+const PRODUCT_RELATED_API_TIMEOUT_MS = 1900;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

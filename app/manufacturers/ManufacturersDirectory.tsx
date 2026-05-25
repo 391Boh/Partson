@@ -98,25 +98,31 @@ const buildManufacturerCardSupportText = (item: ManufacturerItem) => {
 const ManufacturerCard = memo(function ManufacturerCard({
   item,
 }: ManufacturerCardProps) {
+  const manufacturerHref = buildManufacturerPath(item.slug);
+
   return (
     <SmartLink
-      href={buildManufacturerPath(item.slug)}
+      href={manufacturerHref}
       aria-label={`Відкрити сторінку бренду ${item.label}`}
-      className={`${directoryCardClass} border-l-4 border-l-teal-100 hover:border-l-teal-300 animate-fadeIn`}
+      className={`${directoryCardClass} animate-fadeIn`}
+      itemScope
+      itemType="https://schema.org/Brand"
+      itemProp="item"
     >
-      <div className="flex h-full flex-col p-3">
+      <meta itemProp="url" content={manufacturerHref} />
+      <div className="flex h-full min-h-[174px] flex-col p-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <div className={`${directoryIconTileClass} h-14 w-14`}>
+            <div className={directoryIconTileClass}>
               {item.logoPath ? (
                 <Image
                   src={item.logoPath}
                   alt={item.label}
-                  width={52}
-                  height={52}
+                  width={48}
+                  height={48}
                   sizes="52px"
-                  loading="eager"
-                  className="relative z-[1] h-10 w-10 object-contain transition duration-300 group-hover:scale-[1.04]"
+                  loading="lazy"
+                  className="relative z-[1] h-9 w-9 object-contain transition duration-300 group-hover:scale-[1.04]"
                 />
               ) : (
                 <span className="relative z-[1]">{item.initials}</span>
@@ -124,17 +130,17 @@ const ManufacturerCard = memo(function ManufacturerCard({
             </div>
 
             <div className="min-w-0">
-              <span className="inline-flex rounded-md border border-teal-200/70 bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-teal-800">
+              <span className="inline-flex rounded-[10px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.11em] text-sky-800">
                 Виробник
               </span>
 
-              <p className="mt-1.5 text-[17px] font-extrabold leading-tight text-slate-950">
+              <p itemProp="name" className="mt-1.5 text-[16px] font-extrabold leading-tight text-slate-950">
                 {item.label}
               </p>
-              <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-600">
+              <p itemProp="description" className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-600">
                 {buildManufacturerCardDescription(item)}
               </p>
-              <p className="mt-2 text-[12px] leading-5 text-slate-500">
+              <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-slate-500">
                 {buildManufacturerCardSupportText(item)}
               </p>
             </div>
@@ -145,7 +151,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
           </span>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-2.5">
+        <div className="mt-auto flex flex-wrap gap-1.5 border-t border-slate-100 pt-2.5">
           <span className={directoryMetricClass}>Сторінка бренду</span>
           {(item.groupsCount > 0 || item.categoriesCount > 0) ? (
             <span className={directoryMetricAccentClass}>Групи та категорії</span>
@@ -278,9 +284,13 @@ export default function ManufacturersDirectory({
 
           <div className="px-4 py-4 sm:px-5 sm:py-5">
             {filteredItems.length > 0 ? (
-              <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3 xl:gap-3">
-                {filteredItems.map((item) => (
-                  <ManufacturerCard key={item.slug} item={item} />
+              <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3 xl:gap-3" itemScope itemType="https://schema.org/ItemList">
+                <meta itemProp="numberOfItems" content={String(filteredItems.length)} />
+                {filteredItems.map((item, index) => (
+                  <div key={item.slug} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                    <meta itemProp="position" content={String(index + 1)} />
+                    <ManufacturerCard item={item} />
+                  </div>
                 ))}
               </div>
             ) : (

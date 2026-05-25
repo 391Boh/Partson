@@ -60,12 +60,20 @@ export default function AutoPage() {
       { "@type": "Thing", name: "марки авто" },
       { "@type": "Thing", name: "каталог автозапчастин" },
     ],
+    potentialAction: {
+      "@type": "SearchAction",
+      target: `${siteUrl}/katalog?tab=auto&brand={car_brand}`,
+      "query-input": "required name=car_brand",
+    },
     mainEntity: {
       "@type": "ItemList",
-      itemListElement: carBrands.slice(0, 24).map((brand, index) => ({
+      name: "Марки авто для підбору запчастин",
+      numberOfItems: carBrands.length,
+      itemListElement: carBrands.slice(0, 48).map((brand, index) => ({
         "@type": "ListItem",
         position: index + 1,
         name: brand.name,
+        description: `Підбір автозапчастин для ${brand.name} у каталозі PartsON.`,
         url: `${siteUrl}/katalog?tab=auto&brand=${encodeURIComponent(brand.name)}`,
       })),
     },

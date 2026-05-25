@@ -105,12 +105,20 @@ export default async function ManufacturersPage() {
       { "@type": "Thing", name: "бренди автозапчастин" },
       { "@type": "Thing", name: "каталог запчастин за виробником" },
     ],
+    potentialAction: {
+      "@type": "SearchAction",
+      target: `${siteUrl}/manufacturers?search={manufacturer_name}`,
+      "query-input": "required name=manufacturer_name",
+    },
     mainEntity: {
       "@type": "ItemList",
+      name: "Список виробників автозапчастин PartsON",
+      numberOfItems: clientProducers.length,
       itemListElement: clientProducers.slice(0, 48).map((producer, index) => ({
         "@type": "ListItem",
         position: index + 1,
         name: producer.label,
+        description: `Запчастини ${producer.label}: сторінка бренду, групи, категорії та товари виробника в PartsON.`,
         url: `${siteUrl}${buildManufacturerPath(producer.slug)}`,
       })),
     },

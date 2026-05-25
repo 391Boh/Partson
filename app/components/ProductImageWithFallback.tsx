@@ -276,10 +276,11 @@ export default function ProductImageWithFallback({
           <button
             type="button"
             onClick={() => setLightboxOpen(true)}
+            aria-label={`${openPhotoTitle}: ${alt}`}
             className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-900"
             title={openPhotoTitle}
           >
-            <Maximize2 size={13} />
+            <Maximize2 size={13} aria-hidden="true" />
             {photoLabel}
           </button>
         ) : null}

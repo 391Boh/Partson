@@ -327,9 +327,29 @@ useEffect(() => {
 
     return (
         <>
-        <div
+        <article
             className={`relative w-full h-[320px] [perspective:1200px] select-none ${cardMotionClass}`}
+            itemScope
+            itemType="https://schema.org/Product"
         >
+            <meta itemProp="sku" content={article !== "-" ? article : code} />
+            {code ? <meta itemProp="mpn" content={code} /> : null}
+            {producer !== "-" ? <meta itemProp="brand" content={producer} /> : null}
+            <meta itemProp="url" content={productHref} />
+            <meta
+                itemProp="image"
+                content={prefetchedImageSrc || `/product-image/${encodeURIComponent(code)}`}
+            />
+            <div itemProp="offers" itemScope itemType="https://schema.org/Offer">
+                <meta itemProp="priceCurrency" content="UAH" />
+                {hasPrice ? <meta itemProp="price" content={String(priceUAH)} /> : null}
+                <link
+                    itemProp="availability"
+                    href={isAvailable ? "https://schema.org/InStock" : "https://schema.org/BackOrder"}
+                />
+                <link itemProp="itemCondition" href="https://schema.org/NewCondition" />
+                <meta itemProp="url" content={productHref} />
+            </div>
             <div
                 className={`relative w-full h-full cursor-pointer ${flipMotionClass}`}
                 style={{
@@ -341,10 +361,10 @@ useEffect(() => {
                 <div
                     className={`
                         absolute inset-0 w-full h-full backface-hidden
-                        rounded-xl shadow-sm hover:shadow-md border border-slate-200/70
-                        bg-gradient-to-br from-white via-slate-50 to-slate-100
+                        rounded-xl shadow-[0_10px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_14px_30px_rgba(14,165,233,0.1)] border border-slate-200/80
+                        bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96),rgba(240,249,255,0.9))]
                         p-2.5 flex flex-col text-[11px] sm:text-[12px] relative
-                        transition-shadow transition-opacity duration-200
+                        transition-[box-shadow,border-color,opacity] duration-200 hover:border-sky-200
                         ${frontVisibilityClass}
                     `}
                     style={{
@@ -368,6 +388,7 @@ useEffect(() => {
                             <ProductCardImage
                                 productCode={code}
                                 articleHint={item.article}
+                                alt={`Фото товару ${name}`}
                                 hasKnownPhoto={item.hasPhoto !== false && !batchImageMissing}
                                 className="w-full h-full transition-transform duration-200 group-hover:scale-[1.02]"
                                 onClick={() => onImageOpen(code, item.article)}
@@ -383,6 +404,7 @@ useEffect(() => {
                         <div className="flex h-full w-2/3 items-center sm:w-3/5">
                             <SmartLink
                                 href={productHref}
+                                itemProp="url"
                                 prefetch={false}
                                 prefetchOnIntent
                                 onClick={(event) => {
@@ -403,7 +425,7 @@ useEffect(() => {
                                 }}
                                 className="font-name-accent text-left text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 leading-[1.02] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
                             >
-                                {name}
+                                <span itemProp="name">{name}</span>
                             </SmartLink>
                         </div>
                     </div>
@@ -710,7 +732,7 @@ useEffect(() => {
 
 
             </div>
-        </div>
+        </article>
         </>
     );
 };

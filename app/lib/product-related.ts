@@ -32,10 +32,10 @@ type RelatedLookupContext = Pick<
 >;
 
 const RELATED_CACHE_TTL_MS = 1000 * 60 * 10;
-const MAX_RELATED_ITEMS = 18;
-const MAX_SIMILAR_ITEMS = 8;
-const FAST_RELATED_TIMEOUT_MS = 700;
-const FALLBACK_RELATED_TIMEOUT_MS = 1050;
+const MAX_RELATED_ITEMS = 12;
+const MAX_SIMILAR_ITEMS = 6;
+const FAST_RELATED_TIMEOUT_MS = 520;
+const FALLBACK_RELATED_TIMEOUT_MS = 760;
 
 const normalizeLookupValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -206,7 +206,7 @@ const buildRelatedSearchQueries = (product: RelatedLookupContext) => {
         .map((value) => value.replace(/\s+/g, " ").trim())
         .filter((value) => value.length >= 3)
     )
-  ).slice(0, 6);
+  ).slice(0, 4);
 };
 
 const scoreRecommendation = (item: CatalogProduct, targetProduct: RelatedLookupContext) => {
@@ -394,7 +394,7 @@ const getRelatedProductsUncached = async (
             findAnalogProductsByArticleInName(product, {
               limit: MAX_RELATED_ITEMS * 2,
               maxPages: 1,
-              pageSize: 72,
+              pageSize: 48,
             }).catch(() => []),
             [] as CatalogProduct[],
             FAST_RELATED_TIMEOUT_MS
@@ -440,7 +440,7 @@ const getRelatedProductsUncached = async (
   if (merged.length === 0) {
     for (const fallbackQuery of lookupQueries) {
       const fallbackMatches = await fetchCatalogProductsByHeaderSearchQuery(fallbackQuery, {
-        limit: 30,
+        limit: 18,
         timeoutMs: FALLBACK_RELATED_TIMEOUT_MS,
         retries: 0,
         retryDelayMs: 100,

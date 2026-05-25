@@ -17,7 +17,7 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import { Eye, EyeOff, LogIn, User, UserPlus, X } from "lucide-react";
+import { Eye, EyeOff, LogIn, ShieldCheck, User, UserPlus, X } from "lucide-react";
 import LoginTelegram from "./LoginTelegram";
 
 type AuthMode = "login" | "register";
@@ -264,28 +264,68 @@ const AuthForm: React.FC<AuthFormProps> = ({
     >
       <div
         ref={modalRef}
-        className={`soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto p-3 sm:p-5 transform-gpu transition-all duration-500 ease-in-out pointer-events-auto ${
+        className={`soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto p-3 text-slate-700 sm:p-4 transform-gpu transition-all duration-500 ease-in-out pointer-events-auto ${
           isClosing
-            ? "scale-95 opacity-0"
+            ? "translate-x-4 scale-[0.98] opacity-0"
             : isVisible
-            ? "scale-100 opacity-100"
-            : "scale-90 opacity-0"
+            ? "translate-x-0 scale-100 opacity-100"
+            : "translate-x-4 scale-[0.98] opacity-0"
         }`}
       >
-
         <button
           onClick={closeModal}
-          className="soft-icon-button absolute top-2 right-2 z-10 h-9 w-9"
+          className="soft-icon-button absolute top-3 right-3 z-10 h-9 w-9"
           aria-label="Закрити"
         >
           <X size={22} />
         </button>
 
         <div className="soft-panel-content flex flex-col gap-3 sm:gap-4">
-          <h2 className="text-xl font-bold text-center text-slate-800 flex items-center justify-center gap-2">
-            <User className="w-5 h-5 text-sky-600" />
-            {mode === "login" ? "Увійти" : "Реєстрація"}
-          </h2>
+          <div className="h-1 rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600" />
+
+          <div className="soft-panel-header pr-10">
+            <div className="min-w-0">
+              <span className="soft-panel-eyebrow">
+                {mode === "login" ? <LogIn size={14} /> : <UserPlus size={14} />}
+                {mode === "login" ? "Вхід" : "Реєстрація"}
+              </span>
+              <h2 className="soft-panel-title mt-3">
+                {mode === "login" ? "Увійти в акаунт" : "Створити акаунт"}
+              </h2>
+              <p className="soft-panel-subtitle">
+                {mode === "login"
+                  ? "Швидкий доступ до профілю, VIN-кодів та історії замовлень."
+                  : "Заповніть кілька полів, щоб оформлювати замовлення швидше."}
+              </p>
+            </div>
+          </div>
+
+          <div className="soft-panel-tabs">
+            <button
+              type="button"
+              onClick={() => onModeChange("login")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-[14px] px-3 py-2 text-sm font-semibold transition ${
+                mode === "login"
+                  ? "soft-segment soft-segment--active"
+                  : "soft-segment hover:bg-white/80 hover:text-slate-800"
+              }`}
+            >
+              <LogIn size={16} />
+              Вхід
+            </button>
+            <button
+              type="button"
+              onClick={() => onModeChange("register")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-[14px] px-3 py-2 text-sm font-semibold transition ${
+                mode === "register"
+                  ? "soft-segment soft-segment--active"
+                  : "soft-segment hover:bg-white/80 hover:text-slate-800"
+              }`}
+            >
+              <UserPlus size={16} />
+              Реєстрація
+            </button>
+          </div>
 
           {mode === "login" ? (
             <form onSubmit={handleLoginSubmit} className="flex flex-col gap-3">
@@ -298,7 +338,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 onFocus={() =>
                   savedUsers.length > 0 && setShowSavedUsersDropdown(true)
                 }
-                className={`soft-field w-full px-4 py-3 text-slate-700 transition ${
+                className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-base ${
                   isEmailValid === null
                     ? ""
                     : isEmailValid
@@ -332,7 +372,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
                   placeholder="Пароль"
                   value={loginData.password}
                   onChange={handleLoginPasswordChange}
-                  className={`soft-field w-full px-4 py-3 text-slate-700 transition ${
+                  className={`soft-field w-full px-4 py-3 pr-11 text-sm text-slate-800 transition sm:text-base ${
                     isPasswordValid === null
                       ? ""
                       : isPasswordValid
@@ -344,13 +384,14 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-slate-700"
+                  className="soft-icon-button absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 border-transparent bg-transparent text-slate-500 hover:text-slate-800"
+                  aria-label={showPassword ? "Сховати пароль" : "Показати пароль"}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
 
-              <label className="soft-surface-card flex items-center gap-2 rounded-2xl px-3 py-2 text-slate-700 text-xs">
+              <label className="soft-surface-card flex items-center gap-2 rounded-[16px] px-3 py-2.5 text-xs text-slate-700">
                 <input
                   type="checkbox"
                   checked={rememberMe}
@@ -369,14 +410,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
                   Увійти
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => onModeChange("register")}
-                  className="soft-secondary-button px-3 py-2 text-xs font-semibold"
-                >
-                  <UserPlus size={18} />
-                  Реєстрація
-                </button>
+                <div className="soft-note flex items-start gap-2 rounded-[16px] px-3 py-2 text-xs">
+                  <ShieldCheck size={16} className="mt-0.5 shrink-0 text-sky-700" />
+                  <span>Ваші дані використовуються для входу та швидкого оформлення замовлень.</span>
+                </div>
               </div>
             </form>
           ) : (
@@ -386,7 +423,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 placeholder="Ваше ім'я"
                 value={registerData.name}
                 onChange={(e) => handleRegisterChange("name", e.target.value)}
-                className={`soft-field w-full px-4 py-3 text-slate-700 transition ${getBorderColor(
+                className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-base ${getBorderColor(
                   "name"
                 )}`}
               />
@@ -399,7 +436,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 placeholder="Email"
                 value={registerData.email}
                 onChange={(e) => handleRegisterChange("email", e.target.value)}
-                className={`soft-field w-full px-4 py-3 text-slate-700 transition ${getBorderColor(
+                className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-base ${getBorderColor(
                   "email"
                 )}`}
               />
@@ -413,14 +450,15 @@ const AuthForm: React.FC<AuthFormProps> = ({
                   placeholder="Пароль"
                   value={registerData.password}
                   onChange={(e) => handleRegisterChange("password", e.target.value)}
-                  className={`soft-field w-full px-4 py-3 text-slate-700 transition ${getBorderColor(
+                  className={`soft-field w-full px-4 py-3 pr-11 text-sm text-slate-800 transition sm:text-base ${getBorderColor(
                     "password"
                   )}`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-slate-700"
+                  className="soft-icon-button absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 border-transparent bg-transparent text-slate-500 hover:text-slate-800"
+                  aria-label={showPassword ? "Сховати пароль" : "Показати пароль"}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -434,7 +472,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 placeholder="+380XXXXXXXXX"
                 value={registerData.phone}
                 onChange={(e) => handleRegisterChange("phone", e.target.value)}
-                className={`soft-field w-full px-4 py-3 text-slate-700 transition ${getBorderColor(
+                className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-base ${getBorderColor(
                   "phone"
                 )}`}
               />
@@ -450,14 +488,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
                   <UserPlus size={20} />
                   Створити акаунт
                 </button>
-                <button
-                  type="button"
-                  onClick={() => onModeChange("login")}
-                  className="soft-secondary-button px-3 py-2 text-xs font-semibold"
-                >
-                  <LogIn size={18} />
-                  Назад до входу
-                </button>
+                <div className="soft-note flex items-start gap-2 rounded-[16px] px-3 py-2 text-xs">
+                  <User className="mt-0.5 h-4 w-4 shrink-0 text-sky-700" />
+                  <span>Після реєстрації профіль буде готовий для замовлень і збереження VIN.</span>
+                </div>
               </div>
             </form>
           )}

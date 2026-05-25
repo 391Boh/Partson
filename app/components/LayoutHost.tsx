@@ -270,6 +270,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const pathnameValue = usePathname();
   const pathname = pathnameValue ?? "";
   const warmupStartedRef = useRef(false);
+  const previousPathnameRef = useRef(pathname);
   const isDevelopment = process.env.NODE_ENV !== "production";
   const enableAggressiveWarmup =
     process.env.NEXT_PUBLIC_ENABLE_AGGRESSIVE_WARMUP === "1";
@@ -405,6 +406,37 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
       return () => window.cancelAnimationFrame(frameId);
     }
+  }, [pathname]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const previousPathname = previousPathnameRef.current;
+    previousPathnameRef.current = pathname;
+
+    if (
+      previousPathname === pathname ||
+      !previousPathname.startsWith("/product/") ||
+      !pathname.startsWith("/product/")
+    ) {
+      return;
+    }
+
+    let secondFrameId: number | null = null;
+    const firstFrameId = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+
+      secondFrameId = window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrameId);
+      if (secondFrameId != null) {
+        window.cancelAnimationFrame(secondFrameId);
+      }
+    };
   }, [pathname]);
 
   useEffect(() => {

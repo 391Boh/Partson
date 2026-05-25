@@ -227,37 +227,37 @@ export default function ProductPurchasePanelClient(
       ? "Замовлення доступне одразу зі сторінки."
       : "Надішліть запит менеджеру для уточнення ціни.";
   const statusCardClass = isInStock
-    ? "rounded-[16px] border border-emerald-300/25 bg-[linear-gradient(160deg,rgba(6,78,59,0.34),rgba(2,6,23,0.94))] px-3 py-2.5 shadow-[0_16px_30px_rgba(2,6,23,0.26)]"
-    : "rounded-[16px] border border-amber-300/25 bg-[linear-gradient(160deg,rgba(146,64,14,0.28),rgba(2,6,23,0.94))] px-3 py-2.5 shadow-[0_16px_30px_rgba(2,6,23,0.26)]";
-  const statusLabelClass = isInStock ? "text-emerald-200" : "text-amber-200";
-  const statusValueClass = isInStock ? "text-white" : "text-white";
+    ? "rounded-[16px] border border-emerald-200 bg-emerald-50 px-3 py-2.5 shadow-[0_12px_24px_rgba(16,185,129,0.08)]"
+    : "rounded-[16px] border border-amber-200 bg-amber-50 px-3 py-2.5 shadow-[0_12px_24px_rgba(245,158,11,0.08)]";
+  const statusLabelClass = isInStock ? "text-emerald-700" : "text-amber-700";
+  const statusValueClass = isInStock ? "text-emerald-950" : "text-amber-950";
   const priceCardClass = isLoading
-    ? "rounded-[16px] border border-sky-300/25 bg-[linear-gradient(160deg,rgba(14,165,233,0.24),rgba(15,23,42,0.94))] px-3 py-2.5 shadow-[0_16px_30px_rgba(2,6,23,0.26)]"
+    ? "rounded-[16px] border border-sky-200 bg-sky-50 px-3 py-2.5 shadow-[0_12px_24px_rgba(14,165,233,0.08)]"
     : hasPrice
-      ? "rounded-[16px] border border-cyan-300/25 bg-[linear-gradient(160deg,rgba(6,182,212,0.24),rgba(15,23,42,0.94))] px-3 py-2.5 shadow-[0_16px_30px_rgba(2,6,23,0.26)]"
-      : "rounded-[16px] border border-rose-300/25 bg-[linear-gradient(160deg,rgba(225,29,72,0.26),rgba(15,23,42,0.94))] px-3 py-2.5 shadow-[0_16px_30px_rgba(2,6,23,0.26)]";
+      ? "rounded-[16px] border border-cyan-200 bg-cyan-50 px-3 py-2.5 shadow-[0_12px_24px_rgba(6,182,212,0.08)]"
+      : "rounded-[16px] border border-rose-200 bg-rose-50 px-3 py-2.5 shadow-[0_12px_24px_rgba(244,63,94,0.08)]";
   const priceLabelClass = isLoading
-    ? "text-sky-200"
+    ? "text-sky-700"
     : hasPrice
-      ? "text-cyan-200"
-      : "text-rose-200";
+      ? "text-cyan-700"
+      : "text-rose-700";
   const priceValueClass = isLoading
-    ? "text-white"
+    ? "text-sky-950"
     : hasPrice
-      ? "text-white"
-      : "text-white";
+      ? "text-cyan-950"
+      : "text-rose-950";
   const panelIndicatorClass = isInStock
-    ? "bg-emerald-300 shadow-[0_0_0_4px_rgba(52,211,153,0.16)]"
-    : "bg-amber-300 shadow-[0_0_0_4px_rgba(251,191,36,0.16)]";
+    ? "bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.14)]"
+    : "bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.14)]";
 
   return (
-    <div className="rounded-[22px] border border-cyan-400/18 bg-[linear-gradient(180deg,rgba(2,6,23,0.96),rgba(15,23,42,0.97),rgba(8,47,73,0.92))] p-3 text-white shadow-[0_24px_50px_rgba(2,6,23,0.35)]">
+    <div className="flex h-full flex-col rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] p-3 text-slate-900 shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-800">
             Замовлення
           </p>
-          <p className="mt-0.5 text-[12px] font-medium leading-5 text-slate-300">
+          <p className="mt-0.5 text-[12px] font-medium leading-5 text-slate-600">
             Ціна та наявність
           </p>
         </div>
@@ -285,11 +285,11 @@ export default function ProductPurchasePanelClient(
         </div>
       </div>
 
-      <p className="mt-2.5 rounded-[16px] border border-white/10 bg-white/8 px-3 py-2 text-[12px] leading-5 text-slate-200 shadow-[0_8px_18px_rgba(2,6,23,0.18)]">
+      <p className="mt-2.5 rounded-[16px] border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] leading-5 text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
         {helperText}
       </p>
 
-      <div className="mt-2.5 flex items-center gap-2">
+      <div className="mt-auto flex items-center gap-2 pt-2.5">
         <ProductPageActions
           code={product.code || resolvedCode}
           article={product.article}

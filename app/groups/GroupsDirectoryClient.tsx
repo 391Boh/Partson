@@ -153,17 +153,21 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
 
   return (
     <article
-      className={`${directoryCardClass} border-l-4 border-l-teal-100 p-3.5 hover:border-l-teal-300`}
+      className={`${directoryCardClass} p-3`}
+      itemScope
+      itemType="https://schema.org/DefinedTerm"
+      itemProp="item"
     >
+      <meta itemProp="url" content={buildGroupPath(group.slug)} />
       <div className="relative z-[1]">
         <div className="flex items-start gap-3">
-          <div className={`${directoryIconTileClass} h-14 w-14`}>
+          <div className={directoryIconTileClass}>
             <Image
               src={getCategoryIconPath(visibleGroupLabel)}
               alt={visibleGroupLabel}
-              width={48}
-              height={48}
-              className="relative z-[1] h-10 w-10 object-contain"
+              width={44}
+              height={44}
+              className="relative z-[1] h-9 w-9 object-contain"
               unoptimized
             />
           </div>
@@ -171,17 +175,18 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <span className="inline-flex rounded-md border border-teal-200/70 bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-teal-800">
+                <span className="inline-flex rounded-[10px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.11em] text-sky-800">
                   Група
                 </span>
                 <SmartLink
                   href={buildGroupPath(group.slug)}
-                  className="mt-2 block text-lg font-extrabold leading-tight tracking-normal text-slate-950 transition hover:text-teal-700"
+                  itemProp="url"
+                  className="mt-1.5 block text-[16px] font-extrabold leading-tight tracking-normal text-slate-950 transition hover:text-sky-700"
                 >
-                  {visibleGroupLabel}
+                  <span itemProp="name">{visibleGroupLabel}</span>
                 </SmartLink>
 
-                <p className="mt-1.5 text-sm leading-5 text-slate-600">
+                <p itemProp="description" className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-600">
                   {groupHint}
                 </p>
               </div>
@@ -205,18 +210,18 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
       </div>
 
       {hasSubgroups ? (
-        <div className="relative z-[1] mt-3 space-y-2.5">
+        <div className="relative z-[1] mt-3 grid gap-2 md:grid-cols-2">
           {group.subgroups.map((subgroup) => (
             <div
               key={subgroup.slug}
-              className="rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 transition hover:border-teal-200 hover:bg-white"
+              className="rounded-[14px] border border-slate-200 bg-white/80 p-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.035)] transition hover:border-sky-200 hover:bg-sky-50/35"
             >
               <div className="flex items-start justify-between gap-3">
                 <CatalogPrefetchLink
                   href={buildGroupItemPath(group.slug, subgroup.slug)}
-                  className="inline-flex min-w-0 items-center gap-2 text-sm font-bold leading-5 text-slate-800 transition hover:text-teal-700"
+                  className="inline-flex min-w-0 items-center gap-2 text-[13px] font-bold leading-5 text-slate-800 transition hover:text-sky-700"
                 >
-                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-teal-200 bg-teal-50 text-teal-700">
+                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-sky-200 bg-sky-50 text-sky-700">
                     <ChevronRight size={14} strokeWidth={2.3} />
                   </span>
                   <span>{buildVisibleProductName(subgroup.label)}</span>
@@ -237,23 +242,23 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                 </div>
               </div>
 
-              <p className="mt-2 text-[13px] leading-5 text-slate-600">
+              <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-600">
                 {buildSubgroupDirectoryLead(group.label, subgroup)}
               </p>
 
               {subgroup.children.length > 0 ? (
-                <div className="mt-2 grid grid-cols-1 gap-1.5 pl-0 sm:grid-cols-2">
-                  {subgroup.children.map((child) => (
+                <div className="mt-2 grid grid-cols-1 gap-1.5 pl-0">
+                  {subgroup.children.slice(0, 6).map((child) => (
                     <CatalogPrefetchLink
                       key={child.slug}
                       href={buildGroupItemPath(group.slug, child.slug)}
-                      className="flex items-start justify-between gap-3 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-[13px] text-slate-700 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800"
+                      className="flex items-start justify-between gap-3 rounded-[12px] border border-slate-200 bg-white px-2.5 py-2 text-[12px] text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800"
                     >
                       <span className="min-w-0">
                         <span className="block font-semibold text-slate-800">
                           {buildVisibleProductName(child.label)}
                         </span>
-                        <span className="mt-0.5 block text-[12px] leading-4 text-slate-500">
+                        <span className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-slate-500">
                           {buildChildDirectoryLead(group.label, subgroup.label, child.label)}
                         </span>
                       </span>
@@ -268,6 +273,14 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                       </span>
                     </CatalogPrefetchLink>
                   ))}
+                  {subgroup.children.length > 6 ? (
+                    <CatalogPrefetchLink
+                      href={buildGroupItemPath(group.slug, subgroup.slug)}
+                      className="rounded-[12px] border border-dashed border-sky-200 bg-sky-50/60 px-2.5 py-2 text-[12px] font-bold text-sky-800 transition hover:bg-sky-100"
+                    >
+                      Ще {subgroup.children.length - 6} категорій
+                    </CatalogPrefetchLink>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -439,9 +452,13 @@ export default function GroupsDirectoryClient({
 
           {filteredGroups.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 gap-3">
-                {filteredGroups.map((group) => (
-                  <GroupCategoryCard key={group.slug} group={group} />
+              <div className="grid grid-cols-1 gap-3" itemScope itemType="https://schema.org/ItemList">
+                <meta itemProp="numberOfItems" content={String(filteredGroups.length)} />
+                {filteredGroups.map((group, index) => (
+                  <div key={group.slug} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                    <meta itemProp="position" content={String(index + 1)} />
+                    <GroupCategoryCard group={group} />
+                  </div>
                 ))}
               </div>
             </>

@@ -3,12 +3,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { addDoc, collection, doc, getDoc, Timestamp } from "firebase/firestore";
-import { CheckCircle, Send, Wrench } from "lucide-react";
+import { CheckCircle, MessageSquareText, Send, Wrench } from "lucide-react";
 
 import { auth, db } from "../../firebase";
 
 const fieldClass =
-  "w-full rounded-lg border border-slate-200/90 bg-white/92 px-3 py-1.5 text-[13px] font-semibold leading-5 text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] outline-none transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:shadow-[0_0_0_3px_rgba(125,211,252,0.18)] disabled:cursor-wait disabled:bg-slate-50";
+  "h-8 w-full rounded-lg border border-slate-200/90 bg-white/95 px-2.5 text-[12.5px] font-semibold leading-none text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)] outline-none transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:shadow-[0_0_0_3px_rgba(125,211,252,0.2)] disabled:cursor-wait disabled:bg-slate-50";
 
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
@@ -107,22 +107,23 @@ export default function DiagnosticsConsultationForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="relative grid h-full gap-2 overflow-hidden rounded-2xl border border-sky-100/90 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.92)_48%,rgba(236,253,245,0.86)_100%)] p-3 shadow-[0_12px_28px_rgba(14,165,233,0.1)] ring-1 ring-white/80 transition-[border-color,box-shadow,background-image,transform] duration-300 focus-within:border-sky-300/90 focus-within:bg-[linear-gradient(145deg,rgba(255,255,255,0.99)_0%,rgba(224,242,254,0.94)_48%,rgba(220,252,231,0.88)_100%)] focus-within:shadow-[0_18px_38px_rgba(14,165,233,0.18),0_0_0_3px_rgba(125,211,252,0.16)] focus-within:ring-sky-200/90 sm:p-3.5">
-      <div className="flex items-start gap-2.5 rounded-xl border border-sky-100/80 bg-white/72 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.86)]">
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-sky-50 text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.12)]">
+    <form onSubmit={handleSubmit} className="relative grid h-full content-start gap-2 overflow-hidden rounded-2xl border border-sky-100/90 bg-[linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.92)_50%,rgba(236,253,245,0.82)_100%)] p-3 shadow-[0_12px_28px_rgba(14,165,233,0.1)] ring-1 ring-white/80 transition-[border-color,box-shadow,background-image,transform] duration-300 focus-within:-translate-y-0.5 focus-within:border-sky-300/90 focus-within:bg-[linear-gradient(145deg,rgba(255,255,255,0.99)_0%,rgba(224,242,254,0.95)_52%,rgba(220,252,231,0.9)_100%)] focus-within:shadow-[0_18px_38px_rgba(14,165,233,0.18),0_0_0_3px_rgba(125,211,252,0.16)] focus-within:ring-sky-200/90 sm:p-3.5" aria-label="Форма замовлення консультації з комп'ютерної діагностики">
+      <div className="flex items-center gap-2.5 rounded-xl border border-sky-100/80 bg-white/78 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.86)]">
+        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-sky-50 text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.12)]">
           <Wrench size={17} strokeWidth={2} aria-hidden="true" />
         </span>
-        <div className="min-w-0">
-          <p className="text-[12px] font-black uppercase tracking-[0.13em] text-sky-800">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11.5px] font-black uppercase tracking-[0.12em] text-sky-800">
             Замовити консультацію
           </p>
-          <p className="mt-0.5 text-[12px] font-semibold leading-snug text-slate-500">
+          <p className="mt-0.5 text-[11.5px] font-semibold leading-snug text-slate-500">
             Коротко опишіть авто й симптоми.
           </p>
         </div>
+        <MessageSquareText size={17} strokeWidth={1.9} className="hidden shrink-0 text-emerald-500 sm:block" aria-hidden="true" />
       </div>
       {profileLoaded && (
-        <p className="inline-flex items-center gap-2 rounded-lg border border-sky-200/80 bg-sky-50/90 px-3 py-1.5 text-[12px] font-semibold text-sky-800">
+        <p className="inline-flex items-center gap-2 rounded-lg border border-sky-200/80 bg-sky-50/90 px-3 py-1.5 text-[11.5px] font-semibold text-sky-800">
           <CheckCircle size={14} strokeWidth={2} className="shrink-0" aria-hidden="true" />
           Дані з профілю підставлено автоматично.
         </p>
@@ -134,6 +135,7 @@ export default function DiagnosticsConsultationForm() {
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="Ваше ім'я"
+          aria-label="Ваше ім'я"
           autoComplete="name"
           required
           disabled={isProfileLoading}
@@ -145,6 +147,7 @@ export default function DiagnosticsConsultationForm() {
           value={phone}
           onChange={(event) => setPhone(event.target.value)}
           placeholder="Ваш телефон"
+          aria-label="Ваш телефон"
           autoComplete="tel"
           required
           disabled={isProfileLoading}
@@ -158,6 +161,7 @@ export default function DiagnosticsConsultationForm() {
         value={car}
         onChange={(event) => setCar(event.target.value)}
         placeholder="Марка, модель, рік авто"
+        aria-label="Марка, модель і рік авто"
         autoComplete="off"
         disabled={isProfileLoading}
         className={fieldClass}
@@ -168,17 +172,18 @@ export default function DiagnosticsConsultationForm() {
         value={message}
         onChange={(event) => setMessage(event.target.value)}
         placeholder="Що турбує: Check Engine, ABS, коробка, запуск, датчики..."
+        aria-label="Опис симптомів автомобіля"
         rows={2}
         disabled={isProfileLoading}
-        className={`${fieldClass} resize-none`}
+        className={`${fieldClass} h-14 resize-none py-2 leading-snug`}
       />
 
       <button
         type="submit"
         disabled={status === "loading" || isProfileLoading}
-        className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-[linear-gradient(135deg,#0369a1_0%,#0284c7_44%,#06b6d4_100%)] px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.11em] text-white shadow-[0_12px_24px_rgba(14,165,233,0.22)] transition-[transform,box-shadow,filter] duration-200 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_16px_30px_rgba(14,165,233,0.26)] disabled:cursor-not-allowed disabled:opacity-65 disabled:hover:translate-y-0"
+        className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-[linear-gradient(135deg,#0369a1_0%,#0284c7_48%,#06b6d4_100%)] px-4 text-[11.5px] font-extrabold uppercase tracking-[0.1em] text-white shadow-[0_12px_24px_rgba(14,165,233,0.22)] transition-[transform,box-shadow,filter] duration-200 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_16px_30px_rgba(14,165,233,0.26)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200/80 disabled:cursor-not-allowed disabled:opacity-65 disabled:hover:translate-y-0"
       >
-        <Send size={16} strokeWidth={2} aria-hidden="true" />
+        <Send size={15} strokeWidth={2} aria-hidden="true" />
         {isProfileLoading
           ? "Підтягуємо дані..."
           : status === "loading"
@@ -187,12 +192,12 @@ export default function DiagnosticsConsultationForm() {
       </button>
 
       {status === "success" && (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12.5px] font-semibold text-emerald-800">
+        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] font-semibold text-emerald-800">
           Заявку на консультацію прийнято. Ми зв&apos;яжемось з вами найближчим часом.
         </p>
       )}
       {status === "error" && (
-        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12.5px] font-semibold text-rose-800">
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] font-semibold text-rose-800">
           Не вдалося надіслати заявку. Спробуйте ще раз або зателефонуйте напряму.
         </p>
       )}

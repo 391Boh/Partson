@@ -98,21 +98,12 @@ const Hero: FC<HeroProps> = ({
         <div className="relative grid gap-4 text-slate-100 md:grid-cols-2 lg:grid-cols-3 lg:items-stretch">
           <div className="h-full min-w-0">
             <div
-              role="button"
-              tabIndex={0}
-              aria-expanded={isIntroExpanded}
               onClick={(event) => {
                 event.currentTarget.blur();
                 setIsIntroExpanded((value) => !value);
               }}
               onMouseLeave={(event) => event.currentTarget.blur()}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  setIsIntroExpanded((value) => !value);
-                }
-              }}
-              className={`home-glass-card hero-intro-card relative flex min-h-[214px] h-full cursor-pointer flex-col justify-between gap-3 overflow-hidden rounded-2xl border border-sky-100/18 p-4 shadow-[0_12px_28px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] outline-none ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/[0.11] hover:shadow-[0_14px_30px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.1)] focus-visible:ring-2 focus-visible:ring-sky-200/80 sm:min-h-[230px] sm:p-4.5 lg:min-h-0`}
+              className={`home-glass-card hero-intro-card relative flex min-h-[214px] h-full cursor-pointer flex-col justify-between gap-3 overflow-hidden rounded-2xl border border-sky-100/18 p-4 shadow-[0_12px_28px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] outline-none ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/[0.11] hover:shadow-[0_14px_30px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.1)] sm:min-h-[230px] sm:p-4.5 lg:min-h-0`}
             >
               <span className="pointer-events-none absolute inset-0 rounded-2xl border border-sky-200/14" />
               <div className="pointer-events-none absolute inset-0 opacity-38 transition-opacity duration-700 bg-[image:radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_44%),radial-gradient(circle_at_88%_82%,rgba(37,99,235,0.09),transparent_48%)] group-hover/hero:opacity-44" />

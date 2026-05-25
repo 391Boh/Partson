@@ -21,6 +21,7 @@ const HomeDeferredStackPlaceholder = () => (
       <section
         key={`home-placeholder-${minHeight}`}
         className="home-section-stage relative w-full"
+        aria-busy="true"
       >
         <div className="page-shell-inline">
           <div className="rounded-[20px] border border-sky-100/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.88))] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-5 sm:shadow-[0_18px_36px_rgba(15,23,42,0.06)]">
@@ -92,7 +93,7 @@ export default function HomePageContent() {
               }
             },
             {
-              rootMargin: "820px 0px",
+              rootMargin: "1400px 0px",
             }
           )
         : null;
@@ -105,9 +106,9 @@ export default function HomePageContent() {
     let idleId: number | null = null;
 
     if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(markReady, { timeout: 2800 });
+      idleId = win.requestIdleCallback(markReady, { timeout: 1400 });
     } else {
-      timeoutId = window.setTimeout(markReady, 2400);
+      timeoutId = window.setTimeout(markReady, 1200);
     }
 
     return () => {

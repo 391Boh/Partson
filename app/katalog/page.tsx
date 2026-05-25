@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { unstable_cache } from "next/cache";
 import KatalogPageShell from "app/katalog/KatalogPageShell";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
@@ -15,6 +16,8 @@ import {
 } from "app/lib/catalog-seo";
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
+import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
@@ -24,9 +27,11 @@ import { getSiteUrl } from "app/lib/site-url";
 export const revalidate = 300;
 
 const INITIAL_CATALOG_PAGE_LIMIT = 12;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS = 1800;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 2200;
-const CATALOG_SEO_FACETS_TIMEOUT_MS = 450;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS = 950;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 1350;
+const CATALOG_SEO_FACETS_TIMEOUT_MS = 320;
+const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
+const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
 
 type InitialCatalogPagePayload = {
   items: Array<{
@@ -233,7 +238,7 @@ const resolveCatalogSeoState = (
   let canonicalPath = "/katalog";
   let title = "Каталог автозапчастин";
   let description =
-    "Каталог автозапчастин PartsON у Львові з пошуком за кодом, артикулом, виробником, актуальною наявністю та доставкою по Україні.";
+    `Каталог автозапчастин PartsON у Львові (${STORE_ADDRESS}, тел. ${STORE_PHONE_DISPLAY}) з пошуком за кодом, артикулом, виробником, актуальною наявністю, самовивозом і доставкою по Україні.`;
 
   if (producer && group && subcategory) {
     canonicalPath = buildCatalogProducerPath(producer, group, subcategory);
@@ -564,6 +569,10 @@ const buildCatalogItemListJsonLd = (
     .slice(0, INITIAL_CATALOG_PAGE_LIMIT)
     .map((item, index) => {
       const url = `${siteUrl}${buildSeoProductPath(item)}`;
+      const imagePath =
+        item.hasPhoto === false
+          ? PRODUCT_IMAGE_FALLBACK_PATH
+          : buildProductImagePath(item.code, item.article);
 
       return {
         "@type": "ListItem",
@@ -574,6 +583,7 @@ const buildCatalogItemListJsonLd = (
           name: item.name,
           sku: item.code,
           mpn: item.article || item.code,
+          image: `${siteUrl}${imagePath}`,
           brand: item.producer
             ? {
                 "@type": "Brand",
@@ -747,6 +757,32 @@ const CatalogSeoSnapshot = ({
               Відкрийте товар, перевірте фото, артикул, виробника, ціну та
               наявність. Для складних позицій залиште заявку на підбір за VIN.
             </p>
+            <div className="mt-4 grid gap-2">
+              <a
+                href="tel:+380634211851"
+                aria-label={`Подзвонити в магазин PartsON ${STORE_PHONE_DISPLAY}`}
+                className="rounded-2xl border border-sky-100 bg-white px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition hover:border-sky-200 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60"
+              >
+                <span className="block text-[11px] font-black uppercase tracking-[0.13em] text-sky-700">
+                  Телефон
+                </span>
+                <span className="mt-1 block text-base font-black text-slate-950">
+                  {STORE_PHONE_DISPLAY}
+                </span>
+              </a>
+              <Link
+                href="/inform/location"
+                aria-label={`Адреса магазину PartsON: ${STORE_ADDRESS}`}
+                className="rounded-2xl border border-sky-100 bg-white px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition hover:border-sky-200 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60"
+              >
+                <span className="block text-[11px] font-black uppercase tracking-[0.13em] text-sky-700">
+                  Самовивіз
+                </span>
+                <span className="mt-1 block text-sm font-extrabold leading-5 text-slate-950">
+                  {STORE_ADDRESS}
+                </span>
+              </Link>
+            </div>
           </aside>
         </div>
 

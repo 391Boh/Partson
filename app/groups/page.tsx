@@ -89,13 +89,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function GroupsPage() {
   const siteUrl = getSiteUrl();
-	  const {
-	    clientGroups,
-	    totalGroups,
-	    totalSubgroups,
-	    totalProductCount,
-	    hasProductCounts,
-	  } = await getFullGroupsDirectoryData();
+  const {
+    clientGroups,
+    totalGroups,
+    totalSubgroups,
+    totalProductCount,
+    hasProductCounts,
+  } = await getFullGroupsDirectoryData();
 
   const hasResolvedGroups = totalGroups > 0;
 
@@ -103,7 +103,7 @@ export default async function GroupsPage() {
     .sort((left, right) => right.subgroupsCount - left.subgroupsCount)
     .slice(0, 2);
 
-	  const groupsStructuredData: Record<string, unknown> = {
+  const groupsStructuredData: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     "@id": `${siteUrl}/groups#collection-page`,
@@ -121,15 +121,23 @@ export default async function GroupsPage() {
       { "@type": "Thing", name: "категорії автозапчастин" },
       { "@type": "Thing", name: "підбір запчастин" },
     ],
+    potentialAction: {
+      "@type": "SearchAction",
+      target: `${siteUrl}/groups?search={group_name}`,
+      "query-input": "required name=group_name",
+    },
   };
 
   if (hasResolvedGroups) {
     groupsStructuredData.mainEntity = {
       "@type": "ItemList",
-      itemListElement: clientGroups.slice(0, 24).map((group, index) => ({
+      name: "Групи та категорії автозапчастин PartsON",
+      numberOfItems: clientGroups.length,
+      itemListElement: clientGroups.slice(0, 48).map((group, index) => ({
         "@type": "ListItem",
         position: index + 1,
         name: group.label,
+        description: `Категорія ${group.label}: підгрупи, кінцеві категорії та товари PartsON.`,
         url: `${siteUrl}/groups/${group.slug}`,
       })),
     };

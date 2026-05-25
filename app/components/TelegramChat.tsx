@@ -995,7 +995,11 @@ function ChatProductCard({
     <div className="min-w-[250px] max-w-[326px] rounded-[20px] border border-slate-200/80 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_56%,rgba(224,242,254,0.92)_100%)] p-3.5 text-slate-900 shadow-[0_16px_30px_rgba(15,23,42,0.08)]">
       <div className="flex gap-3">
         <div className="h-[76px] w-[92px] shrink-0 overflow-hidden rounded-[16px] border border-sky-100/80 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.04)]">
-          <ProductCardImage productCode={code} className="w-full h-full" />
+          <ProductCardImage
+            productCode={code}
+            alt={`Фото товару ${product.name || code}`}
+            className="w-full h-full"
+          />
         </div>
         <div className="flex-1">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">

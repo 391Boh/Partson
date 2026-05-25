@@ -8,7 +8,7 @@ import { getSimilarProducts } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 
-const PRODUCT_SIMILAR_INITIAL_TIMEOUT_MS = 650;
+const PRODUCT_SIMILAR_INITIAL_TIMEOUT_MS = 320;
 
 type ProductSimilarItemsSectionProps = {
   product: {
@@ -73,11 +73,11 @@ export default async function ProductSimilarItemsSection({
   );
 
   if (!Array.isArray(items) || items.length === 0) return null;
-  const visibleItems = items.slice(0, 8);
+  const visibleItems = items.slice(0, 6);
   const listClass =
-    "mt-2 flex snap-x gap-2 overflow-x-auto pb-1 text-left [scrollbar-width:thin] [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:grid md:overflow-visible lg:grid-cols-2 2xl:grid-cols-4";
+    "mt-3 flex snap-x gap-2.5 overflow-x-auto pb-2 text-left [scrollbar-width:thin] [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:grid md:overflow-visible lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4";
   const cardClass =
-    "group flex min-h-[174px] min-w-[min(84vw,258px)] shrink-0 snap-start flex-col rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(247,250,253,1))] p-2.5 text-left shadow-[0_12px_24px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(237,246,252,1))] hover:shadow-[0_16px_30px_rgba(14,165,233,0.1)] sm:min-w-[280px] sm:rounded-[18px] md:min-w-0";
+    "group flex min-h-[202px] w-[min(86vw,304px)] shrink-0 snap-start flex-col rounded-[18px] border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,0.98))] p-3 text-left shadow-[0_12px_26px_rgba(15,23,42,0.055)] ring-1 ring-white/80 transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(235,248,255,0.98))] hover:shadow-[0_18px_34px_rgba(14,165,233,0.13)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200/80 sm:w-[318px] md:w-auto";
 
   const categoryLabel = buildVisibleProductName(
     product.subGroup || product.group || product.category || ""
@@ -93,20 +93,20 @@ export default async function ProductSimilarItemsSection({
       : `Зібрали товари з цієї ж групи, щоб швидше знайти суміжні позиції для ${visibleProductName || "обраної запчастини"}.`;
 
   return (
-    <section className="rounded-[22px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(242,247,252,0.96),rgba(255,255,255,0.97))] p-3 text-left shadow-[0_18px_36px_rgba(15,23,42,0.06)] sm:rounded-[24px] sm:p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-900/8 pb-2">
+    <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.07)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/8 pb-3">
         <div className="min-w-0 max-w-3xl">
-          <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-700 mb-0.5">
+          <p className="mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
             Та сама група або підгрупа
           </p>
-          <h2 className="font-display-italic mt-0.5 break-words text-[0.98rem] font-black leading-tight tracking-[-0.035em] text-slate-950 sm:text-[1.08rem]">
+          <h2 className="font-display-italic mt-0.5 break-words text-[1.05rem] font-black leading-tight text-slate-950 sm:text-[1.2rem]">
             {sectionTitle}
           </h2>
           <p className="mt-1 max-w-2xl text-[12px] font-medium leading-5 text-slate-600 sm:text-xs sm:leading-5">
             {sectionSummary}
           </p>
         </div>
-        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.09em] text-slate-700 sm:text-[10px]">
+        <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] text-sky-800">
           {items.length} позицій
         </span>
       </div>
@@ -138,8 +138,8 @@ export default async function ProductSimilarItemsSection({
               prefetch={false}
               className={cardClass}
             >
-              <div className="flex items-start gap-2.5">
-                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-slate-200 bg-gray-200 sm:h-16 sm:w-16">
+              <div className="flex items-start gap-3">
+                <div className="relative h-[74px] w-[74px] shrink-0 overflow-hidden rounded-[16px] border border-slate-200 bg-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                   <AnalogProductThumb
                     src={imageSrc}
                     alt={itemName}
@@ -152,7 +152,7 @@ export default async function ProductSimilarItemsSection({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="inline-flex min-w-0 max-w-full rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.07em] text-slate-500 [overflow-wrap:anywhere] sm:text-[10px]">
+                    <span className="inline-flex min-w-0 max-w-full rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.07em] text-slate-500 [overflow-wrap:anywhere] sm:text-[10px]">
                       {item.producer || "Товар"}
                     </span>
                     <span
@@ -166,7 +166,7 @@ export default async function ProductSimilarItemsSection({
                     </span>
                   </div>
 
-                  <p className="mt-1.5 line-clamp-2 break-words text-[13px] font-extrabold leading-[1.25] text-slate-900 sm:text-[14px]">
+                  <p className="mt-2 line-clamp-3 break-words text-[13.5px] font-extrabold leading-[1.24] text-slate-950 sm:text-[14px]">
                     {itemName}
                   </p>
 
@@ -178,7 +178,7 @@ export default async function ProductSimilarItemsSection({
                 </div>
               </div>
 
-              <div className="mt-auto grid gap-2 border-t border-slate-100 pt-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="mt-auto grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                 <div className="min-w-0">
                   <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500">
                     Артикул / код
@@ -189,7 +189,7 @@ export default async function ProductSimilarItemsSection({
                 </div>
                 <div className="mt-1 flex items-center justify-between gap-2 sm:mt-0 sm:block sm:text-right">
                   <span
-                    className={`inline-flex min-h-8 items-center rounded-[12px] border px-3 py-1.5 text-[13px] font-black leading-none tabular-nums shadow-[0_8px_18px_rgba(14,165,233,0.10)] ring-1 ring-white/80 ${
+                    className={`inline-flex min-h-9 items-center rounded-[13px] border px-3 py-1.5 text-[13px] font-black leading-none tabular-nums shadow-[0_8px_18px_rgba(14,165,233,0.10)] ring-1 ring-white/80 ${
                       hasPrice
                         ? "border-sky-300 bg-[linear-gradient(180deg,#f0f9ff,#e0f2fe)] text-sky-900"
                         : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-slate-500"
@@ -198,7 +198,7 @@ export default async function ProductSimilarItemsSection({
                     {priceLabel}
                   </span>
                   <span className="inline-flex items-center text-[12px] font-extrabold text-sky-700 transition group-hover:translate-x-0.5 sm:mt-1">
-                    Перейти →
+                    Відкрити
                   </span>
                 </div>
               </div>
