@@ -160,7 +160,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
     >
       <meta itemProp="url" content={buildGroupPath(group.slug)} />
       <div className="relative z-[1]">
-        <div className="flex items-start gap-3">
+        <div className="flex min-w-0 items-start gap-3">
           <div className={directoryIconTileClass}>
             <Image
               src={getCategoryIconPath(visibleGroupLabel)}
@@ -173,7 +173,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
               <div className="min-w-0">
                 <span className="inline-flex rounded-[10px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.11em] text-sky-800">
                   Група
@@ -191,7 +191,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                 </p>
               </div>
 
-              <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+              <div className="flex shrink-0 flex-wrap gap-1.5 sm:justify-end">
                 {group.productCount > 0 ? (
                   <span className={directoryCompactMetricClass}>
                     <span>{group.productCount.toLocaleString("uk-UA")}</span>
@@ -216,7 +216,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
               key={subgroup.slug}
               className="rounded-[14px] border border-slate-200 bg-white/80 p-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.035)] transition hover:border-sky-200 hover:bg-sky-50/35"
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                 <CatalogPrefetchLink
                   href={buildGroupItemPath(group.slug, subgroup.slug)}
                   className="inline-flex min-w-0 items-center gap-2 text-[13px] font-bold leading-5 text-slate-800 transition hover:text-sky-700"
@@ -227,7 +227,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                   <span>{buildVisibleProductName(subgroup.label)}</span>
                 </CatalogPrefetchLink>
 
-                <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                <div className="flex shrink-0 flex-wrap gap-1.5 sm:justify-end">
                   {subgroup.productCount > 0 ? (
                     <span className={directoryCompactMetricClass}>
                       <span>{subgroup.productCount.toLocaleString("uk-UA")}</span>
@@ -252,7 +252,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                     <CatalogPrefetchLink
                       key={child.slug}
                       href={buildGroupItemPath(group.slug, child.slug)}
-                      className="flex items-start justify-between gap-3 rounded-[12px] border border-slate-200 bg-white px-2.5 py-2 text-[12px] text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800"
+                      className="flex min-w-0 items-start justify-between gap-3 rounded-[12px] border border-slate-200 bg-white px-2.5 py-2 text-[12px] text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800"
                     >
                       <span className="min-w-0">
                         <span className="block font-semibold text-slate-800">

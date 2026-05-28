@@ -53,11 +53,11 @@ const RecommendationSkeleton = ({
       </div>
       <div className="h-6 w-20 animate-pulse rounded-full bg-slate-100" />
     </div>
-    <div className="mt-3 flex gap-2.5 overflow-hidden">
+    <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-2.5">
       {Array.from({ length: cards }).map((_, index) => (
         <div
           key={index}
-          className="h-[172px] w-[min(82vw,286px)] shrink-0 animate-pulse rounded-[18px] border border-slate-200 bg-slate-100 sm:w-[300px]"
+          className="h-[92px] min-w-0 animate-pulse rounded-[14px] border border-slate-200 bg-slate-100 sm:h-[88px]"
         />
       ))}
     </div>
@@ -71,10 +71,11 @@ export default function ProductDeferredRecommendations({
   return (
     <div className="space-y-2.5">
       <DeferredSection
-        rootMargin="700px"
+        rootMargin="260px"
         fallback={<RecommendationSkeleton titleWidth="w-72" cards={3} />}
-        minHeight="236px"
-        fallbackDelayMs={5000}
+        minHeight="196px"
+        className="min-w-0"
+        fallbackDelayMs={9000}
       >
         <ProductRelatedItemsClientSection
           product={product}
@@ -84,10 +85,11 @@ export default function ProductDeferredRecommendations({
       </DeferredSection>
 
       <DeferredSection
-        rootMargin="500px"
+        rootMargin="180px"
         fallback={<RecommendationSkeleton titleWidth="w-64" cards={2} />}
-        minHeight="220px"
-        fallbackDelayMs={7000}
+        minHeight="152px"
+        className="min-w-0"
+        fallbackDelayMs={12000}
       >
         <ProductRecentlyViewedSection product={product} euroRate={euroRate} />
       </DeferredSection>

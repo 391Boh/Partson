@@ -8,7 +8,8 @@ const isSameFacetValue = (left: string, right: string) =>
 
 export const buildCatalogCategoryPath = (
   group: string | null | undefined,
-  subcategory?: string | null
+  subcategory?: string | null,
+  options?: { expandHierarchy?: boolean }
 ) => {
   const normalizedGroup = normalizeFacetValue(group);
   const normalizedSubcategory = normalizeFacetValue(subcategory);
@@ -22,6 +23,9 @@ export const buildCatalogCategoryPath = (
 
   if (canUseSubcategory) {
     params.set("subcategory", normalizedSubcategory);
+  }
+  if (options?.expandHierarchy) {
+    params.set("scope", "hierarchy");
   }
 
   return `/katalog?${params.toString()}`;

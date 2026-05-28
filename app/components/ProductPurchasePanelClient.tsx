@@ -254,10 +254,10 @@ export default function ProductPurchasePanelClient(
     <div className="flex h-full flex-col rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] p-3 text-slate-900 shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-800">
+          <p className="text-[10px] font-bold uppercase tracking-[0.11em] text-sky-800">
             Замовлення
           </p>
-          <p className="mt-0.5 text-[12px] font-medium leading-5 text-slate-600">
+          <p className="mt-0.5 text-[12.5px] font-medium leading-5 text-slate-600">
             Ціна та наявність
           </p>
         </div>
@@ -266,26 +266,26 @@ export default function ProductPurchasePanelClient(
 
       <div className="grid grid-cols-2 gap-2">
         <div className={statusCardClass}>
-          <p className={`text-[10px] font-bold uppercase tracking-[0.1em] ${statusLabelClass}`}>
+          <p className={`text-[10px] font-bold uppercase tracking-[0.08em] ${statusLabelClass}`}>
             Статус
           </p>
-          <p className={`mt-1 text-[13px] font-extrabold leading-5 ${statusValueClass} sm:text-[14px]`}>
+          <p className={`mt-1 text-[13.5px] font-bold leading-5 ${statusValueClass} sm:text-[14px]`}>
             {isInStock
               ? `В наявності${product.quantity > 0 ? ` · ${product.quantity} шт.` : ""}`
               : "Під замовлення"}
           </p>
         </div>
         <div className={priceCardClass}>
-          <p className={`text-[10px] font-bold uppercase tracking-[0.1em] ${priceLabelClass}`}>
+          <p className={`text-[10px] font-bold uppercase tracking-[0.08em] ${priceLabelClass}`}>
             Ціна
           </p>
-          <p className={`mt-1 text-[14px] font-black leading-5 ${priceValueClass} sm:text-[15px]`}>
+          <p className={`mt-1 text-[14.5px] font-extrabold leading-5 ${priceValueClass} sm:text-[15px]`}>
             {isLoading ? "Завантажуємо" : formatPriceUah(priceUah ?? null)}
           </p>
         </div>
       </div>
 
-      <p className="mt-2.5 rounded-[16px] border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] leading-5 text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
+      <p className="mt-2.5 rounded-[16px] border border-slate-200 bg-slate-50 px-3 py-2 text-[12.5px] font-medium leading-5 text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
         {helperText}
       </p>
 

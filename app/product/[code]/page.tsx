@@ -12,13 +12,9 @@ import {
   findCatalogProductByCode,
   toPriceUah,
 } from "app/lib/catalog-server";
-import ProductDescriptionClientCard from "app/components/ProductDescriptionClientCard";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
-import OpenChatButton from "app/components/OpenChatButton";
-import ProductDeferredRecommendations from "app/components/ProductDeferredRecommendations";
 import {
   buildCatalogCategoryPath,
-  buildCatalogProducerPath,
   buildGroupItemPath,
   buildGroupPath,
   buildManufacturerPath,
@@ -109,6 +105,53 @@ const ProductPurchasePanelClient = dynamic(
   }
 );
 
+const ProductDescriptionClientCard = dynamic(
+  () => import("app/components/ProductDescriptionClientCard"),
+  {
+    loading: () => (
+      <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-white/92 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.06)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
+        <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-3">
+          <div>
+            <div className="h-3 w-20 animate-pulse rounded-full bg-sky-100" />
+            <div className="mt-2 h-6 w-56 max-w-full animate-pulse rounded-full bg-slate-100" />
+          </div>
+          <div className="h-8 w-28 animate-pulse rounded-[12px] bg-slate-100" />
+        </div>
+        <div className="mt-3 space-y-2">
+          <div className="h-4 w-full animate-pulse rounded-full bg-slate-100" />
+          <div className="h-4 w-11/12 animate-pulse rounded-full bg-slate-100" />
+          <div className="h-4 w-3/4 animate-pulse rounded-full bg-slate-100" />
+        </div>
+      </section>
+    ),
+  }
+);
+
+const OpenChatButton = dynamic(() => import("app/components/OpenChatButton"), {
+  loading: () => (
+    <span className="inline-flex h-9 w-9 rounded-[12px] border border-sky-100 bg-sky-50" />
+  ),
+});
+
+const ProductDeferredRecommendations = dynamic(
+  () => import("app/components/ProductDeferredRecommendations"),
+  {
+    loading: () => (
+      <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-white/92 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.05)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
+        <div className="h-5 w-64 max-w-full animate-pulse rounded-full bg-slate-100" />
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-2.5">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-[92px] min-w-0 animate-pulse rounded-[14px] border border-slate-200 bg-slate-100 sm:h-[88px]"
+            />
+          ))}
+        </div>
+      </section>
+    ),
+  }
+);
+
 interface ProductPageParams {
   code: string;
 }
@@ -146,15 +189,6 @@ const matchesLandingFacet = (
     candidate.slug === normalizedSlug
   );
 };
-
-const matchesProducerGroupFacet = (
-  candidate: { label: string; slug: string; filterValue?: string },
-  value: string | null | undefined
-) =>
-  matchesLandingFacet(candidate, value) ||
-  (candidate.filterValue
-    ? matchesLandingFacet({ label: candidate.filterValue, slug: candidate.slug }, value)
-    : false);
 
 const buildProductGroupLandingFallbackPath = (
   productCategory: string,
@@ -1236,11 +1270,26 @@ export async function generateMetadata({
   const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
   const routeSlugs = extractProductRouteSlugsFromParam(decodedParam);
   const fallbackCode = extractProductCodeFromParam(decodedParam);
-  const routeData = await resolveWithTimeout(
+  let routeData = await resolveWithTimeout(
     () => getResolvedProductRouteData(rawCode || ""),
     { code: "", isSeoRoute: false, product: null },
     PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS
   );
+  const canUseDirectFallbackCode = canUseDirectProductCodeFallback(rawCode || "");
+  if (!routeData.code && canUseDirectFallbackCode && fallbackCode) {
+    const directProduct = await resolveWithTimeout(
+      () => getCatalogProduct(fallbackCode),
+      null,
+      700
+    );
+    if (directProduct) {
+      routeData = {
+        code: (directProduct.code || directProduct.article || fallbackCode).trim(),
+        isSeoRoute: false,
+        product: directProduct,
+      };
+    }
+  }
 
   const routeProduct = routeData.product;
   const resolvedCode = (routeData.code || fallbackCode || "").trim();
@@ -1272,7 +1321,7 @@ export async function generateMetadata({
   const siteUrl = getSiteUrl();
   const productImageUrl = `${siteUrl}${productImagePath}`;
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
-  const shouldIndexProduct = !isModalView && Boolean(resolvedCode || fallbackCode);
+  const shouldIndexProduct = !isModalView && Boolean(routeData.code || routeProduct);
 
   const productNameWithProducer = productProducer
     ? appendSeoPartIfMissing(seoVisibleProductName, productProducer)
@@ -1366,20 +1415,28 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
   const fallbackCodeFromRoute = extractProductCodeFromParam(rawCode || "");
   const canUseDirectFallbackCode = canUseDirectProductCodeFallback(rawCode || "");
+  let directCodeProductPromise: Promise<CatalogProduct | null> | null = null;
   // Warm direct-code product cache only for legacy/code URLs while the route
   // resolver runs its index lookup.
   if (canUseDirectFallbackCode && fallbackCodeFromRoute) {
-    void getCatalogProduct(fallbackCodeFromRoute).catch(() => null);
+    directCodeProductPromise = getCatalogProduct(fallbackCodeFromRoute).catch(() => null);
   }
-  let routeData = await resolveWithTimeout(
-    () => getResolvedProductRouteData(rawCode || ""),
-    {
-      code: "",
-      isSeoRoute: false,
-      product: null,
-    },
-    PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS
-  );
+  let routeData =
+    canUseDirectFallbackCode && fallbackCodeFromRoute && !routeSlugs
+      ? {
+          code: "",
+          isSeoRoute: false,
+          product: null,
+        }
+      : await resolveWithTimeout(
+          () => getResolvedProductRouteData(rawCode || ""),
+          {
+            code: "",
+            isSeoRoute: false,
+            product: null,
+          },
+          PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS
+        );
   if (!routeData.code) {
     const recoveredRouteData = await resolveWithTimeout(
       () => recoverProductRouteDataFromNameSlug(rawCode || ""),
@@ -1396,7 +1453,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   if (!product && resolvedCode) {
     product = await resolveWithTimeout(
-      () => getCatalogProduct(resolvedCode),
+      () =>
+        directCodeProductPromise && resolvedCode === fallbackCodeFromRoute
+          ? directCodeProductPromise
+          : getCatalogProduct(resolvedCode),
       null,
       PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
     );
@@ -1404,9 +1464,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   if (!resolvedCode && canUseDirectFallbackCode && fallbackCodeFromRoute) {
     const directFallbackProduct = await resolveWithTimeout(
-      () => getCatalogProduct(fallbackCodeFromRoute),
+      () => directCodeProductPromise || getCatalogProduct(fallbackCodeFromRoute),
       null,
-      PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
+      1200
     );
     if (directFallbackProduct) {
       product = directFallbackProduct;
@@ -1525,7 +1585,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       )
     : EMPTY_CATALOG_SEO_FACETS;
   const seoFacets = hasSeoFacetHints
-    ? await resolveCatalogSeoFacetsWithFallback(rawSeoFacets, getAllProductSitemapEntries)
+    ? await resolveCatalogSeoFacetsWithFallback(rawSeoFacets)
     : rawSeoFacets;
   const producerFacet = product.producer
     ? seoFacets.producers.find((producer) =>
@@ -1544,29 +1604,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
           matchesLandingFacet(subgroup, productSubgroup)
         ) || null
       : null;
-  const producerGroupFacet =
-    producerFacet && (productGroup || productCategory)
-      ? producerFacet.topGroups.find(
-          (group) =>
-            matchesProducerGroupFacet(group, productGroup) ||
-            matchesProducerGroupFacet(group, productCategory)
-        ) || null
-      : null;
-  const producerSubgroupFacet =
-    producerGroupFacet && productSubgroup
-      ? producerGroupFacet.subgroups.find((subgroup) =>
-          matchesLandingFacet(subgroup, productSubgroup)
-        ) || null
-      : null;
-  const catalogGroupFilterValue =
-    producerGroupFacet?.filterValue ||
-    producerGroupFacet?.label ||
-    groupFacet?.label ||
-    productGroup ||
-    productCategory ||
-    undefined;
-  const catalogSubcategoryFilterValue =
-    producerSubgroupFacet?.label || subgroupFacet?.label || productSubgroup || undefined;
   const categoryCatalogGroupValue =
     groupFacet?.label || productGroup || productCategory || productSubgroup;
   const categoryCatalogSubcategoryValue =
@@ -1582,13 +1619,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const categoryCatalogPath = categoryCatalogGroupValue
     ? buildCatalogCategoryPath(categoryCatalogGroupValue, categoryCatalogSubcategoryValue)
     : "/katalog";
-  const producerCatalogPath = product.producer
-    ? buildCatalogProducerPath(
-        product.producer,
-        catalogGroupFilterValue,
-        catalogSubcategoryFilterValue
-      )
-    : null;
   const groupLandingPath = groupSeoFallbackPath;
   const categoryLandingPath = productSubgroup
     ? groupFacet
@@ -1664,8 +1694,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? "mx-auto aspect-square w-full max-w-[260px] rounded-[18px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.98))]"
     : "mx-auto aspect-square w-full max-w-[320px] rounded-[18px] border border-sky-100/70 bg-[radial-gradient(circle_at_top,rgba(224,242,254,0.9),rgba(255,255,255,0.98)_48%,rgba(241,245,249,0.96))] sm:max-w-[360px] xl:max-w-full";
   const descriptionTextClass = isModalView
-    ? "mt-1.5 max-h-[172px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-sm leading-relaxed text-slate-700"
-    : "mt-2.5 max-h-[190px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-[14px] leading-[1.68] text-slate-700 sm:text-[15px]";
+    ? "mt-1.5 max-h-[172px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-sm font-medium leading-relaxed text-slate-700"
+    : "mt-2.5 max-h-[190px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-[14px] font-medium leading-[1.62] text-slate-700 sm:text-[15px]";
   const chatPrefillMessage = [
     "Потрібна консультація по товару:",
     product.name,
@@ -1727,13 +1757,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const productHeaderMetaGridClass = productHeaderInfoItems.length > 0
     ? "mt-3 grid gap-2 sm:grid-cols-[minmax(210px,0.85fr)_minmax(0,1.15fr)]"
     : "mt-3 max-w-[380px]";
-  const keywordButtonHref =
-    producerLandingPath || producerCatalogPath || categoryLandingHref || "/groups";
-  const keywordButtonLabel = producerCatalogPath
-    ? `Більше від ${product.producer}`
-    : visibleProductSubgroup || visibleProductGroup
-      ? `До категорії ${visibleProductSubgroup || visibleProductGroup}`
-      : "До каталогу";
   const productHeadingText = buildFrontendProductHeading(product.name, {
     producer: product.producer,
     article: product.article,
@@ -1741,14 +1764,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
     subGroup: productSubgroup,
   });
   const productHeroLeadText =
-    `Купити ${visibleProductName}${product.producer ? ` ${product.producer}` : ""}${product.article ? `, артикул ${product.article}` : ""}: перевіримо сумісність за VIN, підберемо оригінал або аналог і погодимо доставку по Україні.`;
+    `${visibleProductName}${product.producer ? ` ${product.producer}` : ""}${product.article ? `, артикул ${product.article}` : ""} у PartsON: актуальна картка товару з ціною, наявністю та швидким оформленням замовлення.`;
   const productIndexingText = [
-    `${visibleProductName}${product.producer ? ` ${product.producer}` : ""} доступний у каталозі PartsON для підбору за артикулом, кодом товару або VIN-кодом автомобіля.`,
-    product.article ? `Артикул для пошуку та замовлення: ${product.article}.` : null,
+    `Для точного підбору звіряйте ${product.article ? `артикул ${product.article}` : "артикул"}${product.code || resolvedCode ? ` і код товару ${product.code || resolvedCode}` : ""}.`,
     visibleProductSubgroup || visibleProductGroup
-      ? `Категорія: ${visibleProductSubgroup || visibleProductGroup}.`
+      ? `Розділ каталогу: ${visibleProductSubgroup || visibleProductGroup}.`
       : null,
-    `Магазин у Львові: ${STORE_ADDRESS}; телефон ${STORE_PHONE_DISPLAY}; доставка Новою Поштою, Укрпоштою або Meest по Україні.`,
+    `Консультація за VIN доступна в чаті; магазин у Львові: ${STORE_ADDRESS}; телефон ${STORE_PHONE_DISPLAY}.`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -1762,29 +1784,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
       ].filter(Boolean)
     )
   ).slice(0, 5);
-  const keywordPhrases = Array.from(
-    new Set(
-      [
-        visibleProductName,
-        product.producer ? `${visibleProductName} ${product.producer}` : null,
-        product.article ? `${visibleProductName} ${product.article}` : null,
-        `${visibleProductName} Львів`,
-        `${visibleProductName} купити Львів`,
-        `${visibleProductName} ціна`,
-        `${visibleProductName} Нова Пошта`,
-        `${visibleProductName} доставка по Україні`,
-        visibleProductSubgroup ? `${visibleProductSubgroup} ${visibleProductName}` : null,
-        visibleProductGroup ? `${visibleProductGroup} купити Львів` : null,
-        product.producer ? `${product.producer} ${visibleProductName} купити` : null,
-        product.producer ? `${product.producer} запчастини Львів` : null,
-        product.article ? `${product.article} купити` : null,
-        product.article ? `${product.article} ціна` : null,
-      ]
-        .map((item) => (item || "").replace(/\s+/g, " ").trim())
-        .filter(Boolean)
-    )
-  ).slice(0, 8);
-  const keywordSummaryText = `Швидкі переходи допомагають знайти суміжні позиції, бренд і категорію для ${visibleProductName}${product.producer ? ` ${product.producer}` : ""}.`;
   const faqItems = [
     {
       question: "Як замовити та оплатити?",
@@ -1879,11 +1878,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
                 <div className="order-1 flex h-full min-w-0 flex-col rounded-[20px] border border-white/80 bg-white/78 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.07)] ring-1 ring-white/70 backdrop-blur-md transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white/86 hover:shadow-[0_16px_34px_rgba(15,23,42,0.09)] xl:order-2 sm:p-3.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex rounded-[14px] border border-sky-200 bg-sky-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-sky-800 shadow-[0_8px_18px_rgba(14,165,233,0.08)]">
+                    <span className="inline-flex rounded-[14px] border border-sky-200 bg-sky-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.11em] text-sky-800 shadow-[0_8px_18px_rgba(14,165,233,0.08)]">
                       Картка товару
                     </span>
                     <span
-                      className={`inline-flex rounded-[14px] border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] shadow-[0_8px_18px_rgba(15,23,42,0.08)] ${
+                      className={`inline-flex rounded-[14px] border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.11em] shadow-[0_8px_18px_rgba(15,23,42,0.08)] ${
                         isInStock
                           ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                           : "border-amber-200 bg-amber-50 text-amber-700"
@@ -1893,17 +1892,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     </span>
                   </div>
 
-                  <h1 className="font-display-italic mt-2.5 max-w-none break-words text-[clamp(1.2rem,2.2vw,1.92rem)] font-black leading-[1.04] text-slate-950 [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[42ch]">
+                  <h1 className="font-display mt-2.5 max-w-none break-words bg-[linear-gradient(135deg,#0f172a_0%,#075985_52%,#0e7490_100%)] bg-clip-text text-[clamp(1.24rem,2.05vw,1.82rem)] font-extrabold italic leading-[1.1] tracking-normal text-transparent [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[42ch]">
                     {productHeadingText}
                   </h1>
-                  <p className="mt-2 max-w-2xl text-[13px] font-semibold leading-5 text-slate-600 sm:text-[14px] sm:leading-5">
+                  <p className="mt-2 max-w-2xl text-[13.5px] font-medium leading-6 text-slate-600 sm:text-[14.5px]">
                     {productHeroLeadText}
                   </p>
                   <div className="mt-2.5 flex flex-wrap gap-1.5">
                     {productHeroHighlights.map((item) => (
                       <span
                         key={item}
-                        className="inline-flex min-h-7 items-center rounded-[11px] border border-slate-200 bg-white/82 px-2.5 py-1 text-[10px] font-bold tracking-[0.04em] text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm"
+                        className="inline-flex min-h-7 items-center rounded-[11px] border border-slate-200 bg-white/82 px-2.5 py-1 text-[10px] font-semibold tracking-normal text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm"
                       >
                         {item}
                       </span>
@@ -1911,10 +1910,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </div>
                   <div className={productHeaderMetaGridClass}>
                     <div className="rounded-[16px] border border-sky-200/80 bg-[linear-gradient(145deg,rgba(240,249,255,0.98),rgba(255,255,255,0.92))] px-3.5 py-3 shadow-[0_12px_24px_rgba(14,165,233,0.08)] transition-[box-shadow,border-color] duration-300 hover:border-sky-300 hover:shadow-[0_14px_28px_rgba(14,165,233,0.12)]">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-700 sm:text-[11px]">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.11em] text-sky-700 sm:text-[11px]">
                         {productIdentifierLabel}
                       </p>
-                      <p className="mt-1.5 font-mono text-[15px] font-black leading-5 tracking-normal text-slate-950 [overflow-wrap:anywhere] sm:text-[17px]">
+                      <p className="mt-1.5 font-mono text-[15px] font-extrabold leading-5 tracking-normal text-slate-950 [overflow-wrap:anywhere] sm:text-[17px]">
                         {productIdentifierValue}
                       </p>
                       {productIdentifierHint ? (
@@ -1931,18 +1930,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             key={item.label}
                             className="rounded-[15px] border border-slate-200 bg-white/82 px-3 py-2.5 shadow-[0_10px_20px_rgba(15,23,42,0.05)] backdrop-blur-sm transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-200 hover:bg-white/94 hover:shadow-[0_12px_24px_rgba(15,23,42,0.07)]"
                           >
-                            <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-[10px]">
+                            <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500 sm:text-[10px]">
                               {item.label}
                             </p>
                             {item.href ? (
                               <Link
                                 href={item.href}
-                                className="mt-1 block text-[13px] font-extrabold leading-5 text-slate-900 transition hover:text-sky-700 [overflow-wrap:anywhere]"
+                                className="mt-1 block text-[13.5px] font-bold leading-5 text-slate-900 transition hover:text-sky-700 [overflow-wrap:anywhere]"
                               >
                                 {item.value}
                               </Link>
                             ) : (
-                              <p className="mt-1 text-[13px] font-extrabold leading-5 text-slate-900 [overflow-wrap:anywhere]">
+                              <p className="mt-1 text-[13.5px] font-bold leading-5 text-slate-900 [overflow-wrap:anywhere]">
                                 {item.value}
                               </p>
                             )}
@@ -1991,15 +1990,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-3 shadow-[0_14px_30px_rgba(15,23,42,0.05)] ring-1 ring-white/80 transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_18px_36px_rgba(14,165,233,0.09)] sm:rounded-[24px] sm:p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/8 pb-3">
                       <div className="min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
+                        <p className="text-[10px] font-extrabold uppercase tracking-[0.11em] text-sky-800">
                           Для підбору
                         </p>
-                        <h2 className="font-display-italic mt-1 text-[1.02rem] font-black leading-tight text-slate-950 sm:text-[1.12rem]">
+                        <h2 className="font-display mt-1 text-[1.03rem] font-extrabold italic leading-[1.12] tracking-normal text-slate-950 sm:text-[1.13rem]">
                           Купити {visibleProductName}
                         </h2>
                       </div>
                     </div>
-                    <p className="mt-3 text-[13.5px] font-medium leading-6 text-slate-700 sm:text-[14px]">
+                    <p className="mt-3 text-[13.5px] font-medium leading-[1.62] text-slate-700 sm:text-[14px]">
                       {productIndexingText}
                     </p>
                   </section>
@@ -2031,10 +2030,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <div className="space-y-3">
                 <div className="overflow-hidden rounded-[24px] border border-slate-900/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,244,248,0.96))] shadow-[0_20px_44px_rgba(2,6,23,0.1)] sm:rounded-[26px]">
                   <div className="border-b border-slate-900/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(8,47,73,0.9))] px-4 py-4 sm:px-5">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-300">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-cyan-300">
                       Поширені питання
                     </p>
-                    <h2 className="font-display-italic mt-1 text-[1.05rem] font-black tracking-[-0.04em] text-white sm:text-[1.22rem]">
+                    <h2 className="font-display mt-1 text-[1.06rem] font-extrabold italic leading-[1.12] tracking-normal text-white sm:text-[1.2rem]">
                       Що варто знати перед замовленням
                     </h2>
                   </div>
@@ -2045,10 +2044,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         key={item.question}
                         className="rounded-[20px] border border-slate-900/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(236,243,248,0.94))] px-4 py-3.5 shadow-[0_12px_24px_rgba(2,6,23,0.06)]"
                       >
-                        <h3 className="text-[15px] font-extrabold text-slate-950 not-italic">
+                        <h3 className="text-[15px] font-bold leading-5 text-slate-950 not-italic">
                           {item.question}
                         </h3>
-                        <p className="mt-2 text-sm leading-6 text-slate-700">
+                        <p className="mt-2 text-sm font-medium leading-6 text-slate-700">
                           {item.answer}
                         </p>
                       </div>
@@ -2056,48 +2055,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </div>
                 </div>
 
-                <section className="overflow-hidden rounded-[24px] border border-slate-900/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] shadow-[0_16px_34px_rgba(2,6,23,0.07)] sm:rounded-[26px]">
-                  <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0 max-w-4xl">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-800">
-                          Швидкі переходи
-                        </p>
-                        <span className="inline-flex rounded-[12px] border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-sky-800">
-                          {keywordPhrases.length} варіантів
-                        </span>
-                      </div>
-                      <h2 className="font-display-italic mt-2 text-[1.03rem] font-black tracking-[-0.04em] text-slate-950 sm:text-[1.14rem]">
-                        Схожі пошуки та категорії
-                      </h2>
-                      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
-                        {keywordSummaryText}
-                      </p>
-                    </div>
-
-                    <div className="flex w-full shrink-0 xl:w-auto xl:justify-end">
-                      <Link
-                        href={keywordButtonHref}
-                        className="inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-sky-300/50 bg-[linear-gradient(135deg,#0891b2,#2563eb)] px-4 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(14,116,144,0.16)] transition hover:brightness-105 sm:w-auto"
-                      >
-                        {keywordButtonLabel}
-                      </Link>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-white/80 px-4 py-4 sm:px-5">
-                    <div className="flex flex-wrap gap-2 sm:gap-2.5">
-                      {keywordPhrases.map((phrase) => (
-                        <span
-                          key={phrase}
-                          className="inline-flex min-h-9 items-center rounded-[14px] border border-slate-200 bg-white/88 px-3 py-1.5 text-[12px] font-semibold leading-5 text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] sm:text-[13px]"
-                        >
-                          {phrase}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </section>
               </div>
             </section>
           )}

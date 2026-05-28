@@ -2,7 +2,7 @@
 
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_ITEMS_PER_PAGE = 12;
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v33-description-cursor-search";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v37-hierarchy-scope";
 
 type CatalogSearchFilter = "all" | "article" | "name" | "code" | "producer" | "description";
 
@@ -37,6 +37,7 @@ const buildCatalogPageCacheKey = (params: {
   group: string | null;
   subcategory: string | null;
   producer: string | null;
+  expandHierarchy: boolean;
 }) =>
   JSON.stringify({
     endpoint: CATALOG_PAGE_CACHE_VERSION,
@@ -51,6 +52,7 @@ const buildCatalogPageCacheKey = (params: {
     group: params.group,
     subcat: params.subcategory,
     producer: params.producer,
+    hierarchy: params.expandHierarchy,
     sort: "none",
   });
 
@@ -91,6 +93,7 @@ export const prefetchCatalogListing = async (href: string) => {
   const group = normalizeOptionalValue(targetUrl.searchParams.get("group"));
   const subcategory = normalizeOptionalValue(targetUrl.searchParams.get("subcategory"));
   const producer = normalizeOptionalValue(targetUrl.searchParams.get("producer"));
+  const expandHierarchy = targetUrl.searchParams.get("scope") === "hierarchy";
   const cacheKey = buildCatalogPageCacheKey({
     page: 1,
     searchQuery,
@@ -98,6 +101,7 @@ export const prefetchCatalogListing = async (href: string) => {
     group,
     subcategory,
     producer,
+    expandHierarchy,
   });
 
   if (hasCatalogPageSessionCache(cacheKey)) {
@@ -124,6 +128,7 @@ export const prefetchCatalogListing = async (href: string) => {
         group: group || "",
         subcategory: subcategory || "",
         producer: producer || "",
+        expandHierarchy,
       }),
       cache: "no-store",
     }).catch(() => null);

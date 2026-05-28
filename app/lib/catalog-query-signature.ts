@@ -6,6 +6,7 @@ export type CatalogQuerySignatureInput = {
   group: string | null;
   subcategory: string | null;
   producer: string | null;
+  expandHierarchy?: boolean;
   sortOrder: "none" | "asc" | "desc";
 };
 
@@ -17,6 +18,7 @@ export const buildCatalogQuerySignature = ({
   group,
   subcategory,
   producer,
+  expandHierarchy = false,
   sortOrder,
 }: CatalogQuerySignatureInput) =>
   JSON.stringify({
@@ -27,5 +29,6 @@ export const buildCatalogQuerySignature = ({
     group,
     subcat: subcategory,
     producer,
+    hierarchy: expandHierarchy,
     sort: sortOrder,
   });

@@ -1,12 +1,28 @@
 ﻿'use client';
 
 import { createPortal } from 'react-dom';
+import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import type { PersistedCarSelection } from 'app/components/Auto';
-import Data from 'app/components/Data';
-import FilterSidebar from 'app/components/filtrtion';
+import CatalogData from 'app/components/Data';
+
+const FilterSidebar = dynamic(() => import('app/components/filtrtion'), {
+  ssr: false,
+  loading: () => (
+    <div className="catalog-filter-scroll rounded-[16px] border border-white/72 bg-white/76 p-2 shadow-[0_12px_28px_rgba(15,23,42,0.05)] backdrop-blur-xl sm:p-3">
+      <div className="flex gap-2 overflow-hidden">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <div
+            key={index}
+            className="h-10 w-28 shrink-0 animate-pulse rounded-[14px] bg-slate-200/80"
+          />
+        ))}
+      </div>
+    </div>
+  ),
+});
 
 type InitialCatalogPagePayload = {
   items: Array<{
@@ -91,13 +107,13 @@ const scheduleCatalogFirebaseLoad = (callback: () => void) => {
     callback();
   };
 
-  const timerId = window.setTimeout(run, 1600);
+  const timerId = window.setTimeout(run, 3600);
   const win = window as Window & {
     requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
   };
 
   if (typeof win.requestIdleCallback === 'function') {
-    idleId = win.requestIdleCallback(run, { timeout: 1600 });
+    idleId = win.requestIdleCallback(run, { timeout: 3600 });
   }
 
   window.addEventListener('pointerdown', run, { passive: true, once: true });
@@ -641,7 +657,7 @@ const Katalog: React.FC<KatalogProps> = ({
   );
 
   return (
-    <section className="w-full pb-6">
+    <section className="w-full pb-0">
       {portalRoot ? createPortal(fixedFilterLayer, portalRoot) : fixedFilterLayer}
       <div
         className="page-shell-inline"
@@ -649,7 +665,7 @@ const Katalog: React.FC<KatalogProps> = ({
           paddingTop: catalogTopOffset,
         }}
       >
-        <Data
+        <CatalogData
           selectedCars={selectedCars}
           selectedCategories={selectedCategories}
           sortOrder={sortOrder}

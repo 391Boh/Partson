@@ -334,7 +334,9 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
 
   const siteUrl = getSiteUrl();
   const pagePath = buildGroupPagePath(group.slug);
-  const catalogLink = buildCatalogCategoryPath(group.label);
+  const catalogLink = buildCatalogCategoryPath(group.label, null, {
+    expandHierarchy: true,
+  });
   const canonicalPageUrl = `${siteUrl}${pagePath}`;
   const categoryIconPath = getCategoryIconPath(group.label);
   const categoryIconUrl = `${siteUrl}${categoryIconPath}`;

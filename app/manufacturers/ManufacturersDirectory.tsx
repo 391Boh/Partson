@@ -111,7 +111,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
     >
       <meta itemProp="url" content={manufacturerHref} />
       <div className="flex h-full min-h-[174px] flex-col p-3">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <div className={directoryIconTileClass}>
               {item.logoPath ? (
@@ -129,7 +129,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
               )}
             </div>
 
-            <div className="min-w-0">
+            <div className="min-w-0 [overflow-wrap:anywhere]">
               <span className="inline-flex rounded-[10px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.11em] text-sky-800">
                 Виробник
               </span>

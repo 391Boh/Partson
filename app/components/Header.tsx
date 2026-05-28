@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import React, { useState, useEffect, useRef, type ComponentType } from 'react';
+import dynamic from 'next/dynamic';
 import {
   ShoppingCart, User, Menu, Info, Car,
   List, Truck, CreditCard, MapPin, Users, Phone, Search, ShieldCheck
@@ -11,7 +12,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { useCart } from 'app/context/CartContext';
 import { useFirebaseAuthState } from 'app/lib/firebase-auth-state';
-import SearchBar from './Search';
 import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { createPortal } from 'react-dom';
 
@@ -65,6 +65,13 @@ type SearchBarComponentProps = {
     filterBy: 'all' | 'article' | 'name' | 'code' | 'producer' | 'description'
   ) => void;
 };
+
+const SearchBar = dynamic<SearchBarComponentProps>(() => import('./Search'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-10 w-full rounded-xl border border-gray-600 bg-gray-800/80 shadow-md" />
+  ),
+});
 
 const Header: React.FC = () => {
   const { cartItems } = useCart();

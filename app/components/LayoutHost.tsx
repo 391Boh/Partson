@@ -334,9 +334,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     };
 
     if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(triggerDepsLoad, { timeout: 900 });
+      idleId = win.requestIdleCallback(triggerDepsLoad, { timeout: 3600 });
     } else {
-      timeoutId = window.setTimeout(triggerDepsLoad, 900);
+      timeoutId = window.setTimeout(triggerDepsLoad, 3600);
     }
 
     return () => {

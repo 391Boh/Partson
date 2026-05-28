@@ -45,7 +45,7 @@ const toPositiveInt = (value: unknown, fallback: number) => {
 
 const buildRouteCacheKey = (body: Record<string, unknown>) =>
   JSON.stringify({
-    source: "catalog-page:v15-description-cursor-search",
+    source: "catalog-page:v19-hierarchy-scope",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -64,6 +64,7 @@ const buildRouteCacheKey = (body: Record<string, unknown>) =>
     group: toTrimmedString(body.group),
     subcategory: toTrimmedString(body.subcategory),
     producer: toTrimmedString(body.producer),
+    hierarchy: body.expandHierarchy === true,
     sortOrder:
       body.sortOrder === "asc" || body.sortOrder === "desc"
         ? body.sortOrder
@@ -193,6 +194,7 @@ export async function POST(request: Request) {
     const normalizedGroup = toTrimmedString(body.group);
     const normalizedSubcategory = toTrimmedString(body.subcategory);
     const normalizedProducer = toTrimmedString(body.producer);
+    const expandHierarchy = body.expandHierarchy === true;
     const normalizedSelectedCategories = toStringArray(body.selectedCategories);
     const isDescriptionSearch =
       body.searchFilter === "description" && Boolean(normalizedSearchQuery);
@@ -201,6 +203,7 @@ export async function POST(request: Request) {
         normalizedGroup ||
         normalizedSubcategory ||
         normalizedProducer ||
+        expandHierarchy ||
         normalizedSelectedCategories.length > 0
     );
 
@@ -237,6 +240,7 @@ export async function POST(request: Request) {
       group: normalizedGroup,
       subcategory: normalizedSubcategory,
       producer: normalizedProducer,
+      expandHierarchy,
       sortOrder:
         body.sortOrder === "asc" || body.sortOrder === "desc"
           ? body.sortOrder

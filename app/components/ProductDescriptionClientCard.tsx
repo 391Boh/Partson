@@ -191,21 +191,21 @@ export default function ProductDescriptionClientCard({
     <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-3 shadow-[0_18px_42px_rgba(15,23,42,0.07)] ring-1 ring-white/80 transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_20px_44px_rgba(14,165,233,0.1)] sm:rounded-[24px] sm:p-4">
       <div className="flex flex-wrap items-end justify-between gap-2.5 border-b border-slate-900/8 pb-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-900">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-sky-900">
             Опис
           </p>
-          <h2 className="font-display-italic mt-1 text-[1.04rem] font-black leading-tight text-slate-950 sm:text-[1.16rem]">
+          <h2 className="font-display mt-1 text-[1.05rem] font-extrabold italic leading-[1.12] tracking-normal text-slate-950 sm:text-[1.16rem]">
             Що варто знати про товар
           </h2>
         </div>
         <div className="flex items-center gap-2">
-          <span className="inline-flex rounded-[12px] border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-800">
+          <span className="inline-flex rounded-[12px] border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.09em] text-sky-800">
             Задати запитання
           </span>
           {chatButton}
         </div>
       </div>
-      <p className="mt-3 text-[13px] font-semibold leading-5 text-slate-600 sm:text-sm sm:leading-6">
+      <p className="mt-3 text-[13.5px] font-medium leading-6 text-slate-600 sm:text-sm">
         Опис допомагає швидко зрозуміти призначення товару, позицію в каталозі та умови замовлення.
       </p>
       <p className={descriptionTextClass}>{descriptionText}</p>

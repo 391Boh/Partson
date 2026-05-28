@@ -1,6 +1,7 @@
 ﻿import "server-only";
 
 import { oneCRequest } from "app/api/_lib/oneC";
+import { getProductTreeDataset } from "app/lib/product-tree";
 
 export interface CatalogProduct {
   code: string;
@@ -118,7 +119,6 @@ const ALLGOODS_PRODUCER_FIELD = "\u041f\u0440\u043e\u0438\u0437\u0432\u043e\u043
 const ALLGOODS_GROUP_FIELD = "\u0413\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SUBGROUP_FIELD = "\u041f\u043e\u0434\u0433\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SORT_PRICE_FIELD = "\u0421\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u043a\u0430\u041f\u043e\u0426\u0435\u043d\u0435";
-const ALLGOODS_PRICE_MAX_FIELD = "\u0426\u0435\u043d\u0430\u0414\u043e";
 const ALLGOODS_INCLUDE_DESCRIPTION_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435";
 const ALLGOODS_SORT_WINDOW_MAX_LIMIT = 2500;
 const INFO_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443";
@@ -515,148 +515,43 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     requestBodyBase[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = false;
   }
 
-  if (isPriceSorted && !requestedCursor) {
+  if (isPriceSorted) {
     const start = (page - 1) * limit;
     const targetCount = start + limit + 1;
-    const priceSortDirection = String(requestBodyBase[ALLGOODS_SORT_PRICE_FIELD] || "")
-      .trim()
-      .toUpperCase();
-
-    if (priceSortDirection === "ASC") {
-      const requestLimit = ALLGOODS_SORT_WINDOW_MAX_LIMIT;
-      const ascRequestBody =
-        options.pricedItemsOnly === false
-          ? Object.fromEntries(
-              Object.entries(requestBodyBase).filter(
-                ([key]) => key !== ALLGOODS_SORT_PRICE_FIELD
-              )
-            )
-          : requestBodyBase;
-      const response = await oneCRequest("allgoods", {
-        method: "POST",
-        body: {
-          ...ascRequestBody,
-          [ALLGOODS_LIMIT_FIELD]: requestLimit,
-        },
-        timeoutMs: options.timeoutMs,
-        retries: options.retries ?? 1,
-        retryDelayMs: options.retryDelayMs ?? 250,
-        cacheTtlMs: options.cacheTtlMs,
-      });
-
-      if (response.status < 200 || response.status >= 300) {
-        const details = extractResponseErrorDetails(response.text);
-        throw new Error(
-          details
-            ? `Catalog allgoods failed: ${response.status} ${details}`
-            : `Catalog allgoods failed: ${response.status}`
-        );
-      }
-
-      const parsed = parseAllgoodsPayload(response.text);
-      const pricedItems = parsed.items
-        .filter(hasPositiveCatalogPrice)
-        .sort((left, right) => (left.priceEuro ?? 0) - (right.priceEuro ?? 0));
-      const sortedItems =
-        options.pricedItemsOnly === false
-          ? [
-              ...pricedItems,
-              ...parsed.items.filter((item) => !hasPositiveCatalogPrice(item)),
-            ]
-          : pricedItems;
-
-      return {
-        items: sortedItems.slice(start, start + limit),
-        hasMore: sortedItems.length > start + limit || parsed.hasMore,
-        nextCursor: "",
-      };
-    }
-
-    const collected: CatalogProduct[] = [];
-    const unpricedCollected: CatalogProduct[] = [];
-    const seen = new Set<string>();
-    let priceMax: number | null = null;
-    let sourceMayHaveMore = false;
-
-    for (let attempt = 0; attempt < 8 && collected.length < targetCount; attempt += 1) {
-      const remainingCount = targetCount - collected.length;
-      const requestLimit = Math.min(500, Math.max(limit, remainingCount));
-      const body: Record<string, unknown> = {
+    const requestLimit = Math.min(
+      ALLGOODS_SORT_WINDOW_MAX_LIMIT,
+      Math.max(limit, targetCount)
+    );
+    const response = await oneCRequest("allgoods", {
+      method: "POST",
+      body: {
         ...requestBodyBase,
         [ALLGOODS_LIMIT_FIELD]: requestLimit,
-      };
+      },
+      timeoutMs: options.timeoutMs,
+      retries: options.retries ?? 1,
+      retryDelayMs: options.retryDelayMs ?? 250,
+      cacheTtlMs: options.cacheTtlMs,
+    });
 
-      if (priceMax != null) {
-        body[ALLGOODS_PRICE_MAX_FIELD] = priceMax;
-      }
-
-      const response = await oneCRequest("allgoods", {
-        method: "POST",
-        body,
-        timeoutMs: options.timeoutMs,
-        retries: options.retries ?? 1,
-        retryDelayMs: options.retryDelayMs ?? 250,
-        cacheTtlMs: options.cacheTtlMs,
-      });
-
-      if (response.status < 200 || response.status >= 300) {
-        const details = extractResponseErrorDetails(response.text);
-        throw new Error(
-          details
-            ? `Catalog allgoods failed: ${response.status} ${details}`
-            : `Catalog allgoods failed: ${response.status}`
-        );
-      }
-
-      const parsed = parseAllgoodsPayload(response.text);
-      sourceMayHaveMore = parsed.hasMore || parsed.items.length >= requestLimit;
-      const pricedItems = parsed.items.filter(hasPositiveCatalogPrice);
-      let addedCount = 0;
-      const addUniqueItem = (item: CatalogProduct, target: CatalogProduct[]) => {
-        const key =
-          normalizeFacetValue(item.code) ||
-          normalizeFacetValue(item.article) ||
-          `${normalizeFacetValue(item.name)}:${normalizeFacetValue(item.producer)}`;
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        target.push(item);
-        return true;
-      };
-
-      for (const item of pricedItems) {
-        if (addUniqueItem(item, collected)) addedCount += 1;
-      }
-
-      if (options.pricedItemsOnly === false) {
-        for (const item of parsed.items) {
-          if (hasPositiveCatalogPrice(item)) continue;
-          addUniqueItem(item, unpricedCollected);
-        }
-      }
-
-      const lastPrice = pricedItems.at(-1)?.priceEuro ?? null;
-
-      if (!sourceMayHaveMore || addedCount === 0 || lastPrice == null) {
-        sourceMayHaveMore = false;
-        break;
-      }
-
-      const nextPriceMax = Math.max(0, lastPrice - 0.000001);
-      if (priceMax != null && nextPriceMax >= priceMax) {
-        break;
-      }
-      priceMax = nextPriceMax;
+    if (response.status < 200 || response.status >= 300) {
+      const details = extractResponseErrorDetails(response.text);
+      throw new Error(
+        details
+          ? `Catalog allgoods failed: ${response.status} ${details}`
+          : `Catalog allgoods failed: ${response.status}`
+      );
     }
 
-    const combined =
-      options.pricedItemsOnly === false
-        ? [...collected, ...unpricedCollected]
-        : collected;
-
+    const parsed = parseAllgoodsPayload(response.text);
     return {
-      items: combined.slice(start, start + limit),
-      hasMore: combined.length > start + limit || sourceMayHaveMore,
+      items: parsed.items.slice(start, start + limit),
+      hasMore:
+        parsed.items.length > start + limit ||
+        parsed.hasMore ||
+        parsed.items.length >= requestLimit,
       nextCursor: "",
+      cursorField: null,
     };
   }
 
@@ -737,65 +632,6 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       };
     }
 
-    if (isPriceSorted && parsed.items.length >= limit) {
-      const start = (page - 1) * limit;
-      const targetCount = start + limit + 1;
-      let requestedLimit = Math.min(
-        ALLGOODS_SORT_WINDOW_MAX_LIMIT,
-        Math.max(limit * 2, targetCount)
-      );
-      let windowItems = parsed.items;
-      let windowLikelyHasMore = windowItems.length >= requestedLimit;
-
-      while (
-        windowItems.length < targetCount &&
-        requestedLimit < ALLGOODS_SORT_WINDOW_MAX_LIMIT
-      ) {
-        requestedLimit = Math.min(
-          ALLGOODS_SORT_WINDOW_MAX_LIMIT,
-          Math.max(requestedLimit + limit * 6, Math.ceil(requestedLimit * 1.5))
-        );
-
-        const windowResponse = await oneCRequest("allgoods", {
-          method: "POST",
-          body: {
-            ...requestBodyBase,
-            [ALLGOODS_LIMIT_FIELD]: requestedLimit,
-          },
-          timeoutMs: options.timeoutMs,
-          retries: options.retries ?? 1,
-          retryDelayMs: options.retryDelayMs ?? 250,
-          cacheTtlMs: options.cacheTtlMs,
-        });
-
-        if (windowResponse.status < 200 || windowResponse.status >= 300) {
-          const details = extractResponseErrorDetails(windowResponse.text);
-          throw new Error(
-            details
-              ? `Catalog allgoods failed: ${windowResponse.status} ${details}`
-              : `Catalog allgoods failed: ${windowResponse.status}`
-          );
-        }
-
-        const windowParsed = parseAllgoodsPayload(windowResponse.text);
-        windowItems = windowParsed.items;
-        windowLikelyHasMore =
-          windowParsed.hasMore || windowItems.length >= requestedLimit;
-
-        if (windowItems.length < requestedLimit) {
-          break;
-        }
-      }
-
-      return {
-        items: windowItems.slice(start, start + limit),
-        hasMore:
-          windowItems.length > start + limit ||
-          (windowItems.length >= targetCount && windowLikelyHasMore),
-        nextCursor: "",
-      };
-    }
-
     if (!parsed.hasMore || !resolvedCursor || parsed.items.length < limit) {
       return {
         items: [] as CatalogProduct[],
@@ -840,11 +676,6 @@ const safeDecode = (value: string) => {
 
 const normalizeFacetValue = (value: string | null | undefined) =>
   maybeFixMojibake((value || "").replace(/\s+/g, " ").trim()).toLowerCase();
-
-const hasPositiveCatalogPrice = (item: Pick<CatalogProduct, "priceEuro">) =>
-  typeof item.priceEuro === "number" &&
-  Number.isFinite(item.priceEuro) &&
-  item.priceEuro > 0;
 
 const buildDescriptionSearchTokens = (value: string) =>
   Array.from(
@@ -891,6 +722,90 @@ const scoreDescriptionSearchItem = (
   if (typeof item.priceEuro === "number" && item.priceEuro > 0) score += 2;
 
   return score;
+};
+
+type CatalogHierarchyBranch = {
+  group: string;
+  subcategory?: string;
+};
+
+const productDedupeKey = (item: CatalogProduct) => {
+  const code = normalizeFacetValue(item.code);
+  const article = normalizeFacetValue(item.article);
+  const producer = normalizeFacetValue(item.producer);
+  const name = normalizeFacetValue(item.name);
+
+  if (code) return producer ? `code:${code}|producer:${producer}` : `code:${code}`;
+  if (article) return producer ? `article:${article}|producer:${producer}` : `article:${article}`;
+  if (name) return producer ? `name:${name}|producer:${producer}` : `name:${name}`;
+  return "";
+};
+
+const sameCatalogFacet = (left: string | null | undefined, right: string | null | undefined) =>
+  normalizeFacetValue(left) === normalizeFacetValue(right);
+
+const resolveHierarchyBranches = async (
+  group: string,
+  subcategory: string
+): Promise<CatalogHierarchyBranch[]> => {
+  const normalizedGroup = group.replace(/\s+/g, " ").trim();
+  const normalizedSubcategory = subcategory.replace(/\s+/g, " ").trim();
+  if (!normalizedGroup && !normalizedSubcategory) return [];
+
+  const dataset = await getProductTreeDataset().catch(() => null);
+  if (!dataset?.groups?.length) return [];
+
+  const pushUnique = (branches: CatalogHierarchyBranch[], branch: CatalogHierarchyBranch) => {
+    const key = `${normalizeFacetValue(branch.group)}|${normalizeFacetValue(branch.subcategory)}`;
+    if (!branch.group || branches.some((entry) => `${normalizeFacetValue(entry.group)}|${normalizeFacetValue(entry.subcategory)}` === key)) {
+      return;
+    }
+    branches.push(branch);
+  };
+
+  for (const root of dataset.groups) {
+    if (normalizedGroup && sameCatalogFacet(root.label, normalizedGroup)) {
+      if (!normalizedSubcategory) {
+        const branches: CatalogHierarchyBranch[] = [];
+        pushUnique(branches, { group: root.label });
+        for (const subgroup of root.subgroups) {
+          if (subgroup.children.length > 0) {
+            for (const child of subgroup.children) {
+              pushUnique(branches, { group: subgroup.label, subcategory: child.label });
+            }
+          } else {
+            pushUnique(branches, { group: root.label, subcategory: subgroup.label });
+          }
+        }
+        return branches;
+      }
+
+      const subgroup = root.subgroups.find((entry) =>
+        sameCatalogFacet(entry.label, normalizedSubcategory)
+      );
+      if (subgroup) {
+        if (subgroup.children.length === 0) {
+          return [{ group: root.label, subcategory: subgroup.label }];
+        }
+        return subgroup.children.map((child) => ({
+          group: subgroup.label,
+          subcategory: child.label,
+        }));
+      }
+    }
+
+    const parentSubgroup = root.subgroups.find((entry) =>
+      sameCatalogFacet(entry.label, normalizedGroup)
+    );
+    if (parentSubgroup && normalizedSubcategory) {
+      const child = parentSubgroup.children.find((entry) =>
+        sameCatalogFacet(entry.label, normalizedSubcategory)
+      );
+      if (child) return [{ group: parentSubgroup.label, subcategory: child.label }];
+    }
+  }
+
+  return [];
 };
 
 const normalizeDescriptionText = (value: string) => {
@@ -1158,6 +1073,7 @@ export const fetchCatalogProductsByQuery = async (options: {
   preferLegacySource?: boolean;
   forceAllgoodsSource?: boolean;
   pricedItemsOnly?: boolean;
+  expandHierarchy?: boolean;
 }): Promise<CatalogQueryPageResult> => {
   const page =
     Number.isFinite(options.page) && (options.page || 0) > 0
@@ -1182,6 +1098,7 @@ export const fetchCatalogProductsByQuery = async (options: {
   const cursor = typeof options.cursor === "string" ? options.cursor.trim() : "";
   const cursorField = typeof options.cursorField === "string" ? options.cursorField.trim() : "";
   const forceAllgoodsSource = options.forceAllgoodsSource === true;
+  const expandHierarchy = options.expandHierarchy === true;
   const compactSearchQuery = searchQuery.replace(/\s+/g, "");
   const looksLikeIdentifierSearch =
     Boolean(searchQuery) &&
@@ -1196,6 +1113,80 @@ export const fetchCatalogProductsByQuery = async (options: {
   // allgoods is noticeably heavier on 1C. Use it only when cursor-based
   // continuation or explicit sorting actually needs it.
   const canUseAllgoods = selectedCars.length === 0 && !shouldPreferLegacyGetdata;
+
+  if (
+    expandHierarchy &&
+    selectedCars.length === 0 &&
+    selectedCategories.length === 0 &&
+    (group || subcategory)
+  ) {
+    const branches = await resolveHierarchyBranches(group, subcategory);
+    if (branches.length > 1 || (branches.length === 1 && (
+      !sameCatalogFacet(branches[0].group, group) ||
+      !sameCatalogFacet(branches[0].subcategory, subcategory)
+    ))) {
+      const start = (page - 1) * limit;
+      const targetCount = start + limit + 1;
+      const branchLimit = Math.min(Math.max(targetCount, limit), 240);
+      const branchResults = await Promise.all(
+        branches.slice(0, 48).map((branch) =>
+          fetchCatalogProductsByQuery({
+            ...options,
+            page: 1,
+            limit: branchLimit,
+            group: branch.group,
+            subcategory: branch.subcategory || null,
+            cursor: null,
+            cursorField: null,
+            expandHierarchy: false,
+            forceAllgoodsSource: true,
+            preferLegacySource: false,
+          }).catch(() => ({
+            items: [] as CatalogProduct[],
+            hasMore: false,
+            nextCursor: "",
+            cursorField: null,
+          }))
+        )
+      );
+
+      const seen = new Set<string>();
+      const merged: CatalogProduct[] = [];
+      let hasMoreSource = false;
+
+      for (const result of branchResults) {
+        hasMoreSource ||= result.hasMore;
+        for (const item of result.items) {
+          const key = productDedupeKey(item);
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          merged.push(item);
+        }
+      }
+
+      if (sortOrder === "asc" || sortOrder === "desc") {
+        const direction = sortOrder === "asc" ? 1 : -1;
+        merged.sort((left, right) => {
+          const leftPrice =
+            typeof left.priceEuro === "number" && Number.isFinite(left.priceEuro)
+              ? left.priceEuro
+              : Number.POSITIVE_INFINITY;
+          const rightPrice =
+            typeof right.priceEuro === "number" && Number.isFinite(right.priceEuro)
+              ? right.priceEuro
+              : Number.POSITIVE_INFINITY;
+          return (leftPrice - rightPrice) * direction;
+        });
+      }
+
+      return {
+        items: merged.slice(start, start + limit),
+        hasMore: merged.length > start + limit || hasMoreSource,
+        nextCursor: "",
+        cursorField: null,
+      };
+    }
+  }
 
   const baseBody: Record<string, unknown> = {
     selectedCars,

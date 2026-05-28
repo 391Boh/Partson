@@ -293,7 +293,11 @@ function FlipCardComponent({
                     setActiveGroup(item);
                     setSub(0);
                   } else {
-                    router.push(buildCatalogCategoryPath(activeGroup?.name || product.name, item.name));
+                    router.push(
+                      buildCatalogCategoryPath(activeGroup?.name || product.name, item.name, {
+                        expandHierarchy: true,
+                      })
+                    );
                   }
                 }}
                 className="

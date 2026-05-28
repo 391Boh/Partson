@@ -520,15 +520,18 @@ useEffect(() => {
                     {/* РќРёР· */}
                     <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-200 gap-1">
                         <div className="flex flex-col items-start gap-1">
-                            <p
-                                className={`text-[11px] font-medium ${
+                            <span
+                                aria-hidden="true"
+                                data-nosnippet
+                                data-label={
+                                    isAvailable
+                                        ? "\u0412 \u043D\u0430\u044F\u0432\u043D\u043E\u0441\u0442\u0456"
+                                        : "\u041F\u0456\u0434 \u0437\u0430\u043C\u043E\u0432\u043B\u0435\u043D\u043D\u044F"
+                                }
+                                className={`text-[11px] font-medium before:content-[attr(data-label)] ${
                                     isAvailable ? "text-green-600" : "text-orange-600"
                                 }`}
-                            >
-                                {isAvailable
-                                    ? `\u0414\u043E\u0441\u0442\u0443\u043F\u043D\u043E: ${quantity} \u0448\u0442.`
-                                    : "\u041F\u0456\u0434 \u0437\u0430\u043C\u043E\u0432\u043B\u0435\u043D\u043D\u044F"}
-                            </p>
+                            />
 
                             <div
                                 className={`flex items-center bg-white border border-slate-200 rounded-full px-2 py-0.5 shadow-xs hover:shadow-sm transition-all duration-200 ${

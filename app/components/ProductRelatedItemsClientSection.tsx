@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 
-import AnalogProductThumb from "app/components/AnalogProductThumb";
-import { buildProductImagePath } from "app/lib/product-image-path";
+import ProductCompactRecommendationCard from "app/components/ProductCompactRecommendationCard";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 
 type RelatedItem = {
@@ -34,9 +32,6 @@ type ProductRelatedItemsClientSectionProps = {
   euroRate?: number;
 };
 
-const formatStockLabel = (quantity: number) =>
-  quantity > 0 ? `В наявності ${quantity} шт.` : "Під замовлення";
-
 const formatPriceLabel = (priceEuro: number | null | undefined, euroRate: number) => {
   if (
     typeof priceEuro !== "number" ||
@@ -60,10 +55,11 @@ const buildPriceLookupKeys = (item: Pick<RelatedItem, "code" | "article">) =>
 const RELATED_ITEMS_CACHE_PREFIX = "partson:v7:product-related:";
 const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v2:product-similar:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
-const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1800;
+const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 2200;
+const SIMILAR_ITEMS_REQUEST_TIMEOUT_MS = 2600;
 const RELATED_ITEMS_VISIBLE_LIMIT = 6;
 const SIMILAR_ITEMS_VISIBLE_LIMIT = 4;
-const RECOMMENDATIONS_IDLE_TIMEOUT_MS = 1200;
+const RECOMMENDATIONS_IDLE_TIMEOUT_MS = 700;
 
 type RecommendationMode = "related" | "similar";
 
@@ -156,7 +152,7 @@ const Skeleton = () => (
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={`rel-skeleton-${index}`}
-          className="h-[202px] animate-pulse rounded-[18px] border border-slate-200 bg-slate-100"
+          className="h-[92px] animate-pulse rounded-[14px] border border-slate-200 bg-slate-100 sm:h-[88px]"
         />
       ))}
     </div>
@@ -181,27 +177,6 @@ export default function ProductRelatedItemsClientSection({
   const [items, setItems] = useState<RelatedItem[] | null>(normalizedInitialItems);
   const [itemMode, setItemMode] = useState<RecommendationMode>("related");
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
-
-  const sectionSummary = useMemo(() => {
-    if (itemMode === "similar") {
-      const categoryLabel = product.subGroup || product.group || product.category || "";
-      return categoryLabel
-        ? `Аналогів не знайшли, тому показуємо 4 схожі товари з розділу ${categoryLabel}.`
-        : "Аналогів не знайшли, тому показуємо 4 схожі товари з найближчих розділів каталогу.";
-    }
-
-    const identityLabel = articleLabel || productCode;
-    if (productDisplayName && identityLabel) {
-      return `Підбираємо товари за назвою "${productDisplayName}", артикулом ${identityLabel} та кодом обраної позиції.`;
-    }
-    if (productDisplayName) {
-      return `Підбираємо релевантні варіанти за назвою "${productDisplayName}" і даними каталогу.`;
-    }
-    if (identityLabel) {
-      return `Показуємо релевантні товари за артикулом і кодом ${identityLabel}, щоб швидше знайти потрібний аналог.`;
-    }
-    return "Показуємо релевантні товари за назвою, артикулом і кодом обраної позиції.";
-  }, [articleLabel, itemMode, product.category, product.group, product.subGroup, productCode, productDisplayName]);
 
   const recommendationSearchParams = useMemo(() => {
     if (!articleLabel && !productCode && !productDisplayName) return "";
@@ -277,7 +252,7 @@ export default function ProductRelatedItemsClientSection({
           const parsed = JSON.parse(raw) as { value?: RelatedItem[] | null; t?: number };
           if (!parsed || typeof parsed.t !== "number") return null;
           if (Date.now() - parsed.t > RELATED_ITEMS_CACHE_TTL_MS) {
-            storage.removeItem(cacheKey);
+            storage.removeItem(key);
             return null;
           }
 
@@ -331,20 +306,26 @@ export default function ProductRelatedItemsClientSection({
     }
 
     let cancelled = false;
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => {
-      controller.abort();
-    }, RELATED_ITEMS_REQUEST_TIMEOUT_MS);
+    const controllers = new Set<AbortController>();
 
-    const fetchItems = async (url: string) => {
+    const fetchItems = async (
+      url: string,
+      timeoutMs = RELATED_ITEMS_REQUEST_TIMEOUT_MS
+    ) => {
+      const controller = new AbortController();
+      controllers.add(controller);
+      const timeoutId = window.setTimeout(() => {
+        controller.abort();
+      }, timeoutMs);
       const response = await fetch(url, {
         method: "GET",
         headers: { Accept: "application/json" },
         signal: controller.signal,
+      }).finally(() => {
+        window.clearTimeout(timeoutId);
+        controllers.delete(controller);
       });
-      if (!response.ok) {
-        throw new Error("Failed to load product recommendations");
-      }
+      if (!response.ok) throw new Error("Failed to load product recommendations");
 
       const payload = (await response.json()) as { items?: RelatedItem[] };
       return normalizeRelatedItems(payload.items) || [];
@@ -358,10 +339,9 @@ export default function ProductRelatedItemsClientSection({
         return cachedSimilarItems.slice(0, SIMILAR_ITEMS_VISIBLE_LIMIT);
       }
 
-      const similarItems = (await fetchItems(similarRequestUrl)).slice(
-        0,
-        SIMILAR_ITEMS_VISIBLE_LIMIT
-      );
+      const similarItems = (
+        await fetchItems(similarRequestUrl, SIMILAR_ITEMS_REQUEST_TIMEOUT_MS)
+      ).slice(0, SIMILAR_ITEMS_VISIBLE_LIMIT);
       if (similarItems.length > 0) {
         writeCachedItems(similarCacheKey, similarItems);
       }
@@ -407,8 +387,8 @@ export default function ProductRelatedItemsClientSection({
     return () => {
       cancelled = true;
       cancelScheduledLoad();
-      controller.abort();
-      window.clearTimeout(timeoutId);
+      controllers.forEach((controller) => controller.abort());
+      controllers.clear();
     };
   }, [cacheKey, normalizedInitialItems, requestUrl, similarCacheKey, similarRequestUrl]);
 
@@ -496,11 +476,7 @@ export default function ProductRelatedItemsClientSection({
     itemMode === "similar" ? SIMILAR_ITEMS_VISIBLE_LIMIT : RELATED_ITEMS_VISIBLE_LIMIT
   );
   const listClass =
-    itemMode === "similar"
-      ? "mt-3 flex snap-x gap-2.5 overflow-x-auto pb-2 text-left [scrollbar-width:thin] [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] lg:grid lg:overflow-visible lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
-      : "mt-3 flex snap-x gap-2.5 overflow-x-auto pb-2 text-left [scrollbar-width:thin] [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] lg:grid lg:overflow-visible lg:grid-cols-2 2xl:grid-cols-3";
-  const cardClass =
-    "group flex min-h-[202px] w-[min(86vw,304px)] shrink-0 snap-start flex-col rounded-[18px] border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,0.98))] p-3 text-left shadow-[0_12px_26px_rgba(15,23,42,0.055)] ring-1 ring-white/80 transition-[transform,box-shadow,border-color,background-image] duration-300 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(235,248,255,0.98))] hover:shadow-[0_18px_34px_rgba(14,165,233,0.13)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200/80 sm:w-[318px] lg:w-auto";
+    "mt-3 grid grid-cols-2 gap-2 text-left sm:gap-2.5";
 
   return (
     <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.07)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
@@ -516,26 +492,6 @@ export default function ProductRelatedItemsClientSection({
                 ? `Аналоги для ${productDisplayName}`
                 : `Аналоги за артикулом ${articleLabel || productCode}`}
           </h2>
-          <p className="mt-1 max-w-2xl text-[12px] font-medium leading-5 text-slate-600 sm:text-xs sm:leading-5">
-            {sectionSummary}
-          </p>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {articleLabel ? (
-              <span className="inline-flex min-h-7 items-center rounded-full border border-sky-200 bg-white/90 px-2.5 py-0.5 text-[10px] font-bold tracking-[0.03em] text-sky-800">
-                Артикул: {articleLabel}
-              </span>
-            ) : null}
-            {product.producer ? (
-              <span className="inline-flex min-h-7 items-center rounded-full border border-slate-200 bg-white/90 px-2.5 py-0.5 text-[10px] font-bold tracking-[0.03em] text-slate-700">
-                Бренд: {product.producer}
-              </span>
-            ) : null}
-            {product.subGroup || product.group || product.category ? (
-              <span className="inline-flex min-h-7 items-center rounded-full border border-slate-200 bg-white/90 px-2.5 py-0.5 text-[10px] font-bold tracking-[0.03em] text-slate-700">
-                {product.subGroup || product.group || product.category}
-              </span>
-            ) : null}
-          </div>
         </div>
         <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] text-sky-800">
           {visibleItems.length} варіантів
@@ -544,30 +500,14 @@ export default function ProductRelatedItemsClientSection({
 
       <div className={listClass}>
         {visibleItems.map((item, index) => {
-          const visibleItemName = buildVisibleProductName(item.name);
-          const categoryLabel = item.subGroup || item.group || item.category || "";
           const stateKey = buildPriceStateKey(item);
           const resolvedPriceEuro = stateKey in resolvedPrices
             ? resolvedPrices[stateKey]
             : item.priceEuro;
           const priceLabel = formatPriceLabel(resolvedPriceEuro, euroRate);
-          const hasPrice = priceLabel !== "Ціну уточнити";
-          const imageCode = item.code || item.article || articleLabel;
-          const imageArticle = item.article || item.code || articleLabel;
-          const imageSrc = buildProductImagePath(imageCode, imageArticle, {
-            catalog: true,
-          });
-          const retryImageSrc = buildProductImagePath(imageCode, imageArticle, {
-            catalog: true,
-            retryToken: 1,
-          });
-          const finalRetryImageSrc = buildProductImagePath(imageCode, imageArticle, {
-            catalog: true,
-            retryToken: 2,
-          });
 
           return (
-            <Link
+            <ProductCompactRecommendationCard
               key={[
                 normalizeRelatedKeyPart(item.code),
                 normalizeRelatedKeyPart(item.article),
@@ -576,74 +516,10 @@ export default function ProductRelatedItemsClientSection({
                 index,
               ].join("-")}
               href={buildDirectProductPath(item)}
-              prefetch={false}
-              className={cardClass}
-            >
-              <div className="flex items-start gap-3">
-                <div className="relative h-[74px] w-[74px] shrink-0 overflow-hidden rounded-[16px] border border-slate-200 bg-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                  <AnalogProductThumb
-                    src={imageSrc}
-                    alt={visibleItemName}
-                    disableDirectFetch
-                    retrySrc={retryImageSrc}
-                    finalRetrySrc={finalRetryImageSrc}
-                    productCode={imageCode}
-                    articleHint={imageArticle}
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="inline-flex min-w-0 max-w-full rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.07em] text-slate-500 [overflow-wrap:anywhere] sm:text-[10px]">
-                      {item.producer || "Товар"}
-                    </span>
-                    <span
-                      className={`inline-flex shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.07em] sm:text-[10px] ${
-                        item.quantity > 0
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-amber-200 bg-amber-50 text-amber-700"
-                      }`}
-                    >
-                      {formatStockLabel(item.quantity)}
-                    </span>
-                  </div>
-
-                  <p className="mt-2 line-clamp-3 break-words text-[13.5px] font-extrabold leading-[1.24] text-slate-950 sm:text-[14px]">
-                    {visibleItemName}
-                  </p>
-
-                  {categoryLabel ? (
-                    <p className="mt-1 line-clamp-1 text-[11px] font-medium leading-4 text-slate-500 sm:text-[12px]">
-                      {categoryLabel}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="mt-auto grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <div className="min-w-0">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500">
-                    Артикул / код
-                  </p>
-                  <p className="mt-0.5 break-all text-[12px] font-bold leading-4 text-slate-700 sm:text-[13px]">
-                    {item.article || item.code}
-                  </p>
-                </div>
-                <div className="mt-1 flex items-center justify-between gap-2 sm:mt-0 sm:block sm:text-right">
-                  <span
-                    className={`inline-flex min-h-9 items-center rounded-[13px] border px-3 py-1.5 text-[13px] font-black leading-none tabular-nums shadow-[0_8px_18px_rgba(14,165,233,0.10)] ring-1 ring-white/80 ${
-                      hasPrice
-                        ? "border-sky-300 bg-[linear-gradient(180deg,#f0f9ff,#e0f2fe)] text-sky-900"
-                        : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-slate-500"
-                    }`}
-                  >
-                    {priceLabel}
-                  </span>
-                  <span className="inline-flex items-center text-[12px] font-extrabold text-sky-700 transition group-hover:translate-x-0.5 sm:mt-1">
-                    Відкрити
-                  </span>
-                </div>
-              </div>
-            </Link>
+              item={item}
+              priceLabel={priceLabel}
+              sourceArticle={articleLabel}
+            />
           );
         })}
       </div>

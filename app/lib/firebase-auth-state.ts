@@ -15,6 +15,7 @@ type FirebaseAuthDeps = {
 
 let authDepsPromise: Promise<FirebaseAuthDeps> | null = null;
 let unsubscribeAuth: (() => void) | null = null;
+let authSubscriptionScheduled = false;
 let snapshot: FirebaseAuthSnapshot = {
   ready: false,
   user: null,
@@ -69,6 +70,47 @@ const ensureFirebaseAuthSubscription = () => {
     });
 };
 
+const scheduleFirebaseAuthSubscription = () => {
+  if (unsubscribeAuth || authSubscriptionScheduled) return;
+  authSubscriptionScheduled = true;
+
+  if (typeof window === "undefined") {
+    ensureFirebaseAuthSubscription();
+    return;
+  }
+
+  const win = window as Window & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+    cancelIdleCallback?: (id: number) => void;
+  };
+
+  let timeoutId: number | null = null;
+  let idleId: number | null = null;
+
+  const start = () => {
+    window.removeEventListener("pointerdown", start);
+    window.removeEventListener("keydown", start);
+    if (timeoutId != null) {
+      window.clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+    if (idleId != null) {
+      win.cancelIdleCallback?.(idleId);
+      idleId = null;
+    }
+    ensureFirebaseAuthSubscription();
+  };
+
+  window.addEventListener("pointerdown", start, { once: true, passive: true });
+  window.addEventListener("keydown", start, { once: true });
+
+  if (typeof win.requestIdleCallback === "function") {
+    idleId = win.requestIdleCallback(start, { timeout: 2800 });
+  } else {
+    timeoutId = window.setTimeout(start, 2800);
+  }
+};
+
 export const getFirebaseAuthSnapshot = () => snapshot;
 
 export const subscribeToFirebaseAuthState = (
@@ -76,7 +118,7 @@ export const subscribeToFirebaseAuthState = (
 ) => {
   listeners.add(listener);
   listener(snapshot);
-  ensureFirebaseAuthSubscription();
+  scheduleFirebaseAuthSubscription();
 
   return () => {
     listeners.delete(listener);

@@ -2,17 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import type { FC, SyntheticEvent } from "react";
+import type { SyntheticEvent } from "react";
 import { useState } from "react";
-import { ChevronRight, LogIn, Sparkles, UserPlus, Wrench } from "lucide-react";
-
-interface HeroProps {
-  isAuthenticated: boolean;
-  authReady?: boolean;
-  onLogin: () => void;
-  onRegister: () => void;
-  onAddVin?: () => void;
-}
+import { BadgeCheck, ChevronRight, IdCard, LogIn, Sparkles, UserPlus, Wrench } from "lucide-react";
+import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 
 const benefitItems = [
   "5% знижка на перше замовлення",
@@ -62,22 +55,39 @@ const actionButtonBase = [
 
 const primaryButton = `${actionButtonBase} border border-sky-100/35 bg-[image:linear-gradient(135deg,rgba(239,246,255,0.98)_0%,rgba(191,219,254,0.94)_34%,rgba(125,211,252,0.92)_68%,rgba(59,130,246,0.9)_100%)] text-slate-900 shadow-[0_10px_22px_rgba(56,189,248,0.24)] motion-safe:hover:border-sky-50/55 motion-safe:hover:brightness-[1.02] motion-safe:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.16),0_14px_30px_rgba(56,189,248,0.28)]`;
 const loginButton = `${primaryButton} bg-no-repeat [background-size:185%_185%] [background-position:0%_50%] transition-[box-shadow,filter,background-color,border-color,background-position] motion-safe:hover:[background-position:100%_50%]`;
-const vinButton = `${actionButtonBase} border border-emerald-100/45 bg-[image:linear-gradient(135deg,rgba(236,253,245,0.98)_0%,rgba(167,243,208,0.95)_32%,rgba(110,231,183,0.92)_68%,rgba(16,185,129,0.9)_100%)] bg-no-repeat [background-size:185%_185%] [background-position:0%_50%] text-slate-900 shadow-[0_12px_24px_rgba(52,211,153,0.28)] transition-[box-shadow,filter,background-color,border-color,background-position] motion-safe:hover:[background-position:100%_50%] motion-safe:hover:border-emerald-50/60 motion-safe:hover:brightness-[1.02] motion-safe:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.16),0_16px_32px_rgba(52,211,153,0.3)]`;
 const secondaryButton = `${actionButtonBase} border border-white/24 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.18)_0%,rgba(226,232,240,0.12)_50%,rgba(125,211,252,0.16)_100%)] text-white shadow-[0_10px_20px_rgba(2,6,23,0.24)] motion-safe:hover:border-sky-100/34 motion-safe:hover:bg-[image:linear-gradient(135deg,rgba(255,255,255,0.22)_0%,rgba(226,232,240,0.14)_48%,rgba(125,211,252,0.2)_100%)] motion-safe:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_14px_28px_rgba(56,189,248,0.16)]`;
+const vinButton = `${actionButtonBase} group/vin relative overflow-hidden border border-cyan-100/60 bg-[image:linear-gradient(135deg,#f8fafc_0%,#dff8ff_28%,#67e8f9_62%,#0ea5e9_100%)] px-4 pr-5 text-slate-950 shadow-[0_14px_30px_rgba(8,145,178,0.3),inset_0_1px_0_rgba(255,255,255,0.72)] ring-1 ring-white/35 bg-no-repeat [background-size:180%_180%] [background-position:0%_50%] transition-[box-shadow,filter,border-color,background-position,transform] motion-safe:hover:-translate-y-0.5 motion-safe:hover:border-white/80 motion-safe:hover:[background-position:100%_50%] motion-safe:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.2),0_18px_36px_rgba(14,165,233,0.36)]`;
 
-const Hero: FC<HeroProps> = ({
-  isAuthenticated,
-  authReady = false,
-  onLogin,
-  onRegister,
-  onAddVin,
-}) => {
+const Hero = () => {
   const [isIntroExpanded, setIsIntroExpanded] = useState(false);
+  const { ready: isAuthReady, user } = useFirebaseAuthState();
   const logoFallbackPath = "/favicon-192x192.png";
   const handleLogoClick = () => {
     window.location.reload();
   };
-
+  const openLoginModal = () => {
+    window.dispatchEvent(
+      new CustomEvent("openAuthModal", {
+        detail: {
+          initialMode: "login",
+          initialAccountTab: null,
+        },
+      })
+    );
+  };
+  const openRegisterModal = () => {
+    window.dispatchEvent(
+      new CustomEvent("openAuthModal", {
+        detail: {
+          initialMode: "register",
+          initialAccountTab: null,
+        },
+      })
+    );
+  };
+  const openVinPanel = () => {
+    window.dispatchEvent(new Event("openAccountVin"));
+  };
   const handleLogoLoadError = (event: SyntheticEvent<HTMLImageElement>) => {
     const image = event.currentTarget;
     if (image.dataset.fallbackApplied === "1") return;
@@ -189,7 +199,7 @@ const Hero: FC<HeroProps> = ({
                   alt="PartsOn Logo"
                   width={98}
                   height={49}
-                  priority
+                  loading="lazy"
                   className="relative z-[2] h-auto w-[72px] object-contain drop-shadow-[0_10px_20px_rgba(15,23,42,0.18)] transition-transform duration-500 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:transform-gpu md:w-[108px] motion-safe:group-hover/logo:-translate-y-0.5 motion-safe:group-hover/logo:scale-[1.04]"
                   sizes="(min-width: 768px) 108px, 72px"
                   onError={handleLogoLoadError}
@@ -199,13 +209,24 @@ const Hero: FC<HeroProps> = ({
                 </span>
               </button>
               <div className="flex min-h-[42px] min-w-[272px] flex-wrap items-center justify-center gap-2 sm:min-h-[44px] sm:min-w-[292px]">
-                {!authReady ? (
-                  <div className="h-[42px] w-full max-w-[292px] rounded-[14px] border border-white/14 bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:h-[44px]" />
-                ) : !isAuthenticated ? (
+                {isAuthReady && user ? (
+                  <button
+                    type="button"
+                    onClick={openVinPanel}
+                    className={vinButton}
+                  >
+                    <span className="absolute inset-y-0 left-0 w-12 bg-[linear-gradient(90deg,rgba(255,255,255,0.55),rgba(255,255,255,0))]" aria-hidden="true" />
+                    <span className="relative inline-flex h-6 w-7 items-center justify-center rounded-[8px] border border-slate-900/10 bg-white/78 text-sky-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_6px_12px_rgba(14,165,233,0.18)]">
+                      <IdCard className="h-4 w-4" strokeWidth={2.2} aria-hidden="true" />
+                      <BadgeCheck className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-white text-emerald-600" strokeWidth={2.5} aria-hidden="true" />
+                    </span>
+                    Додати VIN
+                  </button>
+                ) : isAuthReady ? (
                   <>
                     <button
                       type="button"
-                      onClick={onLogin}
+                      onClick={openLoginModal}
                       className={loginButton}
                     >
                       <LogIn className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
@@ -213,7 +234,7 @@ const Hero: FC<HeroProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={onRegister}
+                      onClick={openRegisterModal}
                       className={secondaryButton}
                     >
                       <UserPlus className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
@@ -221,13 +242,7 @@ const Hero: FC<HeroProps> = ({
                     </button>
                   </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={onAddVin}
-                    className={`${vinButton} min-w-[272px] sm:min-w-[292px]`}
-                  >
-                    Додати VIN номер
-                  </button>
+                  <span className="h-10 w-[220px] rounded-[14px] border border-white/15 bg-white/10" />
                 )}
               </div>
             </div>

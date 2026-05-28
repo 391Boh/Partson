@@ -32,6 +32,9 @@ const isProduction = process.env.NODE_ENV === "production";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  experimental: {
+    optimizePackageImports: ["lucide-react", "@heroicons/react", "react-icons"],
+  },
   turbopack: {
     root: process.cwd(),
   },

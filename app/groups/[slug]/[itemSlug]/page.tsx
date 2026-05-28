@@ -381,7 +381,9 @@ const getGroupItemBySlugs = cache(
         parentSubgroupSlug: undefined,
         productCount: Math.max(seoSubgroup.productCount, producerProductCount),
         producersCount: producerSplit.length,
-        catalogPath: buildCatalogCategoryPath(seoGroup.label, seoSubgroup.label),
+        catalogPath: buildCatalogCategoryPath(seoGroup.label, seoSubgroup.label, {
+          expandHierarchy: true,
+        }),
         producerSplit,
         children: [],
       };
@@ -421,7 +423,9 @@ const getGroupItemBySlugs = cache(
           producerProductCount
         ),
         producersCount: producerSplit.length,
-        catalogPath: buildCatalogCategoryPath(group.label, subgroup.label),
+        catalogPath: buildCatalogCategoryPath(group.label, subgroup.label, {
+          expandHierarchy: true,
+        }),
         producerSplit,
         children,
       };
@@ -457,7 +461,9 @@ const getGroupItemBySlugs = cache(
           producerProductCount
         ),
         producersCount: producerSplit.length,
-        catalogPath: buildCatalogCategoryPath(entry.label, child.label),
+        catalogPath: buildCatalogCategoryPath(entry.label, child.label, {
+          expandHierarchy: true,
+        }),
         producerSplit,
         children: [],
       };
@@ -499,7 +505,9 @@ const getGroupItemBySlugs = cache(
       parentSubgroupSlug: undefined,
       productCount: Math.max(seoSubgroup.productCount, producerProductCount),
       producersCount: producerSplit.length,
-      catalogPath: buildCatalogCategoryPath(seoGroup.label, seoSubgroup.label),
+      catalogPath: buildCatalogCategoryPath(seoGroup.label, seoSubgroup.label, {
+        expandHierarchy: true,
+      }),
       producerSplit,
       children: [],
     };

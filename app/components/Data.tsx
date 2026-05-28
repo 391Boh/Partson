@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { Search } from "lucide-react";
+import { ChevronsDown, Search } from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
@@ -51,7 +51,7 @@ export interface Product {
 const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v33-description-cursor-search";
+const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v37-hierarchy-scope";
 const PRICE_CACHE_PREFIX = "partson:v10:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -65,13 +65,11 @@ const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
 const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
 const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
-const BACKGROUND_PAGE_PREFETCH_DEPTH = 0;
-const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 0;
+const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 450;
 const IMAGE_PRIORITY_ITEMS_COUNT = 4;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 18;
-const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = 24;
-const LOAD_MORE_SCROLL_BUFFER_PX = 1200;
-const LOAD_MORE_OBSERVER_ROOT_MARGIN = "0px 0px 1400px 0px";
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 12;
+const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = 12;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 80;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 90;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
@@ -1025,6 +1023,7 @@ function useCatalogData(params: {
   groupFromURL: string | null;
   subcategoryFromURL: string | null;
   producerFromURL: string | null;
+  expandHierarchyFromURL: boolean;
   sortOrder: "none" | "asc" | "desc";
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
@@ -1037,6 +1036,7 @@ function useCatalogData(params: {
     groupFromURL,
     subcategoryFromURL,
     producerFromURL,
+    expandHierarchyFromURL,
     sortOrder,
     initialPagePayload,
     initialQuerySignature,
@@ -1084,6 +1084,7 @@ function useCatalogData(params: {
         group: groupFromURL,
         subcategory: subcategoryFromURL,
         producer: producerFromURL,
+        expandHierarchy: expandHierarchyFromURL,
         sortOrder: effectiveServerSortOrder,
       }),
     [
@@ -1094,6 +1095,7 @@ function useCatalogData(params: {
       groupFromURL,
       subcategoryFromURL,
       producerFromURL,
+      expandHierarchyFromURL,
       effectiveServerSortOrder,
     ]
   );
@@ -1718,6 +1720,7 @@ function useCatalogData(params: {
         group: normalizeOptionalCacheString(groupFromURL),
         subcat: normalizeOptionalCacheString(subcategoryFromURL),
         producer: normalizeOptionalCacheString(producerFromURL),
+        hierarchy: expandHierarchyFromURL,
         sort: effectiveServerSortOrder || "none",
       }),
     [
@@ -1727,6 +1730,7 @@ function useCatalogData(params: {
       groupFromURL,
       subcategoryFromURL,
       producerFromURL,
+      expandHierarchyFromURL,
       effectiveServerSortOrder,
     ]
   );
@@ -1770,6 +1774,7 @@ function useCatalogData(params: {
             group: groupFromURL,
             subcategory: subcategoryFromURL,
             producer: producerFromURL,
+            expandHierarchy: expandHierarchyFromURL,
             sortOrder: effectiveServerSortOrder,
           }),
           cache: "no-store",
@@ -1842,6 +1847,7 @@ function useCatalogData(params: {
     [
       buildCacheKey,
       effectiveSelectedCategories,
+      expandHierarchyFromURL,
       groupFromURL,
       normalizedSearch,
       producerFromURL,
@@ -2152,10 +2158,6 @@ function useCatalogData(params: {
         typeof payload.hasMore === "boolean"
           ? payload.hasMore
           : items.length >= requestedPageItemCount;
-      const shouldOptimisticallyKeepLoadingSortedPages =
-        sortOrder !== "none" && pageIntroducedNewItems;
-      const resolvedHasMore =
-        payloadHasMore || shouldOptimisticallyKeepLoadingSortedPages;
       const isDuplicatePageChunk =
         page > 1 &&
         items.length > 0 &&
@@ -2178,7 +2180,7 @@ function useCatalogData(params: {
         !isCursorlessSortedMode && !payload.nextCursor && duplicatePageStreakRef.current >= 6;
 
       setHasMore(
-        shouldStopPaginationOnDuplicatePage ? false : resolvedHasMore
+        shouldStopPaginationOnDuplicatePage ? false : payloadHasMore
       );
       setError(
         payload.serviceUnavailable
@@ -2379,14 +2381,7 @@ function useCatalogData(params: {
   useEffect(() => {
     if (loading || !hasMore || safeData.length === 0) return;
 
-    const prefetchDepth =
-      sortOrder === "none"
-        ? selectedCars.length === 0
-          ? BACKGROUND_PAGE_PREFETCH_DEPTH
-          : 1
-        : selectedCars.length === 0
-          ? 1
-          : 0;
+    const prefetchDepth = BACKGROUND_PAGE_PREFETCH_DEPTH;
     if (prefetchDepth < 1) return;
 
     let cancelled = false;
@@ -2806,7 +2801,6 @@ const Data: React.FC<DataProps> = ({
   initialQuerySignature = null,
 }) => {
   const searchParams = useSearchParams();
-  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const catalogGridRef = useRef<HTMLDivElement | null>(null);
   const currentSearchParams = searchParams ?? new URLSearchParams();
 
@@ -2818,6 +2812,7 @@ const Data: React.FC<DataProps> = ({
   const groupFromURL = currentSearchParams.get("group");
   const subcategoryFromURL = currentSearchParams.get("subcategory");
   const producerFromURL = (currentSearchParams.get("producer") || "").trim() || null;
+  const expandHierarchyFromURL = currentSearchParams.get("scope") === "hierarchy";
   const lastFilterSignatureRef = useRef<string | null>(null);
   const lastStableSortedSignatureRef = useRef("");
   const softTransitionStartedAtRef = useRef(0);
@@ -2870,6 +2865,7 @@ const Data: React.FC<DataProps> = ({
     groupFromURL,
     subcategoryFromURL,
     producerFromURL,
+    expandHierarchyFromURL,
     sortOrder,
     initialPagePayload,
     initialQuerySignature,
@@ -2899,24 +2895,21 @@ const Data: React.FC<DataProps> = ({
     ]
   );
 
-  const requestNextPageOnScroll = useCallback(() => {
-    loadNextPage();
-  }, [loadNextPage]);
-
   const sortedEntries = useMemo(() => {
+    const shouldUseClientPriceSort =
+      sortOrder !== "none" && selectedCars.length > 0;
     const entries = filteredData.map((item, index) => ({
       item,
       index,
       code: item.code,
       stableKey: getProductStableListKey(item),
       priceKey: getProductPriceStateKey(item),
-      priceUAH:
-        sortOrder === "none"
-          ? null
-          : getResolvedProductPriceUAH(item, prices, euroRate),
+      priceUAH: shouldUseClientPriceSort
+        ? getResolvedProductPriceUAH(item, prices, euroRate)
+        : null,
     }));
 
-    if (sortOrder === "none") return entries;
+    if (!shouldUseClientPriceSort) return entries;
 
     const sortedWithUnpricedLast = [...entries].sort((a, b) => {
       const aHasPrice = a.priceUAH != null ? 0 : 1;
@@ -2937,7 +2930,7 @@ const Data: React.FC<DataProps> = ({
     });
 
     return sortedWithUnpricedLast;
-  }, [filteredData, prices, euroRate, sortOrder]);
+  }, [filteredData, prices, euroRate, sortOrder, selectedCars.length]);
   const sortedData = useMemo(
     () => sortedEntries.map(({ item }) => item),
     [sortedEntries]
@@ -2963,6 +2956,19 @@ const Data: React.FC<DataProps> = ({
     shouldKeepStableGrid && lastStableSortedData.length > 0
       ? lastStableSortedData
       : sortedData;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const win = window as Window & { __partsonCatalogVisibleCount?: number };
+    win.__partsonCatalogVisibleCount = visibleSortedData.length;
+    window.dispatchEvent(
+      new CustomEvent("partson:catalog-visible-count", {
+        detail: { count: visibleSortedData.length },
+      })
+    );
+  }, [visibleSortedData.length]);
+
   const visibleSortedEntries = useMemo(() => {
     if (visibleSortedData === sortedData) {
       return sortedEntries;
@@ -2986,13 +2992,14 @@ const Data: React.FC<DataProps> = ({
   );
   const hasPendingSortedPriceResolution = useMemo(() => {
     if (sortOrder === "none") return false;
+    if (selectedCars.length === 0) return false;
 
     return filteredData.some((item) => {
       const priceUAH = getResolvedProductPriceUAH(item, prices, euroRate);
       if (priceUAH != null) return false;
       return !hasResolvedProductPriceState(item, prices);
     });
-  }, [filteredData, prices, euroRate, sortOrder]);
+  }, [filteredData, prices, euroRate, sortOrder, selectedCars.length]);
   const shouldShowInitialSkeleton =
     (filterLoading || loading || hasPendingSortedPriceResolution) &&
     visibleSortedData.length === 0;
@@ -3008,10 +3015,6 @@ const Data: React.FC<DataProps> = ({
     visibleSortedData.length > 0 && loading && !isRefetching;
   const shouldShowCatalogGrid =
     visibleSortedData.length > 0 || shouldShowInitialSkeleton;
-  const catalogCardRenderStyle = {
-    contentVisibility: "auto",
-    containIntrinsicSize: "320px",
-  } as React.CSSProperties;
   const gridColumnCount = useMemo(() => {
     if (viewportWidth >= 1024) return 4;
     if (viewportWidth >= 768) return 3;
@@ -3146,65 +3149,6 @@ const Data: React.FC<DataProps> = ({
       setFilterLoading(false); // гарантія приховання оверлею навіть після скасованих запитів
     }
   }, [loading, setFilterLoading]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (loading || shouldShowInitialSkeleton || !hasMore || sortedData.length === 0) return;
-
-    const handleScroll = () => {
-      const scrolledBottom = window.scrollY + window.innerHeight;
-      const distanceToBottom =
-        document.documentElement.scrollHeight - scrolledBottom;
-
-      if (distanceToBottom <= LOAD_MORE_SCROLL_BUFFER_PX) {
-        requestNextPageOnScroll();
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [hasMore, loading, requestNextPageOnScroll, shouldShowInitialSkeleton, sortedData.length]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (loading || shouldShowInitialSkeleton || !hasMore || sortedData.length === 0) return;
-
-    const sentinel = loadMoreSentinelRef.current;
-    if (!sentinel) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (!entry?.isIntersecting) return;
-        requestNextPageOnScroll();
-      },
-      {
-        root: null,
-        rootMargin: LOAD_MORE_OBSERVER_ROOT_MARGIN,
-        threshold: 0.01,
-      }
-    );
-
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMore, loading, requestNextPageOnScroll, shouldShowInitialSkeleton, sortedData.length]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (loading || shouldShowInitialSkeleton || !hasMore || sortedData.length === 0) return;
-
-    const maybeLoadMore = () => {
-      const scrolledBottom = window.scrollY + window.innerHeight;
-      const distanceToBottom =
-        document.documentElement.scrollHeight - scrolledBottom;
-      if (distanceToBottom <= Math.floor(LOAD_MORE_SCROLL_BUFFER_PX * 0.65)) {
-        requestNextPageOnScroll();
-      }
-    };
-
-    window.addEventListener("resize", maybeLoadMore, { passive: true });
-    return () => window.removeEventListener("resize", maybeLoadMore);
-  }, [hasMore, loading, requestNextPageOnScroll, shouldShowInitialSkeleton, sortedData.length]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -3391,12 +3335,7 @@ const Data: React.FC<DataProps> = ({
       <div
         id="catalog-results"
         data-filter-autoclose="results"
-        className={`relative w-full px-3 pb-20 pt-0 sm:px-3.5 sm:pb-24 lg:px-4 ${
-          isEmptyState ? 'overflow-hidden h-[calc(100dvh-96px)]' : ''
-        }`}
-        style={{
-          minHeight: "calc(100dvh - 96px)",
-        }}
+        className="relative w-full px-3 pb-0 pt-0 sm:px-3.5 sm:pb-0 lg:px-4"
         aria-busy={loading || filterLoading || isLoadingNextPage}
       >
         {!loading && error && (
@@ -3469,7 +3408,6 @@ const Data: React.FC<DataProps> = ({
                   <div
                     key={stableKey || `${code || "item"}-${index}`}
                     data-catalog-card="1"
-                    style={catalogCardRenderStyle}
                   >
                     <ProductCard
                       item={item}
@@ -3533,40 +3471,65 @@ const Data: React.FC<DataProps> = ({
         )}
 
         {!shouldShowInitialSkeleton && hasMore && visibleSortedData.length > 0 && (
-          <div
-            ref={loadMoreSentinelRef}
-            className="flex h-8 w-full items-center justify-center"
-            aria-live="polite"
-          >
-            {isLoadingNextPage ? (
-              <span className="text-[12px] font-medium text-slate-400">
-                Підвантажую товари
-              </span>
-            ) : null}
+          <div className="col-span-full flex w-full justify-center pt-3" aria-live="polite">
+            <button
+              type="button"
+              onClick={loadNextPage}
+              disabled={loading || isLoadingNextPage}
+              className="inline-flex min-h-11 w-full max-w-[360px] items-center justify-center gap-2 rounded-[16px] border border-sky-200 bg-[linear-gradient(135deg,#ffffff,#eef8ff)] px-5 py-2.5 text-sm font-black text-sky-800 shadow-[0_14px_30px_rgba(14,165,233,0.12)] transition hover:border-sky-300 hover:bg-[linear-gradient(135deg,#f8fcff,#e0f2fe)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/80 active:scale-[0.99] disabled:cursor-wait disabled:opacity-70 sm:w-auto sm:min-w-[260px]"
+            >
+              {isLoadingNextPage ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-sky-200 border-t-sky-700" />
+                  Завантажую товари
+                </>
+              ) : (
+                <>
+                  <ChevronsDown size={17} strokeWidth={2.4} />
+                  Більше товарів
+                </>
+              )}
+            </button>
           </div>
         )}
 
         {showEmptyState && (
-          <div className="col-span-full mt-3 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50 p-4 shadow-[0_12px_24px_rgba(15,23,42,0.1)]">
-            <div className="flex flex-col items-center gap-3 text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                <Search size={20} />
-              </div>
-              <div className="space-y-1.5">
-                <p className="text-base sm:text-lg font-semibold text-slate-800">
-                  {rawSearchQuery.trim()
-                    ? `Нічого не знайдено для «${rawSearchQuery.trim()}»`
-                    : "Товари за цим фільтром не знайдені"}
-                </p>
-                <p className="text-xs sm:text-sm text-slate-500 max-w-lg leading-snug">
-                  Спробуйте змінити критерії або надішліть запит менеджеру — ми швидко
-                  підберемо потрібну запчастину.
-                </p>
+          <div className="col-span-full overflow-hidden rounded-[26px] border border-slate-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.95)_48%,rgba(248,250,252,0.98))] shadow-[0_18px_46px_rgba(15,23,42,0.09)] ring-1 ring-white/90">
+            <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-sky-100 bg-white text-sky-700 shadow-[0_12px_26px_rgba(14,165,233,0.14)]">
+                  <Search size={20} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">
+                    Пошук у каталозі
+                  </p>
+                  <h2 className="mt-1 text-[1.15rem] font-black leading-tight text-slate-950 sm:text-[1.35rem]">
+                    {rawSearchQuery.trim()
+                      ? `Нічого не знайдено для «${rawSearchQuery.trim()}»`
+                      : "Товари за цим фільтром не знайдені"}
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-slate-600">
+                    Перевірте артикул або виробника, спробуйте коротший запит чи
+                    надішліть заявку менеджеру для підбору за VIN.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <span className="rounded-[11px] border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600">
+                      Артикул без пробілів
+                    </span>
+                    <span className="rounded-[11px] border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600">
+                      Перевірка бренду
+                    </span>
+                    <span className="rounded-[11px] border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600">
+                      Підбір за VIN
+                    </span>
+                  </div>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={handleSendRequest}
-                className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-4 py-1.5 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-sky-300/50 transition hover:bg-sky-600 active:scale-[0.98]"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[15px] border border-sky-300/50 bg-[linear-gradient(135deg,#0284c7,#2563eb)] px-5 py-2.5 text-sm font-black text-white shadow-[0_16px_32px_rgba(37,99,235,0.2)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/80 active:scale-[0.98]"
               >
                 Надіслати запит у чат
               </button>
