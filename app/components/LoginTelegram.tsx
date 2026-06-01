@@ -7,12 +7,22 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 
 type TelegramUser = {
-  id?: number;
+  id?: number | string;
   username?: string;
   first_name?: string;
   last_name?: string;
   photo_url?: string;
   [key: string]: unknown;
+};
+
+type TelegramAuthPayload = TelegramUser & {
+  id_token?: string;
+  user?: TelegramUser & {
+    name?: string;
+    preferred_username?: string;
+    picture?: string;
+  };
+  error?: string;
 };
 
 type TelegramAuthResponse = {
@@ -25,7 +35,7 @@ type TelegramAuthResponse = {
 
 declare global {
   interface Window {
-    onTelegramAuth?: (user: TelegramUser) => void;
+    onTelegramAuth?: (payload: TelegramAuthPayload) => void;
   }
 }
 
@@ -41,18 +51,28 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
 
   useEffect(() => {
     const configuredAuthEndpoint = process.env.NEXT_PUBLIC_TELEGRAM_AUTH_URL;
-    const authEndpoints = configuredAuthEndpoint
+    const clientId = process.env.NEXT_PUBLIC_TELEGRAM_CLIENT_ID?.trim();
+    const useOidcLogin = Boolean(clientId && /^\d+$/.test(clientId));
+    const authEndpoints = useOidcLogin
+      ? ["/api/telegram/auth"]
+      : configuredAuthEndpoint
       ? [configuredAuthEndpoint]
       : ["/auth/telegram", "/api/telegram/auth"];
     const botName = process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME || "StormStoreAvto_bot";
 
-    window.onTelegramAuth = (user: TelegramUser) => {
+    window.onTelegramAuth = (payload: TelegramAuthPayload) => {
+      if (payload?.error) {
+        setStatus("error");
+        setErrorMessage("Telegram скасував або не завершив авторизацію.");
+        return;
+      }
+
       setStatus("loading");
       setErrorMessage("");
 
       void (async () => {
         try {
-          const requestBody = JSON.stringify(user);
+          const requestBody = JSON.stringify(payload);
           let response: Response | null = null;
           let data: TelegramAuthResponse = {};
 
@@ -82,7 +102,7 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
 
           const credential = await signInWithCustomToken(auth, data.firebaseToken);
           try {
-            const telegramUser = data.user || user;
+            const telegramUser = data.user || payload.user || payload;
             const userRef = doc(db, "users", credential.user.uid);
             const userSnapshot = await getDoc(userRef);
             const timestamp = new Date().toISOString();
@@ -141,19 +161,37 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
     };
 
     const script = document.createElement("script");
-    script.src = "https://telegram.org/js/telegram-widget.js?7";
     script.async = true;
-    script.setAttribute("data-telegram-login", botName);
-    script.setAttribute("data-userpic", "false");
-    script.setAttribute("data-size", "large");
-    script.setAttribute("data-radius", "10");
-    script.setAttribute("data-lang", "uk");
-    script.setAttribute("data-onauth", "onTelegramAuth(user)");
+
+    if (useOidcLogin && clientId) {
+      script.src = "https://oauth.telegram.org/js/telegram-login.js?5";
+      script.setAttribute("data-client-id", clientId);
+      script.setAttribute("data-onauth", "onTelegramAuth(data)");
+      script.setAttribute("data-lang", "uk");
+    } else {
+      script.src = "https://telegram.org/js/telegram-widget.js?7";
+      script.setAttribute("data-telegram-login", botName);
+      script.setAttribute("data-userpic", "false");
+      script.setAttribute("data-size", "large");
+      script.setAttribute("data-radius", "10");
+      script.setAttribute("data-lang", "uk");
+      script.setAttribute("data-onauth", "onTelegramAuth(user)");
+    }
 
     const container = containerRef.current;
     if (container) {
       container.replaceChildren();
       container.appendChild(script);
+
+      if (useOidcLogin) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "tg-auth-button";
+        button.textContent = "Telegram";
+        button.setAttribute("aria-label", "Увійти через Telegram");
+        button.setAttribute("data-style", "outlined");
+        container.appendChild(button);
+      }
     }
 
     return () => {

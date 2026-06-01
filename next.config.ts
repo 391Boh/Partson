@@ -9,7 +9,7 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org https://static.liqpay.ua https://apis.google.com https://www.googletagmanager.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org https://oauth.telegram.org https://static.liqpay.ua https://apis.google.com https://www.googletagmanager.com",
   "connect-src 'self' https: wss:",
   "frame-src 'self' https://telegram.org https://oauth.telegram.org https://www.google.com https://maps.google.com https://www.google.com.ua https://www.googletagmanager.com https://*.liqpay.ua https://*.firebaseapp.com",
   "worker-src 'self' blob:",
