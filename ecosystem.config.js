@@ -59,6 +59,7 @@ module.exports = {
       // Змінні оточення
       env: {
         NODE_ENV: 'production',
+        AUTH_PORT: '3001',
         // Оптимізація пам'яті Node.js
         NODE_OPTIONS: '--max-old-space-size=256 --max-semi-space-size=64'
       }
