@@ -10,6 +10,7 @@ import {
   readCatalogBrowserCache,
   writeCatalogBrowserCache,
 } from "app/lib/catalog-client-cache";
+import { buildCatalogCategoryPath } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { safeSetStorageItem } from "app/lib/safe-storage";
 
@@ -714,15 +715,16 @@ const ProductFetcher: React.FC<Props> = ({
 
     if (!group) return;
 
-    const searchParams = new URLSearchParams({ group });
-    if (path.length >= 2 && leaf) {
-      searchParams.set("subcategory", leaf);
-    }
+    const catalogPath = buildCatalogCategoryPath(
+      group,
+      path.length >= 2 && leaf ? leaf : null,
+      { expandHierarchy: true }
+    );
     setSelectedCategories([row.id]);
     if (typeof window !== "undefined") {
       safeSetStorageItem(window.sessionStorage, "catalogScrollTarget", "results");
     }
-    router.push(`/katalog?${searchParams.toString()}`);
+    router.push(catalogPath);
   };
 
   return (

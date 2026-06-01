@@ -1321,7 +1321,7 @@ export async function generateMetadata({
   const siteUrl = getSiteUrl();
   const productImageUrl = `${siteUrl}${productImagePath}`;
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
-  const shouldIndexProduct = !isModalView && Boolean(routeData.code || routeProduct);
+  const shouldIndexProduct = !isModalView && Boolean(routeProduct);
 
   const productNameWithProducer = productProducer
     ? appendSeoPartIfMissing(seoVisibleProductName, productProducer)
@@ -1358,6 +1358,7 @@ export async function generateMetadata({
   });
 
   return {
+    metadataBase: new URL(siteUrl),
     title: seoTitle,
     description,
     keywords,
@@ -1543,10 +1544,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
         new Set([product.article.trim(), product.code.trim(), resolvedCode].filter(Boolean))
       );
   const inlineInitialPriceEuro = toPositiveNumberOrNull(product.priceEuro);
-  const pagePrice = await resolveProductSeoPrice(inlineInitialPriceEuro);
-  const initialPriceUah = pagePrice.priceUah;
-  const recommendationEuroRate =
-    pagePrice.priceEuro != null ? await getProductSeoEuroRate() : undefined;
   const shouldEmitProductStructuredData = !isModalView && hasResolvedCatalogProduct;
   const productCategory = (product.category || "").trim();
   const productGroup = (product.group || productCategory || "").trim();
@@ -1579,14 +1576,26 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const hasSeoFacetHints = Boolean(
     productGroup || productCategory || productSubgroup || product.producer
   );
-  const rawSeoFacets = hasSeoFacetHints
-    ? await getCatalogSeoFacetsWithTimeout(PRODUCT_PAGE_SEO_FACETS_TIMEOUT_MS).catch(
-        () => EMPTY_CATALOG_SEO_FACETS
+  const pagePricePromise = resolveProductSeoPrice(inlineInitialPriceEuro);
+  const seoFacetsPromise = hasSeoFacetHints
+    ? resolveWithTimeout(
+        async () => {
+          const rawSeoFacets = await getCatalogSeoFacetsWithTimeout(
+            PRODUCT_PAGE_SEO_FACETS_TIMEOUT_MS
+          ).catch(() => EMPTY_CATALOG_SEO_FACETS);
+          return resolveCatalogSeoFacetsWithFallback(rawSeoFacets);
+        },
+        EMPTY_CATALOG_SEO_FACETS,
+        PRODUCT_PAGE_SEO_FACETS_TIMEOUT_MS + 70
       )
-    : EMPTY_CATALOG_SEO_FACETS;
-  const seoFacets = hasSeoFacetHints
-    ? await resolveCatalogSeoFacetsWithFallback(rawSeoFacets)
-    : rawSeoFacets;
+    : Promise.resolve(EMPTY_CATALOG_SEO_FACETS);
+  const [pagePrice, seoFacets] = await Promise.all([
+    pagePricePromise,
+    seoFacetsPromise,
+  ]);
+  const initialPriceUah = pagePrice.priceUah;
+  const recommendationEuroRate =
+    pagePrice.priceEuro != null ? await getProductSeoEuroRate() : undefined;
   const producerFacet = product.producer
     ? seoFacets.producers.find((producer) =>
         matchesLandingFacet(producer, product.producer)
@@ -1638,7 +1647,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const productHasKnownPhoto = product.hasPhoto !== false;
   const productDisplayImagePath = productHasKnownPhoto
     ? buildProductImagePath(product.code || resolvedCode, product.article, {
-        noFallback: true,
+        noFallback: false,
       })
     : PRODUCT_PAGE_LOGO_FALLBACK_PATH;
   const productSeoImagePath = productHasKnownPhoto
@@ -1870,7 +1879,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       productCode={product.code || resolvedCode}
                       articleHint={product.article}
                       hasKnownPhoto={productHasKnownPhoto}
-                      preferCachedPreview={false}
+                      preferCachedPreview
                       className={heroProductImageClass}
                     />
                   </div>

@@ -1,4 +1,5 @@
-import type { ComponentType, SVGProps } from "react";
+import type { ComponentType, ReactNode, SVGProps } from "react";
+import Link from "next/link";
 import {
   BuildingStorefrontIcon,
   CheckBadgeIcon,
@@ -13,10 +14,19 @@ import AdvantagesPhotoSlider from "./AdvantagesPhotoSlider";
 const STORE_MAPS_URL =
   "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu&g_ep=EgoyMDI2MDUxNy4wIKXMDSoASAFQAw%3D%3D";
 
+const PartsOnLink = ({ className = "" }: { className?: string }) => (
+  <Link
+    href="/"
+    className={`font-extrabold text-sky-800 underline decoration-sky-300/70 underline-offset-4 transition hover:text-sky-600 hover:decoration-sky-500 ${className}`}
+  >
+    PartsON
+  </Link>
+);
+
 type AdvantagePanel = {
   title: string;
   eyebrow: string;
-  summary: string;
+  summary: ReactNode;
   points: string[];
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   iconTone: string;
@@ -43,8 +53,12 @@ const advantagePanels: AdvantagePanel[] = [
   {
     title: "Каталог і вигідний вибір",
     eyebrow: "Оригінали, аналоги, популярні категорії",
-    summary:
-      "У каталозі PartsON зручно шукати оригінальні автозапчастини й аналоги для ТО, підвіски, двигуна, гальм, охолодження та електроніки.",
+    summary: (
+      <>
+        У каталозі <PartsOnLink /> зручно шукати оригінальні автозапчастини й
+        аналоги для ТО, підвіски, двигуна, гальм, охолодження та електроніки.
+      </>
+    ),
     points: [
       "Каталог автозапчастин онлайн для популярних марок і моделей авто.",
       "Розумний баланс між ціною, якістю та реальною наявністю товару.",
@@ -117,8 +131,8 @@ const AdvantagesSection = () => {
 
           <div className="relative overflow-hidden border-b border-sky-100/80 bg-[linear-gradient(135deg,rgba(250,254,255,0.99),rgba(236,254,255,0.98)_24%,rgba(224,242,254,0.97)_54%,rgba(191,219,254,0.94)_100%)] px-5 py-6 sm:px-6 sm:py-7 lg:px-7 transition-[background-image] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/advantages:bg-[linear-gradient(135deg,rgba(255,255,255,0.99),rgba(224,247,255,0.99)_22%,rgba(186,230,253,0.95)_54%,rgba(191,219,254,0.96)_100%)]">
             <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(103,232,249,0.24),transparent_28%),radial-gradient(circle_at_88%_22%,rgba(186,230,253,0.2),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.46),transparent_52%)]" />
-            <span className="pointer-events-none absolute -left-12 top-6 h-28 w-28 rounded-full bg-cyan-200/30 blur-3xl" />
-            <span className="pointer-events-none absolute -right-10 bottom-8 h-32 w-32 rounded-full bg-sky-200/24 blur-3xl" />
+            <span className="pointer-events-none absolute -left-12 top-6 hidden h-28 w-28 rounded-full bg-cyan-200/24 blur-2xl lg:block" />
+            <span className="pointer-events-none absolute -right-10 bottom-8 hidden h-32 w-32 rounded-full bg-sky-200/20 blur-2xl lg:block" />
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,340px)] lg:items-center">
               <div className="min-w-0">
                 <div className="grid gap-4 sm:grid-cols-[48px_minmax(0,1fr)] sm:items-start">
@@ -131,14 +145,14 @@ const AdvantagesSection = () => {
 
                   <div className="min-w-0 max-w-[74ch]">
                     <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700/80">
-                      PartsON - автозапчастини у Львові
+                      <PartsOnLink /> - автозапчастини у Львові
                     </p>
                     <h2 className="mt-2 font-display text-[26px] font-black leading-[1.02] tracking-[-0.045em] text-slate-900 sm:text-[31px] lg:text-[34px]">
                       Купити автозапчастини у Львові з підбором за VIN, артикулом і маркою авто
                     </h2>
 
                     <p className="mt-4 max-w-[68ch] text-[14px] leading-relaxed text-slate-700 sm:text-[15px]">
-                      PartsON - інтернет-магазин і магазин автозапчастин у Львові за адресою
+                      <PartsOnLink /> - інтернет-магазин і магазин автозапчастин у Львові за адресою
                       {" "}
                       <a
                         href={STORE_MAPS_URL}
@@ -156,7 +170,7 @@ const AdvantagesSection = () => {
                       кодом товару, виробником або параметрами автомобіля.
                     </p>
                     <p className="mt-3 max-w-[68ch] text-[14px] leading-relaxed text-slate-600 sm:text-[15px]">
-                      У каталозі PartsON доступні оригінальні автозапчастини та перевірені аналоги
+                      У каталозі <PartsOnLink /> доступні оригінальні автозапчастини та перевірені аналоги
                       для ТО, підвіски, двигуна, гальмівної системи, охолодження й автоелектроніки.
                       Замовлення можна забрати самовивозом у Львові або отримати доставкою по Львову
                       та Україні.
@@ -182,7 +196,7 @@ const AdvantagesSection = () => {
                             href={item.href}
                             target="_blank"
                             rel="noreferrer"
-                            className={`inline-flex items-center gap-2 rounded-[999px] border px-3 py-1.5 text-[12px] font-semibold shadow-[0_10px_20px_rgba(125,211,252,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 ${item.tone}`}
+                            className={`inline-flex items-center gap-2 rounded-[999px] border px-3 py-1.5 text-[12px] font-semibold shadow-[0_8px_16px_rgba(125,211,252,0.12)] transition hover:border-sky-200 ${item.tone}`}
                           >
                             {content}
                           </a>

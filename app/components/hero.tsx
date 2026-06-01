@@ -22,9 +22,9 @@ const depthBackground = [
 const cardGradientBase =
   "bg-gradient-to-b from-slate-950/44 via-slate-900/24 to-sky-200/12";
 const cardGradientHover =
-  "motion-safe:hover:from-slate-950/42 motion-safe:hover:via-slate-900/23 motion-safe:hover:to-sky-200/14";
+  "motion-safe:hover:bg-white/[0.11]";
 const cardInteractionStatic =
-  "transition-[box-shadow,background-color,border-color,transform] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]";
+  "transition-[box-shadow,background-color,border-color] duration-300 ease-out";
 const heroHeadingText =
   "font-display font-black italic leading-[0.98] tracking-[-0.06em] text-transparent bg-clip-text bg-gradient-to-r from-sky-100 via-white to-sky-200";
 
@@ -102,8 +102,8 @@ const Hero = () => {
         backgroundImage: depthBackground,
       }}
       >
-      <span className="pointer-events-none absolute -inset-20 bg-[image:radial-gradient(circle_at_20%_5%,rgba(56,189,248,0.2),transparent_42%),radial-gradient(circle_at_88%_10%,rgba(37,99,235,0.11),transparent_46%),radial-gradient(circle_at_60%_80%,rgba(14,165,233,0.08),transparent_54%)] opacity-48 blur-[32px] transition-opacity duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/hero:opacity-56" />
-      <span className="pointer-events-none absolute inset-0 bg-[image:linear-gradient(132deg,rgba(15,23,42,0.16)_0%,rgba(14,165,233,0.1)_28%,rgba(56,189,248,0.09)_58%,rgba(2,6,23,0.09)_100%)] opacity-46 transition-opacity duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/hero:opacity-52" />
+      <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_5%,rgba(56,189,248,0.16),transparent_42%),radial-gradient(circle_at_88%_10%,rgba(37,99,235,0.09),transparent_46%),radial-gradient(circle_at_60%_80%,rgba(14,165,233,0.06),transparent_54%)] opacity-60" />
+      <span className="pointer-events-none absolute inset-0 bg-[image:linear-gradient(132deg,rgba(15,23,42,0.14)_0%,rgba(14,165,233,0.08)_28%,rgba(56,189,248,0.07)_58%,rgba(2,6,23,0.08)_100%)] opacity-46" />
       <div className="page-shell-inline">
         <div className="relative grid gap-4 text-slate-100 md:grid-cols-2 lg:grid-cols-3 lg:items-stretch">
           <div className="h-full min-w-0">
@@ -113,7 +113,7 @@ const Hero = () => {
                 setIsIntroExpanded((value) => !value);
               }}
               onMouseLeave={(event) => event.currentTarget.blur()}
-              className={`home-glass-card hero-intro-card relative flex min-h-[214px] h-full cursor-pointer flex-col justify-between gap-3 overflow-hidden rounded-2xl border border-sky-100/18 p-4 shadow-[0_12px_28px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] outline-none ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:bg-white/[0.11] hover:shadow-[0_14px_30px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.1)] sm:min-h-[230px] sm:p-4.5 lg:min-h-0`}
+              className={`home-glass-card hero-intro-card relative flex min-h-[214px] h-full cursor-pointer flex-col justify-between gap-3 overflow-hidden rounded-2xl border border-sky-100/18 p-4 shadow-[0_12px_28px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] outline-none ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:shadow-[0_14px_30px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.1)] sm:min-h-[230px] sm:p-4.5 lg:min-h-0`}
             >
               <span className="pointer-events-none absolute inset-0 rounded-2xl border border-sky-200/14" />
               <div className="pointer-events-none absolute inset-0 opacity-38 transition-opacity duration-700 bg-[image:radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_44%),radial-gradient(circle_at_88%_82%,rgba(37,99,235,0.09),transparent_48%)] group-hover/hero:opacity-44" />
@@ -152,9 +152,13 @@ const Hero = () => {
                   <p
                     className={`${heroHeadingText} mt-1 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[18px] leading-tight sm:text-[20px] md:mb-2 md:flex-nowrap md:items-baseline md:text-[22px] lg:text-[24px]`}
                   >
-                    <span className="text-[20px] sm:text-[23px] md:text-[25px] lg:text-[27px]">
+                    <Link
+                      href="/"
+                      onClick={(event) => event.stopPropagation()}
+                      className="text-[20px] no-underline sm:text-[23px] md:text-[25px] lg:text-[27px]"
+                    >
                       PartsON
-                    </span>
+                    </Link>
                     <span className="text-[17px] sm:text-[19px] md:text-[21px] lg:text-[23px]">
                       — знайдеться все!
                     </span>
@@ -199,7 +203,7 @@ const Hero = () => {
                   alt="PartsOn Logo"
                   width={98}
                   height={49}
-                  loading="lazy"
+                  priority
                   className="relative z-[2] h-auto w-[72px] object-contain drop-shadow-[0_10px_20px_rgba(15,23,42,0.18)] transition-transform duration-500 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:transform-gpu md:w-[108px] motion-safe:group-hover/logo:-translate-y-0.5 motion-safe:group-hover/logo:scale-[1.04]"
                   sizes="(min-width: 768px) 108px, 72px"
                   onError={handleLogoLoadError}

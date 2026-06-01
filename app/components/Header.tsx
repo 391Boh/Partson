@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef, type ComponentType } from 'react';
 import dynamic from 'next/dynamic';
 import {
-  ShoppingCart, User, Menu, Info, Car,
-  List, Truck, CreditCard, MapPin, Users, Phone, Search, ShieldCheck
+  ShoppingCart, User, Menu, Info,
+  List, Truck, CreditCard, MapPin, Users, Phone, Search, ShieldCheck, RotateCcw, Wrench,
+  CarFront, Factory, Layers3
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -19,8 +20,9 @@ type AppRouterInstance = ReturnType<typeof useRouter>;
 
 const CATALOG_PREFETCH_ROUTES = [
   '/katalog',
-  '/katalog?tab=auto',
-  '/katalog?tab=category',
+  '/auto',
+  '/groups',
+  '/manufacturers',
 ] as const;
 
 const INFO_PREFETCH_ROUTES = [
@@ -29,6 +31,9 @@ const INFO_PREFETCH_ROUTES = [
   '/inform/about',
   '/inform/location',
   '/inform/privacy',
+  '/inform/warranty',
+  '/inform/returns',
+  '/inform/diagnostics',
 ] as const;
 
 const prefetchRouteList = (
@@ -214,16 +219,6 @@ const Header: React.FC = () => {
     setActiveMenu(prev => (prev === menu ? '' : menu));
   };
 
-  const openCatalogTab = (tab: 'auto' | 'category') => {
-    prefetchCatalogRoutes();
-    closeExternalOverlays();
-    setShowSearchModal(false);
-    setModals({ contact: false, order: false, auth: false });
-    setAuthInitialTab(null);
-    setActiveMenu('');
-    router.push(`/katalog?tab=${tab}&reset=1`);
-  };
-
   const toggleModal = (name: keyof typeof modals) => {
     closeExternalOverlays();
     setShowSearchModal(false);
@@ -381,17 +376,31 @@ const Header: React.FC = () => {
     <SearchBar onSearch={onSearch} />
   );
   const hasOverlayPortalOpen =
-    showSearchModal || modals.contact || modals.order || modals.auth;
+    Boolean(activeMenu) || showSearchModal || modals.contact || modals.order || modals.auth;
 
   const buttonBaseClass =
     'font-ui flex min-h-[34px] items-center gap-1 rounded-[14px] border border-white/15 bg-gray-700 px-2.5 py-1.5 text-[10px] font-bold tracking-[0.01em] text-slate-50 transition-all whitespace-nowrap hover:border-white/35 hover:bg-gray-600 sm:min-h-0 sm:gap-1.5 sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[14px] cursor-pointer touch-manipulation active:scale-[0.98] select-none';
 
 
   const dropdownBaseClass =
-    'font-ui absolute z-50 mt-3 w-52 origin-top rounded-2xl border-2 border-gray-500 bg-gray-700 p-2 py-2 text-white shadow-xl backdrop-blur-sm select-none transition-all duration-150 ease-out';
+    'app-header-dropdown font-ui fixed inset-x-3 top-[calc(var(--header-height,4rem)+0.55rem)] z-[90] max-h-[calc(100svh-var(--header-height,4rem)-1rem)] origin-top overflow-y-auto rounded-[20px] border border-sky-100/16 p-2 text-white shadow-[0_18px_42px_rgba(2,6,23,0.34),0_12px_28px_rgba(2,6,23,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-sky-100/10 backdrop-blur-xl select-none transition-all duration-150 ease-out sm:absolute sm:inset-x-auto sm:left-1/2 sm:top-auto sm:mt-5 sm:-translate-x-1/2 sm:rounded-[18px] sm:p-1.5';
+
+  const menuDropdownClass = `${dropdownBaseClass} sm:w-64`;
+
+  const infoDropdownClass = `${dropdownBaseClass} grid grid-cols-2 gap-1 sm:w-[30rem] sm:gap-1.5 md:w-[32rem]`;
 
   const dropdownItemClass =
-    'flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-semibold tracking-[-0.01em] hover:bg-gray-600 cursor-pointer transition-transform active:scale-[0.98] select-none';
+    'group flex min-h-10 w-full items-center gap-2.5 rounded-[13px] px-3 py-2 text-left text-[13px] font-semibold tracking-[-0.01em] text-slate-100 transition-[background-color,color,box-shadow,border-color] duration-150 hover:bg-white/10 hover:text-white hover:shadow-[0_10px_22px_rgba(15,23,42,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70 active:scale-[0.98] select-none sm:rounded-xl sm:px-3.5 sm:text-[13.5px]';
+
+  const infoDropdownItemClass =
+    `${dropdownItemClass} min-h-[2.85rem] gap-2 px-2.5 py-2 text-[12.5px] leading-tight sm:min-h-10 sm:px-3 sm:text-[13px]`;
+
+  const dropdownIconClass =
+    'flex h-7 w-7 shrink-0 items-center justify-center rounded-[11px] border border-white/10 bg-white/10 text-sky-100 transition-all duration-150 group-hover:border-sky-200/40 group-hover:bg-sky-300/18 group-hover:text-white sm:h-8 sm:w-8 sm:rounded-xl';
+
+  const overlayBackdropClass = activeMenu
+    ? 'fixed inset-x-0 bottom-0 top-[var(--header-height,4rem)] z-[40] bg-slate-950/15'
+    : 'fixed inset-x-0 bottom-0 top-[var(--header-height,4rem)] z-[80] bg-slate-950/12';
 
   const closeAllOverlays = () => {
     setActiveMenu('');
@@ -433,9 +442,6 @@ const Header: React.FC = () => {
               onContextMenu={preventLogoAssetInteraction}
               draggable={false}
             />
-            <span className="pointer-events-none absolute left-4 top-full z-50 mt-2.5 translate-y-1 whitespace-nowrap rounded-xl border border-slate-200/70 bg-gradient-to-r from-white/95 via-sky-50/95 to-indigo-50/90 pl-3.5 pr-2.5 pt-1.5 pb-1 text-[10px] font-semibold tracking-[0.02em] text-slate-900 opacity-0 shadow-[0_10px_22px_rgba(15,23,42,0.16)] backdrop-blur-md ring-1 ring-white/60 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 sm:left-1/2 sm:-translate-x-1/2">
-              Головна сторінка
-            </span>
           </Link>
 
           {/* NAVIGATION */}
@@ -461,28 +467,50 @@ const Header: React.FC = () => {
                   <span className="hidden md:inline cursor-pointer select-none">Меню</span>
                 </button>
 
-                <ul className={`${dropdownBaseClass} left-1/2 -translate-x-1/2 mt-6 ${
+                <ul className={`${menuDropdownClass} ${
                     activeMenu === "menu"
                       ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
                       : "opacity-0 scale-95 -translate-y-1 pointer-events-none"
                   }`}>
                   <li>
-                    <button
-                      type="button"
-                      onClick={() => openCatalogTab('auto')}
-                      className={`${dropdownItemClass} w-full`}
+                    <Link
+                      href="/katalog"
+                      onClick={() => setActiveMenu('')}
+                      className={dropdownItemClass}
                     >
-                      <Car size={18} /> Авто
-                    </button>
+                      <span className={dropdownIconClass}><List size={17} /></span>
+                      <span>Каталог</span>
+                    </Link>
                   </li>
                   <li>
-                    <button
-                      type="button"
-                      onClick={() => openCatalogTab('category')}
-                      className={`${dropdownItemClass} w-full`}
+                    <Link
+                      href="/groups"
+                      onClick={() => setActiveMenu('')}
+                      className={dropdownItemClass}
                     >
-                      <List size={18} /> Каталог
-                    </button>
+                      <span className={dropdownIconClass}><Layers3 size={17} /></span>
+                      <span>Групи товарів</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/auto"
+                      onClick={() => setActiveMenu('')}
+                      className={dropdownItemClass}
+                    >
+                      <span className={dropdownIconClass}><CarFront size={17} /></span>
+                      <span>Авто</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/manufacturers"
+                      onClick={() => setActiveMenu('')}
+                      className={dropdownItemClass}
+                    >
+                      <span className={dropdownIconClass}><Factory size={17} /></span>
+                      <span>Виробники</span>
+                    </Link>
                   </li>
                 </ul>
               </li>
@@ -506,16 +534,19 @@ const Header: React.FC = () => {
                   <span className="hidden md:inline cursor-pointer select-none">Інформація</span>
                 </button>
 
-                <ul className={`${dropdownBaseClass} left-1/2 -translate-x-1/2 mt-6 ${
+                <ul className={`${infoDropdownClass} ${
                     activeMenu === "info"
                       ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
                       : "opacity-0 scale-95 -translate-y-1 pointer-events-none"
                   }`}>
-                    <li><Link href="/inform/delivery" onClick={() => setActiveMenu('')} className={dropdownItemClass}><Truck size={18} /> Доставка</Link></li>
-                    <li><Link href="/inform/payment" onClick={() => setActiveMenu('')} className={dropdownItemClass}><CreditCard size={18} /> Оплата</Link></li>
-                    <li><Link href="/inform/about" onClick={() => setActiveMenu('')} className={dropdownItemClass}><Users size={18} /> Про нас</Link></li>
-                    <li><Link href="/inform/location" onClick={() => setActiveMenu('')} className={dropdownItemClass}><MapPin size={18} /> Локація</Link></li>
-                    <li><Link href="/inform/privacy" onClick={() => setActiveMenu('')} className={dropdownItemClass}><ShieldCheck size={18} /> Конфіденційність</Link></li>
+                    <li><Link href="/inform/delivery" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><Truck size={17} /></span><span className="min-w-0">Доставка</span></Link></li>
+                    <li><Link href="/inform/payment" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><CreditCard size={17} /></span><span className="min-w-0">Оплата</span></Link></li>
+                    <li><Link href="/inform/about" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><Users size={17} /></span><span className="min-w-0">Про нас</span></Link></li>
+                    <li><Link href="/inform/location" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><MapPin size={17} /></span><span className="min-w-0">Локація</span></Link></li>
+                    <li><Link href="/inform/warranty" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><ShieldCheck size={17} /></span><span className="min-w-0">Гарантія</span></Link></li>
+                    <li><Link href="/inform/returns" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><RotateCcw size={17} /></span><span className="min-w-0">Повернення</span></Link></li>
+                    <li><Link href="/inform/diagnostics" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><Wrench size={17} /></span><span className="min-w-0">Діагностика</span></Link></li>
+                    <li><Link href="/inform/privacy" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><ShieldCheck size={17} /></span><span className="min-w-0">Конфіденційність</span></Link></li>
                   </ul>
               </li>
 
@@ -611,7 +642,7 @@ const Header: React.FC = () => {
       {hasOverlayPortalOpen &&
         renderPortal(
           <div
-            className="fixed inset-x-0 bottom-0 top-[var(--header-height,4rem)] z-[80] bg-slate-950/12"
+            className={overlayBackdropClass}
             onClick={closeAllOverlays}
             aria-hidden="true"
           />

@@ -5,6 +5,7 @@ import { unstable_cache } from "next/cache";
 
 import type { CatalogProduct } from "app/lib/catalog-server";
 import {
+  fetchAllgoodsProductsByNameQuery,
   fetchCatalogProductsByArticle,
   fetchCatalogProductsByHeaderSearchQuery,
   findAnalogProductsByArticleInName,
@@ -34,8 +35,8 @@ type RelatedLookupContext = Pick<
 const RELATED_CACHE_TTL_MS = 1000 * 60 * 10;
 const MAX_RELATED_ITEMS = 12;
 const MAX_SIMILAR_ITEMS = 6;
-const FAST_RELATED_TIMEOUT_MS = 520;
-const FALLBACK_RELATED_TIMEOUT_MS = 760;
+const FAST_RELATED_TIMEOUT_MS = 440;
+const FALLBACK_RELATED_TIMEOUT_MS = 620;
 
 const normalizeLookupValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -261,6 +262,14 @@ const collectAndFilterUnique = (
 
     if (itemCode && targetCode && itemCode === targetCode) return false;
     if (
+      itemArticle &&
+      targetArticle &&
+      itemArticle === targetArticle &&
+      (!targetProducer || itemProducer === targetProducer)
+    ) {
+      return false;
+    }
+    if (
       !itemCode &&
       itemArticle &&
       targetArticle &&
@@ -276,6 +285,12 @@ const collectAndFilterUnique = (
     return true;
   });
 };
+
+const filterRelevantRecommendationItems = (
+  items: CatalogProduct[],
+  targetProduct: RelatedLookupContext,
+  minScore = 2
+) => items.filter((item) => scoreRecommendation(item, targetProduct) >= minScore);
 
 const sortRecommendationItems = (
   items: CatalogProduct[],
@@ -381,10 +396,46 @@ const getRelatedProductsUncached = async (
     targetProduct
   ).slice(0, MAX_RELATED_ITEMS);
 
-  if (merged.length >= 4) {
-    return sortRecommendationItems(merged, targetProduct, MAX_RELATED_ITEMS).map(
-      toRelatedCardItem
+  const nameFieldQueries = Array.from(
+    new Set(
+      [
+        normalizedArticle,
+        buildSearchableProductName(targetProduct),
+      ]
+        .map((value) => value.replace(/\s+/g, " ").trim())
+        .filter((value) => value.length >= 3)
+    )
+  ).slice(0, 2);
+
+  if (nameFieldQueries.length > 0) {
+    const nameFieldResultGroups = await Promise.all(
+      nameFieldQueries.map((query) =>
+        resolveWithTimeout(
+          fetchAllgoodsProductsByNameQuery(query, {
+            limit: 24,
+            timeoutMs: FAST_RELATED_TIMEOUT_MS,
+            retries: 0,
+            retryDelayMs: 60,
+            cacheTtlMs: RELATED_CACHE_TTL_MS,
+          }).catch(() => []),
+          [] as CatalogProduct[],
+          FAST_RELATED_TIMEOUT_MS
+        )
+      )
     );
+
+    const nameFieldMatches = filterRelevantRecommendationItems(
+      collectAndFilterUnique(nameFieldResultGroups.flat(), targetProduct),
+      targetProduct,
+      3
+    );
+
+    if (nameFieldMatches.length > 0) {
+      merged = collectAndFilterUnique(
+        [...nameFieldMatches, ...merged],
+        targetProduct
+      ).slice(0, MAX_RELATED_ITEMS * 2);
+    }
   }
 
   const analogsByArticleInName =
@@ -432,7 +483,11 @@ const getRelatedProductsUncached = async (
     )
   );
 
-  const nameMatches = collectAndFilterUnique(resultGroups.flat(), targetProduct);
+  const nameMatches = filterRelevantRecommendationItems(
+    collectAndFilterUnique(resultGroups.flat(), targetProduct),
+    targetProduct,
+    3
+  );
   if (nameMatches.length > 0) {
     merged = [...merged, ...nameMatches].slice(0, MAX_RELATED_ITEMS * 2);
   }
@@ -450,7 +505,11 @@ const getRelatedProductsUncached = async (
           normalizeLookupValue(fallbackQuery) === normalizeLookupValue(normalizedCode),
       }).catch(() => []);
 
-      merged = collectAndFilterUnique(fallbackMatches, targetProduct).slice(
+      merged = filterRelevantRecommendationItems(
+        collectAndFilterUnique(fallbackMatches, targetProduct),
+        targetProduct,
+        3
+      ).slice(
         0,
         MAX_RELATED_ITEMS
       );
@@ -497,13 +556,13 @@ const getSimilarProductsUncached = async (
 
 const getRelatedProductsCached = unstable_cache(
   getRelatedProductsUncached,
-  ["product-related:header-search-v9-price"],
+  ["product-related:name-field-article-v11"],
   { revalidate: 60 * 10 }
 );
 
 const getSimilarProductsCached = unstable_cache(
   getSimilarProductsUncached,
-  ["product-similar:subgroup-v3-price"],
+  ["product-similar:subgroup-v4-fast"],
   { revalidate: 60 * 10 }
 );
 

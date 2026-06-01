@@ -7,11 +7,18 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  linkWithPopup,
+  sendPasswordResetEmail,
+  signInWithPopup,
+  updatePassword,
 } from "firebase/auth";
+import type { User as FirebaseUser } from "firebase/auth";
 import { auth, db } from "../../firebase";
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
   setDoc,
@@ -34,6 +41,49 @@ interface SavedUser {
   password: string;
 }
 
+const getFirebaseErrorCode = (error: unknown) =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  typeof (error as { code?: unknown }).code === "string"
+    ? (error as { code: string }).code
+    : "";
+
+const formatUkrainianPhone = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  const withoutCountryCode = digits.startsWith("380")
+    ? digits.slice(3)
+    : digits.startsWith("0")
+    ? digits.slice(1)
+    : digits;
+
+  return `+380${withoutCountryCode.slice(0, 9)}`;
+};
+
+const syncAuthUserProfile = async (
+  user: FirebaseUser,
+  authProvider: "google" | "password"
+) => {
+  const userRef = doc(db, "users", user.uid);
+  const userSnapshot = await getDoc(userRef);
+  const timestamp = new Date().toISOString();
+
+  await setDoc(
+    userRef,
+    {
+      name: user.displayName || "",
+      email: user.email || "",
+      photoURL: user.photoURL || "",
+      authProvider,
+      providers: user.providerData.map((provider) => provider.providerId),
+      lastLoginAt: timestamp,
+      updatedAt: timestamp,
+      ...(userSnapshot.exists() ? {} : { createdAt: timestamp }),
+    },
+    { merge: true }
+  );
+};
+
 const AuthForm: React.FC<AuthFormProps> = ({
   mode,
   onModeChange,
@@ -47,6 +97,12 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [resetPasswordMessage, setResetPasswordMessage] = useState<string | null>(
+    null
+  );
+  const [socialAuthError, setSocialAuthError] = useState<string | null>(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isResetPasswordLoading, setIsResetPasswordLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isEmailValid, setIsEmailValid] = useState<boolean | null>(null);
   const [isPasswordValid, setIsPasswordValid] = useState<boolean | null>(null);
@@ -120,10 +176,111 @@ const AuthForm: React.FC<AuthFormProps> = ({
   const validatePassword = (password: string) => password.length >= 6;
   const validatePhone = (phone: string) => /^\+380\d{9}$/.test(phone);
 
+  const handleGoogleAuth = async () => {
+    setLoginError(null);
+    setRegisterError(null);
+    setSocialAuthError(null);
+    setResetPasswordMessage(null);
+    setIsGoogleLoading(true);
+
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      const email = loginData.email.trim();
+      const password = loginData.password;
+      const shouldLinkToPasswordAccount =
+        mode === "login" && validateEmail(email) && validatePassword(password);
+      const credential = shouldLinkToPasswordAccount
+        ? await (async () => {
+            try {
+              const passwordCredential = await signInWithEmailAndPassword(
+                auth,
+                email,
+                password
+              );
+
+              try {
+                return await linkWithPopup(passwordCredential.user, provider);
+              } catch (linkError: unknown) {
+                const linkCode = getFirebaseErrorCode(linkError);
+                if (linkCode === "auth/provider-already-linked") {
+                  return passwordCredential;
+                }
+                throw linkError;
+              }
+            } catch (passwordError: unknown) {
+              const passwordCode = getFirebaseErrorCode(passwordError);
+              const canSetPasswordAfterGoogle =
+                passwordCode === "auth/invalid-credential" ||
+                passwordCode === "auth/wrong-password" ||
+                passwordCode === "auth/user-not-found";
+
+              if (!canSetPasswordAfterGoogle) {
+                throw passwordError;
+              }
+
+              const googleCredential = await signInWithPopup(auth, provider);
+              const googleEmail = googleCredential.user.email || "";
+              const hasPasswordProvider = googleCredential.user.providerData.some(
+                (userProvider) => userProvider.providerId === "password"
+              );
+
+              if (
+                googleEmail.toLowerCase() === email.toLowerCase() &&
+                !hasPasswordProvider
+              ) {
+                await updatePassword(googleCredential.user, password);
+              }
+
+              return googleCredential;
+            }
+          })()
+        : await signInWithPopup(auth, provider);
+      const user = credential.user;
+
+      try {
+        await syncAuthUserProfile(user, "google");
+      } catch (profileError) {
+        console.warn(
+          "Google sign-in succeeded, but profile sync failed:",
+          profileError
+        );
+      }
+
+      closeModal();
+    } catch (error: unknown) {
+      const code = getFirebaseErrorCode(error);
+
+      if (code === "auth/popup-closed-by-user") {
+        setSocialAuthError("Вхід через Google скасовано.");
+      } else if (code === "auth/popup-blocked") {
+        setSocialAuthError("Браузер заблокував Google-вікно. Дозвольте popup і спробуйте ще раз.");
+      } else if (code === "auth/account-exists-with-different-credential") {
+        setSocialAuthError(
+          "Для цього email вже є акаунт з паролем. Введіть email і пароль у поля вище, тоді натисніть Google ще раз, щоб прив'язати обидва способи входу."
+        );
+      } else if (code === "auth/credential-already-in-use") {
+        setSocialAuthError(
+          "Цей Google вже прив'язаний до іншого акаунта Firebase."
+        );
+      } else if (code === "auth/invalid-credential" || code === "auth/wrong-password") {
+        setSocialAuthError(
+          "Щоб прив'язати Google до старого акаунта, введіть правильний старий пароль."
+        );
+      } else {
+        setSocialAuthError("Не вдалося увійти через Google. Спробуйте ще раз.");
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
   const handleLoginEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const email = e.target.value;
     setLoginData((prev) => ({ ...prev, email }));
     setIsEmailValid(validateEmail(email));
+    setResetPasswordMessage(null);
   };
 
   const handleLoginPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,31 +289,98 @@ const AuthForm: React.FC<AuthFormProps> = ({
     setIsPasswordValid(password.length >= 6);
   };
 
+  const handleForgotPassword = async () => {
+    const email = loginData.email.trim();
+    setLoginError(null);
+    setRegisterError(null);
+    setSocialAuthError(null);
+    setResetPasswordMessage(null);
+
+    if (!validateEmail(email)) {
+      setLoginError("Введіть email, щоб отримати лист для відновлення пароля.");
+      setIsEmailValid(false);
+      return;
+    }
+
+    setIsResetPasswordLoading(true);
+    try {
+      const resetSettings =
+        typeof window !== "undefined"
+          ? { url: window.location.origin, handleCodeInApp: false }
+          : undefined;
+
+      await sendPasswordResetEmail(auth, email, resetSettings);
+      setResetPasswordMessage(
+        "Лист для відновлення пароля надіслано. Перевірте пошту."
+      );
+    } catch (error: unknown) {
+      const code = getFirebaseErrorCode(error);
+      if (code === "auth/user-not-found") {
+        setLoginError("Користувача з таким email не знайдено.");
+      } else if (code === "auth/too-many-requests") {
+        setLoginError("Забагато запитів. Спробуйте відновити пароль пізніше.");
+      } else if (code === "auth/operation-not-allowed") {
+        setLoginError("Відновлення пароля вимкнене у Firebase для Email/Password.");
+      } else if (code === "auth/unauthorized-continue-uri") {
+        setLoginError("Домен сайту не доданий в Authorized domains у Firebase.");
+      } else {
+        setLoginError("Не вдалося надіслати лист. Перевірте email і спробуйте ще раз.");
+      }
+    } finally {
+      setIsResetPasswordLoading(false);
+    }
+  };
+
   const handleLoginSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoginError(null);
+    setResetPasswordMessage(null);
+    const email = loginData.email.trim();
 
     try {
       await setPersistence(
         auth,
         rememberMe ? browserLocalPersistence : browserSessionPersistence
       );
-      await signInWithEmailAndPassword(auth, loginData.email, loginData.password);
+      await signInWithEmailAndPassword(auth, email, loginData.password);
 
       if (rememberMe) {
         setSavedUsers((prev) => {
-          const existingIndex = prev.findIndex((u) => u.email === loginData.email);
+          const savedLogin = { email, password: loginData.password };
+          const existingIndex = prev.findIndex((u) => u.email === email);
           const next = [...prev];
-          if (existingIndex !== -1) next[existingIndex] = loginData;
-          else next.push(loginData);
+          if (existingIndex !== -1) next[existingIndex] = savedLogin;
+          else next.push(savedLogin);
           localStorage.setItem("savedUsers", JSON.stringify(next));
           return next;
         });
       }
 
       closeModal();
-    } catch {
-      setLoginError("Невірний email або пароль.");
+    } catch (error: unknown) {
+      const code = getFirebaseErrorCode(error);
+      if (
+        code !== "auth/invalid-credential" &&
+        code !== "auth/wrong-password" &&
+        code !== "auth/user-not-found" &&
+        code !== "auth/too-many-requests"
+      ) {
+        console.error("Email sign-in error:", error);
+      }
+
+      if (code === "auth/invalid-credential" || code === "auth/wrong-password") {
+        setLoginError("Невірний email або пароль.");
+      } else if (code === "auth/user-not-found") {
+        setLoginError("Користувача з таким email не знайдено.");
+      } else if (code === "auth/too-many-requests") {
+        setLoginError("Забагато спроб входу. Спробуйте пізніше або скиньте пароль.");
+      } else if (code === "auth/operation-not-allowed") {
+        setLoginError("Вхід через email і пароль вимкнений у Firebase.");
+      } else if (code === "auth/network-request-failed") {
+        setLoginError("Немає з'єднання з Firebase. Перевірте інтернет і спробуйте ще раз.");
+      } else {
+        setLoginError("Не вдалося увійти. Перевірте налаштування Firebase.");
+      }
     }
   };
 
@@ -184,8 +408,9 @@ const AuthForm: React.FC<AuthFormProps> = ({
   };
 
   const handleRegisterChange = (field: keyof typeof registerData, value: string) => {
-    setRegisterData((prev) => ({ ...prev, [field]: value }));
-    validateField(field, value);
+    const nextValue = field === "phone" ? formatUkrainianPhone(value) : value;
+    setRegisterData((prev) => ({ ...prev, [field]: nextValue }));
+    validateField(field, nextValue);
   };
 
   const handleRegisterSubmit = async (e: FormEvent) => {
@@ -219,14 +444,14 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
       await createUserWithEmailAndPassword(
         auth,
-        registerData.email,
+        registerData.email.trim().toLowerCase(),
         registerData.password
       );
       const user = auth.currentUser;
       if (user) {
         await setDoc(doc(db, "users", user.uid), {
           name: registerData.name,
-          email: registerData.email,
+          email: registerData.email.trim().toLowerCase(),
           phone: registerData.phone,
           createdAt: new Date().toISOString(),
         });
@@ -264,7 +489,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
     >
       <div
         ref={modalRef}
-        className={`soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto p-3 text-slate-700 sm:p-4 transform-gpu transition-all duration-500 ease-in-out pointer-events-auto ${
+        className={`soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto text-slate-700 transform-gpu transition-all duration-500 ease-in-out pointer-events-auto ${
           isClosing
             ? "translate-x-4 scale-[0.98] opacity-0"
             : isVisible
@@ -274,29 +499,23 @@ const AuthForm: React.FC<AuthFormProps> = ({
       >
         <button
           onClick={closeModal}
-          className="soft-icon-button absolute top-3 right-3 z-10 h-9 w-9"
+          className="auth-modal-close soft-icon-button absolute right-3 top-7 z-10 sm:right-4 sm:top-8"
           aria-label="Закрити"
         >
-          <X size={22} />
+          <X size={17} strokeWidth={2.4} />
         </button>
 
-        <div className="soft-panel-content flex flex-col gap-3 sm:gap-4">
-          <div className="h-1 rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600" />
+        <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
+          <div className="soft-panel-accent h-1 w-full shrink-0 rounded-full" />
 
-          <div className="soft-panel-header pr-10">
+          <div className="auth-panel-header soft-panel-header pr-10">
             <div className="min-w-0">
-              <span className="soft-panel-eyebrow">
-                {mode === "login" ? <LogIn size={14} /> : <UserPlus size={14} />}
-                {mode === "login" ? "Вхід" : "Реєстрація"}
+              <span className="auth-panel-mark" aria-hidden="true">
+                {mode === "login" ? <LogIn size={16} /> : <UserPlus size={16} />}
               </span>
-              <h2 className="soft-panel-title mt-3">
-                {mode === "login" ? "Увійти в акаунт" : "Створити акаунт"}
+              <h2 className="soft-panel-title">
+                {mode === "login" ? "Авторизація" : "Реєстрація"}
               </h2>
-              <p className="soft-panel-subtitle">
-                {mode === "login"
-                  ? "Швидкий доступ до профілю, VIN-кодів та історії замовлень."
-                  : "Заповніть кілька полів, щоб оформлювати замовлення швидше."}
-              </p>
             </div>
           </div>
 
@@ -307,7 +526,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
               className={`flex flex-1 items-center justify-center gap-2 rounded-[14px] px-3 py-2 text-sm font-semibold transition ${
                 mode === "login"
                   ? "soft-segment soft-segment--active"
-                  : "soft-segment hover:bg-white/80 hover:text-slate-800"
+                  : "soft-segment"
               }`}
             >
               <LogIn size={16} />
@@ -319,7 +538,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
               className={`flex flex-1 items-center justify-center gap-2 rounded-[14px] px-3 py-2 text-sm font-semibold transition ${
                 mode === "register"
                   ? "soft-segment soft-segment--active"
-                  : "soft-segment hover:bg-white/80 hover:text-slate-800"
+                  : "soft-segment"
               }`}
             >
               <UserPlus size={16} />
@@ -384,22 +603,42 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="soft-icon-button absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 border-transparent bg-transparent text-slate-500 hover:text-slate-800"
+                  className="soft-icon-button absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 border-transparent bg-transparent"
                   aria-label={showPassword ? "Сховати пароль" : "Показати пароль"}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
 
-              <label className="soft-surface-card flex items-center gap-2 rounded-[16px] px-3 py-2.5 text-xs text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 accent-blue-500"
-                />
-                Запам’ятати мене
-              </label>
+              <div className="soft-surface-card flex items-center justify-between gap-3 rounded-[16px] px-3 py-2.5 text-xs text-slate-700">
+                <label className="flex min-w-0 items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="h-4 w-4 shrink-0 accent-blue-500"
+                  />
+                  <span className="whitespace-nowrap">Запам’ятати мене</span>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={isResetPasswordLoading}
+                  className="shrink-0 rounded-full bg-white/80 px-2.5 py-1 font-extrabold text-sky-700 shadow-[0_6px_14px_rgba(14,165,233,0.12)] transition-colors hover:text-sky-950 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {isResetPasswordLoading ? "Надсилаємо..." : "Забули пароль?"}
+                </button>
+              </div>
+
+              {loginError && (
+                <p className="text-red-400 text-sm text-center">{loginError}</p>
+              )}
+              {resetPasswordMessage && (
+                <p className="text-emerald-600 text-sm text-center">
+                  {resetPasswordMessage}
+                </p>
+              )}
 
               <div className="flex flex-col gap-2 mt-1">
                 <button
@@ -417,70 +656,88 @@ const AuthForm: React.FC<AuthFormProps> = ({
               </div>
             </form>
           ) : (
-            <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-3">
-              <input
-                type="text"
-                placeholder="Ваше ім'я"
-                value={registerData.name}
-                onChange={(e) => handleRegisterChange("name", e.target.value)}
-                className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-base ${getBorderColor(
-                  "name"
-                )}`}
-              />
-              {fieldErrors.name && (
-                <p className="text-red-400 text-xs">{fieldErrors.name}</p>
-              )}
+            <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <input
+                    type="text"
+                    placeholder="Ваше ім'я"
+                    value={registerData.name}
+                    onChange={(e) => handleRegisterChange("name", e.target.value)}
+                    className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-sm ${getBorderColor(
+                      "name"
+                    )}`}
+                  />
+                  {fieldErrors.name && (
+                    <p className="mt-1 text-xs text-red-400">{fieldErrors.name}</p>
+                  )}
+                </div>
 
-              <input
-                type="email"
-                placeholder="Email"
-                value={registerData.email}
-                onChange={(e) => handleRegisterChange("email", e.target.value)}
-                className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-base ${getBorderColor(
-                  "email"
-                )}`}
-              />
-              {fieldErrors.email && (
-                <p className="text-red-400 text-xs">{fieldErrors.email}</p>
-              )}
+                <div className="min-w-0">
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={registerData.email}
+                    onChange={(e) => handleRegisterChange("email", e.target.value)}
+                    className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-sm ${getBorderColor(
+                      "email"
+                    )}`}
+                  />
+                  {fieldErrors.email && (
+                    <p className="mt-1 text-xs text-red-400">{fieldErrors.email}</p>
+                  )}
+                </div>
 
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Пароль"
-                  value={registerData.password}
-                  onChange={(e) => handleRegisterChange("password", e.target.value)}
-                  className={`soft-field w-full px-4 py-3 pr-11 text-sm text-slate-800 transition sm:text-base ${getBorderColor(
-                    "password"
-                  )}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="soft-icon-button absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 border-transparent bg-transparent text-slate-500 hover:text-slate-800"
-                  aria-label={showPassword ? "Сховати пароль" : "Показати пароль"}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
+                <div className="min-w-0">
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Пароль"
+                      value={registerData.password}
+                      onChange={(e) =>
+                        handleRegisterChange("password", e.target.value)
+                      }
+                      className={`soft-field w-full px-4 py-3 pr-11 text-sm text-slate-800 transition sm:text-sm ${getBorderColor(
+                        "password"
+                      )}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="soft-icon-button absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 border-transparent bg-transparent"
+                      aria-label={
+                        showPassword ? "Сховати пароль" : "Показати пароль"
+                      }
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {fieldErrors.password && (
+                    <p className="mt-1 text-xs text-red-400">
+                      {fieldErrors.password}
+                    </p>
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={13}
+                    placeholder="+380XXXXXXXXX"
+                    value={registerData.phone}
+                    onChange={(e) => handleRegisterChange("phone", e.target.value)}
+                    className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-sm ${getBorderColor(
+                      "phone"
+                    )}`}
+                  />
+                  {fieldErrors.phone && (
+                    <p className="mt-1 text-xs text-red-400">{fieldErrors.phone}</p>
+                  )}
+                </div>
               </div>
-              {fieldErrors.password && (
-                <p className="text-red-400 text-xs">{fieldErrors.password}</p>
-              )}
 
-              <input
-                type="tel"
-                placeholder="+380XXXXXXXXX"
-                value={registerData.phone}
-                onChange={(e) => handleRegisterChange("phone", e.target.value)}
-                className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-base ${getBorderColor(
-                  "phone"
-                )}`}
-              />
-              {fieldErrors.phone && (
-                <p className="text-red-400 text-xs">{fieldErrors.phone}</p>
-              )}
-
-              <div className="flex flex-col gap-2 mt-1">
+              <div className="mt-0.5 flex flex-col gap-2">
                 <button
                   type="submit"
                   className="soft-primary-button w-full px-4 py-3 text-sm font-semibold"
@@ -490,24 +747,45 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 </button>
                 <div className="soft-note flex items-start gap-2 rounded-[16px] px-3 py-2 text-xs">
                   <User className="mt-0.5 h-4 w-4 shrink-0 text-sky-700" />
-                  <span>Після реєстрації профіль буде готовий для замовлень і збереження VIN.</span>
+                  <span>Профіль буде готовий для замовлень і збереження VIN.</span>
                 </div>
               </div>
             </form>
           )}
 
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+              <span className="h-px flex-1 bg-slate-200/80" />
+              або
+              <span className="h-px flex-1 bg-slate-200/80" />
+            </div>
+            <button
+              type="button"
+              onClick={handleGoogleAuth}
+              disabled={isGoogleLoading}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-800 shadow-[0_10px_22px_rgba(15,23,42,0.07)] transition-[border-color,box-shadow,filter] hover:border-sky-200 hover:shadow-[0_14px_28px_rgba(14,165,233,0.12)] disabled:cursor-wait disabled:opacity-70"
+            >
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-[15px] font-black text-blue-600">
+                G
+              </span>
+              {isGoogleLoading ? "Підключення Google..." : "Продовжити з Google"}
+            </button>
+          </div>
+
           {mode === "login" && (
             <div className="mt-1">
-              <LoginTelegram />
+              <LoginTelegram onSuccess={closeModal} />
             </div>
           )}
 
-          {loginError && mode === "login" && (
-            <p className="text-red-400 text-sm mt-1 text-center">{loginError}</p>
-          )}
           {registerError && mode === "register" && (
             <p className="text-red-400 text-sm mt-1 text-center">
               {registerError}
+            </p>
+          )}
+          {socialAuthError && (
+            <p className="text-red-400 text-sm mt-1 text-center">
+              {socialAuthError}
             </p>
           )}
         </div>

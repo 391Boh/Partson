@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, type ChangeEvent } from 'react';
+import Link from 'next/link';
 import {
   collection,
   addDoc,
@@ -32,6 +33,7 @@ import {
 import { db } from '../../firebase';
 import { useCart } from 'app/context/CartContext';
 import ProductCardImage from 'app/components/ProductCardImage';
+import { notifyTelegramAdmin } from 'app/lib/telegram-notify-client';
 
 interface Message {
   id: string;
@@ -448,13 +450,22 @@ export default function TelegramChat({
     async (text: string) => {
       if (!text.trim()) return;
 
+      const userId = getUserId();
+
       await addDoc(collection(db, 'messages'), {
         text: text.trim(),
         sender: 'user',
-        userId: getUserId(),
+        userId,
         createdAt: serverTimestamp(),
         textRead: true,
         type: 'text',
+      });
+
+      void notifyTelegramAdmin({
+        type: 'message',
+        userId,
+        text: text.trim(),
+        messageType: 'text',
       });
     },
     [getUserId]
@@ -514,6 +525,12 @@ export default function TelegramChat({
           type: 'image',
           imageUrl,
           imageName: trimmedName || 'Фото',
+        });
+        void notifyTelegramAdmin({
+          type: 'message',
+          userId,
+          text: trimmedName || 'Фото',
+          messageType: 'image',
         });
         setImageUploadProgress(100);
       } catch {
@@ -693,9 +710,12 @@ export default function TelegramChat({
               <MessageCircle size={17} strokeWidth={2.1} />
             </span>
             <div className="min-w-0">
-              <div className="text-[8px] font-semibold uppercase tracking-[0.22em] text-sky-100/75 sm:text-[9px] sm:tracking-[0.24em]">
+              <Link
+                href="/"
+                className="text-[8px] font-semibold uppercase tracking-[0.22em] text-sky-100/75 underline decoration-sky-100/40 underline-offset-4 transition hover:text-white sm:text-[9px] sm:tracking-[0.24em]"
+              >
                 PARTSON
-              </div>
+              </Link>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-x-2.5">
                 <div className="text-[15px] font-semibold leading-tight tracking-tight text-white sm:text-[16px]">
                   Чат підтримки
@@ -761,7 +781,13 @@ export default function TelegramChat({
             </span>
             <div className="min-w-0">
               <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Підтримка PartsON
+                Підтримка{" "}
+                <Link
+                  href="/"
+                  className="font-bold text-sky-700 underline decoration-sky-300/70 underline-offset-4 transition hover:text-sky-900"
+                >
+                  PartsON
+                </Link>
               </div>
               <div className="mt-1 leading-relaxed text-slate-700">
                 Вітаємо! Напишіть артикул, VIN або питання щодо замовлення, і підкажемо потрібну деталь.

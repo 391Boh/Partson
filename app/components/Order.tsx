@@ -206,7 +206,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
         className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
       >
         <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
-          <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
+          <div className="soft-panel-accent h-1 rounded-full" />
 
           <div className="soft-panel-header">
             <div className="min-w-0">
@@ -227,7 +227,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <button
               onClick={() => setShowPastOrders(false)}
-              className="soft-secondary-button w-full px-3 py-2 text-sm font-semibold transition-[transform,box-shadow,border-color,background-color] duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-white hover:shadow-[0_14px_28px_rgba(14,165,233,0.12)] sm:w-auto sm:px-4 sm:py-2.5"
+              className="soft-secondary-button w-full px-3 py-2 text-sm font-semibold sm:w-auto sm:px-4 sm:py-2.5"
             >
               Назад
             </button>
@@ -402,7 +402,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
       className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
-        <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
+        <div className="soft-panel-accent h-1 rounded-full" />
 
         <div className="soft-panel-header">
           <div className="min-w-0">
@@ -424,7 +424,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
           <div className="grid w-full grid-cols-2 gap-1.5 sm:gap-2">
             <button
               onClick={() => setShowPastOrders(true)}
-              className="soft-segment flex items-center justify-center gap-1.5 rounded-[14px] px-2.5 py-2 text-sm font-semibold hover:bg-white/70 hover:text-slate-800 sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5"
+              className="soft-segment flex items-center justify-center gap-1.5 rounded-[14px] px-2.5 py-2 text-sm font-semibold sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5"
             >
               <ClipboardList size={16} />
               Історія

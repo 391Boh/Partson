@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { FC, useEffect } from 'react';
+import Link from 'next/link';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -41,7 +42,12 @@ const MapComponent: FC = () => {
       />
 
       <Marker position={storePosition} icon={customIcon}>
-        <Popup>PartsON, RX7Q+JM, Львів</Popup>
+        <Popup>
+          <Link href="/" className="font-semibold text-sky-700">
+            PartsON
+          </Link>
+          , RX7Q+JM, Львів
+        </Popup>
       </Marker>
     </MapContainer>
   );

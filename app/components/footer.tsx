@@ -197,7 +197,13 @@ export default function Footer() {
         </div>
 
         <div className="mt-10 border-t border-slate-300 pt-5 text-center text-sm text-slate-500">
-          <p>© {new Date().getFullYear()} PartsON. Усі права захищено.</p>
+          <p>
+            © {new Date().getFullYear()}{" "}
+            <Link href="/" className="font-semibold text-sky-700 hover:text-sky-900">
+              PartsON
+            </Link>
+            . Усі права захищено.
+          </p>
           <p className="mt-2 text-xs leading-5 text-slate-500">
             Використовуючи сайт, ви погоджуєтесь з обробкою персональних даних відповідно до{" "}
             <Link href="/inform/privacy" className="font-semibold text-sky-700 hover:text-sky-900">

@@ -44,25 +44,32 @@ const RecommendationSkeleton = ({
 }: {
   titleWidth?: string;
   cards?: number;
-}) => (
-  <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-white/92 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.05)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
-    <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-2.5">
-      <div>
-        <div className="h-3 w-24 animate-pulse rounded-full bg-sky-100" />
-        <div className={`mt-2 h-6 ${titleWidth} max-w-full animate-pulse rounded-full bg-slate-100`} />
+}) => {
+  const listClass =
+    cards > 2
+      ? "mt-3 grid grid-rows-2 auto-cols-[minmax(260px,88%)] grid-flow-col gap-2 overflow-hidden sm:auto-cols-[minmax(320px,72%)] sm:gap-2.5 lg:auto-cols-full"
+      : "mt-3 grid grid-rows-1 auto-cols-[minmax(260px,88%)] grid-flow-col gap-2 overflow-hidden sm:auto-cols-[minmax(320px,72%)] sm:gap-2.5 lg:auto-cols-full";
+
+  return (
+    <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-white/92 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.05)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
+      <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-2.5">
+        <div>
+          <div className="h-3 w-24 animate-pulse rounded-full bg-sky-100" />
+          <div className={`mt-2 h-6 ${titleWidth} max-w-full animate-pulse rounded-full bg-slate-100`} />
+        </div>
+        <div className="h-6 w-20 animate-pulse rounded-full bg-slate-100" />
       </div>
-      <div className="h-6 w-20 animate-pulse rounded-full bg-slate-100" />
-    </div>
-    <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-2.5">
-      {Array.from({ length: cards }).map((_, index) => (
-        <div
-          key={index}
-          className="h-[92px] min-w-0 animate-pulse rounded-[14px] border border-slate-200 bg-slate-100 sm:h-[88px]"
-        />
-      ))}
-    </div>
-  </section>
-);
+      <div className={listClass}>
+        {Array.from({ length: cards }).map((_, index) => (
+          <div
+            key={index}
+            className="h-[92px] min-w-0 animate-pulse rounded-[14px] border border-slate-200 bg-slate-100 sm:h-[88px]"
+          />
+        ))}
+      </div>
+    </section>
+  );
+};
 
 export default function ProductDeferredRecommendations({
   product,
@@ -71,11 +78,12 @@ export default function ProductDeferredRecommendations({
   return (
     <div className="space-y-2.5">
       <DeferredSection
-        rootMargin="260px"
+        rootMargin="900px"
         fallback={<RecommendationSkeleton titleWidth="w-72" cards={3} />}
-        minHeight="196px"
+        minHeight="172px"
         className="min-w-0"
-        fallbackDelayMs={9000}
+        initiallyVisible
+        fallbackDelayMs={1800}
       >
         <ProductRelatedItemsClientSection
           product={product}
@@ -85,11 +93,11 @@ export default function ProductDeferredRecommendations({
       </DeferredSection>
 
       <DeferredSection
-        rootMargin="180px"
-        fallback={<RecommendationSkeleton titleWidth="w-64" cards={2} />}
-        minHeight="152px"
+        rootMargin="720px"
+        fallback={<RecommendationSkeleton titleWidth="w-64" cards={3} />}
+        minHeight="172px"
         className="min-w-0"
-        fallbackDelayMs={12000}
+        fallbackDelayMs={2400}
       >
         <ProductRecentlyViewedSection product={product} euroRate={euroRate} />
       </DeferredSection>

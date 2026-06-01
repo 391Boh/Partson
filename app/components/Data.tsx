@@ -16,6 +16,7 @@ import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
 import ProductCard from "app/components/ProductCard";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
+import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
 import {
   buildProductImageBatchKey,
   buildProductImagePath,
@@ -52,13 +53,14 @@ const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
 const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v37-hierarchy-scope";
-const PRICE_CACHE_PREFIX = "partson:v10:price:";
+const PRICE_CACHE_PREFIX = "partson:v11:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PRICE_STALE_POSITIVE_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
 const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 45;
-const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE;
+const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 2;
+const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 20;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 90;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
@@ -68,8 +70,7 @@ const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 450;
 const IMAGE_PRIORITY_ITEMS_COUNT = 4;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = 12;
-const VISIBLE_IMAGE_PREFETCH_MAX_ITEMS = 12;
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 80;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 90;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
@@ -615,7 +616,7 @@ const now = () => Date.now();
 const abortControllerSafely = (controller: AbortController) => {
   if (controller.signal.aborted) return;
   try {
-    controller.abort();
+    controller.abort(createAbortError());
   } catch {
     // Prevent teardown-time abort edge cases from surfacing as runtime errors.
   }
@@ -632,11 +633,24 @@ const createAbortError = () => {
 };
 
 const swallowAbortError = (error: unknown) => {
-  if (error instanceof Error && error.name === "AbortError") {
+  if (isAbortLikeError(error)) {
     return;
   }
 
   throw error;
+};
+
+const isAbortLikeError = (error: unknown) => {
+  if (!(error instanceof Error)) return false;
+  if (error.name === "AbortError") return true;
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("signal is aborted") ||
+    message.includes("aborted without reason") ||
+    message.includes("fetch is aborted") ||
+    message.includes("operation was aborted")
+  );
 };
 
 const awaitWithAbortSignal = async <T,>(
@@ -1056,7 +1070,7 @@ function useCatalogData(params: {
   );
   const effectiveServerSortOrder = sortOrder;
   const canUseCursorPagination = selectedCars.length === 0;
-  const shouldAllowCatalogDirectPriceLookup = selectedCars.length > 0;
+  const shouldAllowCatalogDirectPriceLookup = true;
   const [data, setData] = useState<Product[]>([]);
   const [prices, setPrices] = useState<Record<string, number | null>>({});
   const [pageImages, setPageImages] = useState<Record<string, string>>({});
@@ -1111,6 +1125,7 @@ function useCatalogData(params: {
   const pageImagesRef = useRef<Record<string, string>>({});
   const pageImagePendingRef = useRef<Record<string, true>>({});
   const pageImageMissingRef = useRef<Record<string, true>>({});
+  const imageWarmupKeysRef = useRef<Set<string>>(new Set());
   const priceLoadingKeysRef = useRef<Set<string>>(new Set());
   const priceRetryCooldownUntilRef = useRef<Record<string, number>>({});
   const nextPageLoaderShownAtRef = useRef(0);
@@ -1290,8 +1305,6 @@ function useCatalogData(params: {
         const stateKey = getProductPriceStateKey(item);
         if (!stateKey) continue;
 
-        const hasKnownNoInlinePrice =
-          item.priceEuro === null && !allowFullLookup;
         const inlinePrice =
           typeof item.priceEuro === "number" &&
           Number.isFinite(item.priceEuro) &&
@@ -1299,13 +1312,6 @@ function useCatalogData(params: {
             ? item.priceEuro
             : null;
         if (inlinePrice != null) continue;
-
-        if (hasKnownNoInlinePrice) {
-          immediateUpdates[stateKey] = null;
-          priceRetryCooldownUntilRef.current[stateKey] =
-            nowTs + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
-          continue;
-        }
 
         const lookupKeys = getProductPriceLookupKeys(item);
         if (lookupKeys.length === 0) continue;
@@ -1560,7 +1566,7 @@ function useCatalogData(params: {
         try {
           fullPrices = await postBatch(unresolvedItems, "full");
         } catch (error) {
-          if (error instanceof Error && error.name === "AbortError") {
+          if (isAbortLikeError(error)) {
             throw error;
           }
           const fallbackNulls = Object.fromEntries(
@@ -1595,7 +1601,7 @@ function useCatalogData(params: {
           );
         }
       } catch (error) {
-        if (!(error instanceof Error && error.name === "AbortError")) {
+        if (!isAbortLikeError(error)) {
           const cooldownUntil = Date.now() + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
           for (const item of requestItems) {
             priceRetryCooldownUntilRef.current[item.stateKey] = cooldownUntil;
@@ -1619,12 +1625,77 @@ function useCatalogData(params: {
         signal?: AbortSignal;
       }
     ) => {
-      void items;
-      void options;
       if (typeof window === "undefined") return;
-      // Кожен товар має стабільний /product-image/... route, який сам кешує,
-      // оптимізує і робить fallback. Не блокуємо каталог додатковим batch-fetch.
-      return;
+
+      const warmupItems = items.slice(0, VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE);
+      if (warmupItems.length === 0) return;
+
+      const warmImageRoute = (item: Product, srcOverride?: string) => {
+        if (options?.signal?.aborted) return;
+        if (item.hasPhoto === false) return;
+
+        const key = buildProductImageBatchKey(item.code, item.article);
+        if (!key) return;
+        if (pageImageMissingRef.current[key]) return;
+        if (imageWarmupKeysRef.current.has(key)) return;
+
+        const src =
+          srcOverride ||
+          options?.prefetchedImages?.[key] ||
+          pageImagesRef.current[key] ||
+          buildProductImagePath(item.code, item.article, { catalog: true });
+        if (!src) return;
+
+        imageWarmupKeysRef.current.add(key);
+        const img = new window.Image();
+        img.decoding = "async";
+        img.onload = () => {
+          if (options?.signal?.aborted) return;
+          setPageImages((prev) => (prev[key] ? prev : { ...prev, [key]: src }));
+        };
+        img.onerror = () => {
+          imageWarmupKeysRef.current.delete(key);
+        };
+        img.src = src;
+      };
+
+      void primeCatalogImageBatch(warmupItems, {
+        deep: false,
+        signal: options?.signal,
+      })
+        .then((results) => {
+          if (options?.signal?.aborted) return;
+
+          const readyEntries = results.filter(
+            (item) => item.status === "ready" && item.src
+          );
+          if (readyEntries.length > 0) {
+            setPageImages((prev) => {
+              let didChange = false;
+              const next = { ...prev };
+              for (const item of readyEntries) {
+                if (!item.src || next[item.key]) continue;
+                next[item.key] = item.src;
+                didChange = true;
+              }
+              return didChange ? next : prev;
+            });
+          }
+
+          const readyByKey = new Map(
+            readyEntries.map((item) => [item.key, item.src as string])
+          );
+          for (const item of warmupItems) {
+            const key = buildProductImageBatchKey(item.code, item.article);
+            warmImageRoute(item, key ? readyByKey.get(key) : undefined);
+          }
+        })
+        .catch((error) => {
+          if (isAbortLikeError(error)) return;
+          for (const item of warmupItems.slice(0, IMAGE_PRIORITY_ITEMS_COUNT)) {
+            warmImageRoute(item);
+          }
+        });
     },
     []
   );
@@ -2311,7 +2382,7 @@ function useCatalogData(params: {
           hideNextPageLoader(true);
           return;
         }
-        if (err instanceof Error && err.name === "AbortError") {
+        if (isAbortLikeError(err)) {
           setFilterLoading(false);
           setLoading(false);
           hideNextPageLoader(true);
@@ -2538,8 +2609,6 @@ function useCatalogData(params: {
         const stateKey = getProductPriceStateKey(item);
         if (!stateKey) continue;
 
-        const hasKnownNoInlinePrice =
-          item.priceEuro === null && !shouldAllowCatalogDirectPriceLookup;
         const inlinePrice =
           typeof item.priceEuro === "number" &&
           Number.isFinite(item.priceEuro) &&
@@ -2547,13 +2616,12 @@ function useCatalogData(params: {
             ? item.priceEuro
             : null;
 
-        if (inlinePrice == null && !hasKnownNoInlinePrice) {
+        if (inlinePrice == null) {
           continue;
         }
 
-        const nextPrice = inlinePrice ?? null;
-        if (next[stateKey] !== nextPrice) {
-          next[stateKey] = nextPrice;
+        if (next[stateKey] !== inlinePrice) {
+          next[stateKey] = inlinePrice;
           didChange = true;
         }
       }
@@ -2566,23 +2634,20 @@ function useCatalogData(params: {
 
     for (const item of safeData) {
       const stateKey = getProductPriceStateKey(item);
-      const hasKnownNoInlinePrice =
-        item.priceEuro === null && !shouldAllowCatalogDirectPriceLookup;
       const inlinePrice =
         typeof item.priceEuro === "number" &&
         Number.isFinite(item.priceEuro) &&
         item.priceEuro > 0
           ? item.priceEuro
           : null;
-      if (inlinePrice == null && !hasKnownNoInlinePrice) continue;
-      const nextPrice = inlinePrice ?? null;
+      if (inlinePrice == null) continue;
 
       if (stateKey) {
-        writeCachedPriceEntry(stateKey, nextPrice);
+        writeCachedPriceEntry(stateKey, inlinePrice);
       }
       const lookupKeys = getProductPriceLookupKeys(item);
       for (const lookupKey of lookupKeys) {
-        writeCachedPriceEntry(lookupKey, nextPrice);
+        writeCachedPriceEntry(lookupKey, inlinePrice);
       }
     }
   }, [safeData, shouldAllowCatalogDirectPriceLookup]);
@@ -2760,6 +2825,19 @@ function useCatalogData(params: {
     [fetchCatalogPageImages]
   );
 
+  const prefetchVisibleCatalogPrices = useCallback(
+    (items: Product[]) => {
+      if (items.length === 0) return;
+
+      void fetchCatalogPagePrices(items, {
+        prefetchedPrices: pricesRef.current,
+        querySignatureSnapshot: activeQuerySignatureRef.current,
+        allowFullLookup: shouldAllowCatalogDirectPriceLookup,
+      }).catch(swallowAbortError);
+    },
+    [fetchCatalogPagePrices, shouldAllowCatalogDirectPriceLookup]
+  );
+
   return {
     filteredData,
     quantities,
@@ -2781,6 +2859,7 @@ function useCatalogData(params: {
     handleImageOpen,
     handleImageClose,
     loadNextPage,
+    prefetchVisibleCatalogPrices,
     prefetchVisibleCatalogImages,
     isLoadingNextPage,
     isRefetching,
@@ -2851,6 +2930,7 @@ const Data: React.FC<DataProps> = ({
     handleImageOpen,
     handleImageClose,
     loadNextPage,
+    prefetchVisibleCatalogPrices,
     prefetchVisibleCatalogImages,
     isLoadingNextPage,
     isRefetching,
@@ -2986,9 +3066,18 @@ const Data: React.FC<DataProps> = ({
   const visibleCatalogImageCandidates = useMemo(
     () =>
       visibleSortedData
-        .filter((item) => item.hasPhoto !== false)
-        .slice(0, VISIBLE_IMAGE_PREFETCH_MAX_ITEMS),
+        .filter((item) => item.hasPhoto !== false),
     [visibleSortedData]
+  );
+  const visibleCatalogPriceCandidates = useMemo(
+    () =>
+      visibleSortedData.filter((item) => {
+        if (!getProductPriceStateKey(item)) return false;
+        const priceUAH = getResolvedProductPriceUAH(item, prices, euroRate);
+        if (priceUAH != null) return false;
+        return !hasResolvedProductPriceState(item, prices);
+      }),
+    [visibleSortedData, prices, euroRate]
   );
   const hasPendingSortedPriceResolution = useMemo(() => {
     if (sortOrder === "none") return false;
@@ -3086,6 +3175,14 @@ const Data: React.FC<DataProps> = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (visibleCatalogPriceCandidates.length === 0) return;
+
+    prefetchVisibleCatalogPrices(
+      visibleCatalogPriceCandidates.slice(0, VISIBLE_PRICE_PREFETCH_CHUNK_SIZE)
+    );
+  }, [prefetchVisibleCatalogPrices, visibleCatalogPriceCandidates]);
 
   useEffect(() => {
     if (visibleCatalogImageCandidates.length === 0) return;
@@ -3373,13 +3470,11 @@ const Data: React.FC<DataProps> = ({
                 const hasResolvedPriceState = hasResolvedProductPriceState(item, prices);
                 const isKnownNoPrice =
                   hasResolvedPriceState && getResolvedProductPriceEuro(item, prices) === null;
-                const hasInlineNoPrice =
-                  selectedCars.length === 0 && item.priceEuro === null;
 
                 const priceStatus =
                   priceUAH != null
                     ? "ready"
-                    : isKnownNoPrice || hasInlineNoPrice || hasResolvedPriceState
+                    : isKnownNoPrice
                       ? "request"
                       : "loading";
                 const shouldPrioritizeImage = absoluteIndex < IMAGE_PRIORITY_ITEMS_COUNT;
@@ -3417,7 +3512,7 @@ const Data: React.FC<DataProps> = ({
                       priceUAH={priceUAH}
                       priceStatus={priceStatus}
                       imageLoadingMode={shouldPrioritizeImage ? "eager" : "lazy"}
-                      imageFetchPriority={shouldPrioritizeImage ? "high" : "low"}
+                      imageFetchPriority={shouldPrioritizeImage ? "high" : "auto"}
                       prefetchedImageSrc={prefetchedImageSrc}
                       batchImagePending={Boolean(imageBatchKey && pageImagePending[imageBatchKey])}
                       batchImageMissing={

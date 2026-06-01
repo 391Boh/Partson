@@ -20,6 +20,27 @@ const parseRootMarginBuffer = (value: string) => {
   return Math.min(1600, Math.max(160, Math.abs(numeric)));
 };
 
+type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
+
+const scheduleIdleRender = (callback: () => void, timeout = 900) => {
+  const win = window as Window & {
+    requestIdleCallback?: RequestIdleCallback;
+    cancelIdleCallback?: (id: number) => void;
+  };
+
+  if (typeof win.requestIdleCallback === "function") {
+    const idleId = win.requestIdleCallback(callback, { timeout });
+    return () => {
+      if (typeof win.cancelIdleCallback === "function") {
+        win.cancelIdleCallback(idleId);
+      }
+    };
+  }
+
+  const timeoutId = window.setTimeout(callback, Math.min(timeout, 160));
+  return () => window.clearTimeout(timeoutId);
+};
+
 const DeferredSection = ({
   children,
   fallback = null,
@@ -42,38 +63,35 @@ const DeferredSection = ({
     const viewportHeight = window.innerHeight;
     const eagerBufferPx = parseRootMarginBuffer(rootMargin);
     if (rect.top <= viewportHeight + eagerBufferPx && rect.bottom >= -eagerBufferPx) {
-      const frameId = window.requestAnimationFrame(() => {
-        setIsVisible(true);
-      });
-      return () => window.cancelAnimationFrame(frameId);
+      return scheduleIdleRender(() => setIsVisible(true), 760);
     }
 
     if (typeof IntersectionObserver === "undefined") {
-      const frameId = window.requestAnimationFrame(() => {
-        setIsVisible(true);
-      });
-      return () => window.cancelAnimationFrame(frameId);
+      return scheduleIdleRender(() => setIsVisible(true), 760);
     }
 
     const timeoutId = window.setTimeout(() => {
       setIsVisible(true);
     }, fallbackDelayMs);
 
+    let cancelIdleRender: null | (() => void) = null;
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
         if (!entry?.isIntersecting) return;
-        setIsVisible(true);
         observer.disconnect();
         clearTimeout(timeoutId);
+        cancelIdleRender = scheduleIdleRender(() => setIsVisible(true), 760);
       },
       { rootMargin, threshold: 0.01 }
     );
 
     observer.observe(node);
+
     return () => {
       observer.disconnect();
       clearTimeout(timeoutId);
+      cancelIdleRender?.();
     };
   }, [fallbackDelayMs, initiallyVisible, isVisible, rootMargin]);
 

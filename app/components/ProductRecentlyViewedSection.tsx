@@ -37,11 +37,32 @@ type ProductRecentlyViewedSectionProps = {
 
 const RECENTLY_VIEWED_KEY = "partson:v1:recently-viewed-products";
 const RECENTLY_VIEWED_LIMIT = 12;
-const VISIBLE_RECENTLY_VIEWED_LIMIT = 4;
-const RECENTLY_VIEWED_IDLE_TIMEOUT_MS = 1000;
+const VISIBLE_RECENTLY_VIEWED_LIMIT = 6;
+const RECENTLY_VIEWED_IDLE_TIMEOUT_MS = 120;
+const RECOMMENDATION_VISIBLE_ITEMS_EVENT = "partson:product-recommendation-visible-items";
 
 const normalizeIdentity = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
+
+const buildRecommendationIdentityKeys = (
+  item: Pick<RecentlyViewedProduct, "code" | "article">
+) =>
+  Array.from(
+    new Set(
+      [
+        normalizeIdentity(item.code) ? `code:${normalizeIdentity(item.code)}` : "",
+        normalizeIdentity(item.article)
+          ? `article:${normalizeIdentity(item.article)}`
+          : "",
+      ].filter(Boolean)
+    )
+  );
+
+const hasBlockedRecommendationIdentity = (
+  item: Pick<RecentlyViewedProduct, "code" | "article">,
+  blockedKeys: Set<string>
+) =>
+  buildRecommendationIdentityKeys(item).some((key) => blockedKeys.has(key));
 
 const buildItemPath = (item: RecentlyViewedProduct) =>
   buildProductPath({
@@ -103,7 +124,7 @@ const scheduleRecentlyViewedTask = (task: () => void) => {
     };
   }
 
-  const timeoutId = window.setTimeout(runTask, 160);
+  const timeoutId = window.setTimeout(runTask, 40);
   return () => {
     cancelled = true;
     window.clearTimeout(timeoutId);
@@ -188,7 +209,29 @@ export default function ProductRecentlyViewedSection({
     product.subGroup,
   ]);
   const [items, setItems] = useState<RecentlyViewedProduct[]>([]);
+  const [blockedRecommendationKeys, setBlockedRecommendationKeys] = useState<Set<string>>(
+    () => new Set()
+  );
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
+
+  useEffect(() => {
+    const handleVisibleRecommendationItems = (event: Event) => {
+      const keys = (event as CustomEvent<{ keys?: string[] }>).detail?.keys;
+      setBlockedRecommendationKeys(new Set(Array.isArray(keys) ? keys : []));
+    };
+
+    window.addEventListener(
+      RECOMMENDATION_VISIBLE_ITEMS_EVENT,
+      handleVisibleRecommendationItems
+    );
+
+    return () => {
+      window.removeEventListener(
+        RECOMMENDATION_VISIBLE_ITEMS_EVENT,
+        handleVisibleRecommendationItems
+      );
+    };
+  }, []);
 
   useEffect(() => {
     return scheduleRecentlyViewedTask(() => {
@@ -215,10 +258,21 @@ export default function ProductRecentlyViewedSection({
     });
   }, [currentItem]);
 
-  useEffect(() => {
-    if (items.length === 0) return;
+  const visibleItems = useMemo(
+    () =>
+      items
+        .filter(
+          (item) =>
+            !hasBlockedRecommendationIdentity(item, blockedRecommendationKeys)
+        )
+        .slice(0, VISIBLE_RECENTLY_VIEWED_LIMIT),
+    [blockedRecommendationKeys, items]
+  );
 
-    const priceItems = items
+  useEffect(() => {
+    if (visibleItems.length === 0) return;
+
+    const priceItems = visibleItems
       .filter((item) => {
         if (
           typeof item.priceEuro === "number" &&
@@ -235,7 +289,6 @@ export default function ProductRecentlyViewedSection({
 
         return buildPriceLookupKeys(item).length > 0;
       })
-      .slice(0, VISIBLE_RECENTLY_VIEWED_LIMIT)
       .map((item) => ({
         stateKey: buildPriceStateKey(item),
         lookupKeys: buildPriceLookupKeys(item),
@@ -286,11 +339,13 @@ export default function ProductRecentlyViewedSection({
       cancelScheduledLoad();
       controller.abort();
     };
-  }, [items, resolvedPrices]);
+  }, [resolvedPrices, visibleItems]);
 
-  if (items.length === 0) return null;
+  if (visibleItems.length === 0) return null;
   const listClass =
-    "mt-3 grid grid-cols-2 gap-2 text-left sm:gap-2.5";
+    visibleItems.length > 2
+      ? "mt-3 grid grid-rows-2 auto-cols-[minmax(238px,86%)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain pb-2 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(292px,68%)] sm:gap-2.5 lg:auto-cols-full"
+      : "mt-3 grid grid-rows-1 auto-cols-[minmax(238px,86%)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain pb-1 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(292px,68%)] sm:gap-2.5 lg:auto-cols-full";
 
   return (
     <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96),rgba(240,249,255,0.9))] p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.07)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
@@ -304,12 +359,12 @@ export default function ProductRecentlyViewedSection({
           </h2>
         </div>
         <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] text-sky-800">
-          {items.length} позицій
+          {visibleItems.length} позицій
         </span>
       </div>
 
       <div className={listClass}>
-        {items.map((item) => {
+        {visibleItems.map((item, index) => {
           const stateKey = buildPriceStateKey(item);
           const resolvedPriceEuro = stateKey in resolvedPrices
             ? resolvedPrices[stateKey]
@@ -322,6 +377,7 @@ export default function ProductRecentlyViewedSection({
               href={buildItemPath(item)}
               item={item}
               priceLabel={priceLabel}
+              imagePriority={index < 2}
             />
           );
         })}

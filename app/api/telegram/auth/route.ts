@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { checkRateLimit, setRateLimitHeaders } from "../../_lib/rateLimit";
 import { isNonEmptyString, readJsonObject } from "../../_lib/requestValidation";
+import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
 
 const DEFAULT_AUTH_MAX_AGE_SECONDS = 24 * 60 * 60;
 
@@ -121,8 +122,30 @@ export async function POST(req: NextRequest) {
     return forbidden;
   }
 
+  let firebaseToken = "";
+  try {
+    firebaseToken = await getFirebaseAdminAuth().createCustomToken(
+      `telegram_${userId}`,
+      {
+        provider: "telegram",
+        telegram_id: String(userId),
+        telegram_username:
+          typeof payload.username === "string" ? payload.username : "",
+      }
+    );
+  } catch (error) {
+    console.error("Failed to create Telegram Firebase custom token:", error);
+    const failed = NextResponse.json(
+      { error: "Firebase Admin is not configured for Telegram auth" },
+      { status: 500 }
+    );
+    setRateLimitHeaders(failed.headers, rateResult);
+    return failed;
+  }
+
   const response = NextResponse.json({
     success: true,
+    firebaseToken,
     user: {
       id: userId,
       first_name: firstName,

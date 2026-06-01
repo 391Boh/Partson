@@ -89,7 +89,17 @@ const ProductCardImage: React.FC<Props> = ({
   );
   const [finalRetryQueued, setFinalRetryQueued] = useState(false);
   const lastSuccessfulSrcRef = useRef("");
+  const requestSrcRef = useRef("");
+  const statusRef = useRef<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
   const deferredDirectLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    requestSrcRef.current = requestSrc;
+  }, [requestSrc]);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   const handleLoad = useCallback((event: React.SyntheticEvent<HTMLImageElement>) => {
     const currentTarget = event.currentTarget;
@@ -129,19 +139,33 @@ const ProductCardImage: React.FC<Props> = ({
       return;
     }
     if (normalizedPrefetchedSrc) {
+      const isAlreadyShowingSameSrc =
+        statusRef.current === "loaded" &&
+        requestSrcRef.current === normalizedPrefetchedSrc;
+
       lastSuccessfulSrcRef.current = normalizedPrefetchedSrc;
-      setRequestSrc(normalizedPrefetchedSrc);
-      setStatus("loading");
-      setFinalRetryQueued(false);
+      setRequestSrc((current) =>
+        current === normalizedPrefetchedSrc ? current : normalizedPrefetchedSrc
+      );
+      if (!isAlreadyShowingSameSrc) {
+        setStatus("loading");
+        setFinalRetryQueued(false);
+      }
       return;
     }
 
     const cachedSrc = readProductImageSuccess(normalizedCode, normalizedArticle || undefined);
     if (cachedSrc) {
+      const isAlreadyShowingSameSrc =
+        statusRef.current === "loaded" &&
+        requestSrcRef.current === cachedSrc;
+
       lastSuccessfulSrcRef.current = cachedSrc;
-      setRequestSrc(cachedSrc);
-      setStatus("loading");
-      setFinalRetryQueued(false);
+      setRequestSrc((current) => (current === cachedSrc ? current : cachedSrc));
+      if (!isAlreadyShowingSameSrc) {
+        setStatus("loading");
+        setFinalRetryQueued(false);
+      }
       return;
     }
 

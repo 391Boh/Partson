@@ -1,4 +1,5 @@
 import { memo, type ReactNode } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import {
   Award,
@@ -21,6 +22,7 @@ import {
   RefreshCcw,
   ShieldCheck,
   Star,
+  Store,
   Truck,
   Users,
   Wallet,
@@ -44,10 +46,24 @@ const ADDRESS = 'Львів, вул. Перфецького, 8';
 const MAPS_URL = 'https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu&g_ep=EgoyMDI2MDUxNy4wIKXMDSoASAFQAw%3D%3D';
 const MAPS_EMBED_URL = 'https://www.google.com/maps?cid=11517394092669341405&output=embed';
 const VIBER_URL = 'https://connect.viber.com/business/36969536-f36d-11f0-84df-f601f1189001';
+const DELIVERY_CITIES = [
+  'Київ',
+  'Харків',
+  'Одеса',
+  'Дніпро',
+  'Запоріжжя',
+  'Івано-Франківськ',
+  'Тернопіль',
+  'Рівне',
+  'Луцьк',
+  'Ужгород',
+  'Чернівці',
+  'Вінниця',
+] as const;
 
 // ─── Типи ──────────────────────────────────────────────────────────────────
 type InfoCardProps = {
-  title: string;
+  title: ReactNode;
   icon: LucideIcon;
   accent?: 'sky' | 'emerald' | 'amber' | 'violet' | 'cyan' | 'rose' | 'slate';
   featured?: boolean;
@@ -81,6 +97,15 @@ const AddressMapLink = ({ className = '' }: { className?: string }) => (
   >
     {ADDRESS}
   </a>
+);
+
+const PartsOnLink = ({ className = '' }: { className?: string }) => (
+  <Link
+    href="/"
+    className={`font-semibold text-sky-800 underline decoration-sky-300/70 underline-offset-4 transition hover:text-sky-600 hover:decoration-sky-500 ${className}`}
+  >
+    PartsON
+  </Link>
 );
 
 // ─── Стилі акцентів ────────────────────────────────────────────────────────
@@ -131,7 +156,46 @@ const ViberIcon = () => (
 // ─── Вкладки ───────────────────────────────────────────────────────────────
 const DeliveryTab = () => (
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-    <InfoCard title="Доставка по Україні" icon={Truck} accent="sky" featured>
+    <div className="sm:col-span-2">
+      <InfoCard title="Доставка автозапчастин у Львові та в кожне місто України" icon={Route} accent="sky" featured>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)]">
+          <div className="space-y-3">
+            <p>
+              <PartsOnLink /> організовує доставку автозапчастин у Львові та відправляє
+              замовлення по всій Україні. Для клієнтів у Львові доступний самовивіз з{" "}
+              <AddressMapLink className="text-sky-700" />, а для інших міст — доставка у
+              відділення, поштомат або адресно через перевізника.
+            </p>
+            <p>
+              Відправляємо запчастини для ТО, підвіски, гальмівної системи, двигуна,
+              електроніки та інших товарних груп у Київ, Харків, Одесу, Дніпро,
+              Івано-Франківськ, Тернопіль, Рівне, Луцьк та інші населені пункти України.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.95),rgba(240,249,255,0.9))] p-3 shadow-[0_12px_26px_rgba(14,165,233,0.08)]">
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-sky-700">
+              Міста доставки
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {DELIVERY_CITIES.map((city) => (
+                <span
+                  key={city}
+                  className="rounded-full border border-sky-100 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 shadow-sm"
+                >
+                  {city}
+                </span>
+              ))}
+              <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700 shadow-sm">
+                та кожне місто України
+              </span>
+            </div>
+          </div>
+        </div>
+      </InfoCard>
+    </div>
+
+    <InfoCard title="Доставка по Україні" icon={Truck} accent="sky">
       <ul className="space-y-3">
         <Li icon={Package} cls="text-sky-500"><strong className="font-semibold text-slate-700">Нова Пошта</strong> — у відділення або адресна доставка</Li>
         <Li icon={Truck} cls="text-sky-500"><strong className="font-semibold text-slate-700">Укрпошта</strong> та <strong className="font-semibold text-slate-700">Meest</strong> — за запитом клієнта</Li>
@@ -139,10 +203,11 @@ const DeliveryTab = () => (
       </ul>
     </InfoCard>
 
-    <InfoCard title="Доставка по Львову" icon={MapPin} accent="emerald">
+    <InfoCard title="Доставка у Львові" icon={MapPin} accent="emerald" featured>
       <ul className="space-y-3">
-        <Li icon={Navigation} cls="text-emerald-500">Доставка по місту <strong className="font-semibold text-slate-700">за домовленістю</strong> з менеджером</Li>
-        <Li icon={Building2} cls="text-emerald-500">Самовивіз зі складу за попередньою домовленістю</Li>
+        <Li icon={Navigation} cls="text-emerald-500">Доставка по Львову <strong className="font-semibold text-slate-700">за домовленістю</strong> з менеджером</Li>
+        <Li icon={Building2} cls="text-emerald-500">Самовивіз з магазину <AddressMapLink className="text-emerald-700" /> за попереднім підтвердженням</Li>
+        <Li icon={Store} cls="text-emerald-500">Можна узгодити отримання у день підтвердження, якщо товар є в наявності у Львові</Li>
       </ul>
     </InfoCard>
 
@@ -197,29 +262,110 @@ const PaymentTab = () => (
 const AboutTab = () => (
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <div className="sm:col-span-2">
-      <InfoCard title="Про PartsON" icon={Star} accent="sky" featured>
-        <p>
-          Магазин з великим асортиментом товарів усіх популярних категорій запчастин для всіх поширених
-          моделей авто. На ринку <strong className="font-semibold text-slate-700">більше 20 років</strong> —
-          досвід і репутація, яким довіряють. Зручний та надійний сервіс для кожного покупця.
-        </p>
-      </InfoCard>
+      <section className="relative overflow-hidden rounded-[28px] border border-sky-100/90 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(240,249,255,0.92)_54%,rgba(224,242,254,0.86))] p-3 shadow-[0_18px_44px_rgba(14,116,144,0.12)] ring-1 ring-white/80 sm:p-4 lg:p-5">
+        <span className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-sky-200/32 blur-3xl" />
+        <span className="pointer-events-none absolute -bottom-20 left-12 h-48 w-48 rounded-full bg-emerald-100/42 blur-3xl" />
+
+        <div className="relative grid gap-4 lg:grid-cols-[minmax(0,1.08fr)_minmax(300px,0.92fr)] lg:items-stretch">
+          <div className="flex min-w-0 flex-col justify-between gap-4 rounded-[22px] border border-white/80 bg-white/68 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_28px_rgba(14,165,233,0.08)] backdrop-blur sm:p-5">
+            <div>
+              <p className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
+                <Star size={13} strokeWidth={2} aria-hidden="true" />
+                Магазин у Львові
+              </p>
+              <h2 className="mt-3 font-display-italic text-[1.45rem] font-black leading-tight text-slate-950 sm:text-[1.9rem]">
+                <PartsOnLink className="font-black" /> — підбір автозапчастин без зайвих помилок
+              </h2>
+              <p className="mt-3 max-w-3xl text-[14px] font-medium leading-7 text-slate-600">
+                Працюємо з реальними ремонтними задачами: уточнюємо авто, перевіряємо сумісність,
+                пропонуємо оригінал або якісний аналог і супроводжуємо замовлення до отримання.
+              </p>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              <span className="rounded-2xl border border-sky-100 bg-sky-50/86 px-3 py-3 shadow-sm">
+                <span className="block text-[20px] font-black leading-none text-sky-800">20+</span>
+                <span className="mt-1 block text-[11px] font-bold leading-snug text-slate-600">років досвіду на ринку</span>
+              </span>
+              <span className="rounded-2xl border border-emerald-100 bg-emerald-50/86 px-3 py-3 shadow-sm">
+                <span className="block text-[20px] font-black leading-none text-emerald-800">VIN</span>
+                <span className="mt-1 block text-[11px] font-bold leading-snug text-slate-600">перевірка сумісності</span>
+              </span>
+              <span className="rounded-2xl border border-cyan-100 bg-cyan-50/86 px-3 py-3 shadow-sm">
+                <span className="block text-[20px] font-black leading-none text-cyan-800">UA</span>
+                <span className="mt-1 block text-[11px] font-bold leading-snug text-slate-600">доставка по Україні</span>
+              </span>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <a
+                href={`tel:${PHONE_RAW}`}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-[13px] font-extrabold text-sky-800 shadow-[0_10px_20px_rgba(14,165,233,0.08)] transition hover:bg-sky-100"
+              >
+                <Phone size={15} strokeWidth={2} aria-hidden="true" />
+                Богдан: {PHONE_DISPLAY}
+              </a>
+              <a
+                href={MAPS_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-[13px] font-extrabold text-emerald-800 shadow-[0_10px_20px_rgba(16,185,129,0.08)] transition hover:bg-emerald-100"
+              >
+                <MapPin size={15} strokeWidth={2} aria-hidden="true" />
+                Перфецького, 8
+              </a>
+            </div>
+          </div>
+
+          <figure className="relative min-h-[300px] overflow-hidden rounded-[24px] border border-sky-100/90 bg-sky-50 shadow-[0_18px_38px_rgba(14,165,233,0.14)] ring-1 ring-white/80">
+            <Image
+              src="/storefront/photos/partson-store-1.jpg"
+              alt="Магазин автозапчастин PartsON у Львові на вул. Перфецького, 8"
+              fill
+              sizes="(min-width: 1024px) 360px, 100vw"
+              className="object-cover"
+            />
+            <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/72 via-slate-950/28 to-transparent px-4 pb-4 pt-12 text-white">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-sky-100">
+                Фото магазину <PartsOnLink className="text-sky-100" />
+              </p>
+              <p className="mt-1 text-sm font-extrabold">Львів, вул. Перфецького, 8</p>
+            </figcaption>
+          </figure>
+        </div>
+      </section>
     </div>
 
-    <InfoCard title="Професійний персонал" icon={Users} accent="emerald">
-      <p>Кваліфіковані консультанти підберуть деталь за кодом, артикулом або VIN — без ризиків і переплат.</p>
+    <InfoCard title="Підбір і сумісність" icon={Users} accent="emerald">
+      <ul className="space-y-3">
+        <Li icon={CheckCircle} cls="text-emerald-500">Підбір запчастин за VIN-кодом, артикулом, кодом товару або параметрами авто.</Li>
+        <Li icon={ShieldCheck} cls="text-emerald-500">Перевірка сумісності перед замовленням, щоб зменшити ризик помилки.</Li>
+        <Li icon={MessageCircle} cls="text-emerald-500">Консультація по оригіналах, аналогах, наявності, термінах і ціні.</Li>
+      </ul>
     </InfoCard>
 
-    <InfoCard title="Широкий асортимент" icon={Car} accent="sky">
-      <p>Тисячі позицій у наявності: від фільтрів і гальм до деталей підвіски, двигуна та кузова для більшості популярних марок.</p>
+    <InfoCard title="Категорії автозапчастин" icon={Car} accent="sky">
+      <ul className="space-y-3">
+        <Li icon={Wrench} cls="text-sky-500">Деталі для ТО, фільтри, оливи, ремені, ролики, свічки та витратні матеріали.</Li>
+        <Li icon={Package} cls="text-sky-500">Підвіска, гальмівна система, двигун, охолодження, кузовні елементи й автоелектроніка.</Li>
+        <Li icon={Star} cls="text-sky-500">Брендові запчастини та якісні аналоги для популярних європейських, японських і корейських авто.</Li>
+      </ul>
     </InfoCard>
 
-    <InfoCard title="Підбір по VIN" icon={Package} accent="violet">
-      <p>Надішліть VIN або параметри авто — підготуємо <strong className="font-semibold text-slate-700">точний перелік позицій</strong> без помилок у підборі.</p>
+    <InfoCard title="Магазин у Львові" icon={Building2} accent="violet">
+      <ul className="space-y-3">
+        <Li icon={MapPin} cls="text-violet-500">Магазин <PartsOnLink className="text-violet-700" /> знаходиться у Львові за адресою <AddressMapLink className="text-violet-700" />.</Li>
+        <Li icon={Clock} cls="text-violet-500">Можна отримати консультацію, оглянути товар і забрати замовлення самовивозом.</Li>
+        <Li icon={Truck} cls="text-violet-500">Для клієнтів з інших міст працює доставка автозапчастин по Україні.</Li>
+      </ul>
     </InfoCard>
 
-    <InfoCard title={"Зв'язок та підтримка"} icon={MessageCircle} accent="cyan">
-      <p>{"Оперативний зв'язок через чат у робочий час. Менеджер зорієнтує по наявності, термінах і доставці."}</p>
+    <InfoCard title="Підтримка після замовлення" icon={MessageCircle} accent="cyan">
+      <ul className="space-y-3">
+        <Li icon={Phone} cls="text-cyan-500">Менеджер зорієнтує по статусу замовлення, доставці, оплаті та можливих замінах.</Li>
+        <Li icon={RefreshCcw} cls="text-cyan-500">Допоможемо з гарантійними питаннями, поверненням або обміном відповідно до умов товару.</Li>
+        <Li icon={Award} cls="text-cyan-500">Наша мета — не просто продати деталь, а допомогти закрити ремонтну задачу правильно.</Li>
+      </ul>
     </InfoCard>
   </div>
 );
@@ -279,7 +425,7 @@ const DiagnosticsTab = () => (
           <div className="flex h-full flex-col justify-between gap-3 rounded-2xl border border-sky-100/80 bg-[linear-gradient(145deg,rgba(248,250,252,0.95),rgba(240,249,255,0.78))] p-3 ring-1 ring-white/80 sm:p-4">
             <div className="space-y-3">
               <p className="text-[13.5px] leading-6 text-slate-600">
-                PartsON проводить <strong className="font-semibold text-slate-800">комп&apos;ютерну діагностику авто у Львові</strong>
+                <PartsOnLink /> проводить <strong className="font-semibold text-slate-800">комп&apos;ютерну діагностику авто у Львові</strong>
                 {" "}для швидкого пошуку причин помилок і несправностей. Підключаємося через
                 OBD-II/EOBD, перевіряємо електронні блоки, розшифровуємо коди Check Engine,
                 ABS, ESP, SRS, АКПП та пояснюємо, що варто ремонтувати першим.
@@ -295,6 +441,35 @@ const DiagnosticsTab = () => (
                 <Li icon={Route} cls="text-sky-500">Можливий виїзд по Львову або за межі міста за домовленістю.</Li>
                 <Li icon={Package} cls="text-sky-500">Після перевірки підбираємо потрібні запчастини під конкретну причину.</Li>
               </ul>
+
+              <div className="grid gap-2 sm:grid-cols-3" aria-label="Основні напрямки діагностики">
+                {diagnosticsVisualCards.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <figure
+                      key={item.label}
+                      className={`relative min-h-[86px] overflow-hidden rounded-xl border bg-gradient-to-br p-2.5 shadow-[0_8px_18px_rgba(14,165,233,0.08)] ring-1 ring-white/70 transition-[border-color,box-shadow] duration-200 hover:shadow-[0_12px_24px_rgba(14,165,233,0.12)] ${item.tone}`}
+                    >
+                      <span className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-current opacity-[0.06] blur-2xl" />
+                      <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(255,255,255,0.78),transparent_34%)] opacity-80" />
+                      <figcaption className="relative flex h-full items-center gap-2.5 sm:flex-col sm:items-start sm:justify-between">
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/48 text-current shadow-[inset_0_1px_0_rgba(255,255,255,0.86),0_7px_16px_rgba(15,23,42,0.07)] backdrop-blur-md">
+                          <Icon size={20} strokeWidth={1.9} aria-hidden="true" />
+                        </span>
+                        <span className="block min-w-0">
+                          <span className="block text-[12.5px] font-black leading-tight text-slate-900">
+                            {item.label}
+                          </span>
+                          <span className="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-600">
+                            {item.text}
+                          </span>
+                        </span>
+                      </figcaption>
+                    </figure>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="grid gap-2 text-[12px] font-semibold leading-relaxed text-slate-600 sm:grid-cols-2">
@@ -322,58 +497,54 @@ const DiagnosticsTab = () => (
               </span>
             </div>
           </div>
-          <div className="grid h-full content-start gap-3 self-stretch">
-            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3" aria-label="Основні напрямки діагностики">
-              {diagnosticsVisualCards.map((item) => {
-                const Icon = item.icon;
+          <aside
+            className="relative grid h-full content-start gap-3 self-stretch overflow-hidden rounded-[22px] border border-sky-100/90 bg-[linear-gradient(150deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.94)_50%,rgba(224,242,254,0.9)_100%)] p-3 text-slate-700 shadow-[0_18px_38px_rgba(14,116,144,0.12)] ring-1 ring-white/80 sm:p-3.5"
+            aria-label="Запис на комп'ютерну діагностику авто"
+          >
+            <span className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-cyan-200/28 blur-3xl" />
+            <span className="pointer-events-none absolute -bottom-14 left-8 h-32 w-32 rounded-full bg-emerald-100/30 blur-3xl" />
 
-                return (
-                  <figure
-                    key={item.label}
-                    className={`group/diagnostic-icon relative min-h-[84px] overflow-hidden rounded-xl border bg-gradient-to-br p-2.5 shadow-[0_8px_20px_rgba(14,165,233,0.08)] backdrop-blur-md transition-[box-shadow,border-color] duration-300 hover:shadow-[0_12px_24px_rgba(14,165,233,0.12)] ${item.tone}`}
-                  >
-                    <span className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-current opacity-[0.06] blur-2xl" />
-                    <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(255,255,255,0.76),transparent_34%)] opacity-80" />
-                    <figcaption className="relative flex h-full items-center gap-2.5 xl:flex-col xl:items-start xl:justify-between xl:gap-3">
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/45 text-current shadow-[inset_0_1px_0_rgba(255,255,255,0.86),0_7px_16px_rgba(15,23,42,0.07)] backdrop-blur-md">
-                        <Icon size={20} strokeWidth={1.9} aria-hidden="true" />
-                      </span>
-                      <span className="block min-w-0">
-                        <span className="block text-[12.5px] font-black leading-tight text-slate-900">
-                          {item.label}
-                        </span>
-                        <span className="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-600">
-                          {item.text}
-                        </span>
-                      </span>
-                    </figcaption>
-                  </figure>
-                );
-              })}
+            <div className="relative rounded-[18px] border border-sky-100/90 bg-white/72 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_10px_22px_rgba(14,165,233,0.08)] backdrop-blur-md">
+              <p className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10.5px] font-black uppercase tracking-[0.12em] text-sky-800">
+                <Wrench size={13} strokeWidth={2} aria-hidden="true" />
+                Запис на діагностику
+              </p>
+              <h2 className="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[22px]">
+                Залиште заявку — уточнимо симптоми й час візиту
+              </h2>
+              <p className="mt-1.5 text-[12.5px] font-semibold leading-relaxed text-slate-600">
+                Передзвонимо, підкажемо що підготувати, зорієнтуємо по вартості та за потреби
+                одразу підберемо запчастини після перевірки.
+              </p>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <a
-                href={`tel:${DIAGNOSTICS_PHONE_RAW}`}
-                aria-label={`Подзвонити для запису на комп'ютерну діагностику: ${DIAGNOSTICS_PHONE_DISPLAY}`}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-600 px-4 py-2 text-[12.5px] font-extrabold text-white shadow-[0_10px_22px_rgba(14,165,233,0.2)] transition hover:bg-sky-700 active:scale-[0.98]"
-              >
-                <Phone size={15} strokeWidth={2} aria-hidden="true" />
-                {DIAGNOSTICS_PHONE_DISPLAY}
-              </a>
-              <a
-                href={MAPS_URL}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`Відкрити адресу PartsON на карті: ${ADDRESS}`}
-                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-center text-[12px] font-semibold text-slate-600 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800"
-              >
-                {ADDRESS}
-              </a>
+                <a
+                  href={`tel:${DIAGNOSTICS_PHONE_RAW}`}
+                  aria-label={`Подзвонити Роману для запису на комп'ютерну діагностику: ${DIAGNOSTICS_PHONE_DISPLAY}`}
+                  className="inline-flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-center shadow-[0_10px_22px_rgba(14,165,233,0.1)] transition hover:bg-sky-50 active:scale-[0.98]"
+                >
+                  <span className="inline-flex items-center gap-1.5 text-[10.5px] font-black uppercase tracking-[0.12em] text-sky-600">
+                    <Phone size={13} strokeWidth={2} aria-hidden="true" />
+                    Роман
+                  </span>
+                  <span className="text-[12.5px] font-extrabold text-sky-900">
+                    {DIAGNOSTICS_PHONE_DISPLAY}
+                  </span>
+                </a>
+                <a
+                  href={MAPS_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Відкрити адресу PartsON на карті: ${ADDRESS}`}
+                  className="inline-flex min-h-10 items-center justify-center rounded-xl border border-sky-100 bg-white/72 px-3 py-2 text-center text-[12px] font-semibold text-slate-600 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800"
+                >
+                  {ADDRESS}
+                </a>
             </div>
 
             <DiagnosticsConsultationForm />
-          </div>
+          </aside>
         </div>
       </InfoCard>
     </div>
@@ -447,10 +618,10 @@ const DiagnosticsTab = () => (
 
 const LocationTab = () => (
   <div className="grid grid-cols-1 gap-4">
-    <InfoCard title="Як знайти магазин PartsON" icon={Navigation} accent="cyan" featured>
+    <InfoCard title={<>Як знайти магазин <PartsOnLink /></>} icon={Navigation} accent="cyan" featured>
       <div className="space-y-3">
         <p>
-          Магазин автозапчастин <strong className="font-semibold text-slate-700">PartsON</strong>{" "}
+          Магазин автозапчастин <PartsOnLink />{" "}
           розташований у Львові за адресою <AddressMapLink />.
           Тут можна швидко отримати консультацію, уточнити наявність деталей, погодити
           самовивіз замовлення та одразу побудувати маршрут до магазину.
@@ -523,7 +694,7 @@ const LocationTab = () => (
         />
         <div className="border-t border-slate-200/80 bg-white/95 px-4 py-3.5">
           <p className="text-[13px] leading-relaxed text-slate-600">
-            Карта допоможе швидко побудувати маршрут до магазину PartsON за адресою{" "}
+            Карта допоможе швидко побудувати маршрут до магазину <PartsOnLink /> за адресою{" "}
             <AddressMapLink className="text-sky-700" />, перевірити локацію для самовивозу
             та зорієнтуватися перед візитом у магазин автозапчастин.
           </p>
@@ -536,10 +707,10 @@ const LocationTab = () => (
 const PrivacyTab = () => (
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <div className="sm:col-span-2">
-      <InfoCard title="Політика конфіденційності PartsON" icon={ShieldCheck} accent="sky" featured>
+      <InfoCard title={<>Політика конфіденційності <PartsOnLink /></>} icon={ShieldCheck} accent="sky" featured>
         <div className="space-y-3">
           <p>
-            Ця політика пояснює, як PartsON обробляє персональні дані клієнтів і
+            Ця політика пояснює, як <PartsOnLink /> обробляє персональні дані клієнтів і
             відвідувачів сайту під час пошуку автозапчастин, оформлення замовлення,
             оплати, доставки, консультацій та звернень у чат або телефоном.
           </p>
@@ -558,7 +729,7 @@ const PrivacyTab = () => (
         <Li icon={CheckCircle} cls="text-emerald-500">Ім&apos;я, номер телефону, email та інші контактні дані, які ви надаєте для замовлення або консультації.</Li>
         <Li icon={Car} cls="text-emerald-500">Дані авто для підбору: марка, модель, рік, модифікація, VIN, артикул або код деталі.</Li>
         <Li icon={Package} cls="text-emerald-500">Дані доставки: місто, відділення перевізника, адреса доставки у Львові, обраний спосіб отримання.</Li>
-        <Li icon={CreditCard} cls="text-emerald-500">Дані про оплату, статус платежу та номер транзакції. Повні реквізити банківської картки PartsON не зберігає.</Li>
+        <Li icon={CreditCard} cls="text-emerald-500">Дані про оплату, статус платежу та номер транзакції. Повні реквізити банківської картки <PartsOnLink /> не зберігає.</Li>
       </ul>
     </InfoCard>
 
@@ -583,7 +754,7 @@ const PrivacyTab = () => (
     <InfoCard title="Захист і строки зберігання" icon={ShieldCheck} accent="violet">
       <ul className="space-y-3">
         <Li icon={ShieldCheck} cls="text-violet-500">Ми застосовуємо організаційні та технічні заходи для захисту даних від втрати, несанкціонованого доступу або розголошення.</Li>
-        <Li icon={Clock} cls="text-violet-500">Дані зберігаються стільки, скільки потрібно для виконання замовлення, гарантійного супроводу, обліку та законних інтересів PartsON.</Li>
+        <Li icon={Clock} cls="text-violet-500">Дані зберігаються стільки, скільки потрібно для виконання замовлення, гарантійного супроводу, обліку та законних інтересів <PartsOnLink />.</Li>
         <Li icon={RefreshCcw} cls="text-violet-500">Після завершення необхідного строку дані видаляються, знеособлюються або архівуються відповідно до вимог законодавства.</Li>
       </ul>
     </InfoCard>
@@ -593,7 +764,7 @@ const PrivacyTab = () => (
         <Li icon={CheckCircle} cls="text-rose-500">Отримати інформацію про обробку ваших персональних даних.</Li>
         <Li icon={CheckCircle} cls="text-rose-500">Попросити виправити, оновити, обмежити обробку або видалити дані, якщо це не суперечить закону.</Li>
         <Li icon={CheckCircle} cls="text-rose-500">Відкликати згоду на комунікації або заперечити проти окремих видів обробки.</Li>
-        <Li icon={Phone} cls="text-rose-500">Звернутися до PartsON телефоном {PHONE_DISPLAY} або email: romaniukbboogg@gmail.com.</Li>
+        <Li icon={Phone} cls="text-rose-500">Звернутися до <PartsOnLink /> телефоном {PHONE_DISPLAY} або email: romaniukbboogg@gmail.com.</Li>
       </ul>
     </InfoCard>
 
@@ -612,7 +783,7 @@ const WarrantyTab = () => (
     <div className="sm:col-span-2">
       <InfoCard title="Гарантія на автозапчастини" icon={Award} accent="emerald" featured>
         <p>
-          Усі товари, що продаються в PartsON, є{" "}
+          Усі товари, що продаються в <PartsOnLink />, є{" "}
           <strong className="font-semibold text-slate-700">новими та оригінальними</strong> або
           сертифікованими аналогами від перевірених постачальників. Гарантійні строки залежать
           від товарної групи та виробника і уточнюються при оформленні замовлення.
@@ -730,6 +901,10 @@ const renderTabContent = (key: InformationSectionKey) => {
 // ─── Головний компонент ────────────────────────────────────────────────────
 export default function InformationPageClient({ initialSectionKey }: InformationPageClientProps) {
   const activeTab = tabs.find((tab) => tab.key === initialSectionKey) || tabs[0];
+  const activeDescription =
+    activeTab.key === 'about'
+      ? 'Локальний магазин у Львові, точний підбір деталей і підтримка замовлення від консультації до отримання.'
+      : activeTab.seoDescription;
 
   return (
     <div
@@ -766,7 +941,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
                 {activeTab.seoTitle}
               </h1>
               <p className="mt-1 max-w-2xl text-[13.5px] leading-relaxed text-slate-500 sm:text-[14px]">
-                {activeTab.seoDescription}
+                {activeDescription}
               </p>
             </div>
           </div>

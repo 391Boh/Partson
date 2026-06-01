@@ -92,6 +92,8 @@ const requestCatalogImageBatch = async (
   missingItems: CatalogImageBatchRequestItem[],
   options?: { deep?: boolean; signal?: AbortSignal }
 ) => {
+  if (options?.signal?.aborted) return [];
+
   const response = await fetch(CATALOG_IMAGE_BATCH_ROUTE, {
     method: "POST",
     headers: {
@@ -187,6 +189,10 @@ export const fetchCatalogImageBatch = async (
     return cachedResults;
   }
 
+  if (options?.signal?.aborted) {
+    return cachedResults;
+  }
+
   pruneBatchResponseCache();
 
   const requestCacheKey = JSON.stringify({
@@ -227,7 +233,7 @@ export const fetchCatalogImageBatch = async (
     const freshRequestPromise =
       newItems.length === 0
         ? Promise.resolve([] as CatalogImageBatchResponseItem[])
-        : requestCatalogImageBatch(newItems, { deep })
+        : requestCatalogImageBatch(newItems, { deep, signal: options?.signal })
             .then((results) => {
               const resultsByKey = new Map(
                 results.map((result) => [result.key, result])

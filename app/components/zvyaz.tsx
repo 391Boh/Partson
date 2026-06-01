@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useState } from "react";
-import { X, PhoneCall, Send } from "lucide-react";
+import { ArrowLeft, X, PhoneCall, Send } from "lucide-react";
 import { getAuth } from "firebase/auth";
 import {
   getFirestore,
@@ -10,16 +10,18 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { app } from "../../firebase";
+import { notifyTelegramAdmin } from "app/lib/telegram-notify-client";
 
 interface ZvyazProps {
   onClose: () => void;
+  onBack?: () => void;
   userData?: {
     name: string;
     phone: string;
   } | null;
 }
 
-const Zvyaz: React.FC<ZvyazProps> = ({ onClose, userData }) => {
+const Zvyaz: React.FC<ZvyazProps> = ({ onClose, onBack, userData }) => {
   const [name, setName] = useState(userData?.name || "");
   const [phone, setPhone] = useState(userData?.phone || "");
   const [message, setMessage] = useState("");
@@ -43,6 +45,14 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, userData }) => {
         createdAt: Timestamp.now(),
       });
 
+      void notifyTelegramAdmin({
+        type: "call",
+        name,
+        phone,
+        message,
+        source: "contacts/callback",
+      });
+
       alert("✅ Запит на дзвінок надіслано");
       onClose();
     } catch (error) {
@@ -57,8 +67,8 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, userData }) => {
     <div
       className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden"
     >
-      <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
-        <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
+      <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
+        <div className="soft-panel-accent h-1 rounded-full" />
 
         <div className="soft-panel-header">
           <div className="min-w-0">
@@ -76,14 +86,15 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, userData }) => {
 
           <button
             onClick={onClose}
-            className="soft-icon-button h-10 w-10 shrink-0 p-1"
+            className="soft-icon-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
+            aria-label="Закрити"
           >
-            <X size={18} className="text-slate-500" />
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-2.5">
-          <div className="app-panel-scroll min-h-0 flex-1 space-y-2.5 overflow-y-auto sm:pr-1">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-2">
+          <div className="app-panel-scroll min-h-0 flex-1 space-y-2 overflow-y-auto sm:pr-1">
             <input
               type="text"
               placeholder="Ваше імʼя"
@@ -106,18 +117,30 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, userData }) => {
               placeholder="Коментар (необовʼязково)"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="soft-field min-h-[90px] resize-none px-4 py-2.5"
+              className="soft-field min-h-[76px] resize-none px-4 py-2.5"
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="soft-primary-button mt-auto py-3 font-semibold disabled:cursor-not-allowed"
-          >
-            <Send size={16} />
-            {loading ? "Надсилається..." : "Замовити дзвінок"}
-          </button>
+          <div className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)]">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="soft-secondary-button px-4 py-2.5 text-sm font-semibold"
+              >
+                <ArrowLeft size={16} />
+                Назад
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="soft-primary-button py-2.5 text-sm font-semibold disabled:cursor-not-allowed"
+            >
+              <Send size={16} />
+              {loading ? "Надсилається..." : "Замовити звʼязок"}
+            </button>
+          </div>
         </form>
       </div>
     </div>

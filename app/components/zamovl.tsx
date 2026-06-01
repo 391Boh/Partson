@@ -18,6 +18,7 @@ import CustomerDetails from "./CustomerDetails";
 import DeliveryMethod from "./DeliveryMethod";
 import PaymentMethod from "./PaymentMethod";
 import OrderConfirmation from "./OrderConfirmation";
+import { notifyTelegramAdmin } from "app/lib/telegram-notify-client";
 
 type DeliveryMethodType = ComponentProps<typeof DeliveryMethod>["deliveryMethod"];
 type PaymentMethodType = ComponentProps<typeof PaymentMethod>["paymentMethod"];
@@ -167,6 +168,21 @@ const Zamovl: React.FC<ZamovlProps> = ({
         paidAt: isCardPaid ? Timestamp.now() : null,
         createdAt: Timestamp.now(),
         ga4PurchaseTracked: false,
+      });
+
+      void notifyTelegramAdmin({
+        type: "order",
+        firestoreId: docRef.id,
+        orderId,
+        name,
+        phone,
+        deliveryMethod,
+        paymentMethod,
+        city: selectedCity?.Description || "",
+        warehouse: selectedWarehouse?.Description || "",
+        lvivStreet: selectedLvivStreet || "",
+        totalAmount,
+        items: normalizedCartItems,
       });
 
       // sessionStorage prevents duplicate purchase events within the same browser

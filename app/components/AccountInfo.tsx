@@ -386,11 +386,14 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden select-none"
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-4">
-        <div className="h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
+        <div className="soft-panel-accent h-1 rounded-full" />
 
         <div className="soft-panel-header">
           <div className="min-w-0">
-            <span className="soft-panel-eyebrow">Профіль</span>
+            <span className="soft-panel-eyebrow">
+              <UserRound size={14} />
+              Профіль
+            </span>
             <h2 className="soft-panel-title mt-3">Особистий кабінет</h2>
             <p className="soft-panel-subtitle">
               Керуйте даними профілю, VIN-кодами та налаштуваннями безпеки в одному інтерфейсі.
@@ -412,7 +415,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             className={`min-w-0 flex-1 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
               activeTab === "profile"
                 ? "soft-segment soft-segment--active"
-                : "soft-segment hover:bg-white/70 hover:text-slate-700"
+                : "soft-segment"
             }`}
           >
             Профіль
@@ -422,7 +425,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             className={`min-w-0 flex-1 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
               activeTab === "vins"
                 ? "soft-segment soft-segment--active"
-                : "soft-segment hover:bg-white/70 hover:text-slate-700"
+                : "soft-segment"
             }`}
           >
             VIN
@@ -432,7 +435,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             className={`min-w-0 flex-1 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
               activeTab === "security"
                 ? "soft-segment soft-segment--active"
-                : "soft-segment hover:bg-white/70 hover:text-slate-700"
+                : "soft-segment"
             }`}
           >
             Безпека

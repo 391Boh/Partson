@@ -21,6 +21,7 @@ import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { buildPageMetadata } from "app/lib/seo-metadata";
+import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
@@ -31,8 +32,18 @@ const INITIAL_CATALOG_PAGE_LIMIT = 12;
 const INITIAL_CATALOG_SSR_TIMEOUT_MS = 950;
 const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 1350;
 const CATALOG_SEO_FACETS_TIMEOUT_MS = 320;
+const CATALOG_PRODUCT_TREE_TIMEOUT_MS = 950;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
+
+const PartsOnLink = ({ className = "" }: { className?: string }) => (
+  <Link
+    href="/"
+    className={`font-extrabold text-sky-800 underline decoration-sky-300/70 underline-offset-4 transition hover:text-sky-600 hover:decoration-sky-500 ${className}`}
+  >
+    PartsON
+  </Link>
+);
 
 type InitialCatalogPagePayload = {
   items: Array<{
@@ -652,6 +663,7 @@ const buildCatalogItemListJsonLd = (
 };
 
 type CatalogSeoDiscoveryItem = { label: string; slug: string };
+type CatalogSeoGroupDiscoveryItem = CatalogSeoDiscoveryItem & { href: string };
 
 const formatCatalogCount = (count: number) => count.toLocaleString("uk-UA");
 
@@ -678,7 +690,7 @@ const CatalogSeoSnapshot = ({
   items: CatalogSeoProduct[];
   hasMore?: boolean;
   totalCount?: number | null;
-  topGroups?: CatalogSeoDiscoveryItem[];
+  topGroups?: CatalogSeoGroupDiscoveryItem[];
   topProducers?: CatalogSeoDiscoveryItem[];
 }) => {
   const visibleItems = items.filter((item) => item.code && item.name);
@@ -727,12 +739,6 @@ const CatalogSeoSnapshot = ({
     "категорії запчастин",
     "підбір за VIN",
   ];
-  const readerDescription = [
-    "Каталог PartsON допомагає швидко знайти автозапчастини за артикулом, кодом, виробником або категорією.",
-    "Для точного підбору можна звірити сумісність за VIN, порівняти доступні позиції та перейти до потрібної групи чи бренду.",
-    "Товари можна замовити з доставкою по Україні або забрати у магазині у Львові.",
-  ].join(" ");
-
   const showDiscovery = topGroups.length > 0 || topProducers.length > 0;
 
   return (
@@ -750,11 +756,15 @@ const CatalogSeoSnapshot = ({
               id="catalog-seo-products-title"
               className="mt-1 font-display-italic text-[1.18rem] font-black leading-tight text-slate-950 sm:text-[1.42rem]"
             >
-              Автозапчастини в каталозі PartsON
+              Автозапчастини в каталозі <PartsOnLink />
             </h2>
 
             <p className="mt-2.5 max-w-4xl text-sm font-medium leading-6 text-slate-600">
-              {readerDescription}
+              Каталог <PartsOnLink /> допомагає швидко знайти автозапчастини за
+              артикулом, кодом, виробником або категорією. Для точного підбору
+              можна звірити сумісність за VIN, порівняти доступні позиції та
+              перейти до потрібної групи чи бренду. Товари можна замовити з
+              доставкою по Україні або забрати у магазині у Львові.
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2">
@@ -856,27 +866,27 @@ const CatalogSeoSnapshot = ({
         {showDiscovery && (
           <nav
             aria-label="Розділи каталогу"
-            className="grid gap-0 border-t border-slate-200/80 bg-white/56 px-4 py-4 sm:px-5 lg:grid-cols-2"
+            className="grid gap-3 border-t border-slate-200/80 bg-white/64 px-4 py-4 sm:px-5 lg:grid-cols-2 lg:gap-0"
           >
             {topGroups.length > 0 && (
-              <div className="min-w-0 pb-4 lg:pb-0 lg:pr-5">
+              <div className="min-w-0 rounded-[18px] bg-white/62 p-3 ring-1 ring-slate-200/70 lg:rounded-l-[18px] lg:rounded-r-none lg:pr-5">
                 <div className="mb-2.5 flex items-center justify-between gap-3">
                   <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
-                    Групи запчастин
+                    Категорії запчастин
                   </p>
                   <Link
                     href="/groups"
-                    className="inline-flex min-h-8 shrink-0 items-center rounded-[12px] bg-slate-950 px-3.5 py-1 text-[11px] font-black text-white shadow-[0_10px_22px_rgba(15,23,42,0.16)] transition hover:-translate-y-0.5 hover:bg-sky-700 hover:shadow-[0_14px_26px_rgba(14,165,233,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                    className="inline-flex min-h-8 shrink-0 items-center rounded-[12px] bg-[linear-gradient(135deg,#0f172a,#0369a1)] px-3.5 py-1 text-[11px] font-black text-white shadow-[0_10px_22px_rgba(14,165,233,0.18)] ring-1 ring-white/70 transition hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,#0369a1,#0284c7)] hover:shadow-[0_14px_28px_rgba(14,165,233,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                   >
-                    Усі групи
+                    Усі категорії
                   </Link>
                 </div>
                 <div className="max-w-full text-[12px] font-bold leading-7 text-slate-600">
                   {topGroups.map((group, index) => (
                     <span key={`group-${group.slug}`}>
                       <a
-                        href={buildGroupPath(group.slug)}
-                        aria-label={`Група запчастин ${group.label}`}
+                        href={group.href}
+                        aria-label={`Категорія запчастин ${group.label}`}
                         className="rounded-[7px] px-1 py-0.5 text-slate-700 transition hover:bg-sky-50 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                       >
                         {group.label}
@@ -890,14 +900,14 @@ const CatalogSeoSnapshot = ({
               </div>
             )}
             {topProducers.length > 0 && (
-              <div className="min-w-0 border-t border-slate-200/80 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+              <div className="min-w-0 rounded-[18px] bg-white/62 p-3 ring-1 ring-slate-200/70 lg:rounded-l-none lg:rounded-r-[18px] lg:border-l lg:border-slate-300/80 lg:pl-5">
                 <div className="mb-2.5 flex items-center justify-between gap-3">
                   <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
                     Виробники
                   </p>
                   <Link
                     href="/manufacturers"
-                    className="inline-flex min-h-8 shrink-0 items-center rounded-[12px] bg-slate-950 px-3.5 py-1 text-[11px] font-black text-white shadow-[0_10px_22px_rgba(15,23,42,0.16)] transition hover:-translate-y-0.5 hover:bg-sky-700 hover:shadow-[0_14px_26px_rgba(14,165,233,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                    className="inline-flex min-h-8 shrink-0 items-center rounded-[12px] bg-[linear-gradient(135deg,#0f172a,#0369a1)] px-3.5 py-1 text-[11px] font-black text-white shadow-[0_10px_22px_rgba(14,165,233,0.18)] ring-1 ring-white/70 transition hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,#0369a1,#0284c7)] hover:shadow-[0_14px_28px_rgba(14,165,233,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                   >
                     Усі виробники
                   </Link>
@@ -990,7 +1000,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     producer: state.producer || null,
     expandHierarchy: state.expandHierarchy,
   });
-  const [initialPagePayload, rawSeoFacets] = await Promise.all([
+  const [initialPagePayload, rawSeoFacets, productTreeDataset] = await Promise.all([
     resolveWithTimeout(
       () => getCatalogSeoSnapshotPayloadCached(snapshotCacheKey),
       null,
@@ -999,6 +1009,11 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     getCatalogSeoFacetsWithTimeout(CATALOG_SEO_FACETS_TIMEOUT_MS).catch(
       () => EMPTY_CATALOG_SEO_FACETS
     ),
+    resolveWithTimeout(
+      () => getProductTreeDataset(),
+      null,
+      CATALOG_PRODUCT_TREE_TIMEOUT_MS
+    ).catch(() => null),
   ]);
   const seoFacets = await resolveCatalogSeoFacetsWithFallback(rawSeoFacets);
   const seoTotalCount = resolveCatalogSeoTotalCount(state, seoFacets);
@@ -1009,9 +1024,11 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     state,
     initialPagePayload?.items ?? []
   );
-  const topGroups = seoFacets.groups
-    .slice(0, 30)
-    .map((g) => ({ label: g.label, slug: g.slug }));
+  const topGroups = (productTreeDataset?.groups ?? []).slice(0, 30).map((g) => ({
+    label: g.label,
+    slug: g.slug,
+    href: buildGroupPath(g.slug || g.label),
+  }));
   const topProducers = seoFacets.producers
     .slice(0, 42)
     .map((p) => ({ label: p.label, slug: p.slug }));

@@ -45,6 +45,7 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "firebase": "^11.6.0",
+    "firebase-admin": "^13.10.0",
     "framer-motion": "^12.5.0",
     "leaflet": "^1.9.4",
     "lodash": "^4.17.21",

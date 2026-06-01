@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -189,7 +190,13 @@ export default function AdvantagesPhotoSlider() {
         <div className="flex flex-col gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-700/78">
-              Фото магазину PartsON
+              Фото магазину{" "}
+              <Link
+                href="/"
+                className="font-extrabold text-sky-700 underline decoration-sky-300/70 underline-offset-4 transition hover:text-sky-900"
+              >
+                PartsON
+              </Link>
             </p>
             <a
               href={STORE_MAPS_URL}

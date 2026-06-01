@@ -505,8 +505,8 @@ useEffect(() => {
                                         </span>
                                     </>
                                 ) : isPriceLoading ? (
-                                    <span className="text-[11px] font-medium text-slate-500">
-                                        {"\u0443\u0442\u043E\u0447\u043D\u044E\u0454\u043C\u043E"}
+                                    <span className="text-[11px] font-semibold text-blue-500">
+                                        {"\u0446\u0456\u043D\u0430..."}
                                     </span>
                                 ) : (
                                     <span className="text-slate-400 italic text-[11px]">
@@ -544,7 +544,7 @@ useEffect(() => {
                                         e.stopPropagation();
                                         onQtyChange(code, -1);
                                     }}
-                                    className="w-5 h-5 text-xs rounded-full font-bold text-slate-600 hover:bg-slate-200 transition-all duration-150 disabled:opacity-30"
+                                    className="w-5 h-5 text-xs rounded-full border border-slate-200 bg-slate-50 font-bold text-slate-700 shadow-[0_3px_8px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
                                     disabled={isCounterDisabled || qty <= 1}
                                 >
                                     -
@@ -558,7 +558,7 @@ useEffect(() => {
                                         e.stopPropagation();
                                         onQtyChange(code, 1);
                                     }}
-                                    className="w-5 h-5 text-xs rounded-full font-bold text-white bg-blue-500 hover:bg-blue-600 transition-all duration-150 disabled:opacity-30"
+                                    className="w-5 h-5 text-xs rounded-full border border-blue-400/70 bg-[linear-gradient(135deg,#2563eb,#0284c7)] font-bold text-white shadow-[0_6px_12px_rgba(37,99,235,0.22)] hover:brightness-105 transition-all duration-150 disabled:opacity-30"
                                     disabled={isPlusDisabled}
                                 >
                                     +
@@ -588,7 +588,7 @@ useEffect(() => {
                                             e.stopPropagation();
                                             onRemoveFromCart(code);
                                         }}
-                                        className={`p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all duration-200 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 ${tapMotionClass}`}
+                                        className={`p-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.12)] transition-all duration-200 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700 ${tapMotionClass}`}
                                         aria-label="Видалити товар з кошика"
                                     >
                                         <Trash2 size={16} />
@@ -638,8 +638,8 @@ useEffect(() => {
                                             ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-wait"
                                             : "bg-slate-200 text-slate-500 cursor-not-allowed"
                                         : isRequestAction
-                                            ? "bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200/80 shadow-xs hover:shadow-sm"
-                                            : "bg-rose-500 text-white hover:bg-rose-600 shadow-xs hover:shadow-sm"
+                                            ? "border border-amber-300/80 bg-[linear-gradient(135deg,#fef3c7,#f59e0b)] text-amber-950 shadow-[0_10px_18px_rgba(245,158,11,0.20)] hover:brightness-105 hover:shadow-[0_12px_22px_rgba(245,158,11,0.24)]"
+                                            : "border border-rose-300/80 bg-[linear-gradient(135deg,#fb7185,#e11d48)] text-white shadow-[0_10px_18px_rgba(225,29,72,0.22)] hover:brightness-105 hover:shadow-[0_12px_22px_rgba(225,29,72,0.26)]"
                                 } ${tapMotionClass} ${
                                     justAdded && motionEnabled ? "scale-105" : "scale-100"
                                 }`}
@@ -658,7 +658,7 @@ useEffect(() => {
                                     e.stopPropagation();
                                     onFlip(code);
                                 }}
-                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all duration-200"
+                                className="p-1.5 rounded-md border border-sky-100 bg-sky-50 text-sky-700 shadow-[0_6px_12px_rgba(14,165,233,0.10)] hover:border-sky-200 hover:bg-sky-100 hover:text-sky-800 transition-all duration-200"
                                 aria-label="Детальніше"
                             >
                                 <Info size={16} />

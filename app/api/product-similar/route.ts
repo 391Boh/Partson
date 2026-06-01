@@ -4,7 +4,7 @@ import { getSimilarProducts } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
 const PRODUCT_SIMILAR_API_TIMEOUT_MS = 1700;
-const PRODUCT_SIMILAR_LIMIT = 4;
+const PRODUCT_SIMILAR_LIMIT = 6;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

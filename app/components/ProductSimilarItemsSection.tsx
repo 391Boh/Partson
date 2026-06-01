@@ -5,7 +5,7 @@ import { getSimilarProducts } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 
-const PRODUCT_SIMILAR_INITIAL_TIMEOUT_MS = 320;
+const PRODUCT_SIMILAR_INITIAL_TIMEOUT_MS = 220;
 
 type ProductSimilarItemsSectionProps = {
   product: {
@@ -69,7 +69,9 @@ export default async function ProductSimilarItemsSection({
   if (!Array.isArray(items) || items.length === 0) return null;
   const visibleItems = items.slice(0, 6);
   const listClass =
-    "mt-3 grid grid-cols-2 gap-2 text-left sm:gap-2.5";
+    visibleItems.length > 2
+      ? "mt-3 grid grid-rows-2 auto-cols-[minmax(260px,88%)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain pb-2 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(320px,72%)] sm:gap-2.5 lg:auto-cols-full"
+      : "mt-3 grid grid-rows-1 auto-cols-[minmax(260px,88%)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain pb-1 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(320px,72%)] sm:gap-2.5 lg:auto-cols-full";
 
   const categoryLabel = buildVisibleProductName(
     product.subGroup || product.group || product.category || ""

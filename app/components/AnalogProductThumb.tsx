@@ -22,6 +22,8 @@ type AnalogProductThumbProps = {
   finalRetrySrc?: string;
   productCode?: string;
   articleHint?: string;
+  loading?: "eager" | "lazy";
+  fetchPriority?: "high" | "low" | "auto";
 };
 
 const IMAGE_FALLBACK_PATH = PRODUCT_IMAGE_FALLBACK_PATH.toLowerCase();
@@ -40,6 +42,8 @@ export default function AnalogProductThumb({
   finalRetrySrc = "",
   productCode = "",
   articleHint = "",
+  loading = "lazy",
+  fetchPriority = "auto",
 }: AnalogProductThumbProps) {
   const [hasError, setHasError] = useState(false);
   const [useRelaxedSrc, setUseRelaxedSrc] = useState(false);
@@ -131,8 +135,8 @@ export default function AnalogProductThumb({
         strokeWidth={1.7}
         aria-hidden="true"
       />
-      <span className="relative mt-1.5 text-[8.5px] font-bold uppercase leading-tight tracking-[0.16em] text-slate-500">
-        Зображення відсутнє
+      <span className="relative mt-1.5 hidden max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[8.5px] font-black uppercase leading-none tracking-[0.12em] text-slate-500 sm:block">
+        Немає фото
       </span>
     </div>
   );
@@ -152,8 +156,9 @@ export default function AnalogProductThumb({
       <img
         src={activeSrc}
         alt={alt}
-        loading="lazy"
+        loading={loading}
         decoding="async"
+        fetchPriority={fetchPriority}
         width={96}
         height={96}
         className={`h-full w-full object-contain transition-opacity duration-150 ${

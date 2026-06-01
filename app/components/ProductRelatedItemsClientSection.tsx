@@ -52,19 +52,36 @@ const buildPriceStateKey = (item: Pick<RelatedItem, "code" | "article">) =>
 const buildPriceLookupKeys = (item: Pick<RelatedItem, "code" | "article">) =>
   Array.from(new Set([item.code, item.article].map((value) => (value || "").trim()).filter(Boolean)));
 
-const RELATED_ITEMS_CACHE_PREFIX = "partson:v7:product-related:";
-const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v2:product-similar:";
+const RELATED_ITEMS_CACHE_PREFIX = "partson:v9:product-related:";
+const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v3:product-similar:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
-const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 2200;
-const SIMILAR_ITEMS_REQUEST_TIMEOUT_MS = 2600;
+const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1900;
+const SIMILAR_ITEMS_REQUEST_TIMEOUT_MS = 1250;
 const RELATED_ITEMS_VISIBLE_LIMIT = 6;
-const SIMILAR_ITEMS_VISIBLE_LIMIT = 4;
-const RECOMMENDATIONS_IDLE_TIMEOUT_MS = 700;
+const SIMILAR_ITEMS_VISIBLE_LIMIT = 6;
+const RECOMMENDATIONS_IDLE_TIMEOUT_MS = 90;
+const RECOMMENDATION_VISIBLE_ITEMS_EVENT = "partson:product-recommendation-visible-items";
 
 type RecommendationMode = "related" | "similar";
 
 const normalizeRelatedKeyPart = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
+
+const buildRecommendationIdentityKeys = (
+  item: Pick<RelatedItem, "code" | "article">
+) =>
+  Array.from(
+    new Set(
+      [
+        normalizeRelatedKeyPart(item.code)
+          ? `code:${normalizeRelatedKeyPart(item.code)}`
+          : "",
+        normalizeRelatedKeyPart(item.article)
+          ? `article:${normalizeRelatedKeyPart(item.article)}`
+          : "",
+      ].filter(Boolean)
+    )
+  );
 
 const scheduleProductRecommendationTask = (task: () => void) => {
   if (typeof window === "undefined") {
@@ -95,7 +112,7 @@ const scheduleProductRecommendationTask = (task: () => void) => {
     };
   }
 
-  const timeoutId = window.setTimeout(runTask, 180);
+  const timeoutId = window.setTimeout(runTask, 40);
   return () => {
     cancelled = true;
     window.clearTimeout(timeoutId);
@@ -350,7 +367,9 @@ export default function ProductRelatedItemsClientSection({
 
     const loadItems = async () => {
       try {
-        const nextItems = await fetchItems(requestUrl);
+        const relatedPromise = fetchItems(requestUrl, RELATED_ITEMS_REQUEST_TIMEOUT_MS);
+        const similarPromise = loadSimilarItems();
+        const nextItems = await relatedPromise;
         if (cancelled) return;
         if (nextItems.length > 0) {
           setItemMode("related");
@@ -359,7 +378,7 @@ export default function ProductRelatedItemsClientSection({
           return;
         }
 
-        const similarItems = await loadSimilarItems();
+        const similarItems = await similarPromise;
         if (cancelled) return;
         setItemMode("similar");
         setItems(similarItems);
@@ -465,18 +484,37 @@ export default function ProductRelatedItemsClientSection({
     };
   }, [items, resolvedPrices]);
 
+  const visibleItems = useMemo(
+    () =>
+      (items ?? []).slice(
+        0,
+        itemMode === "similar" ? SIMILAR_ITEMS_VISIBLE_LIMIT : RELATED_ITEMS_VISIBLE_LIMIT
+      ),
+    [itemMode, items]
+  );
+  const visibleIdentityKeys = useMemo(
+    () => visibleItems.flatMap(buildRecommendationIdentityKeys),
+    [visibleItems]
+  );
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(RECOMMENDATION_VISIBLE_ITEMS_EVENT, {
+        detail: { keys: visibleIdentityKeys },
+      })
+    );
+  }, [visibleIdentityKeys]);
+
   if (!articleLabel && !productCode && !productDisplayName) return null;
   if (items === null) {
     return <Skeleton />;
   }
   if (items.length === 0) return null;
 
-  const visibleItems = items.slice(
-    0,
-    itemMode === "similar" ? SIMILAR_ITEMS_VISIBLE_LIMIT : RELATED_ITEMS_VISIBLE_LIMIT
-  );
   const listClass =
-    "mt-3 grid grid-cols-2 gap-2 text-left sm:gap-2.5";
+    visibleItems.length > 2
+      ? "mt-3 grid grid-rows-2 auto-cols-[minmax(238px,86%)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain pb-2 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(292px,68%)] sm:gap-2.5 lg:auto-cols-full"
+      : "mt-3 grid grid-rows-1 auto-cols-[minmax(238px,86%)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain pb-1 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(292px,68%)] sm:gap-2.5 lg:auto-cols-full";
 
   return (
     <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.07)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
@@ -519,6 +557,7 @@ export default function ProductRelatedItemsClientSection({
               item={item}
               priceLabel={priceLabel}
               sourceArticle={articleLabel}
+              imagePriority={index < 2}
             />
           );
         })}
