@@ -39,7 +39,7 @@ type TelegramOidcClaims = {
   picture?: unknown;
 };
 
-type TelegramJwk = JsonWebKey & {
+type TelegramJwk = crypto.JsonWebKey & {
   kid?: string;
   alg?: string;
 };
@@ -119,25 +119,33 @@ async function getTelegramJwks() {
   return keys;
 }
 
-async function verifyRs256JwtSignature(
+function verifyJwtSignature(
   signingInput: string,
   signature: Buffer,
-  jwk: TelegramJwk
+  jwk: TelegramJwk,
+  alg: string
 ) {
-  const key = await crypto.webcrypto.subtle.importKey(
-    "jwk",
-    jwk,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["verify"]
-  );
+  const key = crypto.createPublicKey({ key: jwk, format: "jwk" });
+  const payload = Buffer.from(signingInput);
 
-  return crypto.webcrypto.subtle.verify(
-    "RSASSA-PKCS1-v1_5",
-    key,
-    signature,
-    Buffer.from(signingInput)
-  );
+  if (alg === "RS256") {
+    return crypto.verify("RSA-SHA256", payload, key, signature);
+  }
+
+  if (alg === "ES256" || alg === "ES256K") {
+    return crypto.verify(
+      "SHA256",
+      payload,
+      { key, dsaEncoding: "ieee-p1363" },
+      signature
+    );
+  }
+
+  if (alg === "EdDSA") {
+    return crypto.verify(null, payload, key, signature);
+  }
+
+  throw new Error(`Unsupported Telegram id_token algorithm: ${alg}`);
 }
 
 async function verifyTelegramOidcToken(idToken: string) {
@@ -147,23 +155,24 @@ async function verifyTelegramOidcToken(idToken: string) {
   }
 
   const header = decodeJwtPart<{ alg?: string; kid?: string }>(encodedHeader);
-  if (header.alg !== "RS256" || !header.kid) {
+  if (!header.alg || !header.kid) {
     throw new Error("Unsupported Telegram id_token signature");
   }
 
   const keys = await getTelegramJwks();
   const jwk = keys.find(
-    (key) => key.kid === header.kid && key.alg === "RS256" && key.kty === "RSA"
+    (key) => key.kid === header.kid && (!key.alg || key.alg === header.alg)
   );
   if (!jwk) {
     throw new Error("Telegram signing key not found");
   }
 
   const signingInput = `${encodedHeader}.${encodedPayload}`;
-  const signatureIsValid = await verifyRs256JwtSignature(
+  const signatureIsValid = verifyJwtSignature(
     signingInput,
     decodeBase64Url(encodedSignature),
-    jwk
+    jwk,
+    header.alg
   );
   if (!signatureIsValid) {
     throw new Error("Invalid Telegram id_token signature");
