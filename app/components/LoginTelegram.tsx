@@ -5,6 +5,7 @@ import { signInWithCustomToken } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
 import { auth, db } from "../../firebase";
+import ProfileCompletionModal from "./ProfileCompletionModal";
 
 type TelegramUser = {
   id?: number | string;
@@ -57,6 +58,9 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
   const oidcResultHandledRef = useRef(false);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileUserId, setProfileUserId] = useState("");
+  const [profileUserName, setProfileUserName] = useState("");
   const clientId = process.env.NEXT_PUBLIC_TELEGRAM_CLIENT_ID?.trim();
   const useOidcLogin = Boolean(clientId && /^\d+$/.test(clientId));
 
@@ -154,7 +158,18 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
             window.location.href = data.link;
             return;
           }
-          onSuccess?.();
+          
+          // Показати модаль для заповнення контактів
+          setProfileUserId(credential.user.uid);
+          const telegramUser = data.user || payload.user || payload;
+          const displayName = [telegramUser.first_name, telegramUser.last_name]
+            .filter((value) => typeof value === "string" && value.trim())
+            .join(" ")
+            .trim();
+          setProfileUserName(
+            displayName || telegramUser.username || "Користувач"
+          );
+          setShowProfileModal(true);
         } catch (error) {
           console.error("Telegram auth error:", error);
           setStatus("error");
@@ -373,42 +388,54 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
   };
 
   return (
-    <div className={`flex min-w-0 flex-col items-center gap-2 ${className}`}>
-      <div
-        ref={containerRef}
-        className="flex min-h-11 w-full items-center justify-center overflow-hidden rounded-[16px] border border-sky-200/40 bg-white/80 px-2 py-1.5 shadow-[0_10px_22px_rgba(15,23,42,0.07)] [&_iframe]:max-w-full"
-      >
-        {useOidcLogin ? (
-          <button
-            type="button"
-            onClick={handleOidcLogin}
-            disabled={status === "loading"}
-            className="flex h-9 w-full min-w-0 items-center justify-center gap-2 rounded-[13px] border border-sky-200/80 bg-white px-3 text-sm font-bold text-slate-800 shadow-[0_8px_18px_rgba(14,165,233,0.12)] transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900 disabled:cursor-wait disabled:opacity-70"
-          >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#229ED9] text-white">
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 24 24"
-                className="h-3.5 w-3.5 fill-current"
-              >
-                <path d="M9.04 15.65 8.7 20.4c.49 0 .7-.21.96-.46l2.3-2.2 4.77 3.49c.87.48 1.49.23 1.72-.8l3.12-14.62c.28-1.29-.46-1.8-1.31-1.48L1.9 11.41c-1.25.49-1.23 1.19-.21 1.5l4.7 1.46L17.3 7.54c.51-.34.98-.15.6.19l-8.86 7.92Z" />
-              </svg>
-            </span>
-            <span className="truncate">Telegram</span>
-          </button>
+    <>
+      <div className={`flex min-w-0 flex-col items-center gap-2 ${className}`}>
+        <div
+          ref={containerRef}
+          className="flex min-h-11 w-full items-center justify-center overflow-hidden rounded-[16px] border border-sky-200/40 bg-white/80 px-2 py-1.5 shadow-[0_10px_22px_rgba(15,23,42,0.07)] [&_iframe]:max-w-full"
+        >
+          {useOidcLogin ? (
+            <button
+              type="button"
+              onClick={handleOidcLogin}
+              disabled={status === "loading"}
+              className="flex h-9 w-full min-w-0 items-center justify-center gap-2 rounded-[13px] border border-sky-200/80 bg-white px-3 text-sm font-bold text-slate-800 shadow-[0_8px_18px_rgba(14,165,233,0.12)] transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900 disabled:cursor-wait disabled:opacity-70"
+            >
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#229ED9] text-white">
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="h-3.5 w-3.5 fill-current"
+                >
+                  <path d="M9.04 15.65 8.7 20.4c.49 0 .7-.21.96-.46l2.3-2.2 4.77 3.49c.87.48 1.49.23 1.72-.8l3.12-14.62c.28-1.29-.46-1.8-1.31-1.48L1.9 11.41c-1.25.49-1.23 1.19-.21 1.5l4.7 1.46L17.3 7.54c.51-.34.98-.15.6.19l-8.86 7.92Z" />
+                </svg>
+              </span>
+              <span className="truncate">Telegram</span>
+            </button>
+          ) : null}
+        </div>
+        {status === "loading" ? (
+          <p className="text-center text-xs font-semibold text-sky-700">
+            Підключення Telegram...
+          </p>
+        ) : null}
+        {status === "error" ? (
+          <p className="text-center text-xs font-semibold text-red-400">
+            {errorMessage}
+          </p>
         ) : null}
       </div>
-      {status === "loading" ? (
-        <p className="text-center text-xs font-semibold text-sky-700">
-          Підключення Telegram...
-        </p>
-      ) : null}
-      {status === "error" ? (
-        <p className="text-center text-xs font-semibold text-red-400">
-          {errorMessage}
-        </p>
-      ) : null}
-    </div>
+
+      <ProfileCompletionModal
+        isOpen={showProfileModal}
+        userId={profileUserId}
+        userName={profileUserName}
+        onClose={() => {
+          setShowProfileModal(false);
+          onSuccess?.();
+        }}
+      />
+    </>
   );
 };
 
