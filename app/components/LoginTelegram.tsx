@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { signInWithCustomToken } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
@@ -48,24 +48,23 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const clientId = process.env.NEXT_PUBLIC_TELEGRAM_CLIENT_ID?.trim();
+  const useOidcLogin = Boolean(clientId && /^\d+$/.test(clientId));
 
-  useEffect(() => {
-    const configuredAuthEndpoint = process.env.NEXT_PUBLIC_TELEGRAM_AUTH_URL;
-    const clientId = process.env.NEXT_PUBLIC_TELEGRAM_CLIENT_ID?.trim();
-    const useOidcLogin = Boolean(clientId && /^\d+$/.test(clientId));
-    const authEndpoints = useOidcLogin
-      ? ["/api/telegram/auth"]
-      : configuredAuthEndpoint
-      ? [configuredAuthEndpoint]
-      : ["/auth/telegram", "/api/telegram/auth"];
-    const botName = process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME || "StormStoreAvto_bot";
-
-    window.onTelegramAuth = (payload: TelegramAuthPayload) => {
+  const completeTelegramAuth = useCallback(
+    (payload: TelegramAuthPayload) => {
       if (payload?.error) {
         setStatus("error");
         setErrorMessage("Telegram скасував або не завершив авторизацію.");
         return;
       }
+
+    const configuredAuthEndpoint = process.env.NEXT_PUBLIC_TELEGRAM_AUTH_URL;
+    const authEndpoints = useOidcLogin
+      ? ["/api/telegram/auth"]
+      : configuredAuthEndpoint
+      ? [configuredAuthEndpoint]
+      : ["/auth/telegram", "/api/telegram/auth"];
 
       setStatus("loading");
       setErrorMessage("");
@@ -158,40 +157,35 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
           );
         }
       })();
-    };
+    },
+    [onSuccess, useOidcLogin]
+  );
+
+  useEffect(() => {
+    window.onTelegramAuth = completeTelegramAuth;
+
+    if (useOidcLogin) {
+      return () => {
+        delete window.onTelegramAuth;
+      };
+    }
+
+    const botName = process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME || "StormStoreAvto_bot";
 
     const script = document.createElement("script");
     script.async = true;
-
-    if (useOidcLogin && clientId) {
-      script.src = "https://oauth.telegram.org/js/telegram-login.js?5";
-      script.setAttribute("data-client-id", clientId);
-      script.setAttribute("data-onauth", "onTelegramAuth(data)");
-      script.setAttribute("data-lang", "uk");
-    } else {
-      script.src = "https://telegram.org/js/telegram-widget.js?7";
-      script.setAttribute("data-telegram-login", botName);
-      script.setAttribute("data-userpic", "false");
-      script.setAttribute("data-size", "large");
-      script.setAttribute("data-radius", "10");
-      script.setAttribute("data-lang", "uk");
-      script.setAttribute("data-onauth", "onTelegramAuth(user)");
-    }
+    script.src = "https://telegram.org/js/telegram-widget.js?7";
+    script.setAttribute("data-telegram-login", botName);
+    script.setAttribute("data-userpic", "false");
+    script.setAttribute("data-size", "large");
+    script.setAttribute("data-radius", "10");
+    script.setAttribute("data-lang", "uk");
+    script.setAttribute("data-onauth", "onTelegramAuth(user)");
 
     const container = containerRef.current;
     if (container) {
       container.replaceChildren();
       container.appendChild(script);
-
-      if (useOidcLogin) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "tg-auth-button";
-        button.textContent = "Telegram";
-        button.setAttribute("aria-label", "Увійти через Telegram");
-        button.setAttribute("data-style", "outlined");
-        container.appendChild(button);
-      }
     }
 
     return () => {
@@ -200,14 +194,90 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
       }
       delete window.onTelegramAuth;
     };
-  }, [onSuccess]);
+  }, [completeTelegramAuth, useOidcLogin]);
+
+  const handleOidcLogin = () => {
+    setStatus("loading");
+    setErrorMessage("");
+
+    const width = 550;
+    const height = 650;
+    const left = Math.max(0, window.screenX + (window.outerWidth - width) / 2);
+    const top = Math.max(0, window.screenY + (window.outerHeight - height) / 2);
+    const popup = window.open(
+      "/api/telegram/oidc/start",
+      "telegram_oidc_login",
+      `width=${width},height=${height},left=${left},top=${top},status=0,location=0,menubar=0,toolbar=0`
+    );
+
+    if (!popup) {
+      setStatus("error");
+      setErrorMessage("Браузер заблокував Telegram-вікно.");
+      return;
+    }
+
+    const cleanup = () => {
+      window.removeEventListener("message", handleMessage);
+      window.clearInterval(closeTimer);
+    };
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as TelegramAuthPayload & { source?: string };
+      if (!data || data.source !== "partson:telegram-login") return;
+
+      cleanup();
+      if (data.error || !data.id_token) {
+        setStatus("error");
+        setErrorMessage("Telegram не завершив авторизацію.");
+        return;
+      }
+
+      completeTelegramAuth({ id_token: data.id_token });
+    };
+
+    const closeTimer = window.setInterval(() => {
+      if (!popup.closed) return;
+      cleanup();
+      setStatus((currentStatus) => {
+        if (currentStatus === "loading") {
+          setErrorMessage("Telegram-вікно закрите до завершення входу.");
+          return "error";
+        }
+        return currentStatus;
+      });
+    }, 500);
+
+    window.addEventListener("message", handleMessage);
+    popup.focus();
+  };
 
   return (
     <div className={`flex min-w-0 flex-col items-center gap-2 ${className}`}>
       <div
         ref={containerRef}
         className="flex min-h-11 w-full items-center justify-center overflow-hidden rounded-[16px] border border-sky-200/40 bg-white/80 px-2 py-1.5 shadow-[0_10px_22px_rgba(15,23,42,0.07)] [&_iframe]:max-w-full"
-      />
+      >
+        {useOidcLogin ? (
+          <button
+            type="button"
+            onClick={handleOidcLogin}
+            disabled={status === "loading"}
+            className="flex h-9 w-full min-w-0 items-center justify-center gap-2 rounded-[13px] border border-sky-200/80 bg-white px-3 text-sm font-bold text-slate-800 shadow-[0_8px_18px_rgba(14,165,233,0.12)] transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900 disabled:cursor-wait disabled:opacity-70"
+          >
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#229ED9] text-white">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-3.5 w-3.5 fill-current"
+              >
+                <path d="M9.04 15.65 8.7 20.4c.49 0 .7-.21.96-.46l2.3-2.2 4.77 3.49c.87.48 1.49.23 1.72-.8l3.12-14.62c.28-1.29-.46-1.8-1.31-1.48L1.9 11.41c-1.25.49-1.23 1.19-.21 1.5l4.7 1.46L17.3 7.54c.51-.34.98-.15.6.19l-8.86 7.92Z" />
+              </svg>
+            </span>
+            <span className="truncate">Telegram</span>
+          </button>
+        ) : null}
+      </div>
       {status === "loading" ? (
         <p className="text-center text-xs font-semibold text-sky-700">
           Підключення Telegram...
