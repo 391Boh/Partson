@@ -39,6 +39,7 @@ const popupResponse = (
 <html lang="uk">
 <head><meta charset="utf-8"><title>Telegram Login</title></head>
 <body>
+<p id="status">Завершуємо Telegram-вхід...</p>
 <script>
   (function () {
     var payload = ${JSON.stringify({
@@ -48,13 +49,22 @@ const popupResponse = (
     try {
       localStorage.setItem("partson:telegram-login", JSON.stringify(payload));
     } catch (error) {}
+    try {
+      var channel = new BroadcastChannel("partson:telegram-login");
+      channel.postMessage(payload);
+      setTimeout(function () { channel.close(); }, 800);
+    } catch (error) {}
     if (window.opener && !window.opener.closed) {
       window.opener.postMessage(payload, ${JSON.stringify(siteOrigin)});
     }
-    window.close();
+    setTimeout(function () {
+      window.close();
+      var status = document.getElementById("status");
+      if (status) status.textContent = "Вхід завершено. Можна закрити це вікно.";
+    }, 900);
   })();
 </script>
-<p>Можна закрити це вікно.</p>
+<p>Якщо вікно не закрилось автоматично, поверніться на сайт.</p>
 </body>
 </html>`,
     {

@@ -53,6 +53,8 @@ type TelegramAuthWindowPayload = TelegramAuthPayload & {
 
 const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const oidcPopupCleanupRef = useRef<(() => void) | null>(null);
+  const oidcResultHandledRef = useRef(false);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const clientId = process.env.NEXT_PUBLIC_TELEGRAM_CLIENT_ID?.trim();
@@ -172,30 +174,51 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
     window.onTelegramAuth = completeTelegramAuth;
 
     if (useOidcLogin) {
+      const handleTelegramWindowPayload = (data: TelegramAuthWindowPayload) => {
+        if (!data || data.source !== TELEGRAM_LOGIN_STORAGE_SOURCE) return;
+
+        oidcPopupCleanupRef.current?.();
+        oidcPopupCleanupRef.current = null;
+        localStorage.removeItem(TELEGRAM_LOGIN_STORAGE_KEY);
+        if (oidcResultHandledRef.current) return;
+        oidcResultHandledRef.current = true;
+
+        if (data.error || !data.id_token) {
+          setStatus("error");
+          setErrorMessage("Telegram не завершив авторизацію.");
+          return;
+        }
+
+        completeTelegramAuth({ id_token: data.id_token });
+      };
+
       const handleStorageMessage = (event: StorageEvent) => {
         if (event.key !== TELEGRAM_LOGIN_STORAGE_KEY || !event.newValue) return;
 
         try {
           const data = JSON.parse(event.newValue) as TelegramAuthWindowPayload;
-          if (data.source !== TELEGRAM_LOGIN_STORAGE_SOURCE) return;
-
-          localStorage.removeItem(TELEGRAM_LOGIN_STORAGE_KEY);
-          if (data.error || !data.id_token) {
-            setStatus("error");
-            setErrorMessage("Telegram не завершив авторизацію.");
-            return;
-          }
-
-          completeTelegramAuth({ id_token: data.id_token });
+          handleTelegramWindowPayload(data);
         } catch {
           setStatus("error");
           setErrorMessage("Не вдалося прочитати відповідь Telegram.");
         }
       };
 
+      let broadcastChannel: BroadcastChannel | null = null;
+      const handleBroadcastMessage = (event: MessageEvent) => {
+        handleTelegramWindowPayload(event.data as TelegramAuthWindowPayload);
+      };
+
+      if ("BroadcastChannel" in window) {
+        broadcastChannel = new BroadcastChannel(TELEGRAM_LOGIN_STORAGE_KEY);
+        broadcastChannel.addEventListener("message", handleBroadcastMessage);
+      }
+
       window.addEventListener("storage", handleStorageMessage);
       return () => {
         window.removeEventListener("storage", handleStorageMessage);
+        broadcastChannel?.removeEventListener("message", handleBroadcastMessage);
+        broadcastChannel?.close();
         delete window.onTelegramAuth;
       };
     }
@@ -227,6 +250,9 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
   }, [completeTelegramAuth, useOidcLogin]);
 
   const handleOidcLogin = () => {
+    oidcPopupCleanupRef.current?.();
+    oidcPopupCleanupRef.current = null;
+    oidcResultHandledRef.current = false;
     setStatus("loading");
     setErrorMessage("");
     localStorage.removeItem(TELEGRAM_LOGIN_STORAGE_KEY);
@@ -250,6 +276,7 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
     let closeTimer = 0;
     let closeGraceTimer = 0;
     let storagePollTimer = 0;
+    let broadcastChannel: BroadcastChannel | null = null;
 
     const readStoredTelegramResult = () => {
       const raw = localStorage.getItem(TELEGRAM_LOGIN_STORAGE_KEY);
@@ -268,6 +295,9 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
 
     const handleTelegramResult = (data: TelegramAuthWindowPayload) => {
       cleanup();
+      if (oidcResultHandledRef.current) return;
+      oidcResultHandledRef.current = true;
+
       if (data.error || !data.id_token) {
         setStatus("error");
         setErrorMessage("Telegram не завершив авторизацію.");
@@ -290,6 +320,11 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
       window.clearInterval(closeTimer);
       window.clearInterval(storagePollTimer);
       window.clearTimeout(closeGraceTimer);
+      broadcastChannel?.close();
+      broadcastChannel = null;
+      if (oidcPopupCleanupRef.current === cleanup) {
+        oidcPopupCleanupRef.current = null;
+      }
     };
 
     const handleMessage = (event: MessageEvent) => {
@@ -299,6 +334,16 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
 
       handleTelegramResult(data);
     };
+
+    if ("BroadcastChannel" in window) {
+      broadcastChannel = new BroadcastChannel(TELEGRAM_LOGIN_STORAGE_KEY);
+      broadcastChannel.addEventListener("message", (event) => {
+        const data = event.data as TelegramAuthWindowPayload;
+        if (!data || data.source !== TELEGRAM_LOGIN_STORAGE_SOURCE) return;
+
+        handleTelegramResult(data);
+      });
+    }
 
     storagePollTimer = window.setInterval(() => {
       consumeStoredTelegramResult();
@@ -323,6 +368,7 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
     }, 500);
 
     window.addEventListener("message", handleMessage);
+    oidcPopupCleanupRef.current = cleanup;
     popup.focus();
   };
 
