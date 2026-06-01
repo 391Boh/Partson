@@ -148,7 +148,7 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
     script.setAttribute("data-size", "large");
     script.setAttribute("data-radius", "10");
     script.setAttribute("data-lang", "uk");
-    script.setAttribute("data-on-auth", "onTelegramAuth");
+    script.setAttribute("data-onauth", "onTelegramAuth(user)");
 
     const container = containerRef.current;
     if (container) {
