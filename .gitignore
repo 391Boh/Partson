@@ -16,3 +16,6 @@ logs/
 *.xml
 !app/*.xml/
 !app/*.xml/**
+.cache/
+.env.local
+next-env.d.ts
