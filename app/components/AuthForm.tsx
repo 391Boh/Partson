@@ -759,24 +759,23 @@ const AuthForm: React.FC<AuthFormProps> = ({
               або
               <span className="h-px flex-1 bg-slate-200/80" />
             </div>
-            <button
-              type="button"
-              onClick={handleGoogleAuth}
-              disabled={isGoogleLoading}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-800 shadow-[0_10px_22px_rgba(15,23,42,0.07)] transition-[border-color,box-shadow,filter] hover:border-sky-200 hover:shadow-[0_14px_28px_rgba(14,165,233,0.12)] disabled:cursor-wait disabled:opacity-70"
-            >
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-[15px] font-black text-blue-600">
-                G
-              </span>
-              {isGoogleLoading ? "Підключення Google..." : "Продовжити з Google"}
-            </button>
-          </div>
-
-          {mode === "login" && (
-            <div className="mt-1">
-              <LoginTelegram onSuccess={closeModal} />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={handleGoogleAuth}
+                disabled={isGoogleLoading}
+                className="inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-3 py-2.5 text-sm font-extrabold text-slate-800 shadow-[0_10px_22px_rgba(15,23,42,0.07)] transition-[transform,border-color,box-shadow,filter] hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_14px_28px_rgba(14,165,233,0.12)] disabled:cursor-wait disabled:opacity-70 sm:px-4"
+              >
+                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[15px] font-black text-blue-600">
+                  G
+                </span>
+                <span className="min-w-0 truncate">
+                  {isGoogleLoading ? "Підключення..." : "Google"}
+                </span>
+              </button>
+              <LoginTelegram className="w-full" onSuccess={closeModal} />
             </div>
-          )}
+          </div>
 
           {registerError && mode === "register" && (
             <p className="text-red-400 text-sm mt-1 text-center">

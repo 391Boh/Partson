@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signInWithCustomToken } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
@@ -31,14 +31,19 @@ declare global {
 
 type TelegramLoginProps = {
   onSuccess?: () => void;
+  className?: string;
 };
 
-const TelegramLogin = ({ onSuccess }: TelegramLoginProps) => {
+const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    const authEndpoint = process.env.NEXT_PUBLIC_TELEGRAM_AUTH_URL || "/api/telegram/auth";
+    const configuredAuthEndpoint = process.env.NEXT_PUBLIC_TELEGRAM_AUTH_URL;
+    const authEndpoints = configuredAuthEndpoint
+      ? [configuredAuthEndpoint]
+      : ["/auth/telegram", "/api/telegram/auth"];
     const botName = process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME || "StormStoreAvto_bot";
 
     window.onTelegramAuth = (user: TelegramUser) => {
@@ -47,14 +52,31 @@ const TelegramLogin = ({ onSuccess }: TelegramLoginProps) => {
 
       void (async () => {
         try {
-          const response = await fetch(authEndpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(user),
-          });
-          const data = (await response.json()) as TelegramAuthResponse;
+          const requestBody = JSON.stringify(user);
+          let response: Response | null = null;
+          let data: TelegramAuthResponse = {};
 
-          if (!response.ok || !data.firebaseToken) {
+          for (const [index, authEndpoint] of authEndpoints.entries()) {
+            response = await fetch(authEndpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: requestBody,
+            });
+
+            data = (await response.json().catch(() => ({}))) as TelegramAuthResponse;
+
+            if (
+              !configuredAuthEndpoint &&
+              response.status === 404 &&
+              index < authEndpoints.length - 1
+            ) {
+              continue;
+            }
+
+            break;
+          }
+
+          if (!response?.ok || !data.firebaseToken) {
             throw new Error(data.error || "Telegram auth failed");
           }
 
@@ -108,8 +130,9 @@ const TelegramLogin = ({ onSuccess }: TelegramLoginProps) => {
         } catch (error) {
           console.error("Telegram auth error:", error);
           setStatus("error");
+          const message = error instanceof Error ? error.message : "";
           setErrorMessage(
-            error instanceof Error && error.message.includes("Firebase Admin")
+            message.includes("Firebase Admin")
               ? "Telegram-вхід не налаштований на сервері."
               : "Не вдалося увійти через Telegram. Спробуйте ще раз."
           );
@@ -122,13 +145,15 @@ const TelegramLogin = ({ onSuccess }: TelegramLoginProps) => {
     script.async = true;
     script.setAttribute("data-telegram-login", botName);
     script.setAttribute("data-userpic", "false");
+    script.setAttribute("data-size", "large");
     script.setAttribute("data-radius", "10");
     script.setAttribute("data-lang", "uk");
     script.setAttribute("data-request-access", "write");
     script.setAttribute("data-on-auth", "onTelegramAuth");
 
-    const container = document.getElementById("telegram-login-container");
+    const container = containerRef.current;
     if (container) {
+      container.replaceChildren();
       container.appendChild(script);
     }
 
@@ -141,8 +166,11 @@ const TelegramLogin = ({ onSuccess }: TelegramLoginProps) => {
   }, [onSuccess]);
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div id="telegram-login-container" className="flex justify-center" />
+    <div className={`flex min-w-0 flex-col items-center gap-2 ${className}`}>
+      <div
+        ref={containerRef}
+        className="flex min-h-11 w-full items-center justify-center overflow-hidden rounded-[16px] border border-sky-200/40 bg-white/80 px-2 py-1.5 shadow-[0_10px_22px_rgba(15,23,42,0.07)] [&_iframe]:max-w-full"
+      />
       {status === "loading" ? (
         <p className="text-center text-xs font-semibold text-sky-700">
           Підключення Telegram...
