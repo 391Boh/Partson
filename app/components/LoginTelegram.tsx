@@ -45,6 +45,11 @@ type TelegramLoginProps = {
 };
 
 const TELEGRAM_LOGIN_STORAGE_KEY = "partson:telegram-login";
+const TELEGRAM_LOGIN_STORAGE_SOURCE = "partson:telegram-login";
+
+type TelegramAuthWindowPayload = TelegramAuthPayload & {
+  source?: string;
+};
 
 const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -171,10 +176,8 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
         if (event.key !== TELEGRAM_LOGIN_STORAGE_KEY || !event.newValue) return;
 
         try {
-          const data = JSON.parse(event.newValue) as TelegramAuthPayload & {
-            source?: string;
-          };
-          if (data.source !== "partson:telegram-login") return;
+          const data = JSON.parse(event.newValue) as TelegramAuthWindowPayload;
+          if (data.source !== TELEGRAM_LOGIN_STORAGE_SOURCE) return;
 
           localStorage.removeItem(TELEGRAM_LOGIN_STORAGE_KEY);
           if (data.error || !data.id_token) {
@@ -226,6 +229,7 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
   const handleOidcLogin = () => {
     setStatus("loading");
     setErrorMessage("");
+    localStorage.removeItem(TELEGRAM_LOGIN_STORAGE_KEY);
 
     const width = 550;
     const height = 650;
@@ -243,18 +247,27 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
       return;
     }
 
-    const cleanup = () => {
-      window.removeEventListener("message", handleMessage);
-      window.clearInterval(closeTimer);
+    let closeTimer = 0;
+    let closeGraceTimer = 0;
+    let storagePollTimer = 0;
+
+    const readStoredTelegramResult = () => {
+      const raw = localStorage.getItem(TELEGRAM_LOGIN_STORAGE_KEY);
+      if (!raw) return null;
+
+      try {
+        const data = JSON.parse(raw) as TelegramAuthWindowPayload;
+        if (data.source !== TELEGRAM_LOGIN_STORAGE_SOURCE) return null;
+        localStorage.removeItem(TELEGRAM_LOGIN_STORAGE_KEY);
+        return data;
+      } catch {
+        localStorage.removeItem(TELEGRAM_LOGIN_STORAGE_KEY);
+        return { source: TELEGRAM_LOGIN_STORAGE_SOURCE, error: "invalid_storage" };
+      }
     };
 
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-      const data = event.data as TelegramAuthPayload & { source?: string };
-      if (!data || data.source !== "partson:telegram-login") return;
-
+    const handleTelegramResult = (data: TelegramAuthWindowPayload) => {
       cleanup();
-      localStorage.removeItem(TELEGRAM_LOGIN_STORAGE_KEY);
       if (data.error || !data.id_token) {
         setStatus("error");
         setErrorMessage("Telegram не завершив авторизацію.");
@@ -264,16 +277,49 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
       completeTelegramAuth({ id_token: data.id_token });
     };
 
-    const closeTimer = window.setInterval(() => {
+    const consumeStoredTelegramResult = () => {
+      const storedResult = readStoredTelegramResult();
+      if (!storedResult) return false;
+
+      handleTelegramResult(storedResult);
+      return true;
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("message", handleMessage);
+      window.clearInterval(closeTimer);
+      window.clearInterval(storagePollTimer);
+      window.clearTimeout(closeGraceTimer);
+    };
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as TelegramAuthWindowPayload;
+      if (!data || data.source !== TELEGRAM_LOGIN_STORAGE_SOURCE) return;
+
+      handleTelegramResult(data);
+    };
+
+    storagePollTimer = window.setInterval(() => {
+      consumeStoredTelegramResult();
+    }, 250);
+
+    closeTimer = window.setInterval(() => {
       if (!popup.closed) return;
-      cleanup();
-      setStatus((currentStatus) => {
-        if (currentStatus === "loading") {
-          setErrorMessage("Telegram-вікно закрите до завершення входу.");
-          return "error";
-        }
-        return currentStatus;
-      });
+      window.clearInterval(closeTimer);
+
+      closeGraceTimer = window.setTimeout(() => {
+        if (consumeStoredTelegramResult()) return;
+
+        cleanup();
+        setStatus((currentStatus) => {
+          if (currentStatus === "loading") {
+            setErrorMessage("Telegram-вікно закрите до завершення входу.");
+            return "error";
+          }
+          return currentStatus;
+        });
+      }, 2500);
     }, 500);
 
     window.addEventListener("message", handleMessage);
