@@ -44,6 +44,8 @@ type TelegramLoginProps = {
   className?: string;
 };
 
+const TELEGRAM_LOGIN_STORAGE_KEY = "partson:telegram-login";
+
 const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
@@ -165,7 +167,32 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
     window.onTelegramAuth = completeTelegramAuth;
 
     if (useOidcLogin) {
+      const handleStorageMessage = (event: StorageEvent) => {
+        if (event.key !== TELEGRAM_LOGIN_STORAGE_KEY || !event.newValue) return;
+
+        try {
+          const data = JSON.parse(event.newValue) as TelegramAuthPayload & {
+            source?: string;
+          };
+          if (data.source !== "partson:telegram-login") return;
+
+          localStorage.removeItem(TELEGRAM_LOGIN_STORAGE_KEY);
+          if (data.error || !data.id_token) {
+            setStatus("error");
+            setErrorMessage("Telegram не завершив авторизацію.");
+            return;
+          }
+
+          completeTelegramAuth({ id_token: data.id_token });
+        } catch {
+          setStatus("error");
+          setErrorMessage("Не вдалося прочитати відповідь Telegram.");
+        }
+      };
+
+      window.addEventListener("storage", handleStorageMessage);
       return () => {
+        window.removeEventListener("storage", handleStorageMessage);
         delete window.onTelegramAuth;
       };
     }
@@ -227,6 +254,7 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
       if (!data || data.source !== "partson:telegram-login") return;
 
       cleanup();
+      localStorage.removeItem(TELEGRAM_LOGIN_STORAGE_KEY);
       if (data.error || !data.id_token) {
         setStatus("error");
         setErrorMessage("Telegram не завершив авторизацію.");

@@ -45,6 +45,9 @@ const popupResponse = (
       source: "partson:telegram-login",
       ...payload,
     })};
+    try {
+      localStorage.setItem("partson:telegram-login", JSON.stringify(payload));
+    } catch (error) {}
     if (window.opener && !window.opener.closed) {
       window.opener.postMessage(payload, ${JSON.stringify(siteOrigin)});
     }
