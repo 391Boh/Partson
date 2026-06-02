@@ -13,14 +13,20 @@ const base64Url = (value: Buffer) =>
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
 
+const pickForwardedValue = (value: string | null) =>
+  (value || "").split(",")[0]?.trim();
+
 const getSiteOrigin = (req: NextRequest) => {
+  const forwardedProto = pickForwardedValue(req.headers.get("x-forwarded-proto"));
+  const forwardedHost = pickForwardedValue(req.headers.get("x-forwarded-host"));
+  const host = forwardedHost || pickForwardedValue(req.headers.get("host"));
+  const proto = forwardedProto || req.nextUrl.protocol.replace(/:$/g, "") || "https";
+
+  if (host) return `${proto}://${host}`.replace(/\/+$/g, "");
+
   const configured =
     process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "";
-  if (configured) return configured.replace(/\/+$/g, "");
-
-  const proto = req.headers.get("x-forwarded-proto") || "https";
-  const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
-  return `${proto}://${host}`;
+  return configured.replace(/\/+$/g, "");
 };
 
 const getClientId = () =>
@@ -50,7 +56,7 @@ export async function GET(req: NextRequest) {
   authUrl.searchParams.set("client_id", clientId);
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("scope", "openid profile");
+  authUrl.searchParams.set("scope", "openid profile phone telegram:bot_access");
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("code_challenge", codeChallenge);
   authUrl.searchParams.set("code_challenge_method", "S256");

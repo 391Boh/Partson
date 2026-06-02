@@ -37,6 +37,7 @@ type TelegramOidcClaims = {
   name?: unknown;
   preferred_username?: unknown;
   picture?: unknown;
+  phone_number?: unknown;
 };
 
 type TelegramJwk = crypto.JsonWebKey & {
@@ -211,6 +212,8 @@ async function verifyTelegramOidcToken(idToken: string) {
         ? claims.preferred_username
         : "",
     photo_url: typeof claims.picture === "string" ? claims.picture : "",
+    phone_number:
+      typeof claims.phone_number === "string" ? claims.phone_number : "",
   };
 }
 
