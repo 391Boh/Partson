@@ -54,6 +54,9 @@ const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_PHONE_TEL = "+380634211851";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
+const STORE_PHONE_SEO_LABEL = `☎️ ${STORE_PHONE_DISPLAY}`;
+const STORE_ADDRESS_SEO_LABEL = `📍 ${STORE_ADDRESS}`;
+const PRODUCT_META_DESCRIPTION_MAX_LENGTH = 178;
 
 const parseProductStaticParamsLimit = (value: string | undefined) => {
   const numeric = Number(value);
@@ -771,18 +774,32 @@ const buildProductMetaDescription = (options: {
   name: string;
   article: string;
   producer: string;
+  code?: string;
+  category?: string;
   quantity: number;
 }) => {
-  const { name, article, producer, quantity } = options;
-  const availabilityLabel = quantity > 0
-    ? `в наявності ${quantity} шт.`
-    : "доступно під замовлення";
+  const { name, article, producer, code, category, quantity } = options;
+  const productLabel = trimSeoPhrase(
+    appendSeoPartIfMissing(buildVisibleProductName(name), producer),
+    74
+  );
+  const lookupParts = [
+    article ? `арт. ${article}` : null,
+    code && code !== article ? `код ${code}` : null,
+  ].filter(Boolean);
+  const availabilityLabel =
+    quantity > 0 ? "є в наявності" : "доступно під замовлення";
 
-  return [
-    `Купити ${name}${producer ? ` ${producer}` : ""}${article ? `, артикул ${article}` : ""}: ${availabilityLabel}.`,
-    `PartsON: ${STORE_ADDRESS}, тел. ${STORE_PHONE_DISPLAY}.`,
-    "Підбір за VIN, перевірка сумісності, самовивіз і доставка Новою поштою по Україні.",
-  ].filter(Boolean).join(" ");
+  return trimSeoDescription(
+    [
+      `${productLabel}${lookupParts.length ? ` (${lookupParts.join(", ")})` : ""} - ${availabilityLabel} у PartsON.`,
+      `${STORE_PHONE_SEO_LABEL}. ${STORE_ADDRESS_SEO_LABEL}.`,
+      category ? `Категорія: ${category}.` : null,
+      "VIN-підбір, перевірка сумісності, аналоги, самовивіз і доставка по Україні.",
+    ]
+      .filter(Boolean)
+      .join(" ")
+  );
 };
 
 const buildProductFallbackDescription = (options: {
@@ -798,18 +815,47 @@ const buildProductFallbackDescription = (options: {
   const categoryLabel =
     buildVisibleProductName(subGroup || group || "каталогу автозапчастин");
   const availabilityLabel =
-    quantity > 0 ? `Товар доступний у кількості ${quantity} шт.` : "Позиція доступна під замовлення.";
+    quantity > 0 ? "Товар є в наявності." : "Позиція доступна під замовлення.";
 
-  return [
-    `${visibleName}${producer ? ` від виробника ${producer}` : ""} належить до категорії ${categoryLabel}.`,
+  return trimSeoDescription([
+    `${trimSeoPhrase(`${visibleName}${producer ? ` ${producer}` : ""}`, 74)} - ${availabilityLabel}`,
+    `${STORE_PHONE_SEO_LABEL}. ${STORE_ADDRESS_SEO_LABEL}.`,
+    `${categoryLabel ? `Категорія: ${categoryLabel}.` : ""}`,
     article ? `Артикул: ${article}.` : null,
-    code ? `Код товару: ${code}.` : null,
-    availabilityLabel,
-    `Магазин PartsON: ${STORE_ADDRESS}, телефон ${STORE_PHONE_DISPLAY}.`,
-    "Для точного підбору рекомендуємо звіряти код, артикул і сумісність з вашим авто.",
-  ]
-    .filter(Boolean)
-    .join(" ");
+    code && code !== article ? `Код: ${code}.` : null,
+    "Підбір за VIN, сумісність, аналоги, самовивіз і доставка по Україні.",
+  ].filter(Boolean).join(" "));
+};
+
+const trimSeoPhrase = (value: string, maxLength: number) => {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+
+  const slice = normalized.slice(0, maxLength + 1);
+  const boundary = Math.max(slice.lastIndexOf(" "), slice.lastIndexOf(","));
+  return `${slice.slice(0, boundary > 48 ? boundary : maxLength).replace(/[,\s]+$/g, "")}...`;
+};
+
+const trimSeoDescription = (
+  value: string,
+  maxLength = PRODUCT_META_DESCRIPTION_MAX_LENGTH
+) => {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+
+  const slice = normalized.slice(0, maxLength + 1);
+  const boundary = Math.max(
+    slice.lastIndexOf("."),
+    slice.lastIndexOf(";"),
+    slice.lastIndexOf(","),
+    slice.lastIndexOf(" ")
+  );
+  const trimmed = slice
+    .slice(0, boundary > 120 ? boundary : maxLength)
+    .replace(/[.,;:\s]+$/g, "")
+    .trim();
+
+  return `${trimmed}...`;
 };
 
 const appendSeoPartIfMissing = (base: string, addition: string) => {
@@ -1336,18 +1382,14 @@ export async function generateMetadata({
     .filter(Boolean)
     .join(" | ");
 
-  const description = [
-    buildProductMetaDescription({
-      name: productNameWithProducer,
-      article: productArticle,
-      producer: "",
-      quantity: routeProduct?.quantity ?? 0,
-    }),
-    categoryLabel ? `Категорія: ${categoryLabel}.` : null,
-    "Підбір за VIN, аналоги, самовивіз і доставка по Україні.",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const description = buildProductMetaDescription({
+    name: seoVisibleProductName,
+    article: productArticle,
+    producer: productProducer,
+    code: resolvedCode,
+    category: categoryLabel,
+    quantity: routeProduct?.quantity ?? 0,
+  });
 
   const keywords = buildProductSeoKeywords({
     productName: seoVisibleProductName,
@@ -1569,6 +1611,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     name: visibleProductName,
     article: product.article,
     producer: product.producer,
+    code: product.code || resolvedCode,
+    category: visibleProductSubgroup || visibleProductGroup,
     quantity: product.quantity,
   });
 

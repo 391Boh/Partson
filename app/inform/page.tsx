@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 
 import {
   DEFAULT_INFORMATION_SECTION,
@@ -16,8 +16,9 @@ interface InformationRedirectPageProps {
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Інформація для клієнтів",
-  description:
-    "Переадресація на актуальний інформаційний розділ PartsON: доставка, оплата, про нас та локація.",
+  description: appendSeoContact(
+    "Інформаційні розділи PartsON: доставка, оплата, локація, повернення, гарантія, діагностика та контакти магазину автозапчастин."
+  ),
   canonicalPath: "/inform",
   index: false,
   follow: true,

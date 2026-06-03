@@ -65,7 +65,10 @@ const buildMissingBatchResult = (
   status: "missing",
 });
 
-const persistBatchResults = (items: CatalogImageBatchResponseItem[]) => {
+const persistBatchResults = (
+  items: CatalogImageBatchResponseItem[],
+  options?: { persistMissing?: boolean }
+) => {
   for (const item of items) {
     if (item.status === "ready" && item.src) {
       clearProductImageMissing(item.code, item.article);
@@ -73,7 +76,7 @@ const persistBatchResults = (items: CatalogImageBatchResponseItem[]) => {
       continue;
     }
 
-    if (item.status === "missing") {
+    if (item.status === "missing" && options?.persistMissing === true) {
       writeProductImageMissing(item.code, item.article);
     }
   }
@@ -300,7 +303,7 @@ export const fetchCatalogImageBatch = async (
     value: fetchedResults,
   });
 
-  persistBatchResults(fetchedResults);
+  persistBatchResults(fetchedResults, { persistMissing: options?.deep === true });
 
   return [...cachedResults, ...fetchedResults];
 };

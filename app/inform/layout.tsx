@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import { buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 
-const infoDescription =
-  "Доставка, оплата, контакти, комп'ютерна діагностика, політика конфіденційності та інформація про магазин автозапчастин PartsON у Львові (вул. Перфецького, 8).";
+const infoDescription = appendSeoContact(
+  "Інформація PartsON: доставка, оплата, контакти, повернення, гарантія, локація магазину та комп'ютерна діагностика авто у Львові."
+);
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Інформація для клієнтів",

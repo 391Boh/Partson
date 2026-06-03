@@ -4,6 +4,11 @@ import Script from "next/script";
 import ClientWrapper from "./client-wrapper";
 import LayoutHost from "./components/LayoutHost";
 import PageLoadingShell from "./components/PageLoadingShell";
+import {
+  STORE_ADDRESS_SEO_LABEL,
+  STORE_PHONE_SEO_LABEL,
+  trimSeoDescription,
+} from "./lib/seo-metadata";
 import { getSiteUrl } from "./lib/site-url";
 import "./globals.css";
 
@@ -48,14 +53,20 @@ const googleTagManagerId = (() => {
   return /^GTM-[A-Z0-9]+$/.test(rawId) ? rawId : "";
 })();
 
+const rootDescription = trimSeoDescription(
+  `PartsON - магазин автозапчастин у Львові з каталогом, цінами, наявністю та підбором за VIN, кодом і артикулом. ${STORE_PHONE_SEO_LABEL}. ${STORE_ADDRESS_SEO_LABEL}.`
+);
+const rootSocialDescription = trimSeoDescription(
+  `Автозапчастини у Львові: каталог PartsON, підбір деталей за VIN і артикулом, самовивіз та доставка по Україні. ${STORE_PHONE_SEO_LABEL}. ${STORE_ADDRESS_SEO_LABEL}.`
+);
+
 export const metadata: Metadata = {
   metadataBase: siteUrlObject,
   title: {
     default: "PartsON - Магазин автозапчастин",
     template: "%s | PartsON",
   },
-  description:
-    "PartsON - магазин автозапчастин у Львові, вул. Перфецького, 8, тел. +38 (063) 421-18-51: каталог деталей з актуальною наявністю, цінами та підбором за кодом, артикулом і VIN.",
+  description: rootDescription,
   applicationName: "PartsON",
   category: "auto parts",
   keywords: [
@@ -102,8 +113,7 @@ export const metadata: Metadata = {
     url: siteUrl,
     siteName: "PartsON",
     title: "PartsON - Магазин автозапчастин",
-    description:
-      "Автозапчастини у Львові: PartsON на вул. Перфецького, 8, тел. +38 (063) 421-18-51. Підбір деталей за VIN, артикулом і доставка по Україні.",
+    description: rootSocialDescription,
     images: [
       {
         url: "/Car-parts-fullwidth.png",
@@ -114,8 +124,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "PartsON - Магазин автозапчастин",
-    description:
-      "Магазин автозапчастин у Львові на вул. Перфецького, 8 з підбором за кодом, VIN і доставкою по Україні.",
+    description: rootSocialDescription,
     images: ["/Car-parts-fullwidth.png"],
   },
 };

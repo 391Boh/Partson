@@ -6,14 +6,15 @@ import AutoBrandsDirectoryClient from "app/auto/AutoBrandsDirectoryClient";
 import CatalogHubHero from "app/components/CatalogHubHero";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import { carBrands } from "app/components/carBrands";
-import { buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 21600;
 
 const title = "Підбір автозапчастин по авто за маркою, моделлю і модифікацією";
-const description =
-  "Підбір автозапчастин по марці, моделі та модифікації авто в PartsON. Оберіть автомобіль і відкрийте каталог запчастин з готовим авто-фільтром, доставкою по Львову та Україні.";
+const description = appendSeoContact(
+  "Підбір автозапчастин по марці, моделі та модифікації авто в PartsON. Оберіть автомобіль і відкрийте каталог з готовим авто-фільтром, VIN-підбором і доставкою по Україні."
+);
 
 export const metadata: Metadata = buildPageMetadata({
   title,

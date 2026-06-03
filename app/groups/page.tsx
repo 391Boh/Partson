@@ -6,15 +6,16 @@ import { catalogPageBackgroundClass } from "app/components/catalog-directory-sty
 import GroupsDirectoryClient from "app/groups/GroupsDirectoryClient";
 import { getFullGroupsDirectoryData } from "app/lib/groups-directory-data";
 import { buildVisibleProductName } from "app/lib/product-url";
-import { buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 21600;
 
 const catalogShellClass = "page-shell-inline";
 
-const groupsDescription =
-  "Категорії автозапчастин PartsON: групи, підгрупи, бренди й товари для швидкого підбору за назвою, артикулом або VIN з доставкою по Україні.";
+const groupsDescription = appendSeoContact(
+  "Категорії автозапчастин PartsON: групи, підгрупи, бренди й товари для швидкого підбору за назвою, артикулом або VIN з доставкою по Україні."
+);
 
 const buildGroupsPageDescription = (
   groupCount: number,
@@ -32,7 +33,9 @@ const buildGroupsPageDescription = (
       ? ` Каталог охоплює щонайменше ${indexedProductCount.toLocaleString("uk-UA")} проіндексованих товарних позицій.`
       : "";
 
-  return `Категорії автозапчастин PartsON: ${countSummary} для підбору деталей за групою, назвою, артикулом або VIN. Купівля у Львові й доставка по Україні.${indexedSummary}`;
+  return appendSeoContact(
+    `Категорії автозапчастин PartsON: ${countSummary} для підбору деталей за групою, назвою, артикулом або VIN. Самовивіз у Львові й доставка по Україні.${indexedSummary}`
+  );
 };
 
 const groupsIntroParagraphs = [

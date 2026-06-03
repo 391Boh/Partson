@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { buildPageMetadata } from "app/lib/seo-metadata";
+import {
+  STORE_ADDRESS_SEO_LABEL,
+  appendSeoContact,
+  buildPageMetadata,
+  trimSeoDescription,
+} from "app/lib/seo-metadata";
 
 export type InformationSectionKey =
   | "delivery"
@@ -28,8 +33,9 @@ export const informationSections: InformationSection[] = [
     title: "Доставка",
     subtitle: "У Львові та по Україні",
     seoTitle: "Доставка автозапчастин у Львові та по Україні",
-    seoDescription:
-      "Доставка автозапчастин PartsON у Львові, самовивіз з вул. Перфецького, 8 та відправлення у кожне місто України Новою Поштою, Укрпоштою або Meest.",
+    seoDescription: appendSeoContact(
+      "Доставка автозапчастин PartsON у Львові: самовивіз з магазину, відправлення Новою Поштою, Укрпоштою або Meest у кожне місто України."
+    ),
     keywords: [
       "доставка автозапчастин",
       "доставка PartsON",
@@ -50,8 +56,9 @@ export const informationSections: InformationSection[] = [
     title: "Оплата",
     subtitle: "Карта та готівка",
     seoTitle: "Оплата автозапчастин у PartsON",
-    seoDescription:
-      "Способи оплати автозапчастин у PartsON: онлайн-оплата карткою, післяплата при отриманні, готівка у Львові та безготівковий рахунок для СТО, ФОП і компаній.",
+    seoDescription: appendSeoContact(
+      "Оплата автозапчастин у PartsON: картка онлайн, післяплата при отриманні, готівка у Львові та безготівковий рахунок для СТО, ФОП і компаній."
+    ),
     keywords: [
       "оплата автозапчастин",
       "післяплата автозапчастини",
@@ -67,8 +74,9 @@ export const informationSections: InformationSection[] = [
     title: "Про нас",
     subtitle: "Детально",
     seoTitle: "PartsON — магазин автозапчастин у Львові",
-    seoDescription:
-      "PartsON — інтернет-магазин і магазин автозапчастин у Львові на вул. Перфецького, 8. Понад 20 років досвіду, підбір деталей за VIN, артикулом, кодом і маркою авто, оригінальні запчастини та перевірені аналоги з доставкою по Україні.",
+    seoDescription: appendSeoContact(
+      "PartsON - магазин автозапчастин у Львові з понад 20 роками досвіду, підбором за VIN, артикулом, кодом і маркою авто, оригінальними деталями та перевіреними аналогами."
+    ),
     keywords: [
       "про PartsON",
       "магазин автозапчастин PartsON",
@@ -90,8 +98,9 @@ export const informationSections: InformationSection[] = [
     title: "Локація",
     subtitle: "Адреса, карта і самовивіз",
     seoTitle: "Адреса магазину автозапчастин у Львові",
-    seoDescription:
-      "Магазин автозапчастин PartsON у Львові розташований на вул. Перфецького, 8. На сторінці локації зібрані адреса магазину, карта проїзду, маршрут, графік роботи, контакти для швидкого зв'язку та умови самовивозу замовлень.",
+    seoDescription: appendSeoContact(
+      "Локація PartsON у Львові: адреса магазину, карта проїзду, маршрут, графік роботи, контакти для зв'язку та умови самовивозу замовлень."
+    ),
     keywords: [
       "контакти PartsON",
       "адреса PartsON Львів",
@@ -121,8 +130,9 @@ export const informationSections: InformationSection[] = [
     title: "Конфіденційність",
     subtitle: "Дані та безпека",
     seoTitle: "Політика конфіденційності",
-    seoDescription:
-      "Політика конфіденційності PartsON: які персональні дані ми збираємо, для чого обробляємо, кому передаємо, як захищаємо та як користувач може реалізувати свої права.",
+    seoDescription: appendSeoContact(
+      "Політика конфіденційності PartsON: які дані ми збираємо, як обробляємо замовлення, кому передаємо інформацію, як захищаємо клієнтів і їхні права."
+    ),
     keywords: [
       "політика конфіденційності PartsON",
       "захист персональних даних",
@@ -139,8 +149,9 @@ export const informationSections: InformationSection[] = [
     title: "Гарантія",
     subtitle: "Умови та строки",
     seoTitle: "Гарантія на автозапчастини",
-    seoDescription:
-      "Умови гарантійного обслуговування автозапчастин у PartsON: строки гарантії залежно від виробника, порядок звернення та захист покупця.",
+    seoDescription: appendSeoContact(
+      "Гарантія на автозапчастини у PartsON: строки залежно від виробника, порядок звернення, перевірка документів і захист покупця після замовлення."
+    ),
     keywords: [
       "гарантія автозапчастини",
       "гарантія PartsON",
@@ -157,8 +168,9 @@ export const informationSections: InformationSection[] = [
     title: "Повернення",
     subtitle: "Повернення і обмін",
     seoTitle: "Умови повернення автозапчастин",
-    seoDescription:
-      "Умови і порядок повернення автозапчастин у PartsON: строки повернення, вимоги до стану товару та процедура оформлення заявки.",
+    seoDescription: appendSeoContact(
+      "Повернення й обмін автозапчастин у PartsON: строки, вимоги до стану товару, документи та проста процедура оформлення заявки."
+    ),
     keywords: [
       "повернення автозапчастин",
       "обмін автозапчастин",
@@ -175,8 +187,9 @@ export const informationSections: InformationSection[] = [
     title: "Діагностика",
     subtitle: "OBD, помилки, електроніка",
     seoTitle: "Комп'ютерна діагностика авто у Львові",
-    seoDescription:
-      "Комп'ютерна діагностика авто у Львові на вул. Перфецького, 8: OBD-II/EOBD, Check Engine, ECU, ABS, ESP, SRS, АКПП, розшифрування помилок, перевірка перед купівлею, виїзна діагностика та підбір запчастин після перевірки. Запис: +38 (093) 480-42-61.",
+    seoDescription: trimSeoDescription(
+      `Комп'ютерна діагностика авто у Львові: OBD-II, Check Engine, ECU, ABS, ESP, SRS, АКПП і підбір запчастин після перевірки. ☎️ +38 (093) 480-42-61. ${STORE_ADDRESS_SEO_LABEL}.`
+    ),
     keywords: [
       "комп'ютерна діагностика авто львів",
       "компютерна діагностика авто львів",

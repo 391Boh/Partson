@@ -44,7 +44,7 @@ import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getProducerSeoCopy } from "app/lib/seo-copy";
-import { buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 
@@ -59,6 +59,9 @@ const MANUFACTURER_FALLBACK_MAX_PAGES_DEFAULT = 40;
 const MANUFACTURER_FALLBACK_MAX_ITEMS_DEFAULT = 4800;
 const MANUFACTURER_TOP_PRODUCTS_LIMIT = 10;
 const MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS = 1500;
+const DEBUG_MANUFACTURER_PAGE =
+  process.env.DEBUG_MANUFACTURER_PAGE === "1" ||
+  process.env.NEXT_PUBLIC_DEBUG_MANUFACTURER_PAGE === "1";
 const isProductionBuildPhase =
   process.env.NEXT_PHASE === "phase-production-build" ||
   process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
@@ -133,7 +136,9 @@ const buildManufacturerDescription = (
       ? ` і добірка популярних груп (${groupsCount.toLocaleString("uk-UA")})`
       : "";
 
-  return `${normalizedLabel} у PartsON: ${productCountLabel}${groupLabel}. Каталог бренду з цінами, наявністю, підбором за артикулом і доставкою по Україні.`;
+  return appendSeoContact(
+    `${normalizedLabel} у PartsON: ${productCountLabel}${groupLabel}. Каталог бренду з цінами, наявністю, підбором за артикулом, VIN і доставкою по Україні.`
+  );
 };
 
 const buildManufacturerKeywords = (label: string) => {
@@ -436,15 +441,17 @@ const filterManufacturerGroupsWithCatalogResults = async (
   return checks
     .filter((entry) => {
       if (entry.hasResults) return true;
-      console.log(JSON.stringify({
-        type: "manufacturer-group-excluded",
-        producer: producerLabel,
-        groupLabel: entry.group.label,
-        groupFilterValue: entry.group.filterValue,
-        groupSlug: entry.group.slug,
-        reason: "catalog validation returned 0 products",
-        ts: Date.now(),
-      }));
+      if (DEBUG_MANUFACTURER_PAGE) {
+        console.info(JSON.stringify({
+          type: "manufacturer-group-excluded",
+          producer: producerLabel,
+          groupLabel: entry.group.label,
+          groupFilterValue: entry.group.filterValue,
+          groupSlug: entry.group.slug,
+          reason: "catalog validation returned 0 products",
+          ts: Date.now(),
+        }));
+      }
       return false;
     })
     .map((entry) => entry.group);
@@ -605,15 +612,17 @@ const getManufacturerBySlug = cache(
     // cached facets or data gaps can occasionally surface 0-count entries.
     const safeTopGroups = resolvedTopGroups.filter((group) => {
       if (group.productCount > 0) return true;
-      console.log(JSON.stringify({
-        type: "manufacturer-group-excluded",
-        producer: label,
-        groupLabel: group.label,
-        groupFilterValue: group.filterValue,
-        groupSlug: group.slug,
-        reason: "productCount is 0 — stale facet entry skipped",
-        ts: Date.now(),
-      }));
+      if (DEBUG_MANUFACTURER_PAGE) {
+        console.info(JSON.stringify({
+          type: "manufacturer-group-excluded",
+          producer: label,
+          groupLabel: group.label,
+          groupFilterValue: group.filterValue,
+          groupSlug: group.slug,
+          reason: "productCount is 0 — stale facet entry skipped",
+          ts: Date.now(),
+        }));
+      }
       return false;
     });
 

@@ -367,9 +367,7 @@ export default function ProductRelatedItemsClientSection({
 
     const loadItems = async () => {
       try {
-        const relatedPromise = fetchItems(requestUrl, RELATED_ITEMS_REQUEST_TIMEOUT_MS);
-        const similarPromise = loadSimilarItems();
-        const nextItems = await relatedPromise;
+        const nextItems = await fetchItems(requestUrl, RELATED_ITEMS_REQUEST_TIMEOUT_MS);
         if (cancelled) return;
         if (nextItems.length > 0) {
           setItemMode("related");
@@ -378,7 +376,7 @@ export default function ProductRelatedItemsClientSection({
           return;
         }
 
-        const similarItems = await similarPromise;
+        const similarItems = await loadSimilarItems();
         if (cancelled) return;
         setItemMode("similar");
         setItems(similarItems);

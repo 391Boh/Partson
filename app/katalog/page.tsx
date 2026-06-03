@@ -20,7 +20,7 @@ import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
-import { buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -259,60 +259,71 @@ const resolveCatalogSeoState = (
 
   let canonicalPath = "/katalog";
   let title = "Каталог автозапчастин";
-  let description =
-    "Каталог автозапчастин PartsON: пошук за артикулом, кодом, виробником і категорією, актуальна наявність, підбір за VIN та доставка по Україні.";
+  let description = appendSeoContact(
+    "Каталог PartsON: автозапчастини за артикулом, кодом, виробником і категорією, актуальна наявність, ціни онлайн, VIN-підбір і доставка по Україні."
+  );
 
   if (producer && group && subcategory) {
     canonicalPath = buildCatalogProducerPath(producer, group, subcategory);
     title = `${producer}: ${subcategory} - ${group} | Каталог автозапчастин`;
-    description =
-      `${producer} у категорії ${subcategory}: актуальні автозапчастини ${group} у каталозі PartsON, перевірка сумісності за VIN та доставка по Україні.`;
+    description = appendSeoContact(
+      `${producer} у категорії ${subcategory}: автозапчастини ${group} у каталозі PartsON, актуальна наявність, перевірка сумісності за VIN та доставка по Україні.`
+    );
   } else if (producer && group) {
     canonicalPath = buildCatalogProducerPath(producer, group);
     title = `${producer}: ${group} - каталог автозапчастин`;
-    description =
-      `${producer} у групі ${group}: пошук автозапчастин за артикулом, наявністю і категорією в PartsON, консультація та доставка по Україні.`;
+    description = appendSeoContact(
+      `${producer} у групі ${group}: автозапчастини за артикулом, категорією, ціною й наявністю в PartsON, консультація та доставка по Україні.`
+    );
   } else if (producer) {
     canonicalPath = buildManufacturerLandingPath(producer);
     title = `${producer} - виробник автозапчастин`;
-    description =
-      `Автозапчастини ${producer} у каталозі PartsON: пошук за артикулом, категорією і наявністю, підбір сумісних деталей та доставка по Україні.`;
+    description = appendSeoContact(
+      `Автозапчастини ${producer} у PartsON: сторінка виробника, пошук за артикулом, категорією і наявністю, підбір сумісних деталей та доставка по Україні.`
+    );
   } else if (group && subcategory) {
     canonicalPath = buildCatalogCategoryPath(group, subcategory);
     title = `${subcategory} - ${group} | Каталог автозапчастин`;
-    description =
-      `${subcategory} у групі ${group}: каталог автозапчастин PartsON з пошуком за артикулом, виробником, наявністю і доставкою по Україні.`;
+    description = appendSeoContact(
+      `${subcategory} у групі ${group}: каталог автозапчастин PartsON з виробниками, цінами, наявністю, підбором за артикулом і доставкою по Україні.`
+    );
   } else if (group) {
     canonicalPath = buildGroupLandingPath(group);
     title = `${group} - група автозапчастин`;
-    description =
-      `${group} у каталозі PartsON: підгрупи автозапчастин, пошук за артикулом і виробником, перевірка сумісності та доставка по Україні.`;
+    description = appendSeoContact(
+      `${group} у каталозі PartsON: підгрупи автозапчастин, пошук за артикулом і виробником, перевірка сумісності, самовивіз і доставка по Україні.`
+    );
   } else if (tab === "category") {
     canonicalPath = "/groups";
     title = "Категорії автозапчастин";
-    description =
-      "Категорії автозапчастин PartsON: зручний перехід до груп і підгруп, пошук деталей за артикулом, виробником і сумісністю.";
+    description = appendSeoContact(
+      "Категорії автозапчастин PartsON: зручний перехід до груп і підгруп, пошук деталей за артикулом, виробником, сумісністю та VIN."
+    );
   } else if (tab === "producer") {
     canonicalPath = "/manufacturers";
     title = "Виробники автозапчастин";
-    description =
-      "Виробники автозапчастин у PartsON: сторінки брендів, фільтрований каталог, пошук деталей за артикулом і підбір за VIN.";
+    description = appendSeoContact(
+      "Виробники автозапчастин у PartsON: сторінки брендів, фільтрований каталог, пошук деталей за артикулом, групою товару і підбір за VIN."
+    );
   } else if (tab === "auto" && brand) {
     canonicalPath = `/katalog?tab=auto&brand=${encodeURIComponent(brand)}`;
     title = `${brand} - підбір автозапчастин по авто`;
-    description =
-      `${brand}: підбір автозапчастин у PartsON за моделлю, модифікацією та VIN, швидкий перехід до сумісних товарів і доставка по Україні.`;
+    description = appendSeoContact(
+      `${brand}: підбір автозапчастин у PartsON за моделлю, модифікацією та VIN, швидкий перехід до сумісних товарів і доставка по Україні.`
+    );
   } else if (tab === "auto") {
     canonicalPath = "/auto";
     title = "Підбір автозапчастин по авто";
-    description =
-      "Підбір автозапчастин по авто в PartsON: оберіть марку, модель і модифікацію, щоб відкрити сумісні товари в каталозі.";
+    description = appendSeoContact(
+      "Підбір автозапчастин по авто в PartsON: оберіть марку, модель і модифікацію, щоб відкрити сумісні товари в каталозі."
+    );
   }
 
   if (searchQuery) {
     title = `Пошук у каталозі: ${searchQuery}`;
-    description =
-      `Пошук "${searchQuery}" у каталозі PartsON: перевірте автозапчастини за артикулом, назвою, виробником або кодом товару.`;
+    description = appendSeoContact(
+      `Пошук "${searchQuery}" у каталозі PartsON: перевірте автозапчастини за артикулом, назвою, виробником або кодом товару.`
+    );
   }
 
   const isRootCatalogPage = !tab && !group && !subcategory && !producer && !brand;

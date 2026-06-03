@@ -4,6 +4,8 @@ import { getRelatedProducts } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
 const PRODUCT_RELATED_API_TIMEOUT_MS = 1900;
+const PRODUCT_RELATED_CACHE_CONTROL =
+  "public, max-age=900, s-maxage=900, stale-while-revalidate=7200";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -39,7 +41,7 @@ export async function GET(request: Request) {
       { items },
       {
         headers: {
-          "cache-control": "public, max-age=300, s-maxage=300, stale-while-revalidate=1800",
+          "cache-control": PRODUCT_RELATED_CACHE_CONTROL,
         },
       }
     );

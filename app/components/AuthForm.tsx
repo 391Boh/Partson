@@ -60,6 +60,38 @@ const formatUkrainianPhone = (value: string) => {
   return `+380${withoutCountryCode.slice(0, 9)}`;
 };
 
+const GoogleLogo = ({ className = "" }: { className?: string }) => (
+  <svg
+    aria-hidden="true"
+    viewBox="0 0 24 24"
+    className={className}
+    focusable="false"
+  >
+    <path
+      fill="#4285F4"
+      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09Z"
+    />
+    <path
+      fill="#34A853"
+      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C4 20.53 7.7 23 12 23Z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18A10.98 10.98 0 0 0 1 12c0 1.77.42 3.45 1.18 4.94l3.66-2.84Z"
+    />
+    <path
+      fill="#EA4335"
+      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.16-3.16C17.45 2.09 14.97 1 12 1 7.7 1 4 3.47 2.18 7.06L5.84 9.9C6.71 7.3 9.14 5.38 12 5.38Z"
+    />
+  </svg>
+);
+
+const socialButtonClass =
+  "group inline-flex min-h-12 w-full min-w-0 items-center justify-center gap-2.5 rounded-[18px] border border-white/80 bg-white/92 px-3.5 py-2.5 text-sm font-extrabold text-slate-800 shadow-[0_14px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70 transition-[transform,border-color,box-shadow,background-color,filter] hover:-translate-y-0.5 hover:border-sky-200 hover:bg-sky-50/80 hover:shadow-[0_18px_36px_rgba(14,165,233,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-wait disabled:opacity-70";
+
+const socialIconShellClass =
+  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-white shadow-[0_8px_16px_rgba(15,23,42,0.08)] transition group-hover:border-sky-200 group-hover:shadow-[0_10px_18px_rgba(14,165,233,0.12)]";
+
 const syncAuthUserProfile = async (
   user: FirebaseUser,
   authProvider: "google" | "password"
@@ -753,23 +785,23 @@ const AuthForm: React.FC<AuthFormProps> = ({
             </form>
           )}
 
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
               <span className="h-px flex-1 bg-slate-200/80" />
               або
               <span className="h-px flex-1 bg-slate-200/80" />
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2.5 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={handleGoogleAuth}
                 disabled={isGoogleLoading}
-                className="inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-3 py-2.5 text-sm font-extrabold text-slate-800 shadow-[0_10px_22px_rgba(15,23,42,0.07)] transition-[transform,border-color,box-shadow,filter] hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_14px_28px_rgba(14,165,233,0.12)] disabled:cursor-wait disabled:opacity-70 sm:px-4"
+                className={socialButtonClass}
               >
-                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[15px] font-black text-blue-600">
-                  G
+                <span className={socialIconShellClass}>
+                  <GoogleLogo className="h-5 w-5" />
                 </span>
-                <span className="min-w-0 truncate">
+                <span className="min-w-0 truncate tracking-normal">
                   {isGoogleLoading ? "Підключення..." : "Google"}
                 </span>
               </button>

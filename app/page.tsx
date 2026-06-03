@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 
-import { buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import HomePageContent from "./components/HomePageContent";
 
 const homeTitle = "Інтернет-магазин автозапчастин у Львові";
-const homeDescription =
-  "PartsON - інтернет-магазин автозапчастин у Львові, вул. Перфецького, 8, тел. +38 (063) 421-18-51. Купити деталі за кодом, артикулом, VIN і виробником з доставкою по Львову та Україні.";
+const homeDescription = appendSeoContact(
+  "PartsON - автозапчастини у Львові з онлайн-каталогом, цінами й наявністю. Підбір за VIN, кодом, артикулом і виробником, самовивіз та доставка по Україні."
+);
 
 export const metadata: Metadata = buildPageMetadata({
   title: homeTitle,

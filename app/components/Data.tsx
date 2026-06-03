@@ -15,6 +15,7 @@ import { ChevronsDown, Search } from "lucide-react";
 import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
 import ProductCard from "app/components/ProductCard";
+import { CATALOG_PAGE_CACHE_VERSION } from "app/lib/catalog-client-cache";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
 import {
@@ -52,7 +53,6 @@ export interface Product {
 const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v37-hierarchy-scope";
 const PRICE_CACHE_PREFIX = "partson:v11:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -68,9 +68,9 @@ const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
 const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
-const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 450;
-const IMAGE_PRIORITY_ITEMS_COUNT = 4;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 180;
+const IMAGE_PRIORITY_ITEMS_COUNT = 6;
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 3;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 80;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 90;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
@@ -1074,8 +1074,8 @@ function useCatalogData(params: {
   const [data, setData] = useState<Product[]>([]);
   const [prices, setPrices] = useState<Record<string, number | null>>({});
   const [pageImages, setPageImages] = useState<Record<string, string>>({});
-  const [pageImagePending] = useState<Record<string, true>>({});
-  const [pageImageMissing] = useState<Record<string, true>>({});
+  const [pageImagePending, setPageImagePending] = useState<Record<string, true>>({});
+  const [pageImageMissing, setPageImageMissing] = useState<Record<string, true>>({});
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [flippedCard, setFlippedCard] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -1125,6 +1125,7 @@ function useCatalogData(params: {
   const pageImagesRef = useRef<Record<string, string>>({});
   const pageImagePendingRef = useRef<Record<string, true>>({});
   const pageImageMissingRef = useRef<Record<string, true>>({});
+  const imageBatchAttemptKeysRef = useRef<Set<string>>(new Set());
   const imageWarmupKeysRef = useRef<Set<string>>(new Set());
   const priceLoadingKeysRef = useRef<Set<string>>(new Set());
   const priceRetryCooldownUntilRef = useRef<Record<string, number>>({});
@@ -1630,6 +1631,53 @@ function useCatalogData(params: {
       const warmupItems = items.slice(0, VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE);
       if (warmupItems.length === 0) return;
 
+      const prefetchedImageEntries: Record<string, string> = {};
+      const requestItems: Product[] = [];
+
+      for (const item of warmupItems) {
+        const key = buildProductImageBatchKey(item.code, item.article);
+        if (!key) continue;
+
+        const prefetchedSrc = options?.prefetchedImages?.[key];
+        if (prefetchedSrc) {
+          prefetchedImageEntries[key] = prefetchedSrc;
+          continue;
+        }
+
+        if (item.hasPhoto === false) {
+          pageImageMissingRef.current = {
+            ...pageImageMissingRef.current,
+            [key]: true,
+          };
+          setPageImageMissing((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+          continue;
+        }
+
+        if (pageImagesRef.current[key]) continue;
+        if (pageImagePendingRef.current[key]) continue;
+        if (pageImageMissingRef.current[key]) continue;
+        if (imageBatchAttemptKeysRef.current.has(key)) continue;
+
+        requestItems.push(item);
+      }
+
+      if (Object.keys(prefetchedImageEntries).length > 0) {
+        pageImagesRef.current = {
+          ...pageImagesRef.current,
+          ...prefetchedImageEntries,
+        };
+        setPageImages((prev) => {
+          let didChange = false;
+          const next = { ...prev };
+          for (const [key, src] of Object.entries(prefetchedImageEntries)) {
+            if (next[key]) continue;
+            next[key] = src;
+            didChange = true;
+          }
+          return didChange ? next : prev;
+        });
+      }
+
       const warmImageRoute = (item: Product, srcOverride?: string) => {
         if (options?.signal?.aborted) return;
         if (item.hasPhoto === false) return;
@@ -1649,8 +1697,15 @@ function useCatalogData(params: {
         imageWarmupKeysRef.current.add(key);
         const img = new window.Image();
         img.decoding = "async";
+        if ("fetchPriority" in img) {
+          (img as HTMLImageElement & { fetchPriority?: "high" | "low" | "auto" }).fetchPriority =
+            "low";
+        }
         img.onload = () => {
           if (options?.signal?.aborted) return;
+          pageImagesRef.current = pageImagesRef.current[key]
+            ? pageImagesRef.current
+            : { ...pageImagesRef.current, [key]: src };
           setPageImages((prev) => (prev[key] ? prev : { ...prev, [key]: src }));
         };
         img.onerror = () => {
@@ -1659,7 +1714,60 @@ function useCatalogData(params: {
         img.src = src;
       };
 
-      void primeCatalogImageBatch(warmupItems, {
+      for (const item of warmupItems) {
+        const key = buildProductImageBatchKey(item.code, item.article);
+        if (!key) continue;
+        const src = prefetchedImageEntries[key] || pageImagesRef.current[key];
+        if (src) warmImageRoute(item, src);
+      }
+
+      if (requestItems.length === 0) return;
+
+      const pendingKeys = requestItems
+        .map((item) => buildProductImageBatchKey(item.code, item.article))
+        .filter(Boolean);
+      if (pendingKeys.length > 0) {
+        for (const key of pendingKeys) {
+          imageBatchAttemptKeysRef.current.add(key);
+        }
+
+        pageImagePendingRef.current = {
+          ...pageImagePendingRef.current,
+          ...Object.fromEntries(pendingKeys.map((key) => [key, true])),
+        };
+        setPageImagePending((prev) => {
+          let didChange = false;
+          const next = { ...prev };
+          for (const key of pendingKeys) {
+            if (next[key]) continue;
+            next[key] = true;
+            didChange = true;
+          }
+          return didChange ? next : prev;
+        });
+      }
+
+      const clearPendingKeys = () => {
+        if (pendingKeys.length === 0) return;
+
+        pageImagePendingRef.current = { ...pageImagePendingRef.current };
+        for (const key of pendingKeys) {
+          delete pageImagePendingRef.current[key];
+        }
+
+        setPageImagePending((prev) => {
+          let didChange = false;
+          const next = { ...prev };
+          for (const key of pendingKeys) {
+            if (!next[key]) continue;
+            delete next[key];
+            didChange = true;
+          }
+          return didChange ? next : prev;
+        });
+      };
+
+      void primeCatalogImageBatch(requestItems, {
         deep: false,
         signal: options?.signal,
       })
@@ -1678,6 +1786,27 @@ function useCatalogData(params: {
                 next[item.key] = item.src;
                 didChange = true;
               }
+              if (didChange) {
+                pageImagesRef.current = next;
+              }
+              return didChange ? next : prev;
+            });
+          }
+
+          const readyKeys = new Set(readyEntries.map((item) => item.key));
+          if (readyKeys.size > 0) {
+            pageImageMissingRef.current = { ...pageImageMissingRef.current };
+            for (const key of readyKeys) {
+              delete pageImageMissingRef.current[key];
+            }
+            setPageImageMissing((prev) => {
+              let didChange = false;
+              const next = { ...prev };
+              for (const key of readyKeys) {
+                if (!next[key]) continue;
+                delete next[key];
+                didChange = true;
+              }
               return didChange ? next : prev;
             });
           }
@@ -1685,16 +1814,19 @@ function useCatalogData(params: {
           const readyByKey = new Map(
             readyEntries.map((item) => [item.key, item.src as string])
           );
-          for (const item of warmupItems) {
+          for (const item of requestItems) {
             const key = buildProductImageBatchKey(item.code, item.article);
             warmImageRoute(item, key ? readyByKey.get(key) : undefined);
           }
         })
         .catch((error) => {
           if (isAbortLikeError(error)) return;
-          for (const item of warmupItems.slice(0, IMAGE_PRIORITY_ITEMS_COUNT)) {
+          for (const item of requestItems.slice(0, IMAGE_PRIORITY_ITEMS_COUNT)) {
             warmImageRoute(item);
           }
+        })
+        .finally(() => {
+          clearPendingKeys();
         });
     },
     []
@@ -3519,9 +3651,7 @@ const Data: React.FC<DataProps> = ({
                         !hasPhoto ||
                         Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
                       }
-                      batchImageOnly={
-                        false
-                      }
+                      batchImageOnly={Boolean(imageBatchKey && !shouldPrioritizeImage)}
                       isFlipped={flippedCard === code}
                       motionEnabled={shouldAnimateList}
                       onAddToCart={handleAddToCart}

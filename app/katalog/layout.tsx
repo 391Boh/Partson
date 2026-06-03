@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-const katalogDescription =
-  "Каталог автозапчастин PartsON у Львові з пошуком за кодом, артикулом, виробником та актуальною наявністю. Магазин на вул. Перфецького, 8.";
+import { appendSeoContact } from "app/lib/seo-metadata";
+
+const katalogDescription = appendSeoContact(
+  "Каталог PartsON: автозапчастини за кодом, артикулом, виробником і категорією, ціни та наявність онлайн. VIN-підбір, самовивіз і доставка по Україні."
+);
 
 export const metadata: Metadata = {
   title: "Каталог автозапчастин",
@@ -47,4 +50,3 @@ export const metadata: Metadata = {
 export default function KatalogLayout({ children }: { children: ReactNode }) {
   return children;
 }
-

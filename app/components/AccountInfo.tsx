@@ -52,6 +52,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
 }) => {
   const [phone, setPhone] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
+  const [profileEmail, setProfileEmail] = useState<string | null>(null);
   const [vins, setVins] = useState<string[]>([]);
   const [newVin, setNewVin] = useState<string>("");
   const [isVinFieldVisible, setIsVinFieldVisible] = useState(false);
@@ -115,6 +116,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           const data = docSnap.data();
           setPhone(data.phone || "Номер телефону не вказаний");
           setName(data.name || "Ім'я не вказане");
+          setProfileEmail(
+            typeof data.email === "string" && data.email.trim()
+              ? data.email.trim()
+              : user?.email || null
+          );
           const userVins = normalizeVins(
             (data as Record<string, unknown>).vins ??
               (data as Record<string, unknown>).VIN ??
@@ -126,18 +132,20 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         } else {
           setPhone("Номер телефону не знайдено");
           setName("Ім'я не знайдено");
+          setProfileEmail(user?.email || null);
         }
       } catch (error) {
         console.error("Помилка отримання даних з Firestore:", error);
         setPhone("Помилка завантаження телефону");
         setName("Помилка завантаження імені");
+        setProfileEmail(user?.email || null);
       } finally {
         setLoading(false);
       }
     };
 
     fetchUserData();
-  }, [userId]);
+  }, [userId, user?.email]);
 
   useEffect(() => {
     if (!userId) return;
@@ -147,9 +155,17 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       (docSnap) => {
         if (!docSnap.exists()) {
           setVins([]);
+          setProfileEmail(user?.email || null);
           return;
         }
         const data = docSnap.data();
+        setPhone(data.phone || "Номер телефону не вказаний");
+        setName(data.name || "Ім'я не вказане");
+        setProfileEmail(
+          typeof data.email === "string" && data.email.trim()
+            ? data.email.trim()
+            : user?.email || null
+        );
         const cleanedVins = normalizeVins(
           (data as Record<string, unknown>).vins ??
             (data as Record<string, unknown>).VIN ??
@@ -166,7 +182,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
     );
 
     return () => unsubscribe();
-  }, [userId]);
+  }, [userId, user?.email]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -349,7 +365,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       const phoneQuery = query(collection(db, "users"), where("phone", "==", formattedPhone));
       const phoneSnapshot = await getDocs(phoneQuery);
 
-      if (!phoneSnapshot.empty) {
+      const phoneIsUsedByAnotherUser = phoneSnapshot.docs.some(
+        (snapshot) => snapshot.id !== user?.uid
+      );
+
+      if (phoneIsUsedByAnotherUser) {
         setPhoneError("Цей номер телефону вже використовується.");
         return;
       }
@@ -366,10 +386,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
     }
   };
 
-  const emailValue = user?.email || "Не вказано";
+  const emailValue = profileEmail || user?.email || "Не вказано";
+  const hasEmailValue = emailValue !== "Не вказано";
   const displayName =
     !name || /не вказ|не знайден|помилка/i.test(name)
-      ? (user?.email?.split("@")[0] || "Гість")
+      ? (hasEmailValue ? emailValue.split("@")[0] : "Гість")
       : name;
   const hasPhoneValue = Boolean(phone && !/не вказ|не знайден|помилка/i.test(phone));
   const profileInitial = (displayName || "Г").trim().charAt(0).toUpperCase();
@@ -487,7 +508,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
               </div>
               <div className="soft-panel-stat-card">
                 <span className="soft-panel-stat-label">Email</span>
-                <span className="soft-panel-stat-value">{user?.email ? "Додано" : "Не вказано"}</span>
+                <span className="soft-panel-stat-value">{hasEmailValue ? "Додано" : "Не вказано"}</span>
               </div>
               <div className="soft-panel-stat-card">
                 <span className="soft-panel-stat-label">Безпека</span>

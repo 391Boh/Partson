@@ -5,7 +5,7 @@ import CatalogHubHero from "app/components/CatalogHubHero";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
-import { buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 import ManufacturersDirectory from "app/manufacturers/ManufacturersDirectory";
 
@@ -13,8 +13,9 @@ export const revalidate = 21600;
 
 const catalogShellClass = "page-shell-inline";
 
-const pageDescription =
-  "Виробники автозапчастин PartsON: бренди, групи товарів, фільтрований каталог і швидкий підбір запчастин за виробником з доставкою по Україні.";
+const pageDescription = appendSeoContact(
+  "Виробники автозапчастин PartsON: бренди, групи товарів, фільтрований каталог і швидкий підбір запчастин за виробником з доставкою по Україні."
+);
 
 const buildManufacturersPageDescription = (
   totalBrands: number,
@@ -34,7 +35,9 @@ const buildManufacturersPageDescription = (
         }.`
       : ".";
 
-  return `Виробники автозапчастин PartsON: ${brandSummary} з окремими сторінками брендів, товарами, групами і підбором за виробником. Купівля у Львові та доставка по Україні.${coverageSummary}`;
+  return appendSeoContact(
+    `Виробники автозапчастин PartsON: ${brandSummary} з окремими сторінками брендів, товарами, групами і підбором за виробником. Самовивіз у Львові та доставка по Україні.${coverageSummary}`
+  );
 };
 
 const manufacturersIntroParagraphs = [

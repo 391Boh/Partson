@@ -7,6 +7,11 @@ import type { Firestore } from "firebase/firestore";
 import Header from "./Header";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { MessageCircle, Shield } from "lucide-react";
+import {
+  CATALOG_PAGE_CACHE_VERSION,
+  CATALOG_PRODUCTS_CACHE_KEY,
+  CATALOG_PRODUCTS_CACHE_TTL_MS,
+} from "app/lib/catalog-client-cache";
 
 interface LayoutHostProps {
   children: ReactNode;
@@ -106,8 +111,6 @@ const normalizeAdminToken = (value: string) =>
 
 const normalizeEmail = (value: unknown) =>
   typeof value === "string" ? value.trim().toLowerCase() : "";
-
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v33-description-cursor-search";
 
 const ADMIN_EMAIL_VALUES = new Set(
   (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
@@ -609,19 +612,19 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       return;
     }
 
-    const GETPROD_CACHE_KEY = "partson:getprod";
-    const GETPROD_TTL_MS = 1000 * 60 * 30;
-
     const hasFreshGetProdCache = () => {
       try {
-        const raw = window.sessionStorage.getItem(GETPROD_CACHE_KEY);
+        const raw = window.sessionStorage.getItem(CATALOG_PRODUCTS_CACHE_KEY);
         if (!raw) return false;
         const parsed: unknown = JSON.parse(raw);
         if (Array.isArray(parsed)) return parsed.length > 0;
         if (!parsed || typeof parsed !== "object") return false;
         const record = parsed as { t?: unknown; v?: unknown };
-        if (typeof record.t === "number" && Date.now() - record.t > GETPROD_TTL_MS) {
-          window.sessionStorage.removeItem(GETPROD_CACHE_KEY);
+        if (
+          typeof record.t === "number" &&
+          Date.now() - record.t > CATALOG_PRODUCTS_CACHE_TTL_MS
+        ) {
+          window.sessionStorage.removeItem(CATALOG_PRODUCTS_CACHE_KEY);
           return false;
         }
         return record.v != null;
@@ -700,13 +703,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
             const raw = await res.json();
             try {
               window.sessionStorage.setItem(
-                "partson:getprod",
+                CATALOG_PRODUCTS_CACHE_KEY,
                 JSON.stringify({ t: Date.now(), v: raw })
               );
             } catch {}
             try {
               window.localStorage.setItem(
-                "partson:getprod",
+                CATALOG_PRODUCTS_CACHE_KEY,
                 JSON.stringify({ t: Date.now(), v: raw })
               );
             } catch {}
