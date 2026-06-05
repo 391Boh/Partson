@@ -4,8 +4,10 @@ import crypto from "crypto";
 import { checkRateLimit, setRateLimitHeaders } from "../_lib/rateLimit";
 import { isNonEmptyString, readJsonObject } from "../_lib/requestValidation";
 
-const getAllowedOrigin = (): string => {
-  const raw = (process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "").trim();
+const normalizeOrigin = (value: string) => {
+  const raw = value.trim();
+  if (!raw) return "";
+
   try {
     return new URL(raw).origin;
   } catch {
@@ -13,13 +15,89 @@ const getAllowedOrigin = (): string => {
   }
 };
 
-const isAllowedLiqPayUrl = (value: string): boolean => {
-  const allowedOrigin = getAllowedOrigin();
-  if (!allowedOrigin) return false;
+const getRequestHostOrigin = (req: NextRequest): string => {
+  const host = req.headers.get("host") || "";
+  if (!host) return "";
+
+  const forwardedProto = req.headers.get("x-forwarded-proto") || "";
+  const requestProtocol = req.nextUrl.protocol.replace(/:$/, "");
+  const proto = forwardedProto || requestProtocol || "https";
+
+  return normalizeOrigin(`${proto}://${host}`);
+};
+
+const getAllowedOrigins = (req?: NextRequest): Set<string> => {
+  const origins = new Set<string>();
+
+  if (req) {
+    const requestHostOrigin = getRequestHostOrigin(req);
+    if (requestHostOrigin) origins.add(requestHostOrigin);
+
+    const requestOrigin = normalizeOrigin(req.headers.get("origin") || "");
+    if (requestOrigin) origins.add(requestOrigin);
+  }
+
+  for (const raw of [process.env.SITE_URL, process.env.NEXT_PUBLIC_SITE_URL]) {
+    if (!raw) continue;
+    const origin = normalizeOrigin(raw);
+    if (origin) origins.add(origin);
+  }
+
+  return origins;
+};
+
+const isAllowedLiqPayUrl = (value: string, req?: NextRequest): boolean => {
+  const allowedOrigins = getAllowedOrigins(req);
+  if (allowedOrigins.size === 0) return false;
+
   try {
-    return new URL(value).origin === allowedOrigin;
+    return allowedOrigins.has(new URL(value).origin);
   } catch {
     return false;
+  }
+};
+
+const getFallbackOrigin = (req?: NextRequest): string => {
+  if (req) {
+    const requestHostOrigin = getRequestHostOrigin(req);
+    if (requestHostOrigin) return requestHostOrigin;
+
+    const requestOrigin = normalizeOrigin(req.headers.get("origin") || "");
+    if (requestOrigin) return requestOrigin;
+  }
+
+  for (const raw of [process.env.SITE_URL, process.env.NEXT_PUBLIC_SITE_URL]) {
+    if (!raw) continue;
+    const origin = normalizeOrigin(raw);
+    if (origin) return origin;
+  }
+
+  return "";
+};
+
+const buildSameOriginUrl = (
+  value: string,
+  fallbackPath: string,
+  req?: NextRequest
+) => {
+  const fallbackOrigin = getFallbackOrigin(req);
+  if (fallbackOrigin) {
+    try {
+      const parsedUrl = new URL(value);
+      return parsedUrl.origin === fallbackOrigin
+        ? parsedUrl.toString()
+        : new URL(fallbackPath, fallbackOrigin).toString();
+    } catch {
+      return new URL(fallbackPath, fallbackOrigin).toString();
+    }
+  }
+
+  if (isAllowedLiqPayUrl(value, req)) return value;
+
+  try {
+    return new URL(fallbackPath, fallbackOrigin).toString();
+  } catch {
+    return value;
   }
 };
 
@@ -84,14 +162,16 @@ export async function POST(req: NextRequest) {
   const normalizedPublicKey = publicKey!.trim();
   const normalizedPrivateKey = privateKey!.trim();
   const isSandboxMode = readBooleanEnv(process.env.LIQPAY_SANDBOX);
+  const hasSandboxKeys =
+    normalizedPublicKey.startsWith("sandbox_") ||
+    normalizedPrivateKey.startsWith("sandbox_");
 
-  if (
-    !isSandboxMode &&
-    (normalizedPublicKey.startsWith("sandbox_") ||
-      normalizedPrivateKey.startsWith("sandbox_"))
-  ) {
+  if (!isSandboxMode && hasSandboxKeys) {
     const misconfigured = NextResponse.json(
-      { error: "Live LiqPay keys are required when LIQPAY_SANDBOX=0" },
+      {
+        error:
+          "LiqPay live mode requires production keys. Replace sandbox_ keys and keep LIQPAY_SANDBOX=0.",
+      },
       { status: 500 }
     );
     setRateLimitHeaders(misconfigured.headers, rateResult);
@@ -109,13 +189,21 @@ export async function POST(req: NextRequest) {
   const amount = readAmount(body.amount);
   const orderId = readString(body, "order_id");
   const description = readString(body, "description", `Оплата замовлення ${orderId}`);
-  const resultUrl = readString(body, "result_url");
-  const serverUrl = readString(body, "server_url");
+  const requestedResultUrl = readString(body, "result_url");
+  const requestedServerUrl = readString(body, "server_url");
+  const resultUrl = buildSameOriginUrl(requestedResultUrl, "/success", req);
+  const serverUrl = buildSameOriginUrl(
+    requestedServerUrl,
+    "/api/liqpay/callback",
+    req
+  );
 
   if (
     amount == null ||
     !isNonEmptyString(orderId, { maxLength: 128 }) ||
     !isNonEmptyString(description, { maxLength: 255 }) ||
+    !isNonEmptyString(requestedResultUrl, { maxLength: 2048 }) ||
+    !isNonEmptyString(requestedServerUrl, { maxLength: 2048 }) ||
     !isNonEmptyString(resultUrl, { maxLength: 2048 }) ||
     !isNonEmptyString(serverUrl, { maxLength: 2048 })
   ) {
@@ -127,7 +215,7 @@ export async function POST(req: NextRequest) {
     return invalid;
   }
 
-  if (!isAllowedLiqPayUrl(resultUrl) || !isAllowedLiqPayUrl(serverUrl)) {
+  if (!isAllowedLiqPayUrl(resultUrl, req) || !isAllowedLiqPayUrl(serverUrl, req)) {
     const forbidden = NextResponse.json(
       { error: "result_url and server_url must belong to the site origin" },
       { status: 400 }

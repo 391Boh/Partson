@@ -38,7 +38,7 @@ type ProductRecentlyViewedSectionProps = {
 const RECENTLY_VIEWED_KEY = "partson:v1:recently-viewed-products";
 const RECENTLY_VIEWED_LIMIT = 12;
 const VISIBLE_RECENTLY_VIEWED_LIMIT = 6;
-const RECENTLY_VIEWED_IDLE_TIMEOUT_MS = 120;
+const RECENTLY_VIEWED_PRICE_TIMEOUT_MS = 700;
 const RECOMMENDATION_VISIBLE_ITEMS_EVENT = "partson:product-recommendation-visible-items";
 
 const normalizeIdentity = (value: string | null | undefined) =>
@@ -106,25 +106,7 @@ const scheduleRecentlyViewedTask = (task: () => void) => {
     if (cancelled) return;
     task();
   };
-  const win = window as Window & {
-    requestIdleCallback?: (
-      callback: () => void,
-      options?: { timeout: number }
-    ) => number;
-    cancelIdleCallback?: (id: number) => void;
-  };
-
-  if (typeof win.requestIdleCallback === "function") {
-    const idleId = win.requestIdleCallback(runTask, {
-      timeout: RECENTLY_VIEWED_IDLE_TIMEOUT_MS,
-    });
-    return () => {
-      cancelled = true;
-      win.cancelIdleCallback?.(idleId);
-    };
-  }
-
-  const timeoutId = window.setTimeout(runTask, 40);
+  const timeoutId = window.setTimeout(runTask, 0);
   return () => {
     cancelled = true;
     window.clearTimeout(timeoutId);
@@ -258,16 +240,14 @@ export default function ProductRecentlyViewedSection({
     });
   }, [currentItem]);
 
-  const visibleItems = useMemo(
-    () =>
-      items
-        .filter(
-          (item) =>
-            !hasBlockedRecommendationIdentity(item, blockedRecommendationKeys)
-        )
-        .slice(0, VISIBLE_RECENTLY_VIEWED_LIMIT),
-    [blockedRecommendationKeys, items]
-  );
+  const visibleItems = useMemo(() => {
+    const deduplicatedItems = items.filter(
+      (item) => !hasBlockedRecommendationIdentity(item, blockedRecommendationKeys)
+    );
+    const sourceItems = deduplicatedItems.length > 0 ? deduplicatedItems : items;
+
+    return sourceItems.slice(0, VISIBLE_RECENTLY_VIEWED_LIMIT);
+  }, [blockedRecommendationKeys, items]);
 
   useEffect(() => {
     if (visibleItems.length === 0) return;
@@ -296,17 +276,25 @@ export default function ProductRecentlyViewedSection({
 
     if (priceItems.length === 0) return;
 
-    const controller = new AbortController();
     let cancelled = false;
 
     const loadPrices = async () => {
+      let timeoutId: number | undefined;
       try {
-        const response = await fetch("/api/catalog-prices?mode=full", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: priceItems }),
-          signal: controller.signal,
+        const timeoutPromise = new Promise<Response>((_, reject) => {
+          timeoutId = window.setTimeout(
+            () => reject(new Error("recently-viewed-price-timeout")),
+            RECENTLY_VIEWED_PRICE_TIMEOUT_MS
+          );
         });
+        const response = await Promise.race([
+          fetch("/api/catalog-prices?mode=full", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items: priceItems }),
+          }),
+          timeoutPromise,
+        ]);
         const payload = (await response.json()) as {
           prices?: Record<string, number | null>;
         };
@@ -327,6 +315,8 @@ export default function ProductRecentlyViewedSection({
           }
           return next;
         });
+      } finally {
+        if (timeoutId != null) window.clearTimeout(timeoutId);
       }
     };
 
@@ -337,25 +327,24 @@ export default function ProductRecentlyViewedSection({
     return () => {
       cancelled = true;
       cancelScheduledLoad();
-      controller.abort();
     };
   }, [resolvedPrices, visibleItems]);
 
   if (visibleItems.length === 0) return null;
   const listClass =
     visibleItems.length > 2
-      ? "mt-3 grid grid-rows-2 auto-cols-[minmax(238px,86%)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain pb-2 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(292px,68%)] sm:gap-2.5 lg:auto-cols-full"
-      : "mt-3 grid grid-rows-1 auto-cols-[minmax(238px,86%)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain pb-1 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(292px,68%)] sm:gap-2.5 lg:auto-cols-full";
+      ? "mt-3 grid grid-flow-col grid-rows-1 auto-cols-[minmax(286px,92%)] gap-2 overflow-x-auto overscroll-x-contain pb-2 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(330px,70%)] sm:gap-2.5 lg:grid-rows-2 lg:auto-cols-[minmax(292px,31%)] lg:gap-2.5"
+      : "mt-3 grid grid-flow-col grid-rows-1 auto-cols-[minmax(286px,92%)] gap-2 overflow-x-auto overscroll-x-contain pb-1 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(330px,70%)] sm:gap-2.5 lg:auto-cols-[minmax(292px,31%)] lg:gap-2.5";
 
   return (
-    <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96),rgba(240,249,255,0.9))] p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.07)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
+    <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(248,250,252,0.98))] p-3 text-left shadow-[0_16px_36px_rgba(15,23,42,0.065)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/8 pb-3">
         <div className="min-w-0 max-w-3xl">
           <p className="mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
-            Історія переглядів
+            Нещодавні
           </p>
-          <h2 className="font-display-italic mt-0.5 break-words text-[1.05rem] font-black leading-tight text-slate-950 sm:text-[1.2rem]">
-            Нещодавно переглянуті товари
+          <h2 className="font-display-italic mt-0.5 break-words text-[1.05rem] font-black leading-tight text-slate-950 sm:text-[1.18rem]">
+            Останні переглянуті позиції
           </h2>
         </div>
         <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] text-sky-800">
@@ -377,7 +366,7 @@ export default function ProductRecentlyViewedSection({
               href={buildItemPath(item)}
               item={item}
               priceLabel={priceLabel}
-              imagePriority={index < 2}
+              imagePriority={false}
             />
           );
         })}

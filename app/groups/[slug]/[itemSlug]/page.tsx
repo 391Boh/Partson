@@ -586,39 +586,35 @@ const buildChildCategoryLead = (options: {
 };
 
 export async function generateStaticParams() {
-  const limit = parsePositiveInt(
-    process.env.SEO_GROUP_ITEM_STATIC_PARAMS_LIMIT,
-    GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT
-  );
+  const limit = isProductionBuildPhase
+    ? GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT
+    : parsePositiveInt(
+        process.env.SEO_GROUP_ITEM_STATIC_PARAMS_LIMIT,
+        GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT
+      );
   if (limit <= 0) return [];
 
   const dataset = await getProductTreeDataset().catch(() => null);
-  const treeParams = dedupeGroupItemStaticParams(
+  const treeParams =
     dataset?.groups.flatMap((group) => {
-      const groupSlugs = isProductionBuildPhase
-        ? buildStaticSlugCandidates(group.slug)
-        : buildStaticSlugCandidates(
-            group.slug,
-            group.legacySlug,
-            buildPlainSeoSlug(group.label)
-          );
+      const groupSlugs = buildStaticSlugCandidates(
+        group.slug,
+        group.legacySlug,
+        buildPlainSeoSlug(group.label)
+      );
 
       return group.subgroups.flatMap((subgroup) => {
-        const subgroupSlugs = isProductionBuildPhase
-          ? buildStaticSlugCandidates(subgroup.slug)
-          : buildStaticSlugCandidates(
-              subgroup.slug,
-              subgroup.legacySlug,
-              buildPlainSeoSlug(subgroup.label)
-            );
+        const subgroupSlugs = buildStaticSlugCandidates(
+          subgroup.slug,
+          subgroup.legacySlug,
+          buildPlainSeoSlug(subgroup.label)
+        );
         const childParams = subgroup.children.flatMap((child) => {
-          const childSlugs = isProductionBuildPhase
-            ? buildStaticSlugCandidates(child.slug)
-            : buildStaticSlugCandidates(
-                child.slug,
-                child.legacySlug,
-                buildPlainSeoSlug(child.label)
-              );
+          const childSlugs = buildStaticSlugCandidates(
+            child.slug,
+            child.legacySlug,
+            buildPlainSeoSlug(child.label)
+          );
 
           return groupSlugs.flatMap((slug) =>
             childSlugs.map((itemSlug) => ({ slug, itemSlug }))
@@ -632,33 +628,31 @@ export async function generateStaticParams() {
           ...childParams,
         ];
       });
-    }) ?? []
-  );
-  if (treeParams.length > 0) {
-    return treeParams.slice(0, limit);
-  }
+    }) ?? [];
 
   try {
     const seoFacets = await getCatalogSeoFacetsWithTimeout(
       GROUP_ITEM_STATIC_PARAMS_FALLBACK_TIMEOUT_MS
     );
     return dedupeGroupItemStaticParams(
-      seoFacets.groups.flatMap((group) =>
-        (Array.isArray(group.subgroups) ? group.subgroups : []).flatMap((subgroup) => [
-          {
-            slug: group.slug,
-            itemSlug: subgroup.slug,
-          },
-          {
-            slug: buildPlainSeoSlug(group.label),
-            itemSlug: buildPlainSeoSlug(subgroup.label),
-          },
-        ])
-      )
-    )
-      .slice(0, limit);
+      [
+        ...treeParams,
+        ...seoFacets.groups.flatMap((group) =>
+          (Array.isArray(group.subgroups) ? group.subgroups : []).flatMap((subgroup) => [
+            {
+              slug: group.slug,
+              itemSlug: subgroup.slug,
+            },
+            {
+              slug: buildPlainSeoSlug(group.label),
+              itemSlug: buildPlainSeoSlug(subgroup.label),
+            },
+          ])
+        ),
+      ]
+    ).slice(0, limit);
   } catch {
-    return [];
+    return dedupeGroupItemStaticParams(treeParams).slice(0, limit);
   }
 }
 
@@ -863,23 +857,24 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
 
   return (
     <main className="page-shell-inline py-6 sm:py-8">
-      <nav className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-        <Link href="/" className="transition hover:text-slate-800">
-          Головна
-        </Link>
-        <span>/</span>
-        <Link href="/groups" className="transition hover:text-slate-800">
-          Групи товарів
-        </Link>
-        <span>/</span>
-        <Link
-          href={groupPagePath}
-          className="transition hover:text-slate-800"
-        >
-          {visibleGroupLabel}
-        </Link>
-        <span>/</span>
-        <span className="text-slate-700">{visibleLabel}</span>
+      <nav aria-label="Навігаційні хлібні крихти">
+        <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+          <li className="inline-flex items-center gap-2">
+            <Link href="/" className="transition hover:text-slate-800">Головна</Link>
+          </li>
+          <li className="inline-flex items-center gap-2">
+            <span aria-hidden="true">/</span>
+            <Link href="/groups" className="transition hover:text-slate-800">Групи товарів</Link>
+          </li>
+          <li className="inline-flex items-center gap-2">
+            <span aria-hidden="true">/</span>
+            <Link href={groupPagePath} className="transition hover:text-slate-800">{visibleGroupLabel}</Link>
+          </li>
+          <li className="inline-flex items-center gap-2">
+            <span aria-hidden="true">/</span>
+            <span className="text-slate-700">{visibleLabel}</span>
+          </li>
+        </ol>
       </nav>
 
       <Link

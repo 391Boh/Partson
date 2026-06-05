@@ -102,7 +102,7 @@ const scheduleCatalogFirebaseLoad = (callback: () => void) => {
       (window as Window & { cancelIdleCallback?: (id: number) => void })
         .cancelIdleCallback?.(idleId);
     }
-    window.removeEventListener('pointerdown', run);
+    window.removeEventListener('click', run);
     window.removeEventListener('keydown', run);
     callback();
   };
@@ -116,7 +116,7 @@ const scheduleCatalogFirebaseLoad = (callback: () => void) => {
     idleId = win.requestIdleCallback(run, { timeout: 3600 });
   }
 
-  window.addEventListener('pointerdown', run, { passive: true, once: true });
+  window.addEventListener('click', run, { passive: true, once: true });
   window.addEventListener('keydown', run, { once: true });
 
   return () => {
@@ -126,7 +126,7 @@ const scheduleCatalogFirebaseLoad = (callback: () => void) => {
       (window as Window & { cancelIdleCallback?: (id: number) => void })
         .cancelIdleCallback?.(idleId);
     }
-    window.removeEventListener('pointerdown', run);
+    window.removeEventListener('click', run);
     window.removeEventListener('keydown', run);
   };
 };

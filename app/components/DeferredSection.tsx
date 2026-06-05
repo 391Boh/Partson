@@ -37,7 +37,7 @@ const scheduleIdleRender = (callback: () => void, timeout = 900) => {
     };
   }
 
-  const timeoutId = window.setTimeout(callback, Math.min(timeout, 160));
+  const timeoutId = window.setTimeout(callback, Math.min(timeout, 80));
   return () => window.clearTimeout(timeoutId);
 };
 
@@ -63,11 +63,11 @@ const DeferredSection = ({
     const viewportHeight = window.innerHeight;
     const eagerBufferPx = parseRootMarginBuffer(rootMargin);
     if (rect.top <= viewportHeight + eagerBufferPx && rect.bottom >= -eagerBufferPx) {
-      return scheduleIdleRender(() => setIsVisible(true), 760);
+      return scheduleIdleRender(() => setIsVisible(true), 160);
     }
 
     if (typeof IntersectionObserver === "undefined") {
-      return scheduleIdleRender(() => setIsVisible(true), 760);
+      return scheduleIdleRender(() => setIsVisible(true), 160);
     }
 
     const timeoutId = window.setTimeout(() => {
@@ -81,7 +81,7 @@ const DeferredSection = ({
         if (!entry?.isIntersecting) return;
         observer.disconnect();
         clearTimeout(timeoutId);
-        cancelIdleRender = scheduleIdleRender(() => setIsVisible(true), 760);
+        cancelIdleRender = scheduleIdleRender(() => setIsVisible(true), 160);
       },
       { rootMargin, threshold: 0.01 }
     );
@@ -101,8 +101,6 @@ const DeferredSection = ({
       className={className}
       style={{
         minHeight: isVisible ? undefined : minHeight,
-        contentVisibility: isVisible ? "visible" : "auto",
-        containIntrinsicSize: isVisible ? undefined : minHeight,
       }}
     >
       {isVisible ? (

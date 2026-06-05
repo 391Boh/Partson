@@ -19,6 +19,7 @@ import DeliveryMethod from "./DeliveryMethod";
 import PaymentMethod from "./PaymentMethod";
 import OrderConfirmation from "./OrderConfirmation";
 import { notifyTelegramAdmin } from "app/lib/telegram-notify-client";
+import { FIRST_ORDER_DISCOUNT_CODE } from "app/lib/first-order-discount";
 
 type DeliveryMethodType = ComponentProps<typeof DeliveryMethod>["deliveryMethod"];
 type PaymentMethodType = ComponentProps<typeof PaymentMethod>["paymentMethod"];
@@ -43,6 +44,11 @@ interface ZamovlProps {
   onCloseAll: () => void;
   cartItems: CartItem[];
   totalAmount: number;
+  payableAmount: number;
+  discountAmount: number;
+  discountRate: number;
+  discountCode: string | null;
+  isFirstOrderDiscountApplied: boolean;
   onClearCart: () => void;
 }
 
@@ -51,6 +57,11 @@ const Zamovl: React.FC<ZamovlProps> = ({
   onCloseAll,
   cartItems,
   totalAmount,
+  payableAmount,
+  discountAmount,
+  discountRate,
+  discountCode,
+  isFirstOrderDiscountApplied,
   onClearCart,
 }) => {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
@@ -107,8 +118,14 @@ const Zamovl: React.FC<ZamovlProps> = ({
   const handleSubmitOrder = async (paymentData?: PaymentConfirmationPayload) => {
     pushEcommerceEvent("add_payment_info", {
       currency: "UAH",
-      value: totalAmount,
+      value: payableAmount,
       payment_type: paymentMethod || undefined,
+      ...(isFirstOrderDiscountApplied
+        ? {
+            coupon: discountCode || FIRST_ORDER_DISCOUNT_CODE,
+            discount: discountAmount,
+          }
+        : {}),
       items: cartItems.map((item) => ({
         item_id: item.code,
         item_name: item.name,
@@ -153,7 +170,14 @@ const Zamovl: React.FC<ZamovlProps> = ({
         warehouseRef: selectedWarehouse?.Ref || null,
         lvivStreet: selectedLvivStreet || null,
         cartItems: normalizedCartItems,
-        totalAmount,
+        subtotalAmount: totalAmount,
+        discountAmount,
+        discountRate,
+        discountCode,
+        discountLabel: isFirstOrderDiscountApplied
+          ? "Знижка 5% на перше замовлення"
+          : null,
+        totalAmount: payableAmount,
         orderId,
         paymentStatus: resolvedPaymentStatus,
         paymentProvider: resolvedPaymentProvider,
@@ -181,7 +205,10 @@ const Zamovl: React.FC<ZamovlProps> = ({
         city: selectedCity?.Description || "",
         warehouse: selectedWarehouse?.Description || "",
         lvivStreet: selectedLvivStreet || "",
-        totalAmount,
+        subtotalAmount: totalAmount,
+        discountAmount,
+        discountCode,
+        totalAmount: payableAmount,
         items: normalizedCartItems,
       });
 
@@ -209,7 +236,13 @@ const Zamovl: React.FC<ZamovlProps> = ({
         pushEcommerceEvent("purchase", {
           currency: "UAH",
           transaction_id: docRef.id,
-          value: totalAmount,
+          value: payableAmount,
+          ...(isFirstOrderDiscountApplied
+            ? {
+                coupon: discountCode || FIRST_ORDER_DISCOUNT_CODE,
+                discount: discountAmount,
+              }
+            : {}),
           items: cartItems.map((item) => ({
             item_id: item.code,
             item_name: item.name,
@@ -233,7 +266,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
         }
       }
 
-      setConfirmedAmount(totalAmount);
+      setConfirmedAmount(payableAmount);
       setConfirmedPaymentMethod(paymentMethod);
       setConfirmedPaymentStatus(resolvedPaymentStatus);
       onClearCart();
@@ -258,6 +291,8 @@ const Zamovl: React.FC<ZamovlProps> = ({
             setName={setName}
             setPhone={setPhone}
             user={firebaseUser}
+            discountAmount={discountAmount}
+            isFirstOrderDiscountApplied={isFirstOrderDiscountApplied}
             onNext={() => setCurrentStep(1)}
             onBack={onBack}
           />
@@ -277,7 +312,13 @@ const Zamovl: React.FC<ZamovlProps> = ({
             onSubmit={() => {
               pushEcommerceEvent("add_shipping_info", {
                 currency: "UAH",
-                value: totalAmount,
+                value: payableAmount,
+                ...(isFirstOrderDiscountApplied
+                  ? {
+                      coupon: discountCode || FIRST_ORDER_DISCOUNT_CODE,
+                      discount: discountAmount,
+                    }
+                  : {}),
                 shipping_tier: deliveryMethod || undefined,
                 items: cartItems.map((item) => ({
                   item_id: item.code,
@@ -297,7 +338,10 @@ const Zamovl: React.FC<ZamovlProps> = ({
             paymentMethod={paymentMethod}
             setPaymentMethod={setPaymentMethod}
             onBack={() => setCurrentStep(1)}
-            amount={totalAmount}
+            amount={payableAmount}
+            subtotalAmount={totalAmount}
+            discountAmount={discountAmount}
+            isFirstOrderDiscountApplied={isFirstOrderDiscountApplied}
             orderId={orderId}
             name={name}
             phone={phone}
@@ -312,7 +356,10 @@ const Zamovl: React.FC<ZamovlProps> = ({
             name={name}
             phone={phone}
             orderId={orderId}
-            totalAmount={confirmedAmount ?? totalAmount}
+            totalAmount={confirmedAmount ?? payableAmount}
+            subtotalAmount={totalAmount}
+            discountAmount={discountAmount}
+            isFirstOrderDiscountApplied={isFirstOrderDiscountApplied}
             paymentMethod={confirmedPaymentMethod || paymentMethod}
             paymentStatus={confirmedPaymentStatus}
             onClose={onCloseAll}

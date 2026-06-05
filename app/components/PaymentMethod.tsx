@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Check, CreditCard, Loader2, ShieldCheck, X } from 'lucide-react';
+import { ArrowLeft, Check, CreditCard, Loader2, Percent, ShieldCheck, X } from 'lucide-react';
 
 type OrderPayload = Record<string, unknown>;
 type LiqPayInitParams = {
@@ -28,6 +28,9 @@ interface Props {
   setPaymentMethod: (method: 'Картка' | 'Готівка' | '') => void;
   onBack: () => void;
   amount: number;
+  subtotalAmount?: number;
+  discountAmount?: number;
+  isFirstOrderDiscountApplied?: boolean;
   orderId: string;
   name: string;
   phone: string;
@@ -44,11 +47,34 @@ declare global {
   }
 }
 
+const resolveSameOriginPaymentUrl = (
+  configuredUrl: string | undefined,
+  fallbackPath: string,
+) => {
+  if (typeof window === 'undefined') return fallbackPath;
+
+  const origin = window.location.origin;
+  const fallbackUrl = new URL(fallbackPath, origin).toString();
+  const rawConfiguredUrl = (configuredUrl || '').trim();
+
+  if (!rawConfiguredUrl) return fallbackUrl;
+
+  try {
+    const parsedUrl = new URL(rawConfiguredUrl, origin);
+    return parsedUrl.origin === origin ? parsedUrl.toString() : fallbackUrl;
+  } catch {
+    return fallbackUrl;
+  }
+};
+
 const PaymentMethod: React.FC<Props> = ({
   paymentMethod,
   setPaymentMethod,
   onBack,
   amount,
+  subtotalAmount = amount,
+  discountAmount = 0,
+  isFirstOrderDiscountApplied = false,
   orderId,
   name,
   phone,
@@ -73,6 +99,17 @@ const PaymentMethod: React.FC<Props> = ({
     currency: 'UAH',
     maximumFractionDigits: 2,
   }).format(amount);
+  const formattedSubtotalAmount = new Intl.NumberFormat('uk-UA', {
+    style: 'currency',
+    currency: 'UAH',
+    maximumFractionDigits: 2,
+  }).format(subtotalAmount);
+  const formattedDiscountAmount = new Intl.NumberFormat('uk-UA', {
+    style: 'currency',
+    currency: 'UAH',
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+  }).format(discountAmount);
   const paidLiqPayStatuses = new Set(['success']);
   const failedLiqPayStatuses = new Set([
     'failure',
@@ -106,6 +143,9 @@ const PaymentMethod: React.FC<Props> = ({
       name,
       phone,
       amount,
+      subtotalAmount,
+      discountAmount,
+      isFirstOrderDiscountApplied,
       orderId,
       paymentMethod,
       deliveryMethod,
@@ -193,17 +233,20 @@ const PaymentMethod: React.FC<Props> = ({
       return;
     }
 
-    // Якщо змінили amount, orderId або інші деталі, переініціалізуємо LiqPay
     alreadyInitiated.current = false;
+
+    let cancelled = false;
 
     const initLiqPay = async () => {
       try {
         setPaymentError(null);
-        const origin = typeof window !== 'undefined' ? window.location.origin : '';
         const resultUrl =
-          process.env.NEXT_PUBLIC_LIQPAY_RESULT_URL || `${origin}/success`;
+          resolveSameOriginPaymentUrl(process.env.NEXT_PUBLIC_LIQPAY_RESULT_URL, '/success');
         const callbackUrl =
-          process.env.NEXT_PUBLIC_LIQPAY_SERVER_URL || `${origin}/api/liqpay/callback`;
+          resolveSameOriginPaymentUrl(
+            process.env.NEXT_PUBLIC_LIQPAY_SERVER_URL,
+            '/api/liqpay/callback',
+          );
 
         const res = await fetch('/api/liqpay', {
           method: 'POST',
@@ -218,15 +261,26 @@ const PaymentMethod: React.FC<Props> = ({
             language: 'uk',
             result_url: resultUrl,
             server_url: callbackUrl,
-            info: JSON.stringify({ name, phone }),
+            info: JSON.stringify({
+              name,
+              phone,
+              subtotalAmount,
+              discountAmount,
+              totalAmount: amount,
+              firstOrderDiscount: isFirstOrderDiscountApplied,
+            }),
           }),
         });
+
+        if (cancelled) return;
 
         const json = (await res.json()) as {
           data?: string;
           signature?: string;
           error?: string;
         };
+
+        if (cancelled) return;
 
         if (!res.ok || !json.data || !json.signature) {
           console.error('Помилка даних LiqPay:', json.error || 'Некоректні дані');
@@ -254,6 +308,7 @@ const PaymentMethod: React.FC<Props> = ({
           mode: 'embed',
         })
           .on('liqpay.callback', async (liqpayData) => {
+            if (cancelled) return;
             const status = (liqpayData?.status || '').trim().toLowerCase();
 
             if (paidLiqPayStatuses.has(status)) {
@@ -295,6 +350,7 @@ const PaymentMethod: React.FC<Props> = ({
 
         alreadyInitiated.current = true;
       } catch (err) {
+        if (cancelled) return;
         console.error('Помилка ініціалізації LiqPay:', err);
         setPaymentError('Не вдалося ініціалізувати оплату карткою. Перевірте налаштування LiqPay.');
       }
@@ -303,6 +359,8 @@ const PaymentMethod: React.FC<Props> = ({
     if (!alreadyInitiated.current) {
       initLiqPay();
     }
+
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     paymentMethod,
@@ -367,6 +425,11 @@ const PaymentMethod: React.FC<Props> = ({
                       <p className="mt-1 text-lg font-black text-slate-900">
                         {formattedAmount}
                       </p>
+                      {isFirstOrderDiscountApplied && (
+                        <p className="mt-1 text-xs font-semibold text-emerald-700">
+                          Знижка першого замовлення: -{formattedDiscountAmount}
+                        </p>
+                      )}
                     </div>
                     <div className="soft-surface-card rounded-[16px] px-3 py-2.5">
                       <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
@@ -433,8 +496,8 @@ const PaymentMethod: React.FC<Props> = ({
       : null;
 
   return (
-    <div className="mt-5 space-y-4 text-slate-700">
-      <p>Оберіть спосіб оплати:</p>
+    <div className="mt-5 space-y-4 text-sky-50">
+      <p className="text-sm font-semibold text-sky-50">Оберіть спосіб оплати:</p>
 
       <div className="flex flex-col gap-3">
         <label
@@ -489,9 +552,14 @@ const PaymentMethod: React.FC<Props> = ({
             </span>
             <div className="min-w-0">
               <p className="text-sm font-bold text-slate-800">Оплата карткою через LiqPay</p>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <p className="mt-0.5 text-xs font-medium text-slate-600">
                 Сума: <span className="font-semibold text-slate-700">{formattedAmount}</span>
               </p>
+              {isFirstOrderDiscountApplied && (
+                <p className="mt-1 text-xs font-semibold text-emerald-700">
+                  Було {formattedSubtotalAmount}, знижка -{formattedDiscountAmount}
+                </p>
+              )}
             </div>
           </div>
           <button
@@ -501,6 +569,27 @@ const PaymentMethod: React.FC<Props> = ({
           >
             {isPaid ? 'Оплату виконано' : 'Відкрити оплату'}
           </button>
+        </div>
+      )}
+
+      {isFirstOrderDiscountApplied && (
+        <div className="rounded-[18px] border border-slate-200 bg-white/90 px-3.5 py-3 text-slate-700 shadow-[0_12px_24px_rgba(15,23,42,0.05)]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] border border-slate-200 bg-slate-50 text-emerald-600 shadow-[0_8px_16px_rgba(15,23,42,0.05)]">
+                <Percent size={18} strokeWidth={2.2} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900">Знижка першого замовлення</p>
+                <p className="mt-0.5 text-xs font-medium leading-5 text-slate-600">
+                  Було {formattedSubtotalAmount}, знижка -{formattedDiscountAmount}.
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex rounded-full border border-sky-100 bg-sky-50 px-3 py-1.5 text-xs font-bold text-slate-800">
+              До оплати {formattedAmount}
+            </span>
+          </div>
         </div>
       )}
 

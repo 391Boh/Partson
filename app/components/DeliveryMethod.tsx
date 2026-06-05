@@ -206,8 +206,8 @@ const DeliveryMethod: React.FC<Props> = ({
   };
 
   return (
-    <div className="mt-5 space-y-4 text-slate-700">
-      <p>Оберіть спосіб доставки:</p>
+    <div className="mt-5 space-y-4 text-sky-50">
+      <p className="text-sm font-semibold text-sky-50">Оберіть спосіб доставки:</p>
 
       <div className="flex flex-col gap-3">
         {options.map(option => (
@@ -254,7 +254,7 @@ const DeliveryMethod: React.FC<Props> = ({
                 ))}
               </ul>
             )}
-            <label className="block mb-1 text-sm">Населений пункт</label>
+            <label className="mb-1 block text-sm font-semibold text-sky-50">Населений пункт</label>
             <input
               type="text"
               value={cityInput}
@@ -283,7 +283,7 @@ const DeliveryMethod: React.FC<Props> = ({
                 ))}
               </ul>
             )}
-            <label className="block mb-1 text-sm">Номер відділення</label>
+            <label className="mb-1 block text-sm font-semibold text-sky-50">Номер відділення</label>
             <input
               type="text"
               value={warehouseInput}
@@ -301,7 +301,7 @@ const DeliveryMethod: React.FC<Props> = ({
       )}
 
       {deliveryMethod === 'Самовивіз' && (
-        <div className="soft-surface-card mt-3.5 rounded-[16px] p-3.5 text-sm text-slate-600">
+        <div className="soft-surface-card mt-3.5 rounded-[16px] p-3.5 text-sm font-medium text-slate-700">
           <p><strong>Адреса самовивозу:</strong></p>
            <a
              href={STORE_MAPS_URL}
@@ -316,7 +316,7 @@ const DeliveryMethod: React.FC<Props> = ({
 
       {deliveryMethod === 'Доставка у Львові' && (
         <div className="relative mt-3.5">
-          <label className="block mb-1 text-sm">Вулиця у Львові</label>
+          <label className="mb-1 block text-sm font-semibold text-sky-50">Вулиця у Львові</label>
           <input
             type="text"
             value={lvivStreet}

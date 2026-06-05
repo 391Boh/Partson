@@ -62,7 +62,7 @@ const nextConfig: NextConfig = {
       {
         source: "/inform",
         destination: "/inform/delivery",
-        permanent: false,
+        permanent: true,
       },
     ];
   },

@@ -118,8 +118,8 @@ export default function DiagnosticsConsultationForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="relative grid h-full content-start gap-2.5 overflow-hidden rounded-2xl border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.99)_0%,rgba(240,249,255,0.96)_48%,rgba(236,253,245,0.9)_100%)] p-3 shadow-[0_18px_34px_rgba(2,6,23,0.18)] ring-1 ring-sky-100/80 transition-[border-color,box-shadow,background-image,transform] duration-300 focus-within:-translate-y-0.5 focus-within:border-sky-300/90 focus-within:bg-[linear-gradient(145deg,rgba(255,255,255,1)_0%,rgba(224,242,254,0.97)_52%,rgba(220,252,231,0.92)_100%)] focus-within:shadow-[0_22px_44px_rgba(2,6,23,0.2),0_0_0_3px_rgba(125,211,252,0.2)] focus-within:ring-sky-200/90 sm:p-3.5" aria-label="Форма замовлення комп'ютерної діагностики авто">
-      <div className="flex items-center gap-2.5 rounded-xl border border-sky-100/90 bg-white px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(14,165,233,0.08)]">
+    <form onSubmit={handleSubmit} className="relative grid h-full content-start gap-2.5 overflow-hidden rounded-2xl border border-sky-100/90 bg-[linear-gradient(145deg,rgba(255,255,255,0.99)_0%,rgba(248,250,252,0.97)_46%,rgba(224,242,254,0.9)_100%)] p-3 shadow-[0_16px_30px_rgba(15,23,42,0.12)] ring-1 ring-white/80 transition-[border-color,box-shadow,background-image,transform] duration-300 focus-within:-translate-y-0.5 focus-within:border-sky-300/90 focus-within:bg-[linear-gradient(145deg,rgba(255,255,255,1)_0%,rgba(241,245,249,0.98)_48%,rgba(224,242,254,0.95)_100%)] focus-within:shadow-[0_20px_38px_rgba(14,116,144,0.16),0_0_0_3px_rgba(125,211,252,0.2)] sm:p-3.5" aria-label="Форма замовлення комп'ютерної діагностики авто">
+      <div className="flex items-center gap-2.5 rounded-xl border border-sky-100/90 bg-white px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(14,165,233,0.06)]">
         <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-sky-50 text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.12)]">
           <Wrench size={17} strokeWidth={2} aria-hidden="true" />
         </span>
@@ -131,7 +131,7 @@ export default function DiagnosticsConsultationForm() {
             Запис на комп&apos;ютерну діагностику.
           </p>
         </div>
-        <MessageSquareText size={17} strokeWidth={1.9} className="hidden shrink-0 text-emerald-500 sm:block" aria-hidden="true" />
+        <MessageSquareText size={17} strokeWidth={1.9} className="hidden shrink-0 text-sky-500 sm:block" aria-hidden="true" />
       </div>
       {profileLoaded && (
         <p className="inline-flex items-center gap-2 rounded-lg border border-sky-200/80 bg-sky-50/90 px-3 py-1.5 text-[11.5px] font-semibold text-sky-800">
@@ -192,7 +192,7 @@ export default function DiagnosticsConsultationForm() {
       <button
         type="submit"
         disabled={status === "loading" || isProfileLoading}
-        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-[linear-gradient(135deg,#0369a1_0%,#0284c7_48%,#06b6d4_100%)] px-4 text-[11.5px] font-extrabold uppercase tracking-[0.1em] text-white shadow-[0_14px_26px_rgba(14,165,233,0.28)] transition-[transform,box-shadow,filter] duration-200 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_18px_34px_rgba(14,165,233,0.32)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200/80 disabled:cursor-not-allowed disabled:opacity-65 disabled:hover:translate-y-0"
+        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-[linear-gradient(135deg,#0f172a_0%,#0369a1_54%,#0284c7_100%)] px-4 text-[11.5px] font-extrabold uppercase tracking-[0.1em] text-white shadow-[0_14px_26px_rgba(14,165,233,0.24)] transition-[transform,box-shadow,filter] duration-200 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_18px_34px_rgba(14,116,144,0.28)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200/80 disabled:cursor-not-allowed disabled:opacity-65 disabled:hover:translate-y-0"
       >
         <Send size={15} strokeWidth={2} aria-hidden="true" />
         {isProfileLoading

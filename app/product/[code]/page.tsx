@@ -22,11 +22,6 @@ import {
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import {
-  EMPTY_CATALOG_SEO_FACETS,
-  getCatalogSeoFacetsWithTimeout,
-} from "app/lib/catalog-seo";
-import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
-import {
   buildLegacyProductNameSlug,
   buildProductPath,
   buildProductNameSlug,
@@ -42,13 +37,17 @@ import {
 import { getSiteUrl } from "app/lib/site-url";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
-import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
+import {
+  getAllPricedProductSitemapEntries,
+  getAllProductSitemapEntries,
+  getAllProductSitemapSnapshotEntries,
+  type ProductSitemapEntry,
+} from "app/lib/product-sitemap";
 
-const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 2400;
-const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 2200;
-const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 1000;
+const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 1600;
+const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1500;
+const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 700;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 120;
-const PRODUCT_PAGE_SEO_FACETS_TIMEOUT_MS = 80;
 const PRODUCT_PAGE_LOGO_FALLBACK_PATH = PRODUCT_IMAGE_FALLBACK_PATH;
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
@@ -56,7 +55,13 @@ const STORE_PHONE_TEL = "+380634211851";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
 const STORE_PHONE_SEO_LABEL = `☎️ ${STORE_PHONE_DISPLAY}`;
 const STORE_ADDRESS_SEO_LABEL = `📍 ${STORE_ADDRESS}`;
-const PRODUCT_META_DESCRIPTION_MAX_LENGTH = 178;
+const PRODUCT_META_DESCRIPTION_MAX_LENGTH = 176;
+const PRODUCT_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
+const isProductionBuildPhase =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
+  process.env.npm_lifecycle_event === "build";
+const shouldPreferSitemapProductLookup = true;
 
 const parseProductStaticParamsLimit = (value: string | undefined) => {
   const numeric = Number(value);
@@ -64,29 +69,42 @@ const parseProductStaticParamsLimit = (value: string | undefined) => {
   return Math.floor(numeric);
 };
 
-export const revalidate = 900;
+export const revalidate = 3600;
+export const dynamicParams = true;
 
 export async function generateStaticParams() {
-  const limit = parseProductStaticParamsLimit(process.env.SEO_PRODUCT_STATIC_PARAMS_LIMIT);
+  const limit = isProductionBuildPhase
+    ? PRODUCT_STATIC_PARAMS_LIMIT_DEFAULT
+    : parseProductStaticParamsLimit(process.env.SEO_PRODUCT_STATIC_PARAMS_LIMIT);
   if (limit <= 0) return [];
 
   try {
-    const entries = await getAllProductSitemapEntries();
-    return entries
-      .filter((entry) => Boolean(entry.code))
-      .slice(0, limit)
-      .map((entry) => {
-        const productPath = buildProductPath({
-          code: entry.code,
-          article: entry.article,
-          name: entry.name,
-          producer: entry.producer,
-          group: entry.group,
-          subGroup: entry.subGroup,
-          category: entry.category,
-        });
-        return { code: safeDecodeURIComponent(productPath.replace(/^\/product\//, "")) };
+    const entries = await getAllPricedProductSitemapEntries();
+    const seen = new Set<string>();
+    const params: Array<{ code: string }> = [];
+
+    for (const entry of entries) {
+      if (!entry.code) continue;
+      if (params.length >= limit) break;
+
+      const productPath = buildProductPath({
+        code: entry.code,
+        article: entry.article,
+        name: entry.name,
+        producer: entry.producer,
+        group: entry.group,
+        subGroup: entry.subGroup,
+        category: entry.category,
       });
+      const code = safeDecodeURIComponent(productPath.replace(/^\/product\//, ""));
+      const dedupeKey = code.toLocaleLowerCase("uk-UA");
+      if (!code || seen.has(dedupeKey)) continue;
+
+      seen.add(dedupeKey);
+      params.push({ code });
+    }
+
+    return params;
   } catch {
     return [];
   }
@@ -172,26 +190,6 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\
 
 const normalizeLandingValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
-
-const normalizeLandingLookupValue = (value: string | null | undefined) =>
-  normalizeLandingValue(value).toLocaleLowerCase("uk-UA");
-
-const matchesLandingFacet = (
-  candidate: { label: string; slug: string },
-  value: string | null | undefined
-) => {
-  const normalizedValue = normalizeLandingValue(value);
-  if (!normalizedValue) return false;
-
-  const normalizedLookupValue = normalizeLandingLookupValue(normalizedValue);
-  const normalizedSlug = buildPlainSeoSlug(normalizedValue);
-
-  return (
-    normalizeLandingLookupValue(candidate.label) === normalizedLookupValue ||
-    normalizeLandingLookupValue(candidate.slug) === normalizedLookupValue ||
-    candidate.slug === normalizedSlug
-  );
-};
 
 const buildProductGroupLandingFallbackPath = (
   productCategory: string,
@@ -382,6 +380,28 @@ const buildFallbackProductFromRoute = (
     hasPhoto: false,
   };
 };
+
+const buildCatalogProductFromSitemapEntry = (
+  entry: ProductSitemapEntry
+): CatalogProduct => ({
+  code: (entry.code || entry.article || "").trim(),
+  article: (entry.article || "").trim(),
+  name: (entry.name || entry.article || entry.code || "Товар").trim(),
+  producer: (entry.producer || "").trim(),
+  quantity: Number.isFinite(entry.quantity) ? Math.max(0, entry.quantity) : 0,
+  priceEuro:
+    typeof entry.priceEuro === "number" &&
+    Number.isFinite(entry.priceEuro) &&
+    entry.priceEuro > 0
+      ? entry.priceEuro
+      : entry.priceEuro === null
+        ? null
+        : undefined,
+  group: (entry.group || "").trim(),
+  subGroup: (entry.subGroup || "").trim(),
+  category: (entry.category || "").trim(),
+  hasPhoto: entry.hasPhoto,
+});
 
 const buildProductJsonLd = (options: {
   name: string;
@@ -788,14 +808,14 @@ const buildProductMetaDescription = (options: {
     code && code !== article ? `код ${code}` : null,
   ].filter(Boolean);
   const availabilityLabel =
-    quantity > 0 ? "є в наявності" : "доступно під замовлення";
+    quantity > 0 ? "наявність підтверджуємо при замовленні" : "термін уточнить менеджер";
 
   return trimSeoDescription(
     [
-      `${productLabel}${lookupParts.length ? ` (${lookupParts.join(", ")})` : ""} - ${availabilityLabel} у PartsON.`,
-      `${STORE_PHONE_SEO_LABEL}. ${STORE_ADDRESS_SEO_LABEL}.`,
+      `${productLabel}${lookupParts.length ? ` (${lookupParts.join(", ")})` : ""}: ${availabilityLabel}.`,
       category ? `Категорія: ${category}.` : null,
-      "VIN-підбір, перевірка сумісності, аналоги, самовивіз і доставка по Україні.",
+      "VIN-підбір, аналоги, самовивіз і доставка по Україні.",
+      `${STORE_PHONE_SEO_LABEL} · ${STORE_ADDRESS_SEO_LABEL}.`,
     ]
       .filter(Boolean)
       .join(" ")
@@ -805,26 +825,23 @@ const buildProductMetaDescription = (options: {
 const buildProductFallbackDescription = (options: {
   visibleName: string;
   producer: string;
-  article: string;
-  code: string;
   group: string;
   subGroup: string;
   quantity: number;
 }) => {
-  const { visibleName, producer, article, code, group, subGroup, quantity } = options;
+  const { visibleName, producer, group, subGroup, quantity } = options;
   const categoryLabel =
     buildVisibleProductName(subGroup || group || "каталогу автозапчастин");
   const availabilityLabel =
-    quantity > 0 ? "Товар є в наявності." : "Позиція доступна під замовлення.";
+    quantity > 0
+      ? "Наявність і ціну підтверджуємо перед оформленням."
+      : "Менеджер уточнить термін постачання перед замовленням.";
 
   return trimSeoDescription([
-    `${trimSeoPhrase(`${visibleName}${producer ? ` ${producer}` : ""}`, 74)} - ${availabilityLabel}`,
-    `${STORE_PHONE_SEO_LABEL}. ${STORE_ADDRESS_SEO_LABEL}.`,
+    `${trimSeoPhrase(`${visibleName}${producer ? ` ${producer}` : ""}`, 82)}. ${availabilityLabel}`,
     `${categoryLabel ? `Категорія: ${categoryLabel}.` : ""}`,
-    article ? `Артикул: ${article}.` : null,
-    code && code !== article ? `Код: ${code}.` : null,
-    "Підбір за VIN, сумісність, аналоги, самовивіз і доставка по Україні.",
-  ].filter(Boolean).join(" "));
+    "Підбір за VIN, перевірка сумісності, аналоги, самовивіз у Львові та доставка по Україні.",
+  ].filter(Boolean).join(" "), 300);
 };
 
 const trimSeoPhrase = (value: string, maxLength: number) => {
@@ -866,6 +883,28 @@ const appendSeoPartIfMissing = (base: string, addition: string) => {
   }
 
   return `${base} ${addition}`.replace(/\s{2,}/g, " ").trim();
+};
+
+const buildProductSeoTitle = (options: {
+  name: string;
+  producer: string;
+  article: string;
+}) => {
+  const { name, producer, article } = options;
+  const productLabel = trimSeoPhrase(
+    appendSeoPartIfMissing(buildVisibleProductName(name), producer),
+    58
+  );
+  const normalizedLabel = productLabel.toLocaleLowerCase("uk-UA");
+  const normalizedArticle = article.toLocaleLowerCase("uk-UA").trim();
+  const articleLabel =
+    normalizedArticle && !normalizedLabel.includes(normalizedArticle)
+      ? `арт. ${article}`
+      : null;
+
+  return [productLabel || "Автозапчастина", articleLabel, "PartsON Львів"]
+    .filter(Boolean)
+    .join(" | ");
 };
 
 const buildProductSeoKeywords = (options: {
@@ -934,10 +973,14 @@ const getProductSeoEuroRate = cache(async () =>
 const resolveProductSeoPrice = cache(
   async (
     inlinePriceEuro: number | null | undefined
-  ): Promise<{ priceEuro: number | null; priceUah: number | null }> => {
+  ): Promise<{
+    priceEuro: number | null;
+    priceUah: number | null;
+    euroRate: number | null;
+  }> => {
     const inlinePrice = toPositiveNumberOrNull(inlinePriceEuro);
     if (inlinePrice == null) {
-      return { priceEuro: null, priceUah: null };
+      return { priceEuro: null, priceUah: null, euroRate: null };
     }
 
     const priceEuro = inlinePrice;
@@ -947,6 +990,7 @@ const resolveProductSeoPrice = cache(
     return {
       priceEuro,
       priceUah,
+      euroRate,
     };
   }
 );
@@ -996,12 +1040,13 @@ const extractLookupTokensFromSeoNameSlug = (rawNameSlug: string) => {
     addLookupToken(part, { requireDigit: true });
   }
 
-  for (let tailSize = 1; tailSize <= 4; tailSize += 1) {
+  for (let tailSize = 1; tailSize <= 6; tailSize += 1) {
     if (parts.length < tailSize) continue;
     const tailParts = parts.slice(-tailSize);
     const minLength = tailSize === 1 ? 3 : 5;
-    addLookupToken(tailParts.join(""), { minLength });
-    addLookupToken(tailParts.join("-"), { minLength });
+    for (const separator of ["", "-", ".", "/", " "]) {
+      addLookupToken(tailParts.join(separator), { minLength });
+    }
   }
 
   return Array.from(tokens);
@@ -1012,13 +1057,15 @@ const extractPrimaryLookupTokenFromSeoNameSlug = (rawNameSlug: string) => {
   if (!normalized) return "";
 
   const parts = normalized.split("-").map((entry) => entry.trim()).filter(Boolean);
-  for (let tailSize = Math.min(4, parts.length); tailSize >= 2; tailSize -= 1) {
+  for (let tailSize = Math.min(6, parts.length); tailSize >= 2; tailSize -= 1) {
     const tailParts = parts.slice(-tailSize);
     const isNumericCodeTail = tailParts.every((part) => /^\d+$/.test(part));
     if (!isNumericCodeTail) continue;
 
     const hyphenatedCode = tailParts.join("-");
     if (hyphenatedCode.length >= 5) return hyphenatedCode;
+    const compactCode = tailParts.join("");
+    if (compactCode.length >= 5) return compactCode;
   }
 
   for (let index = parts.length - 1; index >= 0; index -= 1) {
@@ -1028,7 +1075,7 @@ const extractPrimaryLookupTokenFromSeoNameSlug = (rawNameSlug: string) => {
     return token;
   }
 
-  for (let tailSize = Math.min(4, parts.length); tailSize >= 1; tailSize -= 1) {
+  for (let tailSize = Math.min(6, parts.length); tailSize >= 1; tailSize -= 1) {
     const tailParts = parts.slice(-tailSize);
     const lookupToken = tailParts.join(tailSize === 1 ? "" : "-");
     if (lookupToken.length >= (tailSize === 1 ? 3 : 5)) {
@@ -1072,7 +1119,103 @@ const buildUniqueLookupTokens = (rawNameSlug: string) =>
     ...extractLookupTokensFromSeoNameSlug(rawNameSlug),
   ].filter((token, index, array) => Boolean(token) && array.indexOf(token) === index);
 
+const isPlausibleProductLookupToken = (token: string) => {
+  const normalized = (token || "").trim();
+  return normalized.length >= 4 && /\d/.test(normalized);
+};
+
+const normalizeProductLookupToken = (value: string) =>
+  (value || "").trim().toLowerCase();
+
+const compactProductLookupToken = (value: string) =>
+  normalizeProductLookupToken(value).replace(/[\s./_-]+/g, "");
+
+const normalizeProductRouteLookupParam = (value: string) =>
+  safeDecodeURIComponent(value || "").trim().toLowerCase();
+
+const getSitemapProductLookupIndex = cache(async () => {
+  const snapshotEntries = await getAllProductSitemapSnapshotEntries().catch(
+    () => []
+  );
+  const entries = snapshotEntries.length > 0
+    ? snapshotEntries
+    : shouldPreferSitemapProductLookup
+      ? await getAllPricedProductSitemapEntries().catch(() => [])
+      : await getAllProductSitemapEntries().catch(() => []);
+  const index = new Map<string, CatalogProduct>();
+
+  for (const entry of entries) {
+    const product = buildCatalogProductFromSitemapEntry(entry);
+    const routeParam = normalizeProductRouteLookupParam(
+      buildProductPath({
+        code: entry.code,
+        article: entry.article,
+        name: entry.name,
+        producer: entry.producer,
+        group: entry.group,
+        subGroup: entry.subGroup,
+        category: entry.category,
+      }).replace(/^\/product\//, "")
+    );
+
+    if (routeParam && !index.has(`route:${routeParam}`)) {
+      index.set(`route:${routeParam}`, product);
+    }
+
+    for (const candidate of [entry.article || "", entry.code || ""]) {
+      const direct = normalizeProductLookupToken(candidate);
+      const compact = compactProductLookupToken(candidate);
+      if (direct && !index.has(`direct:${direct}`)) {
+        index.set(`direct:${direct}`, product);
+      }
+      if (compact && !index.has(`compact:${compact}`)) {
+        index.set(`compact:${compact}`, product);
+      }
+    }
+  }
+
+  return index;
+});
+
+const findSitemapProductByLookupTokens = cache(async (lookupTokens: string[]) => {
+  const normalizedTokens = Array.from(
+    new Set(
+      lookupTokens
+        .map((token) => token.trim())
+        .filter(isPlausibleProductLookupToken)
+    )
+  );
+  if (normalizedTokens.length === 0) return null;
+
+  const index = await getSitemapProductLookupIndex();
+
+  for (const token of normalizedTokens) {
+    const direct = normalizeProductLookupToken(token);
+    const compact = compactProductLookupToken(token);
+    const matched =
+      index.get(`direct:${direct}`) || index.get(`compact:${compact}`) || null;
+    if (matched) return matched;
+  }
+
+  return null;
+});
+
+const findSitemapProductByRouteParam = cache(async (rawParam: string) => {
+  const routeParam = normalizeProductRouteLookupParam(rawParam);
+  if (!routeParam) return null;
+
+  const index = await getSitemapProductLookupIndex();
+  return index.get(`route:${routeParam}`) || null;
+});
+
 const findCatalogProductByLookupToken = async (token: string) => {
+  if (shouldPreferSitemapProductLookup) {
+    const sitemapMatch = await findSitemapProductByLookupTokens([token]).catch(
+      () => null
+    );
+    if (sitemapMatch) return sitemapMatch;
+  }
+
   const fastMatch = await getFirstResolvedNonNull([
     findCatalogProductByCode(
       token,
@@ -1206,7 +1349,7 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
 
 const resolveProductCodeFromRouteParamCached = unstable_cache(
   resolveProductCodeFromRouteParamUncached,
-  ["product-page:resolve-route-v12-skip-direct-slug-lookup"],
+  ["product-page:resolve-route-v13-article-slug-variants"],
   { revalidate: 900 }
 );
 
@@ -1248,7 +1391,7 @@ const getResolvedProductRouteDataUncached = async (
 
 const getResolvedProductRouteDataCached = unstable_cache(
   getResolvedProductRouteDataUncached,
-  ["product-page:resolved-route-product-v12-skip-direct-slug-lookup"],
+  ["product-page:resolved-route-product-v13-article-slug-variants"],
   { revalidate: 900 }
 );
 
@@ -1268,6 +1411,44 @@ const canUseDirectProductCodeFallback = (rawCode: string) => {
 
   return decodedParam.includes("~") || !decodedParam.includes("-");
 };
+
+const resolveProductRouteDataFromSitemapParam = cache(
+  async (rawCode: string): Promise<ResolvedProductRouteData | null> => {
+    const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
+    if (!decodedParam) return null;
+
+    const routeProduct = await findSitemapProductByRouteParam(decodedParam).catch(
+      () => null
+    );
+    const routeProductCode = (routeProduct?.code || routeProduct?.article || "").trim();
+    if (routeProduct && routeProductCode) {
+      return {
+        code: routeProductCode,
+        isSeoRoute: true,
+        product: routeProduct,
+      };
+    }
+
+    const routeSlugs = extractProductRouteSlugsFromParam(decodedParam);
+    const canUseDirectFallbackCode = canUseDirectProductCodeFallback(decodedParam);
+    const lookupSource =
+      routeSlugs?.nameSlug || (!canUseDirectFallbackCode ? decodedParam : "");
+    const lookupTokens = lookupSource ? buildUniqueLookupTokens(lookupSource) : [];
+    if (lookupTokens.length === 0) return null;
+
+    const product = await findSitemapProductByLookupTokens(lookupTokens).catch(
+      () => null
+    );
+    const code = (product?.code || product?.article || "").trim();
+    if (!product || !code) return null;
+
+    return {
+      code,
+      isSeoRoute: Boolean(lookupSource),
+      product,
+    };
+  }
+);
 
 const recoverProductRouteDataFromNameSlug = async (
   rawCode: string
@@ -1316,12 +1497,19 @@ export async function generateMetadata({
   const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
   const routeSlugs = extractProductRouteSlugsFromParam(decodedParam);
   const fallbackCode = extractProductCodeFromParam(decodedParam);
-  let routeData = await resolveWithTimeout(
-    () => getResolvedProductRouteData(rawCode || ""),
-    { code: "", isSeoRoute: false, product: null },
-    PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS
-  );
   const canUseDirectFallbackCode = canUseDirectProductCodeFallback(rawCode || "");
+  let routeData =
+    shouldPreferSitemapProductLookup
+      ? (await resolveProductRouteDataFromSitemapParam(rawCode || "")) ?? {
+          code: "",
+          isSeoRoute: false,
+          product: null,
+        }
+      : await resolveWithTimeout(
+          () => getResolvedProductRouteData(rawCode || ""),
+          { code: "", isSeoRoute: false, product: null },
+          PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS
+        );
   if (!routeData.code && canUseDirectFallbackCode && fallbackCode) {
     const directProduct = await resolveWithTimeout(
       () => getCatalogProduct(fallbackCode),
@@ -1333,6 +1521,24 @@ export async function generateMetadata({
         code: (directProduct.code || directProduct.article || fallbackCode).trim(),
         isSeoRoute: false,
         product: directProduct,
+      };
+    }
+  }
+  if (!routeData.code) {
+    const metadataLookupSource = routeSlugs?.nameSlug || (!canUseDirectFallbackCode ? decodedParam : "");
+    const metadataLookupTokens = metadataLookupSource
+      ? buildUniqueLookupTokens(metadataLookupSource)
+      : [];
+    const sitemapProduct = await resolveWithTimeout(
+      () => findSitemapProductByLookupTokens(metadataLookupTokens),
+      null,
+      650
+    );
+    if (sitemapProduct) {
+      routeData = {
+        code: (sitemapProduct.code || sitemapProduct.article || "").trim(),
+        isSeoRoute: Boolean(metadataLookupSource),
+        product: sitemapProduct,
       };
     }
   }
@@ -1369,18 +1575,11 @@ export async function generateMetadata({
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
   const shouldIndexProduct = !isModalView && Boolean(routeProduct);
 
-  const productNameWithProducer = productProducer
-    ? appendSeoPartIfMissing(seoVisibleProductName, productProducer)
-    : seoVisibleProductName;
-  const seoTitle = [
-    productNameWithProducer
-      ? `Купити ${productNameWithProducer}`
-      : "Купити автозапчастину",
-    productArticle || resolvedCode || null,
-    "PartsON Львів",
-  ]
-    .filter(Boolean)
-    .join(" | ");
+  const seoTitle = buildProductSeoTitle({
+    name: seoVisibleProductName,
+    producer: productProducer,
+    article: productArticle,
+  });
 
   const description = buildProductMetaDescription({
     name: seoVisibleProductName,
@@ -1408,7 +1607,7 @@ export async function generateMetadata({
       canonical: canonicalPath,
       languages: {
         "uk-UA": canonicalPath,
-        uk: canonicalPath,
+        "x-default": canonicalPath,
       },
     },
     category: "auto parts",
@@ -1458,14 +1657,33 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
   const fallbackCodeFromRoute = extractProductCodeFromParam(rawCode || "");
   const canUseDirectFallbackCode = canUseDirectProductCodeFallback(rawCode || "");
+  const routeLookupSource = routeSlugs?.nameSlug || (!canUseDirectFallbackCode ? rawCode || "" : "");
+  const routeLookupTokens = routeLookupSource ? buildUniqueLookupTokens(routeLookupSource) : [];
+  const primaryRouteLookupToken =
+    routeLookupTokens.find(isPlausibleProductLookupToken) || "";
+  const sitemapRouteDataPromise = shouldPreferSitemapProductLookup
+    ? resolveProductRouteDataFromSitemapParam(rawCode || "")
+    : null;
   let directCodeProductPromise: Promise<CatalogProduct | null> | null = null;
-  // Warm direct-code product cache only for legacy/code URLs while the route
-  // resolver runs its index lookup.
-  if (canUseDirectFallbackCode && fallbackCodeFromRoute) {
+  // Direct 1C lookup is delayed until the local sitemap snapshot misses.
+  if (
+    !shouldPreferSitemapProductLookup &&
+    canUseDirectFallbackCode &&
+    fallbackCodeFromRoute
+  ) {
     directCodeProductPromise = getCatalogProduct(fallbackCodeFromRoute).catch(() => null);
   }
+  const slugRecoveredProductPromise = primaryRouteLookupToken
+    ? shouldPreferSitemapProductLookup
+      ? findSitemapProductByLookupTokens(routeLookupTokens).catch(() => null)
+      : getFirstResolvedNonNull<CatalogProduct>([
+          getCatalogProduct(primaryRouteLookupToken).catch(() => null),
+          findSitemapProductByLookupTokens(routeLookupTokens).catch(() => null),
+        ])
+    : null;
   let routeData =
-    canUseDirectFallbackCode && fallbackCodeFromRoute && !routeSlugs
+    (await sitemapRouteDataPromise) ??
+    (canUseDirectFallbackCode && fallbackCodeFromRoute && !routeSlugs
       ? {
           code: "",
           isSeoRoute: false,
@@ -1479,7 +1697,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             product: null,
           },
           PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS
-        );
+        ));
   if (!routeData.code) {
     const recoveredRouteData = await resolveWithTimeout(
       () => recoverProductRouteDataFromNameSlug(rawCode || ""),
@@ -1518,10 +1736,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
   }
 
   if (!resolvedCode && !canUseDirectFallbackCode && !routeSlugs) {
-    const legacySlugLookupToken = extractPrimaryLookupTokenFromSeoNameSlug(rawCode || "");
+    const legacySlugLookupToken = primaryRouteLookupToken || extractPrimaryLookupTokenFromSeoNameSlug(rawCode || "");
     if (legacySlugLookupToken) {
       const legacyFallbackProduct = await resolveWithTimeout(
-        () => getCatalogProduct(legacySlugLookupToken),
+        () => slugRecoveredProductPromise || getCatalogProduct(legacySlugLookupToken),
         null,
         PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
       );
@@ -1546,13 +1764,32 @@ export default async function ProductPage({ params }: ProductPageProps) {
     // into a resolved code — those should fall through to notFound().
     const recoveredToken = routeSlugs?.nameSlug
       ? extractPrimaryLookupTokenFromSeoNameSlug(routeSlugs.nameSlug)
-      : null;
+      : primaryRouteLookupToken || null;
 
     resolvedCode = (
       (canUseDirectFallbackCode ? fallbackCodeFromRoute : null) ||
-      recoveredToken ||
+      (recoveredToken && isPlausibleProductLookupToken(recoveredToken)
+        ? recoveredToken
+        : null) ||
       ""
     ).trim();
+  }
+
+  if (!product && slugRecoveredProductPromise) {
+    const recoveredProduct = await resolveWithTimeout(
+      () => slugRecoveredProductPromise,
+      null,
+      650
+    );
+    if (recoveredProduct) {
+      product = recoveredProduct;
+      resolvedCode = (
+        recoveredProduct.code ||
+        recoveredProduct.article ||
+        resolvedCode ||
+        primaryRouteLookupToken
+      ).trim();
+    }
   }
 
   if (!resolvedCode) notFound();
@@ -1601,8 +1838,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const fallbackDescription = buildProductFallbackDescription({
     visibleName: visibleProductName,
     producer: product.producer,
-    article: product.article,
-    code: product.code || resolvedCode,
     group: productGroup,
     subGroup: productSubgroup,
     quantity: product.quantity,
@@ -1617,69 +1852,25 @@ export default async function ProductPage({ params }: ProductPageProps) {
   });
 
   const siteUrl = getSiteUrl();
-  const hasSeoFacetHints = Boolean(
-    productGroup || productCategory || productSubgroup || product.producer
-  );
-  const pagePricePromise = resolveProductSeoPrice(inlineInitialPriceEuro);
-  const seoFacetsPromise = hasSeoFacetHints
-    ? resolveWithTimeout(
-        async () => {
-          const rawSeoFacets = await getCatalogSeoFacetsWithTimeout(
-            PRODUCT_PAGE_SEO_FACETS_TIMEOUT_MS
-          ).catch(() => EMPTY_CATALOG_SEO_FACETS);
-          return resolveCatalogSeoFacetsWithFallback(rawSeoFacets);
-        },
-        EMPTY_CATALOG_SEO_FACETS,
-        PRODUCT_PAGE_SEO_FACETS_TIMEOUT_MS + 70
-      )
-    : Promise.resolve(EMPTY_CATALOG_SEO_FACETS);
-  const [pagePrice, seoFacets] = await Promise.all([
-    pagePricePromise,
-    seoFacetsPromise,
-  ]);
+  const pagePrice = await resolveProductSeoPrice(inlineInitialPriceEuro);
   const initialPriceUah = pagePrice.priceUah;
-  const recommendationEuroRate =
-    pagePrice.priceEuro != null ? await getProductSeoEuroRate() : undefined;
-  const producerFacet = product.producer
-    ? seoFacets.producers.find((producer) =>
-        matchesLandingFacet(producer, product.producer)
-      ) || null
-    : null;
-  const groupFacet = (productGroup || productCategory)
-    ? seoFacets.groups.find((group) =>
-        matchesLandingFacet(group, productGroup) ||
-        matchesLandingFacet(group, productCategory)
-      ) || null
-    : null;
-  const subgroupFacet =
-    groupFacet && productSubgroup
-      ? groupFacet.subgroups.find((subgroup) =>
-          matchesLandingFacet(subgroup, productSubgroup)
-        ) || null
-      : null;
+  const recommendationEuroRate = pagePrice.euroRate ?? undefined;
   const categoryCatalogGroupValue =
-    groupFacet?.label || productGroup || productCategory || productSubgroup;
+    productGroup || productCategory || productSubgroup;
   const categoryCatalogSubcategoryValue =
-    subgroupFacet?.label || productSubgroup || undefined;
+    productSubgroup || undefined;
   const groupSeoFallbackPath = productGroup
-    ? groupFacet
-      ? buildGroupPath(groupFacet.slug)
-      : buildProductGroupLandingFallbackPath(productCategory, productGroup)
+    ? buildProductGroupLandingFallbackPath(productCategory, productGroup)
     : null;
   const producerLandingPath = product.producer
-    ? buildManufacturerPath(producerFacet?.slug || product.producer)
+    ? buildManufacturerPath(product.producer)
     : null;
   const categoryCatalogPath = categoryCatalogGroupValue
     ? buildCatalogCategoryPath(categoryCatalogGroupValue, categoryCatalogSubcategoryValue)
     : "/katalog";
   const groupLandingPath = groupSeoFallbackPath;
   const categoryLandingPath = productSubgroup
-    ? groupFacet
-      ? buildGroupItemPath(
-          groupFacet.slug,
-          subgroupFacet?.slug || buildPlainSeoSlug(productSubgroup)
-        )
-      : buildProductGroupLandingFallbackPath(productGroup || productCategory, productSubgroup)
+    ? buildProductGroupLandingFallbackPath(productGroup || productCategory, productSubgroup)
     : groupSeoFallbackPath;
   const categoryLandingHref =
     categoryLandingPath ||
@@ -1816,24 +2007,22 @@ export default async function ProductPage({ params }: ProductPageProps) {
     group: productGroup,
     subGroup: productSubgroup,
   });
-  const productHeroLeadText =
-    `${visibleProductName}${product.producer ? ` ${product.producer}` : ""}${product.article ? `, артикул ${product.article}` : ""} у PartsON: актуальна картка товару з ціною, наявністю та швидким оформленням замовлення.`;
-  const productIndexingText = [
-    `Для точного підбору звіряйте ${product.article ? `артикул ${product.article}` : "артикул"}${product.code || resolvedCode ? ` і код товару ${product.code || resolvedCode}` : ""}.`,
+  const productFitmentText = [
     visibleProductSubgroup || visibleProductGroup
       ? `Розділ каталогу: ${visibleProductSubgroup || visibleProductGroup}.`
       : null,
-    `Консультація за VIN доступна в чаті; магазин у Львові: ${STORE_ADDRESS}; телефон ${STORE_PHONE_DISPLAY}.`,
+    "Надішліть VIN або дані авто в чат — менеджер перевірить сумісність, підбере аналоги та підкаже по наявності.",
+    `${STORE_PHONE_SEO_LABEL} · ${STORE_ADDRESS_SEO_LABEL}.`,
   ]
     .filter(Boolean)
     .join(" ");
   const productHeroHighlights = Array.from(
     new Set(
       [
-        "Підбір за VIN",
-        "Оригінали й аналоги",
+        "VIN-підбір",
+        "Аналоги",
         "Самовивіз Львів",
-        "Доставка 1-3 дні",
+        "Доставка",
       ].filter(Boolean)
     )
   ).slice(0, 5);
@@ -1890,26 +2079,25 @@ export default async function ProductPage({ params }: ProductPageProps) {
             <div className="pointer-events-none absolute right-8 top-6 h-20 w-20 rounded-full border border-white/50 bg-white/50 blur-xl" />
             <div className="relative">
               {!isModalView && (
-                <nav
-                  aria-label="Навігація по сторінці товару"
-                  className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-slate-500 sm:text-[12px]"
-                >
-                  {breadcrumbItems.map((item, index) => (
-                    <span
-                      key={`${item.href}:${item.label}:${index}`}
-                      className="inline-flex items-center gap-2"
-                    >
-                      {index > 0 ? <span className="text-slate-300">/</span> : null}
-                      <Link href={item.href} className="transition hover:text-sky-700">
-                        {item.label}
-                      </Link>
-                    </span>
-                  ))}
+                <nav aria-label="Навігаційні хлібні крихти">
+                  <ol className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-slate-500 sm:text-[12px]">
+                    {breadcrumbItems.map((item, index) => (
+                      <li
+                        key={`${item.href}:${item.label}:${index}`}
+                        className="inline-flex items-center gap-2"
+                      >
+                        {index > 0 ? <span className="text-slate-300" aria-hidden="true">/</span> : null}
+                        <Link href={item.href} className="transition hover:text-sky-700">
+                          {item.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ol>
                 </nav>
               )}
-              <div className="grid gap-3 xl:grid-cols-[minmax(196px,232px)_minmax(0,1fr)_300px] xl:items-stretch 2xl:grid-cols-[minmax(210px,250px)_minmax(0,1fr)_318px]">
+              <div className="grid gap-3 xl:grid-cols-[minmax(190px,224px)_minmax(0,1fr)_296px] xl:items-stretch 2xl:grid-cols-[minmax(204px,240px)_minmax(0,1fr)_312px]">
                 <div className="order-2 min-w-0 self-stretch xl:order-1">
-                  <div className="flex h-full min-h-[238px] items-center justify-center overflow-hidden rounded-[20px] border border-white/80 bg-white/86 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_16px_34px_rgba(14,165,233,0.12)] backdrop-blur-sm transition-[box-shadow,border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-sky-200/90 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.94),0_20px_40px_rgba(14,165,233,0.16)] sm:min-h-[280px] xl:min-h-0">
+                  <div className="flex h-full min-h-[220px] items-center justify-center overflow-hidden rounded-[20px] border border-white/80 bg-white/86 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_14px_30px_rgba(14,165,233,0.1)] backdrop-blur-sm transition-[box-shadow,border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-sky-200/90 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.94),0_18px_36px_rgba(14,165,233,0.14)] sm:min-h-[260px] xl:min-h-0">
                     <ProductImageWithFallback
                       src={productDisplayImagePath}
                       fallbackSrc={fallbackImagePath}
@@ -1919,7 +2107,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       loading="eager"
                       decoding="sync"
                       fetchPriority="high"
-                      zoomEnabled={false}
+                      zoomEnabled
                       productCode={product.code || resolvedCode}
                       articleHint={product.article}
                       hasKnownPhoto={productHasKnownPhoto}
@@ -1929,13 +2117,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </div>
                 </div>
 
-                <div className="order-1 flex h-full min-w-0 flex-col rounded-[20px] border border-white/80 bg-white/78 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.07)] ring-1 ring-white/70 backdrop-blur-md transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white/86 hover:shadow-[0_16px_34px_rgba(15,23,42,0.09)] xl:order-2 sm:p-3.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex rounded-[14px] border border-sky-200 bg-sky-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.11em] text-sky-800 shadow-[0_8px_18px_rgba(14,165,233,0.08)]">
-                      Картка товару
-                    </span>
+                <div className="order-1 flex h-full min-w-0 flex-col justify-center rounded-[20px] border border-white/80 bg-white/78 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.07)] ring-1 ring-white/70 backdrop-blur-md transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white/86 hover:shadow-[0_16px_34px_rgba(15,23,42,0.09)] xl:order-2 sm:p-3.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <span
-                      className={`inline-flex rounded-[14px] border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.11em] shadow-[0_8px_18px_rgba(15,23,42,0.08)] ${
+                      className={`inline-flex rounded-[13px] border px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.09em] shadow-[0_8px_18px_rgba(15,23,42,0.07)] ${
                         isInStock
                           ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                           : "border-amber-200 bg-amber-50 text-amber-700"
@@ -1943,19 +2128,21 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     >
                       {isInStock ? "В наявності" : "Під замовлення"}
                     </span>
+                    {product.producer ? (
+                      <span className="inline-flex rounded-[13px] border border-slate-200 bg-white/84 px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.09em] text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.045)]">
+                        {product.producer}
+                      </span>
+                    ) : null}
                   </div>
 
-                  <h1 className="font-display mt-2.5 max-w-none break-words bg-[linear-gradient(135deg,#0f172a_0%,#075985_52%,#0e7490_100%)] bg-clip-text text-[clamp(1.24rem,2.05vw,1.82rem)] font-extrabold italic leading-[1.1] tracking-normal text-transparent [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[42ch]">
+                  <h1 className="font-display mt-2.5 max-w-none break-words text-[clamp(1.22rem,1.9vw,1.72rem)] font-extrabold italic leading-[1.12] tracking-normal text-slate-950 [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[42ch]">
                     {productHeadingText}
                   </h1>
-                  <p className="mt-2 max-w-2xl text-[13.5px] font-medium leading-6 text-slate-600 sm:text-[14.5px]">
-                    {productHeroLeadText}
-                  </p>
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  <div className="mt-3 flex flex-wrap gap-1.5">
                     {productHeroHighlights.map((item) => (
                       <span
                         key={item}
-                        className="inline-flex min-h-7 items-center rounded-[11px] border border-slate-200 bg-white/82 px-2.5 py-1 text-[10px] font-semibold tracking-normal text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.05)] backdrop-blur-sm"
+                        className="inline-flex min-h-7 items-center rounded-[11px] border border-slate-200 bg-white/82 px-2.5 py-1 text-[10px] font-semibold tracking-normal text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.045)] backdrop-blur-sm"
                       >
                         {item}
                       </span>
@@ -2023,13 +2210,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           <div className={contentGridClass}>
             <section className="space-y-2.5">
-              <div className="grid gap-2.5 lg:grid-cols-[minmax(0,1.12fr)_minmax(280px,0.88fr)]">
+              <div className="grid gap-2.5">
                 <ProductDescriptionClientCard
                   fallbackText={fallbackDescription}
-                  initialText={null}
+                  initialText={product.description || null}
                   lookupKeys={lookupKeys}
                   isModalView={isModalView}
                   descriptionTextClass={descriptionTextClass}
+                  enableClientLookup
+                  fitmentText={productFitmentText}
                   chatButton={
                     <OpenChatButton
                       message={chatPrefillMessage}
@@ -2038,24 +2227,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     />
                   }
                 />
-
-                {!isModalView && (
-                  <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-3 shadow-[0_14px_30px_rgba(15,23,42,0.05)] ring-1 ring-white/80 transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_18px_36px_rgba(14,165,233,0.09)] sm:rounded-[24px] sm:p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/8 pb-3">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-extrabold uppercase tracking-[0.11em] text-sky-800">
-                          Для підбору
-                        </p>
-                        <h2 className="font-display mt-1 text-[1.03rem] font-extrabold italic leading-[1.12] tracking-normal text-slate-950 sm:text-[1.13rem]">
-                          Купити {visibleProductName}
-                        </h2>
-                      </div>
-                    </div>
-                    <p className="mt-3 text-[13.5px] font-medium leading-[1.62] text-slate-700 sm:text-[14px]">
-                      {productIndexingText}
-                    </p>
-                  </section>
-                )}
               </div>
 
               {!isModalView && (

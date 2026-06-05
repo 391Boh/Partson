@@ -55,11 +55,11 @@ const buildPriceLookupKeys = (item: Pick<RelatedItem, "code" | "article">) =>
 const RELATED_ITEMS_CACHE_PREFIX = "partson:v9:product-related:";
 const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v3:product-similar:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
-const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1900;
-const SIMILAR_ITEMS_REQUEST_TIMEOUT_MS = 1250;
+const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1500;
+const SIMILAR_ITEMS_REQUEST_TIMEOUT_MS = 1000;
+const RECOMMENDATION_PRICE_TIMEOUT_MS = 700;
 const RELATED_ITEMS_VISIBLE_LIMIT = 6;
 const SIMILAR_ITEMS_VISIBLE_LIMIT = 6;
-const RECOMMENDATIONS_IDLE_TIMEOUT_MS = 90;
 const RECOMMENDATION_VISIBLE_ITEMS_EVENT = "partson:product-recommendation-visible-items";
 
 type RecommendationMode = "related" | "similar";
@@ -83,6 +83,16 @@ const buildRecommendationIdentityKeys = (
     )
   );
 
+const hasRecommendationIdentityOverlap = (
+  item: Pick<RelatedItem, "code" | "article">,
+  blockedKeys: Set<string>
+) => buildRecommendationIdentityKeys(item).some((key) => blockedKeys.has(key));
+
+const getRecommendationListClass = (count: number) =>
+  count > 2
+    ? "mt-3 grid grid-flow-col grid-rows-1 auto-cols-[minmax(286px,92%)] gap-2 overflow-x-auto overscroll-x-contain pb-2 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(330px,70%)] sm:gap-2.5 lg:grid-rows-2 lg:auto-cols-[minmax(292px,31%)] lg:gap-2.5"
+    : "mt-3 grid grid-flow-col grid-rows-1 auto-cols-[minmax(286px,92%)] gap-2 overflow-x-auto overscroll-x-contain pb-1 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(330px,70%)] sm:gap-2.5 lg:auto-cols-[minmax(292px,31%)] lg:gap-2.5";
+
 const scheduleProductRecommendationTask = (task: () => void) => {
   if (typeof window === "undefined") {
     task();
@@ -94,25 +104,7 @@ const scheduleProductRecommendationTask = (task: () => void) => {
     if (cancelled) return;
     task();
   };
-  const win = window as Window & {
-    requestIdleCallback?: (
-      callback: () => void,
-      options?: { timeout: number }
-    ) => number;
-    cancelIdleCallback?: (id: number) => void;
-  };
-
-  if (typeof win.requestIdleCallback === "function") {
-    const idleId = win.requestIdleCallback(runTask, {
-      timeout: RECOMMENDATIONS_IDLE_TIMEOUT_MS,
-    });
-    return () => {
-      cancelled = true;
-      win.cancelIdleCallback?.(idleId);
-    };
-  }
-
-  const timeoutId = window.setTimeout(runTask, 40);
+  const timeoutId = window.setTimeout(runTask, 0);
   return () => {
     cancelled = true;
     window.clearTimeout(timeoutId);
@@ -176,6 +168,71 @@ const Skeleton = () => (
   </section>
 );
 
+const RecommendationBlock = ({
+  eyebrow,
+  title,
+  badgeLabel,
+  items,
+  articleLabel,
+  euroRate,
+  resolvedPrices,
+}: {
+  eyebrow: string;
+  title: string;
+  badgeLabel: string;
+  items: RelatedItem[];
+  articleLabel: string;
+  euroRate: number;
+  resolvedPrices: Record<string, number | null>;
+}) => {
+  if (items.length === 0) return null;
+
+  return (
+    <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(248,250,252,0.98))] p-3 text-left shadow-[0_16px_36px_rgba(15,23,42,0.065)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/8 pb-3">
+        <div className="min-w-0 max-w-3xl">
+          <p className="mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
+            {eyebrow}
+          </p>
+          <h2 className="font-display-italic mt-0.5 break-words text-[1.05rem] font-black leading-tight text-slate-950 sm:text-[1.18rem]">
+            {title}
+          </h2>
+        </div>
+        <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] text-sky-800">
+          {badgeLabel}
+        </span>
+      </div>
+
+      <div className={getRecommendationListClass(items.length)}>
+        {items.map((item, index) => {
+          const stateKey = buildPriceStateKey(item);
+          const resolvedPriceEuro = stateKey in resolvedPrices
+            ? resolvedPrices[stateKey]
+            : item.priceEuro;
+          const priceLabel = formatPriceLabel(resolvedPriceEuro, euroRate);
+
+          return (
+            <ProductCompactRecommendationCard
+              key={[
+                normalizeRelatedKeyPart(item.code),
+                normalizeRelatedKeyPart(item.article),
+                normalizeRelatedKeyPart(item.name),
+                normalizeRelatedKeyPart(item.producer),
+                index,
+              ].join("-")}
+              href={buildDirectProductPath(item)}
+              item={item}
+              priceLabel={priceLabel}
+              sourceArticle={articleLabel}
+              imagePriority={false}
+            />
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
 export default function ProductRelatedItemsClientSection({
   product,
   initialItems = null,
@@ -192,6 +249,7 @@ export default function ProductRelatedItemsClientSection({
     [initialItems]
   );
   const [items, setItems] = useState<RelatedItem[] | null>(normalizedInitialItems);
+  const [similarItems, setSimilarItems] = useState<RelatedItem[] | null>(null);
   const [itemMode, setItemMode] = useState<RecommendationMode>("related");
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
 
@@ -241,20 +299,24 @@ export default function ProductRelatedItemsClientSection({
     if (normalizedInitialItems) {
       setItemMode("related");
       setItems(normalizedInitialItems);
+      setSimilarItems(null);
       return;
     }
 
     if (!requestUrl) {
       setItems([]);
+      setSimilarItems([]);
       return;
     }
 
     setItems(null);
+    setSimilarItems(null);
   }, [normalizedInitialItems, requestUrl]);
 
   useEffect(() => {
     if (!requestUrl) {
       setItems([]);
+      setSimilarItems([]);
       return;
     }
 
@@ -319,28 +381,30 @@ export default function ProductRelatedItemsClientSection({
     if (cachedItems) {
       setItemMode("related");
       setItems(cachedItems);
-      return;
+      setSimilarItems((current) => current ?? null);
     }
 
     let cancelled = false;
-    const controllers = new Set<AbortController>();
 
     const fetchItems = async (
       url: string,
       timeoutMs = RELATED_ITEMS_REQUEST_TIMEOUT_MS
     ) => {
-      const controller = new AbortController();
-      controllers.add(controller);
-      const timeoutId = window.setTimeout(() => {
-        controller.abort();
-      }, timeoutMs);
-      const response = await fetch(url, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      }).finally(() => {
-        window.clearTimeout(timeoutId);
-        controllers.delete(controller);
+      let timeoutId: number | undefined;
+      const timeoutPromise = new Promise<Response>((_, reject) => {
+        timeoutId = window.setTimeout(
+          () => reject(new Error("product-recommendation-timeout")),
+          timeoutMs
+        );
+      });
+      const response = await Promise.race([
+        fetch(url, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        }),
+        timeoutPromise,
+      ]).finally(() => {
+        if (timeoutId != null) window.clearTimeout(timeoutId);
       });
       if (!response.ok) throw new Error("Failed to load product recommendations");
 
@@ -366,6 +430,8 @@ export default function ProductRelatedItemsClientSection({
     };
 
     const loadItems = async () => {
+      const similarItemsPromise = loadSimilarItems().catch(() => [] as RelatedItem[]);
+
       try {
         const nextItems = await fetchItems(requestUrl, RELATED_ITEMS_REQUEST_TIMEOUT_MS);
         if (cancelled) return;
@@ -373,26 +439,32 @@ export default function ProductRelatedItemsClientSection({
           setItemMode("related");
           writeCachedItems(cacheKey, nextItems);
           setItems(nextItems);
+          const similarItems = await similarItemsPromise;
+          if (cancelled) return;
+          setSimilarItems(similarItems);
           return;
         }
 
-        const similarItems = await loadSimilarItems();
+        const similarItems = await similarItemsPromise;
         if (cancelled) return;
         setItemMode("similar");
         setItems(similarItems);
+        setSimilarItems([]);
       } catch {
         if (cancelled) return;
 
         try {
-          const similarItems = await loadSimilarItems();
+          const similarItems = await similarItemsPromise;
           if (cancelled) return;
           setItemMode("similar");
           setItems((current) =>
             current && current.length > 0 ? current : similarItems
           );
+          setSimilarItems([]);
         } catch {
           if (cancelled) return;
           setItems((current) => (current && current.length > 0 ? current : []));
+          setSimilarItems([]);
         }
       }
     };
@@ -404,15 +476,18 @@ export default function ProductRelatedItemsClientSection({
     return () => {
       cancelled = true;
       cancelScheduledLoad();
-      controllers.forEach((controller) => controller.abort());
-      controllers.clear();
     };
   }, [cacheKey, normalizedInitialItems, requestUrl, similarCacheKey, similarRequestUrl]);
 
-  useEffect(() => {
-    if (!items || items.length === 0) return;
+  const priceSourceItems = useMemo(
+    () => [...(items ?? []), ...(similarItems ?? [])],
+    [items, similarItems]
+  );
 
-    const priceItems = items
+  useEffect(() => {
+    if (priceSourceItems.length === 0) return;
+
+    const priceItems = priceSourceItems
       .filter((item) => {
         if (
           typeof item.priceEuro === "number" &&
@@ -429,7 +504,7 @@ export default function ProductRelatedItemsClientSection({
 
         return buildPriceLookupKeys(item).length > 0;
       })
-      .slice(0, RELATED_ITEMS_VISIBLE_LIMIT)
+      .slice(0, RELATED_ITEMS_VISIBLE_LIMIT + SIMILAR_ITEMS_VISIBLE_LIMIT)
       .map((item) => ({
         stateKey: buildPriceStateKey(item),
         lookupKeys: buildPriceLookupKeys(item),
@@ -437,17 +512,25 @@ export default function ProductRelatedItemsClientSection({
 
     if (priceItems.length === 0) return;
 
-    const controller = new AbortController();
     let cancelled = false;
 
     const loadPrices = async () => {
+      let timeoutId: number | undefined;
       try {
-        const response = await fetch("/api/catalog-prices?mode=full", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: priceItems }),
-          signal: controller.signal,
+        const timeoutPromise = new Promise<Response>((_, reject) => {
+          timeoutId = window.setTimeout(
+            () => reject(new Error("recommendation-price-timeout")),
+            RECOMMENDATION_PRICE_TIMEOUT_MS
+          );
         });
+        const response = await Promise.race([
+          fetch("/api/catalog-prices?mode=full", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items: priceItems }),
+          }),
+          timeoutPromise,
+        ]);
         const payload = (await response.json()) as {
           prices?: Record<string, number | null>;
         };
@@ -468,6 +551,8 @@ export default function ProductRelatedItemsClientSection({
           }
           return next;
         });
+      } finally {
+        if (timeoutId != null) window.clearTimeout(timeoutId);
       }
     };
 
@@ -478,9 +563,8 @@ export default function ProductRelatedItemsClientSection({
     return () => {
       cancelled = true;
       cancelScheduledLoad();
-      controller.abort();
     };
-  }, [items, resolvedPrices]);
+  }, [priceSourceItems, resolvedPrices]);
 
   const visibleItems = useMemo(
     () =>
@@ -490,9 +574,24 @@ export default function ProductRelatedItemsClientSection({
       ),
     [itemMode, items]
   );
+  const visibleSimilarItems = useMemo(() => {
+    if (itemMode !== "related") return [];
+
+    const blockedKeys = new Set([
+      ...buildRecommendationIdentityKeys({ code: productCode, article: articleLabel }),
+      ...visibleItems.flatMap(buildRecommendationIdentityKeys),
+    ]);
+
+    return (similarItems ?? [])
+      .filter((item) => !hasRecommendationIdentityOverlap(item, blockedKeys))
+      .slice(0, SIMILAR_ITEMS_VISIBLE_LIMIT);
+  }, [articleLabel, itemMode, productCode, similarItems, visibleItems]);
   const visibleIdentityKeys = useMemo(
-    () => visibleItems.flatMap(buildRecommendationIdentityKeys),
-    [visibleItems]
+    () =>
+      [...visibleItems, ...visibleSimilarItems].flatMap(
+        buildRecommendationIdentityKeys
+      ),
+    [visibleItems, visibleSimilarItems]
   );
 
   useEffect(() => {
@@ -507,59 +606,32 @@ export default function ProductRelatedItemsClientSection({
   if (items === null) {
     return <Skeleton />;
   }
-  if (items.length === 0) return null;
-
-  const listClass =
-    visibleItems.length > 2
-      ? "mt-3 grid grid-rows-2 auto-cols-[minmax(238px,86%)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain pb-2 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(292px,68%)] sm:gap-2.5 lg:auto-cols-full"
-      : "mt-3 grid grid-rows-1 auto-cols-[minmax(238px,86%)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain pb-1 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(292px,68%)] sm:gap-2.5 lg:auto-cols-full";
+  if (visibleItems.length === 0 && visibleSimilarItems.length === 0) return null;
 
   return (
-    <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.07)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/8 pb-3">
-        <div className="min-w-0 max-w-3xl">
-          <p className="mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
-            {itemMode === "similar" ? "Схожі товари" : "Аналоги і сумісні позиції"}
-          </p>
-          <h2 className="font-display-italic mt-0.5 break-words text-[1.05rem] font-black leading-tight text-slate-950 sm:text-[1.2rem]">
-            {itemMode === "similar"
-              ? "Схожі товари з цієї категорії"
-              : productDisplayName
-                ? `Аналоги для ${productDisplayName}`
-                : `Аналоги за артикулом ${articleLabel || productCode}`}
-          </h2>
-        </div>
-        <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] text-sky-800">
-          {visibleItems.length} варіантів
-        </span>
-      </div>
-
-      <div className={listClass}>
-        {visibleItems.map((item, index) => {
-          const stateKey = buildPriceStateKey(item);
-          const resolvedPriceEuro = stateKey in resolvedPrices
-            ? resolvedPrices[stateKey]
-            : item.priceEuro;
-          const priceLabel = formatPriceLabel(resolvedPriceEuro, euroRate);
-
-          return (
-            <ProductCompactRecommendationCard
-              key={[
-                normalizeRelatedKeyPart(item.code),
-                normalizeRelatedKeyPart(item.article),
-                normalizeRelatedKeyPart(item.name),
-                normalizeRelatedKeyPart(item.producer),
-                index,
-              ].join("-")}
-              href={buildDirectProductPath(item)}
-              item={item}
-              priceLabel={priceLabel}
-              sourceArticle={articleLabel}
-              imagePriority={index < 2}
-            />
-          );
-        })}
-      </div>
-    </section>
+    <div className="space-y-2.5">
+      <RecommendationBlock
+        eyebrow={itemMode === "similar" ? "Схожі товари" : "Аналоги"}
+        title={
+          itemMode === "similar"
+            ? "Схожі позиції з цього розділу"
+            : "Сумісні варіанти та заміни"
+        }
+        badgeLabel={`${visibleItems.length} позицій`}
+        items={visibleItems}
+        articleLabel={articleLabel}
+        euroRate={euroRate}
+        resolvedPrices={resolvedPrices}
+      />
+      <RecommendationBlock
+        eyebrow="Схожі"
+        title="Товари з близької категорії"
+        badgeLabel={`${visibleSimilarItems.length} позицій`}
+        items={visibleSimilarItems}
+        articleLabel={articleLabel}
+        euroRate={euroRate}
+        resolvedPrices={resolvedPrices}
+      />
+    </div>
   );
 }

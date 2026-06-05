@@ -287,6 +287,28 @@ export default async function InformationSectionPage({
               ],
             },
             {
+              "@type": "WebPage",
+              "@id": `${siteUrl}/inform/diagnostics#webpage`,
+              name: "Комп'ютерна діагностика авто у Львові | PartsON",
+              url: `${siteUrl}/inform/diagnostics`,
+              description: resolvedSection.seoDescription,
+              inLanguage: "uk-UA",
+              isPartOf: {
+                "@type": "WebSite",
+                name: "PartsON",
+                url: siteUrl,
+              },
+              primaryImageOfPage: {
+                "@type": "ImageObject",
+                url: `${siteUrl}/Katlogo/datchyky_ta_elektronika.png`,
+                width: 512,
+                height: 512,
+              },
+              mainEntity: {
+                "@id": `${siteUrl}/inform/diagnostics#computer-diagnostics`,
+              },
+            },
+            {
               "@type": "Service",
               "@id": `${siteUrl}/inform/diagnostics#computer-diagnostics`,
               name: "Комп'ютерна діагностика авто у Львові",
@@ -294,10 +316,11 @@ export default async function InformationSectionPage({
                 "OBD діагностика авто",
                 "Автодіагностика Львів",
                 "Діагностика Check Engine",
+                "Діагностика електроніки авто",
               ],
               serviceType: "Комп'ютерна діагностика автомобіля",
               description:
-                "OBD-II/EOBD діагностика авто у Львові: Check Engine, ECU, ABS, ESP, SRS Airbag, АКПП, розшифрування кодів помилок, перевірка перед купівлею, виїзна діагностика та підбір автозапчастин після перевірки.",
+                "Комп'ютерна OBD-II/EOBD діагностика авто у Львові: Check Engine, ECU, ABS, ESP, SRS Airbag, АКПП, розшифрування кодів помилок, перевірка перед купівлею, виїзна діагностика та підбір автозапчастин після перевірки.",
               areaServed: [
                 {
                   "@type": "City",
@@ -309,9 +332,11 @@ export default async function InformationSectionPage({
                 },
               ],
               provider: {
-                "@type": "AutoPartsStore",
+                "@type": ["AutoPartsStore", "AutoRepair"],
+                "@id": `${siteUrl}/#organization`,
                 name: "PartsON",
                 url: siteUrl,
+                image: `${siteUrl}/Katlogo/datchyky_ta_elektronika.png`,
                 telephone: "+380934804261",
                 address: {
                   "@type": "PostalAddress",
@@ -320,8 +345,32 @@ export default async function InformationSectionPage({
                   addressCountry: "UA",
                 },
               },
+              availableChannel: [
+                {
+                  "@type": "ServiceChannel",
+                  name: "Запис телефоном",
+                  servicePhone: {
+                    "@type": "ContactPoint",
+                    telephone: "+380934804261",
+                    contactType: "customer support",
+                    availableLanguage: ["uk", "uk-UA"],
+                  },
+                },
+                {
+                  "@type": "ServiceChannel",
+                  name: "Запис через форму на сайті",
+                  serviceUrl: `${siteUrl}/inform/diagnostics`,
+                },
+              ],
+              serviceOutput: [
+                "Зчитування кодів помилок",
+                "Розшифрування несправностей",
+                "Перевірка параметрів у реальному часі",
+                "Рекомендації щодо ремонту і підбору запчастин",
+              ],
               offers: {
                 "@type": "Offer",
+                url: `${siteUrl}/inform/diagnostics`,
                 availability: "https://schema.org/InStock",
                 priceSpecification: {
                   "@type": "PriceSpecification",
@@ -339,7 +388,7 @@ export default async function InformationSectionPage({
                   name: "Що входить у комп'ютерну діагностику авто?",
                   acceptedAnswer: {
                     "@type": "Answer",
-                    text: "Підключення OBD-II/EOBD сканера, зчитування помилок ECU, ABS, ESP, SRS, АКПП, перегляд параметрів у реальному часі та пояснення можливих причин несправності.",
+                    text: "Підключення OBD-II/EOBD сканера, зчитування помилок ECU, ABS, ESP, SRS, АКПП, перегляд параметрів у реальному часі, пояснення причин несправності та рекомендації щодо ремонту.",
                   },
                 },
                 {
@@ -348,6 +397,14 @@ export default async function InformationSectionPage({
                   acceptedAnswer: {
                     "@type": "Answer",
                     text: "Коли горить Check Engine, ABS, ESP, Airbag, авто погано заводиться, втрачає тягу, збільшилась витрата пального, є ривки, помилки коробки або потрібна перевірка перед купівлею.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  name: "Де проходить діагностика авто у Львові?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "Запис на комп'ютерну діагностику PartsON доступний у Львові біля магазину на вул. Перфецького, 8. Також можливий виїзд по Львову або за межі міста за попередньою домовленістю.",
                   },
                 },
                 {

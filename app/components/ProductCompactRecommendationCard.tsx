@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
-
 import AnalogProductThumb from "app/components/AnalogProductThumb";
+import SmartLink from "app/components/SmartLink";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildVisibleProductName } from "app/lib/product-url";
 
@@ -37,24 +36,19 @@ export default function ProductCompactRecommendationCard({
   const imageCode = item.code || item.article || sourceArticle;
   const imageArticle = item.article || item.code || sourceArticle;
   const imageSrc = buildProductImagePath(imageCode, imageArticle, { catalog: true });
-  const retryImageSrc = buildProductImagePath(imageCode, imageArticle, {
-    catalog: true,
-    retryToken: 1,
-  });
-  const finalRetryImageSrc = buildProductImagePath(imageCode, imageArticle, {
-    catalog: true,
-    retryToken: 2,
-  });
   const hasPrice = priceLabel !== "Ціну уточнити";
 
   return (
-    <Link href={href} prefetch={false} className={cardClass}>
+    <SmartLink
+      href={href}
+      prefetchOnIntent
+      prefetchOnViewport={imagePriority}
+      className={cardClass}
+    >
       <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-[13px] border border-slate-200 bg-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_7px_14px_rgba(15,23,42,0.055)]">
         <AnalogProductThumb
           src={imageSrc}
           alt={visibleName}
-          retrySrc={retryImageSrc}
-          finalRetrySrc={finalRetryImageSrc}
           productCode={imageCode}
           articleHint={imageArticle}
           loading={imagePriority ? "eager" : "lazy"}
@@ -111,6 +105,6 @@ export default function ProductCompactRecommendationCard({
           {priceLabel}
         </span>
       </span>
-    </Link>
+    </SmartLink>
   );
 }

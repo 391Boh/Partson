@@ -75,7 +75,7 @@ export default function HomeBelowFoldClient() {
       requestIdleCallback?: RequestIdleCallback;
       cancelIdleCallback?: (id: number) => void;
     };
-    const scheduleReady = (timeout = 1400) => {
+    const scheduleReady = (timeout = 700) => {
       if (pendingFrameId != null || pendingIdleId != null || pendingTimeoutId != null) return;
 
       const runWhenIdle = () => {
@@ -106,11 +106,11 @@ export default function HomeBelowFoldClient() {
             (entries) => {
               if (entries.some((entry) => entry.isIntersecting)) {
                 observer?.disconnect();
-                scheduleReady(1100);
+                scheduleReady(320);
               }
             },
             {
-              rootMargin: "360px 0px",
+              rootMargin: "1000px 0px",
             }
           )
         : null;
@@ -123,9 +123,9 @@ export default function HomeBelowFoldClient() {
     let idleId: number | null = null;
 
     if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(markReady, { timeout: 5600 });
+      idleId = win.requestIdleCallback(markReady, { timeout: 2200 });
     } else {
-      timeoutId = window.setTimeout(markReady, 5600);
+      timeoutId = window.setTimeout(markReady, 2200);
     }
 
     return () => {

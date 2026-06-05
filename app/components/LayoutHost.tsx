@@ -215,8 +215,10 @@ const hasAdminAccess = (
 
 const PRIMARY_WARMUP_ROUTES = [
   "/",
-  "/auto",
   "/katalog",
+  "/groups",
+  "/manufacturers",
+  "/auto",
   "/katalog?tab=auto",
   "/katalog?tab=category",
   "/inform/about",
@@ -224,8 +226,6 @@ const PRIMARY_WARMUP_ROUTES = [
   "/inform/payment",
   "/inform/location",
   "/inform/privacy",
-  "/groups",
-  "/manufacturers",
 ] as const;
 
 function RouteViewStateSync({
@@ -316,7 +316,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     let timeoutId: number | null = null;
     let idleId: number | null = null;
     const triggerDepsLoad = () => {
-      window.removeEventListener("pointerdown", triggerDepsLoad);
+      window.removeEventListener("click", triggerDepsLoad);
       window.removeEventListener("keydown", triggerDepsLoad);
       if (timeoutId != null) window.clearTimeout(timeoutId);
       if (idleId != null && "cancelIdleCallback" in window) {
@@ -326,7 +326,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       loadDeps();
     };
 
-    window.addEventListener("pointerdown", triggerDepsLoad, {
+    window.addEventListener("click", triggerDepsLoad, {
       once: true,
       passive: true,
     });
@@ -344,7 +344,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     return () => {
       cancelled = true;
-      window.removeEventListener("pointerdown", triggerDepsLoad);
+      window.removeEventListener("click", triggerDepsLoad);
       window.removeEventListener("keydown", triggerDepsLoad);
       if (timeoutId != null) window.clearTimeout(timeoutId);
       if (idleId != null && "cancelIdleCallback" in window) {
@@ -372,13 +372,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     let timeoutId: number | null = null;
     const triggerChatButtonLoad = () => {
-      window.removeEventListener("pointerdown", triggerChatButtonLoad);
+      window.removeEventListener("click", triggerChatButtonLoad);
       window.removeEventListener("keydown", triggerChatButtonLoad);
       if (timeoutId != null) window.clearTimeout(timeoutId);
       loadChatButton();
     };
 
-    window.addEventListener("pointerdown", triggerChatButtonLoad, {
+    window.addEventListener("click", triggerChatButtonLoad, {
       once: true,
       passive: true,
     });
@@ -388,7 +388,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     return () => {
       cancelled = true;
-      window.removeEventListener("pointerdown", triggerChatButtonLoad);
+      window.removeEventListener("click", triggerChatButtonLoad);
       window.removeEventListener("keydown", triggerChatButtonLoad);
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
@@ -606,12 +606,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     const isLowMemoryDevice =
       typeof deviceMemory === "number" && deviceMemory > 0 && deviceMemory <= 4;
     const shouldUseLightWarmup = isSlowConnection || isLowMemoryDevice;
-    const isHome = window.location?.pathname === "/";
-
-    if (isHome) {
-      return;
-    }
-
     const hasFreshGetProdCache = () => {
       try {
         const raw = window.sessionStorage.getItem(CATALOG_PRODUCTS_CACHE_KEY);
@@ -652,19 +646,31 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       } catch {}
     };
 
+    const prefetchPrimaryRoutes = () => {
+      const routes = shouldUseLightWarmup
+        ? PRIMARY_WARMUP_ROUTES.slice(0, 4)
+        : PRIMARY_WARMUP_ROUTES;
+
+      routes.forEach((route) => router.prefetch(route));
+    };
+
     let routesWarmed = false;
     const warmRoutes = async () => {
       if (routesWarmed) return;
       routesWarmed = true;
 
       const warm = async (path: string) => {
-        const controller = new AbortController();
-        const timer = window.setTimeout(() => controller.abort(), 30000);
+        let timer: number | undefined;
         try {
-          await fetch(path, { cache: "no-store", signal: controller.signal });
+          await Promise.race([
+            fetch(path, { cache: "no-store" }),
+            new Promise<void>((resolve) => {
+              timer = window.setTimeout(resolve, 30000);
+            }),
+          ]);
         } catch {
         } finally {
-          window.clearTimeout(timer);
+          if (timer != null) window.clearTimeout(timer);
         }
       };
 
@@ -678,21 +684,28 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     const runWarmup = async () => {
       if (document.visibilityState === "hidden") return;
-      if (!enableAggressiveWarmup) return;
 
-      preloadAllChunks();
-      void warmRoutes();
-      if (isDevelopment) return;
+      preloadCriticalChunks();
 
-      try {
-        void fetch("/api/preload", { cache: "no-store" }).catch(() => {});
-      } catch {}
+      if (enableAggressiveWarmup) {
+        preloadAllChunks();
+        void warmRoutes();
+        if (!isDevelopment) {
+          try {
+            void fetch("/api/preload", { cache: "no-store" }).catch(() => {});
+          } catch {}
+        }
+      }
 
       try {
         const shouldSkipGetProdWarmup =
           !hasFreshGetProdCache() && window.location?.pathname === "/";
 
-        if (!shouldSkipGetProdWarmup && !hasFreshGetProdCache()) {
+        if (
+          enableAggressiveWarmup &&
+          !shouldSkipGetProdWarmup &&
+          !hasFreshGetProdCache()
+        ) {
           const res = await fetch("/api/proxy?endpoint=getprod", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -789,7 +802,8 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           )
         ).slice(0, 8);
 
-        warmPriceCodes.forEach((code) => {
+        const priceWarmupLimit = enableAggressiveWarmup ? 8 : 4;
+        warmPriceCodes.slice(0, priceWarmupLimit).forEach((code) => {
           void fetch("/api/proxy?endpoint=prices", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -806,13 +820,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     let preloadAllTimer: number | null = null;
     let loadListener: (() => void) | null = null;
 
-    if (!shouldUseLightWarmup && enableAggressiveWarmup) {
-      initialWarmupFrameId = window.requestAnimationFrame(() => {
-        PRIMARY_WARMUP_ROUTES.slice(0, 5).forEach((route) => router.prefetch(route));
+    initialWarmupFrameId = window.requestAnimationFrame(() => {
+      prefetchPrimaryRoutes();
+      if (!shouldUseLightWarmup && enableAggressiveWarmup) {
         preloadCriticalChunks();
         warmRoutesTimer = window.setTimeout(() => void warmRoutes(), 1800);
-      });
-    }
+      }
+    });
 
     const scheduleWarmup = () => {
       if (shouldUseLightWarmup) return;

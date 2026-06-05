@@ -51,6 +51,9 @@ const readItems = (source: Record<string, unknown>) => {
 const buildOrderMessage = (body: Record<string, unknown>) => {
   const items = readItems(body);
   const orderId = readString(body, "orderId", 80) || readString(body, "firestoreId", 80);
+  const subtotalAmount = readNumber(body, "subtotalAmount");
+  const discountAmount = readNumber(body, "discountAmount");
+  const discountCode = readString(body, "discountCode", 80);
   const deliveryParts = [
     readString(body, "deliveryMethod", 80),
     readString(body, "city", 120),
@@ -62,6 +65,12 @@ const buildOrderMessage = (body: Record<string, unknown>) => {
     orderId ? `Номер: ${orderId}` : "",
     `Клієнт: ${readString(body, "name", 120) || "не вказано"}`,
     `Телефон: ${readString(body, "phone", 80) || "не вказано"}`,
+    subtotalAmount !== null && discountAmount !== null && discountAmount > 0
+      ? `Сума товарів: ${formatMoney(subtotalAmount)}`
+      : "",
+    discountAmount !== null && discountAmount > 0
+      ? `Знижка${discountCode ? ` (${discountCode})` : ""}: -${formatMoney(discountAmount)}`
+      : "",
     `Сума: ${formatMoney(readNumber(body, "totalAmount"))}`,
     `Оплата: ${readString(body, "paymentMethod", 80) || "не вказано"}`,
     deliveryParts.length ? `Доставка: ${deliveryParts.join(", ")}` : "",

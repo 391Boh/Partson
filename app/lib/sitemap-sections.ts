@@ -39,6 +39,11 @@ export const PAGE_SITEMAP_SECTION_PATHS = [
   "/sitemap-pages.xml",
   "/sitemap-categories.xml",
   "/sitemap-brands.xml",
+  // Dedicated single-topic sitemaps — listed separately for GSC granularity
+  "/information-sitemap.xml",
+  "/other-pages-sitemap.xml",
+  "/manufacturers-sitemap.xml",
+  "/groups-sitemap.xml",
 ] as const;
 
 const SITEMAP_REVALIDATE_SECONDS = 60 * 60;

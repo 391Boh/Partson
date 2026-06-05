@@ -86,6 +86,10 @@ export default function ProductImageWithFallback({
   const showPlaceholderOverlay = !showPlaceholder && !isLoaded;
   const canOpen = zoomEnabled && isLoaded;
   const preferImmediateDecode = loading === "eager" && fetchPriority === "high";
+  const openLightbox = useCallback(() => {
+    if (!canOpen) return;
+    setLightboxOpen(true);
+  }, [canOpen]);
 
   const applyLoadedCandidate = useCallback(
     (element: HTMLImageElement | null) => {
@@ -241,7 +245,10 @@ export default function ProductImageWithFallback({
   return (
     <>
       <div
-        className={`${className ?? ""} group relative overflow-hidden rounded-xl bg-[image:linear-gradient(160deg,#f8fafc,#f1f5f9)]`}
+        onClick={openLightbox}
+        className={`${className ?? ""} group relative overflow-hidden rounded-xl bg-[image:linear-gradient(160deg,#f8fafc,#f1f5f9)] ${
+          canOpen ? "cursor-zoom-in" : ""
+        }`}
       >
         {showPlaceholderOverlay ? (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-[image:linear-gradient(160deg,#f8fafc,#f1f5f9)]/92">
@@ -275,7 +282,10 @@ export default function ProductImageWithFallback({
         {canOpen ? (
           <button
             type="button"
-            onClick={() => setLightboxOpen(true)}
+            onClick={(event) => {
+              event.stopPropagation();
+              openLightbox();
+            }}
             aria-label={`${openPhotoTitle}: ${alt}`}
             className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-900"
             title={openPhotoTitle}

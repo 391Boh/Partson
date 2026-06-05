@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Percent } from 'lucide-react';
 import { User } from 'firebase/auth';
 
 interface Props {
@@ -9,6 +9,8 @@ interface Props {
   setName: (value: string) => void;
   setPhone: (value: string) => void;
   user: User | null;
+  discountAmount?: number;
+  isFirstOrderDiscountApplied?: boolean;
   onNext: () => void;
   onBack: () => void;
 }
@@ -21,12 +23,20 @@ const CustomerDetails: React.FC<Props> = ({
   setName,
   setPhone,
   user,
+  discountAmount = 0,
+  isFirstOrderDiscountApplied = false,
   onNext,
   onBack,
 }) => {
   const isNameValid = name.trim().length >= 2;
   const isPhoneValid = PHONE_PATTERN.test(phone.trim());
   const canContinue = isNameValid && isPhoneValid;
+  const formattedDiscountAmount = new Intl.NumberFormat('uk-UA', {
+    style: 'currency',
+    currency: 'UAH',
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+  }).format(discountAmount);
 
   const handleNext = () => {
     if (!canContinue) {
@@ -37,16 +47,32 @@ const CustomerDetails: React.FC<Props> = ({
   };
 
   return (
-    <div className="mt-5 space-y-4 text-slate-700">
+    <div className="mt-5 space-y-4 text-sky-50">
       <p className="soft-note rounded-[16px] px-3.5 py-2.5 text-sm">
         {user
           ? 'Дані профілю вже підставлені. Перевірте та за потреби оновіть.'
           : 'Вкажіть контактні дані, щоб продовжити оформлення замовлення.'}
       </p>
 
+      {isFirstOrderDiscountApplied && (
+        <div className="rounded-[18px] border border-slate-200 bg-white/90 px-3.5 py-3 text-slate-700 shadow-[0_12px_24px_rgba(15,23,42,0.05)]">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] border border-slate-200 bg-slate-50 text-emerald-600 shadow-[0_8px_16px_rgba(15,23,42,0.05)]">
+              <Percent size={18} strokeWidth={2.2} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900">Знижка 5% вже активна</p>
+              <p className="mt-0.5 text-xs font-medium leading-5 text-slate-600">
+                Економія: <span className="font-bold text-emerald-700">{formattedDiscountAmount}</span>.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
         <div>
-          <label htmlFor="customer-name" className="mb-1 block text-sm">
+          <label htmlFor="customer-name" className="mb-1 block text-sm font-semibold text-sky-50">
             {"Ім'я"}
           </label>
           <input
@@ -59,12 +85,12 @@ const CustomerDetails: React.FC<Props> = ({
             className="soft-field px-4 py-2.5"
           />
           {!isNameValid && name.length > 0 && (
-            <p className="mt-1 text-xs text-rose-600">Введіть щонайменше 2 символи.</p>
+            <p className="mt-1 text-xs font-semibold text-rose-200">Введіть щонайменше 2 символи.</p>
           )}
         </div>
 
         <div>
-          <label htmlFor="customer-phone" className="mb-1 block text-sm">
+          <label htmlFor="customer-phone" className="mb-1 block text-sm font-semibold text-sky-50">
             Телефон
           </label>
           <input
@@ -77,7 +103,7 @@ const CustomerDetails: React.FC<Props> = ({
             className="soft-field px-4 py-2.5"
           />
           {!isPhoneValid && phone.length > 0 && (
-            <p className="mt-1 text-xs text-rose-600">Використайте формат +380XXXXXXXXX.</p>
+            <p className="mt-1 text-xs font-semibold text-rose-200">Використайте формат +380XXXXXXXXX.</p>
           )}
         </div>
       </div>

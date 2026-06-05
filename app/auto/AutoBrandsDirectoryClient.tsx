@@ -30,7 +30,13 @@ const normalize = (value: string | null | undefined) =>
 const buildBrandHref = (name: string) =>
   `/katalog?tab=auto&brand=${encodeURIComponent(name)}`;
 
-function AutoBrandCard({ brand }: { brand: CarBrand }) {
+function AutoBrandCard({
+  brand,
+  prefetchOnViewport = false,
+}: {
+  brand: CarBrand;
+  prefetchOnViewport?: boolean;
+}) {
   const brandHref = buildBrandHref(brand.name);
 
   return (
@@ -38,6 +44,7 @@ function AutoBrandCard({ brand }: { brand: CarBrand }) {
       href={brandHref}
       className={directoryCardClass}
       aria-label={`Відкрити каталог запчастин для ${brand.name}`}
+      prefetchOnViewport={prefetchOnViewport}
       itemScope
       itemType="https://schema.org/Brand"
       itemProp="item"
@@ -185,7 +192,10 @@ export default function AutoBrandsDirectoryClient({
                 {filteredItems.map((brand, index) => (
                   <div key={brand.id} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                     <meta itemProp="position" content={String(index + 1)} />
-                    <AutoBrandCard brand={brand} />
+                    <AutoBrandCard
+                      brand={brand}
+                      prefetchOnViewport={index < 12}
+                    />
                   </div>
                 ))}
               </div>

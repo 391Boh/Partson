@@ -186,9 +186,9 @@ export const informationSections: InformationSection[] = [
     key: "diagnostics",
     title: "Діагностика",
     subtitle: "OBD, помилки, електроніка",
-    seoTitle: "Комп'ютерна діагностика авто у Львові",
+    seoTitle: "Комп'ютерна діагностика авто у Львові | OBD та Check Engine",
     seoDescription: trimSeoDescription(
-      `Комп'ютерна діагностика авто у Львові: OBD-II, Check Engine, ECU, ABS, ESP, SRS, АКПП і підбір запчастин після перевірки. ☎️ +38 (093) 480-42-61. ${STORE_ADDRESS_SEO_LABEL}.`
+      `☎️ +38 (093) 480-42-61. ${STORE_ADDRESS_SEO_LABEL}. OBD-II діагностика авто у Львові: Check Engine, ECU, ABS, ESP, SRS, АКПП, помилки й підбір запчастин.`
     ),
     keywords: [
       "комп'ютерна діагностика авто львів",
@@ -201,6 +201,7 @@ export const informationSections: InformationSection[] = [
       "check engine львів",
       "діагностика помилок авто",
       "розшифрування помилок авто",
+      "зчитування помилок авто львів",
       "діагностика ECU",
       "діагностика ABS",
       "діагностика ESP",
@@ -217,6 +218,8 @@ export const informationSections: InformationSection[] = [
       "діагностика авто з виїздом львів",
       "виїзна діагностика авто львів",
       "комп'ютерна діагностика ціна львів",
+      "комп'ютерна діагностика львів перфецького 8",
+      "діагностика авто львів перфецького",
     ],
   },
 ];
@@ -244,8 +247,10 @@ export const getInformationMetadata = (key: InformationSectionKey): Metadata => 
     image: {
       url:
         resolvedKey === "diagnostics"
-          ? "/elektronika.png"
+          ? "/Katlogo/datchyky_ta_elektronika.png"
           : "/Car-parts-fullwidth.png",
+      width: resolvedKey === "diagnostics" ? 512 : 1200,
+      height: resolvedKey === "diagnostics" ? 512 : 630,
       alt: `${title} | PartsON`,
     },
   });

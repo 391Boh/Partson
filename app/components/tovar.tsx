@@ -177,19 +177,24 @@ const loadProducts = async (options: LoadOptions = {}): Promise<ProductNode[]> =
 
     for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000);
-
         let response: Response;
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
-          response = await fetch("/api/proxy?endpoint=getprod", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-            signal: controller.signal,
-          });
+          response = await Promise.race([
+            fetch("/api/proxy?endpoint=getprod", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({}),
+            }),
+            new Promise<Response>((_, reject) => {
+              timeoutId = setTimeout(
+                () => reject(new Error("catalog-products-timeout")),
+                12000
+              );
+            }),
+          ]);
         } finally {
-          clearTimeout(timeoutId);
+          if (timeoutId) clearTimeout(timeoutId);
         }
 
         if (!response.ok) {

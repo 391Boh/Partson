@@ -4,6 +4,7 @@ import Script from "next/script";
 import ClientWrapper from "./client-wrapper";
 import LayoutHost from "./components/LayoutHost";
 import PageLoadingShell from "./components/PageLoadingShell";
+import { WebVitalsReporter } from "./components/WebVitalsReporter";
 import {
   STORE_ADDRESS_SEO_LABEL,
   STORE_PHONE_SEO_LABEL,
@@ -117,6 +118,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: "/Car-parts-fullwidth.png",
+        width: 1200,
+        height: 630,
         alt: "PartsON - автозапчастини",
       },
     ],
@@ -125,7 +128,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PartsON - Магазин автозапчастин",
     description: rootSocialDescription,
-    images: ["/Car-parts-fullwidth.png"],
+    images: [{ url: "/Car-parts-fullwidth.png", width: 1200, height: 630, alt: "PartsON - автозапчастини" }],
   },
 };
 
@@ -329,6 +332,7 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <WebVitalsReporter />
         {googleTagManagerId ? (
           <noscript>
             <iframe

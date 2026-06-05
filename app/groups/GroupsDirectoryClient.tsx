@@ -144,7 +144,13 @@ const buildChildDirectoryLead = (
   return `${visibleChildLabel} у підгрупі ${visibleSubgroupLabel} групи ${visibleGroupLabel}.`;
 };
 
-function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
+function GroupCategoryCard({
+  group,
+  prefetchOnViewport = false,
+}: {
+  group: GroupsDirectoryItem;
+  prefetchOnViewport?: boolean;
+}) {
   const hasSubgroups = group.subgroups.length > 0;
   const visibleGroupLabel = buildVisibleProductName(group.label);
   const groupHint = hasSubgroups
@@ -181,6 +187,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
                 <SmartLink
                   href={buildGroupPath(group.slug)}
                   itemProp="url"
+                  prefetchOnViewport={prefetchOnViewport}
                   className="mt-1.5 block text-[16px] font-extrabold leading-tight tracking-normal text-slate-950 transition hover:text-sky-700"
                 >
                   <span itemProp="name">{visibleGroupLabel}</span>
@@ -290,6 +297,7 @@ function GroupCategoryCard({ group }: { group: GroupsDirectoryItem }) {
         <div className="relative z-[1] mt-4">
           <SmartLink
             href={buildGroupPath(group.slug)}
+            prefetchOnViewport={prefetchOnViewport}
             className={directoryPrimaryButtonClass}
           >
             <ChevronRight size={16} strokeWidth={2.3} />
@@ -321,14 +329,14 @@ export default function GroupsDirectoryClient({
   useEffect(() => {
     if (directoryData.hasProductCounts) return;
 
-    const controller = new AbortController();
+    let cancelled = false;
 
     fetch("/api/group-counts", {
-      signal: controller.signal,
       headers: { Accept: "application/json" },
     })
       .then((response) => (response.ok ? response.json() : null))
       .then((payload: GroupCountsApiPayload | null) => {
+        if (cancelled) return;
         if (!payload || !Array.isArray(payload.clientGroups)) return;
         if (payload.clientGroups.length === 0) return;
 
@@ -353,7 +361,7 @@ export default function GroupsDirectoryClient({
       .catch(() => {});
 
     return () => {
-      controller.abort();
+      cancelled = true;
     };
   }, [
     directoryData.hasProductCounts,
@@ -457,7 +465,10 @@ export default function GroupsDirectoryClient({
                 {filteredGroups.map((group, index) => (
                   <div key={group.slug} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                     <meta itemProp="position" content={String(index + 1)} />
-                    <GroupCategoryCard group={group} />
+                    <GroupCategoryCard
+                      group={group}
+                      prefetchOnViewport={index < 12}
+                    />
                   </div>
                 ))}
               </div>

@@ -3,15 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { SyntheticEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BadgeCheck, ChevronRight, IdCard, LogIn, Sparkles, UserPlus, Wrench } from "lucide-react";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
-
-const benefitItems = [
-  "5% знижка на перше замовлення",
-  "Пріоритетна підтримка",
-  "Професійний підбір",
-];
+import { useRouter } from "next/navigation";
 
 const depthBackground = [
   "radial-gradient(circle at 18% 18%, rgba(56,189,248,0.22), transparent 42%)",
@@ -60,7 +55,9 @@ const vinButton = `${actionButtonBase} group/vin relative overflow-hidden border
 
 const Hero = () => {
   const [isIntroExpanded, setIsIntroExpanded] = useState(false);
+  const [hasOrders, setHasOrders] = useState<boolean | null>(null);
   const { ready: isAuthReady, user } = useFirebaseAuthState();
+  const router = useRouter();
   const logoFallbackPath = "/favicon-192x192.png";
   const handleLogoClick = () => {
     window.location.reload();
@@ -94,6 +91,36 @@ const Hero = () => {
     image.dataset.fallbackApplied = "1";
     image.src = logoFallbackPath;
   };
+
+  useEffect(() => {
+    if (!isAuthReady || !user) {
+      setHasOrders(null);
+      return;
+    }
+    let cancelled = false;
+    const checkOrders = async () => {
+      try {
+        const [{ db }, { collection, getDocs, limit, query, where }] = await Promise.all([
+          import("../../firebase"),
+          import("firebase/firestore"),
+        ]);
+        const snap = await getDocs(
+          query(collection(db, "orders"), where("uid", "==", user.uid), limit(1))
+        );
+        if (!cancelled) setHasOrders(!snap.empty);
+      } catch {
+        if (!cancelled) setHasOrders(null);
+      }
+    };
+    void checkOrders();
+    return () => { cancelled = true; };
+  }, [isAuthReady, user]);
+
+  const benefitItems = [
+    ...( hasOrders !== true ? [{ label: "5% знижка на перше замовлення", onClick: () => window.dispatchEvent(new Event("openOrderModal")) }] : []),
+    { label: "Пріоритетна підтримка", onClick: () => window.dispatchEvent(new CustomEvent("openChatWithMessage", { detail: "" })) },
+    { label: "Професійний підбір", onClick: () => router.push("/katalog?tab=auto") },
+  ];
 
   return (
     <section
@@ -273,17 +300,21 @@ const Hero = () => {
               </div>
             </div>
             <ul className="space-y-2 text-[13px] font-semibold tracking-[-0.01em] text-slate-100 sm:text-[15px]">
-              {benefitItems.map((benefit) => (
+              {benefitItems.map(({ label, onClick }) => (
                 <li
-                  key={benefit}
-                  className="home-chip-hover flex items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-white/30 motion-safe:hover:bg-white/15"
+                  key={label}
+                  onClick={onClick}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === "Enter" && onClick()}
+                  className="home-chip-hover flex cursor-pointer items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-white/30 motion-safe:hover:bg-white/15"
                 >
                   <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm border border-emerald-400/70 text-emerald-300/90">
                     <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M5 12l4 4 10-10" />
                     </svg>
                   </span>
-                  <span>{benefit}</span>
+                  <span>{label}</span>
                 </li>
               ))}
             </ul>

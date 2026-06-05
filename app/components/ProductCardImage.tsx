@@ -20,8 +20,8 @@ import {
 
 // Delay before final image retry (ms)
 const FINAL_RETRY_DELAY_MS = 260;
-const DEFERRED_DIRECT_LOAD_DELAY_MS = 60;
-const BATCH_DIRECT_FALLBACK_DELAY_MS = 240;
+const DEFERRED_DIRECT_LOAD_DELAY_MS = 16;
+const BATCH_DIRECT_FALLBACK_DELAY_MS = 120;
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();

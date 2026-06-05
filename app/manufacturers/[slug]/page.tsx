@@ -41,6 +41,7 @@ import {
   readCatalogSeoFacetsSnapshot,
 } from "app/lib/catalog-count-fallback";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
+import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getProducerSeoCopy } from "app/lib/seo-copy";
@@ -50,7 +51,7 @@ import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 21600;
 export const dynamicParams = true;
-const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 120;
+const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
 const MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS = 1800;
 const MANUFACTURER_BUILD_SEO_LOOKUP_TIMEOUT_MS = 6000;
 const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
@@ -650,13 +651,18 @@ const getManufacturerBySlug = cache(
 
 export async function generateStaticParams() {
   const fromBrands = brands.map((brand) => ({ slug: buildSeoSlug(brand.name) }));
-  const limit = parsePositiveInt(
-    process.env.SEO_MANUFACTURER_STATIC_PARAMS_LIMIT,
-    MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT
-  );
+  const limit = isProductionBuildPhase
+    ? MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT
+    : parsePositiveInt(
+        process.env.SEO_MANUFACTURER_STATIC_PARAMS_LIMIT,
+        MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT
+      );
   const seen = new Set<string>();
+  const directoryData = await getFullManufacturersDirectoryData().catch(() => null);
+  const fromDirectory =
+    directoryData?.clientProducers.map((producer) => ({ slug: producer.slug })) ?? [];
 
-  return fromBrands
+  return [...fromBrands, ...fromDirectory]
     .filter((entry) => {
       const normalizedSlug = (entry.slug || "").trim();
       if (!normalizedSlug || seen.has(normalizedSlug)) return false;
@@ -837,16 +843,20 @@ export default async function ManufacturerDetailPage({
       <div className="page-shell-inline">
       <div className="space-y-4 sm:space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <nav className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-            <Link href="/" className="transition hover:text-slate-800">
-              Головна
-            </Link>
-            <span>/</span>
-            <Link href="/manufacturers" className="transition hover:text-slate-800">
-              Виробники
-            </Link>
-            <span>/</span>
-            <span className="text-slate-700">{producer.label}</span>
+          <nav aria-label="Навігаційні хлібні крихти">
+            <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+              <li className="inline-flex items-center gap-2">
+                <Link href="/" className="transition hover:text-slate-800">Головна</Link>
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <span aria-hidden="true">/</span>
+                <Link href="/manufacturers" className="transition hover:text-slate-800">Виробники</Link>
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <span aria-hidden="true">/</span>
+                <span className="text-slate-700">{producer.label}</span>
+              </li>
+            </ol>
           </nav>
 
           <Link

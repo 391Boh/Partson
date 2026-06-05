@@ -138,7 +138,7 @@ export const buildPageMetadata = ({
       canonical: canonicalPath,
       languages: {
         "uk-UA": canonicalPath,
-        uk: canonicalPath,
+        "x-default": canonicalPath,
       },
     },
     keywords: mergeKeywords(BASE_KEYWORDS, keywords),

@@ -60,7 +60,7 @@ const PRICE_STALE_POSITIVE_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
 const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 45;
 const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 2;
-const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
+const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 20;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 90;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
@@ -68,9 +68,9 @@ const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
 const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
-const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 180;
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 520;
 const IMAGE_PRIORITY_ITEMS_COUNT = 6;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 3;
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 80;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 90;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
@@ -2155,7 +2155,7 @@ function useCatalogData(params: {
             ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
             querySignatureSnapshot: querySignature,
             allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-          });
+          }).catch(swallowAbortError);
           // Не обмежуємо prefetch для першої сторінки, images вже є
           // fetchCatalogPageImages(memoryHit.items, { ... });
         });
@@ -2200,7 +2200,7 @@ function useCatalogData(params: {
             ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
             querySignatureSnapshot: querySignature,
             allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-          });
+          }).catch(swallowAbortError);
           // Не обмежуємо prefetch для першої сторінки, images вже є
           // fetchCatalogPageImages(sessionHit.items, { ... });
         });
@@ -2405,7 +2405,7 @@ function useCatalogData(params: {
         querySignatureSnapshot: currentQuerySignature,
         signal: controller.signal,
         allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-      });
+      }).catch(swallowAbortError);
       fetchCatalogPageImages(itemsForIncrementalWarmup, {
         prefetchedImages: payload.images,
         cacheKey,
@@ -3311,9 +3311,13 @@ const Data: React.FC<DataProps> = ({
   useEffect(() => {
     if (visibleCatalogPriceCandidates.length === 0) return;
 
-    prefetchVisibleCatalogPrices(
-      visibleCatalogPriceCandidates.slice(0, VISIBLE_PRICE_PREFETCH_CHUNK_SIZE)
-    );
+    const timeoutId = window.setTimeout(() => {
+      prefetchVisibleCatalogPrices(
+        visibleCatalogPriceCandidates.slice(0, VISIBLE_PRICE_PREFETCH_CHUNK_SIZE)
+      );
+    }, 120);
+
+    return () => window.clearTimeout(timeoutId);
   }, [prefetchVisibleCatalogPrices, visibleCatalogPriceCandidates]);
 
   useEffect(() => {
@@ -3332,7 +3336,11 @@ const Data: React.FC<DataProps> = ({
 
     if (nextChunk.length === 0) return;
 
-    prefetchVisibleCatalogImages(nextChunk);
+    const timeoutId = window.setTimeout(() => {
+      prefetchVisibleCatalogImages(nextChunk);
+    }, 160);
+
+    return () => window.clearTimeout(timeoutId);
   }, [
     pageImageMissing,
     pageImagePending,
@@ -3575,7 +3583,7 @@ const Data: React.FC<DataProps> = ({
           <div className="relative">
             <div
               ref={catalogGridRef}
-              className={`${CATALOG_GRID_CLASS} transition-[opacity,transform,filter] duration-300 ease-out ${
+              className={`${CATALOG_GRID_CLASS} ${
                 shouldDimCatalogGrid ? "opacity-[0.88]" : "opacity-100"
               }`}
             >
@@ -3630,6 +3638,7 @@ const Data: React.FC<DataProps> = ({
                   subGroup: normalizedSubGroup,
                   category: normalizedGroup || item.category,
                 });
+                const shouldPrefetchProductRoute = absoluteIndex < 10;
 
                 return (
                   <div
@@ -3654,6 +3663,7 @@ const Data: React.FC<DataProps> = ({
                       batchImageOnly={Boolean(imageBatchKey && !shouldPrioritizeImage)}
                       isFlipped={flippedCard === code}
                       motionEnabled={shouldAnimateList}
+                      prefetchProductRoute={shouldPrefetchProductRoute}
                       onAddToCart={handleAddToCart}
                       onRequestPrice={handleRequestPriceForItem}
                       onRemoveFromCart={handleRemoveFromCart}

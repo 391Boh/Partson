@@ -26,6 +26,7 @@ type ProductPurchasePanelClientProps = {
 const PRODUCT_PRICE_CACHE_PREFIX = "partson:v4:product-page-price:";
 const PRODUCT_PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRODUCT_PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
+const PRODUCT_PRICE_REQUEST_TIMEOUT_MS = 1800;
 
 const formatPriceUah = (priceUah: number | null) => {
   if (priceUah == null) return "За запитом";
@@ -168,16 +169,24 @@ export default function ProductPurchasePanelClient(
 
     setPriceUah(undefined);
 
-    const controller = new AbortController();
     let cancelled = false;
 
     const loadPrice = async () => {
+      let timeoutId: number | undefined;
       try {
-        const response = await fetch(requestUrl, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
+        const timeoutPromise = new Promise<Response>((_, reject) => {
+          timeoutId = window.setTimeout(
+            () => reject(new Error("product-price-timeout")),
+            PRODUCT_PRICE_REQUEST_TIMEOUT_MS
+          );
         });
+        const response = await Promise.race([
+          fetch(requestUrl, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+          }),
+          timeoutPromise,
+        ]);
         const payload = (await response.json()) as { priceUah?: number | null };
         if (cancelled) return;
 
@@ -208,6 +217,8 @@ export default function ProductPurchasePanelClient(
             return null;
           });
         }
+      } finally {
+        if (timeoutId != null) window.clearTimeout(timeoutId);
       }
     };
 
@@ -215,7 +226,6 @@ export default function ProductPurchasePanelClient(
 
     return () => {
       cancelled = true;
-      controller.abort();
     };
   }, [cacheKey, normalizedInitialPrice, requestUrl]);
 

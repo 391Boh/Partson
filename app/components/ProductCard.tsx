@@ -10,6 +10,7 @@ import { pushEcommerceEvent } from "app/lib/gtm";
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
+const DESCRIPTION_REQUEST_TIMEOUT_MS = 1800;
 const ARTICLE_COPY_FEEDBACK_MS = 1200;
 const safBackface = {
     backfaceVisibility: "hidden" as const,
@@ -44,6 +45,7 @@ interface Props {
     batchImageOnly?: boolean;
     isFlipped: boolean;
     motionEnabled?: boolean;
+    prefetchProductRoute?: boolean;
 
     onAddToCart: (item: Product) => void;
     onRequestPrice: (item: Product) => void;
@@ -68,6 +70,7 @@ const ProductCard: React.FC<Props> = ({
     batchImageOnly = false,
     isFlipped,
     motionEnabled: motionEnabledProp,
+    prefetchProductRoute = false,
     onAddToCart,
     onRequestPrice,
     onRemoveFromCart,
@@ -276,18 +279,26 @@ useEffect(() => {
         return;
     }
 
-    const controller = new AbortController();
     let cancelled = false;
 
     const loadDescription = async () => {
+        let timeoutId: number | undefined;
         try {
             setLoadingDesc(true);
 
-            const res = await fetch(descriptionRequestUrl, {
-                method: "GET",
-                headers: { Accept: "application/json" },
-                signal: controller.signal,
+            const timeoutPromise = new Promise<Response>((_, reject) => {
+                timeoutId = window.setTimeout(
+                    () => reject(new Error("product-card-description-timeout")),
+                    DESCRIPTION_REQUEST_TIMEOUT_MS
+                );
             });
+            const res = await Promise.race([
+                fetch(descriptionRequestUrl, {
+                    method: "GET",
+                    headers: { Accept: "application/json" },
+                }),
+                timeoutPromise,
+            ]);
             const data = (await res.json()) as { description?: string | null };
             if (cancelled) return;
 
@@ -311,6 +322,7 @@ useEffect(() => {
                 setDescription("\u041D\u0435 \u0432\u0434\u0430\u043B\u043E\u0441\u044F \u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0438\u0442\u0438 \u043E\u043F\u0438\u0441");
             }
         } finally {
+            if (timeoutId != null) window.clearTimeout(timeoutId);
             if (!cancelled) {
                 setLoadingDesc(false);
             }
@@ -321,7 +333,6 @@ useEffect(() => {
 
     return () => {
         cancelled = true;
-        controller.abort();
     };
 }, [descriptionRequestUrl, isFlipped]);
 
@@ -405,7 +416,7 @@ useEffect(() => {
                             <SmartLink
                                 href={productHref}
                                 itemProp="url"
-                                prefetch={false}
+                                prefetchOnViewport={prefetchProductRoute}
                                 prefetchOnIntent
                                 onClick={(event) => {
                                     event.stopPropagation();

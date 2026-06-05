@@ -49,6 +49,7 @@ type ManufacturerCountsApiPayload = {
 
 type ManufacturerCardProps = {
   item: ManufacturerItem;
+  prefetchOnViewport?: boolean;
 };
 
 const collapseWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -97,6 +98,7 @@ const buildManufacturerCardSupportText = (item: ManufacturerItem) => {
 
 const ManufacturerCard = memo(function ManufacturerCard({
   item,
+  prefetchOnViewport = false,
 }: ManufacturerCardProps) {
   const manufacturerHref = buildManufacturerPath(item.slug);
 
@@ -104,6 +106,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
     <SmartLink
       href={manufacturerHref}
       aria-label={`Відкрити сторінку бренду ${item.label}`}
+      prefetchOnViewport={prefetchOnViewport}
       className={`${directoryCardClass} animate-fadeIn`}
       itemScope
       itemType="https://schema.org/Brand"
@@ -181,14 +184,14 @@ export default function ManufacturersDirectory({
   useEffect(() => {
     if (directoryData.hasIndexedCounts) return;
 
-    const controller = new AbortController();
+    let cancelled = false;
 
     fetch("/api/manufacturer-counts", {
-      signal: controller.signal,
       headers: { Accept: "application/json" },
     })
       .then((response) => (response.ok ? response.json() : null))
       .then((payload: ManufacturerCountsApiPayload | null) => {
+        if (cancelled) return;
         if (!payload || !Array.isArray(payload.clientProducers)) return;
         if (payload.clientProducers.length === 0) return;
 
@@ -202,7 +205,7 @@ export default function ManufacturersDirectory({
       .catch(() => {});
 
     return () => {
-      controller.abort();
+      cancelled = true;
     };
   }, [directoryData.hasIndexedCounts]);
 
@@ -289,7 +292,10 @@ export default function ManufacturersDirectory({
                 {filteredItems.map((item, index) => (
                   <div key={item.slug} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                     <meta itemProp="position" content={String(index + 1)} />
-                    <ManufacturerCard item={item} />
+                    <ManufacturerCard
+                      item={item}
+                      prefetchOnViewport={index < 12}
+                    />
                   </div>
                 ))}
               </div>

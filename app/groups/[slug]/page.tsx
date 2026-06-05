@@ -237,42 +237,39 @@ const buildStaticSlugCandidates = (
   );
 
 export async function generateStaticParams() {
-  const limit = parsePositiveInt(
-    process.env.SEO_GROUP_STATIC_PARAMS_LIMIT,
-    GROUP_STATIC_PARAMS_LIMIT_DEFAULT
-  );
+  const limit = isProductionBuildPhase
+    ? GROUP_STATIC_PARAMS_LIMIT_DEFAULT
+    : parsePositiveInt(
+        process.env.SEO_GROUP_STATIC_PARAMS_LIMIT,
+        GROUP_STATIC_PARAMS_LIMIT_DEFAULT
+      );
   if (limit <= 0) return [];
 
   const dataset = await getProductTreeDataset().catch(() => null);
-  const treeParams = dedupeStaticParams(
+  const treeParams =
     dataset?.groups.flatMap((group) =>
-      (isProductionBuildPhase
-        ? buildStaticSlugCandidates(group.slug)
-        : buildStaticSlugCandidates(
-            group.slug,
-            group.legacySlug,
-            buildPlainSeoSlug(group.label)
-          )
+      buildStaticSlugCandidates(
+        group.slug,
+        group.legacySlug,
+        buildPlainSeoSlug(group.label)
       ).map((slug) => ({ slug }))
-    ) ?? []
-  );
-  if (treeParams.length > 0) {
-    return treeParams.slice(0, limit);
-  }
+    ) ?? [];
 
   try {
     const seoFacets = await getCatalogSeoFacetsWithTimeout(
       GROUP_STATIC_PARAMS_FALLBACK_TIMEOUT_MS
     );
     return dedupeStaticParams(
-      seoFacets.groups.flatMap((group) => [
-        { slug: group.slug },
-        { slug: buildPlainSeoSlug(group.label) },
-      ])
-    )
-      .slice(0, limit);
+      [
+        ...treeParams,
+        ...seoFacets.groups.flatMap((group) => [
+          { slug: group.slug },
+          { slug: buildPlainSeoSlug(group.label) },
+        ]),
+      ]
+    ).slice(0, limit);
   } catch {
-    return [];
+    return dedupeStaticParams(treeParams).slice(0, limit);
   }
 }
 
@@ -452,16 +449,20 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
 
   return (
     <main className="page-shell-inline py-6 sm:py-8">
-      <nav className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-        <Link href="/" className="transition hover:text-slate-800">
-          Головна
-        </Link>
-        <span>/</span>
-        <Link href="/groups" className="transition hover:text-slate-800">
-          Групи товарів
-        </Link>
-        <span>/</span>
-        <span className="text-slate-700">{visibleGroupLabel}</span>
+      <nav aria-label="Навігаційні хлібні крихти">
+        <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+          <li className="inline-flex items-center gap-2">
+            <Link href="/" className="transition hover:text-slate-800">Головна</Link>
+          </li>
+          <li className="inline-flex items-center gap-2">
+            <span aria-hidden="true">/</span>
+            <Link href="/groups" className="transition hover:text-slate-800">Групи товарів</Link>
+          </li>
+          <li className="inline-flex items-center gap-2">
+            <span aria-hidden="true">/</span>
+            <span className="text-slate-700">{visibleGroupLabel}</span>
+          </li>
+        </ol>
       </nav>
 
       <Link href="/groups" className="mt-3 inline-flex text-sm font-semibold text-teal-800 hover:text-teal-900">

@@ -107,7 +107,6 @@ const requestCatalogImageBatch = async (
       deep: options?.deep === true,
     }),
     cache: "no-store",
-    signal: options?.signal,
   });
 
   if (!response.ok) {

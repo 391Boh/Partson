@@ -11,18 +11,25 @@ import {
   Truck,
   CreditCard,
   PackageCheck,
-  ChevronUp,
-  ChevronDown,
+  Gift,
+  Percent,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCart } from 'app/context/CartContext';
 import { pushEcommerceEvent } from 'app/lib/gtm';
+import {
+  calculateFirstOrderDiscount,
+  FIRST_ORDER_DISCOUNT_CODE,
+  FIRST_ORDER_DISCOUNT_PERCENT,
+} from 'app/lib/first-order-discount';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import Zamovl from './zamovl';
+import ProductCardImage from './ProductCardImage';
 import { db, auth } from '../../firebase';
 import {
   collection,
   getDocs,
+  limit,
   query,
   where,
   orderBy,
@@ -35,7 +42,10 @@ interface OrderProps {
 
 interface PastOrderItem {
   name?: string;
+  article?: string;
+  price?: number;
   quantity?: number;
+  code?: string;
 }
 
 interface PastOrder {
@@ -50,7 +60,11 @@ interface PastOrder {
   deliveryMethod?: string;
   warehouse?: string;
   paymentMethod?: string;
+  discountAmount?: number;
+  subtotalAmount?: number;
 }
+
+type FirstOrderDiscountStatus = 'loading' | 'guest' | 'eligible' | 'used' | 'error';
 
 const Order: React.FC<OrderProps> = ({ onClose }) => {
   const { cartItems, removeFromCart, clearCart } = useCart();
@@ -60,6 +74,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   const [pastOrders, setPastOrders] = useState<PastOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [firstOrderDiscountStatus, setFirstOrderDiscountStatus] =
+    useState<FirstOrderDiscountStatus>('loading');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const orderRef = useRef<HTMLDivElement>(null);
   const openAuthModal = () => {
@@ -91,6 +108,14 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     (total, item) => total + (item.price || 0) * (item.quantity || 1),
     0
   );
+  const isFirstOrderDiscountEligible =
+    Boolean(user) && firstOrderDiscountStatus === 'eligible';
+  const isDiscountCheckPending = !isAuthReady || (Boolean(user) && firstOrderDiscountStatus === 'loading');
+  const discountTotals = useMemo(
+    () => calculateFirstOrderDiscount(totalAmount, isFirstOrderDiscountEligible),
+    [isFirstOrderDiscountEligible, totalAmount]
+  );
+  const payableAmount = discountTotals.totalAmount;
   const totalUnits = cartItems.reduce(
     (total, item) => total + (item.quantity || 0),
     0
@@ -116,9 +141,17 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   }, []);
 
   const handleBeginCheckout = () => {
+    if (!hasItems || isDiscountCheckPending) return;
+
     pushEcommerceEvent("begin_checkout", {
       currency: "UAH",
-      value: totalAmount,
+      value: payableAmount,
+      ...(discountTotals.isApplied
+        ? {
+            coupon: FIRST_ORDER_DISCOUNT_CODE,
+            discount: discountTotals.discountAmount,
+          }
+        : {}),
       items: cartEcommerceItems,
     });
     setIsOrdering(true);
@@ -135,9 +168,49 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setIsAuthReady(true);
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkFirstOrderDiscount = async () => {
+      if (!isAuthReady) {
+        setFirstOrderDiscountStatus('loading');
+        return;
+      }
+
+      if (!user) {
+        setFirstOrderDiscountStatus('guest');
+        return;
+      }
+
+      setFirstOrderDiscountStatus('loading');
+
+      try {
+        const existingOrdersQuery = query(
+          collection(db, 'orders'),
+          where('uid', '==', user.uid),
+          limit(1)
+        );
+        const snapshot = await getDocs(existingOrdersQuery);
+        if (cancelled) return;
+
+        setFirstOrderDiscountStatus(snapshot.empty ? 'eligible' : 'used');
+      } catch (error) {
+        console.error('Помилка перевірки знижки першого замовлення:', error);
+        if (!cancelled) setFirstOrderDiscountStatus('error');
+      }
+    };
+
+    void checkFirstOrderDiscount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthReady, user]);
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -184,11 +257,51 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     setExpandedOrderId((prev) => (prev === orderId ? null : orderId));
   };
 
+  const firstOrderDiscountCopy =
+    firstOrderDiscountStatus === 'eligible'
+      ? {
+          title: `Знижка ${FIRST_ORDER_DISCOUNT_PERCENT}% на перше замовлення`,
+          text: 'Враховано автоматично для вашого профілю.',
+          tone: 'active',
+        }
+      : firstOrderDiscountStatus === 'loading'
+        ? {
+            title: 'Перевіряємо промо',
+            text: 'Оновлюємо статус знижки.',
+            tone: 'muted',
+          }
+        : firstOrderDiscountStatus === 'error'
+          ? {
+              title: 'Знижку не перевірено',
+              text: 'Оновіть кошик або увійдіть ще раз.',
+              tone: 'warning',
+            }
+          : {
+              title: `Увійдіть і отримайте -${FIRST_ORDER_DISCOUNT_PERCENT}%`,
+              text: 'Знижка на перше замовлення застосовується автоматично.',
+              tone: 'guest',
+            };
+  const shouldShowFirstOrderDiscountPanel =
+    firstOrderDiscountStatus === 'eligible' ||
+    firstOrderDiscountStatus === 'guest' ||
+    firstOrderDiscountStatus === 'error';
+  const firstOrderDiscountPanelClass =
+    firstOrderDiscountCopy.tone === 'active'
+      ? 'border-emerald-200/80 bg-gradient-to-r from-white via-emerald-50/80 to-white text-slate-800 shadow-[0_10px_22px_rgba(16,185,129,0.08)]'
+      : firstOrderDiscountCopy.tone === 'warning'
+        ? 'border-amber-200/80 bg-gradient-to-r from-white via-amber-50/80 to-white text-slate-800 shadow-[0_10px_22px_rgba(245,158,11,0.07)]'
+        : 'border-sky-200/80 bg-gradient-to-r from-white via-sky-50/85 to-white text-slate-800 shadow-[0_10px_22px_rgba(14,165,233,0.08)]';
+
   if (isOrdering) {
     return (
       <Zamovl
         cartItems={cartItems}
         totalAmount={totalAmount}
+        payableAmount={payableAmount}
+        discountAmount={discountTotals.discountAmount}
+        discountRate={discountTotals.discountRate}
+        discountCode={discountTotals.discountCode}
+        isFirstOrderDiscountApplied={discountTotals.isApplied}
         onBack={() => setIsOrdering(false)}
         onCloseAll={() => {
           setIsOrdering(false);
@@ -297,90 +410,162 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
             <div className="space-y-2 sm:app-panel-scroll sm:max-h-[52vh] sm:space-y-2.5">
               {pastOrders.map((order) => {
                 const isExpanded = expandedOrderId === order.id;
+                const orderTotalAmount = Number(order.totalAmount || order.total || 0);
+                const orderDiscountAmount = Number(order.discountAmount || 0);
+                const orderItems = order.cartItems ?? [];
+                const orderNumber = order.orderId || order.id;
+                const orderDateLabel = order.createdAt?.seconds
+                  ? dateFormatter.format(new Date(order.createdAt.seconds * 1000))
+                  : 'Дата уточнюється';
+                const hasOrderDiscount =
+                  Number.isFinite(orderDiscountAmount) && orderDiscountAmount > 0;
+
                 return (
-                  <button
+                  <div
                     key={order.id}
-                    type="button"
-                    className="group soft-surface-card app-panel-card-hover rounded-[18px] border border-sky-100/70 p-3 text-left text-slate-700 transition-[transform,box-shadow,border-color,background-color] duration-200 hover:border-sky-200/90 hover:bg-white/95 hover:shadow-[0_22px_42px_rgba(14,165,233,0.12)] sm:rounded-[20px] sm:p-3.5"
-                    onClick={() => toggleExpandOrder(order.id)}
+                    className={`soft-surface-card app-panel-card-hover w-full rounded-[18px] border p-3 text-slate-700 transition-[box-shadow,border-color,background-color] duration-200 sm:rounded-[20px] sm:p-3.5 ${
+                      isExpanded
+                        ? 'border-sky-200 bg-white/95 shadow-[0_18px_36px_rgba(14,165,233,0.1)]'
+                        : 'border-sky-100/70 hover:border-sky-200/90 hover:bg-white/95'
+                    }`}
                   >
-                    <div className="flex w-full flex-col items-start gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-sky-50/80 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
-                          <CalendarClock size={13} />
-                          {order.createdAt?.seconds
-                            ? dateFormatter.format(new Date(order.createdAt.seconds * 1000))
-                            : 'Дата уточнюється'}
+                    <button
+                      type="button"
+                      className="w-full text-left"
+                      onClick={() => toggleExpandOrder(order.id)}
+                    >
+                      <div className="grid w-full gap-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200/70 bg-sky-50/80 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
+                              <CalendarClock size={13} />
+                              {orderDateLabel}
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white/85 px-2.5 py-1 text-[11px] font-bold text-slate-600">
+                              {isExpanded ? 'Деталі відкрито' : 'Деталі замовлення'}
+                            </span>
+                            {hasOrderDiscount && (
+                              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                                <Percent size={13} />
+                                -{currencyFormatter.format(orderDiscountAmount)} грн
+                              </span>
+                            )}
+                          </div>
+
+                          <h4 className="mt-2 break-words text-[15px] font-bold leading-5 text-slate-900 sm:text-base">
+                            Замовлення №{orderNumber}
+                          </h4>
+
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 sm:gap-2 sm:text-xs">
+                            <span className="soft-chip min-h-7 px-2.5 py-1">
+                              <Boxes size={13} className="mr-1.5" />
+                              {orderItems.length} позицій
+                            </span>
+                            {order.deliveryMethod && (
+                              <span className="soft-chip min-h-7 px-2.5 py-1">
+                                <Truck size={13} className="mr-1.5" />
+                                {order.deliveryMethod}
+                              </span>
+                            )}
+                            {order.paymentMethod && (
+                              <span className="soft-chip min-h-7 px-2.5 py-1">
+                                <CreditCard size={13} className="mr-1.5" />
+                                {order.paymentMethod}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <h4 className="mt-2.5 break-words text-[15px] font-bold text-slate-800 sm:mt-3 sm:text-base">
-                          Замовлення #{order.orderId || order.id}
-                        </h4>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 sm:mt-2 sm:gap-2 sm:text-xs">
-                          <span className="soft-chip min-h-8 px-3 py-1">
-                            <Boxes size={13} className="mr-1.5" />
-                            {order.cartItems?.length || 0} позицій
+
+                        <span className="inline-flex w-full flex-row items-center justify-between rounded-[14px] border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-left shadow-[0_8px_16px_rgba(16,185,129,0.06)] sm:min-w-[132px] sm:flex-col sm:items-end sm:text-right">
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-600/80">
+                            Сума
                           </span>
-                          <span className="soft-chip min-h-8 px-3 py-1 text-emerald-700">
-                            <ShoppingCart size={13} className="mr-1.5" />
-                            {currencyFormatter.format(Number(order.totalAmount || order.total || 0))} грн
+                          <span className="text-sm font-extrabold text-emerald-700">
+                            {currencyFormatter.format(orderTotalAmount)} грн
                           </span>
-                        </div>
+                        </span>
                       </div>
-                      <span className={`soft-icon-button h-8 w-8 shrink-0 self-end p-0 transition-[transform,box-shadow,background-color,border-color,color] duration-200 group-hover:-translate-y-0.5 group-hover:border-sky-200 group-hover:bg-white group-hover:text-sky-700 group-hover:shadow-[0_12px_22px_rgba(14,165,233,0.12)] sm:h-9 sm:w-9 sm:self-start ${isExpanded ? 'border-sky-200 bg-white text-sky-700 shadow-[0_10px_18px_rgba(14,165,233,0.12)]' : ''}`}>
-                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                      </span>
-                    </div>
+                    </button>
 
                     {isExpanded && (
-                      <div className="mt-2 space-y-2">
-                        <div className="soft-note rounded-[16px] px-2.5 py-2 sm:rounded-[18px] sm:px-3 sm:py-2.5">
-                          <ul className="app-panel-scroll space-y-1.5 overflow-y-auto text-[11px] text-slate-600 sm:max-h-40 sm:space-y-2 sm:pr-1 sm:text-xs">
-                            {order.cartItems?.map((item: PastOrderItem, idx: number) => (
-                              <li
-                                key={idx}
-                                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[13px] border border-white/70 bg-white/75 px-2.5 py-1.5 sm:gap-3 sm:rounded-[14px] sm:px-3 sm:py-2"
-                              >
-                                <span className="min-w-0 break-words text-slate-700">{item.name}</span>
-                                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">
-                                  {item.quantity} шт.
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
+                      <div className="mt-2.5 border-t border-sky-100/80 pt-2.5">
+                        <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                          <span>Склад замовлення</span>
+                          <span>{orderItems.length} поз.</span>
                         </div>
 
-                        <div className="grid gap-1.5 text-[11px] text-slate-600 sm:grid-cols-2 sm:gap-2 sm:text-xs xl:grid-cols-3">
-                          <div className="soft-chip min-h-10 justify-start gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2">
-                            <ShoppingCart size={15} />
-                            <span>
-                              Сума:{' '}
-                              <span className="font-semibold text-emerald-600">
-                                {order.totalAmount || order.total} грн
-                              </span>
-                            </span>
+	                        <ul className="app-panel-scroll space-y-1.5 overflow-y-auto sm:max-h-44 sm:pr-1">
+	                          {orderItems.length > 0 ? (
+	                            orderItems.map((item: PastOrderItem, idx: number) => {
+	                              const itemQuantity = Math.max(1, Number(item.quantity || 1));
+	                              const itemPrice = Number(item.price || 0);
+	                              const hasItemPrice = Number.isFinite(itemPrice) && itemPrice > 0;
+	                              const itemTotal = itemPrice * itemQuantity;
+	                              const itemName =
+	                                item.name?.replace(/\s*\(.*?\)/g, '').trim() || 'Товар';
+
+	                              return (
+	                                <li
+	                                  key={item.code || item.article || item.name || idx}
+	                                  className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 rounded-[13px] bg-slate-50/90 px-2.5 py-2 text-left sm:grid-cols-[28px_minmax(0,1fr)_minmax(90px,auto)] sm:gap-2.5 sm:rounded-[14px] sm:px-3"
+	                                >
+	                                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-[10px] font-bold text-sky-700 shadow-[0_4px_10px_rgba(14,165,233,0.08)] sm:h-7 sm:w-7">
+	                                    {idx + 1}
+	                                  </span>
+	                                  <span className="min-w-0">
+	                                    <span className="line-clamp-1 text-[12px] font-bold leading-4 text-slate-800 sm:text-[13px]">
+	                                      {itemName}
+	                                    </span>
+	                                    {item.article && (
+	                                      <span className="mt-0.5 block truncate text-[10px] font-semibold text-slate-500 sm:text-[11px]">
+	                                        Арт. {item.article}
+	                                      </span>
+	                                    )}
+	                                  </span>
+	                                  <span className="flex shrink-0 flex-col items-end gap-0.5 text-right">
+	                                    <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-sky-700">
+	                                      {itemQuantity} шт.
+	                                    </span>
+	                                    {hasItemPrice && (
+	                                      <span className="text-[11px] font-bold text-emerald-700">
+	                                        {currencyFormatter.format(itemTotal)} грн
+	                                      </span>
+	                                    )}
+	                                  </span>
+	                                </li>
+	                              );
+	                            })
+	                          ) : (
+                            <li className="rounded-[13px] bg-slate-50/90 px-3 py-2 text-xs font-semibold text-slate-500">
+                              Список товарів для цього замовлення не збережено.
+                            </li>
+                          )}
+                        </ul>
+
+                        {(hasOrderDiscount || order.warehouse) && (
+                          <div className="mt-2 grid gap-1.5 text-[11px] text-slate-600 sm:grid-cols-2 sm:gap-2 sm:text-xs">
+                            {hasOrderDiscount && (
+                              <div className="soft-chip min-h-9 justify-start gap-1.5 px-2.5 py-1.5 text-emerald-700 sm:px-3">
+                                <Percent size={15} />
+                                <span>
+                                  Знижка:{' '}
+                                  <span className="font-semibold">
+                                    -{currencyFormatter.format(orderDiscountAmount)} грн
+                                  </span>
+                                </span>
+                              </div>
+                            )}
+                            {order.warehouse && (
+                              <div className="soft-chip min-h-9 justify-start gap-1.5 px-2.5 py-1.5 sm:px-3">
+                                <PackageCheck size={15} />
+                                <span>{order.warehouse}</span>
+                              </div>
+                            )}
                           </div>
-                          {order.deliveryMethod && (
-                            <div className="soft-chip min-h-10 justify-start gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2">
-                              <Truck size={15} />
-                              <span>{order.deliveryMethod}</span>
-                            </div>
-                          )}
-                          {order.warehouse && (
-                            <div className="soft-chip min-h-10 justify-start gap-1.5 px-2.5 py-1.5 sm:col-span-2 sm:px-3 sm:py-2 xl:col-span-2">
-                              <PackageCheck size={15} />
-                              <span>{order.warehouse}</span>
-                            </div>
-                          )}
-                          {order.paymentMethod && (
-                            <div className="soft-chip min-h-10 justify-start gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2">
-                              <CreditCard size={15} />
-                              <span>{order.paymentMethod}</span>
-                            </div>
-                          )}
-                        </div>
+                        )}
                       </div>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -433,14 +618,14 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
             <button
               onClick={handleBeginCheckout}
               className={`flex items-center justify-center gap-1.5 rounded-[14px] border px-2.5 py-2 text-sm font-semibold transition-[transform,box-shadow,filter,background-color,border-color] duration-200 sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
-                hasItems
+                hasItems && !isDiscountCheckPending
                   ? 'border-sky-200/50 bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-500 text-white shadow-[0_16px_30px_rgba(14,165,233,0.28)] hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_20px_38px_rgba(37,99,235,0.3)]'
                   : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-70'
               }`}
-              disabled={!hasItems}
+              disabled={!hasItems || isDiscountCheckPending}
             >
-              <ShoppingCart size={16} />
-              Оформити
+              <BadgeCheck size={16} />
+              {isDiscountCheckPending ? 'Перевірка' : 'Оформити'}
             </button>
           </div>
         </div>
@@ -454,10 +639,6 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                   Перевірте позиції, суму й переходьте до оформлення без зайвих кроків.
                 </p>
               </div>
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-sky-700 sm:px-3 sm:py-1.5 sm:text-xs">
-                <ShoppingCart size={14} />
-                {hasItems ? "Готово до оформлення" : "Очікує товари"}
-              </div>
             </div>
 
             <div className="soft-panel-stat-grid mt-2.5">
@@ -470,12 +651,8 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                 <span className="soft-panel-stat-value">{totalUnits}</span>
               </div>
               <div className="soft-panel-stat-card">
-                <span className="soft-panel-stat-label">Сума</span>
-                <span className="soft-panel-stat-value">{currencyFormatter.format(totalAmount)}</span>
-              </div>
-              <div className="soft-panel-stat-card">
-                <span className="soft-panel-stat-label">Режим</span>
-                <span className="soft-panel-stat-value">Кошик</span>
+                <span className="soft-panel-stat-label">До оплати</span>
+                <span className="soft-panel-stat-value">{currencyFormatter.format(payableAmount)}</span>
               </div>
             </div>
           </section>
@@ -483,69 +660,139 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
           <div className="mt-2 space-y-2 pb-1">
         {hasItems ? (
           <>
-            <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-2.5">
-              <div className="soft-surface-card rounded-[16px] px-2.5 py-2 sm:rounded-[20px] sm:px-3.5 sm:py-3">
-                <span className="text-[11px] text-slate-500 sm:text-xs">Всього позицій</span>
-                <p className="mt-0.5 text-[17px] font-semibold text-slate-800 sm:mt-1 sm:text-lg">{cartItems.length} шт.</p>
-                <p className="mt-0.5 text-[11px] text-slate-500 sm:mt-1 sm:text-xs">У кошику {totalUnits} товарних одиниць.</p>
+            {shouldShowFirstOrderDiscountPanel && (
+              <div
+                className={`rounded-[16px] border px-3 py-2.5 transition-[border-color,box-shadow,background-color] sm:rounded-[18px] sm:px-3.5 ${firstOrderDiscountPanelClass}`}
+              >
+                <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] border border-white/80 bg-white/90 text-emerald-600 shadow-[0_8px_16px_rgba(15,23,42,0.05)]">
+                      {discountTotals.isApplied ? (
+                        <Percent size={17} strokeWidth={2.2} aria-hidden="true" />
+                      ) : (
+                        <Gift size={17} strokeWidth={2} aria-hidden="true" />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold leading-4 text-slate-900 sm:text-sm">
+                        {firstOrderDiscountCopy.title}
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium leading-4 text-slate-600 sm:text-xs">
+                        {firstOrderDiscountCopy.text}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className="inline-flex items-center justify-center rounded-full border border-white/80 bg-white/90 px-2.5 py-1 text-xs font-bold text-emerald-700 shadow-[0_6px_12px_rgba(16,185,129,0.08)]">
+                      -{FIRST_ORDER_DISCOUNT_PERCENT}%
+                    </span>
+                    {!user && (
+                      <button
+                        type="button"
+                        onClick={openAuthModal}
+                        className="inline-flex items-center justify-center rounded-full border border-sky-200/80 bg-white px-3 py-1.5 text-xs font-bold text-sky-700 shadow-[0_8px_16px_rgba(14,165,233,0.1)] transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800"
+                      >
+                        Увійти
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {discountTotals.isApplied && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-white/80 pt-2 text-xs">
+                    <span className="inline-flex rounded-full bg-white/85 px-2.5 py-1 font-semibold text-emerald-700">
+                      Знижка -{currencyFormatter.format(discountTotals.discountAmount)} грн
+                    </span>
+                    <span className="inline-flex rounded-full bg-white/85 px-2.5 py-1 font-bold text-slate-900">
+                      До оплати {currencyFormatter.format(payableAmount)} грн
+                    </span>
+                  </div>
+                )}
               </div>
-              <div className="soft-surface-card rounded-[16px] px-2.5 py-2 text-left sm:rounded-[20px] sm:px-3.5 sm:py-3 sm:text-right">
-                <span className="text-[11px] text-slate-500 sm:text-xs">Сума до оплати</span>
-                <p className="mt-0.5 text-[17px] font-semibold text-emerald-600 sm:mt-1 sm:text-lg">
-                  {currencyFormatter.format(totalAmount)} грн
-                </p>
-                <p className="mt-0.5 text-[11px] text-slate-500 sm:mt-1 sm:text-xs">Остаточна сума перед оформленням.</p>
-              </div>
-            </div>
+            )}
 
             <div className="flex flex-col gap-2 sm:app-panel-scroll sm:max-h-[40vh] sm:gap-2.5">
-              {cartItems.map((item, index) => (
-                <div
-                  key={item.code || index}
-                  className="soft-surface-card app-panel-card-hover flex flex-col gap-2 rounded-[16px] p-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:rounded-[20px] sm:p-3.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1.5 flex flex-wrap gap-1.5 sm:mb-2 sm:gap-2">
-                      <span className="soft-chip px-2 py-0.75 text-[10px] font-semibold text-slate-600 sm:px-2.5 sm:py-1 sm:text-[11px]">
-                        #{index + 1}
-                      </span>
-                      <span className="soft-chip px-2 py-0.75 text-[10px] font-semibold text-slate-600 sm:px-2.5 sm:py-1 sm:text-[11px]">
-                        {item.quantity} шт.
-                      </span>
-                    </div>
-                    <Link
-                      href={`/katalog?search=${encodeURIComponent(
-                        item.name?.replace(/\s*\(.*?\)/g, '') || ''
-                      )}&filter=all`}
-                      className="line-clamp-2 text-[14px] font-semibold text-slate-800 transition hover:text-sky-700 sm:text-base"
+              {cartItems.map((item, index) => {
+                const itemName = item.name?.replace(/\s*\(.*?\)/g, '') || 'Товар';
+                const lineTotal = (item.price || 0) * (item.quantity || 1);
+                const itemSearchHref = `/katalog?search=${encodeURIComponent(itemName)}&filter=all`;
+
+                  return (
+                    <div
+                      key={item.code || index}
+                      className="soft-surface-card app-panel-card-hover group relative grid grid-cols-[64px_minmax(0,1fr)] items-start gap-2.5 rounded-[16px] p-2.5 pr-11 sm:grid-cols-[72px_minmax(0,1fr)] sm:gap-3 sm:rounded-[20px] sm:p-3 sm:pr-12"
                     >
-                      {item.name?.replace(/\s*\(.*?\)/g, '')}
-                    </Link>
-                    <p className="mt-0.5 text-[11px] text-slate-600 sm:mt-1 sm:text-sm">
-                      {currencyFormatter.format(item.price || 0)} грн{' '}
-                      <span className="text-slate-500">x {item.quantity} шт.</span>
-                    </p>
-                    <p className="mt-0.5 text-[13px] font-semibold text-emerald-600 sm:mt-1 sm:text-sm">
-                      {currencyFormatter.format((item.price || 0) * (item.quantity || 1))} грн
-                    </p>
+                      <Link
+                        href={itemSearchHref}
+                        className="relative h-[64px] w-[64px] shrink-0 overflow-hidden rounded-[15px] border border-slate-200 bg-white shadow-[0_10px_22px_rgba(15,23,42,0.07)] transition hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_16px_28px_rgba(14,165,233,0.13)] sm:h-[72px] sm:w-[72px]"
+                        aria-label={`Переглянути ${itemName}`}
+                      >
+                        <ProductCardImage
+                          productCode={item.code}
+                          articleHint={item.article}
+                          alt={itemName}
+                          loadingMode={index < 2 ? 'eager' : 'lazy'}
+                          fetchPriority={index < 2 ? 'high' : 'low'}
+                          className="rounded-[14px] bg-white [&_span]:hidden"
+                        />
+                      </Link>
+  
+                      <div className="min-w-0 pr-1 sm:pr-0">
+                        <Link
+                          href={itemSearchHref}
+                          className="line-clamp-2 text-[13px] font-bold leading-5 text-slate-900 transition hover:text-sky-700 sm:text-[15px]"
+                        >
+                          {itemName}
+                        </Link>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          <span className="soft-chip px-2 py-0.75 text-[10px] font-semibold text-slate-600 sm:px-2.5 sm:py-1 sm:text-[11px]">
+                            #{index + 1}
+                          </span>
+                          {item.article && (
+                            <span className="soft-chip max-w-full px-2 py-0.75 text-[10px] font-semibold text-slate-600 sm:px-2.5 sm:py-1 sm:text-[11px]">
+                              <span className="truncate">Арт. {item.article}</span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] sm:gap-2 sm:text-xs">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1.5">
+                            <span className="font-semibold text-slate-500">Ціна</span>
+                            <span className="font-bold text-slate-900">
+                              {currencyFormatter.format(item.price || 0)} грн
+                            </span>
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1.5">
+                            <span className="font-semibold text-slate-500">К-сть</span>
+                            <span className="font-bold text-sky-700">{item.quantity} шт.</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1.5">
+                            <span className="font-semibold text-slate-500">Разом</span>
+                            <span className="font-bold text-emerald-700">
+                              {currencyFormatter.format(lineTotal)} грн
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(item.code)}
+                        className="absolute right-2 top-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white/95 text-rose-500 shadow-[0_10px_18px_rgba(244,63,94,0.12)] transition-[transform,box-shadow,border-color,background-color,color] duration-200 hover:-translate-y-0.5 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 hover:shadow-[0_14px_24px_rgba(244,63,94,0.18)] sm:right-2.5 sm:top-2.5 sm:h-9 sm:w-9"
+                      aria-label={`Видалити ${itemName}`}
+                    >
+                      <X size={18} />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => removeFromCart(item.code)}
-                    className="soft-icon-button h-9 w-9 self-end shrink-0 p-0 text-rose-500 hover:text-rose-600 sm:h-10 sm:w-10 sm:self-auto"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         ) : (
-          <div className="soft-panel-hero mt-1 flex flex-col items-center gap-2 rounded-[18px] px-3.5 py-4 text-center text-slate-600 sm:gap-2.5 sm:rounded-[20px] sm:px-4 sm:py-5">
-            <div className="flex items-center gap-2 text-base font-bold tracking-wide text-slate-800">
-              <ShoppingCart size={20} className="text-slate-500" />
+          <div className="soft-panel-hero mt-1 flex flex-col items-center gap-2 rounded-[18px] px-3.5 py-4 text-center sm:gap-2.5 sm:rounded-[20px] sm:px-4 sm:py-5">
+            <div className="flex items-center gap-2 text-base font-bold tracking-wide text-slate-900">
+              <ShoppingCart size={20} className="text-sky-700" />
               <span>Кошик порожній</span>
             </div>
-            <p className="max-w-xs text-sm leading-relaxed text-slate-600">
+            <p className="max-w-xs text-sm font-medium leading-relaxed text-slate-600">
               Додайте товари до кошика, щоб оформити замовлення.
             </p>
             <Link

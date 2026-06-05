@@ -26,7 +26,7 @@ import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 
-export const revalidate = 300;
+export const revalidate = 900;
 
 const INITIAL_CATALOG_PAGE_LIMIT = 12;
 const INITIAL_CATALOG_SSR_TIMEOUT_MS = 950;

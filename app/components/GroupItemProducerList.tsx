@@ -103,27 +103,29 @@ export default function GroupItemProducerList({
     if (categoryLabel) params.set("subcategory", categoryLabel);
     if (!params.has("subcategory")) return;
 
-    const controller = new AbortController();
+    let cancelled = false;
 
     const loadProducers = async () => {
       try {
         const response = await fetch(`/api/group-item-producers?${params.toString()}`, {
           headers: { Accept: "application/json" },
-          signal: controller.signal,
         });
         const payload = (await response.json()) as { items?: unknown };
         const nextItems = normalizeProducerItems(payload.items);
+        if (cancelled) return;
         setItems(nextItems);
       } catch {
-        setItems([]);
+        if (!cancelled) setItems([]);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     void loadProducers();
 
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+    };
   }, [catalogGroupLabel, categoryLabel, normalizedInitialItems.length]);
 
   if (items.length === 0) {

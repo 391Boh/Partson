@@ -26,7 +26,7 @@ const ProductRelatedItemsClientSection = dynamic(
   () => import("app/components/ProductRelatedItemsClientSection"),
   {
     ssr: false,
-    loading: () => <RecommendationSkeleton titleWidth="w-72" cards={3} />,
+    loading: () => <RecommendationSkeleton titleWidth="w-56" cards={3} />,
   }
 );
 
@@ -34,7 +34,7 @@ const ProductRecentlyViewedSection = dynamic(
   () => import("app/components/ProductRecentlyViewedSection"),
   {
     ssr: false,
-    loading: () => <RecommendationSkeleton titleWidth="w-64" cards={3} />,
+    loading: () => <RecommendationSkeleton titleWidth="w-52" cards={3} />,
   }
 );
 
@@ -47,11 +47,11 @@ const RecommendationSkeleton = ({
 }) => {
   const listClass =
     cards > 2
-      ? "mt-3 grid grid-rows-2 auto-cols-[minmax(260px,88%)] grid-flow-col gap-2 overflow-hidden sm:auto-cols-[minmax(320px,72%)] sm:gap-2.5 lg:auto-cols-full"
-      : "mt-3 grid grid-rows-1 auto-cols-[minmax(260px,88%)] grid-flow-col gap-2 overflow-hidden sm:auto-cols-[minmax(320px,72%)] sm:gap-2.5 lg:auto-cols-full";
+      ? "mt-3 grid grid-flow-col grid-rows-1 auto-cols-[minmax(276px,92%)] gap-2 overflow-hidden sm:auto-cols-[minmax(320px,72%)] sm:gap-2.5 lg:grid-rows-2 lg:auto-cols-[minmax(280px,31%)] lg:gap-2.5"
+      : "mt-3 grid grid-flow-col grid-rows-1 auto-cols-[minmax(276px,92%)] gap-2 overflow-hidden sm:auto-cols-[minmax(320px,72%)] sm:gap-2.5 lg:auto-cols-[minmax(280px,31%)] lg:gap-2.5";
 
   return (
-    <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-white/92 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.05)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
+    <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.92),rgba(248,250,252,0.98))] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.055)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
       <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-2.5">
         <div>
           <div className="h-3 w-24 animate-pulse rounded-full bg-sky-100" />
@@ -78,12 +78,12 @@ export default function ProductDeferredRecommendations({
   return (
     <div className="space-y-2.5">
       <DeferredSection
-        rootMargin="900px"
-        fallback={<RecommendationSkeleton titleWidth="w-72" cards={3} />}
+        rootMargin="1120px"
+        fallback={<RecommendationSkeleton titleWidth="w-56" cards={3} />}
         minHeight="172px"
         className="min-w-0"
         initiallyVisible
-        fallbackDelayMs={1800}
+        fallbackDelayMs={180}
       >
         <ProductRelatedItemsClientSection
           product={product}
@@ -93,11 +93,12 @@ export default function ProductDeferredRecommendations({
       </DeferredSection>
 
       <DeferredSection
-        rootMargin="720px"
-        fallback={<RecommendationSkeleton titleWidth="w-64" cards={3} />}
+        rootMargin="1400px"
+        fallback={<RecommendationSkeleton titleWidth="w-52" cards={3} />}
         minHeight="172px"
         className="min-w-0"
-        fallbackDelayMs={2400}
+        initiallyVisible
+        fallbackDelayMs={220}
       >
         <ProductRecentlyViewedSection product={product} euroRate={euroRate} />
       </DeferredSection>

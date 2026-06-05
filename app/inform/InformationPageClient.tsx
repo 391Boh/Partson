@@ -413,7 +413,7 @@ const diagnosticsVisualCards = [
     icon: Activity,
     label: 'Датчики',
     text: 'MAF/MAP, ABS, кисень, температура',
-    tone: 'from-emerald-500/16 via-cyan-400/10 to-white/72 text-emerald-700 border-emerald-200/70',
+    tone: 'from-amber-500/16 via-sky-400/10 to-white/72 text-amber-700 border-amber-200/70',
   },
 ] as const;
 
@@ -421,26 +421,49 @@ const DiagnosticsTab = () => (
   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
     <div className="lg:col-span-2">
       <InfoCard title="Комп'ютерна діагностика авто у Львові" icon={Wrench} accent="sky" featured>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.96fr)_minmax(320px,0.9fr)] lg:items-stretch">
-          <div className="flex h-full flex-col justify-between gap-3 rounded-2xl border border-sky-100/80 bg-[linear-gradient(145deg,rgba(248,250,252,0.95),rgba(240,249,255,0.78))] p-3 ring-1 ring-white/80 sm:p-4">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.84fr)] lg:items-stretch">
+          <div className="flex h-full flex-col justify-between gap-3 rounded-2xl border border-sky-100/90 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(248,250,252,0.94)_46%,rgba(240,249,255,0.9))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_14px_32px_rgba(14,165,233,0.08)] ring-1 ring-white/80 sm:p-4">
             <div className="space-y-3">
-              <p className="text-[13.5px] leading-6 text-slate-600">
-                <PartsOnLink /> проводить <strong className="font-semibold text-slate-800">комп&apos;ютерну діагностику авто у Львові</strong>
-                {" "}для швидкого пошуку причин помилок і несправностей. Підключаємося через
-                OBD-II/EOBD, перевіряємо електронні блоки, розшифровуємо коди Check Engine,
-                ABS, ESP, SRS, АКПП та пояснюємо, що варто ремонтувати першим.
-              </p>
-              <p className="rounded-xl border border-white/80 bg-white/70 px-3 py-2 text-[12.5px] font-semibold leading-relaxed text-slate-600 shadow-sm">
-                Діагностика корисна перед купівлею авто, після ремонту, при збільшеній витраті
-                пального, втраті тяги, ривках, аварійному режимі коробки або появі індикаторів
-                на панелі приладів.
-              </p>
-              <ul className="grid gap-1.5 text-[12.5px] font-semibold leading-relaxed text-slate-600 sm:grid-cols-2">
-                <Li icon={CheckCircle} cls="text-sky-500">Зчитування та розшифрування активних, збережених і періодичних помилок.</Li>
-                <Li icon={Activity} cls="text-sky-500">Перегляд параметрів у реальному часі: датчики, паливо, температура, напруга.</Li>
-                <Li icon={Route} cls="text-sky-500">Можливий виїзд по Львову або за межі міста за домовленістю.</Li>
-                <Li icon={Package} cls="text-sky-500">Після перевірки підбираємо потрібні запчастини під конкретну причину.</Li>
-              </ul>
+              <div className="space-y-3">
+                <span className="inline-flex w-fit items-center gap-2 rounded-full border border-sky-200 bg-white px-3 py-1 text-[10.5px] font-black uppercase tracking-[0.14em] text-sky-800 shadow-sm">
+                  <Cpu size={13} strokeWidth={2} aria-hidden="true" />
+                  OBD-II / ECU / Check Engine
+                </span>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[minmax(0,1fr)_74px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_92px]">
+                    <h2 className="text-balance text-[24px] font-black leading-[1.08] text-slate-950 sm:text-[30px]">
+                      Діагностика, яка знаходить причину несправності
+                    </h2>
+                    <figure className="grid h-[74px] w-[74px] place-items-center justify-self-end rounded-2xl border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(224,242,254,0.86))] p-2 shadow-[0_10px_22px_rgba(14,165,233,0.1)] ring-1 ring-white/80 sm:h-[92px] sm:w-[92px] sm:p-2.5">
+                      <Image
+                        src="/Katlogo/datchyky_ta_elektronika.png"
+                        alt="Комп'ютерна діагностика електроніки авто у Львові"
+                        width={512}
+                        height={512}
+                        sizes="92px"
+                        className="h-12 w-12 object-contain drop-shadow-[0_10px_16px_rgba(14,116,144,0.14)] sm:h-16 sm:w-16"
+                      />
+                    </figure>
+                  </div>
+                  <p className="text-[13.5px] leading-6 text-slate-600">
+                    <PartsOnLink /> проводить <strong className="font-semibold text-slate-800">комп&apos;ютерну діагностику авто у Львові</strong>
+                    {" "}для швидкого пошуку причин помилок і несправностей. Підключаємося через
+                    OBD-II/EOBD, перевіряємо електронні блоки, розшифровуємо коди Check Engine,
+                    ABS, ESP, SRS, АКПП та пояснюємо, що варто ремонтувати першим.
+                  </p>
+                </div>
+                <p className="rounded-xl border border-sky-100 bg-white/78 px-3 py-2 text-[12.5px] font-semibold leading-relaxed text-slate-600 shadow-sm">
+                  Діагностика корисна перед купівлею авто, після ремонту, при збільшеній витраті
+                  пального, втраті тяги, ривках, аварійному режимі коробки або появі індикаторів
+                  на панелі приладів.
+                </p>
+                <ul className="grid gap-1.5 text-[12.5px] font-semibold leading-relaxed text-slate-600 sm:grid-cols-2">
+                  <Li icon={CheckCircle} cls="text-sky-500">Зчитування та розшифрування активних, збережених і періодичних помилок.</Li>
+                  <Li icon={Activity} cls="text-sky-500">Перегляд параметрів у реальному часі: датчики, паливо, температура, напруга.</Li>
+                  <Li icon={Route} cls="text-sky-500">Можливий виїзд по Львову або за межі міста за домовленістю.</Li>
+                  <Li icon={Package} cls="text-sky-500">Після перевірки підбираємо потрібні запчастини під конкретну причину.</Li>
+                </ul>
+              </div>
 
               <div className="grid gap-2 sm:grid-cols-3" aria-label="Основні напрямки діагностики">
                 {diagnosticsVisualCards.map((item) => {
@@ -451,8 +474,6 @@ const DiagnosticsTab = () => (
                       key={item.label}
                       className={`relative min-h-[86px] overflow-hidden rounded-xl border bg-gradient-to-br p-2.5 shadow-[0_8px_18px_rgba(14,165,233,0.08)] ring-1 ring-white/70 transition-[border-color,box-shadow] duration-200 hover:shadow-[0_12px_24px_rgba(14,165,233,0.12)] ${item.tone}`}
                     >
-                      <span className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-current opacity-[0.06] blur-2xl" />
-                      <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_16%,rgba(255,255,255,0.78),transparent_34%)] opacity-80" />
                       <figcaption className="relative flex h-full items-center gap-2.5 sm:flex-col sm:items-start sm:justify-between">
                         <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/48 text-current shadow-[inset_0_1px_0_rgba(255,255,255,0.86),0_7px_16px_rgba(15,23,42,0.07)] backdrop-blur-md">
                           <Icon size={20} strokeWidth={1.9} aria-hidden="true" />
@@ -474,7 +495,6 @@ const DiagnosticsTab = () => (
 
             <div className="grid gap-2 text-[12px] font-semibold leading-relaxed text-slate-600 sm:grid-cols-2">
               <span className="relative overflow-hidden rounded-xl border border-amber-300/90 bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(254,243,199,0.94))] px-3 py-2.5 shadow-[0_10px_24px_rgba(245,158,11,0.14)] ring-1 ring-amber-100">
-                <span className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-amber-300/30 blur-2xl" />
                 <span className="relative flex items-start gap-2.5">
                   <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-white/75 text-amber-600 shadow-sm">
                     <Wallet size={15} strokeWidth={2} aria-hidden="true" />
@@ -498,12 +518,9 @@ const DiagnosticsTab = () => (
             </div>
           </div>
           <aside
-            className="relative grid h-full content-start gap-3 self-stretch overflow-hidden rounded-[22px] border border-sky-100/90 bg-[linear-gradient(150deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.94)_50%,rgba(224,242,254,0.9)_100%)] p-3 text-slate-700 shadow-[0_18px_38px_rgba(14,116,144,0.12)] ring-1 ring-white/80 sm:p-3.5"
+            className="relative grid h-full content-start gap-3 self-stretch overflow-hidden rounded-[22px] border border-sky-100/90 bg-[linear-gradient(150deg,rgba(255,255,255,0.99)_0%,rgba(248,250,252,0.96)_48%,rgba(224,242,254,0.88)_100%)] p-3 text-slate-700 shadow-[0_16px_34px_rgba(14,116,144,0.1)] ring-1 ring-white/80 sm:p-3.5"
             aria-label="Запис на комп'ютерну діагностику авто"
           >
-            <span className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-cyan-200/28 blur-3xl" />
-            <span className="pointer-events-none absolute -bottom-14 left-8 h-32 w-32 rounded-full bg-emerald-100/30 blur-3xl" />
-
             <div className="relative rounded-[18px] border border-sky-100/90 bg-white/72 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_10px_22px_rgba(14,165,233,0.08)] backdrop-blur-md">
               <p className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10.5px] font-black uppercase tracking-[0.12em] text-sky-800">
                 <Wrench size={13} strokeWidth={2} aria-hidden="true" />
@@ -519,28 +536,29 @@ const DiagnosticsTab = () => (
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
-                <a
-                  href={`tel:${DIAGNOSTICS_PHONE_RAW}`}
-                  aria-label={`Подзвонити Роману для запису на комп'ютерну діагностику: ${DIAGNOSTICS_PHONE_DISPLAY}`}
-                  className="inline-flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-center shadow-[0_10px_22px_rgba(14,165,233,0.1)] transition hover:bg-sky-50 active:scale-[0.98]"
-                >
-                  <span className="inline-flex items-center gap-1.5 text-[10.5px] font-black uppercase tracking-[0.12em] text-sky-600">
-                    <Phone size={13} strokeWidth={2} aria-hidden="true" />
-                    Роман
-                  </span>
-                  <span className="text-[12.5px] font-extrabold text-sky-900">
-                    {DIAGNOSTICS_PHONE_DISPLAY}
-                  </span>
-                </a>
-                <a
-                  href={MAPS_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`Відкрити адресу PartsON на карті: ${ADDRESS}`}
-                  className="inline-flex min-h-10 items-center justify-center rounded-xl border border-sky-100 bg-white/72 px-3 py-2 text-center text-[12px] font-semibold text-slate-600 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800"
-                >
-                  {ADDRESS}
-                </a>
+              <a
+                href={`tel:${DIAGNOSTICS_PHONE_RAW}`}
+                aria-label={`Подзвонити Роману для запису на комп'ютерну діагностику: ${DIAGNOSTICS_PHONE_DISPLAY}`}
+                className="inline-flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-center shadow-[0_10px_22px_rgba(14,165,233,0.1)] transition hover:bg-sky-50 active:scale-[0.98]"
+              >
+                <span className="inline-flex items-center gap-1.5 text-[10.5px] font-black uppercase tracking-[0.12em] text-sky-600">
+                  <Phone size={13} strokeWidth={2} aria-hidden="true" />
+                  Роман
+                </span>
+                <span className="text-[12.5px] font-extrabold text-sky-900">
+                  {DIAGNOSTICS_PHONE_DISPLAY}
+                </span>
+              </a>
+              <a
+                href={MAPS_URL}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Відкрити адресу PartsON на карті: ${ADDRESS}`}
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-sky-100 bg-white/72 px-3 py-2 text-center text-[12px] font-semibold text-slate-600 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800"
+              >
+                <MapPin size={13} strokeWidth={2} aria-hidden="true" />
+                {ADDRESS}
+              </a>
             </div>
 
             <DiagnosticsConsultationForm />

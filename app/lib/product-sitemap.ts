@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 import {
   fetchPriceEuroMapByLookupKeys,
   fetchCatalogProductsByQuery,
@@ -73,8 +75,21 @@ const PRODUCT_SITEMAP_MAX_SOURCE_PAGES = parseOptionalPositiveInt(
   process.env.PRODUCT_SITEMAP_MAX_SOURCE_PAGES
 );
 
+const PRODUCT_SITEMAP_SNAPSHOT_PATH = ".cache/product-sitemap-entries.json";
+const PRODUCT_SITEMAP_PRICED_SNAPSHOT_PATH =
+  ".cache/product-sitemap-priced-entries.json";
+
 const shouldBypassProductSitemapCache = () =>
   process.env.PRODUCT_SITEMAP_DISABLE_CACHE === "1";
+
+const isProductionBuildPhase =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
+  process.env.npm_lifecycle_event === "build";
+
+const shouldUseProductSitemapSnapshot = () =>
+  !shouldBypassProductSitemapCache() &&
+  (process.env.PRODUCT_SITEMAP_USE_SNAPSHOT === "1" || isProductionBuildPhase);
 
 let productSitemapEntryBatchesMemory: ProductSitemapEntry[][] | null = null;
 let productSitemapEntryBatchesPromise: Promise<ProductSitemapEntry[][]> | null = null;
@@ -160,6 +175,92 @@ const toProductSitemapEntry = (product: CatalogProduct): ProductSitemapEntry | n
     quantity: Number.isFinite(product.quantity) ? Math.max(0, product.quantity) : 0,
     priceEuro,
   };
+};
+
+const toSnapshotProductSitemapEntry = (value: unknown): ProductSitemapEntry | null => {
+  if (!value || typeof value !== "object") return null;
+
+  const record = value as Partial<ProductSitemapEntry>;
+  const code = (record.code || "").trim();
+  if (!code) return null;
+
+  const article = (record.article || "").trim();
+  const name = (record.name || "").trim();
+  const producer = (record.producer || "").trim();
+  const group = (record.group || "").trim();
+  const subGroup = (record.subGroup || "").trim();
+  const category = (record.category || "").trim();
+  const quantity =
+    typeof record.quantity === "number" && Number.isFinite(record.quantity)
+      ? Math.max(0, record.quantity)
+      : 0;
+  const priceEuro =
+    typeof record.priceEuro === "number" &&
+    Number.isFinite(record.priceEuro) &&
+    record.priceEuro > 0
+      ? record.priceEuro
+      : null;
+
+  return {
+    code,
+    article: article || undefined,
+    name: name || undefined,
+    producer: producer || undefined,
+    group: group || undefined,
+    subGroup: subGroup || undefined,
+    category: category || undefined,
+    hasPhoto: record.hasPhoto,
+    quantity,
+    priceEuro,
+  };
+};
+
+const readProductSitemapEntriesSnapshot = async () => {
+  const text = await readFile(PRODUCT_SITEMAP_SNAPSHOT_PATH, "utf8").catch(() => "");
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    const rawEntries = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === "object" && Array.isArray((parsed as { entries?: unknown }).entries)
+        ? (parsed as { entries: unknown[] }).entries
+        : [];
+
+    return rawEntries
+      .map(toSnapshotProductSitemapEntry)
+      .filter((entry): entry is ProductSitemapEntry => Boolean(entry));
+  } catch (error) {
+    logProductSitemapFailure("Failed to read product sitemap snapshot", error);
+    return [];
+  }
+};
+
+const readPricedProductSitemapEntriesSnapshot = async () => {
+  const text = await readFile(PRODUCT_SITEMAP_PRICED_SNAPSHOT_PATH, "utf8").catch(
+    () => ""
+  );
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    const rawEntries = Array.isArray(parsed)
+      ? parsed
+      : parsed &&
+          typeof parsed === "object" &&
+          Array.isArray((parsed as { entries?: unknown }).entries)
+        ? (parsed as { entries: unknown[] }).entries
+        : [];
+
+    return rawEntries
+      .map(toSnapshotProductSitemapEntry)
+      .filter((entry): entry is ProductSitemapEntry =>
+        Boolean(entry && isPricedProductSitemapEntry(entry))
+      );
+  } catch (error) {
+    logProductSitemapFailure("Failed to read priced product sitemap snapshot", error);
+    return [];
+  }
 };
 
 async function withTimeoutFallback<T>(
@@ -305,6 +406,33 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
 const getProductSitemapEntryBatchesSafe = async () => {
   if (shouldBypassProductSitemapCache()) {
     return buildProductSitemapEntryBatches();
+  }
+
+  if (shouldUseProductSitemapSnapshot()) {
+    if (productSitemapEntryBatchesMemory) {
+      return productSitemapEntryBatchesMemory;
+    }
+
+    if (productSitemapEntryBatchesPromise) {
+      return productSitemapEntryBatchesPromise;
+    }
+
+    productSitemapEntryBatchesPromise = readProductSitemapEntriesSnapshot()
+      .then((entries) => chunkProductSitemapEntries(entries))
+      .then((batches) => {
+        productSitemapEntryBatchesMemory = batches;
+        return batches;
+      })
+      .finally(() => {
+        productSitemapEntryBatchesPromise = null;
+      });
+
+    try {
+      return await productSitemapEntryBatchesPromise;
+    } catch (error) {
+      logProductSitemapFailure("Failed to resolve product sitemap entry batches", error);
+      return [] as ProductSitemapEntry[][];
+    }
   }
 
   if (productSitemapEntryBatchesMemory) {
@@ -484,6 +612,42 @@ const getPricedProductSitemapEntryBatchesSafe = async () => {
     );
   }
 
+  if (shouldUseProductSitemapSnapshot()) {
+    if (pricedProductSitemapEntryBatchesMemory) {
+      return pricedProductSitemapEntryBatchesMemory;
+    }
+
+    if (pricedProductSitemapEntryBatchesPromise) {
+      return pricedProductSitemapEntryBatchesPromise;
+    }
+
+    pricedProductSitemapEntryBatchesPromise =
+      readPricedProductSitemapEntriesSnapshot()
+        .then(async (entries) => {
+          if (entries.length > 0) {
+            return entries;
+          }
+
+          const allSnapshotEntries = await readProductSitemapEntriesSnapshot();
+          return allSnapshotEntries.filter(isPricedProductSitemapEntry);
+        })
+        .then((entries) => chunkProductSitemapEntries(entries))
+        .then((batches) => {
+          pricedProductSitemapEntryBatchesMemory = batches;
+          return batches;
+        })
+        .finally(() => {
+          pricedProductSitemapEntryBatchesPromise = null;
+        });
+
+    try {
+      return await pricedProductSitemapEntryBatchesPromise;
+    } catch (error) {
+      logProductSitemapFailure("Failed to resolve priced product sitemap batches", error);
+      return [] as ProductSitemapEntry[][];
+    }
+  }
+
   if (pricedProductSitemapEntryBatchesMemory) {
     return pricedProductSitemapEntryBatchesMemory;
   }
@@ -536,6 +700,22 @@ export const getProductEntriesBySitemapId = async (id: string) => {
 export const getAllProductSitemapEntries = async () => {
   const batches = await getProductSitemapEntryBatchesSafe();
   return batches.flat();
+};
+
+export const getAllPricedProductSitemapEntries = async () => {
+  const batches = await getPricedProductSitemapEntryBatchesSafe();
+  return batches.flat();
+};
+
+export const getAllProductSitemapSnapshotEntries = async () =>
+  readProductSitemapEntriesSnapshot();
+
+export const getAllPricedProductSitemapSnapshotEntries = async () => {
+  const pricedEntries = await readPricedProductSitemapEntriesSnapshot();
+  if (pricedEntries.length > 0) return pricedEntries;
+
+  const allEntries = await readProductSitemapEntriesSnapshot();
+  return allEntries.filter(isPricedProductSitemapEntry);
 };
 
 export const getProductCodesBySitemapId = async (id: string) => {

@@ -35,17 +35,53 @@ async function main() {
   const outputPath =
     process.env.SEO_COUNTS_SNAPSHOT_PATH ||
     join(process.cwd(), ".cache", "seo-counts.json");
+  const productSnapshotPath =
+    process.env.PRODUCT_SITEMAP_SNAPSHOT_PATH ||
+    join(process.cwd(), ".cache", "product-sitemap-entries.json");
+  const pricedProductSnapshotPath =
+    process.env.PRODUCT_SITEMAP_PRICED_SNAPSHOT_PATH ||
+    join(process.cwd(), ".cache", "product-sitemap-priced-entries.json");
   const entries = await getAllProductSitemapEntries();
+  const pricedEntries = entries.filter(
+    (entry) =>
+      typeof entry.priceEuro === "number" &&
+      Number.isFinite(entry.priceEuro) &&
+      entry.priceEuro > 0
+  );
   const facets = buildCatalogSeoFacetsFromSitemapEntries(entries);
 
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, `${JSON.stringify(facets)}\n`, "utf8");
+  mkdirSync(dirname(productSnapshotPath), { recursive: true });
+  writeFileSync(
+    productSnapshotPath,
+    `${JSON.stringify({
+      generatedAt: facets.generatedAt,
+      count: entries.length,
+      entries,
+    })}\n`,
+    "utf8"
+  );
+  mkdirSync(dirname(pricedProductSnapshotPath), { recursive: true });
+  writeFileSync(
+    pricedProductSnapshotPath,
+    `${JSON.stringify({
+      generatedAt: facets.generatedAt,
+      count: pricedEntries.length,
+      entries: pricedEntries,
+    })}\n`,
+    "utf8"
+  );
 
   const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
   console.log(`✅ Товарів у SEO-індексі: ${facets.totalProductCount}`);
   console.log(`✅ Груп: ${facets.groups.length}`);
   console.log(`✅ Виробників: ${facets.producers.length}`);
   console.log(`🎉 SEO-лічильники збережено: ${outputPath}`);
+  console.log(`🎉 Product sitemap snapshot збережено: ${productSnapshotPath}`);
+  console.log(
+    `🎉 Product priced sitemap snapshot збережено: ${pricedProductSnapshotPath} (${pricedEntries.length})`
+  );
   console.log(`⏱  Час генерації: ${elapsedSeconds}с`);
 }
 
