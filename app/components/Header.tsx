@@ -463,7 +463,7 @@ const Header: React.FC = () => {
                       : 'border-white/15'
                   }`}
                 >
-                  <Menu size={16} className="sm:size-4" />
+                  <Menu size={16} className="sm:size-4" aria-hidden="true" />
                   <span className="hidden md:inline cursor-pointer select-none">Меню</span>
                 </button>
 
@@ -478,7 +478,7 @@ const Header: React.FC = () => {
                       onClick={() => setActiveMenu('')}
                       className={dropdownItemClass}
                     >
-                      <span className={dropdownIconClass}><List size={17} /></span>
+                      <span className={dropdownIconClass} aria-hidden="true"><List size={17} aria-hidden="true" /></span>
                       <span>Каталог</span>
                     </Link>
                   </li>
@@ -488,7 +488,7 @@ const Header: React.FC = () => {
                       onClick={() => setActiveMenu('')}
                       className={dropdownItemClass}
                     >
-                      <span className={dropdownIconClass}><Layers3 size={17} /></span>
+                      <span className={dropdownIconClass} aria-hidden="true"><Layers3 size={17} aria-hidden="true" /></span>
                       <span>Групи товарів</span>
                     </Link>
                   </li>
@@ -498,7 +498,7 @@ const Header: React.FC = () => {
                       onClick={() => setActiveMenu('')}
                       className={dropdownItemClass}
                     >
-                      <span className={dropdownIconClass}><CarFront size={17} /></span>
+                      <span className={dropdownIconClass} aria-hidden="true"><CarFront size={17} aria-hidden="true" /></span>
                       <span>Авто</span>
                     </Link>
                   </li>
@@ -508,7 +508,7 @@ const Header: React.FC = () => {
                       onClick={() => setActiveMenu('')}
                       className={dropdownItemClass}
                     >
-                      <span className={dropdownIconClass}><Factory size={17} /></span>
+                      <span className={dropdownIconClass} aria-hidden="true"><Factory size={17} aria-hidden="true" /></span>
                       <span>Виробники</span>
                     </Link>
                   </li>
@@ -530,7 +530,7 @@ const Header: React.FC = () => {
                       : 'border-white/15'
                   }`}
                 >
-                  <Info size={16} className="sm:size-4 " />
+                  <Info size={16} className="sm:size-4 " aria-hidden="true" />
                   <span className="hidden md:inline cursor-pointer select-none">Інформація</span>
                 </button>
 
@@ -539,14 +539,14 @@ const Header: React.FC = () => {
                       ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
                       : "opacity-0 scale-95 -translate-y-1 pointer-events-none"
                   }`}>
-                    <li><Link href="/inform/delivery" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><Truck size={17} /></span><span className="min-w-0">Доставка</span></Link></li>
-                    <li><Link href="/inform/payment" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><CreditCard size={17} /></span><span className="min-w-0">Оплата</span></Link></li>
-                    <li><Link href="/inform/about" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><Users size={17} /></span><span className="min-w-0">Про нас</span></Link></li>
-                    <li><Link href="/inform/location" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><MapPin size={17} /></span><span className="min-w-0">Локація</span></Link></li>
-                    <li><Link href="/inform/warranty" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><ShieldCheck size={17} /></span><span className="min-w-0">Гарантія</span></Link></li>
-                    <li><Link href="/inform/returns" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><RotateCcw size={17} /></span><span className="min-w-0">Повернення</span></Link></li>
-                    <li><Link href="/inform/diagnostics" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><Wrench size={17} /></span><span className="min-w-0">Діагностика</span></Link></li>
-                    <li><Link href="/inform/privacy" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass}><ShieldCheck size={17} /></span><span className="min-w-0">Конфіденційність</span></Link></li>
+                    <li><Link href="/inform/delivery" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><Truck size={17} aria-hidden="true" /></span><span className="min-w-0">Доставка</span></Link></li>
+                    <li><Link href="/inform/payment" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><CreditCard size={17} aria-hidden="true" /></span><span className="min-w-0">Оплата</span></Link></li>
+                    <li><Link href="/inform/about" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><Users size={17} aria-hidden="true" /></span><span className="min-w-0">Про нас</span></Link></li>
+                    <li><Link href="/inform/location" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><MapPin size={17} aria-hidden="true" /></span><span className="min-w-0">Локація</span></Link></li>
+                    <li><Link href="/inform/warranty" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><ShieldCheck size={17} aria-hidden="true" /></span><span className="min-w-0">Гарантія</span></Link></li>
+                    <li><Link href="/inform/returns" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><RotateCcw size={17} aria-hidden="true" /></span><span className="min-w-0">Повернення</span></Link></li>
+                    <li><Link href="/inform/diagnostics" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><Wrench size={17} aria-hidden="true" /></span><span className="min-w-0">Діагностика</span></Link></li>
+                    <li><Link href="/inform/privacy" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><ShieldCheck size={17} aria-hidden="true" /></span><span className="min-w-0">Конфіденційність</span></Link></li>
                   </ul>
               </li>
 

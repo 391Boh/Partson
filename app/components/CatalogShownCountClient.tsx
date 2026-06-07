@@ -30,11 +30,10 @@ export default function CatalogShownCountClient({
   const [count, setCount] = useState(initialCount);
 
   useEffect(() => {
-    const win = window as Window & { __partsonCatalogVisibleCount?: number };
-    if (typeof win.__partsonCatalogVisibleCount === "number") {
-      setCount(win.__partsonCatalogVisibleCount);
-    }
+    setCount(initialCount);
+  }, [initialCount]);
 
+  useEffect(() => {
     const handleCountChange = (event: Event) => {
       const detail = (event as CustomEvent<{ count?: number }>).detail;
       if (typeof detail?.count !== "number" || !Number.isFinite(detail.count)) return;

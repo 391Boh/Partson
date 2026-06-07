@@ -106,11 +106,11 @@ export default function HomeBelowFoldClient() {
             (entries) => {
               if (entries.some((entry) => entry.isIntersecting)) {
                 observer?.disconnect();
-                scheduleReady(320);
+                scheduleReady(900);
               }
             },
             {
-              rootMargin: "1000px 0px",
+              rootMargin: "420px 0px",
             }
           )
         : null;
@@ -123,9 +123,9 @@ export default function HomeBelowFoldClient() {
     let idleId: number | null = null;
 
     if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(markReady, { timeout: 2200 });
+      idleId = win.requestIdleCallback(markReady, { timeout: 3600 });
     } else {
-      timeoutId = window.setTimeout(markReady, 2200);
+      timeoutId = window.setTimeout(markReady, 3600);
     }
 
     return () => {

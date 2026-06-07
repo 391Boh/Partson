@@ -19,7 +19,9 @@ interface LayoutHostProps {
 
 type AdminChatPanelComponentProps = {
   isOpen: boolean;
+  isPinned?: boolean;
   onClose: () => void;
+  onPinnedChange?: (isPinned: boolean) => void;
   onNotificationCountChange?: (count: number) => void;
 };
 
@@ -258,6 +260,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const [firebaseDeps, setFirebaseDeps] = useState<LayoutFirebaseDeps | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [isAdminPanelPinned, setIsAdminPanelPinned] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [authUserUid, setAuthUserUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -274,9 +277,12 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const pathname = pathnameValue ?? "";
   const warmupStartedRef = useRef(false);
   const previousPathnameRef = useRef(pathname);
+  const adminPanelPathnameRef = useRef(pathname);
   const isDevelopment = process.env.NODE_ENV !== "production";
   const enableAggressiveWarmup =
     process.env.NEXT_PUBLIC_ENABLE_AGGRESSIVE_WARMUP === "1";
+  const enableIdleFirebase =
+    process.env.NEXT_PUBLIC_ENABLE_IDLE_FIREBASE === "1";
   const { isEmbeddedProductView } = routeViewState;
   const openChat = useCallback(() => {
     setIsChatOpen(true);
@@ -336,10 +342,12 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
     };
 
-    if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(triggerDepsLoad, { timeout: 3600 });
-    } else {
-      timeoutId = window.setTimeout(triggerDepsLoad, 3600);
+    if (enableIdleFirebase) {
+      if (typeof win.requestIdleCallback === "function") {
+        idleId = win.requestIdleCallback(triggerDepsLoad, { timeout: 12000 });
+      } else {
+        timeoutId = window.setTimeout(triggerDepsLoad, 12000);
+      }
     }
 
     return () => {
@@ -352,7 +360,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           .cancelIdleCallback?.(idleId);
       }
     };
-  }, [firebaseDeps]);
+  }, [enableIdleFirebase, firebaseDeps]);
 
   useEffect(() => {
     if (typeof window === "undefined" || ChatButtonComponent) return;
@@ -441,6 +449,14 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       }
     };
   }, [pathname]);
+
+  useEffect(() => {
+    const previousAdminPathname = adminPanelPathnameRef.current;
+    adminPanelPathnameRef.current = pathname;
+    if (previousAdminPathname === pathname) return;
+    if (!isAdminPanelOpen || isAdminPanelPinned) return;
+    setIsAdminPanelOpen(false);
+  }, [isAdminPanelOpen, isAdminPanelPinned, pathname]);
 
   useEffect(() => {
     if (!isAdminPanelOpen || AdminChatPanelComponent) return;
@@ -820,20 +836,20 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     let preloadAllTimer: number | null = null;
     let loadListener: (() => void) | null = null;
 
-    initialWarmupFrameId = window.requestAnimationFrame(() => {
-      prefetchPrimaryRoutes();
-      if (!shouldUseLightWarmup && enableAggressiveWarmup) {
-        preloadCriticalChunks();
-        warmRoutesTimer = window.setTimeout(() => void warmRoutes(), 1800);
-      }
-    });
+    if (enableAggressiveWarmup) {
+      initialWarmupFrameId = window.requestAnimationFrame(() => {
+        prefetchPrimaryRoutes();
+        if (!shouldUseLightWarmup) {
+          preloadCriticalChunks();
+          warmRoutesTimer = window.setTimeout(() => void warmRoutes(), 1800);
+        }
+      });
+    }
 
     const scheduleWarmup = () => {
-      if (shouldUseLightWarmup) return;
+      if (shouldUseLightWarmup || !enableAggressiveWarmup) return;
 
-      if (enableAggressiveWarmup) {
-        preloadAllTimer = window.setTimeout(preloadAllChunks, 4200);
-      }
+      preloadAllTimer = window.setTimeout(preloadAllChunks, 4200);
 
       if (typeof idle === "function") {
         idleId = idle(() => void runWarmup(), { timeout: 5200 });
@@ -1240,12 +1256,11 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           {isAdmin && !isAdminPanelOpen && (
             <button
               onClick={() => setIsAdminPanelOpen((prev) => !prev)}
-              className="relative z-[60] inline-flex h-[56px] w-[56px] items-center justify-center rounded-[20px] bg-gradient-to-r from-blue-700 to-teal-800 text-white shadow-xl ring-1 ring-white/20 transition-all duration-300 hover:opacity-100 sm:h-auto sm:w-auto sm:gap-2 sm:rounded-full sm:px-4 sm:py-4"
+              className="relative z-[60] mr-2 inline-flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border border-white/18 bg-sky-800 text-white shadow-[0_18px_38px_rgba(8,47,73,0.26)] transition hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
               aria-label="Адмін панель"
               title="Адмін панель"
             >
-              <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
-              <span className="hidden text-xs font-semibold sm:inline">Адмін</span>
+              <Shield className="h-[30px] w-[30px]" strokeWidth={2.2} aria-hidden="true" />
               {renderBadge(totalNotifications)}
             </button>
           )}
@@ -1267,7 +1282,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           {isAdmin && AdminChatPanelComponent && (
             <AdminChatPanelComponent
               isOpen={isAdminPanelOpen}
+              isPinned={isAdminPanelPinned}
               onClose={() => setIsAdminPanelOpen(false)}
+              onPinnedChange={setIsAdminPanelPinned}
               onNotificationCountChange={(count) => setTotalNotifications(count)}
             />
           )}

@@ -6,7 +6,6 @@ import React, {
   useMemo,
   useCallback,
   useRef,
-  useDeferredValue,
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
@@ -574,14 +573,14 @@ const CatalogTransitionLoader = ({
 }) => (
   <div
     className={`col-span-full flex w-full items-center justify-center ${
-      compact ? "min-h-12" : "min-h-24"
+      compact ? "min-h-16" : "min-h-[180px]"
     }`}
     role="status"
     aria-label={label}
   >
-    <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white/95 px-4 py-2 text-sm font-semibold text-slate-600 shadow-[0_10px_22px_rgba(15,23,42,0.06)]">
-      <span className="h-3 w-3 animate-pulse rounded-full bg-sky-500" />
-      <span>{label}</span>
+    <div className="inline-flex items-center gap-3 rounded-[18px] border border-sky-100 bg-white/95 px-4 py-3 text-sm font-bold text-slate-700 shadow-[0_18px_42px_rgba(14,165,233,0.12)] ring-1 ring-white/90 backdrop-blur-md">
+      <span className="catalog-soft-spinner" aria-hidden="true" />
+      <span className="leading-tight">{label}</span>
     </div>
   </div>
 );
@@ -1057,8 +1056,7 @@ function useCatalogData(params: {
   } = params;
 
   const { addToCart, cartItems, removeFromCart } = useCart();
-  const searchQuery = useDeferredValue(rawSearchQuery);
-  const normalizedSearch = useMemo(() => searchQuery.trim(), [searchQuery]);
+  const normalizedSearch = useMemo(() => rawSearchQuery.trim(), [rawSearchQuery]);
   const normalizedSearchLower = useMemo(
     () => normalizedSearch.toLowerCase(),
     [normalizedSearch]
@@ -3162,7 +3160,7 @@ const Data: React.FC<DataProps> = ({
     setLastStableSortedData(sortedData);
   }, [sortedData, sortedDataSignature]);
   const shouldKeepStableGrid =
-    (filterLoading || isRefetching) &&
+    isLoadingNextPage &&
     lastStableSortedData.length > 0;
   const visibleSortedData =
     shouldKeepStableGrid && lastStableSortedData.length > 0
@@ -3172,14 +3170,18 @@ const Data: React.FC<DataProps> = ({
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const win = window as Window & { __partsonCatalogVisibleCount?: number };
+    const win = window as Window & {
+      __partsonCatalogVisibleCount?: number;
+      __partsonCatalogVisibleSignature?: string;
+    };
     win.__partsonCatalogVisibleCount = visibleSortedData.length;
+    win.__partsonCatalogVisibleSignature = filterSignature;
     window.dispatchEvent(
       new CustomEvent("partson:catalog-visible-count", {
-        detail: { count: visibleSortedData.length },
+        detail: { count: visibleSortedData.length, signature: filterSignature },
       })
     );
-  }, [visibleSortedData.length]);
+  }, [filterSignature, visibleSortedData.length]);
 
   const visibleSortedEntries = useMemo(() => {
     if (visibleSortedData === sortedData) {
@@ -3262,7 +3264,7 @@ const Data: React.FC<DataProps> = ({
     : shouldUseVirtualWindow
       ? Math.max(0, Math.min(virtualWindowRange.startIndex, visibleSortedEntries.length))
       : 0;
-  const shouldUseSoftTransition = filterLoading || isRefetching;
+  const shouldUseSoftTransition = filterLoading || isRefetching || isLoadingNextPage;
   const showFilterTransitionOverlay = false;
   const shouldDimCatalogGrid = false;
   const filterTransitionLabel = useMemo(() => {

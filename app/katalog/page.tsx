@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
+import CatalogSearchTotalCountClient from "app/components/CatalogSearchTotalCountClient";
 import CatalogShownCountClient from "app/components/CatalogShownCountClient";
 import KatalogPageShell from "app/katalog/KatalogPageShell";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
@@ -706,6 +707,7 @@ const CatalogSeoSnapshot = ({
 }) => {
   const visibleItems = items.filter((item) => item.code && item.name);
   const visibleItemsCount = visibleItems.length;
+  const isSearchState = Boolean(state.searchQuery);
   const hasExactCount = typeof totalCount === "number" && totalCount > 0;
   const listCountLabel =
     visibleItemsCount > 0
@@ -714,14 +716,22 @@ const CatalogSeoSnapshot = ({
   const totalCountLabel = hasExactCount
     ? `${formatCatalogCount(totalCount)} ${getCatalogProductWord(totalCount)}`
     : null;
-  const displayCountLabel = totalCountLabel || listCountLabel;
+  const primaryCountTitle = hasExactCount
+    ? "Загалом товарів"
+    : isSearchState
+      ? "Знайдено у пошуку"
+      : "Відкрито зараз";
   const countCaption = hasExactCount
-    ? "точна кількість за поточним каталогом"
-    : visibleItemsCount > 0
+    ? "точна кількість за поточним фільтром"
+    : isSearchState
       ? hasMore
-        ? "поточна вибірка, далі є ще товари"
-        : "усі товари в поточній вибірці"
-      : "у первинній вибірці нічого не знайдено";
+        ? "лічильник оновлюється під час підвантаження результатів"
+        : "усі відкриті результати за поточним пошуком"
+      : visibleItemsCount > 0
+        ? hasMore
+          ? "каталог ще підвантажує наступні товари"
+          : "усі відкриті товари в поточній вибірці"
+        : "товари ще не відкриті в первинній вибірці";
   const searchFilterLabels: Record<string, string> = {
     all: "усі поля",
     article: "артикул",
@@ -751,48 +761,55 @@ const CatalogSeoSnapshot = ({
     "підбір за VIN",
   ];
   const showDiscovery = topGroups.length > 0 || topProducers.length > 0;
+  const renderShownCount = (className = "text-slate-950") => (
+    <CatalogShownCountClient initialCount={visibleItemsCount} className={className} />
+  );
+  const renderSearchTotalCount = (className = "text-slate-950") => (
+    <CatalogSearchTotalCountClient
+      initialOpenCount={visibleItemsCount}
+      className={className}
+    />
+  );
 
   return (
     <section
       aria-labelledby="catalog-seo-products-title"
-      className="mx-auto mt-3 w-full max-w-7xl px-3 pb-10 sm:mt-4 sm:px-4 lg:px-6"
+      className="mx-auto mt-4 w-full max-w-7xl px-3 pb-10 sm:mt-5 sm:px-4 lg:px-6"
     >
-      <div className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.95)_48%,rgba(248,250,252,0.98))] shadow-[0_18px_46px_rgba(15,23,42,0.09)] ring-1 ring-white/90">
-        <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(240px,310px)] lg:gap-5">
-          <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">
-              Навігація каталогу
-            </p>
+      <div className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-[0_20px_56px_rgba(15,23,42,0.08)] ring-1 ring-white">
+        <div className="grid gap-4 bg-[linear-gradient(135deg,#f8fbff_0%,#eef8ff_48%,#ffffff_100%)] p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(250px,330px)] lg:gap-5">
+          <div className="min-w-0 self-center">
+            <span className="inline-flex min-h-7 items-center rounded-[10px] border border-sky-100 bg-white/88 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.06)]">
+              Каталог PartsON
+            </span>
             <h2
               id="catalog-seo-products-title"
-              className="mt-1 font-display-italic text-[1.18rem] font-black leading-tight text-slate-950 sm:text-[1.42rem]"
+              className="mt-2 font-display-italic text-[1.25rem] font-black leading-tight text-slate-950 sm:text-[1.55rem]"
             >
-              Автозапчастини в каталозі <PartsOnLink />
+              Автозапчастини, які легко звузити до потрібної позиції
             </h2>
 
-            <p className="mt-2.5 max-w-4xl text-sm font-medium leading-6 text-slate-600">
-              Каталог <PartsOnLink /> допомагає швидко знайти автозапчастини за
-              артикулом, кодом, виробником або категорією. Для точного підбору
-              можна звірити сумісність за VIN, порівняти доступні позиції та
-              перейти до потрібної групи чи бренду. Товари можна замовити з
-              доставкою по Україні або забрати у магазині у Львові.
+            <p className="mt-2.5 max-w-4xl text-sm font-semibold leading-6 text-slate-600">
+              У <PartsOnLink /> можна шукати за артикулом, кодом, назвою,
+              виробником або категорією. Якщо потрібна точна сумісність, менеджер
+              звірить деталь за VIN і підкаже доступні аналоги з доставкою по Україні.
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className="inline-flex min-h-8 items-center rounded-[12px] border border-slate-200 bg-white px-3 py-1 text-[12px] font-bold text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
+              <span className="inline-flex min-h-8 items-center rounded-[12px] border border-slate-200 bg-white/92 px-3 py-1 text-[12px] font-bold text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
                 Фільтри: {selectedFiltersLabel}
               </span>
               <a
                 href="tel:+380634211851"
                 aria-label={`Подзвонити в магазин PartsON ${STORE_PHONE_DISPLAY}`}
-                className="inline-flex min-h-8 items-center rounded-[12px] border border-sky-200 bg-white px-3 py-1 text-[12px] font-black text-sky-800 shadow-[0_8px_18px_rgba(14,165,233,0.08)] transition hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60"
+                className="inline-flex min-h-8 items-center rounded-[12px] border border-sky-200 bg-white/94 px-3 py-1 text-[12px] font-black text-sky-800 shadow-[0_8px_18px_rgba(14,165,233,0.08)] transition hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60"
               >
                 {STORE_PHONE_DISPLAY}
               </a>
               <Link
                 href="/inform/location"
                 aria-label={`Адреса магазину PartsON: ${STORE_ADDRESS}`}
-                className="inline-flex min-h-8 items-center rounded-[12px] border border-slate-200 bg-white px-3 py-1 text-[12px] font-bold text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition hover:border-sky-200 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60"
+                className="inline-flex min-h-8 items-center rounded-[12px] border border-slate-200 bg-white/92 px-3 py-1 text-[12px] font-bold text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition hover:border-sky-200 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60"
               >
                 {STORE_ADDRESS}
               </Link>
@@ -811,41 +828,38 @@ const CatalogSeoSnapshot = ({
           </div>
 
           <div
-            className="rounded-[20px] border border-sky-100 bg-white/86 p-4 shadow-[0_14px_30px_rgba(14,165,233,0.1)] ring-1 ring-white"
+            className="rounded-[20px] border border-sky-100 bg-white/92 p-4 shadow-[0_16px_34px_rgba(14,165,233,0.12)] ring-1 ring-white"
             data-nosnippet
           >
             <p className="text-[10px] font-black uppercase tracking-[0.12em] text-sky-700">
-              У каталозі
+              {primaryCountTitle}
             </p>
             <p className="mt-1 text-[1.65rem] font-black leading-none text-slate-950">
-              {displayCountLabel}
+              {hasExactCount
+                ? totalCountLabel
+                : isSearchState
+                  ? renderSearchTotalCount()
+                  : renderShownCount()}
             </p>
             <p className="mt-2 text-[11px] font-semibold leading-4 text-slate-500">
               {countCaption}
             </p>
-            {totalCountLabel && totalCountLabel !== listCountLabel ? (
+            {(hasExactCount && totalCountLabel !== listCountLabel) || isSearchState ? (
               <p className="mt-3 rounded-[13px] border border-slate-200 bg-slate-50/90 px-3 py-2 text-[11px] font-bold leading-4 text-slate-600">
-                Відкрито на сторінці:{" "}
-                <CatalogShownCountClient
-                  initialCount={visibleItemsCount}
-                  className="text-slate-950"
-                />
+                Відкрито зараз: {renderShownCount("text-slate-950")}
               </p>
             ) : null}
           </div>
 
           {visibleItems.length > 0 && (
             <div
-              className="min-w-0 rounded-[22px] border border-slate-200 bg-white/84 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.06)] lg:col-span-2"
+              className="min-w-0 rounded-[20px] border border-slate-200 bg-white/88 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.06)] lg:col-span-2"
               data-nosnippet
             >
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
-                  Відкриті товари на сторінці
+                  Приклади відкритих товарів
                 </p>
-                <span className="rounded-[10px] border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
-                  <CatalogShownCountClient initialCount={visibleItemsCount} />
-                </span>
               </div>
               <ul className="grid gap-1.5 sm:grid-cols-2 md:grid-cols-3">
                 {visibleItems.map((item) => {
@@ -883,13 +897,13 @@ const CatalogSeoSnapshot = ({
               <div className="min-w-0 rounded-[18px] bg-white/62 p-3 ring-1 ring-slate-200/70 lg:rounded-l-[18px] lg:rounded-r-none lg:pr-5">
                 <div className="mb-2.5 flex items-center justify-between gap-3">
                   <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
-                    Категорії запчастин
+                    Групи товарів
                   </p>
                   <Link
                     href="/groups"
                     className="inline-flex min-h-8 shrink-0 items-center rounded-[12px] bg-[linear-gradient(135deg,#0f172a,#0369a1)] px-3.5 py-1 text-[11px] font-black text-white shadow-[0_10px_22px_rgba(14,165,233,0.18)] ring-1 ring-white/70 transition hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,#0369a1,#0284c7)] hover:shadow-[0_14px_28px_rgba(14,165,233,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                   >
-                    Усі категорії
+                    Усі групи
                   </Link>
                 </div>
                 <div className="max-w-full text-[12px] font-bold leading-7 text-slate-600">
@@ -1040,6 +1054,13 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     slug: g.slug,
     href: buildGroupPath(g.slug || g.label),
   }));
+  const seoFallbackGroups = seoFacets.groups.slice(0, 30).map((g) => ({
+    label: g.label,
+    slug: g.slug,
+    href: buildGroupPath(g.slug || g.label),
+  }));
+  const catalogNavigationGroups =
+    topGroups.length > 0 ? topGroups : seoFallbackGroups;
   const topProducers = seoFacets.producers
     .slice(0, 42)
     .map((p) => ({ label: p.label, slug: p.slug }));
@@ -1056,7 +1077,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         items={initialPagePayload?.items ?? []}
         hasMore={initialPagePayload?.hasMore}
         totalCount={seoTotalCount}
-        topGroups={topGroups}
+        topGroups={catalogNavigationGroups}
         topProducers={topProducers}
       />
       <script

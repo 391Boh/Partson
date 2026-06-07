@@ -913,6 +913,31 @@ h1, h2, h3, h4, h5, h6 {
   animation: loaderOrbit 1.25s ease-in-out infinite;
 }
 
+.catalog-soft-spinner {
+  position: relative;
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 50%, #ffffff 0 36%, transparent 38%),
+    conic-gradient(from 0deg, #0284c7, #38bdf8, #67e8f9, rgba(186, 230, 253, 0.35), #0284c7);
+  box-shadow:
+    0 10px 24px rgba(14, 165, 233, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.75);
+  animation: loaderSpin 0.82s linear infinite;
+}
+
+.catalog-soft-spinner::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: inherit;
+  background: #0284c7;
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.12);
+}
+
 .loader-brand::after {
   width: 42px;
   height: 18px;
@@ -1071,12 +1096,34 @@ body::-webkit-scrollbar-corner,
   }
 }
 
+@media (pointer: coarse) {
+  :where(a[href], button, [role="button"], input, select, textarea) {
+    min-height: 44px;
+  }
+
+  :where(button, [role="button"]) {
+    min-width: 44px;
+  }
+}
+
 @media (max-width: 640px) {
   .tovar-touch button,
   .tovar-touch input,
   .tovar-touch a,
   .tovar-touch [role="button"] {
     touch-action: manipulation;
+  }
+}
+
+@keyframes chatBadgePop {
+  from {
+    opacity: 0;
+    transform: scale(0.78);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -2102,6 +2149,39 @@ body::-webkit-scrollbar-corner,
 
   .admin-panel-shell .admin-chat-scroll {
     min-height: 10rem;
+  }
+}
+
+.admin-panel-shell [data-admin-card="true"] {
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.admin-panel-shell [data-admin-card="true"]:hover {
+  transform: translateY(-1px);
+}
+
+.admin-density-compact [data-admin-card="true"] {
+  padding: 0.5rem !important;
+  border-radius: 0.9rem !important;
+  margin-bottom: 0.35rem !important;
+  box-shadow: 0 8px 18px rgba(2, 6, 23, 0.12) !important;
+}
+
+.admin-density-compact .admin-panel-scroll {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)) !important;
+}
+
+.admin-density-compact .admin-chat-scroll {
+  gap: 0.35rem;
+}
+
+@media (max-width: 639px) {
+  .admin-panel-shell [data-admin-card="true"]:hover {
+    transform: none;
   }
 }
 

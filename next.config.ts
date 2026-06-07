@@ -9,7 +9,8 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org https://oauth.telegram.org https://static.liqpay.ua https://apis.google.com https://www.googletagmanager.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org https://oauth.telegram.org https://static.liqpay.ua https://apis.google.com https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net",
+  "script-src-elem 'self' 'unsafe-inline' https://telegram.org https://oauth.telegram.org https://static.liqpay.ua https://apis.google.com https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net",
   "connect-src 'self' https: wss:",
   "frame-src 'self' https://telegram.org https://oauth.telegram.org https://www.google.com https://maps.google.com https://www.google.com.ua https://www.googletagmanager.com https://*.liqpay.ua https://*.firebaseapp.com",
   "worker-src 'self' blob:",
@@ -48,7 +49,7 @@ const nextConfig: NextConfig = {
   ],
   images: {
     formats: ["image/avif", "image/webp"],
-    minimumCacheTTL: 86400,
+    minimumCacheTTL: 31536000,
     qualities: [68, 75, 100],
     localPatterns: [
       // Keep default strict behavior for regular local images (no query string).
@@ -83,7 +84,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/:path*\\.(png|jpg|jpeg|webp|svg|ico)",
+        source: "/:path*\\.(png|jpg|jpeg|webp|avif|svg|ico)",
         headers: [
           ...securityHeaders,
           {

@@ -20,12 +20,12 @@ import {
   Mail,
   MessageCircle,
   PackagePlus,
+  Pin,
   PhoneCall,
   Search,
   SendHorizontal,
   ShieldCheck,
   ShoppingBag,
-  UserRound,
   Users2,
   X,
 } from 'lucide-react';
@@ -119,7 +119,9 @@ interface UserRecord {
 
 interface Props {
   isOpen: boolean;
+  isPinned?: boolean;
   onClose: () => void;
+  onPinnedChange?: (isPinned: boolean) => void;
   onNotificationCountChange?: (count: number) => void;
 }
 
@@ -208,7 +210,9 @@ const formatTimestampLabel = (raw: unknown) => {
 
 export default function AdminChatPanel({
   isOpen,
+  isPinned = false,
   onClose,
+  onPinnedChange,
   onNotificationCountChange,
 }: Props) {
   const [tab, setTab] = useState<'messages' | 'orders' | 'calls' | 'users'>(
@@ -237,6 +241,7 @@ export default function AdminChatPanel({
   const [copiedClipboardKey, setCopiedClipboardKey] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const managerPresenceSessionRef = useRef(
     `admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   );
@@ -909,6 +914,7 @@ export default function AdminChatPanel({
       );
     })
     .sort((left, right) => right.lastMessageMs - left.lastMessageMs);
+  const visibleMessageThreads = messageThreads;
   const normalizedCallSearch = callSearch.trim().toLowerCase();
   const normalizedCallSearchDigits = normalizePhoneDigits(callSearch);
   const filteredCalls = calls.filter((call) => {
@@ -918,11 +924,16 @@ export default function AdminChatPanel({
     if (!normalizedCallSearchDigits) return false;
     return normalizePhoneDigits(call.phone).includes(normalizedCallSearchDigits);
   });
+  const visibleOrders = filteredOrders;
+  const visibleCalls = filteredCalls;
   const totalThreads = new Set(messages.map((m) => m.userId)).size;
+  const attentionCount =
+    unreadMessages +
+    unreadOrders +
+    unreadCalls +
+    orders.filter((order) => !order.completed).length +
+    calls.filter((call) => !call.processed).length;
   const selectedUserRecord = selectedUserId ? getUserByChatId(selectedUserId) : null;
-  const getPrimaryVin = (item?: UserRecord | null) => item?.vins?.[0] || '';
-  const getUserIdentityValue = (item?: UserRecord | null) =>
-    getPrimaryVin(item) || item?.code || item?.id || '';
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -937,17 +948,31 @@ export default function AdminChatPanel({
     setIsMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (!isOpen || isPinned) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && panelRef.current?.contains(target)) return;
+      onClose();
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [isOpen, isPinned, onClose]);
+
   if (!isOpen || !isMounted) return null;
 
   return (
     <div
-      className="admin-panel-shell app-overlay-panel fixed inset-x-2 bottom-2 top-[4.25rem] z-50 flex max-h-[calc(100dvh-4.75rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-sky-200/20 bg-[image:linear-gradient(145deg,rgba(2,6,23,0.97),rgba(15,23,42,0.96)_48%,rgba(7,89,133,0.92))] shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:inset-x-3 sm:bottom-3 sm:top-[4.75rem] sm:max-h-[calc(100dvh-5.5rem)] md:left-auto md:right-4 md:bottom-auto md:top-[4.5rem] md:h-[min(860px,calc(100dvh-4.75rem))] md:w-[min(920px,calc(100vw-2rem))] md:max-h-none md:rounded-[32px] lg:right-6 lg:w-[min(980px,calc(100vw-3rem))] xl:w-[1040px]"
+      ref={panelRef}
+      className="admin-panel-shell admin-density-compact app-overlay-panel fixed inset-x-2 bottom-2 top-[4.25rem] z-50 flex max-h-[calc(100dvh-4.75rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-sky-100/20 bg-[image:linear-gradient(145deg,rgba(3,7,18,0.98),rgba(15,23,42,0.96)_42%,rgba(12,74,110,0.92))] shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:inset-x-3 sm:bottom-3 sm:top-[4.75rem] sm:max-h-[calc(100dvh-5.5rem)] md:left-auto md:right-4 md:bottom-auto md:top-[4.5rem] md:h-[min(860px,calc(100dvh-4.75rem))] md:w-[min(940px,calc(100vw-2rem))] md:max-h-none md:rounded-[28px] lg:right-6 lg:w-[min(1020px,calc(100vw-3rem))] xl:w-[1080px]"
       style={{
         backgroundSize: '200% 200%',
         animation: 'adminGradient 12s ease infinite',
       }}
     >
-      <div className="border-b border-white/10 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.9),rgba(30,41,59,0.78),rgba(14,165,233,0.2))] px-3 py-2 text-white sm:px-4 sm:py-2.5">
+      <div className="border-b border-white/10 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.92),rgba(30,41,59,0.78),rgba(14,165,233,0.2))] px-3 py-2 text-white sm:px-4 sm:py-2.5">
         <div className="flex items-center justify-between gap-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] border border-sky-200/20 bg-white/10 text-sky-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_12px_24px_rgba(14,165,233,0.16)] sm:h-9 sm:w-9 sm:rounded-[15px]">
@@ -962,18 +987,37 @@ export default function AdminChatPanel({
               </h2>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 hover:text-white sm:h-9 sm:w-9 sm:rounded-[15px]"
-            aria-label="Закрити панель адміністратора"
-            title="Закрити"
-          >
-            <X className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <AdminToggleButton
+              active={isPinned}
+              icon={<Pin className="h-3.5 w-3.5" />}
+              label=""
+              ariaLabel={isPinned ? "Панель закріплена" : "Закріпити панель"}
+              title={
+                isPinned
+                  ? "Панель не закриватиметься при переходах і кліках поза нею"
+                  : "Закріпити панель при переходах і кліках поза нею"
+              }
+              onClick={() => onPinnedChange?.(!isPinned)}
+            />
+            <button
+              onClick={onClose}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 hover:text-white sm:h-9 sm:w-9 sm:rounded-[15px]"
+              aria-label="Закрити панель адміністратора"
+              title="Закрити"
+            >
+              <X className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
+            </button>
+          </div>
+        </div>
+        <div className="mt-2 grid grid-cols-3 gap-1.5">
+          <AdminMetric label="Потребує дії" value={attentionCount} tone="sky" />
+          <AdminMetric label="Непрочитані" value={unreadMessages + unreadOrders + unreadCalls} tone="rose" />
+          <AdminMetric label="Онлайн" value={onlineUsersCount} tone="emerald" />
         </div>
       </div>
 
-      <div className="sticky top-0 z-10 grid grid-cols-2 gap-1 border-b border-white/10 bg-slate-950/55 px-1.5 py-1 backdrop-blur-xl sm:grid-cols-4 sm:gap-1.5 sm:px-2.5 sm:py-1.5">
+      <div className="sticky top-0 z-10 grid grid-cols-2 gap-1 border-b border-white/10 bg-slate-950/70 px-1.5 py-1 backdrop-blur-xl sm:grid-cols-4 sm:gap-1.5 sm:px-2.5 sm:py-1.5">
         <Tab
           icon={<ChatBubbleBottomCenterTextIcon className="h-5 w-5" />}
           label="Повідомлення"
@@ -986,7 +1030,7 @@ export default function AdminChatPanel({
         <Tab
           icon={<UsersIcon className="h-5 w-5" />}
           label="Користувачі"
-          value={users.length}
+          value={allUsers.length}
           meta={`Онлайн ${onlineUsersCount}`}
           active={tab === 'users'}
           onClick={() => setTab('users')}
@@ -1018,6 +1062,20 @@ export default function AdminChatPanel({
               <div className="space-y-2">
                 <SearchDock>
                   <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-3 rounded-[16px] border border-sky-200/12 bg-[image:linear-gradient(135deg,rgba(14,165,233,0.13),rgba(15,23,42,0.55))] px-2.5 py-2">
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-[0.12em] text-sky-200/80">
+                          Центр повідомлень
+                        </p>
+                        <h3 className="mt-0.5 truncate text-sm font-black text-white">
+                          Діалоги з клієнтами
+                        </h3>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <MessageStatPill label="Усі" value={visibleMessageThreads.length} />
+                        <MessageStatPill label="Нові" value={unreadMessages} tone="rose" />
+                      </div>
+                    </div>
                     <PanelSearchField
                       value={messageSearch}
                       onChange={setMessageSearch}
@@ -1025,13 +1083,13 @@ export default function AdminChatPanel({
                     />
 
                     <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                      <InfoChip icon={<MessageCircle className="h-3.5 w-3.5" />} label={`Діалогів: ${messageThreads.length}`} />
+                      <InfoChip icon={<MessageCircle className="h-3.5 w-3.5" />} label={`Активних: ${visibleMessageThreads.length}`} />
                       <InfoChip icon={<Clock3 className="h-3.5 w-3.5" />} label={`Без відповіді: ${messageThreads.filter((item) => !item.hasReply).length}`} />
                     </div>
                   </div>
                 </SearchDock>
 
-                {messageThreads.length === 0 && (
+                {visibleMessageThreads.length === 0 && (
                   <EmptyPanelState
                     icon={<ChatBubbleBottomCenterTextIcon className="h-10 w-10" />}
                     title="Чатів не знайдено"
@@ -1039,7 +1097,7 @@ export default function AdminChatPanel({
                   />
                 )}
 
-                {messageThreads.map((thread) => {
+                {visibleMessageThreads.map((thread) => {
                   return (
                     <div
                       key={thread.uid}
@@ -1052,30 +1110,28 @@ export default function AdminChatPanel({
                       }}
                       role="button"
                       tabIndex={0}
-                      className="group w-full rounded-[16px] border border-white/8 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.82),rgba(15,23,42,0.74))] p-2 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.16)] transition-colors duration-200 hover:border-sky-300/20 hover:bg-white/[0.06] sm:rounded-[22px] sm:p-3"
+                      data-admin-card="true"
+                      className="group w-full rounded-[16px] border border-white/8 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.78),rgba(15,23,42,0.66))] p-2 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] transition-colors duration-200 hover:border-sky-300/24 hover:bg-white/[0.06] sm:rounded-[18px] sm:p-2.5"
                     >
-                      <div className="flex items-start gap-2.5">
-                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-sky-100 sm:h-12 sm:w-12 sm:rounded-2xl">
-                          <UserRound className="h-5 w-5 sm:h-6 sm:w-6" />
+                      <div className="flex items-center gap-2.5">
+                        <span className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border border-sky-200/15 bg-[image:linear-gradient(135deg,rgba(14,165,233,0.18),rgba(255,255,255,0.05))] text-sm font-black uppercase text-sky-50 sm:h-11 sm:w-11">
+                          {(thread.label || '?').slice(0, 1)}
+                          {thread.user && isUserOnline(thread.user) && (
+                            <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-slate-900 bg-emerald-400" />
+                          )}
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="truncate text-[13px] font-semibold text-white sm:text-[15px]">
                               {thread.label}
                             </p>
-                            {thread.user && isUserOnline(thread.user) && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
-                                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                                Онлайн
-                              </span>
-                            )}
                           </div>
-                          <p className="mt-1 hidden truncate text-xs text-slate-300 sm:block sm:text-[13px]">
+                          <p className="mt-0.5 truncate text-xs text-slate-300 sm:text-[13px]">
                             {thread.preview || 'Поки що без повідомлень'}
                           </p>
                           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                             <span
-                              className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                                 thread.hasReply
                                   ? 'bg-emerald-500/15 text-emerald-200'
                                   : 'bg-amber-500/15 text-amber-200'
@@ -1089,7 +1145,7 @@ export default function AdminChatPanel({
                             </span>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1.5 pl-1">
+                        <div className="flex shrink-0 items-center gap-1 pl-1">
                           {thread.unread > 0 && (
                             <span className="inline-flex min-w-[28px] items-center justify-center rounded-full bg-rose-500 px-2 py-1 text-[11px] font-bold text-white shadow-[0_10px_20px_rgba(244,63,94,0.28)]">
                               {thread.unread}
@@ -1100,7 +1156,7 @@ export default function AdminChatPanel({
                               e.stopPropagation();
                               deleteChat(thread.uid);
                             }}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-slate-400 transition hover:bg-rose-500/15 hover:text-rose-300 sm:h-10 sm:w-10 sm:rounded-2xl"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-[14px] border border-white/10 bg-white/5 text-slate-400 transition hover:bg-rose-500/15 hover:text-rose-300"
                             title="Видалити чат"
                           >
                             <TrashIcon className="h-4.5 w-4.5" />
@@ -1113,31 +1169,31 @@ export default function AdminChatPanel({
               </div>
             ) : (
                 <div className="flex h-full min-h-0 flex-col">
-                  <div className="mb-2 rounded-[16px] border border-white/10 bg-[image:linear-gradient(135deg,rgba(30,41,59,0.92),rgba(15,23,42,0.9))] p-2 shadow-[0_18px_34px_rgba(2,6,23,0.22)] sm:mb-2.5 sm:rounded-[20px] sm:p-2.5">
-                    <div className="flex items-start gap-2.5">
-                      <div className="flex w-[74px] shrink-0 flex-col gap-1.5 sm:w-[90px]">
-                        <button
-                          onClick={() => setSelectedUserId(null)}
-                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[12px] border border-white/10 bg-white/5 text-slate-100 transition hover:bg-white/10 sm:h-8 sm:w-8 sm:rounded-[13px]"
-                          title="Назад до списку чатів"
-                        >
-                          <ArrowLeft className="h-4 w-4" />
-                        </button>
-                        <div className="min-w-0">
-                          <p className="line-clamp-2 text-[11px] font-semibold leading-tight text-white sm:text-[12px]">
+                  <div className="mb-2 rounded-[18px] border border-white/10 bg-[image:linear-gradient(135deg,rgba(30,41,59,0.9),rgba(15,23,42,0.88))] p-2 shadow-[0_18px_34px_rgba(2,6,23,0.2)]">
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        onClick={() => setSelectedUserId(null)}
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-white/10 bg-white/5 text-slate-100 transition hover:bg-white/10"
+                        title="Назад до списку чатів"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                      </button>
+                      <span className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border border-sky-200/15 bg-[image:linear-gradient(135deg,rgba(14,165,233,0.2),rgba(255,255,255,0.06))] text-sm font-black uppercase text-sky-50">
+                        {(selectedDisplayName || '?').slice(0, 1)}
+                        {selectedUserRecord && isUserOnline(selectedUserRecord) && (
+                          <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-slate-900 bg-emerald-400" />
+                        )}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate text-sm font-black text-white">
                             {selectedDisplayName}
                           </p>
-                          {selectedUserRecord && isUserOnline(selectedUserRecord) && (
-                            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-200">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                              Онлайн
-                            </span>
-                          )}
+                          <span className="shrink-0 rounded-full border border-white/10 bg-white/6 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-slate-300">
+                            {selectedMessages.length}
+                          </span>
                         </div>
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap gap-1.5 text-[10px] text-slate-300 sm:gap-2 sm:text-[11px]">
+                        <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] text-slate-300 sm:text-[11px]">
                           {selectedUserRecord?.phone && (
                             <InfoChip icon={<PhoneCall className="h-3.5 w-3.5" />} label={selectedUserRecord.phone} />
                           )}
@@ -1151,19 +1207,21 @@ export default function AdminChatPanel({
                             />
                           )}
                         </div>
+                      </div>
+                      {selectedUserRecord && (
+                        <button
+                          onClick={() => openUserOrders(selectedUserRecord.id)}
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-sky-300/15 bg-sky-500/10 text-sky-100 transition hover:bg-sky-500/15"
+                          title="Замовлення користувача"
+                        >
+                          <ShoppingBag className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
 
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                          {selectedUserRecord && (
-                            <button
-                              onClick={() => openUserOrders(selectedUserRecord.id)}
-                              className="inline-flex items-center gap-1.5 rounded-full border border-sky-300/15 bg-sky-500/10 px-2.5 py-1 text-[10px] font-semibold text-sky-100 transition hover:bg-sky-500/15 sm:text-[11px]"
-                            >
-                              <ShoppingBag className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">Замовлення</span>
-                            </button>
-                          )}
-
-                          {selectedUserRecord?.vins.map((vin, vinIndex) => {
+                    {selectedUserRecord?.vins.length ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        {selectedUserRecord.vins.map((vin, vinIndex) => {
                             const copyKey = buildCopyKey(selectedUserRecord.id, `vin:${vin}`);
                             const isCopied = copiedClipboardKey === copyKey;
 
@@ -1181,13 +1239,12 @@ export default function AdminChatPanel({
                                 </span>
                               </button>
                             );
-                          })}
-                        </div>
+                        })}
                       </div>
-                    </div>
+                    ) : null}
                   </div>
 
-                <div className="admin-chat-scroll admin-panel-scroll app-panel-scroll flex-1 min-h-0 space-y-1.5 overflow-y-auto pr-0.5 [touch-action:pan-y] sm:space-y-2 sm:pr-1">
+                <div className="admin-chat-scroll admin-panel-scroll app-panel-scroll flex-1 min-h-0 space-y-2 overflow-y-auto rounded-[18px] border border-white/6 bg-slate-950/22 p-2 pr-1 [touch-action:pan-y] sm:pr-2">
                   {selectedMessages.length === 0 && (
                     <EmptyPanelState
                       icon={<MessageCircle className="h-10 w-10" />}
@@ -1210,13 +1267,13 @@ export default function AdminChatPanel({
                         }`}
                       >
                         <div
-                          className={`max-w-[80%] ${
+                          className={`max-w-[82%] ${
                             isRichCard
                               ? 'bg-transparent p-0 shadow-none'
-                              : `rounded-[18px] px-3 py-2 text-[13px] shadow-[0_12px_24px_rgba(2,6,23,0.18)] sm:rounded-[22px] sm:px-3.5 sm:py-2.5 sm:text-sm ${
+                              : `rounded-[18px] px-3 py-2 text-[13px] leading-5 shadow-[0_12px_24px_rgba(2,6,23,0.16)] sm:text-sm ${
                                   m.sender === 'user'
-                                    ? 'border border-white/10 bg-white/10 text-slate-100'
-                                    : 'bg-[image:linear-gradient(135deg,rgba(14,165,233,0.95),rgba(37,99,235,0.92))] text-white'
+                                    ? 'rounded-bl-[6px] border border-white/10 bg-white/10 text-slate-100'
+                                    : 'rounded-br-[6px] bg-[image:linear-gradient(135deg,rgba(14,165,233,0.95),rgba(37,99,235,0.92))] text-white'
                                 }`
                           }`}
                         >
@@ -1229,7 +1286,14 @@ export default function AdminChatPanel({
                               sender={m.sender}
                             />
                           ) : (
-                            m.text
+                            <>
+                              <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                              <span className={`mt-1 block text-[9px] ${
+                                m.sender === 'user' ? 'text-slate-400' : 'text-sky-100/75'
+                              }`}>
+                                {formatTimestampLabel(m.createdAt)}
+                              </span>
+                            </>
                           )}
                         </div>
                         <button
@@ -1293,22 +1357,23 @@ export default function AdminChatPanel({
                   </div>
                 )}
 
-                <div className="mt-2 flex gap-1.5 sm:mt-3 sm:gap-2">
+                <div className="mt-2 rounded-[18px] border border-white/10 bg-white/[0.055] p-1.5 shadow-[0_14px_26px_rgba(2,6,23,0.16)]">
+                  <div className="flex gap-1.5 sm:gap-2">
                   <input
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                                        onKeyDown={(e) => {
+                    onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
                         sendReply();
                       }
                     }}
-                    className="flex-1 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-[16px] text-white placeholder-slate-300 focus:border-sky-400 focus:outline-none sm:text-sm"
+                    className="min-h-10 flex-1 rounded-[15px] border border-white/10 bg-slate-950/36 px-3 py-2 text-[16px] text-white placeholder-slate-300 focus:border-sky-400 focus:outline-none sm:text-sm"
                     placeholder="Написати повідомлення..."
                   />
                   <button
                     onClick={() => setShowProductForm((p) => !p)}
-                    className={`inline-flex h-10 w-10 items-center justify-center gap-2 rounded-full border px-0 py-0 text-white transition sm:h-auto sm:w-auto sm:px-3 sm:py-2 ${
+                    className={`inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-[15px] border px-0 py-0 text-white transition sm:w-auto sm:px-3 ${
                       showProductForm
                         ? 'border-emerald-300/30 bg-emerald-500/20'
                         : 'border-white/10 bg-white/10 hover:bg-white/20'
@@ -1320,11 +1385,12 @@ export default function AdminChatPanel({
                   </button>
                   <button
                     onClick={sendReply}
-                    className="inline-flex h-10 w-10 items-center justify-center gap-2 rounded-full bg-sky-600 px-0 py-0 text-white transition hover:bg-sky-700 sm:h-auto sm:w-auto sm:px-3 sm:py-2"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-[15px] bg-sky-600 px-0 py-0 text-white shadow-[0_12px_24px_rgba(14,165,233,0.18)] transition hover:bg-sky-700 sm:w-auto sm:px-3"
                   >
                     <SendHorizontal className="h-5 w-5" />
                     <span className="hidden text-xs font-semibold sm:inline">Надіслати</span>
                   </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1349,7 +1415,7 @@ export default function AdminChatPanel({
               />
             )}
             {sortedUsers.length > 0 && (
-              <div className="flex items-center justify-between gap-2 rounded-[14px] border border-sky-200/20 bg-white/5 p-1.5 text-[10px] text-slate-300 sm:rounded-[18px] sm:p-2.5 sm:text-[11px]">
+              <div className="flex items-center justify-between gap-2 rounded-[14px] border border-sky-200/20 bg-white/5 px-2.5 py-1.5 text-[10px] text-slate-300 sm:rounded-[16px] sm:px-3 sm:py-2 sm:text-[11px]">
                 <span>Знайдено користувачів: {sortedUsers.length}</span>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-200">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]" />
@@ -1370,10 +1436,11 @@ export default function AdminChatPanel({
               return (
                 <div
                   key={userRowKey}
-                  className="mb-1.5 flex w-full flex-col gap-1.5 rounded-[16px] border border-white/7 bg-[image:linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.64))] p-2 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] transition-colors hover:border-sky-300/20 hover:bg-white/[0.05] sm:mb-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:rounded-[20px] sm:p-3"
+                  data-admin-card="true"
+                  className="mb-1.5 grid w-full grid-cols-1 gap-2 rounded-[16px] border border-white/7 bg-[image:linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.64))] p-2 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] transition-colors hover:border-sky-300/20 hover:bg-white/[0.05] sm:mb-2 sm:grid-cols-[minmax(180px,0.9fr)_minmax(220px,1.1fr)_auto] sm:items-center sm:gap-3 sm:rounded-[20px] sm:p-3"
                 >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
                       <span
                         className={`h-2.5 w-2.5 shrink-0 rounded-full ${
                           online
@@ -1384,34 +1451,20 @@ export default function AdminChatPanel({
                       <p className="truncate text-[13px] font-semibold sm:text-sm">
                         {userItem.name || userItem.phone || 'Користувач'}
                       </p>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] ${
-                          online
-                            ? 'bg-emerald-500/15 text-emerald-200'
-                            : 'bg-white/10 text-slate-300'
-                        }`}
-                      >
-                        {online ? 'Онлайн' : 'Офлайн'}
-                      </span>
-                      </div>
-                      {!getPrimaryVin(userItem) && getUserIdentityValue(userItem) && (
-                        <p className="text-[11px] text-slate-200">
-                          Код: {getUserIdentityValue(userItem)}
-                        </p>
-                      )}
-                      {userItem.phone && (
-                        <p className="text-xs text-slate-300 truncate">
-                          <span className="hidden sm:inline">Телефон: </span>
-                          {userItem.phone}
-                        </p>
-                      )}
+                    </div>
+                    <div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-300">
+                      {userItem.phone && <span className="truncate">{userItem.phone}</span>}
                       {userItem.email && (
-                        <p className="hidden text-[11px] text-slate-400 truncate sm:block">
+                        <span className="hidden max-w-full truncate text-slate-400 sm:inline">
                           {userItem.email}
-                        </p>
+                        </span>
                       )}
+                    </div>
+                  </div>
+
+                  <div className="min-w-0">
                     {userItem.vins.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1.5">
                         {userItem.vins.slice(0, 3).map((vin, vinIndex) => {
                           const copyKey = buildCopyKey(userItem.id, `vin:${vin}`);
                           const isCopied = copiedClipboardKey === copyKey;
@@ -1440,39 +1493,19 @@ export default function AdminChatPanel({
                         )}
                       </div>
                     )}
+                    {userItem.vins.length === 0 && (
+                      <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold text-slate-400">
+                        VIN не додано
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-2 self-start sm:self-center">
+                  <div className="flex min-w-0 items-center justify-end gap-1.5 border-t border-white/8 pt-1.5 sm:border-t-0 sm:pt-0">
                     {unreadFromUser > 0 && (
-                      <span className="inline-flex items-center justify-center min-w-5 h-5 bg-emerald-500 text-white text-[10px] px-1.5 rounded-full leading-none">
+                      <span className="mr-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] leading-none text-white sm:mr-0">
                         {unreadFromUser}
                       </span>
                     )}
-
-                    {copiedClipboardKey === buildCopyKey(userItem.id, getUserIdentityValue(userItem)) && (
-                      <span className="text-[10px] rounded-full bg-emerald-500/90 px-2 py-0.5 text-white">
-                        Скопійовано
-                      </span>
-                    )}
-
-                    <button
-                      onClick={() =>
-                        copyUserCode(userItem.id, getUserIdentityValue(userItem))
-                      }
-                      disabled={!getUserIdentityValue(userItem)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 p-2 text-slate-200 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-45 sm:h-10 sm:w-10 sm:rounded-2xl"
-                      title={
-                        getPrimaryVin(userItem)
-                          ? 'Копіювати VIN користувача'
-                          : 'Копіювати код користувача'
-                      }
-                    >
-                      {copiedClipboardKey === buildCopyKey(userItem.id, getUserIdentityValue(userItem)) ? (
-                        <Check size={16} className="text-emerald-200" />
-                      ) : (
-                        <Copy size={16} />
-                      )}
-                    </button>
 
                     <button
                       onClick={() => openUserOrders(userItem.id)}
@@ -1518,7 +1551,7 @@ export default function AdminChatPanel({
                 />
               </div>
             </SearchDock>
-            {filteredOrders.length === 0 && (
+            {visibleOrders.length === 0 && (
               <EmptyPanelState
                 icon={<ShoppingBagIcon className="h-10 w-10" />}
                 title="Замовлень не знайдено"
@@ -1531,7 +1564,7 @@ export default function AdminChatPanel({
                 }
               />
             )}
-            {filteredOrders.map((o) => {
+            {visibleOrders.map((o) => {
               const statusLabel = o.completed
                 ? 'Виконано'
                 : o.read
@@ -1544,7 +1577,7 @@ export default function AdminChatPanel({
                 : 'bg-sky-500/20 text-sky-200';
 
               return (
-                <div key={o.id} className="mb-1.5 rounded-[16px] border border-white/6 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:mb-2 sm:rounded-[22px] sm:p-3">
+                <div key={o.id} data-admin-card="true" className="mb-1.5 rounded-[16px] border border-white/6 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:mb-2 sm:rounded-[20px] sm:p-3">
                   <div className="flex justify-between items-center gap-2">
                     <div
                       className="flex-1 cursor-pointer"
@@ -1632,21 +1665,21 @@ export default function AdminChatPanel({
                 placeholder="Пошук по імені, телефону або коментарю"
               />
             </SearchDock>
-            {filteredCalls.length === 0 && (
+            {visibleCalls.length === 0 && (
               <EmptyPanelState
                 icon={<PhoneCall className="h-10 w-10" />}
                 title="Заявок на дзвінок не знайдено"
                 description="Спробуйте змінити пошук або дочекайтеся нових звернень."
               />
             )}
-          {filteredCalls.map((c) => {
+          {visibleCalls.map((c) => {
             const callStatus = c.processed ? 'Виконано' : 'Новий';
             const callStatusClass = c.processed
               ? 'bg-emerald-500/20 text-emerald-200'
               : 'bg-sky-500/20 text-sky-200';
 
             return (
-              <div key={c.id} className="rounded-[16px] border border-white/6 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:rounded-[22px] sm:p-3">
+              <div key={c.id} data-admin-card="true" className="rounded-[16px] border border-white/6 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:rounded-[20px] sm:p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-medium">{c.name}</p>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full ${callStatusClass}`}>
@@ -1747,6 +1780,101 @@ function Tab({
         </div>
       </div>
     </button>
+  );
+}
+
+function AdminToggleButton({
+  active,
+  icon,
+  label,
+  ariaLabel,
+  title,
+  onClick,
+  className = '',
+}: {
+  active: boolean;
+  icon?: React.ReactNode;
+  label: string;
+  ariaLabel?: string;
+  title: string;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={ariaLabel || label}
+      className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-[12px] border text-[10px] font-black uppercase tracking-[0.08em] transition sm:h-9 ${
+        label ? 'px-2 sm:px-3' : 'w-8 px-0 sm:w-9'
+      } ${
+        active
+          ? 'border-sky-200/50 bg-sky-400/18 text-sky-50 shadow-[0_10px_22px_rgba(14,165,233,0.12)]'
+          : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+      } ${className}`}
+      aria-pressed={active}
+    >
+      {icon}
+      {label ? <span>{label}</span> : null}
+    </button>
+  );
+}
+
+function AdminMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'sky' | 'rose' | 'emerald' | 'slate';
+}) {
+  const toneClass =
+    tone === 'rose'
+      ? 'from-rose-500/16 to-rose-400/6 text-rose-100 border-rose-200/18'
+      : tone === 'emerald'
+      ? 'from-emerald-500/16 to-emerald-400/6 text-emerald-100 border-emerald-200/18'
+      : tone === 'sky'
+      ? 'from-sky-500/18 to-cyan-400/7 text-sky-100 border-sky-200/20'
+      : 'from-white/10 to-white/[0.03] text-slate-100 border-white/10';
+
+  return (
+    <div
+      className={`flex min-w-0 items-center justify-between gap-2 rounded-[11px] border bg-[image:linear-gradient(135deg,var(--tw-gradient-stops))] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:px-2.5 ${toneClass}`}
+    >
+      <p className="min-w-0 truncate text-[8px] font-bold uppercase tracking-[0.08em] opacity-75 sm:text-[9px]">
+        {label}
+      </p>
+      <p className="shrink-0 text-sm font-black leading-none tracking-[-0.04em] sm:text-base">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function MessageStatPill({
+  label,
+  value,
+  tone = 'sky',
+}: {
+  label: string;
+  value: number;
+  tone?: 'sky' | 'rose';
+}) {
+  return (
+    <span
+      className={`inline-flex min-w-[48px] flex-col items-center justify-center rounded-[12px] border px-2 py-1 ${
+        tone === 'rose'
+          ? 'border-rose-200/20 bg-rose-500/12 text-rose-100'
+          : 'border-sky-200/20 bg-sky-500/12 text-sky-100'
+      }`}
+    >
+      <span className="text-[9px] font-bold uppercase tracking-[0.08em] opacity-75">
+        {label}
+      </span>
+      <span className="text-sm font-black leading-none">{value}</span>
+    </span>
   );
 }
 
