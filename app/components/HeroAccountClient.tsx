@@ -176,20 +176,19 @@ export default function HeroAccountClient({
       </div>
       <ul className="space-y-2 text-[13px] font-semibold tracking-[-0.01em] text-slate-100 sm:text-[15px]">
         {benefitItems.map(({ label, onClick }) => (
-          <li
-            key={label}
-            onClick={onClick}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => event.key === "Enter" && onClick()}
-            className="home-chip-hover flex cursor-pointer items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-white/30 motion-safe:hover:bg-white/15"
-          >
-            <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm border border-emerald-400/70 text-emerald-300/90">
-              <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M5 12l4 4 10-10" />
-              </svg>
-            </span>
-            <span>{label}</span>
+          <li key={label}>
+            <button
+              type="button"
+              onClick={onClick}
+              className="home-chip-hover w-full flex cursor-pointer items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-white/30 motion-safe:hover:bg-white/15"
+            >
+              <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-emerald-400/70 text-emerald-300/90">
+                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M5 12l4 4 10-10" />
+                </svg>
+              </span>
+              <span>{label}</span>
+            </button>
           </li>
         ))}
       </ul>

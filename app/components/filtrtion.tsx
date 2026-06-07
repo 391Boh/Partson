@@ -558,9 +558,9 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                           alt={b.name}
                           width={96}
                           height={48}
+                          sizes="96px"
                           className="max-h-12 max-w-full object-contain"
                           loading="lazy"
-                          unoptimized
                           onError={(event) => {
                             const image = event.currentTarget;
                             if (image.dataset.fallbackApplied === '1') return;

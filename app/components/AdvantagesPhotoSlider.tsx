@@ -215,19 +215,21 @@ export default function AdvantagesPhotoSlider() {
             <span className="text-[11px] font-semibold text-slate-500">
               {displayedPhotoIndex + 1} / {businessProfilePhotos.length}
             </span>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-0.5">
             {businessProfilePhotos.map((_, index) => (
               <button
                 key={`photo-dot-${index}`}
                 type="button"
                 onClick={() => goToPhoto(index)}
                 aria-label={`Показати фото магазину ${index + 1}`}
-                className={`inline-flex h-2.5 rounded-full transition-all duration-200 ${
+                className="group inline-flex min-h-6 min-w-6 items-center justify-center px-1 py-2"
+              >
+                <span className={`block h-2 rounded-full transition-all duration-200 ${
                   index === activePhotoIndex
                     ? "w-7 bg-sky-600"
-                    : "w-2.5 bg-sky-200 hover:bg-sky-300"
-                }`}
-              />
+                    : "w-2 bg-sky-200 group-hover:bg-sky-300"
+                }`} />
+              </button>
             ))}
             </div>
           </div>

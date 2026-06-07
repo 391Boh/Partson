@@ -34,7 +34,15 @@ const isProduction = process.env.NODE_ENV === "production";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   experimental: {
-    optimizePackageImports: ["lucide-react", "@heroicons/react", "react-icons"],
+    optimizePackageImports: [
+      "lucide-react",
+      "@heroicons/react",
+      "react-icons",
+      "firebase/app",
+      "firebase/auth",
+      "firebase/firestore",
+      "firebase/storage",
+    ],
   },
   turbopack: {
     root: process.cwd(),
@@ -84,7 +92,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/:path*\\.(png|jpg|jpeg|webp|avif|svg|ico)",
+        source: "/:file(.*\\.(png|jpg|jpeg|webp|avif|svg|ico))",
         headers: [
           ...securityHeaders,
           {

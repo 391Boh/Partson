@@ -173,8 +173,8 @@ function GroupCategoryCard({
               alt={visibleGroupLabel}
               width={44}
               height={44}
+              sizes="36px"
               className="relative z-[1] h-9 w-9 object-contain"
-              unoptimized
             />
           </div>
 

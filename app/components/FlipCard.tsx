@@ -177,7 +177,7 @@ function FlipCardComponent({
             alt={displayProductName}
             width={60}
             height={60}
-            unoptimized
+            sizes="60px"
             onError={(event) => {
               const target = event.currentTarget;
               if (target.src.includes("/Katlogo/rul.png")) return;

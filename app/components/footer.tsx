@@ -95,21 +95,21 @@ export default function Footer() {
                     aria-label="Facebook"
                     className="inline-flex h-10 w-10 cursor-default items-center justify-center rounded-xl border border-sky-200/80 bg-transparent text-[#1877F2] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#1877F2] hover:bg-sky-50/60"
                   >
-                    <SiFacebook size={24} />
+                    <SiFacebook size={24} aria-hidden="true" />
                   </button>
                   <button
                     type="button"
                     aria-label="Instagram"
                     className="inline-flex h-10 w-10 cursor-default items-center justify-center rounded-xl border border-rose-200/80 bg-transparent text-[#E4405F] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#E4405F] hover:bg-rose-50/60"
                   >
-                    <SiInstagram size={24} />
+                    <SiInstagram size={24} aria-hidden="true" />
                   </button>
                   <button
                     type="button"
                     aria-label="Telegram"
                     className="inline-flex h-10 w-10 cursor-default items-center justify-center rounded-xl border border-cyan-200/80 bg-transparent text-[#229ED9] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#229ED9] hover:bg-sky-50/60"
                   >
-                    <SiTelegram size={24} />
+                    <SiTelegram size={24} aria-hidden="true" />
                   </button>
                 </div>
               </div>

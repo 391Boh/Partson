@@ -59,8 +59,9 @@ function AutoBrandCard({
                 alt={brand.name}
                 width={48}
                 height={48}
+                sizes="36px"
                 className="relative z-[1] h-9 w-9 object-contain transition duration-300 group-hover:scale-[1.04]"
-                unoptimized
+                unoptimized={brand.logo.endsWith('.svg')}
               />
             </div>
 

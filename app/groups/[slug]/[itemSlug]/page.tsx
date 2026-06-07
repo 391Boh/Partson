@@ -892,8 +892,8 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               alt={`Іконка категорії ${visibleGroupLabel}`}
               width={48}
               height={48}
+              sizes="48px"
               className="h-12 w-12 object-contain"
-              unoptimized
             />
           </div>
           <div className="min-w-0 flex-1">

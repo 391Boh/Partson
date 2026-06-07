@@ -374,7 +374,7 @@ useEffect(() => {
                         absolute inset-0 w-full h-full backface-hidden
                         rounded-xl shadow-[0_10px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_14px_30px_rgba(14,165,233,0.1)] border border-slate-200/80
                         bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96),rgba(240,249,255,0.9))]
-                        p-2.5 flex flex-col text-[11px] sm:text-[12px] relative
+                        p-2.5 flex flex-col text-[11px] sm:text-[12px] relative overflow-hidden
                         transition-[box-shadow,border-color,opacity] duration-200 hover:border-sky-200
                         ${frontVisibilityClass}
                     `}
@@ -445,7 +445,7 @@ useEffect(() => {
                     <div className="flex flex-col gap-1 text-slate-600 mt-2">
                         <div className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
                             <span className="text-slate-500">{"\u041A\u043E\u0434:"}</span>
-                            <span className="font-medium text-slate-700">{code || "-"}</span>
+                            <span className="min-w-0 max-w-[55%] truncate font-medium text-slate-700">{code || "-"}</span>
                         </div>
                           <button
                               type="button"
@@ -454,7 +454,7 @@ useEffect(() => {
                               aria-label="Скопіювати артикул"
                           >
                             <span className="text-slate-500">Артикул:</span>
-                              <span className="inline-flex items-center gap-1.5 font-medium text-slate-700">
+                              <span className="inline-flex min-w-0 max-w-[55%] items-center gap-1.5 font-medium text-slate-700">
                                   {articleCopied ? (
                                       <Check size={13} className="text-emerald-600" aria-hidden="true" />
                                   ) : (
@@ -464,7 +464,7 @@ useEffect(() => {
                                           aria-hidden="true"
                                       />
                                   )}
-                                  <span>{article}</span>
+                                  <span className="truncate min-w-0">{article}</span>
                               </span>
                           </button>
                           {producerPath ? (
@@ -475,12 +475,12 @@ useEffect(() => {
                                   className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors no-underline"
                               >
                                   <span className="text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
-                                  <span className="font-medium text-blue-700 hover:text-blue-800">{producer}</span>
+                                  <span className="min-w-0 max-w-[55%] truncate font-medium text-blue-700 hover:text-blue-800">{producer}</span>
                               </SmartLink>
                           ) : (
                               <div className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
                                   <span className="text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
-                                  <span className="font-medium text-slate-700">{producer}</span>
+                                  <span className="min-w-0 max-w-[55%] truncate font-medium text-slate-700">{producer}</span>
                               </div>
                           )}
                     </div>

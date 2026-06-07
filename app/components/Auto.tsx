@@ -104,13 +104,13 @@ const CarBrandButton = React.memo(function CarBrandButton({
           alt={`${brand.name} logo`}
           width={320}
           height={200}
-          quality={100}
+          quality={85}
           draggable={false}
           className="h-[66px] w-auto object-contain drop-shadow-[0_8px_14px_rgba(15,23,42,0.16)]"
           style={{ imageRendering: "auto" }}
-          sizes="(max-width: 640px) 160px, (max-width: 1024px) 200px, 240px"
+          sizes="(max-width: 640px) 82px, 82px"
           onError={handleBrandLogoLoadError}
-          unoptimized
+          unoptimized={brand.logo.endsWith('.svg')}
         />
       </span>
 
@@ -1446,8 +1446,8 @@ const AutoSection: React.FC<AutoProps> = ({
                           width={80}
                           height={80}
                           sizes={isCompact ? "40px" : "44px"}
-                          quality={100}
-                          unoptimized
+                          quality={85}
+                          unoptimized={modelBrandLogo.endsWith('.svg')}
                           className={isCompact ? "h-5 w-auto max-w-[24px] object-contain" : "h-6 w-auto max-w-[28px] object-contain"}
                           style={{ imageRendering: "auto" }}
                           priority={false}
@@ -1470,8 +1470,8 @@ const AutoSection: React.FC<AutoProps> = ({
                           width={80}
                           height={80}
                           sizes={isCompact ? "40px" : "44px"}
-                          quality={100}
-                          unoptimized
+                          quality={85}
+                          unoptimized={modelBrandLogo.endsWith('.svg')}
                           className={isCompact ? "h-5 w-auto max-w-[24px] object-contain" : "h-6 w-auto max-w-[28px] object-contain"}
                           style={{ imageRendering: "auto" }}
                           priority={false}

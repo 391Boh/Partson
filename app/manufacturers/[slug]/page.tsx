@@ -890,8 +890,8 @@ export default async function ManufacturerDetailPage({
                       alt={producer.label}
                       width={68}
                       height={68}
+                      sizes="48px"
                       className="relative z-[1] h-12 w-12 object-contain"
-                      unoptimized
                     />
                   ) : (
                     <span className="relative z-[1] text-xl font-[780] text-slate-700">
