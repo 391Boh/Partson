@@ -379,7 +379,7 @@ const Header: React.FC = () => {
     Boolean(activeMenu) || showSearchModal || modals.contact || modals.order || modals.auth;
 
   const buttonBaseClass =
-    'font-ui flex min-h-[34px] items-center gap-1 rounded-[14px] border border-white/15 bg-gray-700 px-2.5 py-1.5 text-[10px] font-bold tracking-[0.01em] text-slate-50 transition-all whitespace-nowrap hover:border-white/35 hover:bg-gray-600 sm:min-h-0 sm:gap-1.5 sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[14px] cursor-pointer touch-manipulation active:scale-[0.98] select-none';
+    'font-ui flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-[14px] border border-white/15 bg-gray-700 px-2.5 py-1.5 text-[10px] font-bold tracking-[0.01em] text-slate-50 transition-all whitespace-nowrap hover:border-white/35 hover:bg-gray-600 sm:min-h-0 sm:min-w-0 sm:gap-1.5 sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[14px] cursor-pointer touch-manipulation active:scale-[0.98] select-none';
 
 
   const dropdownBaseClass =
@@ -435,8 +435,10 @@ const Header: React.FC = () => {
             <Image
               src="/Car-parts.png"
               alt="PartsOn Logo"
-              width={70}
-              height={40}
+              width={98}
+              height={49}
+              priority
+              fetchPriority="high"
               className="pointer-events-none h-auto w-[65px] select-none object-contain md:w-[85px]"
               onError={handleLogoLoadError}
               onContextMenu={preventLogoAssetInteraction}
@@ -629,7 +631,7 @@ const Header: React.FC = () => {
               event.stopPropagation();
               toggleModal('contact');
             }}
-            className={`font-ui flex min-h-[34px] items-center gap-1 rounded-[14px] border border-red-300/40 bg-gradient-to-r from-red-600 via-red-500 to-red-600 px-2.5 py-1.5 text-[10px] font-bold tracking-[0.01em] text-white shadow-sm shadow-red-500/30 hover:from-red-500 hover:via-red-400 hover:to-red-500 sm:min-h-0 sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2 sm:text-[14px] cursor-pointer touch-manipulation ${
+            className={`font-ui flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-[14px] border border-red-300/40 bg-gradient-to-r from-red-600 via-red-500 to-red-600 px-2.5 py-1.5 text-[10px] font-bold tracking-[0.01em] text-white shadow-sm shadow-red-500/30 hover:from-red-500 hover:via-red-400 hover:to-red-500 sm:min-h-0 sm:min-w-0 sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2 sm:text-[14px] cursor-pointer touch-manipulation ${
               modals.contact ? 'ring-2 ring-red-300/60' : ''
             }`}
           >
@@ -660,7 +662,7 @@ const Header: React.FC = () => {
                 <MagnifyingGlassIcon className="w-5 h-5 text-blue-400" />
                 Пошук
               </h2>
-              <button onClick={() => setShowSearchModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowSearchModal(false)} aria-label="Закрити пошук" className="text-gray-400 hover:text-white">
                 <XMarkIcon className="w-6 h-6" />
               </button>
             </div>

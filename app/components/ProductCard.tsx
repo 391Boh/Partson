@@ -442,7 +442,7 @@ useEffect(() => {
                     </div>
 
                     {/* Р†РЅС„Рѕ */}
-                    <div className="flex flex-col gap-1 text-slate-600 mt-3">
+                    <div className="flex flex-col gap-1 text-slate-600 mt-2">
                         <div className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
                             <span className="text-slate-500">{"\u041A\u043E\u0434:"}</span>
                             <span className="font-medium text-slate-700">{code || "-"}</span>
@@ -486,10 +486,10 @@ useEffect(() => {
                     </div>
 
                     {/* Р¦С–РЅР° */}
-                    <div className="flex justify-end w-full mt-4">
+                    <div className="flex w-full mt-2 sm:mt-3">
                         <div
                             className="
-                                flex min-h-[36px] min-w-[156px] items-center justify-between gap-2 px-3 py-1 
+                                flex w-full min-h-[36px] items-center justify-between gap-2 px-3 py-1
                                 rounded-full 
                                 bg-white/90 backdrop-blur-md 
                                 border border-blue-200
@@ -505,10 +505,10 @@ useEffect(() => {
                                 {"\u0426\u0456\u043D\u0430:"}
                             </span>
 
-                            <span className="flex min-w-[92px] items-center justify-end gap-1 text-right tabular-nums">
+                            <span className="flex items-center justify-end gap-1 text-right tabular-nums">
                                 {hasPrice ? (
                                     <>
-                                        <span className="text-blue-600 font-bold">
+                                        <span className="text-blue-600 font-bold text-[13px]">
                                             {priceUAH.toLocaleString("uk-UA")}
                                         </span>
                                         <span className="text-[10px] font-medium text-slate-500">

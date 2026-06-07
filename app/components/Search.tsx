@@ -165,6 +165,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         )}
 
         <select
+          aria-label="Фільтр пошуку"
           className="font-ui h-9 border-l border-gray-600 bg-gray-700 px-2 py-2 text-base font-semibold tracking-normal text-white outline-none sm:text-sm"
           value={filterBy}
           onFocus={prefetchCatalog}
@@ -182,6 +183,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         </select>
 
         <button
+          type="submit"
+          aria-label="Знайти"
           className="px-3 py-2 bg-gradient-to-r from-rose-600 via-rose-500 to-red-500 text-white shadow-[0_10px_18px_rgba(244,63,94,0.32)] hover:from-rose-500 hover:via-rose-400 hover:to-red-400 hover:shadow-[0_12px_22px_rgba(244,63,94,0.34)] active:scale-[0.96] transition-all duration-200 ease-out flex items-center justify-center cursor-pointer"
           onClick={() => handleSearch()}
         >
