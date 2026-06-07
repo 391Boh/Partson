@@ -43,6 +43,7 @@ import {
   getAllProductSitemapSnapshotEntries,
   type ProductSitemapEntry,
 } from "app/lib/product-sitemap";
+import { getGoogleRating } from "app/lib/google-rating";
 
 const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 1600;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1500;
@@ -416,6 +417,7 @@ const buildProductJsonLd = (options: {
   priceUah: number | null;
   canonicalUrl: string;
   imageUrls: string[];
+  aggregateRating?: { ratingValue: number; reviewCount: number } | null;
 }) => {
   const {
     name,
@@ -430,6 +432,7 @@ const buildProductJsonLd = (options: {
     priceUah,
     canonicalUrl,
     imageUrls,
+    aggregateRating,
   } = options;
 
   const offers =
@@ -551,6 +554,15 @@ const buildProductJsonLd = (options: {
           }
         : null,
     ].filter(Boolean),
+    aggregateRating: aggregateRating
+      ? {
+          "@type": "AggregateRating",
+          ratingValue: String(aggregateRating.ratingValue),
+          reviewCount: String(aggregateRating.reviewCount),
+          bestRating: "5",
+          worstRating: "1",
+        }
+      : undefined,
     offers,
     isRelatedTo: subGroup || group
       ? {
@@ -797,25 +809,26 @@ const buildProductMetaDescription = (options: {
   code?: string;
   category?: string;
   quantity: number;
+  priceUah?: number | null;
 }) => {
-  const { name, article, producer, code, category, quantity } = options;
+  const { name, article, producer, code, category, quantity, priceUah } = options;
   const productLabel = trimSeoPhrase(
     appendSeoPartIfMissing(buildVisibleProductName(name), producer),
-    74
+    72
   );
-  const lookupParts = [
-    article ? `арт. ${article}` : null,
-    code && code !== article ? `код ${code}` : null,
-  ].filter(Boolean);
-  const availabilityLabel =
-    quantity > 0 ? "наявність підтверджуємо при замовленні" : "термін уточнить менеджер";
+  const priceLabel = priceUah != null && priceUah > 0
+    ? `${priceUah.toLocaleString("uk-UA")} грн`
+    : null;
+  const articleLabel = article ? `арт. ${article}` : null;
+  const codeLabel = code && code !== article ? `код ${code}` : null;
+  const lookupLabel = [articleLabel, codeLabel].filter(Boolean).join(", ");
+  const availabilityLabel = quantity > 0 ? "є в наявності" : "під замовлення";
 
   return trimSeoDescription(
     [
-      `${productLabel}${lookupParts.length ? ` (${lookupParts.join(", ")})` : ""}: ${availabilityLabel}.`,
+      `${productLabel}${priceLabel ? ` — ${priceLabel}` : ""}${lookupLabel ? ` (${lookupLabel})` : ""}: ${availabilityLabel}.`,
       category ? `Категорія: ${category}.` : null,
-      "VIN-підбір, аналоги, самовивіз і доставка по Україні.",
-      `${STORE_PHONE_SEO_LABEL} · ${STORE_ADDRESS_SEO_LABEL}.`,
+      "VIN-підбір, аналоги, самовивіз у Львові та доставка по Україні.",
     ]
       .filter(Boolean)
       .join(" ")
@@ -1575,6 +1588,9 @@ export async function generateMetadata({
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
   const shouldIndexProduct = !isModalView && Boolean(routeProduct);
 
+  const inlinePriceEuroForMeta = toPositiveNumberOrNull(routeProduct?.priceEuro);
+  const seoPriceForMeta = await resolveProductSeoPrice(inlinePriceEuroForMeta);
+
   const seoTitle = buildProductSeoTitle({
     name: seoVisibleProductName,
     producer: productProducer,
@@ -1588,6 +1604,7 @@ export async function generateMetadata({
     code: resolvedCode,
     category: categoryLabel,
     quantity: routeProduct?.quantity ?? 0,
+    priceUah: seoPriceForMeta.priceUah,
   });
 
   const keywords = buildProductSeoKeywords({
@@ -1618,7 +1635,7 @@ export async function generateMetadata({
       description,
       images: [{
         url: productImageUrl,
-        alt: `Фото товару ${seoVisibleProductName}`,
+        alt: `${seoVisibleProductName}${productArticle ? ` арт. ${productArticle}` : ""} — автозапчастина PartsON`,
         width: 1200,
         height: 1200,
       }],
@@ -1629,7 +1646,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title: seoTitle,
       description,
-      images: [{ url: productImageUrl, alt: `Фото товару ${seoVisibleProductName}` }],
+      images: [{ url: productImageUrl, alt: `${seoVisibleProductName}${productArticle ? ` арт. ${productArticle}` : ""} — автозапчастина PartsON` }],
     },
     robots: {
       index: shouldIndexProduct,
@@ -1835,6 +1852,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
   });
   const visibleProductGroup = buildVisibleProductName(productGroup);
   const visibleProductSubgroup = buildVisibleProductName(productSubgroup);
+  const siteUrl = getSiteUrl();
+  const [pagePrice, googleRating] = await Promise.all([
+    resolveProductSeoPrice(inlineInitialPriceEuro),
+    getGoogleRating(),
+  ]);
+  const initialPriceUah = pagePrice.priceUah;
+  const recommendationEuroRate = pagePrice.euroRate ?? undefined;
   const fallbackDescription = buildProductFallbackDescription({
     visibleName: visibleProductName,
     producer: product.producer,
@@ -1849,12 +1873,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     code: product.code || resolvedCode,
     category: visibleProductSubgroup || visibleProductGroup,
     quantity: product.quantity,
+    priceUah: initialPriceUah,
   });
-
-  const siteUrl = getSiteUrl();
-  const pagePrice = await resolveProductSeoPrice(inlineInitialPriceEuro);
-  const initialPriceUah = pagePrice.priceUah;
-  const recommendationEuroRate = pagePrice.euroRate ?? undefined;
   const categoryCatalogGroupValue =
     productGroup || productCategory || productSubgroup;
   const categoryCatalogSubcategoryValue =
@@ -1903,6 +1923,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         priceUah: initialPriceUah,
         canonicalUrl,
         imageUrls: [productSeoImageUrl],
+        aggregateRating: googleRating,
       })
     : null;
   const itemPageJsonLd = buildProductItemPageJsonLd({

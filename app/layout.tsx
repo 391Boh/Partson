@@ -11,6 +11,7 @@ import {
   trimSeoDescription,
 } from "./lib/seo-metadata";
 import { getSiteUrl } from "./lib/site-url";
+import { getGoogleRating } from "./lib/google-rating";
 import "./globals.css";
 
 const siteUrl = getSiteUrl();
@@ -269,11 +270,23 @@ const localBusinessJsonLd = {
 
 const layoutFallback = <PageLoadingShell label="Завантаження сторінки..." cardsCount={4} />;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: ReactNode;
 }>) {
+  const googleRating = await getGoogleRating();
+  const localBusinessWithRating = {
+    ...localBusinessJsonLd,
+    aggregateRating: {
+      "@type": "AggregateRating",
+      ratingValue: String(googleRating.ratingValue),
+      reviewCount: String(googleRating.reviewCount),
+      bestRating: "5",
+      worstRating: "1",
+    },
+  };
+
   return (
     <html lang="uk">
       <head>
@@ -297,7 +310,7 @@ export default function RootLayout({
         {googleTagManagerId ? (
           <Script
             id="google-tag-manager"
-            strategy="afterInteractive"
+            strategy="lazyOnload"
             dangerouslySetInnerHTML={{
               __html: `
                 (function(w,d,s,l,i){
@@ -328,7 +341,7 @@ export default function RootLayout({
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessWithRating) }}
         />
       </head>
       <body>
