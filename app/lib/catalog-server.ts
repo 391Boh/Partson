@@ -10,6 +10,7 @@ export interface CatalogProduct {
   producer: string;
   quantity: number;
   priceEuro?: number | null;
+  costPriceEuro?: number | null;
   group?: string;
   subGroup?: string;
   category?: string;
@@ -100,6 +101,21 @@ const PRICE_FIELDS = [
   "Price",
   "cost",
   "Cost",
+];
+const PURCHASE_PRICE_FIELDS = [
+  "costPriceEuro",
+  "purchasePrice",
+  "purchase_price",
+  "\u0426\u0456\u043d\u0430\u0417\u0430\u043a\u0443\u043f",
+  "\u0426\u0456\u043d\u0430\u0417\u0430\u043a\u0443\u043f\u0456\u0432\u043b\u0456",
+  "\u0426\u0456\u043d\u0430\u0417\u0430\u043a\u0443\u043f\u043a\u0438",
+  "\u0426\u0435\u043d\u0430\u0417\u0430\u043a\u0443\u043f\u043a\u0438",
+  "\u0426\u0456\u043d\u0430\u0417\u0430\u043a",
+  "\u0426\u0435\u043d\u0430\u0417\u0430\u043a",
+  "\u0421\u0435\u0431\u0435\u0441\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c",
+  "\u0421\u043e\u0431\u0456\u0432\u0430\u0440\u0442\u0456\u0441\u0442\u044c",
+  "\u0426\u0456\u043d\u0430\u041f\u043e\u0441\u0442\u0430\u0447\u0430\u043b\u044c\u043d\u0438\u043a\u0430",
+  "\u0426\u0435\u043d\u0430\u041f\u043e\u0441\u0442\u0430\u0432\u0449\u0438\u043a\u0430",
 ];
 const PHOTO_FIELDS = [
   "\u0415\u0441\u0442\u044c\u0424\u043e\u0442\u043e",
@@ -231,6 +247,7 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
   const priceEuro = hasPriceField
     ? readFirstNumber(record, PRICE_FIELDS, Number.NaN)
     : Number.NaN;
+  const rawCostPriceEuro = readFirstNumber(record, PURCHASE_PRICE_FIELDS, Number.NaN);
   const group = readFirstString(record, GROUP_FIELDS);
   const subGroup = readFirstString(record, SUBGROUP_FIELDS);
   const category = readFirstString(record, CATEGORY_FIELDS);
@@ -249,6 +266,7 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
         ? priceEuro
         : null
       : undefined,
+    costPriceEuro: Number.isFinite(rawCostPriceEuro) && rawCostPriceEuro > 0 ? rawCostPriceEuro : undefined,
     group,
     subGroup,
     category,
@@ -936,6 +954,88 @@ const buildCatalogPriceLookupMap = (
 
   visit(payload);
   return prices;
+};
+
+const buildCatalogPriceLookupMaps = (
+  payload: unknown,
+  lookupKeys?: readonly string[]
+) => {
+  const requested =
+    Array.isArray(lookupKeys) && lookupKeys.length > 0
+      ? new Set(
+          lookupKeys
+            .map((key) => normalizeFacetValue(key))
+            .filter(Boolean)
+        )
+      : null;
+  const prices = new Map<string, number>();
+  const costPrices = new Map<string, number>();
+  const seenRecords = new WeakSet<Record<string, unknown>>();
+
+  const addCandidate = (
+    target: Map<string, number>,
+    rawKey: string,
+    price: number
+  ) => {
+    const normalizedKey = normalizeFacetValue(rawKey);
+    if (!normalizedKey) return;
+    if (requested && !requested.has(normalizedKey)) return;
+    if (!target.has(normalizedKey)) {
+      target.set(normalizedKey, price);
+    }
+  };
+
+  const addProductCandidates = (record: Record<string, unknown>, product: CatalogProduct) => {
+    const candidateKeys = [
+      product.code,
+      product.article,
+      readFirstString(record, [PRICE_CODE_FIELD, ...CODE_FIELDS]),
+      readFirstString(record, ARTICLE_FIELDS),
+    ];
+
+    if (
+      typeof product.priceEuro === "number" &&
+      Number.isFinite(product.priceEuro) &&
+      product.priceEuro > 0
+    ) {
+      for (const key of candidateKeys) {
+        addCandidate(prices, key, product.priceEuro);
+      }
+    }
+
+    if (
+      typeof product.costPriceEuro === "number" &&
+      Number.isFinite(product.costPriceEuro) &&
+      product.costPriceEuro > 0
+    ) {
+      for (const key of candidateKeys) {
+        addCandidate(costPrices, key, product.costPriceEuro);
+      }
+    }
+  };
+
+  const visit = (value: unknown, depth = 0) => {
+    if (depth > 6 || value == null) return;
+
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item, depth + 1);
+      return;
+    }
+
+    const record = asRecord(value);
+    if (!record || seenRecords.has(record)) return;
+    seenRecords.add(record);
+
+    const product = normalizeProduct(record);
+    addProductCandidates(record, product);
+
+    for (const nested of Object.values(record)) {
+      visit(nested, depth + 1);
+    }
+  };
+
+  visit(payload);
+  return { prices, costPrices };
 };
 
 export const toPriceUah = (priceEuro: number | null, euroRate: number) => {
@@ -1918,6 +2018,105 @@ export const fetchCatalogPricesByLookupKeys = async (
   }
 
   return Object.fromEntries(resolved);
+};
+
+export const fetchCatalogPriceDetailsByLookupKeys = async (
+  lookupKeys: string[],
+  options?: {
+    timeoutMs?: number;
+    cacheTtlMs?: number;
+    includePricesPost?: boolean;
+  }
+) => {
+  const normalizedKeys = Array.from(
+    new Set(lookupKeys.map((key) => normalizeFacetValue(key)).filter(Boolean))
+  );
+  if (normalizedKeys.length === 0) {
+    return {
+      prices: {} as Record<string, number>,
+      costPrices: {} as Record<string, number>,
+    };
+  }
+
+  const mergeFromResponse = (
+    text: string,
+    targetPrices: Map<string, number>,
+    targetCostPrices: Map<string, number>
+  ) => {
+    const payload = parseLoosePayloadText(text);
+    if (payload == null) return;
+
+    const nextMaps = buildCatalogPriceLookupMaps(payload, normalizedKeys);
+    for (const [key, value] of nextMaps.prices.entries()) {
+      if (!targetPrices.has(key)) {
+        targetPrices.set(key, value);
+      }
+    }
+    for (const [key, value] of nextMaps.costPrices.entries()) {
+      if (!targetCostPrices.has(key)) {
+        targetCostPrices.set(key, value);
+      }
+    }
+  };
+
+  const resolvedPrices = new Map<string, number>();
+  const resolvedCostPrices = new Map<string, number>();
+  const timeoutMs =
+    Number.isFinite(options?.timeoutMs) && (options?.timeoutMs || 0) > 0
+      ? Math.floor(options?.timeoutMs as number)
+      : 2200;
+  const cacheTtlMs =
+    Number.isFinite(options?.cacheTtlMs) && (options?.cacheTtlMs || 0) > 0
+      ? Math.floor(options?.cacheTtlMs as number)
+      : 1000 * 12;
+  const sourceReaders: Array<() => Promise<Awaited<ReturnType<typeof oneCRequest>> | null>> = [
+    async () =>
+      oneCRequest("allgoods", {
+        method: "POST",
+        body: {
+          [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(normalizedKeys.length * 6, 120)),
+        },
+        timeoutMs,
+        retries: 0,
+        cacheTtlMs,
+        cacheKey: JSON.stringify({
+          endpoint: "allgoods:price-details",
+          body: {
+            [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(normalizedKeys.length * 6, 120)),
+          },
+        }),
+      }).catch(() => null),
+  ];
+
+  const attempts = sourceReaders.map((reader, index) =>
+    Promise.resolve()
+      .then(() => reader())
+      .then((response) => ({ index, response }))
+      .catch(() => ({ index, response: null }))
+  );
+
+  const pending = new Set<number>(attempts.map((_, index) => index));
+  while (
+    pending.size > 0 &&
+    (resolvedPrices.size < normalizedKeys.length ||
+      resolvedCostPrices.size < normalizedKeys.length)
+  ) {
+    const result = await Promise.race(
+      Array.from(pending, (index) => attempts[index])
+    );
+    pending.delete(result.index);
+
+    const response = result.response;
+    if (!response) continue;
+    if (response.status < 200 || response.status >= 300) continue;
+
+    mergeFromResponse(response.text, resolvedPrices, resolvedCostPrices);
+  }
+
+  return {
+    prices: Object.fromEntries(resolvedPrices),
+    costPrices: Object.fromEntries(resolvedCostPrices),
+  };
 };
 
 const refreshEuroRate = async () => {

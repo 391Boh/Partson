@@ -26,7 +26,8 @@ type ProductPurchasePanelClientProps = {
 const PRODUCT_PRICE_CACHE_PREFIX = "partson:v4:product-page-price:";
 const PRODUCT_PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRODUCT_PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
-const PRODUCT_PRICE_REQUEST_TIMEOUT_MS = 1800;
+const PRODUCT_PRICE_REQUEST_TIMEOUT_MS = 950;
+const productPriceInFlightRequests = new Map<string, Promise<number | null>>();
 
 const formatPriceUah = (priceUah: number | null) => {
   if (priceUah == null) return "За запитом";
@@ -174,26 +175,47 @@ export default function ProductPurchasePanelClient(
     const loadPrice = async () => {
       let timeoutId: number | undefined;
       try {
-        const timeoutPromise = new Promise<Response>((_, reject) => {
+        const existingRequest = productPriceInFlightRequests.get(requestUrl);
+        const requestPromise =
+          existingRequest ??
+          fetch(requestUrl, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+          })
+            .then(async (response) => {
+              const payload = (await response.json()) as { priceUah?: number | null };
+              return typeof payload.priceUah === "number" &&
+                Number.isFinite(payload.priceUah) &&
+                payload.priceUah > 0
+                ? payload.priceUah
+                : null;
+            })
+            .catch(() => null)
+            .finally(() => {
+              productPriceInFlightRequests.delete(requestUrl);
+            });
+
+        if (!existingRequest) {
+          productPriceInFlightRequests.set(requestUrl, requestPromise);
+          requestPromise.then((value) => {
+            writeCachedPrice(value);
+          });
+        }
+        requestPromise.then((value) => {
+          if (cancelled) return;
+          if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+            setPriceUah(value);
+          }
+        });
+
+        const timeoutPromise = new Promise<number | null>((_, reject) => {
           timeoutId = window.setTimeout(
             () => reject(new Error("product-price-timeout")),
             PRODUCT_PRICE_REQUEST_TIMEOUT_MS
           );
         });
-        const response = await Promise.race([
-          fetch(requestUrl, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-          }),
-          timeoutPromise,
-        ]);
-        const payload = (await response.json()) as { priceUah?: number | null };
+        const nextPrice = await Promise.race([requestPromise, timeoutPromise]);
         if (cancelled) return;
-
-        const nextPrice =
-          typeof payload.priceUah === "number" && Number.isFinite(payload.priceUah)
-            ? payload.priceUah
-            : null;
 
         if (typeof nextPrice === "number" && nextPrice > 0) {
           writeCachedPrice(nextPrice);

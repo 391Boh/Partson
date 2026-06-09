@@ -542,7 +542,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                 Опис, назви і структура групи
               </span>
               <span className={directoryCompactMetricAccentClass}>
-                SEO-навігація до каталогу
+                Навігація до каталогу
               </span>
             </div>
           </div>

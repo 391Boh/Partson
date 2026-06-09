@@ -16,37 +16,37 @@ import {
 
 export const runtime = "nodejs";
 
-const MAX_BATCH_ITEMS = 36;
-const BATCH_CONCURRENCY = 6;
+const MAX_BATCH_ITEMS = 48;
+const BATCH_CONCURRENCY = 8;
 const CATALOG_IMAGE_READY_CACHE_TTL_MS = 1000 * 60 * 60;
 const CATALOG_IMAGE_MISSING_CACHE_TTL_MS = 1000 * 60 * 5;
 
 const PRIMARY_LOOKUP_OPTIONS = {
-  timeoutMs: 850,
+  timeoutMs: 520,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 60 * 2,
   missCacheTtlMs: 1000 * 60 * 5,
   allowUrlDownload: false,
-  batchConcurrency: 4,
+  batchConcurrency: 8,
   maxKeys: MAX_BATCH_ITEMS * 2,
 };
 const DEEP_RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 1350,
+  timeoutMs: 950,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 20,
   missCacheTtlMs: 1000 * 60 * 5,
   allowUrlDownload: true,
   skipMissCache: true,
-  batchConcurrency: 4,
+  batchConcurrency: 6,
   maxKeys: MAX_BATCH_ITEMS * 4,
 };
 const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
   lookupLimit: 16,
   fallbackPages: 1,
   pageSize: 24,
-  timeoutMs: 650,
+  timeoutMs: 420,
   retries: 0,
   retryDelayMs: 80,
   cacheTtlMs: 1000 * 60 * 5,

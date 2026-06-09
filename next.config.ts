@@ -92,7 +92,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/:file(.*\\.(png|jpg|jpeg|webp|avif|svg|ico))",
+        source: "/:file(.*\\.(?:png|jpg|jpeg|webp|avif|svg|ico))",
         headers: [
           ...securityHeaders,
           {

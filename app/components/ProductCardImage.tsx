@@ -19,9 +19,9 @@ import {
 
 
 // Delay before final image retry (ms)
-const FINAL_RETRY_DELAY_MS = 260;
-const DEFERRED_DIRECT_LOAD_DELAY_MS = 16;
-const BATCH_DIRECT_FALLBACK_DELAY_MS = 120;
+const FINAL_RETRY_DELAY_MS = 180;
+const DEFERRED_DIRECT_LOAD_DELAY_MS = 8;
+const BATCH_DIRECT_FALLBACK_DELAY_MS = 28;
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
@@ -327,16 +327,13 @@ const ProductCardImage: React.FC<Props> = ({
     >
       {/* Якщо фото гарантовано немає — одразу плейсхолдер, <img> не рендеримо взагалі */}
       {(!hasKnownPhoto || showPlaceholder) ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#edf3f8_58%,#e2e8f0_100%)] px-2 text-center">
+        <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#edf3f8_58%,#e2e8f0_100%)] px-2 text-center">
           <div className="absolute inset-x-2 top-2 h-px bg-gradient-to-r from-transparent via-slate-300/70 to-transparent" />
           <ImageOff
             className="relative h-5 w-5 text-slate-400/90 sm:h-6 sm:w-6"
             strokeWidth={1.7}
             aria-hidden="true"
           />
-          <span className="relative mt-1.5 text-[8.5px] font-bold uppercase tracking-[0.16em] leading-tight text-slate-500">
-            Зображення відсутнє
-          </span>
         </div>
       ) : (
         <>

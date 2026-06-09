@@ -953,7 +953,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
             </div>
             <div className="flex flex-wrap gap-1.5">
               <span className={directoryCompactMetricClass}>
-                Категорія з SEO-описом і переходом у каталог
+                Опис категорії і перехід у каталог
               </span>
               <span className={directoryCompactMetricAccentClass}>
                 Виробники, бренди та аналоги

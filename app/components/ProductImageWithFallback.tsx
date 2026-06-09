@@ -60,7 +60,6 @@ export default function ProductImageWithFallback({
   hasKnownPhoto = true,
   preferCachedPreview = true,
 }: ProductImageWithFallbackProps) {
-  const noPhotoLabel = "\u0417\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f \u0432\u0456\u0434\u0441\u0443\u0442\u043d\u0454";
   const openPhotoTitle = "\u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0438 \u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f";
   const photoLabel = "\u0424\u043E\u0442\u043E";
 
@@ -213,7 +212,7 @@ export default function ProductImageWithFallback({
 
   const renderPlaceholder = (overlay = false) => (
     <div
-      className={`relative flex flex-col items-center justify-center gap-2 text-center ${
+      className={`relative flex items-center justify-center text-center ${
         overlay ? "px-4" : "px-5"
       }`}
     >
@@ -224,9 +223,6 @@ export default function ProductImageWithFallback({
         className="relative text-slate-400/90"
         aria-hidden="true"
       />
-      <span className="relative text-center text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 sm:text-[11px]">
-        {noPhotoLabel}
-      </span>
     </div>
   );
 

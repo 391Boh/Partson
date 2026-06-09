@@ -83,7 +83,7 @@ export default function ProductDeferredRecommendations({
         minHeight="172px"
         className="min-w-0"
         initiallyVisible
-        fallbackDelayMs={180}
+        fallbackDelayMs={0}
       >
         <ProductRelatedItemsClientSection
           product={product}
@@ -98,7 +98,7 @@ export default function ProductDeferredRecommendations({
         minHeight="172px"
         className="min-w-0"
         initiallyVisible
-        fallbackDelayMs={220}
+        fallbackDelayMs={40}
       >
         <ProductRecentlyViewedSection product={product} euroRate={euroRate} />
       </DeferredSection>

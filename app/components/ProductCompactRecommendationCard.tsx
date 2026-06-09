@@ -13,10 +13,12 @@ type ProductCompactRecommendationCardProps = {
     name: string;
     producer: string;
     quantity: number;
+    hasPhoto?: boolean;
   };
   priceLabel: string;
   sourceArticle?: string;
   imagePriority?: boolean;
+  prefetchedImageSrc?: string;
 };
 
 const cardClass =
@@ -31,11 +33,13 @@ export default function ProductCompactRecommendationCard({
   priceLabel,
   sourceArticle = "",
   imagePriority = false,
+  prefetchedImageSrc = "",
 }: ProductCompactRecommendationCardProps) {
   const visibleName = buildVisibleProductName(item.name);
   const imageCode = item.code || item.article || sourceArticle;
   const imageArticle = item.article || item.code || sourceArticle;
-  const imageSrc = buildProductImagePath(imageCode, imageArticle, { catalog: true });
+  const imageSrc =
+    prefetchedImageSrc || buildProductImagePath(imageCode, imageArticle, { catalog: true });
   const hasPrice = priceLabel !== "Ціну уточнити";
 
   return (
@@ -51,6 +55,7 @@ export default function ProductCompactRecommendationCard({
           alt={visibleName}
           productCode={imageCode}
           articleHint={imageArticle}
+          pending={false}
           loading={imagePriority ? "eager" : "lazy"}
           fetchPriority={imagePriority ? "high" : "auto"}
         />

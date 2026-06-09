@@ -128,16 +128,13 @@ export default function AnalogProductThumb({
   };
 
   const placeholder = (
-    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#edf3f8_58%,#e2e8f0_100%)] px-2 text-center">
+    <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#f8fafc_0%,#edf3f8_58%,#e2e8f0_100%)] px-2 text-center">
       <div className="absolute inset-x-2 top-2 h-px bg-gradient-to-r from-transparent via-slate-300/70 to-transparent" />
       <ImageOff
         className="relative h-5 w-5 text-slate-400/90 sm:h-6 sm:w-6"
         strokeWidth={1.7}
         aria-hidden="true"
       />
-      <span className="relative mt-1.5 hidden max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[8.5px] font-black uppercase leading-none tracking-[0.12em] text-slate-500 sm:block">
-        Немає фото
-      </span>
     </div>
   );
 

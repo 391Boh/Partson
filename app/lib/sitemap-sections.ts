@@ -272,7 +272,7 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
     }
   }
 
-  // Fallback source: keep sitemap complete even if SEO facets are empty or timed out.
+  // Fallback source: keep sitemap complete even if catalog facets are empty or timed out.
   for (const brand of brands) {
     pushUniqueEntry(
       buildManufacturerPath(buildSeoSlug(brand.name)),

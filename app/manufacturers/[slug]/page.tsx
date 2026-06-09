@@ -965,7 +965,7 @@ export default async function ManufacturerDetailPage({
                   Опис бренду і популярних напрямків
                 </span>
                 <span className={directoryCompactMetricAccentClass}>
-                  SEO-сторінка з переходом у каталог
+                  Сторінка бренду з переходом у каталог
                 </span>
               </div>
             </div>

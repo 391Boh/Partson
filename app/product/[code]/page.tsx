@@ -239,7 +239,7 @@ const buildPureProductName = (
   const articleMarkerIndex = loweredBaseName.indexOf(" артикул ");
   const categoryMarkerIndex = loweredBaseName.indexOf(" у категор");
 
-  // Handles common SEO heading pattern: "Купити <NAME> артикул <...> у категорії <...>".
+  // Handles common generated heading pattern: "Купити <NAME> артикул <...> у категорії <...>".
   if (buyPrefixIndex !== -1) {
     const nameStart = buyPrefixIndex + "купити ".length;
     const stopCandidates = [articleMarkerIndex, categoryMarkerIndex].filter(
@@ -293,6 +293,33 @@ const buildPureProductName = (
   return cleaned || baseName;
 };
 
+const makeSeoTextTrim = (value: string) =>
+  value
+    .replace(/\s+/g, " ")
+    .replace(/\s+([.,;:!?])/g, "$1")
+    .trim();
+
+const stripTrailingSeoPunctuation = (value: string) =>
+  value
+    // Keep a dash after two digits: "98-" means "from 1998 onward" in fitment text.
+    .replace(/(?<!\b\d{2})[—–-]\s*$/u, "")
+    .replace(/[.,;:\s]+$/u, "")
+    .trim();
+
+const buildReadableNameFromSlugSource = (value: string) => {
+  const normalized = safeDecodeURIComponent(value || "").trim();
+  if (!normalized) return "";
+
+  return normalized
+    .replace(/--/g, " ")
+    .replace(/_/g, " ")
+    .replace(/(?<=\p{L})-(?=\p{L})/gu, " ")
+    .replace(/(?<=\p{L})-(?=\d)/gu, " ")
+    .replace(/(?<=\d)-(?=\p{L})/gu, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+};
+
 const buildFrontendProductHeading = (
   value: string,
   hints?: {
@@ -307,7 +334,7 @@ const buildFrontendProductHeading = (
 
   let cleaned = baseName;
 
-  // Strip common SEO wrapper from UI heading only.
+  // Strip common generated wrapper from UI heading only.
   cleaned = cleaned.replace(/^\s*купити\s+/iu, "").trim();
 
   const markerMatch = cleaned.match(/\s+(артикул|у\s+категорі[їи])\b/iu);
@@ -505,7 +532,7 @@ const buildProductJsonLd = (options: {
     "@context": "https://schema.org",
     "@type": "Product",
     "@id": `${canonicalUrl}#product`,
-    name,
+    name: visibleName || name,
     alternateName: visibleName !== name ? visibleName : undefined,
     description,
     url: canonicalUrl,
@@ -812,8 +839,9 @@ const buildProductMetaDescription = (options: {
   priceUah?: number | null;
 }) => {
   const { name, article, producer, code, category, quantity, priceUah } = options;
+  const cleanName = buildVisibleProductName(name);
   const productLabel = trimSeoPhrase(
-    appendSeoPartIfMissing(buildVisibleProductName(name), producer),
+    appendSeoPartIfMissing(cleanName, producer),
     72
   );
   const priceLabel = priceUah != null && priceUah > 0
@@ -822,11 +850,14 @@ const buildProductMetaDescription = (options: {
   const articleLabel = article ? `арт. ${article}` : null;
   const codeLabel = code && code !== article ? `код ${code}` : null;
   const lookupLabel = [articleLabel, codeLabel].filter(Boolean).join(", ");
-  const availabilityLabel = quantity > 0 ? "є в наявності" : "під замовлення";
+  const availabilityLabel =
+    quantity > 0
+      ? `В наявності${quantity > 0 ? ` ${quantity} шт.` : ""}`
+      : "Під замовлення";
 
   return trimSeoDescription(
     [
-      `${productLabel}${priceLabel ? ` — ${priceLabel}` : ""}${lookupLabel ? ` (${lookupLabel})` : ""}: ${availabilityLabel}.`,
+      `${availabilityLabel}: ${productLabel}${priceLabel ? ` — ${priceLabel}` : ""}${lookupLabel ? ` (${lookupLabel})` : ""}.`,
       category ? `Категорія: ${category}.` : null,
       "VIN-підбір, аналоги, самовивіз у Львові та доставка по Україні.",
     ]
@@ -853,24 +884,27 @@ const buildProductFallbackDescription = (options: {
   return trimSeoDescription([
     `${trimSeoPhrase(`${visibleName}${producer ? ` ${producer}` : ""}`, 82)}. ${availabilityLabel}`,
     `${categoryLabel ? `Категорія: ${categoryLabel}.` : ""}`,
-    "Підбір за VIN, перевірка сумісності, аналоги, самовивіз у Львові та доставка по Україні.",
+    "Підбір за VIN, перевірка сумісності, аналоги, артикул, код виробника, самовивіз у Львові та доставка по Україні.",
+    "Перед замовленням звіряємо параметри деталі, виробника, покоління авто й можливі заміни.",
   ].filter(Boolean).join(" "), 300);
 };
 
 const trimSeoPhrase = (value: string, maxLength: number) => {
-  const normalized = value.replace(/\s+/g, " ").trim();
+  const normalized = makeSeoTextTrim(value);
   if (normalized.length <= maxLength) return normalized;
 
   const slice = normalized.slice(0, maxLength + 1);
   const boundary = Math.max(slice.lastIndexOf(" "), slice.lastIndexOf(","));
-  return `${slice.slice(0, boundary > 48 ? boundary : maxLength).replace(/[,\s]+$/g, "")}...`;
+  return `${stripTrailingSeoPunctuation(
+    slice.slice(0, boundary > 48 ? boundary : maxLength)
+  )}...`;
 };
 
 const trimSeoDescription = (
   value: string,
   maxLength = PRODUCT_META_DESCRIPTION_MAX_LENGTH
 ) => {
-  const normalized = value.replace(/\s+/g, " ").trim();
+  const normalized = makeSeoTextTrim(value);
   if (normalized.length <= maxLength) return normalized;
 
   const slice = normalized.slice(0, maxLength + 1);
@@ -882,10 +916,9 @@ const trimSeoDescription = (
   );
   const trimmed = slice
     .slice(0, boundary > 120 ? boundary : maxLength)
-    .replace(/[.,;:\s]+$/g, "")
-    .trim();
+    .replace(/\s+([.,;:!?])/g, "$1");
 
-  return `${trimmed}...`;
+  return `${stripTrailingSeoPunctuation(trimmed)}...`;
 };
 
 const appendSeoPartIfMissing = (base: string, addition: string) => {
@@ -902,11 +935,12 @@ const buildProductSeoTitle = (options: {
   name: string;
   producer: string;
   article: string;
+  quantity?: number;
 }) => {
-  const { name, producer, article } = options;
+  const { name, producer, article, quantity = 0 } = options;
   const productLabel = trimSeoPhrase(
     appendSeoPartIfMissing(buildVisibleProductName(name), producer),
-    58
+    54
   );
   const normalizedLabel = productLabel.toLocaleLowerCase("uk-UA");
   const normalizedArticle = article.toLocaleLowerCase("uk-UA").trim();
@@ -915,7 +949,9 @@ const buildProductSeoTitle = (options: {
       ? `арт. ${article}`
       : null;
 
-  return [productLabel || "Автозапчастина", articleLabel, "PartsON Львів"]
+  const availabilityLabel = quantity > 0 ? "в наявності" : "під замовлення";
+
+  return [productLabel || "Автозапчастина", articleLabel, availabilityLabel, "PartsON Львів"]
     .filter(Boolean)
     .join(" | ");
 };
@@ -1565,7 +1601,7 @@ export async function generateMetadata({
   const productGroup = (routeProduct?.group || routeProduct?.category || "").trim();
   const productSubGroup = (routeProduct?.subGroup || "").trim();
   const seoVisibleProductName = buildPureProductName(
-    (routeProduct?.name || fallbackTitleSource).replace(/-/g, " "),
+    routeProduct?.name || buildReadableNameFromSlugSource(fallbackTitleSource),
     {
       producer: productProducer,
       article: productArticle,
@@ -1595,6 +1631,7 @@ export async function generateMetadata({
     name: seoVisibleProductName,
     producer: productProducer,
     article: productArticle,
+    quantity: routeProduct?.quantity ?? 0,
   });
 
   const description = buildProductMetaDescription({
@@ -1774,8 +1811,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!resolvedCode) {
     // Only recover a fallback code for patterns that are plausibly real product codes:
     //   - codes without any dashes (e.g. "12345", "ABC123") — canUseDirectFallbackCode
-    //   - codes/slugs that contain the "~" segment separator — canonical SEO routes
-    //   - SEO routes with the "--" group/name separator — recover the embedded code
+    //   - codes/slugs that contain the "~" segment separator — canonical indexed routes
+    //   - indexed routes with the "--" group/name separator — recover the embedded code
     //     from the name slug portion so API-down renders don't 404 valid URLs
     // Do NOT expand arbitrary dash-separated strings (e.g. "invalid-product-xyz")
     // into a resolved code — those should fall through to notFound().
@@ -1937,7 +1974,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const breadcrumbJsonLd = buildProductBreadcrumbJsonLd({
     siteUrl,
     canonicalUrl,
-    name: product.name,
+    name: visibleProductName,
     groupName: productGroup || undefined,
     groupPath: groupLandingPath,
     subGroupName: productSubgroup || undefined,
@@ -1945,7 +1982,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   });
   const isInStock = Number.isFinite(product.quantity) && product.quantity > 0;
   const faqJsonLd = buildProductFaqJsonLd({
-    name: product.name,
+    name: visibleProductName,
     producer: product.producer,
     group: productGroup,
     subGroup: productSubgroup,
@@ -1959,8 +1996,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? "mx-auto aspect-square w-full max-w-[260px] rounded-[18px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.98))]"
     : "mx-auto aspect-square w-full max-w-[320px] rounded-[18px] border border-sky-100/70 bg-[radial-gradient(circle_at_top,rgba(224,242,254,0.9),rgba(255,255,255,0.98)_48%,rgba(241,245,249,0.96))] sm:max-w-[360px] xl:max-w-full";
   const descriptionTextClass = isModalView
-    ? "mt-1.5 max-h-[172px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-sm font-medium leading-relaxed text-slate-700"
-    : "mt-2.5 max-h-[190px] overflow-y-auto whitespace-pre-line break-words pr-0.5 text-[14px] font-medium leading-[1.62] text-slate-700 sm:text-[15px]";
+    ? "mt-1.5 space-y-2 break-words text-sm font-medium leading-relaxed text-slate-700"
+    : "mt-2.5 space-y-2.5 break-words text-[14px] font-medium leading-[1.62] text-slate-700 sm:text-[15px]";
   const chatPrefillMessage = [
     "Потрібна консультація по товару:",
     product.name,
@@ -2037,6 +2074,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
   ]
     .filter(Boolean)
     .join(" ");
+  const productSeoDetails = {
+    title: "Підбір і важливі деталі",
+    items: [
+      productIdentifierValue !== "-"
+        ? `Основний ідентифікатор для пошуку: ${productIdentifierValue}. За ним можна звірити товар у каталозі або швидко поставити питання менеджеру.`
+        : "Товар можна підібрати за назвою, виробником, VIN-кодом або параметрами авто.",
+      product.producer
+        ? `Виробник: ${product.producer}. Якщо потрібен аналог, менеджер підбере сумісну заміну цього бренду або альтернативного виробника.`
+        : "Для позицій без явного виробника перевіряємо сумісність за артикулом, кодом і описом з 1С.",
+      visibleProductSubgroup || visibleProductGroup
+        ? `Категорія: ${visibleProductSubgroup || visibleProductGroup}. Це допомагає швидко перейти до суміжних товарів і груп каталогу.`
+        : "Сторінка товару доповнена описом, щоб його було легше знайти за кодом, артикулом і назвою.",
+      product.quantity > 0
+        ? "Наявність показана в картці товару, але перед оформленням замовлення ціну й залишок можна уточнити."
+        : "Якщо товар не показує залишок, можна надіслати запит: менеджер уточнить термін постачання і запропонує аналоги.",
+    ],
+  };
   const productHeroHighlights = Array.from(
     new Set(
       [
@@ -2240,6 +2294,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   descriptionTextClass={descriptionTextClass}
                   enableClientLookup
                   fitmentText={productFitmentText}
+                  seoDetails={productSeoDetails}
                   chatButton={
                     <OpenChatButton
                       message={chatPrefillMessage}

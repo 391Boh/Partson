@@ -12,6 +12,10 @@ type ProductDescriptionClientCardProps = {
   chatButton?: ReactNode;
   enableClientLookup?: boolean;
   fitmentText?: string;
+  seoDetails?: {
+    title: string;
+    items: string[];
+  };
 };
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
@@ -27,6 +31,7 @@ export default function ProductDescriptionClientCard({
   chatButton,
   enableClientLookup = true,
   fitmentText = "",
+  seoDetails,
 }: ProductDescriptionClientCardProps) {
   const normalizedInitialText =
     typeof initialText === "string" && initialText.trim() ? initialText.trim() : null;
@@ -203,6 +208,15 @@ export default function ProductDescriptionClientCard({
     };
   }, [cacheKey, enableClientLookup, normalizedInitialText, requestUrl]);
 
+  const descriptionParagraphs = useMemo(
+    () =>
+      descriptionText
+        .split(/\n{2,}|\r?\n(?=[A-ZА-ЯІЇЄҐ0-9-])/)
+        .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
+        .filter(Boolean),
+    [descriptionText]
+  );
+
   return (
     <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-3 shadow-[0_18px_42px_rgba(15,23,42,0.07)] ring-1 ring-white/80 transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_20px_44px_rgba(14,165,233,0.1)] sm:rounded-[24px] sm:p-4">
       <div className="flex flex-wrap items-end justify-between gap-2.5 border-b border-slate-900/8 pb-3">
@@ -221,7 +235,15 @@ export default function ProductDescriptionClientCard({
           {chatButton}
         </div>
       </div>
-      <p className={descriptionTextClass}>{descriptionText}</p>
+      <div className={descriptionTextClass}>
+        {descriptionParagraphs.length > 0 ? (
+          descriptionParagraphs.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))
+        ) : (
+          <p>{fallbackText}</p>
+        )}
+      </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
         <span className="inline-flex rounded-[10px] border border-slate-200 bg-white/86 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-slate-500 shadow-[0_6px_14px_rgba(15,23,42,0.04)]">
           {hasCatalogDescription ? "Оригінальний опис" : "Коротко про товар"}
@@ -238,6 +260,21 @@ export default function ProductDescriptionClientCard({
           <p className="mt-1.5 text-[13.5px] font-medium leading-[1.62] text-slate-700 sm:text-sm">
             {fitmentText}
           </p>
+        </div>
+      ) : null}
+      {seoDetails && seoDetails.items.length > 0 ? (
+        <div className="mt-3 rounded-[18px] border border-slate-200/85 bg-white/82 p-3 shadow-[0_10px_22px_rgba(15,23,42,0.05)]">
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-600">
+            {seoDetails.title}
+          </p>
+          <ul className="mt-2 grid gap-2 text-[13px] font-medium leading-5 text-slate-600 sm:grid-cols-2">
+            {seoDetails.items.map((item) => (
+              <li key={item} className="flex items-start gap-2 rounded-[12px] border border-slate-100 bg-slate-50/70 px-2.5 py-2">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
     </section>

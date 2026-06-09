@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import ProductCompactRecommendationCard from "app/components/ProductCompactRecommendationCard";
+import { fetchCatalogImageBatch } from "app/lib/product-image-batch-client";
+import { buildProductImageBatchKey } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 
 type RelatedItem = {
@@ -52,12 +54,31 @@ const buildPriceStateKey = (item: Pick<RelatedItem, "code" | "article">) =>
 const buildPriceLookupKeys = (item: Pick<RelatedItem, "code" | "article">) =>
   Array.from(new Set([item.code, item.article].map((value) => (value || "").trim()).filter(Boolean)));
 
+const buildRecommendationImageCode = (
+  item: Pick<RelatedItem, "code" | "article">,
+  sourceArticle = ""
+) => item.code || item.article || sourceArticle;
+
+const buildRecommendationImageArticle = (
+  item: Pick<RelatedItem, "code" | "article">,
+  sourceArticle = ""
+) => item.article || item.code || sourceArticle;
+
+const buildRecommendationImageKey = (
+  item: Pick<RelatedItem, "code" | "article">,
+  sourceArticle = ""
+) =>
+  buildProductImageBatchKey(
+    buildRecommendationImageCode(item, sourceArticle),
+    buildRecommendationImageArticle(item, sourceArticle)
+  );
+
 const RELATED_ITEMS_CACHE_PREFIX = "partson:v9:product-related:";
 const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v3:product-similar:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
-const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1500;
-const SIMILAR_ITEMS_REQUEST_TIMEOUT_MS = 1000;
-const RECOMMENDATION_PRICE_TIMEOUT_MS = 700;
+const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1200;
+const SIMILAR_ITEMS_REQUEST_TIMEOUT_MS = 760;
+const RECOMMENDATION_PRICE_TIMEOUT_MS = 520;
 const RELATED_ITEMS_VISIBLE_LIMIT = 6;
 const SIMILAR_ITEMS_VISIBLE_LIMIT = 6;
 const RECOMMENDATION_VISIBLE_ITEMS_EVENT = "partson:product-recommendation-visible-items";
@@ -176,6 +197,7 @@ const RecommendationBlock = ({
   articleLabel,
   euroRate,
   resolvedPrices,
+  resolvedImages,
 }: {
   eyebrow: string;
   title: string;
@@ -184,6 +206,7 @@ const RecommendationBlock = ({
   articleLabel: string;
   euroRate: number;
   resolvedPrices: Record<string, number | null>;
+  resolvedImages: Record<string, string>;
 }) => {
   if (items.length === 0) return null;
 
@@ -210,6 +233,7 @@ const RecommendationBlock = ({
             ? resolvedPrices[stateKey]
             : item.priceEuro;
           const priceLabel = formatPriceLabel(resolvedPriceEuro, euroRate);
+          const imageKey = buildRecommendationImageKey(item, articleLabel);
 
           return (
             <ProductCompactRecommendationCard
@@ -224,7 +248,8 @@ const RecommendationBlock = ({
               item={item}
               priceLabel={priceLabel}
               sourceArticle={articleLabel}
-              imagePriority={false}
+              imagePriority={index < 2}
+              prefetchedImageSrc={resolvedImages[imageKey] || ""}
             />
           );
         })}
@@ -252,6 +277,14 @@ export default function ProductRelatedItemsClientSection({
   const [similarItems, setSimilarItems] = useState<RelatedItem[] | null>(null);
   const [itemMode, setItemMode] = useState<RecommendationMode>("related");
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
+  const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
+  const [pendingImageKeys, setPendingImageKeys] = useState<Record<string, true>>({});
+  const [missingImageKeys, setMissingImageKeys] = useState<Record<string, true>>({});
+  const itemsRef = useRef<RelatedItem[] | null>(normalizedInitialItems);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   const recommendationSearchParams = useMemo(() => {
     if (!articleLabel && !productCode && !productDisplayName) return "";
@@ -300,17 +333,26 @@ export default function ProductRelatedItemsClientSection({
       setItemMode("related");
       setItems(normalizedInitialItems);
       setSimilarItems(null);
+      setResolvedImages({});
+      setPendingImageKeys({});
+      setMissingImageKeys({});
       return;
     }
 
     if (!requestUrl) {
       setItems([]);
       setSimilarItems([]);
+      setResolvedImages({});
+      setPendingImageKeys({});
+      setMissingImageKeys({});
       return;
     }
 
     setItems(null);
     setSimilarItems(null);
+    setResolvedImages({});
+    setPendingImageKeys({});
+    setMissingImageKeys({});
   }, [normalizedInitialItems, requestUrl]);
 
   useEffect(() => {
@@ -431,6 +473,14 @@ export default function ProductRelatedItemsClientSection({
 
     const loadItems = async () => {
       const similarItemsPromise = loadSimilarItems().catch(() => [] as RelatedItem[]);
+      similarItemsPromise.then((similarItems) => {
+        if (cancelled || similarItems.length === 0) return;
+        setSimilarItems(similarItems);
+        if (!itemsRef.current || itemsRef.current.length === 0) {
+          setItemMode("similar");
+          setItems(similarItems);
+        }
+      });
 
       try {
         const nextItems = await fetchItems(requestUrl, RELATED_ITEMS_REQUEST_TIMEOUT_MS);
@@ -595,6 +645,128 @@ export default function ProductRelatedItemsClientSection({
   );
 
   useEffect(() => {
+    const imageItems = [...visibleItems, ...visibleSimilarItems]
+      .map((item) => {
+        const code = buildRecommendationImageCode(item, articleLabel);
+        const article = buildRecommendationImageArticle(item, articleLabel);
+        const key = buildProductImageBatchKey(code, article);
+        return {
+          key,
+          code,
+          article,
+          hasPhoto: item.hasPhoto,
+        };
+      })
+      .filter((item) => {
+        if (!item.key || !item.code) return false;
+        if (resolvedImages[item.key]) return false;
+        if (pendingImageKeys[item.key]) return false;
+        if (missingImageKeys[item.key] && item.hasPhoto !== true) return false;
+        return true;
+      });
+
+    if (imageItems.length === 0) return;
+
+    const uniqueItems = Array.from(
+      new Map(imageItems.map((item) => [item.key, item])).values()
+    ).slice(0, RELATED_ITEMS_VISIBLE_LIMIT + SIMILAR_ITEMS_VISIBLE_LIMIT);
+
+    setPendingImageKeys((current) => {
+      const next = { ...current };
+      for (const item of uniqueItems) next[item.key] = true;
+      return next;
+    });
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const loadImages = async () => {
+      const requestItems = uniqueItems.map((item) => ({
+        code: item.code,
+        article: item.article,
+        hasPhoto: item.hasPhoto,
+      }));
+
+      const fastResults = await fetchCatalogImageBatch(requestItems, {
+        signal: controller.signal,
+      }).catch(() => []);
+      if (cancelled) return;
+
+      const unresolvedForDeep: typeof requestItems = [];
+      const readyImages: Record<string, string> = {};
+      const missingImages: Record<string, true> = {};
+
+      for (const result of fastResults) {
+        if (result.status === "ready" && result.src) {
+          readyImages[result.key] = result.src;
+          continue;
+        }
+
+        missingImages[result.key] = true;
+        const original = uniqueItems.find((item) => item.key === result.key);
+        if (original?.hasPhoto === true) {
+          unresolvedForDeep.push({
+            code: original.code,
+            article: original.article,
+            hasPhoto: original.hasPhoto,
+          });
+        }
+      }
+
+      if (Object.keys(readyImages).length > 0) {
+        setResolvedImages((current) => ({ ...current, ...readyImages }));
+      }
+      if (Object.keys(missingImages).length > 0) {
+        setMissingImageKeys((current) => ({ ...current, ...missingImages }));
+      }
+      setPendingImageKeys((current) => {
+        const next = { ...current };
+        for (const item of uniqueItems) delete next[item.key];
+        return next;
+      });
+
+      if (unresolvedForDeep.length === 0) return;
+
+      const deepResults = await fetchCatalogImageBatch(unresolvedForDeep, {
+        deep: true,
+        signal: controller.signal,
+      }).catch(() => []);
+      if (cancelled) return;
+
+      const deepReadyImages: Record<string, string> = {};
+      const deepMissingImages: Record<string, true> = {};
+      for (const result of deepResults) {
+        if (result.status === "ready" && result.src) {
+          deepReadyImages[result.key] = result.src;
+        } else {
+          deepMissingImages[result.key] = true;
+        }
+      }
+
+      if (Object.keys(deepReadyImages).length > 0) {
+        setResolvedImages((current) => ({ ...current, ...deepReadyImages }));
+      }
+      if (Object.keys(deepMissingImages).length > 0) {
+        setMissingImageKeys((current) => ({ ...current, ...deepMissingImages }));
+      }
+    };
+
+    void loadImages();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [
+    articleLabel,
+    missingImageKeys,
+    pendingImageKeys,
+    resolvedImages,
+    visibleItems,
+    visibleSimilarItems,
+  ]);
+
+  useEffect(() => {
     window.dispatchEvent(
       new CustomEvent(RECOMMENDATION_VISIBLE_ITEMS_EVENT, {
         detail: { keys: visibleIdentityKeys },
@@ -622,6 +794,7 @@ export default function ProductRelatedItemsClientSection({
         articleLabel={articleLabel}
         euroRate={euroRate}
         resolvedPrices={resolvedPrices}
+        resolvedImages={resolvedImages}
       />
       <RecommendationBlock
         eyebrow="Схожі"
@@ -631,6 +804,7 @@ export default function ProductRelatedItemsClientSection({
         articleLabel={articleLabel}
         euroRate={euroRate}
         resolvedPrices={resolvedPrices}
+        resolvedImages={resolvedImages}
       />
     </div>
   );

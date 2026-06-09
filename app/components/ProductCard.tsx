@@ -36,6 +36,8 @@ interface Props {
     qty: number;
     cartQty: number;
     priceUAH: number | null;
+    costPriceUAH?: number | null;
+    isAdmin?: boolean;
     priceStatus: "loading" | "ready" | "request";
     imageLoadingMode?: "lazy" | "eager";
     imageFetchPriority?: "high" | "low" | "auto";
@@ -61,6 +63,8 @@ const ProductCard: React.FC<Props> = ({
     qty,
     cartQty,
     priceUAH,
+    costPriceUAH,
+    isAdmin = false,
     priceStatus,
     imageLoadingMode,
     imageFetchPriority,
@@ -486,41 +490,50 @@ useEffect(() => {
                     </div>
 
                     {/* Р¦С–РЅР° */}
-                    <div className="flex w-full mt-2 sm:mt-3">
+                    <div className="mt-2 flex w-full items-center justify-between gap-1.5 sm:mt-2.5">
+                        {isAdmin && costPriceUAH != null && (
+                            <div className="flex min-h-[28px] min-w-0 max-w-[43%] items-center justify-between gap-1.5 rounded-[11px] border border-amber-200 bg-amber-50/85 px-2 py-0.5 text-[10px] shadow-[0_7px_14px_rgba(245,158,11,0.08)]">
+                                <span className="shrink-0 font-bold uppercase tracking-[0.05em] text-amber-700">Закуп</span>
+                                <span className="min-w-0 truncate font-bold text-amber-800 tabular-nums">
+                                    {costPriceUAH.toLocaleString("uk-UA")}
+                                    <span className="ml-0.5 font-medium text-amber-600">грн</span>
+                                </span>
+                            </div>
+                        )}
                         <div
                             className="
-                                flex w-full min-h-[36px] items-center justify-between gap-2 px-3 py-1
-                                rounded-full 
+                                ml-auto flex min-h-[32px] w-fit max-w-[78%] items-center justify-between gap-2 px-2.5 py-1
+                                rounded-[13px]
                                 bg-white/90 backdrop-blur-md 
-                                border border-blue-200
-                                text-base text-slate-900 font-semibold
+                                border border-blue-200/90
+                                text-slate-900 font-semibold
                                 whitespace-nowrap 
                                 transition-all duration-300  
-                                shadow-sm shadow-slate-300/70
-                                hover:shadow-md hover:border-blue-300
+                                shadow-[0_8px_18px_rgba(37,99,235,0.08)]
+                                hover:shadow-[0_10px_22px_rgba(37,99,235,0.12)] hover:border-blue-300
                                 hover:bg-white
                             "
                         >
-                            <span className="text-[11px] font-medium text-slate-600">
+                            <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
                                 {"\u0426\u0456\u043D\u0430:"}
                             </span>
 
                             <span className="flex items-center justify-end gap-1 text-right tabular-nums">
                                 {hasPrice ? (
                                     <>
-                                        <span className="text-blue-600 font-bold text-[13px]">
+                                        <span className="text-blue-600 font-black text-[13px] leading-none">
                                             {priceUAH.toLocaleString("uk-UA")}
                                         </span>
-                                        <span className="text-[10px] font-medium text-slate-500">
+                                        <span className="text-[10px] font-bold text-slate-500">
                                             {"\u0433\u0440\u043D"}
                                         </span>
                                     </>
                                 ) : isPriceLoading ? (
-                                    <span className="text-[11px] font-semibold text-blue-500">
+                                    <span className="text-[10px] font-bold text-blue-500">
                                         {"\u0446\u0456\u043D\u0430..."}
                                     </span>
                                 ) : (
-                                    <span className="text-slate-400 italic text-[11px]">
+                                    <span className="text-slate-400 italic text-[10px] font-bold">
                                         {"\u0437\u0430 \u0437\u0430\u043F\u0438\u0442\u043E\u043C"}
                                     </span>
                                 )}
@@ -528,7 +541,7 @@ useEffect(() => {
                         </div>
                     </div>
 
-                    {/* РќРёР· */}
+                    {/* Низ */}
                     <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-200 gap-1">
                         <div className="flex flex-col items-start gap-1">
                             <span

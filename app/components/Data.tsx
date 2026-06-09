@@ -41,6 +41,7 @@ export interface Product {
   description?: string;
   quantity: number;
   priceEuro?: number | null;
+  costPriceEuro?: number | null;
   group?: string;
   subGroup?: string;
   category?: string;
@@ -58,8 +59,8 @@ const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PRICE_STALE_POSITIVE_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
 const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 45;
-const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 2;
-const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE;
+const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 3;
+const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 20;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 90;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
@@ -67,11 +68,11 @@ const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
 const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
-const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 520;
-const IMAGE_PRIORITY_ITEMS_COUNT = 6;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE;
-const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 80;
-const NEXT_PAGE_REQUEST_COOLDOWN_MS = 90;
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 180;
+const IMAGE_PRIORITY_ITEMS_COUNT = 8;
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
+const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
+const NEXT_PAGE_REQUEST_COOLDOWN_MS = 45;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
 const VIRTUAL_OVERSCAN_ROWS = 4;
 const SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT = 2;
@@ -159,6 +160,21 @@ const PRICE_VALUE_FIELDS = [
   "Price",
   "cost",
   "Cost",
+];
+const PURCHASE_PRICE_FIELDS = [
+  "costPriceEuro",
+  "purchasePrice",
+  "purchase_price",
+  "\u0426\u0456\u043d\u0430\u0417\u0430\u043a\u0443\u043f", // ЦінаЗакуп
+  "ЦінаЗакупівлі",
+  "ЦінаЗакупки",
+  "ЦенаЗакупки",
+  "ЦінаЗак",
+  "ЦенаЗак",
+  "Себестоимость",
+  "Собівартість",
+  "ЦінаПостачальника",
+  "ЦенаПоставщика",
 ];
 const PHOTO_FIELDS = [
   "\u0415\u0441\u0442\u044c\u0424\u043e\u0442\u043e",
@@ -501,6 +517,7 @@ const normalizeProduct = (raw: unknown): Product => {
   })();
   const quantity = readFirstNumber(record, QTY_FIELDS, 0);
   const priceEuro = readFirstNumber(record, PRICE_VALUE_FIELDS, Number.NaN);
+  const rawCostPriceEuro = readFirstNumber(record, PURCHASE_PRICE_FIELDS, Number.NaN);
   const description = readFirstString(record, DESCRIPTION_FIELDS);
 
   const group = readFirstString(record, GROUP_FIELDS);
@@ -523,6 +540,7 @@ const normalizeProduct = (raw: unknown): Product => {
     description,
     quantity,
     priceEuro: Number.isFinite(priceEuro) && priceEuro > 0 ? priceEuro : null,
+    costPriceEuro: Number.isFinite(rawCostPriceEuro) && rawCostPriceEuro > 0 ? rawCostPriceEuro : undefined,
     group,
     subGroup,
     category,
@@ -607,9 +625,13 @@ type PageSessionCacheIndexEntry = {
 };
 const pageCache = new Map<string, PageCacheEntry>();
 const inFlightPageRequests = new Map<string, Promise<CatalogPagePayload>>();
+type PriceBatchResult = {
+  prices: Record<string, number | null>;
+  costPrices: Record<string, number | null>;
+};
 const inFlightPriceBatchRequests = new Map<
   string,
-  Promise<Record<string, number | null>>
+  Promise<PriceBatchResult>
 >();
 const now = () => Date.now();
 const abortControllerSafely = (controller: AbortController) => {
@@ -1038,6 +1060,7 @@ function useCatalogData(params: {
   producerFromURL: string | null;
   expandHierarchyFromURL: boolean;
   sortOrder: "none" | "asc" | "desc";
+  includeCostPrices?: boolean;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
 }) {
@@ -1051,6 +1074,7 @@ function useCatalogData(params: {
     producerFromURL,
     expandHierarchyFromURL,
     sortOrder,
+    includeCostPrices = false,
     initialPagePayload,
     initialQuerySignature,
   } = params;
@@ -1071,6 +1095,7 @@ function useCatalogData(params: {
   const shouldAllowCatalogDirectPriceLookup = true;
   const [data, setData] = useState<Product[]>([]);
   const [prices, setPrices] = useState<Record<string, number | null>>({});
+  const [costPrices, setCostPrices] = useState<Record<string, number | null>>({});
   const [pageImages, setPageImages] = useState<Record<string, string>>({});
   const [pageImagePending, setPageImagePending] = useState<Record<string, true>>({});
   const [pageImageMissing, setPageImageMissing] = useState<Record<string, true>>({});
@@ -1120,6 +1145,7 @@ function useCatalogData(params: {
   const nextCursorFieldByPageRef = useRef<Record<number, string>>({ 1: "" });
   const dataRef = useRef<Product[]>([]);
   const pricesRef = useRef<Record<string, number | null>>({});
+  const costPricesRef = useRef<Record<string, number | null>>({});
   const pageImagesRef = useRef<Record<string, string>>({});
   const pageImagePendingRef = useRef<Record<string, true>>({});
   const pageImageMissingRef = useRef<Record<string, true>>({});
@@ -1138,6 +1164,10 @@ function useCatalogData(params: {
   useEffect(() => {
     pricesRef.current = prices;
   }, [prices]);
+
+  useEffect(() => {
+    costPricesRef.current = costPrices;
+  }, [costPrices]);
 
   useEffect(() => {
     pageImagesRef.current = pageImages;
@@ -1209,14 +1239,14 @@ function useCatalogData(params: {
     };
 
     if (typeof win.requestIdleCallback === "function") {
-      const idleId = win.requestIdleCallback(runTask, { timeout: 900 });
+      const idleId = win.requestIdleCallback(runTask, { timeout: 180 });
       return () => {
         cancelled = true;
         win.cancelIdleCallback?.(idleId);
       };
     }
 
-    const timeoutId = window.setTimeout(runTask, 120);
+    const timeoutId = window.setTimeout(runTask, 32);
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);
@@ -1429,6 +1459,7 @@ function useCatalogData(params: {
 
       const commitResolvedPrices = (
         resolvedPrices: Record<string, number | null>,
+        resolvedCostPrices: Record<string, number | null> | undefined,
         cooldownMs: number
       ) => {
         if (
@@ -1461,23 +1492,51 @@ function useCatalogData(params: {
           }
         }
 
-        if (Object.keys(nextUpdates).length === 0) return;
+        if (Object.keys(nextUpdates).length > 0) {
+          setPrices((prev) => {
+            let didChange = false;
+            const next = { ...prev };
+            for (const [key, value] of Object.entries(nextUpdates)) {
+              if (next[key] !== value) {
+                next[key] = value;
+                didChange = true;
+              }
+            }
+            pricesRef.current = didChange ? next : prev;
+            return didChange ? next : prev;
+          });
 
-        setPrices((prev) => {
-          let didChange = false;
-          const next = { ...prev };
-          for (const [key, value] of Object.entries(nextUpdates)) {
-            if (next[key] !== value) {
-              next[key] = value;
-              didChange = true;
+          if (options?.cacheKey && options?.ttlMs) {
+            mergePagePricesIntoCache(options.cacheKey, nextUpdates, options.ttlMs);
+          }
+        }
+
+        if (resolvedCostPrices && Object.keys(resolvedCostPrices).length > 0) {
+          const nextCostUpdates: Record<string, number | null> = {};
+          for (const item of requestItems) {
+            const resolvedCostPrice = resolvedCostPrices[item.stateKey];
+            if (resolvedCostPrice === undefined) continue;
+
+            nextCostUpdates[item.stateKey] = resolvedCostPrice;
+            for (const lookupKey of item.lookupKeys) {
+              nextCostUpdates[lookupKey] = resolvedCostPrice;
             }
           }
-          pricesRef.current = didChange ? next : prev;
-          return didChange ? next : prev;
-        });
 
-        if (options?.cacheKey && options?.ttlMs) {
-          mergePagePricesIntoCache(options.cacheKey, nextUpdates, options.ttlMs);
+          if (Object.keys(nextCostUpdates).length > 0) {
+            setCostPrices((prev) => {
+              let didChange = false;
+              const next = { ...prev };
+              for (const [key, value] of Object.entries(nextCostUpdates)) {
+                if (next[key] !== value) {
+                  next[key] = value;
+                  didChange = true;
+                }
+              }
+              costPricesRef.current = didChange ? next : prev;
+              return didChange ? next : prev;
+            });
+          }
         }
       };
 
@@ -1485,7 +1544,9 @@ function useCatalogData(params: {
         batch: typeof requestItems,
         mode: "fast" | "full"
       ) => {
-        if (batch.length === 0) return {} as Record<string, number | null>;
+        if (batch.length === 0) {
+          return { prices: {}, costPrices: {} } satisfies PriceBatchResult;
+        }
 
         const requestKey = buildPriceBatchRequestKey(mode, batch);
         const existing = inFlightPriceBatchRequests.get(requestKey);
@@ -1507,8 +1568,12 @@ function useCatalogData(params: {
 
           const payload = (await response.json()) as {
             prices?: Record<string, number | null>;
+            costPrices?: Record<string, number | null>;
           };
-          return payload?.prices ?? {};
+          return {
+            prices: payload?.prices ?? {},
+            costPrices: payload?.costPrices ?? {},
+          } satisfies PriceBatchResult;
         })();
 
         inFlightPriceBatchRequests.set(requestKey, requestPromise);
@@ -1525,10 +1590,11 @@ function useCatalogData(params: {
       };
 
       try {
-        const fastPrices = await postBatch(requestItems, "fast");
+        const fastResult = await postBatch(requestItems, "fast");
         const normalizedFastPrices: Record<string, number | null> = {};
+        const normalizedFastCostPrices: Record<string, number | null> = {};
         for (const item of requestItems) {
-          const resolvedPrice = fastPrices[item.stateKey];
+          const resolvedPrice = fastResult.prices[item.stateKey];
           if (
             typeof resolvedPrice === "number" &&
             Number.isFinite(resolvedPrice) &&
@@ -1536,10 +1602,23 @@ function useCatalogData(params: {
           ) {
             normalizedFastPrices[item.stateKey] = resolvedPrice;
           }
+
+          const resolvedCostPrice = fastResult.costPrices[item.stateKey];
+          if (
+            typeof resolvedCostPrice === "number" &&
+            Number.isFinite(resolvedCostPrice) &&
+            resolvedCostPrice > 0
+          ) {
+            normalizedFastCostPrices[item.stateKey] = resolvedCostPrice;
+          }
         }
-        if (Object.keys(normalizedFastPrices).length > 0) {
+        if (
+          Object.keys(normalizedFastPrices).length > 0 ||
+          Object.keys(normalizedFastCostPrices).length > 0
+        ) {
           commitResolvedPrices(
             normalizedFastPrices,
+            normalizedFastCostPrices,
             PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS
           );
         }
@@ -1549,55 +1628,79 @@ function useCatalogData(params: {
           return !(typeof value === "number" && Number.isFinite(value) && value > 0);
         });
 
-        if (unresolvedItems.length === 0) {
+        const fullLookupItems = includeCostPrices ? requestItems : unresolvedItems;
+        if (fullLookupItems.length === 0) {
           return;
         }
 
         if (!allowFullLookup) {
-          for (const item of unresolvedItems) {
+          for (const item of fullLookupItems) {
             priceRetryCooldownUntilRef.current[item.stateKey] =
               Date.now() + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
           }
           return;
         }
 
-        let fullPrices: Record<string, number | null> = {};
-        try {
-          fullPrices = await postBatch(unresolvedItems, "full");
-        } catch (error) {
-          if (isAbortLikeError(error)) {
-            throw error;
+        void postBatch(fullLookupItems, "full")
+          .then((fullResult) => {
+            const unresolvedStateKeys = new Set(
+              unresolvedItems.map((item) => item.stateKey)
+            );
+            const resolvedFullPrices: Record<string, number | null> = {};
+            const resolvedFullCostPrices: Record<string, number | null> = {};
+
+            for (const item of fullLookupItems) {
+              const resolvedPrice = fullResult.prices[item.stateKey];
+              if (
+                typeof resolvedPrice === "number" &&
+                Number.isFinite(resolvedPrice) &&
+                resolvedPrice > 0
+              ) {
+                resolvedFullPrices[item.stateKey] = resolvedPrice;
+              } else if (unresolvedStateKeys.has(item.stateKey)) {
+                resolvedFullPrices[item.stateKey] = null;
+              }
+
+              const resolvedCostPrice = fullResult.costPrices[item.stateKey];
+              if (
+                typeof resolvedCostPrice === "number" &&
+                Number.isFinite(resolvedCostPrice) &&
+                resolvedCostPrice > 0
+              ) {
+                resolvedFullCostPrices[item.stateKey] = resolvedCostPrice;
+              }
+            }
+
+            if (
+              Object.keys(resolvedFullPrices).length > 0 ||
+              Object.keys(resolvedFullCostPrices).length > 0
+            ) {
+              commitResolvedPrices(
+                resolvedFullPrices,
+                resolvedFullCostPrices,
+                PRICE_REVALIDATE_AFTER_NULL_MS
+              );
+            }
+          })
+          .catch((error) => {
+            if (isAbortLikeError(error)) return;
+            if (unresolvedItems.length === 0) return;
+
+            const fallbackNulls = Object.fromEntries(
+              unresolvedItems.map((item) => [item.stateKey, null])
+            ) as Record<string, null>;
+            commitResolvedPrices(
+              fallbackNulls,
+              undefined,
+              PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS
+            );
+          });
+
+        if (unresolvedItems.length > 0) {
+          const cooldownUntil = Date.now() + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
+          for (const item of unresolvedItems) {
+            priceRetryCooldownUntilRef.current[item.stateKey] = cooldownUntil;
           }
-          const fallbackNulls = Object.fromEntries(
-            unresolvedItems.map((item) => [item.stateKey, null])
-          ) as Record<string, null>;
-          commitResolvedPrices(
-            fallbackNulls,
-            PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS
-          );
-          return;
-        }
-
-        const resolvedFullPrices: Record<string, number | null> = {};
-        for (const item of unresolvedItems) {
-          const resolvedPrice = fullPrices[item.stateKey];
-          if (
-            typeof resolvedPrice === "number" &&
-            Number.isFinite(resolvedPrice) &&
-            resolvedPrice > 0
-          ) {
-            resolvedFullPrices[item.stateKey] = resolvedPrice;
-            continue;
-          }
-
-          resolvedFullPrices[item.stateKey] = null;
-        }
-
-        if (Object.keys(resolvedFullPrices).length > 0) {
-          commitResolvedPrices(
-            resolvedFullPrices,
-            PRICE_REVALIDATE_AFTER_NULL_MS
-          );
         }
       } catch (error) {
         if (!isAbortLikeError(error)) {
@@ -1610,7 +1713,7 @@ function useCatalogData(params: {
         releaseRequestItems();
       }
     },
-    []
+    [includeCostPrices]
   );
 
   const fetchCatalogPageImages = useCallback(
@@ -2972,6 +3075,7 @@ function useCatalogData(params: {
     filteredData,
     quantities,
     prices,
+    costPrices,
     pageImages,
     pageImagePending,
     pageImageMissing,
@@ -3039,10 +3143,19 @@ const Data: React.FC<DataProps> = ({
   );
   const [viewportWidth, setViewportWidth] = useState(0);
 
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    try {
+      const uid = localStorage.getItem("user_id");
+      if (uid) setIsAdmin(localStorage.getItem("partson:isAdmin:" + uid) === "1");
+    } catch {}
+  }, []);
+
   const {
     filteredData,
     quantities,
     prices,
+    costPrices,
     pageImages,
     pageImagePending,
     pageImageMissing,
@@ -3077,6 +3190,7 @@ const Data: React.FC<DataProps> = ({
     producerFromURL,
     expandHierarchyFromURL,
     sortOrder,
+    includeCostPrices: isAdmin,
     initialPagePayload,
     initialQuerySignature,
   });
@@ -3313,13 +3427,9 @@ const Data: React.FC<DataProps> = ({
   useEffect(() => {
     if (visibleCatalogPriceCandidates.length === 0) return;
 
-    const timeoutId = window.setTimeout(() => {
-      prefetchVisibleCatalogPrices(
-        visibleCatalogPriceCandidates.slice(0, VISIBLE_PRICE_PREFETCH_CHUNK_SIZE)
-      );
-    }, 120);
-
-    return () => window.clearTimeout(timeoutId);
+    prefetchVisibleCatalogPrices(
+      visibleCatalogPriceCandidates.slice(0, VISIBLE_PRICE_PREFETCH_CHUNK_SIZE)
+    );
   }, [prefetchVisibleCatalogPrices, visibleCatalogPriceCandidates]);
 
   useEffect(() => {
@@ -3338,11 +3448,7 @@ const Data: React.FC<DataProps> = ({
 
     if (nextChunk.length === 0) return;
 
-    const timeoutId = window.setTimeout(() => {
-      prefetchVisibleCatalogImages(nextChunk);
-    }, 160);
-
-    return () => window.clearTimeout(timeoutId);
+    prefetchVisibleCatalogImages(nextChunk);
   }, [
     pageImageMissing,
     pageImagePending,
@@ -3612,6 +3718,34 @@ const Data: React.FC<DataProps> = ({
                 const hasResolvedPriceState = hasResolvedProductPriceState(item, prices);
                 const isKnownNoPrice =
                   hasResolvedPriceState && getResolvedProductPriceEuro(item, prices) === null;
+                const stateCostPriceEuro =
+                  typeof item.costPriceEuro === "number" &&
+                  Number.isFinite(item.costPriceEuro) &&
+                  item.costPriceEuro > 0
+                    ? item.costPriceEuro
+                    : (() => {
+                        const stateCost = costPrices[entry.priceKey];
+                        if (
+                          typeof stateCost === "number" &&
+                          Number.isFinite(stateCost) &&
+                          stateCost > 0
+                        ) {
+                          return stateCost;
+                        }
+
+                        for (const lookupKey of getProductPriceLookupKeys(item)) {
+                          const lookupCost = costPrices[lookupKey];
+                          if (
+                            typeof lookupCost === "number" &&
+                            Number.isFinite(lookupCost) &&
+                            lookupCost > 0
+                          ) {
+                            return lookupCost;
+                          }
+                        }
+
+                        return null;
+                      })();
 
                 const priceStatus =
                   priceUAH != null
@@ -3653,6 +3787,8 @@ const Data: React.FC<DataProps> = ({
                       qty={qty}
                       cartQty={cartQty}
                       priceUAH={priceUAH}
+                      costPriceUAH={isAdmin && stateCostPriceEuro != null ? Math.round(stateCostPriceEuro * euroRate) : null}
+                      isAdmin={isAdmin}
                       priceStatus={priceStatus}
                       imageLoadingMode={shouldPrioritizeImage ? "eager" : "lazy"}
                       imageFetchPriority={shouldPrioritizeImage ? "high" : "auto"}
