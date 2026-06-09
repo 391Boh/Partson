@@ -54,8 +54,6 @@ const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_PHONE_TEL = "+380634211851";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
-const STORE_PHONE_SEO_LABEL = `☎️ ${STORE_PHONE_DISPLAY}`;
-const STORE_ADDRESS_SEO_LABEL = `📍 ${STORE_ADDRESS}`;
 const PRODUCT_META_DESCRIPTION_MAX_LENGTH = 176;
 const PRODUCT_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
 const isProductionBuildPhase =
@@ -830,36 +828,26 @@ const getCatalogProduct = cache(async (code: string) => {
 });
 
 const buildProductMetaDescription = (options: {
-  name: string;
   article: string;
-  producer: string;
   code?: string;
   category?: string;
-  quantity: number;
   priceUah?: number | null;
 }) => {
-  const { name, article, producer, code, category, quantity, priceUah } = options;
-  const cleanName = buildVisibleProductName(name);
-  const productLabel = trimSeoPhrase(
-    appendSeoPartIfMissing(cleanName, producer),
-    72
-  );
+  const { article, code, category, priceUah } = options;
   const priceLabel = priceUah != null && priceUah > 0
     ? `${priceUah.toLocaleString("uk-UA")} грн`
     : null;
   const articleLabel = article ? `арт. ${article}` : null;
   const codeLabel = code && code !== article ? `код ${code}` : null;
   const lookupLabel = [articleLabel, codeLabel].filter(Boolean).join(", ");
-  const availabilityLabel =
-    quantity > 0
-      ? `В наявності${quantity > 0 ? ` ${quantity} шт.` : ""}`
-      : "Під замовлення";
 
   return trimSeoDescription(
     [
-      `${availabilityLabel}: ${productLabel}${priceLabel ? ` — ${priceLabel}` : ""}${lookupLabel ? ` (${lookupLabel})` : ""}.`,
+      [lookupLabel || "Автозапчастина", priceLabel ? `ціна ${priceLabel}` : null]
+        .filter(Boolean)
+        .join(" — ") + ".",
       category ? `Категорія: ${category}.` : null,
-      "VIN-підбір, аналоги, самовивіз у Львові та доставка по Україні.",
+      "Перевірка сумісності за VIN, підбір аналогів, самовивіз у Львові та доставка по Україні.",
     ]
       .filter(Boolean)
       .join(" ")
@@ -921,39 +909,11 @@ const trimSeoDescription = (
   return `${stripTrailingSeoPunctuation(trimmed)}...`;
 };
 
-const appendSeoPartIfMissing = (base: string, addition: string) => {
-  const normalizedBase = base.toLocaleLowerCase("uk-UA");
-  const normalizedAddition = addition.toLocaleLowerCase("uk-UA").trim();
-  if (!normalizedAddition || normalizedBase.includes(normalizedAddition)) {
-    return base;
-  }
-
-  return `${base} ${addition}`.replace(/\s{2,}/g, " ").trim();
-};
-
 const buildProductSeoTitle = (options: {
   name: string;
-  producer: string;
-  article: string;
-  quantity?: number;
 }) => {
-  const { name, producer, article, quantity = 0 } = options;
-  const productLabel = trimSeoPhrase(
-    appendSeoPartIfMissing(buildVisibleProductName(name), producer),
-    54
-  );
-  const normalizedLabel = productLabel.toLocaleLowerCase("uk-UA");
-  const normalizedArticle = article.toLocaleLowerCase("uk-UA").trim();
-  const articleLabel =
-    normalizedArticle && !normalizedLabel.includes(normalizedArticle)
-      ? `арт. ${article}`
-      : null;
-
-  const availabilityLabel = quantity > 0 ? "в наявності" : "під замовлення";
-
-  return [productLabel || "Автозапчастина", articleLabel, availabilityLabel, "PartsON Львів"]
-    .filter(Boolean)
-    .join(" | ");
+  const { name } = options;
+  return trimSeoPhrase(buildVisibleProductName(name), 62) || "Автозапчастина";
 };
 
 const buildProductSeoKeywords = (options: {
@@ -1629,18 +1589,12 @@ export async function generateMetadata({
 
   const seoTitle = buildProductSeoTitle({
     name: seoVisibleProductName,
-    producer: productProducer,
-    article: productArticle,
-    quantity: routeProduct?.quantity ?? 0,
   });
 
   const description = buildProductMetaDescription({
-    name: seoVisibleProductName,
     article: productArticle,
-    producer: productProducer,
     code: resolvedCode,
     category: categoryLabel,
-    quantity: routeProduct?.quantity ?? 0,
     priceUah: seoPriceForMeta.priceUah,
   });
 
@@ -1654,7 +1608,9 @@ export async function generateMetadata({
 
   return {
     metadataBase: new URL(siteUrl),
-    title: seoTitle,
+    title: {
+      absolute: seoTitle,
+    },
     description,
     keywords,
     alternates: {
@@ -1904,12 +1860,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
     quantity: product.quantity,
   });
   const schemaDescription = buildProductMetaDescription({
-    name: visibleProductName,
     article: product.article,
-    producer: product.producer,
     code: product.code || resolvedCode,
     category: visibleProductSubgroup || visibleProductGroup,
-    quantity: product.quantity,
     priceUah: initialPriceUah,
   });
   const categoryCatalogGroupValue =
@@ -2070,7 +2023,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
       ? `Розділ каталогу: ${visibleProductSubgroup || visibleProductGroup}.`
       : null,
     "Надішліть VIN або дані авто в чат — менеджер перевірить сумісність, підбере аналоги та підкаже по наявності.",
-    `${STORE_PHONE_SEO_LABEL} · ${STORE_ADDRESS_SEO_LABEL}.`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -2195,12 +2147,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 <div className="order-1 flex h-full min-w-0 flex-col justify-center rounded-[20px] border border-white/80 bg-white/78 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.07)] ring-1 ring-white/70 backdrop-blur-md transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white/86 hover:shadow-[0_16px_34px_rgba(15,23,42,0.09)] xl:order-2 sm:p-3.5">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span
-                      className={`inline-flex rounded-[13px] border px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.09em] shadow-[0_8px_18px_rgba(15,23,42,0.07)] ${
+                      className={`inline-flex items-center gap-1.5 rounded-[13px] border px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.09em] shadow-[0_8px_18px_rgba(15,23,42,0.07)] ${
                         isInStock
                           ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                           : "border-amber-200 bg-amber-50 text-amber-700"
                       }`}
                     >
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          isInStock ? "bg-emerald-500" : "bg-amber-500"
+                        }`}
+                        aria-hidden="true"
+                      />
                       {isInStock ? "В наявності" : "Під замовлення"}
                     </span>
                     {product.producer ? (
@@ -2294,6 +2252,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   descriptionTextClass={descriptionTextClass}
                   enableClientLookup
                   fitmentText={productFitmentText}
+                  contactPhone={STORE_PHONE_DISPLAY}
+                  contactAddress={STORE_ADDRESS}
                   seoDetails={productSeoDetails}
                   chatButton={
                     <OpenChatButton

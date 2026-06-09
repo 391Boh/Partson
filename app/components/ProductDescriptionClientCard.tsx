@@ -12,6 +12,8 @@ type ProductDescriptionClientCardProps = {
   chatButton?: ReactNode;
   enableClientLookup?: boolean;
   fitmentText?: string;
+  contactPhone?: string;
+  contactAddress?: string;
   seoDetails?: {
     title: string;
     items: string[];
@@ -31,6 +33,8 @@ export default function ProductDescriptionClientCard({
   chatButton,
   enableClientLookup = true,
   fitmentText = "",
+  contactPhone = "",
+  contactAddress = "",
   seoDetails,
 }: ProductDescriptionClientCardProps) {
   const normalizedInitialText =
@@ -260,6 +264,43 @@ export default function ProductDescriptionClientCard({
           <p className="mt-1.5 text-[13.5px] font-medium leading-[1.62] text-slate-700 sm:text-sm">
             {fitmentText}
           </p>
+          {contactPhone || contactAddress ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {contactPhone ? (
+                <a
+                  href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}
+                  className="group flex min-w-0 items-center gap-2 rounded-[14px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.94))] px-3 py-2.5 text-emerald-900 shadow-[0_10px_20px_rgba(16,185,129,0.08)] transition hover:border-emerald-300 hover:bg-emerald-50"
+                >
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-500 text-[16px] text-white shadow-[0_8px_16px_rgba(16,185,129,0.24)]">
+                    ☎️
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[9px] font-black uppercase tracking-[0.12em] text-emerald-700">
+                      Телефон
+                    </span>
+                    <span className="block break-words text-[13px] font-black leading-5 sm:text-sm">
+                      {contactPhone}
+                    </span>
+                  </span>
+                </a>
+              ) : null}
+              {contactAddress ? (
+                <div className="flex min-w-0 items-center gap-2 rounded-[14px] border border-sky-200 bg-[linear-gradient(135deg,rgba(240,249,255,0.98),rgba(255,255,255,0.94))] px-3 py-2.5 text-sky-950 shadow-[0_10px_20px_rgba(14,165,233,0.08)]">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sky-500 text-[16px] text-white shadow-[0_8px_16px_rgba(14,165,233,0.22)]">
+                    📍
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[9px] font-black uppercase tracking-[0.12em] text-sky-700">
+                      Адреса
+                    </span>
+                    <span className="block break-words text-[13px] font-black leading-5 sm:text-sm">
+                      {contactAddress}
+                    </span>
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {seoDetails && seoDetails.items.length > 0 ? (
