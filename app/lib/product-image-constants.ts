@@ -1,1 +1,1 @@
-export const PRODUCT_IMAGE_FALLBACK_PATH = "/Car-parts-fullwidth.png";
+export const PRODUCT_IMAGE_FALLBACK_PATH = "/Car-parts-fullwidth.webp";

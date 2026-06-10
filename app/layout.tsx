@@ -300,8 +300,9 @@ export default async function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
-        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
-        <link rel="preconnect" href="https://www.googletagmanager.com" crossOrigin="anonymous" />
+        {googleTagManagerId ? (
+          <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+        ) : null}
         <link rel="dns-prefetch" href="https://www.google-analytics.com" />
         {googleTagManagerId ? (
           <Script

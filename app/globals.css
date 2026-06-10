@@ -942,7 +942,7 @@ h1, h2, h3, h4, h5, h6 {
   width: 42px;
   height: 18px;
   top: 12px;
-  background-image: url("/Car-parts-fullwidth.png");
+  background-image: url("/Car-parts-fullwidth.webp");
   filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.4));
   animation: loaderOrbitWide 1.35s ease-in-out infinite;
 }

@@ -104,10 +104,13 @@ const scheduleFirebaseAuthSubscription = () => {
   window.addEventListener("pointerdown", start, { once: true, passive: true });
   window.addEventListener("keydown", start, { once: true });
 
-  if (typeof win.requestIdleCallback === "function") {
-    idleId = win.requestIdleCallback(start, { timeout: 2800 });
-  } else {
-    timeoutId = window.setTimeout(start, 2800);
+  const enableIdleAuth = process.env.NEXT_PUBLIC_ENABLE_IDLE_FIREBASE === "1";
+  if (enableIdleAuth) {
+    if (typeof win.requestIdleCallback === "function") {
+      idleId = win.requestIdleCallback(start, { timeout: 12000 });
+    } else {
+      timeoutId = window.setTimeout(start, 12000);
+    }
   }
 };
 

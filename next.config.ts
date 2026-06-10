@@ -59,6 +59,8 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 31536000,
     qualities: [68, 75, 100],
+    deviceSizes: [360, 420, 640, 768, 1024, 1280, 1536, 1920],
+    imageSizes: [32, 48, 64, 96, 128, 192, 256, 320],
     localPatterns: [
       // Keep default strict behavior for regular local images (no query string).
       { pathname: "/**", search: "" },
@@ -92,7 +94,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/:file(.*\\.(?:png|jpg|jpeg|webp|avif|svg|ico))",
+        source: "/:file(.*\\.(?:png|jpg|jpeg|webp|avif|svg|ico|webmanifest))",
         headers: [
           ...securityHeaders,
           {
