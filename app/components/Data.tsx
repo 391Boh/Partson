@@ -53,15 +53,15 @@ export interface Product {
 const ITEMS_PER_PAGE = 12;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
-const PRICE_CACHE_PREFIX = "partson:v11:price:";
+const PRICE_CACHE_PREFIX = "partson:v12:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PRICE_STALE_POSITIVE_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
-const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
-const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 45;
-const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 3;
-const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
-const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 20;
+const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 12;
+const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 24;
+const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 4;
+const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 3;
+const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 8;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 90;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
 const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
@@ -69,8 +69,8 @@ const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 180;
-const IMAGE_PRIORITY_ITEMS_COUNT = 8;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
+const IMAGE_PRIORITY_ITEMS_COUNT = 12;
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 3;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 45;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
@@ -1868,6 +1868,42 @@ function useCatalogData(params: {
         });
       };
 
+      const applyReadyImageEntries = (
+        readyEntries: Array<{ key: string; src?: string }>
+      ) => {
+        const validEntries = readyEntries.filter((item) => item.src);
+        if (validEntries.length === 0) return;
+
+        setPageImages((prev) => {
+          let didChange = false;
+          const next = { ...prev };
+          for (const item of validEntries) {
+            if (!item.src || next[item.key]) continue;
+            next[item.key] = item.src;
+            didChange = true;
+          }
+          if (didChange) {
+            pageImagesRef.current = next;
+          }
+          return didChange ? next : prev;
+        });
+
+        pageImageMissingRef.current = { ...pageImageMissingRef.current };
+        for (const item of validEntries) {
+          delete pageImageMissingRef.current[item.key];
+        }
+        setPageImageMissing((prev) => {
+          let didChange = false;
+          const next = { ...prev };
+          for (const item of validEntries) {
+            if (!next[item.key]) continue;
+            delete next[item.key];
+            didChange = true;
+          }
+          return didChange ? next : prev;
+        });
+      };
+
       void primeCatalogImageBatch(requestItems, {
         deep: false,
         signal: options?.signal,
@@ -1878,38 +1914,46 @@ function useCatalogData(params: {
           const readyEntries = results.filter(
             (item) => item.status === "ready" && item.src
           );
-          if (readyEntries.length > 0) {
-            setPageImages((prev) => {
-              let didChange = false;
-              const next = { ...prev };
-              for (const item of readyEntries) {
-                if (!item.src || next[item.key]) continue;
-                next[item.key] = item.src;
-                didChange = true;
-              }
-              if (didChange) {
-                pageImagesRef.current = next;
-              }
-              return didChange ? next : prev;
-            });
-          }
+          applyReadyImageEntries(readyEntries);
 
-          const readyKeys = new Set(readyEntries.map((item) => item.key));
-          if (readyKeys.size > 0) {
-            pageImageMissingRef.current = { ...pageImageMissingRef.current };
-            for (const key of readyKeys) {
-              delete pageImageMissingRef.current[key];
-            }
-            setPageImageMissing((prev) => {
-              let didChange = false;
-              const next = { ...prev };
-              for (const key of readyKeys) {
-                if (!next[key]) continue;
-                delete next[key];
-                didChange = true;
-              }
-              return didChange ? next : prev;
-            });
+          const resultsByKey = new Map(results.map((item) => [item.key, item]));
+          const recoveryItems = requestItems
+            .filter((item) => {
+              if (item.hasPhoto === false) return false;
+              const key = buildProductImageBatchKey(item.code, item.article);
+              if (!key || pageImagesRef.current[key]) return false;
+              const result = resultsByKey.get(key);
+              return !result || result.status !== "ready";
+            })
+            .slice(0, VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE);
+
+          if (recoveryItems.length > 0) {
+            void primeCatalogImageBatch(recoveryItems, {
+              deep: true,
+              signal: options?.signal,
+            })
+              .then((deepResults) => {
+                if (options?.signal?.aborted) return;
+
+                const deepReadyEntries = deepResults.filter(
+                  (item) => item.status === "ready" && item.src
+                );
+                applyReadyImageEntries(deepReadyEntries);
+
+                const deepReadyByKey = new Map(
+                  deepReadyEntries.map((item) => [item.key, item.src as string])
+                );
+                for (const item of recoveryItems) {
+                  const key = buildProductImageBatchKey(item.code, item.article);
+                  warmImageRoute(item, key ? deepReadyByKey.get(key) : undefined);
+                }
+              })
+              .catch((error) => {
+                if (isAbortLikeError(error)) return;
+                for (const item of recoveryItems.slice(0, IMAGE_PRIORITY_ITEMS_COUNT)) {
+                  warmImageRoute(item);
+                }
+              });
           }
 
           const readyByKey = new Map(

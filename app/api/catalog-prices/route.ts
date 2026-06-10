@@ -104,7 +104,7 @@ export async function POST(request: Request) {
       const isFullMode = mode === "full";
       const lookupDetailsPromise = isFullMode
         ? fetchCatalogPriceDetailsByLookupKeys(allLookupKeys, {
-            timeoutMs: 950,
+            timeoutMs: 850,
             cacheTtlMs: 1000 * 20,
             includePricesPost: true,
           }).catch(() => ({
@@ -117,16 +117,16 @@ export async function POST(request: Request) {
           });
 
       const lookupPricesPromise = fetchPriceEuroMapByLookupKeys(allLookupKeys, {
-        sourceTimeoutMs: isFullMode ? 850 : 420,
+        sourceTimeoutMs: isFullMode ? 760 : 360,
         sourceCacheTtlMs: 1000 * 20,
-        timeoutMs: isFullMode ? 850 : 420,
+        timeoutMs: isFullMode ? 760 : 360,
         retries: 0,
         retryDelayMs: 80,
         cacheTtlMs: 1000 * 60 * 5,
         includeDirectLookup: isFullMode,
         includePricesPost: true,
         directConcurrency: isFullMode ? 4 : 6,
-        maxKeys: isFullMode ? 24 : 96,
+        maxKeys: isFullMode ? 36 : 120,
       }).catch(() => ({} as Record<string, number>));
 
       const [lookupDetails, fallbackLookupPrices] = await Promise.all([

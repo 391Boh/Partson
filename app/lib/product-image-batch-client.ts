@@ -24,7 +24,7 @@ export type CatalogImageBatchResponseItem = {
 };
 
 const CATALOG_IMAGE_BATCH_ROUTE = "/api/catalog-image-batch";
-const MAX_BATCH_ITEMS = 48;
+const MAX_BATCH_ITEMS = 60;
 const BATCH_RESPONSE_CACHE_TTL_MS = 1000 * 60 * 20;
 
 const batchResponseCache = new Map<

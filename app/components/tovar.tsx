@@ -981,20 +981,25 @@ const ProductFetcher: React.FC<Props> = ({
               )}
         </motion.div>
 
-        <div className="mt-4 flex max-w-full items-center justify-center overflow-hidden pb-2 sm:pb-3">
-          <div className="max-w-full overflow-x-auto no-scrollbar">
-            <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
+        <div className="mt-4 flex max-w-full items-center justify-center pb-2 sm:pb-3">
+          <div className="flex w-full max-w-[260px] items-center justify-between gap-2 rounded-2xl border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/90 to-cyan-50/85 px-2 py-1.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm sm:w-auto sm:max-w-full sm:justify-center sm:px-1.5 sm:py-1">
             <button
               type="button"
               onClick={prevPage}
               disabled={page <= 1}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40 sm:h-7 sm:w-7 sm:rounded-lg"
               aria-label="\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
             >
-              <ChevronLeft size={12} />
+              <ChevronLeft size={14} />
             </button>
 
-            <div className="flex items-center gap-1 px-0.5">
+            <div className="flex min-w-[92px] items-center justify-center gap-1 rounded-full border border-sky-100 bg-white/85 px-3 py-1 text-xs font-bold text-slate-700 shadow-inner sm:hidden">
+              <span>{page}</span>
+              <span className="text-slate-400">/</span>
+              <span>{totalPages}</span>
+            </div>
+
+            <div className="hidden items-center gap-1 px-0.5 sm:flex">
               {Array.from({ length: totalPages }).map((_, index) => {
                 const dotPage = index + 1;
                 const isActive = dotPage === page;
@@ -1018,17 +1023,16 @@ const ProductFetcher: React.FC<Props> = ({
               type="button"
               onClick={nextPage}
               disabled={page >= totalPages}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40 sm:h-7 sm:w-7 sm:rounded-lg"
               aria-label="\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0430 \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
             >
-              <ChevronRight size={12} />
+              <ChevronRight size={14} />
             </button>
 
             <div className="hidden sm:flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-1.5 py-0 text-[9px] font-semibold text-slate-600 shadow-inner">
               <span>{page}</span>
               <span className="text-slate-400">/</span>
               <span>{totalPages}</span>
-            </div>
             </div>
           </div>
         </div>

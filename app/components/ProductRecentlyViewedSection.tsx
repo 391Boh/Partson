@@ -353,7 +353,7 @@ export default function ProductRecentlyViewedSection({
       </div>
 
       <div className={listClass}>
-        {visibleItems.map((item, index) => {
+        {visibleItems.map((item) => {
           const stateKey = buildPriceStateKey(item);
           const resolvedPriceEuro = stateKey in resolvedPrices
             ? resolvedPrices[stateKey]
