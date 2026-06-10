@@ -249,7 +249,7 @@ function FlipCardComponent({
                   }
                 }}
                 className="
-                  p-1 text-slate-400 hover:text-blue-600 hover:bg-white/70
+                  p-1 min-h-0 min-w-0 text-slate-400 hover:text-blue-600 hover:bg-white/70
                   rounded-md transition-all
                 "
               >
@@ -270,7 +270,7 @@ function FlipCardComponent({
                   if (current < max - 1) setter(current + 1);
                 }}
                 className="
-                  p-1 text-slate-400 hover:text-blue-600 hover:bg-white/70
+                  p-1 min-h-0 min-w-0 text-slate-400 hover:text-blue-600 hover:bg-white/70
                   rounded-md transition-all disabled:opacity-40 disabled:hover:bg-transparent
                 "
                 disabled={

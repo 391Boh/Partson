@@ -15,6 +15,7 @@ import { getGoogleRating } from "./lib/google-rating";
 import "./globals.css";
 
 const siteUrl = getSiteUrl();
+const firebaseProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "";
 const siteUrlObject = (() => {
   try {
     return new URL(siteUrl);
@@ -314,6 +315,14 @@ export default async function RootLayout({
           <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         ) : null}
         <link rel="dns-prefetch" href="https://www.google-analytics.com" />
+        {firebaseProjectId ? (
+          <link rel="preconnect" href={`https://${firebaseProjectId}.firebaseapp.com`} crossOrigin="anonymous" />
+        ) : null}
+        {firebaseProjectId ? (
+          <link rel="dns-prefetch" href={`https://${firebaseProjectId}.firebaseapp.com`} />
+        ) : null}
+        <link rel="preconnect" href="https://apis.google.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://apis.google.com" />
         {googleTagManagerId ? (
           <Script
             id="google-tag-manager"

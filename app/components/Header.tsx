@@ -439,6 +439,7 @@ const Header: React.FC = () => {
               height={49}
               priority
               fetchPriority="high"
+              sizes="(max-width: 768px) 65px, 85px"
               className="pointer-events-none h-auto w-[65px] select-none object-contain md:w-[85px]"
               onError={handleLogoLoadError}
               onContextMenu={preventLogoAssetInteraction}

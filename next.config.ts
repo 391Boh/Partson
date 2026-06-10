@@ -38,6 +38,7 @@ const nextConfig: NextConfig = {
       "lucide-react",
       "@heroicons/react",
       "react-icons",
+      "framer-motion",
       "firebase/app",
       "firebase/auth",
       "firebase/firestore",
@@ -94,7 +95,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/:file(.*\\.(?:png|jpg|jpeg|webp|avif|svg|ico|webmanifest))",
+        source: "/:file((?!_next)[^?#]*\\.(?:png|jpg|jpeg|webp|avif|svg|ico|webmanifest))",
         headers: [
           ...securityHeaders,
           {

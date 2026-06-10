@@ -93,7 +93,7 @@ function BrandCard({
             draggable={false}
             className="max-h-[34px] w-auto max-w-[64px] object-contain drop-shadow-[0_5px_10px_rgba(15,23,42,0.1)] sm:max-h-[38px] sm:max-w-[72px]"
             style={{ imageRendering: "auto" }}
-            sizes="(max-width: 640px) 96px, (max-width: 1024px) 128px, 150px"
+            sizes="(max-width: 640px) 64px, 80px"
             onError={handleBrandLogoLoadError}
           />
         </span>

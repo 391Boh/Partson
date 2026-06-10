@@ -163,7 +163,7 @@ export default function AdvantagesPhotoSlider() {
           src={activePhotoSrc}
           alt={`Фото магазину PartsON ${displayedPhotoIndex + 1}`}
           fill
-          sizes="(min-width: 640px) 332px, (min-width: 1024px) 30vw, 100vw"
+          sizes="(min-width: 1024px) 30vw, (min-width: 640px) 332px, 100vw"
           quality={68}
           className="object-cover"
         />

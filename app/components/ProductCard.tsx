@@ -568,7 +568,7 @@ useEffect(() => {
                                         e.stopPropagation();
                                         onQtyChange(code, -1);
                                     }}
-                                    className="w-7 h-7 min-h-0 text-xs rounded-full border border-slate-200 bg-slate-50 font-bold text-slate-700 shadow-[0_3px_8px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
+                                    className="w-7 h-7 min-h-0 min-w-0 text-xs rounded-full border border-slate-200 bg-slate-50 font-bold text-slate-700 shadow-[0_3px_8px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
                                     disabled={isCounterDisabled || qty <= 1}
                                 >
                                     -
@@ -582,7 +582,7 @@ useEffect(() => {
                                         e.stopPropagation();
                                         onQtyChange(code, 1);
                                     }}
-                                    className="w-7 h-7 min-h-0 text-xs rounded-full border border-blue-400/70 bg-[linear-gradient(135deg,#2563eb,#0284c7)] font-bold text-white shadow-[0_6px_12px_rgba(37,99,235,0.22)] hover:brightness-105 transition-all duration-150 disabled:opacity-30"
+                                    className="w-7 h-7 min-h-0 min-w-0 text-xs rounded-full border border-blue-400/70 bg-[linear-gradient(135deg,#2563eb,#0284c7)] font-bold text-white shadow-[0_6px_12px_rgba(37,99,235,0.22)] hover:brightness-105 transition-all duration-150 disabled:opacity-30"
                                     disabled={isPlusDisabled}
                                 >
                                     +
@@ -590,104 +590,103 @@ useEffect(() => {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-1">
-                            {cartQty > 0 && (
-                                <div className="flex items-center gap-2">
-                                    <div
-                                        className={`inline-flex flex-col items-center rounded-full bg-orange-500 px-1 py-0.5 text-[8px] font-semibold text-white shadow-sm leading-none transition-transform duration-150 ${
-                                            justAdded && motionEnabled ? "scale-110" : "scale-100"
-                                        }`}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (typeof window !== "undefined") {
-                                                window.dispatchEvent(new Event("openOrderModal"));
-                                            }
-                                        }}
-                                    >
-                                        <span>{"\u0423 \u043A\u043E\u0448\u0438\u043A\u0443"}</span>
-                                        <span className="min-w-[12px] text-center">{cartQty}</span>
-                                    </div>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onRemoveFromCart(code);
-                                        }}
-                                        className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.12)] transition-all duration-200 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700 ${tapMotionClass}`}
-                                        aria-label="Видалити товар з кошика"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            )}
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isPriceLoading) {
-                                        return;
-                                    }
-                                    if (isRequestAction) {
-                                        onRequestPrice(item);
-                                        return;
-                                    }
-                                    onAddToCart(item);
-                                    if (priceUAH != null) {
-                                        pushEcommerceEvent("add_to_cart", {
-                                            currency: "UAH",
-                                            value: priceUAH * (qty || 1),
-                                            items: [
-                                                {
-                                                    item_id: item.code,
-                                                    item_name: item.name,
-                                                    ...(item.subGroup || item.group || item.category
-                                                        ? { item_category: item.subGroup || item.group || item.category }
-                                                        : {}),
-                                                    price: priceUAH,
-                                                    quantity: qty || 1,
-                                                },
-                                            ],
-                                        });
-                                    }
-                                }}
-                                disabled={isCartButtonDisabled}
-                                aria-label={
-                                    isPriceLoading
-                                        ? "Підтягуємо ціну"
-                                        : isRequestAction
-                                            ? "Надіслати запит у чат"
-                                            : "Додати в кошик"
-                                }
-                                className={`relative p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-all duration-200 text-xs ${
-                                    isCartButtonDisabled
-                                        ? isPriceLoading
-                                            ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-wait"
-                                            : "bg-slate-200 text-slate-500 cursor-not-allowed"
-                                        : isRequestAction
-                                            ? "border border-amber-300/80 bg-[linear-gradient(135deg,#fef3c7,#f59e0b)] text-amber-950 shadow-[0_10px_18px_rgba(245,158,11,0.20)] hover:brightness-105 hover:shadow-[0_12px_22px_rgba(245,158,11,0.24)]"
-                                            : "border border-rose-300/80 bg-[linear-gradient(135deg,#fb7185,#e11d48)] text-white shadow-[0_10px_18px_rgba(225,29,72,0.22)] hover:brightness-105 hover:shadow-[0_12px_22px_rgba(225,29,72,0.26)]"
-                                } ${tapMotionClass} ${
-                                    justAdded && motionEnabled ? "scale-105" : "scale-100"
-                                }`}
-                            >
-                                {isPriceLoading ? (
-                                    <span className="inline-block h-[18px] w-[18px] rounded-full border-2 border-slate-300 border-t-slate-500 animate-spin" />
-                                ) : isRequestAction ? (
-                                    <MessageCircle size={18} />
-                                ) : (
-                                    <ShoppingCart size={18} />
-                                )}
-                            </button>
+                         <div className="flex items-center gap-1">
+                             {cartQty > 0 && (
+                                 <button
+                                     onClick={(e) => {
+                                         e.stopPropagation();
+                                         onRemoveFromCart(code);
+                                     }}
+                                     className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.12)] transition-all duration-200 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700 ${tapMotionClass}`}
+                                     aria-label="Видалити товар з кошика"
+                                 >
+                                     <Trash2 size={16} />
+                                 </button>
+                             )}
+                             <button
+                                 onClick={(e) => {
+                                     e.stopPropagation();
+                                     if (isPriceLoading) {
+                                         return;
+                                     }
+                                     if (isRequestAction) {
+                                         onRequestPrice(item);
+                                         return;
+                                     }
+                                     onAddToCart(item);
+                                     if (priceUAH != null) {
+                                         pushEcommerceEvent("add_to_cart", {
+                                             currency: "UAH",
+                                             value: priceUAH * (qty || 1),
+                                             items: [
+                                                 {
+                                                     item_id: item.code,
+                                                     item_name: item.name,
+                                                     ...(item.subGroup || item.group || item.category
+                                                         ? { item_category: item.subGroup || item.group || item.category }
+                                                         : {}),
+                                                     price: priceUAH,
+                                                     quantity: qty || 1,
+                                                 },
+                                             ],
+                                         });
+                                     }
+                                 }}
+                                 disabled={isCartButtonDisabled}
+                                 aria-label={
+                                     isPriceLoading
+                                         ? "Підтягуємо ціну"
+                                         : isRequestAction
+                                             ? "Надіслати запит у чат"
+                                             : "Додати в кошик"
+                                 }
+                                 className={`relative p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-all duration-200 text-xs ${
+                                     isCartButtonDisabled
+                                         ? isPriceLoading
+                                             ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-wait"
+                                             : "bg-slate-200 text-slate-500 cursor-not-allowed"
+                                         : isRequestAction
+                                             ? "border border-amber-300/80 bg-[linear-gradient(135deg,#fef3c7,#f59e0b)] text-amber-950 shadow-[0_10px_18px_rgba(245,158,11,0.20)] hover:brightness-105 hover:shadow-[0_12px_22px_rgba(245,158,11,0.24)]"
+                                             : "border border-rose-300/80 bg-[linear-gradient(135deg,#fb7185,#e11d48)] text-white shadow-[0_10px_18px_rgba(225,29,72,0.22)] hover:brightness-105 hover:shadow-[0_12px_22px_rgba(225,29,72,0.26)]"
+                                 } ${tapMotionClass} ${
+                                     justAdded && motionEnabled ? "scale-105" : "scale-100"
+                                 }`}
+                             >
+                                 {cartQty > 0 && (
+                                     <span
+                                         className={`absolute -top-1.5 -right-1.5 flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-bold text-white shadow-sm transition-transform duration-150 ${
+                                             justAdded && motionEnabled ? "scale-125" : "scale-100"
+                                         }`}
+                                         onClick={(e) => {
+                                             e.stopPropagation();
+                                             if (typeof window !== "undefined") {
+                                                 window.dispatchEvent(new Event("openOrderModal"));
+                                             }
+                                         }}
+                                     >
+                                         {cartQty}
+                                     </span>
+                                 )}
+                                 {isPriceLoading ? (
+                                     <span className="inline-block h-[18px] w-[18px] rounded-full border-2 border-slate-300 border-t-slate-500 animate-spin" />
+                                 ) : isRequestAction ? (
+                                     <MessageCircle size={18} />
+                                 ) : (
+                                     <ShoppingCart size={18} />
+                                 )}
+                             </button>
 
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onFlip(code);
-                                }}
-                                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border border-sky-100 bg-sky-50 text-sky-700 shadow-[0_6px_12px_rgba(14,165,233,0.10)] hover:border-sky-200 hover:bg-sky-100 hover:text-sky-800 transition-all duration-200"
-                                aria-label="Детальніше"
-                            >
-                                <Info size={16} />
-                            </button>
-                        </div>
+                             <button
+                                 onClick={(e) => {
+                                     e.stopPropagation();
+                                     onFlip(code);
+                                 }}
+                                 className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border border-sky-100 bg-sky-50 text-sky-700 shadow-[0_6px_12px_rgba(14,165,233,0.10)] hover:border-sky-200 hover:bg-sky-100 hover:text-sky-800 transition-all duration-200"
+                                 aria-label="Детальніше"
+                             >
+                                 <Info size={16} />
+                             </button>
+                         </div>
                     </div>
                 </div>
 
