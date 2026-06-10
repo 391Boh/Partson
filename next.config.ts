@@ -34,6 +34,7 @@ const isProduction = process.env.NODE_ENV === "production";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   experimental: {
+    optimizeCss: true,
     optimizePackageImports: [
       "lucide-react",
       "@heroicons/react",
