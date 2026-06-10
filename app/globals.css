@@ -1,5 +1,5 @@
 @import "tailwindcss" source(none);
-@source "./";
+@source "./**/*.{tsx,ts,js,jsx,css}";
 
 @font-face {
   font-family: "Exo 2";

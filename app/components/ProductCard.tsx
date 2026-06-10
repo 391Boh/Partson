@@ -343,7 +343,7 @@ useEffect(() => {
     return (
         <>
         <article
-            className={`relative w-full h-[320px] [perspective:1200px] select-none ${cardMotionClass}`}
+            className={`relative w-full h-[360px] sm:h-[320px] [perspective:1200px] select-none ${cardMotionClass}`}
             itemScope
             itemType="https://schema.org/Product"
         >
@@ -454,7 +454,7 @@ useEffect(() => {
                           <button
                               type="button"
                               onClick={handleCopyArticle}
-                              className="group/copy flex w-full items-center justify-between px-1 py-0.5 rounded hover:bg-slate-100/70 transition-colors text-left"
+                              className="group/copy flex w-full min-h-0 items-center justify-between px-1 py-0.5 rounded hover:bg-slate-100/70 transition-colors text-left"
                               aria-label="Скопіювати артикул"
                           >
                             <span className="text-slate-500">Артикул:</span>
@@ -476,7 +476,7 @@ useEffect(() => {
                                   href={producerPath}
                                   prefetchOnIntent
                                   onClick={(event) => event.stopPropagation()}
-                                  className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors no-underline"
+                                  className="flex justify-between min-h-0 hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors no-underline"
                               >
                                   <span className="text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
                                   <span className="min-w-0 max-w-[55%] truncate font-medium text-blue-700 hover:text-blue-800">{producer}</span>
@@ -568,12 +568,12 @@ useEffect(() => {
                                         e.stopPropagation();
                                         onQtyChange(code, -1);
                                     }}
-                                    className="w-5 h-5 text-xs rounded-full border border-slate-200 bg-slate-50 font-bold text-slate-700 shadow-[0_3px_8px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
+                                    className="w-7 h-7 min-h-0 text-xs rounded-full border border-slate-200 bg-slate-50 font-bold text-slate-700 shadow-[0_3px_8px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
                                     disabled={isCounterDisabled || qty <= 1}
                                 >
                                     -
                                 </button>
-                                <span className="w-6 text-center font-semibold text-gray-800 text-xs mx-1">
+                                <span className="w-8 text-center font-semibold text-gray-800 text-xs mx-0.5">
                                     {qty}
                                 </span>
                                 <button
@@ -582,7 +582,7 @@ useEffect(() => {
                                         e.stopPropagation();
                                         onQtyChange(code, 1);
                                     }}
-                                    className="w-5 h-5 text-xs rounded-full border border-blue-400/70 bg-[linear-gradient(135deg,#2563eb,#0284c7)] font-bold text-white shadow-[0_6px_12px_rgba(37,99,235,0.22)] hover:brightness-105 transition-all duration-150 disabled:opacity-30"
+                                    className="w-7 h-7 min-h-0 text-xs rounded-full border border-blue-400/70 bg-[linear-gradient(135deg,#2563eb,#0284c7)] font-bold text-white shadow-[0_6px_12px_rgba(37,99,235,0.22)] hover:brightness-105 transition-all duration-150 disabled:opacity-30"
                                     disabled={isPlusDisabled}
                                 >
                                     +
@@ -612,7 +612,7 @@ useEffect(() => {
                                             e.stopPropagation();
                                             onRemoveFromCart(code);
                                         }}
-                                        className={`p-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.12)] transition-all duration-200 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700 ${tapMotionClass}`}
+                                        className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.12)] transition-all duration-200 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700 ${tapMotionClass}`}
                                         aria-label="Видалити товар з кошика"
                                     >
                                         <Trash2 size={16} />
@@ -656,7 +656,7 @@ useEffect(() => {
                                             ? "Надіслати запит у чат"
                                             : "Додати в кошик"
                                 }
-                                className={`relative p-2 rounded-lg transition-all duration-200 text-xs ${
+                                className={`relative p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-all duration-200 text-xs ${
                                     isCartButtonDisabled
                                         ? isPriceLoading
                                             ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-wait"
@@ -682,7 +682,7 @@ useEffect(() => {
                                     e.stopPropagation();
                                     onFlip(code);
                                 }}
-                                className="p-1.5 rounded-md border border-sky-100 bg-sky-50 text-sky-700 shadow-[0_6px_12px_rgba(14,165,233,0.10)] hover:border-sky-200 hover:bg-sky-100 hover:text-sky-800 transition-all duration-200"
+                                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border border-sky-100 bg-sky-50 text-sky-700 shadow-[0_6px_12px_rgba(14,165,233,0.10)] hover:border-sky-200 hover:bg-sky-100 hover:text-sky-800 transition-all duration-200"
                                 aria-label="Детальніше"
                             >
                                 <Info size={16} />

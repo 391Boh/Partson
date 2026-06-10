@@ -300,6 +300,16 @@ export default async function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
+        <link
+          rel="preload"
+          href="/fonts/exo2-variable-italic.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        {googleTagManagerId ? (
+          <link rel="preconnect" href="https://www.googletagmanager.com" crossOrigin="anonymous" />
+        ) : null}
         {googleTagManagerId ? (
           <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         ) : null}
