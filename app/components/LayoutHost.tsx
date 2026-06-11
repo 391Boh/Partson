@@ -6,7 +6,7 @@ import type { Auth } from "firebase/auth";
 import type { Firestore } from "firebase/firestore";
 import Header from "./Header";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { MessageCircle, Shield } from "lucide-react";
+import { ChevronUp, MessageCircle, Shield } from "lucide-react";
 import {
   CATALOG_PAGE_CACHE_VERSION,
   CATALOG_PRODUCTS_CACHE_KEY,
@@ -263,14 +263,21 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const [isAdminPanelPinned, setIsAdminPanelPinned] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [authUserUid, setAuthUserUid] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === "undefined") return true;
+    try { return !localStorage.getItem("chat_user_id"); } catch { return true; }
+  });
+  const [userId, setUserId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return localStorage.getItem("chat_user_id") || null; } catch { return null; }
+  });
   const [userUnreadCount, setUserUnreadCount] = useState(0);
   const [totalNotifications, setTotalNotifications] = useState(0);
   const [prefillMessage, setPrefillMessage] = useState<string | null>(null);
   const [routeViewState, setRouteViewState] = useState<RouteViewState>({
     isEmbeddedProductView: false,
   });
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const router = useRouter();
   const pathnameValue = usePathname();
@@ -289,6 +296,40 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   }, []);
   const closeChat = useCallback(() => {
     setIsChatOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onScroll = () => setShowScrollTop(window.scrollY > 300);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const uid = localStorage.getItem("user_id");
+      if (uid) {
+        setAuthUserUid(uid);
+        if (localStorage.getItem(`partson:isAdmin:${uid}`) === "1") {
+          setIsAdmin(true);
+        }
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      const storedId = normalizeStoredId(localStorage.getItem("chat_user_id"));
+      if (storedId) {
+        setUserId(storedId);
+        setLoading(false);
+      } else {
+        const guestId = createGuestChatId();
+        localStorage.setItem("chat_user_id", guestId);
+        setUserId(guestId);
+        setLoading(false);
+      }
+    } catch {}
   }, []);
 
   const syncRouteViewState = useCallback((nextState: RouteViewState) => {
@@ -338,17 +379,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     });
     window.addEventListener("keydown", triggerDepsLoad, { once: true });
 
-    const win = window as Window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-    };
-
-    if (enableIdleFirebase) {
-      if (typeof win.requestIdleCallback === "function") {
-        idleId = win.requestIdleCallback(triggerDepsLoad, { timeout: 12000 });
-      } else {
-        timeoutId = window.setTimeout(triggerDepsLoad, 12000);
-      }
-    }
+    timeoutId = window.setTimeout(triggerDepsLoad, 500);
 
     return () => {
       cancelled = true;
@@ -973,14 +1004,26 @@ export default function LayoutHost({ children }: LayoutHostProps) {
             : persistedChatId || user.uid;
 
         const adminStorageKey = getAdminStorageKey(user.uid);
-        const rememberedIsAdmin = readRememberedAdminAccess(user.uid);
-        const resolvedIsAdmin = isAdminRole || isAdminEmail || rememberedIsAdmin;
+        const resolvedIsAdmin = isAdminRole || isAdminEmail;
 
         setIsAdmin(resolvedIsAdmin);
 
-        if (isAdminRole || isAdminEmail) {
+        if (resolvedIsAdmin) {
           localStorage.setItem(adminStorageKey, "1");
+        } else {
+          localStorage.removeItem(adminStorageKey);
         }
+
+        window.dispatchEvent(
+          new CustomEvent("partson:adminStateChange", {
+            detail: { isAdmin: resolvedIsAdmin, uid: user.uid },
+          })
+        );
+        window.dispatchEvent(
+          new CustomEvent("partson:authStateChange", {
+            detail: { uid: user.uid },
+          })
+        );
 
         localStorage.setItem("user_id", user.uid);
 
@@ -1000,6 +1043,16 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       } else {
         setAuthUserUid(null);
         setIsAdmin(false);
+        window.dispatchEvent(
+          new CustomEvent("partson:adminStateChange", {
+            detail: { isAdmin: false, uid: null },
+          })
+        );
+        window.dispatchEvent(
+          new CustomEvent("partson:authStateChange", {
+            detail: { uid: null },
+          })
+        );
         const fallbackId =
           typeof window !== "undefined"
             ? normalizeStoredId(localStorage.getItem("chat_user_id"))
@@ -1265,19 +1318,67 @@ export default function LayoutHost({ children }: LayoutHostProps) {
             </button>
           )}
 
-          {!isChatOpen && ChatButtonComponent ? (
-            <ChatButtonComponent onClick={openChat} unreadCount={userUnreadCount} />
-          ) : !isChatOpen ? (
+          <div className="flex items-end gap-2 sm:gap-3">
             <button
               type="button"
-              onClick={openChat}
-              aria-label="Відкрити чат"
-              className="relative z-20 mr-2 inline-flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border border-white/18 bg-sky-800 text-white shadow-[0_18px_38px_rgba(8,47,73,0.26)] transition hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
+              aria-label="Вгору"
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className={[
+                "group relative isolate z-20 flex h-[62px] w-[62px] items-center justify-center overflow-visible rounded-[22px]",
+                "border transition-[box-shadow,border-color,transform,opacity] duration-300 ease-out",
+                "hover:-translate-y-1 hover:scale-[1.018] active:scale-[0.97]",
+                "md:h-[70px] md:w-[70px]",
+                "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45",
+                "border-white/22 shadow-[0_16px_38px_rgba(8,47,73,0.18)] hover:border-white/36 hover:shadow-[0_22px_46px_rgba(14,116,144,0.22)]",
+                showScrollTop
+                  ? "opacity-100 translate-y-0 pointer-events-auto"
+                  : "opacity-0 translate-y-3 pointer-events-none",
+              ].join(" ")}
             >
-              <MessageCircle size={30} strokeWidth={2.2} aria-hidden="true" />
-              {renderBadge(userUnreadCount)}
+              <span
+                aria-hidden="true"
+                style={{ backgroundSize: "180% 180%" }}
+                className="pointer-events-none absolute inset-0 rounded-[22px] bg-[position:0%_50%] transition-[background-position] duration-700 ease-out group-hover:bg-[position:100%_50%] bg-[image:linear-gradient(145deg,rgba(51,65,85,0.78)_0%,rgba(71,85,105,0.72)_46%,rgba(100,116,139,0.64)_100%)]"
+              />
+              <span className="pointer-events-none absolute inset-0 rounded-[22px] border border-white/14 bg-[image:radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.22),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.10),transparent_82%)]" />
+              <span className="pointer-events-none absolute inset-[1px] rounded-[21px] bg-[image:linear-gradient(165deg,rgba(255,255,255,0.18),rgba(255,255,255,0.05)_38%,rgba(255,255,255,0.08)_100%)]" />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute -inset-4 scale-[0.94] rounded-[30px] bg-slate-300/12 opacity-15 blur-2xl transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.04] group-hover:opacity-40"
+              />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -translate-x-[130%] skew-x-[-18deg] bg-[image:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent)] opacity-0 mix-blend-screen transition-[opacity,transform] duration-700 ease-out group-hover:translate-x-[250%] group-hover:opacity-95"
+              />
+              <span className="pointer-events-none absolute inset-x-4 top-2.5 h-6 rounded-full bg-[image:linear-gradient(180deg,rgba(255,255,255,0.20),transparent)] blur-md" />
+              <span className="relative z-10 flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.08] group-hover:-translate-y-0.5">
+                <ChevronUp
+                  className="text-white drop-shadow-[0_8px_18px_rgba(15,23,42,0.32)]"
+                  size={30}
+                  strokeWidth={2.4}
+                  aria-hidden="true"
+                />
+              </span>
+              <span className="pointer-events-none absolute left-1/2 -top-[3.6rem] -translate-x-1/2 translate-y-1.5 whitespace-nowrap rounded-[15px] border border-white/65 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_58%,rgba(224,242,254,0.94)_100%)] px-3.5 py-2 text-[11px] font-semibold tracking-[0.05em] text-slate-800 opacity-0 shadow-[0_18px_36px_rgba(15,23,42,0.16)] backdrop-blur-xl transition-all duration-[250ms] ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+                Вгору
+              </span>
+              <span className="pointer-events-none absolute left-1/2 -top-[9px] h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-r border-b border-white/60 bg-sky-50/95 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
             </button>
-          ) : null}
+
+            {!isChatOpen && ChatButtonComponent ? (
+              <ChatButtonComponent onClick={openChat} unreadCount={userUnreadCount} />
+            ) : !isChatOpen ? (
+              <button
+                type="button"
+                onClick={openChat}
+                aria-label="Відкрити чат"
+                className="relative z-20 mr-2 inline-flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border border-white/18 bg-sky-800 text-white shadow-[0_18px_38px_rgba(8,47,73,0.26)] transition hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
+              >
+                <MessageCircle size={30} strokeWidth={2.2} aria-hidden="true" />
+                {renderBadge(userUnreadCount)}
+              </button>
+            ) : null}
+          </div>
 
           {isAdmin && AdminChatPanelComponent && (
             <AdminChatPanelComponent

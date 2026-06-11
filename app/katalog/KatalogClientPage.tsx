@@ -56,8 +56,8 @@ const SESSION_KEYS = {
 };
 
 const FILTER_TOP_GAP = 14;
-const FILTER_RESULTS_GAP = 32;
-const FILTER_RESULTS_FALLBACK_OFFSET = 112;
+const FILTER_RESULTS_GAP = 10;
+const FILTER_RESULTS_FALLBACK_OFFSET = 88;
 
 const loadCatalogFirebaseDeps = (() => {
   let promise: Promise<{
@@ -89,47 +89,6 @@ const loadCatalogFirebaseDeps = (() => {
   };
 })();
 
-const scheduleCatalogFirebaseLoad = (callback: () => void) => {
-  if (typeof window === 'undefined') return () => {};
-
-  let didRun = false;
-  let idleId: number | null = null;
-  const run = () => {
-    if (didRun) return;
-    didRun = true;
-    window.clearTimeout(timerId);
-    if (idleId != null && 'cancelIdleCallback' in window) {
-      (window as Window & { cancelIdleCallback?: (id: number) => void })
-        .cancelIdleCallback?.(idleId);
-    }
-    window.removeEventListener('click', run);
-    window.removeEventListener('keydown', run);
-    callback();
-  };
-
-  const timerId = window.setTimeout(run, 3600);
-  const win = window as Window & {
-    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-  };
-
-  if (typeof win.requestIdleCallback === 'function') {
-    idleId = win.requestIdleCallback(run, { timeout: 3600 });
-  }
-
-  window.addEventListener('click', run, { passive: true, once: true });
-  window.addEventListener('keydown', run, { once: true });
-
-  return () => {
-    didRun = true;
-    window.clearTimeout(timerId);
-    if (idleId != null && 'cancelIdleCallback' in window) {
-      (window as Window & { cancelIdleCallback?: (id: number) => void })
-        .cancelIdleCallback?.(idleId);
-    }
-    window.removeEventListener('click', run);
-    window.removeEventListener('keydown', run);
-  };
-};
 
 interface KatalogProps {
   initialPagePayload?: InitialCatalogPagePayload | null;
@@ -150,6 +109,8 @@ const Katalog: React.FC<KatalogProps> = ({
     null
   );
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [isLikelyLoggedIn, setIsLikelyLoggedIn] = useState(false);
   const [carsLoaded, setCarsLoaded] = useState(false);
   const [localReady, setLocalReady] = useState(false);
   const searchParams = useSearchParams();
@@ -192,7 +153,11 @@ const Katalog: React.FC<KatalogProps> = ({
   const hasPartSelection = Boolean(partLabel);
   const hasCarSelection = Boolean(selectedVin || selectedCarSelection || selectedCars.length > 0);
   const hasCompleteRequestContext = hasPartSelection && hasCarSelection;
-  const allowRequestActions = Boolean(firebaseUser);
+  // Before Firebase confirms auth, use localStorage to show the right buttons immediately.
+  // Once authReady, use only the actual Firebase user.
+  const allowRequestActions = authReady
+    ? Boolean(firebaseUser)
+    : (Boolean(firebaseUser) || isLikelyLoggedIn);
 
   const carSummary = useMemo(() => {
     if (!selectedCarSelection) return '';
@@ -374,119 +339,130 @@ const Katalog: React.FC<KatalogProps> = ({
   }, []);
 
   useEffect(() => {
+    try {
+      setIsLikelyLoggedIn(Boolean(localStorage.getItem('user_id')));
+    } catch {}
+
+    const handleAuthStateChange = (e: Event) => {
+      const uid = (e as CustomEvent<{ uid: string | null }>).detail?.uid;
+      setIsLikelyLoggedIn(Boolean(uid));
+    };
+    window.addEventListener('partson:authStateChange', handleAuthStateChange);
+    return () => window.removeEventListener('partson:authStateChange', handleAuthStateChange);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
 
-    const cancelScheduledLoad = scheduleCatalogFirebaseLoad(() => {
-      void loadCatalogFirebaseDeps().then(({ auth, db, doc, getDoc, onAuthStateChanged }) => {
-        if (cancelled) return;
+    void loadCatalogFirebaseDeps().then(({ auth, db, doc, getDoc, onAuthStateChanged }) => {
+      if (cancelled) return;
 
-        unsubscribe = onAuthStateChanged(auth, (user) => {
-          setFirebaseUser(user);
+      unsubscribe = onAuthStateChanged(auth, (user) => {
+        setFirebaseUser(user);
+        setAuthReady(true);
 
-          if (!user) {
-            setCarsLoaded(true);
-            return;
-          }
+        if (!user) {
+          setCarsLoaded(true);
+          return;
+        }
 
-          setCarsLoaded(false);
+        setCarsLoaded(false);
 
-          if (skipRemoteLoadRef.current) {
-            skipRemoteLoadRef.current = false;
-            setCarsLoaded(true);
-            return;
-          }
+        if (skipRemoteLoadRef.current) {
+          skipRemoteLoadRef.current = false;
+          setCarsLoaded(true);
+          return;
+        }
 
-          const extractCars = (value: unknown) =>
-            Array.isArray(value)
-              ? (value as unknown[]).filter(
-                  (car): car is string => typeof car === 'string' && car.trim() !== ''
-                )
-              : [];
+        const extractCars = (value: unknown) =>
+          Array.isArray(value)
+            ? (value as unknown[]).filter(
+                (car): car is string => typeof car === 'string' && car.trim() !== ''
+              )
+            : [];
 
-          const extractSelection = (value: unknown): PersistedCarSelection | null => {
-            if (!value || typeof value !== 'object') return null;
-            const record = value as Record<string, unknown>;
-            const brand =
-              typeof record.brand === 'string' && record.brand.trim() ? record.brand : '';
-            const model =
-              typeof record.model === 'string' && record.model.trim() ? record.model : '';
-            const label =
-              typeof record.label === 'string' && record.label.trim() ? record.label : '';
-            const year =
-              typeof record.year === 'number' && Number.isFinite(record.year)
-                ? record.year
-                : null;
-            const volume =
-              typeof record.volume === 'string' && record.volume.trim()
-                ? record.volume
-                : null;
-            const power =
-              typeof record.power === 'string' && record.power.trim() ? record.power : null;
-            const gearbox =
-              typeof record.gearbox === 'string' && record.gearbox.trim()
-                ? record.gearbox
-                : null;
-            const drive =
-              typeof record.drive === 'string' && record.drive.trim() ? record.drive : null;
+        const extractSelection = (value: unknown): PersistedCarSelection | null => {
+          if (!value || typeof value !== 'object') return null;
+          const record = value as Record<string, unknown>;
+          const brand =
+            typeof record.brand === 'string' && record.brand.trim() ? record.brand : '';
+          const model =
+            typeof record.model === 'string' && record.model.trim() ? record.model : '';
+          const label =
+            typeof record.label === 'string' && record.label.trim() ? record.label : '';
+          const year =
+            typeof record.year === 'number' && Number.isFinite(record.year)
+              ? record.year
+              : null;
+          const volume =
+            typeof record.volume === 'string' && record.volume.trim()
+              ? record.volume
+              : null;
+          const power =
+            typeof record.power === 'string' && record.power.trim() ? record.power : null;
+          const gearbox =
+            typeof record.gearbox === 'string' && record.gearbox.trim()
+              ? record.gearbox
+              : null;
+          const drive =
+            typeof record.drive === 'string' && record.drive.trim() ? record.drive : null;
 
-            if (!brand || !model || !label) return null;
-            return { brand, model, year, volume, power, gearbox, drive, label };
-          };
+          if (!brand || !model || !label) return null;
+          return { brand, model, year, volume, power, gearbox, drive, label };
+        };
 
-          const loadCars = async () => {
-            try {
-              const docRef = doc(db, 'users', user.uid);
-              const snap = await getDoc(docRef);
-              if (!snap.exists()) return;
-              const data = snap.data() as {
-                avto?: { cars?: unknown; selection?: unknown };
-                selectedCars?: unknown;
-                selectedCarSelection?: unknown;
-              };
-              const avtoData = data.avto ?? null;
+        const loadCars = async () => {
+          try {
+            const docRef = doc(db, 'users', user.uid);
+            const snap = await getDoc(docRef);
+            if (!snap.exists()) return;
+            const data = snap.data() as {
+              avto?: { cars?: unknown; selection?: unknown };
+              selectedCars?: unknown;
+              selectedCarSelection?: unknown;
+            };
+            const avtoData = data.avto ?? null;
 
-              const avtoCars = extractCars(avtoData?.cars);
-              let storedCars = avtoCars.length
-                ? avtoCars
-                : extractCars(data.selectedCars);
+            const avtoCars = extractCars(avtoData?.cars);
+            let storedCars = avtoCars.length
+              ? avtoCars
+              : extractCars(data.selectedCars);
 
-              const avtoSelection = extractSelection(avtoData?.selection);
-              const storedSelection =
-                avtoSelection ?? extractSelection(data.selectedCarSelection);
+            const avtoSelection = extractSelection(avtoData?.selection);
+            const storedSelection =
+              avtoSelection ?? extractSelection(data.selectedCarSelection);
 
-              let didApplyRemote = false;
-              if (storedSelection) {
-                if (!storedCars.includes(storedSelection.label)) {
-                  storedCars = [...storedCars, storedSelection.label];
-                }
-                setSelectedCars(storedCars);
-                setSelectedCarSelection(storedSelection);
-                didApplyRemote = true;
-              } else {
-                setSelectedCars(storedCars);
-                setSelectedCarSelection(null);
-                didApplyRemote = storedCars.length > 0;
+            let didApplyRemote = false;
+            if (storedSelection) {
+              if (!storedCars.includes(storedSelection.label)) {
+                storedCars = [...storedCars, storedSelection.label];
               }
-
-              if (didApplyRemote) {
-                skipNextRemoteSaveRef.current = true;
-              }
-            } catch (error) {
-              console.error('Failed to load saved cars from Firestore:', error);
-            } finally {
-              setCarsLoaded(true);
+              setSelectedCars(storedCars);
+              setSelectedCarSelection(storedSelection);
+              didApplyRemote = true;
+            } else {
+              setSelectedCars(storedCars);
+              setSelectedCarSelection(null);
+              didApplyRemote = storedCars.length > 0;
             }
-          };
 
-          void loadCars();
-        });
+            if (didApplyRemote) {
+              skipNextRemoteSaveRef.current = true;
+            }
+          } catch (error) {
+            console.error('Failed to load saved cars from Firestore:', error);
+          } finally {
+            setCarsLoaded(true);
+          }
+        };
+
+        void loadCars();
       });
     });
 
     return () => {
       cancelled = true;
-      cancelScheduledLoad();
       unsubscribe?.();
     };
   }, []);
@@ -559,14 +535,14 @@ const Katalog: React.FC<KatalogProps> = ({
       setPendingRequestMessage(null);
       return;
     }
-    if (!firebaseUser) {
+    if (!allowRequestActions) {
       handledRequestRef.current = null;
       setPendingRequestMessage('Авторизуйтесь, щоб відправити заявку менеджеру.');
       return;
     }
     if (handledRequestRef.current === requestMessage) return;
     setPendingRequestMessage(requestMessage);
-  }, [firebaseUser, requestMessage]);
+  }, [allowRequestActions, requestMessage]);
 
   const handleConfirmRequest = () => {
     if (!pendingRequestMessage || !firebaseUser) return;

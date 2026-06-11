@@ -16,10 +16,17 @@ type FirebaseAuthDeps = {
 let authDepsPromise: Promise<FirebaseAuthDeps> | null = null;
 let unsubscribeAuth: (() => void) | null = null;
 let authSubscriptionScheduled = false;
-let snapshot: FirebaseAuthSnapshot = {
-  ready: false,
-  user: null,
+
+const getInitialClientSnapshot = (): FirebaseAuthSnapshot => {
+  if (typeof window === "undefined") return { ready: false, user: null };
+  try {
+    const uid = localStorage.getItem("user_id");
+    if (!uid) return { ready: true, user: null };
+  } catch {}
+  return { ready: false, user: null };
 };
+
+let snapshot: FirebaseAuthSnapshot = getInitialClientSnapshot();
 const serverSnapshot: FirebaseAuthSnapshot = {
   ready: false,
   user: null,
@@ -104,14 +111,7 @@ const scheduleFirebaseAuthSubscription = () => {
   window.addEventListener("pointerdown", start, { once: true, passive: true });
   window.addEventListener("keydown", start, { once: true });
 
-  const enableIdleAuth = process.env.NEXT_PUBLIC_ENABLE_IDLE_FIREBASE === "1";
-  if (enableIdleAuth) {
-    if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(start, { timeout: 12000 });
-    } else {
-      timeoutId = window.setTimeout(start, 12000);
-    }
-  }
+  timeoutId = window.setTimeout(start, 500);
 };
 
 export const getFirebaseAuthSnapshot = () => snapshot;

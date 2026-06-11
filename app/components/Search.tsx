@@ -86,18 +86,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   };
 
   // --- 4. Пошук ---
-  const sanitizeQuery = (value: string, filter: SearchFilter) => {
-    const trimmed = value.trim();
-    const looksLikePartNumber =
-      filter === "article" ||
-      filter === "code" ||
-      (/\d/.test(trimmed) && /^[\w.\-\s/]+$/i.test(trimmed));
-    if (!looksLikePartNumber) return trimmed;
-    return trimmed.replace(/[\s.\-/]+/g, "");
-  };
+  const sanitizeQuery = (value: string) => value.trim();
 
   const handleSearch = (query?: string) => {
-    const trimmed = sanitizeQuery(query ?? searchQuery, filterBy);
+    const trimmed = sanitizeQuery(query ?? searchQuery);
     if (!trimmed) return;
 
     prefetchCatalog();
@@ -138,11 +130,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           value={searchQuery}
           onChange={(e) => {
             prefetchCatalog();
-            const nextValue =
-              filterBy === "article" || filterBy === "code"
-                ? sanitizeQuery(e.target.value, filterBy)
-                : e.target.value;
-            setSearchQuery(nextValue);
+            setSearchQuery(e.target.value);
             setShowDropdown(true);
           }}
           onFocus={() => {

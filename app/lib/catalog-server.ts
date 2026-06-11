@@ -562,13 +562,19 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     }
 
     const parsed = parseAllgoodsPayload(response.text);
+    const pageSlice = parsed.items.slice(start, start + limit);
+    // Derive a cursor from the last item of this page so subsequent pages
+    // use proper cursor-based pagination instead of repeating the window fetch.
+    // The cursor-based path (below) already handles isPriceSorted correctly.
+    const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(pageSlice);
+    const hasMore =
+      parsed.items.length > start + limit ||
+      parsed.hasMore ||
+      parsed.items.length >= requestLimit;
     return {
-      items: parsed.items.slice(start, start + limit),
-      hasMore:
-        parsed.items.length > start + limit ||
-        parsed.hasMore ||
-        parsed.items.length >= requestLimit,
-      nextCursor: "",
+      items: pageSlice,
+      hasMore,
+      nextCursor: hasMore ? resolvedCursor : "",
       cursorField: null,
     };
   }
@@ -1174,6 +1180,7 @@ export const fetchCatalogProductsByQuery = async (options: {
   forceAllgoodsSource?: boolean;
   pricedItemsOnly?: boolean;
   expandHierarchy?: boolean;
+  nameSearchQuery?: string;
 }): Promise<CatalogQueryPageResult> => {
   const page =
     Number.isFinite(options.page) && (options.page || 0) > 0
@@ -1190,7 +1197,9 @@ export const fetchCatalogProductsByQuery = async (options: {
     ? options.selectedCategories.filter((value) => typeof value === "string")
     : [];
   const searchFilter = options.searchFilter || "all";
-  const searchQuery = (options.searchQuery || "").replace(/\s+/g, " ").trim();
+  const rawSearchQuery = (options.searchQuery || "").replace(/\s+/g, " ").trim();
+  const searchQuery = rawSearchQuery;
+  const nameSearchQuery = (options.nameSearchQuery || "").replace(/\s+/g, " ").trim();
   const group = (options.group || "").trim();
   const subcategory = (options.subcategory || "").trim();
   const producer = (options.producer || "").trim();
@@ -1310,12 +1319,10 @@ export const fetchCatalogProductsByQuery = async (options: {
   let fallbackKeys: string[] | null = null;
 
   if (searchQuery) {
-    if (searchFilter === "name") {
+    if (searchFilter === "name" || searchFilter === "article") {
       primaryKeys = [...NAME_FIELDS];
     } else if (searchFilter === "code") {
       primaryKeys = [...CODE_FIELDS];
-    } else if (searchFilter === "article") {
-      primaryKeys = [...ARTICLE_FIELDS];
     } else if (searchFilter === "producer") {
       primaryKeys = [...PRODUCER_FIELDS];
     } else if (searchFilter === "description") {
@@ -1373,17 +1380,17 @@ export const fetchCatalogProductsByQuery = async (options: {
 
     const allgoodsSearchKeys = (() => {
       if (!searchQuery) return [] as string[];
-      if (searchFilter === "name") return [ALLGOODS_NAME_FIELD];
+      if (searchFilter === "name" || searchFilter === "article") return [ALLGOODS_NAME_FIELD];
       if (searchFilter === "code") return [ALLGOODS_CODE_FIELD];
-      if (searchFilter === "article") return [ALLGOODS_ARTICLE_FIELD];
       if (searchFilter === "producer") return [ALLGOODS_PRODUCER_FIELD];
       return [ALLGOODS_NAME_FIELD, ALLGOODS_ARTICLE_FIELD, ALLGOODS_CODE_FIELD];
     })();
 
-    const runAllgoods = async (searchKey?: string) => {
+    const runAllgoods = async (searchKey?: string, queryOverride?: string) => {
       const body: Record<string, unknown> = { ...allgoodsBaseBody };
-      if (searchQuery && searchKey) {
-        body[searchKey] = searchQuery;
+      const q = queryOverride ?? searchQuery;
+      if (q && searchKey) {
+        body[searchKey] = q;
       }
       return fetchAllgoodsProductsPageDetailed({
         page,
@@ -1541,18 +1548,19 @@ export const fetchCatalogProductsByQuery = async (options: {
     }
   }
 
-  const makeBody = (keys: string[] | null) => {
+  const makeBody = (keys: string[] | null, queryOverride?: string) => {
     const body = { ...baseBody };
-    if (searchQuery && keys) {
-      applySearchKeys(body, keys, searchQuery);
+    const q = queryOverride ?? searchQuery;
+    if (q && keys) {
+      applySearchKeys(body, keys, q);
     }
     return body;
   };
 
-  const runRequest = async (keys: string[] | null) => {
+  const runRequest = async (keys: string[] | null, queryOverride?: string) => {
     const response = await oneCRequest("getdata", {
       method: "POST",
-      body: makeBody(keys),
+      body: makeBody(keys, queryOverride),
       timeoutMs: options.timeoutMs,
       retries: options.retries ?? 1,
       retryDelayMs: options.retryDelayMs ?? 250,
@@ -2096,11 +2104,7 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
   );
 
   const pending = new Set<number>(attempts.map((_, index) => index));
-  while (
-    pending.size > 0 &&
-    (resolvedPrices.size < normalizedKeys.length ||
-      resolvedCostPrices.size < normalizedKeys.length)
-  ) {
+  while (pending.size > 0) {
     const result = await Promise.race(
       Array.from(pending, (index) => attempts[index])
     );
@@ -2111,6 +2115,40 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
     if (response.status < 200 || response.status >= 300) continue;
 
     mergeFromResponse(response.text, resolvedPrices, resolvedCostPrices);
+  }
+
+  // Targeted per-key allgoods lookups — more reliable than the generic batch
+  // for finding specific items' cost prices. Run for all unresolved keys in parallel.
+  const unresolvedCostKeys = normalizedKeys.filter((k) => !resolvedCostPrices.has(k));
+  if (unresolvedCostKeys.length > 0) {
+    const lookupTimeoutMs = Math.min(600, Math.max(300, Math.floor(timeoutMs * 0.7)));
+    await Promise.allSettled(
+      unresolvedCostKeys.map(async (key) => {
+        const exactProduct = await fetchExactCatalogProductByLookup(key, {
+          limit: 2,
+          timeoutMs: lookupTimeoutMs,
+          retries: 0,
+          retryDelayMs: 80,
+          cacheTtlMs,
+        }).catch(() => null);
+        if (!exactProduct) return;
+        if (
+          typeof exactProduct.costPriceEuro === "number" &&
+          Number.isFinite(exactProduct.costPriceEuro) &&
+          exactProduct.costPriceEuro > 0
+        ) {
+          resolvedCostPrices.set(key, exactProduct.costPriceEuro);
+        }
+        if (
+          !resolvedPrices.has(key) &&
+          typeof exactProduct.priceEuro === "number" &&
+          Number.isFinite(exactProduct.priceEuro) &&
+          exactProduct.priceEuro > 0
+        ) {
+          resolvedPrices.set(key, exactProduct.priceEuro);
+        }
+      })
+    );
   }
 
   return {
