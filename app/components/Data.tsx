@@ -712,6 +712,21 @@ const normalizeOptionalCacheString = (value: string | null | undefined) => {
 const normalizeFilterToken = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
 
+// Maps Ukrainian keyboard Cyrillic letters to their physical-key English equivalents
+// so a user who accidentally types in Cyrillic mode gets the right article match.
+const ARTICLE_CYRILLIC_TO_LATIN: Record<string, string> = {
+  "\u0439":"q","\u0446":"w","\u0443":"e","\u043A":"r","\u0435":"t","\u043D":"y","\u0433":"u","\u0448":"i","\u0449":"o","\u0437":"p",
+  "\u0444":"a","\u0456":"s","\u0432":"d","\u0430":"f","\u043F":"g","\u0440":"h","\u043E":"j","\u043B":"k","\u0434":"l",
+  "\u044F":"z","\u0447":"x","\u0441":"c","\u043C":"v","\u0438":"b","\u0442":"n","\u044C":"m",
+};
+
+// Normalizes an article token: Cyrillic → Latin keyboard equivalent, then
+// strips everything except letters, digits, and slashes (fractions like 3/4).
+const normalizeArticleToken = (value: string) =>
+  value
+    .replace(/[\u0400-\u04FF]/g, (ch) => ARTICLE_CYRILLIC_TO_LATIN[ch] ?? "")
+    .replace(/[^a-z0-9\/]/g, "");
+
 const normalizeCacheList = (values: string[]) =>
   Array.from(
     new Set(values.map((value) => normalizeCacheString(value)).filter(Boolean))
@@ -828,11 +843,16 @@ const normalizePageHasMore = (
 const normalizePageCursor = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
+const stripCostPriceFromPayload = (payload: CatalogPagePayload): CatalogPagePayload => ({
+  ...payload,
+  items: payload.items.map((item) => ({ ...item, costPriceEuro: undefined })),
+});
+
 const writePageToMemory = (key: string, payload: CatalogPagePayload, ttlMs: number) => {
   if (ttlMs <= 0) return;
   const nowTs = now();
   pageCache.set(key, {
-    payload,
+    payload: stripCostPriceFromPayload(payload),
     expiresAt: nowTs + ttlMs,
     lastAccessedAt: nowTs,
   });
@@ -995,7 +1015,7 @@ const writePageToSession = (
     window.sessionStorage.setItem(
       key,
       JSON.stringify({
-        items: payload.items,
+        items: payload.items.map((item) => ({ ...item, costPriceEuro: undefined })),
         prices: payload.prices ?? {},
         images: payload.images ?? {},
         hasMore:
@@ -1340,7 +1360,12 @@ function useCatalogData(params: {
           item.priceEuro > 0
             ? item.priceEuro
             : null;
-        if (inlinePrice != null) continue;
+        const hasInlineCostPrice =
+          typeof item.costPriceEuro === "number" &&
+          Number.isFinite(item.costPriceEuro) &&
+          item.costPriceEuro > 0;
+        // Skip if regular price is already known AND (cost price not needed OR already inline)
+        if (inlinePrice != null && (!includeCostPrices || hasInlineCostPrice)) continue;
 
         const lookupKeys = getProductPriceLookupKeys(item);
         if (lookupKeys.length === 0) continue;
@@ -1355,32 +1380,36 @@ function useCatalogData(params: {
                 Object.prototype.hasOwnProperty.call(prefetchedPrices, lookupKey)
               )
               .map((lookupKey) => prefetchedPrices[lookupKey])[0];
+        const needsCostPrice =
+          includeCostPrices &&
+          !Object.prototype.hasOwnProperty.call(costPricesRef.current, stateKey);
+
         if (
           typeof prefetchedPrice === "number" &&
           Number.isFinite(prefetchedPrice) &&
           prefetchedPrice > 0
         ) {
-          continue;
-        }
-        if (prefetchedPrice === null) {
+          if (!needsCostPrice) continue;
+          // Has regular price but cost price not yet fetched — fall through
+        } else if (prefetchedPrice === null) {
           immediateUpdates[stateKey] = null;
           priceRetryCooldownUntilRef.current[stateKey] =
             nowTs + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
           continue;
-        }
-
-        const currentPrice = pricesRef.current[stateKey];
-        if (
-          typeof currentPrice === "number" &&
-          Number.isFinite(currentPrice) &&
-          currentPrice > 0
-        ) {
-          continue;
-        }
-        if (currentPrice === null) {
-          priceRetryCooldownUntilRef.current[stateKey] =
-            nowTs + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
-          continue;
+        } else {
+          const currentPrice = pricesRef.current[stateKey];
+          if (
+            typeof currentPrice === "number" &&
+            Number.isFinite(currentPrice) &&
+            currentPrice > 0
+          ) {
+            if (!needsCostPrice) continue;
+            // Has regular price in state but cost price not yet fetched — fall through
+          } else if (currentPrice === null) {
+            priceRetryCooldownUntilRef.current[stateKey] =
+              nowTs + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
+            continue;
+          }
         }
 
         const cooldownUntil = priceRetryCooldownUntilRef.current[stateKey] ?? 0;
@@ -1389,7 +1418,7 @@ function useCatalogData(params: {
           delete priceRetryCooldownUntilRef.current[stateKey];
         }
 
-        if (priceLoadingKeysRef.current.has(stateKey)) continue;
+        if (priceLoadingKeysRef.current.has(stateKey) && !needsCostPrice) continue;
 
         const cachedStateEntry = readCachedPriceEntry(stateKey);
         const cachedEntry = cachedStateEntry.hit
@@ -1403,10 +1432,12 @@ function useCatalogData(params: {
           if (cachedEntry.value === null) {
             priceRetryCooldownUntilRef.current[stateKey] =
               nowTs + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
+            continue;
           } else {
             delete priceRetryCooldownUntilRef.current[stateKey];
           }
-          continue;
+          if (!needsCostPrice) continue;
+          // Has cached price but cost price needed — fall through to requestItems
         }
 
         const stalePrice =
@@ -1820,6 +1851,13 @@ function useCatalogData(params: {
         if (!key) continue;
         const src = prefetchedImageEntries[key] || pageImagesRef.current[key];
         if (src) warmImageRoute(item, src);
+      }
+
+      // Pre-warm only items explicitly flagged as having a photo so we don't
+      // waste the browser's 6 concurrent connections on items with no image.
+      // Items with unknown hasPhoto will be warmed after the batch API responds.
+      for (const item of requestItems) {
+        if (item.hasPhoto === true) warmImageRoute(item);
       }
 
       if (requestItems.length === 0) return;
@@ -2942,20 +2980,27 @@ function useCatalogData(params: {
 
   const searchableUniqueData = useMemo(
     () =>
-      uniqueData.map((item) => ({
-        item,
-        codeLower: (item.code || "").toLowerCase(),
-        articleLower: (item.article || "").toLowerCase(),
-        nameLower: (item.name || "").toLowerCase(),
-        producerLower: (item.producer || "").toLowerCase(),
-        descriptionLower: (item.description || "").toLowerCase(),
-      })),
+      uniqueData.map((item) => {
+        const articleLower = (item.article || "").toLowerCase();
+        const nameLower = (item.name || "").toLowerCase();
+        return {
+          item,
+          codeLower: (item.code || "").toLowerCase(),
+          articleLower,
+          articleNormalized: normalizeArticleToken(articleLower),
+          nameLower,
+          nameNormalized: normalizeArticleToken(nameLower),
+          producerLower: (item.producer || "").toLowerCase(),
+          descriptionLower: (item.description || "").toLowerCase(),
+        };
+      }),
     [uniqueData]
   );
 
   // --- Р›РѕРєР°Р»СЊРЅРёР№ С„С–Р»СЊС‚СЂ ---
   const filteredData = useMemo(() => {
     const q = normalizedSearchLower;
+    const qNormalized = normalizeArticleToken(q);
     const selectedCategorySet =
       effectiveSelectedCategories.length > 0
         ? new Set(
@@ -2967,16 +3012,16 @@ function useCatalogData(params: {
     const producerQuery = normalizeFilterToken(producerFromURL);
 
     return searchableUniqueData
-      .filter(({ item, codeLower, articleLower, nameLower, producerLower, descriptionLower }) => {
+      .filter(({ item, codeLower, articleLower, articleNormalized, nameLower, nameNormalized, producerLower, descriptionLower }) => {
         const producerMatch = !producerQuery || producerLower.includes(producerQuery);
         const isDescriptionSearch = searchFilter === "description" && q.length > 0;
 
         const match =
           searchFilter === "article"
-            ? articleLower.includes(q)
+            ? (qNormalized ? nameNormalized.includes(qNormalized) : nameLower.includes(q))
             : searchFilter === "name"
-              ? nameLower.includes(q)
-              : searchFilter === "code"
+            ? nameLower.includes(q)
+            : searchFilter === "code"
                 ? codeLower.includes(q)
                 : searchFilter === "producer"
                   ? producerLower.includes(q)
@@ -3115,6 +3160,44 @@ function useCatalogData(params: {
     [fetchCatalogPagePrices, shouldAllowCatalogDirectPriceLookup]
   );
 
+  const prevIncludeCostPricesRef = useRef(includeCostPrices);
+  useEffect(() => {
+    const justBecameTrue = includeCostPrices && !prevIncludeCostPricesRef.current;
+    prevIncludeCostPricesRef.current = includeCostPrices;
+    if (!justBecameTrue || dataRef.current.length === 0) return;
+    void fetchCatalogPagePrices(dataRef.current, {
+      prefetchedPrices: {},
+      querySignatureSnapshot: activeQuerySignatureRef.current,
+      allowFullLookup: true,
+    }).catch(swallowAbortError);
+  }, [includeCostPrices, fetchCatalogPagePrices]);
+
+  // When new items are appended while admin, retry cost prices after a delay in case the
+  // initial targeted 1C lookup timed out. The route cache uses a 20s short-TTL on null
+  // cost-price results, so this 25s retry lands on a fresh response.
+  const prevCostPriceDataLengthRef = useRef(0);
+  useEffect(() => {
+    const prevLen = prevCostPriceDataLengthRef.current;
+    prevCostPriceDataLengthRef.current = data.length;
+    if (!includeCostPrices || data.length <= prevLen) return;
+    const timerId = window.setTimeout(() => {
+      const needsFetch = dataRef.current.filter((item) => {
+        const stateKey = getProductPriceStateKey(item);
+        return (
+          stateKey &&
+          !Object.prototype.hasOwnProperty.call(costPricesRef.current, stateKey)
+        );
+      });
+      if (needsFetch.length === 0) return;
+      void fetchCatalogPagePrices(needsFetch, {
+        prefetchedPrices: {},
+        querySignatureSnapshot: activeQuerySignatureRef.current,
+        allowFullLookup: true,
+      }).catch(swallowAbortError);
+    }, 25000);
+    return () => window.clearTimeout(timerId);
+  }, [data.length, includeCostPrices, fetchCatalogPagePrices]);
+
   return {
     filteredData,
     quantities,
@@ -3191,8 +3274,18 @@ const Data: React.FC<DataProps> = ({
   useEffect(() => {
     try {
       const uid = localStorage.getItem("user_id");
-      if (uid) setIsAdmin(localStorage.getItem("partson:isAdmin:" + uid) === "1");
+      if (uid && localStorage.getItem(`partson:isAdmin:${uid}`) === "1") {
+        setIsAdmin(true);
+      }
     } catch {}
+  }, []);
+  useEffect(() => {
+    const handleAdminChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ isAdmin: boolean }>).detail;
+      setIsAdmin(Boolean(detail?.isAdmin));
+    };
+    window.addEventListener("partson:adminStateChange", handleAdminChange);
+    return () => window.removeEventListener("partson:adminStateChange", handleAdminChange);
   }, []);
 
   const {
@@ -3264,8 +3357,7 @@ const Data: React.FC<DataProps> = ({
   );
 
   const sortedEntries = useMemo(() => {
-    const shouldUseClientPriceSort =
-      sortOrder !== "none" && selectedCars.length > 0;
+    const shouldUseClientPriceSort = sortOrder !== "none";
     const entries = filteredData.map((item, index) => ({
       item,
       index,
@@ -3273,32 +3365,37 @@ const Data: React.FC<DataProps> = ({
       stableKey: getProductStableListKey(item),
       priceKey: getProductPriceStateKey(item),
       priceUAH: shouldUseClientPriceSort
-        ? getResolvedProductPriceUAH(item, prices, euroRate)
+        ? (() => {
+            // Prefer inline priceEuro to match server sort order and avoid
+            // items jumping positions when the batch-price API responds.
+            const inlineEuro =
+              typeof item.priceEuro === "number" &&
+              Number.isFinite(item.priceEuro) &&
+              item.priceEuro > 0
+                ? item.priceEuro
+                : null;
+            const euro = inlineEuro ?? getResolvedProductPriceEuro(item, prices);
+            return toPriceUAH(euro, euroRate);
+          })()
         : null,
     }));
 
     if (!shouldUseClientPriceSort) return entries;
 
-    const sortedWithUnpricedLast = [...entries].sort((a, b) => {
+    const priceSortFn = (a: (typeof entries)[0], b: (typeof entries)[0]) => {
       const aHasPrice = a.priceUAH != null ? 0 : 1;
       const bHasPrice = b.priceUAH != null ? 0 : 1;
       if (aHasPrice !== bHasPrice) return aHasPrice - bHasPrice;
-
       if (a.priceUAH != null && b.priceUAH != null) {
-        if (sortOrder === "asc" && a.priceUAH !== b.priceUAH) {
-          return a.priceUAH - b.priceUAH;
-        }
-
-        if (sortOrder === "desc" && a.priceUAH !== b.priceUAH) {
-          return b.priceUAH - a.priceUAH;
-        }
+        if (sortOrder === "asc" && a.priceUAH !== b.priceUAH) return a.priceUAH - b.priceUAH;
+        if (sortOrder === "desc" && a.priceUAH !== b.priceUAH) return b.priceUAH - a.priceUAH;
       }
-
       return a.index - b.index;
-    });
+    };
 
-    return sortedWithUnpricedLast;
-  }, [filteredData, prices, euroRate, sortOrder, selectedCars.length]);
+    // Sort all items by best-available price; items without price go to the end in server order
+    return [...entries].sort(priceSortFn);
+  }, [filteredData, prices, euroRate, sortOrder]);
   const sortedData = useMemo(
     () => sortedEntries.map(({ item }) => item),
     [sortedEntries]
@@ -3373,14 +3470,13 @@ const Data: React.FC<DataProps> = ({
   );
   const hasPendingSortedPriceResolution = useMemo(() => {
     if (sortOrder === "none") return false;
-    if (selectedCars.length === 0) return false;
 
     return filteredData.some((item) => {
       const priceUAH = getResolvedProductPriceUAH(item, prices, euroRate);
       if (priceUAH != null) return false;
       return !hasResolvedProductPriceState(item, prices);
     });
-  }, [filteredData, prices, euroRate, sortOrder, selectedCars.length]);
+  }, [filteredData, prices, euroRate, sortOrder]);
   const shouldShowInitialSkeleton =
     (filterLoading || loading || hasPendingSortedPriceResolution) &&
     visibleSortedData.length === 0;

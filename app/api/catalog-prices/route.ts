@@ -104,7 +104,7 @@ export async function POST(request: Request) {
       const isFullMode = mode === "full";
       const lookupDetailsPromise = isFullMode
         ? fetchCatalogPriceDetailsByLookupKeys(allLookupKeys, {
-            timeoutMs: 850,
+            timeoutMs: 1800,
             cacheTtlMs: 1000 * 20,
             includePricesPost: true,
           }).catch(() => ({
@@ -117,9 +117,9 @@ export async function POST(request: Request) {
           });
 
       const lookupPricesPromise = fetchPriceEuroMapByLookupKeys(allLookupKeys, {
-        sourceTimeoutMs: isFullMode ? 760 : 360,
+        sourceTimeoutMs: isFullMode ? 760 : 520,
         sourceCacheTtlMs: 1000 * 20,
-        timeoutMs: isFullMode ? 760 : 360,
+        timeoutMs: isFullMode ? 760 : 520,
         retries: 0,
         retryDelayMs: 80,
         cacheTtlMs: 1000 * 60 * 5,
@@ -170,9 +170,16 @@ export async function POST(request: Request) {
     });
 
     const payload = await resolvePayloadPromise;
+    // Use a short TTL when full-mode returns no cost prices — likely a timeout, not
+    // genuinely absent data. This lets the next request retry against a fresh 1C response
+    // instead of serving stale nulls for 4 minutes.
+    const allCostPricesNull =
+      mode === "full" &&
+      Object.keys(payload.costPrices).length > 0 &&
+      Object.values(payload.costPrices).every((v) => v === null);
     catalogPricesRouteCache.set(cacheKey, {
       payload,
-      expiresAt: Date.now() + CATALOG_PRICES_ROUTE_CACHE_TTL_MS,
+      expiresAt: Date.now() + (allCostPricesNull ? 1000 * 20 : CATALOG_PRICES_ROUTE_CACHE_TTL_MS),
     });
 
     return NextResponse.json(

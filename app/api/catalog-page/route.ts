@@ -43,24 +43,41 @@ const toPositiveInt = (value: unknown, fallback: number) => {
   return Math.floor(parsed);
 };
 
-const buildRouteCacheKey = (body: Record<string, unknown>) =>
-  JSON.stringify({
-    source: "catalog-page:v19-hierarchy-scope",
+const CYRILLIC_TO_LATIN: Record<string, string> = {
+  "й":"q","ц":"w","у":"e","к":"r","е":"t","н":"y","г":"u","ш":"i","щ":"o","з":"p",
+  "ф":"a","і":"s","в":"d","а":"f","п":"g","р":"h","о":"j","л":"k","д":"l",
+  "я":"z","ч":"x","с":"c","м":"v","и":"b","т":"n","ь":"m",
+};
+
+// Converts Cyrillic (UA keyboard layout) → Latin, then strips everything except letters, digits, and /
+const normalizeArticleQuery = (query: string): string =>
+  query
+    .toLowerCase()
+    .replace(/[Ѐ-ӿ]/g, (ch) => CYRILLIC_TO_LATIN[ch] ?? "")
+    .replace(/[^a-z0-9/]/g, "");
+
+const buildRouteCacheKey = (body: Record<string, unknown>) => {
+  const rawFilter =
+    body.searchFilter === "article" ||
+    body.searchFilter === "name" ||
+    body.searchFilter === "code" ||
+    body.searchFilter === "producer" ||
+    body.searchFilter === "description"
+      ? body.searchFilter
+      : "all";
+  const effectiveFilter = rawFilter === "article" ? "name" : rawFilter;
+  const rawSearch = toTrimmedString(body.searchQuery);
+  const effectiveSearch = rawFilter === "article" ? normalizeArticleQuery(rawSearch) : rawSearch;
+  return JSON.stringify({
+    source: "catalog-page:v23-sort-fix",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
     cursorField: toTrimmedString(body.cursorField),
     selectedCars: toStringArray(body.selectedCars),
     selectedCategories: toStringArray(body.selectedCategories),
-    searchQuery: toTrimmedString(body.searchQuery),
-    searchFilter:
-      body.searchFilter === "article" ||
-      body.searchFilter === "name" ||
-      body.searchFilter === "code" ||
-      body.searchFilter === "producer" ||
-      body.searchFilter === "description"
-        ? body.searchFilter
-        : "all",
+    searchQuery: effectiveSearch,
+    searchFilter: effectiveFilter,
     group: toTrimmedString(body.group),
     subcategory: toTrimmedString(body.subcategory),
     producer: toTrimmedString(body.producer),
@@ -70,6 +87,7 @@ const buildRouteCacheKey = (body: Record<string, unknown>) =>
         ? body.sortOrder
         : "none",
   });
+};
 
 const pruneRouteSuccessCache = () => {
   const now = Date.now();
@@ -143,7 +161,7 @@ const sanitizeCatalogErrorMessage = (value: string | null | undefined) => {
       stripped
     )
   ) {
-    return "Каталог тимчасово перевантажений. Спробуйте ще раз через кілька секунд.";
+    return "\u041A\u0430\u0442\u0430\u043B\u043E\u0433 \u0442\u0438\u043C\u0447\u0430\u0441\u043E\u0432\u043E \u043F\u0435\u0440\u0435\u0432\u0430\u043D\u0442\u0430\u0436\u0435\u043D\u0438\u0439. \u0421\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0449\u0435 \u0440\u0430\u0437 \u0447\u0435\u0440\u0435\u0437 \u043A\u0456\u043B\u044C\u043A\u0430 \u0441\u0435\u043A\u0443\u043D\u0434.";
   }
 
   return stripped.length > 220 ? `${stripped.slice(0, 220)}...` : stripped;
@@ -190,7 +208,19 @@ export async function POST(request: Request) {
 
     const staleCacheHit = getStaleRouteCacheValue(routeCacheKey);
 
-    const normalizedSearchQuery = toTrimmedString(body.searchQuery);
+    const rawSearchQuery = toTrimmedString(body.searchQuery);
+    const searchFilterValue =
+      body.searchFilter === "article" ||
+      body.searchFilter === "name" ||
+      body.searchFilter === "code" ||
+      body.searchFilter === "producer" ||
+      body.searchFilter === "description"
+        ? body.searchFilter
+        : "all";
+    const effectiveSearchFilter = searchFilterValue === "article" ? "name" : searchFilterValue;
+    const normalizedSearchQuery = searchFilterValue === "article"
+      ? normalizeArticleQuery(rawSearchQuery)
+      : rawSearchQuery;
     const normalizedGroup = toTrimmedString(body.group);
     const normalizedSubcategory = toTrimmedString(body.subcategory);
     const normalizedProducer = toTrimmedString(body.producer);
@@ -216,7 +246,7 @@ export async function POST(request: Request) {
         : 3600;
     const retries = 0;
     const retryDelayMs = hasTightFilterContext ? 80 : 150;
-    const cacheTtlMs = hasTightFilterContext ? 1000 * 20 : 1000 * 45;
+    const cacheTtlMs = hasTightFilterContext ? 1000 * 90 : 1000 * 45;
     const staleTtlMs = hasTightFilterContext
       ? ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS
       : ROUTE_SUCCESS_STALE_TTL_MS;
@@ -229,14 +259,8 @@ export async function POST(request: Request) {
       selectedCars: toStringArray(body.selectedCars),
       selectedCategories: normalizedSelectedCategories,
       searchQuery: normalizedSearchQuery,
-      searchFilter:
-        body.searchFilter === "article" ||
-        body.searchFilter === "name" ||
-        body.searchFilter === "code" ||
-        body.searchFilter === "producer" ||
-        body.searchFilter === "description"
-          ? body.searchFilter
-          : "all",
+      searchFilter: effectiveSearchFilter,
+      nameSearchQuery: "",
       group: normalizedGroup,
       subcategory: normalizedSubcategory,
       producer: normalizedProducer,
@@ -444,7 +468,7 @@ export async function POST(request: Request) {
         hasMore: false,
         nextCursor: "",
         serviceUnavailable: true,
-        message: normalizedMessage || "Каталог тимчасово недоступний.",
+        message: normalizedMessage || "\u041A\u0430\u0442\u0430\u043B\u043E\u0433 \u0442\u0438\u043C\u0447\u0430\u0441\u043E\u0432\u043E \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0438\u0439.",
       },
       { status: 503 }
     );
