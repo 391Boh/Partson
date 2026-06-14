@@ -84,18 +84,24 @@ function BrandCard({
 
       <span className="relative z-10 flex min-w-0 items-center gap-3">
         <span className="flex h-[54px] w-[78px] shrink-0 items-center justify-center rounded-xl border border-sky-100/80 bg-white/92 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_6px_14px_rgba(15,23,42,0.07)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.015] group-active:scale-[0.99] sm:h-[58px] sm:w-[86px]">
-          <Image
-            src={brand.logo}
-            alt={`${brand.name} logo`}
-            width={320}
-            height={200}
-            quality={100}
-            draggable={false}
-            className="max-h-[34px] w-auto max-w-[64px] object-contain drop-shadow-[0_5px_10px_rgba(15,23,42,0.1)] sm:max-h-[38px] sm:max-w-[72px]"
-            style={{ imageRendering: "auto" }}
-            sizes="(max-width: 640px) 64px, 80px"
-            onError={handleBrandLogoLoadError}
-          />
+          {brand.logo ? (
+            <Image
+              src={brand.logo}
+              alt={`${brand.name} logo`}
+              width={320}
+              height={200}
+              quality={100}
+              draggable={false}
+              className="max-h-[34px] w-auto max-w-[64px] object-contain drop-shadow-[0_5px_10px_rgba(15,23,42,0.1)] sm:max-h-[38px] sm:max-w-[72px]"
+              style={{ imageRendering: "auto" }}
+              sizes="(max-width: 640px) 64px, 80px"
+              onError={handleBrandLogoLoadError}
+            />
+          ) : (
+            <span className="text-[13px] font-black text-slate-600 tracking-tight leading-none text-center px-1">
+              {brand.name.split(" ").map((w) => w[0]).join("").slice(0, 3).toUpperCase()}
+            </span>
+          )}
         </span>
         <span className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
           <span className="block max-w-full break-words text-left text-[15px] font-black leading-tight tracking-[-0.02em] text-slate-800 transition-colors duration-300 group-hover:text-sky-800 sm:text-[16px]">

@@ -593,7 +593,7 @@ const Katalog: React.FC<KatalogProps> = ({
   };
 
   const toggleSortOrder = () => {
-    setSortOrder((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'asc'));
+    setSortOrder((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none'));
   };
 
   const filterSidebar = (

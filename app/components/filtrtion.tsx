@@ -162,7 +162,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     toggleSortOrderProp ??
     (() =>
       setLocalSortOrder((prev) =>
-        prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'asc'
+        prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none'
       ));
   const isSortNone = effectiveSortOrder === 'none';
   const isSortAsc = effectiveSortOrder === 'asc';
