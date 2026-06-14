@@ -2,7 +2,8 @@ import "server-only";
 
 import type { RelatedProductCardItem } from "app/lib/product-related";
 import {
-  getRelatedProducts,
+  getAnalogProducts,
+  getSimilarProducts,
   getStaticProductRecommendations,
 } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
@@ -11,9 +12,6 @@ import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getSiteUrl } from "app/lib/site-url";
 
 // Cap the SSR prefetch so the Suspense boundary does not hold the page past this.
-// On cache hit (unstable_cache, 10 min TTL) the call returns in < 100 ms.
-// On a cold miss the sequential 1C lookups can be slow; bail out quickly and
-// let the client component continue after the main product content is visible.
 const RELATED_SSR_TIMEOUT_MS = 160;
 
 type ProductRelatedItemsSectionProps = {
@@ -82,32 +80,46 @@ export default async function ProductRelatedItemsSection({
         group,
         subGroup,
         category
-      ).catch(() => ({ related: [], similar: [] }))
+      ).catch(() => ({ related: [] as RelatedProductCardItem[], similar: [] as RelatedProductCardItem[] }))
     : { related: [] as RelatedProductCardItem[], similar: [] as RelatedProductCardItem[] };
 
-  const fetched = staticRecommendations.related.length > 0
-    ? staticRecommendations.related
-    : preferStatic && staticRecommendations.similar.length > 0
-      ? null
-    : ssrTimeoutMs == null
-      ? await getRelatedProducts(article, code, name, producer, group, subGroup, category).catch(
-          () => null
-        )
-      : await resolveWithTimeout<RelatedProductCardItem[] | null>(
-          () => getRelatedProducts(article, code, name, producer, group, subGroup, category),
-          null,
-          ssrTimeoutMs
-        );
+  // Аналоги: products found by article/name search
+  let initialRelatedItems: RelatedProductCardItem[] | null = null;
+  // Схожі: products from the same subgroup/group
+  let initialSimilarItems: RelatedProductCardItem[] | null = null;
 
-  // Pass null (not []) on timeout or empty so the client can fall back to
-  // the similar-products fetch instead of rendering nothing.
-  const initialItems = fetched && fetched.length > 0 ? fetched : null;
-  const initialSimilarItems =
-    staticRecommendations.similar.length > 0 ? staticRecommendations.similar : null;
-  const jsonLdItems = [
-    ...(initialItems ?? []),
-    ...(initialSimilarItems ?? []),
-  ];
+  if (staticRecommendations.related.length > 0 || staticRecommendations.similar.length > 0) {
+    initialRelatedItems = staticRecommendations.related.length > 0
+      ? staticRecommendations.related
+      : null;
+    initialSimilarItems = staticRecommendations.similar.length > 0
+      ? staticRecommendations.similar
+      : null;
+  } else {
+    // Fetch both in parallel with the same timeout
+    const timeout = ssrTimeoutMs ?? RELATED_SSR_TIMEOUT_MS;
+    const [fetchedRelated, fetchedSimilar] = await Promise.all([
+      ssrTimeoutMs == null
+        ? getAnalogProducts(article, code, name, producer, group, subGroup, category).catch(() => null)
+        : resolveWithTimeout<RelatedProductCardItem[] | null>(
+            () => getAnalogProducts(article, code, name, producer, group, subGroup, category),
+            null,
+            timeout
+          ),
+      ssrTimeoutMs == null
+        ? getSimilarProducts(article, code, name, producer, group, subGroup, category).catch(() => null)
+        : resolveWithTimeout<RelatedProductCardItem[] | null>(
+            () => getSimilarProducts(article, code, name, producer, group, subGroup, category),
+            null,
+            timeout
+          ),
+    ]);
+
+    initialRelatedItems = fetchedRelated && fetchedRelated.length > 0 ? fetchedRelated : null;
+    initialSimilarItems = fetchedSimilar && fetchedSimilar.length > 0 ? fetchedSimilar : null;
+  }
+
+  const jsonLdItems = [...(initialRelatedItems ?? []), ...(initialSimilarItems ?? [])];
   const recommendationItemListJsonLd = buildRecommendationItemListJsonLd(
     jsonLdItems,
     `Аналоги та схожі товари для ${buildVisibleProductName(name || article || code)}`
@@ -117,7 +129,7 @@ export default async function ProductRelatedItemsSection({
     <>
       <ProductRelatedItemsClientSection
         product={product}
-        initialItems={initialItems}
+        initialRelatedItems={initialRelatedItems}
         initialSimilarItems={initialSimilarItems}
         euroRate={euroRate}
       />

@@ -829,3 +829,66 @@ export const getStaticProductRecommendations = cache(
       category
     )
 );
+
+// Аналоги — products whose name in 1C contains the selected product's article number.
+// Uses findAnalogProductsByArticleInName exclusively (no broad text search).
+const MAX_ANALOG_ITEMS = 6;
+
+const getAnalogProductsUncached = async (
+  article: string,
+  code: string,
+  name = "",
+  producer = "",
+  group = "",
+  subGroup = "",
+  category = ""
+) => {
+  const targetProduct = buildSyntheticProduct(
+    article,
+    code,
+    name,
+    producer,
+    group,
+    subGroup,
+    category
+  );
+
+  if (!targetProduct.article) return [] as RelatedProductCardItem[];
+
+  const items = await findAnalogProductsByArticleInName(targetProduct, {
+    limit: MAX_ANALOG_ITEMS,
+    maxPages: 2,
+    pageSize: 96,
+  }).catch(() => []);
+
+  return collectAndFilterUnique(items, targetProduct)
+    .slice(0, MAX_ANALOG_ITEMS)
+    .map(toRelatedCardItem);
+};
+
+const getAnalogProductsCached = unstable_cache(
+  getAnalogProductsUncached,
+  ["product-analogs:article-in-name-v1"],
+  { revalidate: 60 * 10 }
+);
+
+export const getAnalogProducts = cache(
+  async (
+    article: string,
+    code: string,
+    name = "",
+    producer = "",
+    group = "",
+    subGroup = "",
+    category = ""
+  ) =>
+    getAnalogProductsCached(
+      article,
+      code,
+      name,
+      producer,
+      group,
+      subGroup,
+      category
+    )
+);
