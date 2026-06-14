@@ -361,7 +361,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     };
 
     let timeoutId: number | null = null;
-    let idleId: number | null = null;
+    const idleId: number | null = null;
     const triggerDepsLoad = () => {
       window.removeEventListener("click", triggerDepsLoad);
       window.removeEventListener("keydown", triggerDepsLoad);

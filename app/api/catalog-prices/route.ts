@@ -18,9 +18,15 @@ type CatalogPricesPayload = {
 };
 
 const CATALOG_PRICES_ROUTE_CACHE_TTL_MS = 1000 * 60 * 4;
+const CATALOG_PRICES_ROUTE_SHORT_CACHE_TTL_MS = 1000 * 20;
+const CATALOG_PRICES_ITEM_CACHE_MAX_ENTRIES = 2500;
 const catalogPricesRouteCache = new Map<
   string,
   { payload: CatalogPricesPayload; expiresAt: number }
+>();
+const catalogPriceItemCache = new Map<
+  string,
+  { price: number | null; costPrice: number | null; expiresAt: number }
 >();
 const catalogPricesRouteInFlight = new Map<string, Promise<CatalogPricesPayload>>();
 
@@ -51,6 +57,62 @@ const buildCatalogPricesRouteCacheKey = (
       .sort((left, right) => left.stateKey.localeCompare(right.stateKey)),
   });
 
+const buildCatalogPriceItemCacheKey = (
+  mode: string,
+  item: { stateKey: string; lookupKeys: string[] }
+) =>
+  JSON.stringify({
+    mode,
+    stateKey: item.stateKey.trim().toLowerCase(),
+    lookupKeys: Array.from(
+      new Set(item.lookupKeys.map((key) => key.trim().toLowerCase()).filter(Boolean))
+    ).sort(),
+  });
+
+const readCatalogPriceItemCache = (
+  mode: string,
+  item: { stateKey: string; lookupKeys: string[] },
+  now: number
+) => {
+  const key = buildCatalogPriceItemCacheKey(mode, item);
+  const cached = catalogPriceItemCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt <= now) {
+    catalogPriceItemCache.delete(key);
+    return null;
+  }
+  return cached;
+};
+
+const writeCatalogPriceItemCache = (
+  mode: string,
+  item: { stateKey: string; lookupKeys: string[] },
+  price: number | null,
+  costPrice: number | null,
+  ttlMs: number
+) => {
+  catalogPriceItemCache.set(buildCatalogPriceItemCacheKey(mode, item), {
+    price,
+    costPrice,
+    expiresAt: Date.now() + ttlMs,
+  });
+};
+
+const pruneCatalogPriceItemCache = (now: number) => {
+  for (const [key, entry] of catalogPriceItemCache.entries()) {
+    if (entry.expiresAt <= now) {
+      catalogPriceItemCache.delete(key);
+    }
+  }
+
+  if (catalogPriceItemCache.size <= CATALOG_PRICES_ITEM_CACHE_MAX_ENTRIES) return;
+
+  const overflow = catalogPriceItemCache.size - CATALOG_PRICES_ITEM_CACHE_MAX_ENTRIES;
+  for (const key of Array.from(catalogPriceItemCache.keys()).slice(0, overflow)) {
+    catalogPriceItemCache.delete(key);
+  }
+};
+
 export async function POST(request: Request) {
   try {
     const requestUrl = new URL(request.url);
@@ -78,6 +140,7 @@ export async function POST(request: Request) {
     const cacheKey = buildCatalogPricesRouteCacheKey(mode, normalizedItems);
     const cached = catalogPricesRouteCache.get(cacheKey);
     const now = Date.now();
+    pruneCatalogPriceItemCache(now);
     if (cached && cached.expiresAt > now) {
       return NextResponse.json(cached.payload, {
         headers: {
@@ -86,9 +149,49 @@ export async function POST(request: Request) {
       });
     }
 
-    const existing = catalogPricesRouteInFlight.get(cacheKey);
+    const cachedItemPrices: Record<string, number | null> = {};
+    const cachedItemCostPrices: Record<string, number | null> = {};
+    const missingItems: typeof normalizedItems = [];
+
+    for (const item of normalizedItems) {
+      const cachedItem = readCatalogPriceItemCache(mode, item, now);
+      if (!cachedItem) {
+        missingItems.push(item);
+        continue;
+      }
+
+      cachedItemPrices[item.stateKey] = cachedItem.price;
+      cachedItemCostPrices[item.stateKey] = cachedItem.costPrice;
+    }
+
+    if (missingItems.length === 0) {
+      const payload = {
+        prices: cachedItemPrices,
+        costPrices: cachedItemCostPrices,
+      };
+      catalogPricesRouteCache.set(cacheKey, {
+        payload,
+        expiresAt: now + CATALOG_PRICES_ROUTE_CACHE_TTL_MS,
+      });
+      return NextResponse.json(payload, {
+        headers: {
+          "cache-control": "no-store",
+        },
+      });
+    }
+
+    const missingCacheKey = buildCatalogPricesRouteCacheKey(mode, missingItems);
+    const existing = catalogPricesRouteInFlight.get(missingCacheKey);
     if (existing) {
-      const payload = await existing;
+      const missingPayload = await existing;
+      const payload = {
+        prices: { ...cachedItemPrices, ...missingPayload.prices },
+        costPrices: { ...cachedItemCostPrices, ...missingPayload.costPrices },
+      };
+      catalogPricesRouteCache.set(cacheKey, {
+        payload,
+        expiresAt: Date.now() + CATALOG_PRICES_ROUTE_CACHE_TTL_MS,
+      });
       return NextResponse.json(payload, {
         headers: {
           "cache-control": "no-store",
@@ -98,7 +201,7 @@ export async function POST(request: Request) {
 
     const resolvePayloadPromise = (async (): Promise<CatalogPricesPayload> => {
       const allLookupKeys = Array.from(
-        new Set(normalizedItems.flatMap((item) => item.lookupKeys))
+        new Set(missingItems.flatMap((item) => item.lookupKeys))
       );
 
       const isFullMode = mode === "full";
@@ -141,7 +244,7 @@ export async function POST(request: Request) {
 
       const prices: Record<string, number | null> = {};
       const costPrices: Record<string, number | null> = {};
-      for (const item of normalizedItems) {
+      for (const item of missingItems) {
         const matched = item.lookupKeys
           .map((lookupKey) => lookupPrices[lookupKey.trim().toLowerCase()])
           .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
@@ -164,22 +267,45 @@ export async function POST(request: Request) {
       return { prices, costPrices };
     })();
 
-    catalogPricesRouteInFlight.set(cacheKey, resolvePayloadPromise);
+    catalogPricesRouteInFlight.set(missingCacheKey, resolvePayloadPromise);
     resolvePayloadPromise.finally(() => {
-      catalogPricesRouteInFlight.delete(cacheKey);
+      catalogPricesRouteInFlight.delete(missingCacheKey);
     });
 
-    const payload = await resolvePayloadPromise;
+    const missingPayload = await resolvePayloadPromise;
     // Use a short TTL when full-mode returns no cost prices — likely a timeout, not
     // genuinely absent data. This lets the next request retry against a fresh 1C response
     // instead of serving stale nulls for 4 minutes.
     const allCostPricesNull =
       mode === "full" &&
-      Object.keys(payload.costPrices).length > 0 &&
-      Object.values(payload.costPrices).every((v) => v === null);
+      Object.keys(missingPayload.costPrices).length > 0 &&
+      Object.values(missingPayload.costPrices).every((v) => v === null);
+    const itemCacheTtlMs = allCostPricesNull
+      ? CATALOG_PRICES_ROUTE_SHORT_CACHE_TTL_MS
+      : CATALOG_PRICES_ROUTE_CACHE_TTL_MS;
+
+    for (const item of missingItems) {
+      writeCatalogPriceItemCache(
+        mode,
+        item,
+        Object.prototype.hasOwnProperty.call(missingPayload.prices, item.stateKey)
+          ? missingPayload.prices[item.stateKey]
+          : null,
+        Object.prototype.hasOwnProperty.call(missingPayload.costPrices, item.stateKey)
+          ? missingPayload.costPrices[item.stateKey]
+          : null,
+        itemCacheTtlMs
+      );
+    }
+
+    const payload = {
+      prices: { ...cachedItemPrices, ...missingPayload.prices },
+      costPrices: { ...cachedItemCostPrices, ...missingPayload.costPrices },
+    };
+
     catalogPricesRouteCache.set(cacheKey, {
       payload,
-      expiresAt: Date.now() + (allCostPricesNull ? 1000 * 20 : CATALOG_PRICES_ROUTE_CACHE_TTL_MS),
+      expiresAt: Date.now() + itemCacheTtlMs,
     });
 
     return NextResponse.json(

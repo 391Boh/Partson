@@ -1180,7 +1180,6 @@ export const fetchCatalogProductsByQuery = async (options: {
   forceAllgoodsSource?: boolean;
   pricedItemsOnly?: boolean;
   expandHierarchy?: boolean;
-  nameSearchQuery?: string;
 }): Promise<CatalogQueryPageResult> => {
   const page =
     Number.isFinite(options.page) && (options.page || 0) > 0
@@ -1199,7 +1198,6 @@ export const fetchCatalogProductsByQuery = async (options: {
   const searchFilter = options.searchFilter || "all";
   const rawSearchQuery = (options.searchQuery || "").replace(/\s+/g, " ").trim();
   const searchQuery = rawSearchQuery;
-  const nameSearchQuery = (options.nameSearchQuery || "").replace(/\s+/g, " ").trim();
   const group = (options.group || "").trim();
   const subcategory = (options.subcategory || "").trim();
   const producer = (options.producer || "").trim();

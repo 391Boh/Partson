@@ -19,6 +19,41 @@ interface SearchBarProps {
 const MAX_HISTORY = 8;
 type SearchFilter = "all" | "article" | "name" | "code" | "producer" | "description";
 
+const CYRILLIC_TO_LATIN: Record<string, string> = {
+  "й": "q",
+  "ц": "w",
+  "у": "e",
+  "к": "r",
+  "е": "t",
+  "н": "y",
+  "г": "u",
+  "ш": "i",
+  "щ": "o",
+  "з": "p",
+  "ф": "a",
+  "і": "s",
+  "в": "d",
+  "а": "f",
+  "п": "g",
+  "р": "h",
+  "о": "j",
+  "л": "k",
+  "д": "l",
+  "я": "z",
+  "ч": "x",
+  "с": "c",
+  "м": "v",
+  "и": "b",
+  "т": "n",
+  "ь": "m",
+};
+
+const sanitizeArticleQuery = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[Ѐ-ӿ]/g, (ch) => CYRILLIC_TO_LATIN[ch] ?? "")
+    .replace(/[^a-z0-9/]/g, "");
+
 const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterBy, setFilterBy] = useState<SearchFilter>("all");
@@ -86,17 +121,21 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   };
 
   // --- 4. Пошук ---
-  const sanitizeQuery = (value: string) => value.trim();
+  const sanitizeQuery = (value: string, filter: SearchFilter) => {
+    if (filter === "article") return sanitizeArticleQuery(value);
+    return value.replace(/\s+/g, " ").trim();
+  };
 
   const handleSearch = (query?: string) => {
-    const trimmed = sanitizeQuery(query ?? searchQuery);
-    if (!trimmed) return;
+    const sanitized = sanitizeQuery(query ?? searchQuery, filterBy);
+    if (!sanitized) return;
 
     prefetchCatalog();
-    router.push(`/katalog?search=${encodeURIComponent(trimmed)}&filter=${filterBy}`);
+    const effectiveFilter: SearchFilter = filterBy === "article" ? "name" : filterBy;
+    router.push(`/katalog?search=${encodeURIComponent(sanitized)}&filter=${effectiveFilter}`);
 
-    onSearch(trimmed, filterBy);
-    saveToHistory(trimmed);
+    onSearch(sanitized, effectiveFilter);
+    saveToHistory(sanitized);
     setSearchQuery("");
     setShowDropdown(false);
   };

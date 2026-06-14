@@ -62,8 +62,8 @@ const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 24;
 const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 4;
 const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 3;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 8;
-const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 90;
-const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 120;
+const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 60 * 4;
+const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60 * 4;
 const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
 const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
@@ -2807,22 +2807,6 @@ function useCatalogData(params: {
             upcomingCursorField = memoryHit.cursorField || "";
           }
           if (memoryHit.items.length === 0) return;
-          // Prefetch images and prices for memoryHit
-          void fetchCatalogPagePrices(memoryHit.items, {
-            prefetchedPrices: memoryHit.prices,
-            cacheKey: targetCacheKey,
-            ttlMs: ttl,
-            querySignatureSnapshot: querySignature,
-            signal: controller.signal,
-            allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-          }).catch(swallowAbortError);
-          fetchCatalogPageImages(memoryHit.items, {
-            prefetchedImages: memoryHit.images,
-            cacheKey: targetCacheKey,
-            ttlMs: ttl,
-            querySignatureSnapshot: querySignature,
-            signal: controller.signal,
-          });
           continue;
         }
 
@@ -2850,22 +2834,6 @@ function useCatalogData(params: {
             upcomingCursor = "";
             upcomingCursorField = "";
           }
-          // Prefetch images and prices for payload
-          void fetchCatalogPagePrices(payload.items, {
-            prefetchedPrices: payload.prices,
-            cacheKey: targetCacheKey,
-            ttlMs: ttl,
-            querySignatureSnapshot: querySignature,
-            signal: controller.signal,
-            allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-          }).catch(swallowAbortError);
-          fetchCatalogPageImages(payload.items, {
-            prefetchedImages: payload.images,
-            cacheKey: targetCacheKey,
-            ttlMs: ttl,
-            querySignatureSnapshot: querySignature,
-            signal: controller.signal,
-          });
         } catch {
           return;
         }
@@ -2884,14 +2852,11 @@ function useCatalogData(params: {
 	  }, [
 	    buildCacheKey,
 	    canUseCursorPagination,
-	    fetchCatalogPageImages,
 	    fetchCatalogPagePayload,
-	    fetchCatalogPagePrices,
 	    hasMore,
 	    loading,
 	    normalizedSearch,
 	    page,
-	    shouldAllowCatalogDirectPriceLookup,
 	    querySignature,
 	    safeData.length,
 	    selectedCars.length,
@@ -2987,7 +2952,6 @@ function useCatalogData(params: {
           item,
           codeLower: (item.code || "").toLowerCase(),
           articleLower,
-          articleNormalized: normalizeArticleToken(articleLower),
           nameLower,
           nameNormalized: normalizeArticleToken(nameLower),
           producerLower: (item.producer || "").toLowerCase(),
@@ -3012,7 +2976,7 @@ function useCatalogData(params: {
     const producerQuery = normalizeFilterToken(producerFromURL);
 
     return searchableUniqueData
-      .filter(({ item, codeLower, articleLower, articleNormalized, nameLower, nameNormalized, producerLower, descriptionLower }) => {
+      .filter(({ item, codeLower, articleLower, nameLower, nameNormalized, producerLower, descriptionLower }) => {
         const producerMatch = !producerQuery || producerLower.includes(producerQuery);
         const isDescriptionSearch = searchFilter === "description" && q.length > 0;
 

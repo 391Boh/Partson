@@ -260,7 +260,6 @@ export async function POST(request: Request) {
       selectedCategories: normalizedSelectedCategories,
       searchQuery: normalizedSearchQuery,
       searchFilter: effectiveSearchFilter,
-      nameSearchQuery: "",
       group: normalizedGroup,
       subcategory: normalizedSubcategory,
       producer: normalizedProducer,
