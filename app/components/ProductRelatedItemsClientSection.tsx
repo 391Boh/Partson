@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import ProductCompactRecommendationCard from "app/components/ProductCompactRecommendationCard";
 import { fetchCatalogImageBatch } from "app/lib/product-image-batch-client";
@@ -30,7 +30,9 @@ type ProductRelatedItemsClientSectionProps = {
     subGroup?: string;
     category?: string;
   };
-  initialItems?: RelatedItem[] | null;
+  // аналоги — products found by article/name search
+  initialRelatedItems?: RelatedItem[] | null;
+  // схожі — products from the same subgroup/group
   initialSimilarItems?: RelatedItem[] | null;
   euroRate?: number;
 };
@@ -74,7 +76,7 @@ const buildRecommendationImageKey = (
     buildRecommendationImageArticle(item, sourceArticle)
   );
 
-const RELATED_ITEMS_CACHE_PREFIX = "partson:v9:product-related:";
+const RELATED_ITEMS_CACHE_PREFIX = "partson:v1:product-analogs:";
 const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v3:product-similar:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
 const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1200;
@@ -83,8 +85,6 @@ const RECOMMENDATION_PRICE_TIMEOUT_MS = 520;
 const RELATED_ITEMS_VISIBLE_LIMIT = 6;
 const SIMILAR_ITEMS_VISIBLE_LIMIT = 6;
 const RECOMMENDATION_VISIBLE_ITEMS_EVENT = "partson:product-recommendation-visible-items";
-
-type RecommendationMode = "related" | "similar";
 
 const normalizeRelatedKeyPart = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -122,11 +122,9 @@ const scheduleProductRecommendationTask = (task: () => void) => {
   }
 
   let cancelled = false;
-  const runTask = () => {
-    if (cancelled) return;
-    task();
-  };
-  const timeoutId = window.setTimeout(runTask, 0);
+  const timeoutId = window.setTimeout(() => {
+    if (!cancelled) task();
+  }, 0);
   return () => {
     cancelled = true;
     window.clearTimeout(timeoutId);
@@ -261,7 +259,7 @@ const RecommendationBlock = ({
 
 export default function ProductRelatedItemsClientSection({
   product,
-  initialItems = null,
+  initialRelatedItems = null,
   initialSimilarItems = null,
   euroRate = 50,
 }: ProductRelatedItemsClientSectionProps) {
@@ -271,30 +269,27 @@ export default function ProductRelatedItemsClientSection({
     const visibleName = buildVisibleProductName(product.name || "");
     return visibleName && visibleName !== "Товар" ? visibleName : "";
   }, [product.name]);
-  const normalizedInitialItems = useMemo(
-    () => normalizeRelatedItems(initialItems),
-    [initialItems]
+
+  const normalizedInitialRelatedItems = useMemo(
+    () => normalizeRelatedItems(initialRelatedItems),
+    [initialRelatedItems]
   );
   const normalizedInitialSimilarItems = useMemo(
     () => normalizeRelatedItems(initialSimilarItems),
     [initialSimilarItems]
   );
-  const initialDisplayItems = normalizedInitialItems ?? normalizedInitialSimilarItems;
-  const initialMode: RecommendationMode = normalizedInitialItems ? "related" : "similar";
-  const [items, setItems] = useState<RelatedItem[] | null>(initialDisplayItems);
+
+  // null = still loading, [] = loaded & empty, [...] = loaded with results
+  const [relatedItems, setRelatedItems] = useState<RelatedItem[] | null>(
+    normalizedInitialRelatedItems
+  );
   const [similarItems, setSimilarItems] = useState<RelatedItem[] | null>(
     normalizedInitialSimilarItems
   );
-  const [itemMode, setItemMode] = useState<RecommendationMode>(initialMode);
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
   const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
   const [pendingImageKeys, setPendingImageKeys] = useState<Record<string, true>>({});
   const [missingImageKeys, setMissingImageKeys] = useState<Record<string, true>>({});
-  const itemsRef = useRef<RelatedItem[] | null>(initialDisplayItems);
-
-  useEffect(() => {
-    itemsRef.current = items;
-  }, [items]);
 
   const recommendationSearchParams = useMemo(() => {
     if (!articleLabel && !productCode && !productDisplayName) return "";
@@ -310,8 +305,7 @@ export default function ProductRelatedItemsClientSection({
     if (product.subGroup) params.set("subGroup", product.subGroup);
     if (product.category) params.set("category", product.category);
 
-    const serialized = params.toString();
-    return serialized;
+    return params.toString();
   }, [
     articleLabel,
     product.category,
@@ -324,11 +318,12 @@ export default function ProductRelatedItemsClientSection({
   ]);
 
   const requestUrl = recommendationSearchParams
-    ? `/api/product-related?${recommendationSearchParams}`
+    ? `/api/product-analogs?${recommendationSearchParams}`
     : "";
   const similarRequestUrl = recommendationSearchParams
     ? `/api/product-similar?${recommendationSearchParams}`
     : "";
+
   const cacheKey = useMemo(
     () => (requestUrl ? `${RELATED_ITEMS_CACHE_PREFIX}${requestUrl}` : ""),
     [requestUrl]
@@ -338,223 +333,195 @@ export default function ProductRelatedItemsClientSection({
     [similarRequestUrl]
   );
 
-  useEffect(() => {
-    if (normalizedInitialItems || normalizedInitialSimilarItems) {
-      setItemMode(normalizedInitialItems ? "related" : "similar");
-      setItems(normalizedInitialItems ?? normalizedInitialSimilarItems);
-      setSimilarItems(normalizedInitialSimilarItems);
-      setResolvedImages({});
-      setPendingImageKeys({});
-      setMissingImageKeys({});
-      return;
-    }
+  const readCachedItems = (key: string): RelatedItem[] | null => {
+    if (typeof window === "undefined" || !key) return null;
 
-    if (!requestUrl) {
-      setItems([]);
-      setSimilarItems([]);
-      setResolvedImages({});
-      setPendingImageKeys({});
-      setMissingImageKeys({});
-      return;
-    }
+    const readFromStorage = (storage: Storage) => {
+      try {
+        const raw = storage.getItem(key);
+        if (!raw) return null;
 
-    setItems(null);
-    setSimilarItems(null);
-    setResolvedImages({});
-    setPendingImageKeys({});
-    setMissingImageKeys({});
-  }, [normalizedInitialItems, normalizedInitialSimilarItems, requestUrl]);
-
-  useEffect(() => {
-    if (!requestUrl) {
-      setItems([]);
-      setSimilarItems([]);
-      return;
-    }
-
-    const readCachedItems = (key: string) => {
-      if (typeof window === "undefined" || !key) return null;
-
-      const readFromStorage = (storage: Storage) => {
-        try {
-          const raw = storage.getItem(key);
-          if (!raw) return null;
-
-          const parsed = JSON.parse(raw) as { value?: RelatedItem[] | null; t?: number };
-          if (!parsed || typeof parsed.t !== "number") return null;
-          if (Date.now() - parsed.t > RELATED_ITEMS_CACHE_TTL_MS) {
-            storage.removeItem(key);
-            return null;
-          }
-
-          const cachedItems = normalizeRelatedItems(parsed.value);
-          return cachedItems && cachedItems.length > 0 ? cachedItems : null;
-        } catch {
+        const parsed = JSON.parse(raw) as { value?: RelatedItem[] | null; t?: number };
+        if (!parsed || typeof parsed.t !== "number") return null;
+        if (Date.now() - parsed.t > RELATED_ITEMS_CACHE_TTL_MS) {
+          storage.removeItem(key);
           return null;
         }
-      };
 
-      const sessionHit = readFromStorage(window.sessionStorage);
-      if (sessionHit) return sessionHit;
-
-      try {
-        return readFromStorage(window.localStorage);
+        const cachedItems = normalizeRelatedItems(parsed.value);
+        return cachedItems && cachedItems.length > 0 ? cachedItems : null;
       } catch {
         return null;
       }
     };
 
-    const writeCachedItems = (key: string, value: RelatedItem[]) => {
-      if (value.length === 0) return;
-      if (typeof window === "undefined" || !key) return;
+    const sessionHit = readFromStorage(window.sessionStorage);
+    if (sessionHit) return sessionHit;
 
-      const payload = JSON.stringify({ value, t: Date.now() });
+    try {
+      return readFromStorage(window.localStorage);
+    } catch {
+      return null;
+    }
+  };
 
-      try {
-        window.sessionStorage.setItem(key, payload);
-      } catch {
-        // Ignore storage quota issues.
-      }
+  const writeCachedItems = (key: string, value: RelatedItem[]) => {
+    if (value.length === 0 || typeof window === "undefined" || !key) return;
 
-      try {
-        window.localStorage.setItem(key, payload);
-      } catch {
-        // Ignore storage quota issues.
-      }
-    };
+    const payload = JSON.stringify({ value, t: Date.now() });
 
-    if (normalizedInitialItems) {
-      setItemMode("related");
-      writeCachedItems(cacheKey, normalizedInitialItems);
-      if (normalizedInitialSimilarItems && normalizedInitialSimilarItems.length > 0) {
-        writeCachedItems(similarCacheKey, normalizedInitialSimilarItems);
-        setSimilarItems(normalizedInitialSimilarItems);
+    try {
+      window.sessionStorage.setItem(key, payload);
+    } catch {
+      // Ignore storage quota issues.
+    }
+
+    try {
+      window.localStorage.setItem(key, payload);
+    } catch {
+      // Ignore storage quota issues.
+    }
+  };
+
+  const fetchItems = async (url: string, timeoutMs = RELATED_ITEMS_REQUEST_TIMEOUT_MS) => {
+    let timeoutId: number | undefined;
+    const timeoutPromise = new Promise<Response>((_, reject) => {
+      timeoutId = window.setTimeout(
+        () => reject(new Error("product-recommendation-timeout")),
+        timeoutMs
+      );
+    });
+    const response = await Promise.race([
+      fetch(url, { method: "GET", headers: { Accept: "application/json" } }),
+      timeoutPromise,
+    ]).finally(() => {
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+    });
+    if (!response.ok) throw new Error("Failed to load product recommendations");
+
+    const payload = (await response.json()) as { items?: RelatedItem[] };
+    return normalizeRelatedItems(payload.items) || [];
+  };
+
+  // Load аналоги (by article/name search) — independent
+  useEffect(() => {
+    if (!requestUrl) {
+      setRelatedItems([]);
+      setResolvedImages({});
+      setPendingImageKeys({});
+      setMissingImageKeys({});
+      return;
+    }
+
+    if (normalizedInitialRelatedItems !== null) {
+      setRelatedItems(normalizedInitialRelatedItems);
+      if (normalizedInitialRelatedItems.length > 0) {
+        writeCachedItems(cacheKey, normalizedInitialRelatedItems);
       }
       return;
     }
 
-    const cachedItems = readCachedItems(cacheKey);
-    if (cachedItems) {
-      setItemMode("related");
-      setItems(cachedItems);
-      setSimilarItems((current) => current ?? null);
+    const cached = readCachedItems(cacheKey);
+    if (cached) {
+      setRelatedItems(cached);
+      return;
     }
 
+    setRelatedItems(null);
     let cancelled = false;
 
-    const fetchItems = async (
-      url: string,
-      timeoutMs = RELATED_ITEMS_REQUEST_TIMEOUT_MS
-    ) => {
-      let timeoutId: number | undefined;
-      const timeoutPromise = new Promise<Response>((_, reject) => {
-        timeoutId = window.setTimeout(
-          () => reject(new Error("product-recommendation-timeout")),
-          timeoutMs
-        );
-      });
-      const response = await Promise.race([
-        fetch(url, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        }),
-        timeoutPromise,
-      ]).finally(() => {
-        if (timeoutId != null) window.clearTimeout(timeoutId);
-      });
-      if (!response.ok) throw new Error("Failed to load product recommendations");
-
-      const payload = (await response.json()) as { items?: RelatedItem[] };
-      return normalizeRelatedItems(payload.items) || [];
-    };
-
-    const loadSimilarItems = async () => {
-      if (!similarRequestUrl) return [] as RelatedItem[];
-
-      const cachedSimilarItems = readCachedItems(similarCacheKey);
-      if (cachedSimilarItems) {
-        return cachedSimilarItems.slice(0, SIMILAR_ITEMS_VISIBLE_LIMIT);
-      }
-
-      const similarItems = (
-        await fetchItems(similarRequestUrl, SIMILAR_ITEMS_REQUEST_TIMEOUT_MS)
-      ).slice(0, SIMILAR_ITEMS_VISIBLE_LIMIT);
-      if (similarItems.length > 0) {
-        writeCachedItems(similarCacheKey, similarItems);
-      }
-      return similarItems;
-    };
-
-    const loadItems = async () => {
-      const similarItemsPromise = loadSimilarItems().catch(() => [] as RelatedItem[]);
-      similarItemsPromise.then((similarItems) => {
-        if (cancelled || similarItems.length === 0) return;
-        setSimilarItems(similarItems);
-        if (!itemsRef.current || itemsRef.current.length === 0) {
-          setItemMode("similar");
-          setItems(similarItems);
-        }
-      });
-
+    const load = async () => {
       try {
-        const nextItems = await fetchItems(requestUrl, RELATED_ITEMS_REQUEST_TIMEOUT_MS);
+        const items = await fetchItems(requestUrl, RELATED_ITEMS_REQUEST_TIMEOUT_MS);
         if (cancelled) return;
-        if (nextItems.length > 0) {
-          setItemMode("related");
-          writeCachedItems(cacheKey, nextItems);
-          setItems(nextItems);
-          const similarItems = await similarItemsPromise;
-          if (cancelled) return;
-          setSimilarItems(similarItems);
-          return;
-        }
-
-        const similarItems = await similarItemsPromise;
-        if (cancelled) return;
-        setItemMode("similar");
-        setItems(similarItems);
-        setSimilarItems([]);
+        setRelatedItems(items);
+        if (items.length > 0) writeCachedItems(cacheKey, items);
       } catch {
         if (cancelled) return;
-
-        try {
-          const similarItems = await similarItemsPromise;
-          if (cancelled) return;
-          setItemMode("similar");
-          setItems((current) =>
-            current && current.length > 0 ? current : similarItems
-          );
-          setSimilarItems([]);
-        } catch {
-          if (cancelled) return;
-          setItems((current) => (current && current.length > 0 ? current : []));
-          setSimilarItems([]);
-        }
+        setRelatedItems([]);
       }
     };
 
-    const cancelScheduledLoad = scheduleProductRecommendationTask(() => {
-      void loadItems();
-    });
-
+    const cancel = scheduleProductRecommendationTask(() => { void load(); });
     return () => {
       cancelled = true;
-      cancelScheduledLoad();
+      cancel();
     };
-  }, [
-    cacheKey,
-    normalizedInitialItems,
-    normalizedInitialSimilarItems,
-    requestUrl,
-    similarCacheKey,
-    similarRequestUrl,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalizedInitialRelatedItems, requestUrl, cacheKey]);
 
-  const priceSourceItems = useMemo(
-    () => [...(items ?? []), ...(similarItems ?? [])],
-    [items, similarItems]
+  // Load схожі (by subgroup/group) — independent
+  useEffect(() => {
+    if (!similarRequestUrl) {
+      setSimilarItems([]);
+      return;
+    }
+
+    if (normalizedInitialSimilarItems !== null) {
+      setSimilarItems(normalizedInitialSimilarItems);
+      if (normalizedInitialSimilarItems.length > 0) {
+        writeCachedItems(similarCacheKey, normalizedInitialSimilarItems);
+      }
+      return;
+    }
+
+    const cached = readCachedItems(similarCacheKey);
+    if (cached) {
+      setSimilarItems(cached);
+      return;
+    }
+
+    setSimilarItems(null);
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const items = await fetchItems(similarRequestUrl, SIMILAR_ITEMS_REQUEST_TIMEOUT_MS);
+        if (cancelled) return;
+        setSimilarItems(items.slice(0, SIMILAR_ITEMS_VISIBLE_LIMIT));
+        if (items.length > 0) writeCachedItems(similarCacheKey, items);
+      } catch {
+        if (cancelled) return;
+        setSimilarItems([]);
+      }
+    };
+
+    const cancel = scheduleProductRecommendationTask(() => { void load(); });
+    return () => {
+      cancelled = true;
+      cancel();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalizedInitialSimilarItems, similarRequestUrl, similarCacheKey]);
+
+  const visibleRelatedItems = useMemo(
+    () => (relatedItems ?? []).slice(0, RELATED_ITEMS_VISIBLE_LIMIT),
+    [relatedItems]
   );
 
+  // Filter similar items to avoid duplicating items already shown in related
+  const visibleSimilarItems = useMemo(() => {
+    const blockedKeys = new Set([
+      ...buildRecommendationIdentityKeys({ code: productCode, article: articleLabel }),
+      ...visibleRelatedItems.flatMap(buildRecommendationIdentityKeys),
+    ]);
+
+    return (similarItems ?? [])
+      .filter((item) => !hasRecommendationIdentityOverlap(item, blockedKeys))
+      .slice(0, SIMILAR_ITEMS_VISIBLE_LIMIT);
+  }, [articleLabel, productCode, similarItems, visibleRelatedItems]);
+
+  const visibleIdentityKeys = useMemo(
+    () => [...visibleRelatedItems, ...visibleSimilarItems].flatMap(buildRecommendationIdentityKeys),
+    [visibleRelatedItems, visibleSimilarItems]
+  );
+
+  const priceSourceItems = useMemo(
+    () => [...visibleRelatedItems, ...visibleSimilarItems],
+    [visibleRelatedItems, visibleSimilarItems]
+  );
+
+  // Resolve prices for visible items that don't have prices yet
   useEffect(() => {
     if (priceSourceItems.length === 0) return;
 
@@ -607,9 +574,8 @@ export default function ProductRelatedItemsClientSection({
         };
         if (cancelled) return;
 
-        const prices = payload.prices && typeof payload.prices === "object"
-          ? payload.prices
-          : {};
+        const prices =
+          payload.prices && typeof payload.prices === "object" ? payload.prices : {};
 
         setResolvedPrices((current) => ({ ...current, ...prices }));
       } catch {
@@ -637,46 +603,14 @@ export default function ProductRelatedItemsClientSection({
     };
   }, [priceSourceItems, resolvedPrices]);
 
-  const visibleItems = useMemo(
-    () =>
-      (items ?? []).slice(
-        0,
-        itemMode === "similar" ? SIMILAR_ITEMS_VISIBLE_LIMIT : RELATED_ITEMS_VISIBLE_LIMIT
-      ),
-    [itemMode, items]
-  );
-  const visibleSimilarItems = useMemo(() => {
-    if (itemMode !== "related") return [];
-
-    const blockedKeys = new Set([
-      ...buildRecommendationIdentityKeys({ code: productCode, article: articleLabel }),
-      ...visibleItems.flatMap(buildRecommendationIdentityKeys),
-    ]);
-
-    return (similarItems ?? [])
-      .filter((item) => !hasRecommendationIdentityOverlap(item, blockedKeys))
-      .slice(0, SIMILAR_ITEMS_VISIBLE_LIMIT);
-  }, [articleLabel, itemMode, productCode, similarItems, visibleItems]);
-  const visibleIdentityKeys = useMemo(
-    () =>
-      [...visibleItems, ...visibleSimilarItems].flatMap(
-        buildRecommendationIdentityKeys
-      ),
-    [visibleItems, visibleSimilarItems]
-  );
-
+  // Load images for visible items
   useEffect(() => {
-    const imageItems = [...visibleItems, ...visibleSimilarItems]
+    const imageItems = [...visibleRelatedItems, ...visibleSimilarItems]
       .map((item) => {
         const code = buildRecommendationImageCode(item, articleLabel);
         const article = buildRecommendationImageArticle(item, articleLabel);
         const key = buildProductImageBatchKey(code, article);
-        return {
-          key,
-          code,
-          article,
-          hasPhoto: item.hasPhoto,
-        };
+        return { key, code, article, hasPhoto: item.hasPhoto };
       })
       .filter((item) => {
         if (!item.key || !item.code) return false;
@@ -783,7 +717,7 @@ export default function ProductRelatedItemsClientSection({
     missingImageKeys,
     pendingImageKeys,
     resolvedImages,
-    visibleItems,
+    visibleRelatedItems,
     visibleSimilarItems,
   ]);
 
@@ -796,22 +730,21 @@ export default function ProductRelatedItemsClientSection({
   }, [visibleIdentityKeys]);
 
   if (!articleLabel && !productCode && !productDisplayName) return null;
-  if (items === null) {
+
+  // Show a single skeleton while both are still loading
+  if (relatedItems === null && similarItems === null) {
     return <Skeleton />;
   }
-  if (visibleItems.length === 0 && visibleSimilarItems.length === 0) return null;
+
+  if (visibleRelatedItems.length === 0 && visibleSimilarItems.length === 0) return null;
 
   return (
     <div className="space-y-2.5">
       <RecommendationBlock
-        eyebrow={itemMode === "similar" ? "Схожі товари" : "Аналоги"}
-        title={
-          itemMode === "similar"
-            ? "Схожі позиції з цього розділу"
-            : "Сумісні варіанти та заміни"
-        }
-        badgeLabel={`${visibleItems.length} позицій`}
-        items={visibleItems}
+        eyebrow="Аналоги"
+        title="Сумісні варіанти та заміни"
+        badgeLabel={`${visibleRelatedItems.length} позицій`}
+        items={visibleRelatedItems}
         articleLabel={articleLabel}
         euroRate={euroRate}
         resolvedPrices={resolvedPrices}
@@ -819,7 +752,7 @@ export default function ProductRelatedItemsClientSection({
       />
       <RecommendationBlock
         eyebrow="Схожі"
-        title="Товари з близької категорії"
+        title="Схожі позиції з цього розділу"
         badgeLabel={`${visibleSimilarItems.length} позицій`}
         items={visibleSimilarItems}
         articleLabel={articleLabel}

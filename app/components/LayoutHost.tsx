@@ -263,14 +263,8 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const [isAdminPanelPinned, setIsAdminPanelPinned] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [authUserUid, setAuthUserUid] = useState<string | null>(null);
-  const [loading, setLoading] = useState(() => {
-    if (typeof window === "undefined") return true;
-    try { return !localStorage.getItem("chat_user_id"); } catch { return true; }
-  });
-  const [userId, setUserId] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    try { return localStorage.getItem("chat_user_id") || null; } catch { return null; }
-  });
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
   const [userUnreadCount, setUserUnreadCount] = useState(0);
   const [totalNotifications, setTotalNotifications] = useState(0);
   const [prefillMessage, setPrefillMessage] = useState<string | null>(null);
