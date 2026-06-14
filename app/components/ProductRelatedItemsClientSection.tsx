@@ -31,6 +31,7 @@ type ProductRelatedItemsClientSectionProps = {
     category?: string;
   };
   initialItems?: RelatedItem[] | null;
+  initialSimilarItems?: RelatedItem[] | null;
   euroRate?: number;
 };
 
@@ -261,6 +262,7 @@ const RecommendationBlock = ({
 export default function ProductRelatedItemsClientSection({
   product,
   initialItems = null,
+  initialSimilarItems = null,
   euroRate = 50,
 }: ProductRelatedItemsClientSectionProps) {
   const articleLabel = (product.article || "").trim();
@@ -273,8 +275,14 @@ export default function ProductRelatedItemsClientSection({
     () => normalizeRelatedItems(initialItems),
     [initialItems]
   );
+  const normalizedInitialSimilarItems = useMemo(
+    () => normalizeRelatedItems(initialSimilarItems),
+    [initialSimilarItems]
+  );
   const [items, setItems] = useState<RelatedItem[] | null>(normalizedInitialItems);
-  const [similarItems, setSimilarItems] = useState<RelatedItem[] | null>(null);
+  const [similarItems, setSimilarItems] = useState<RelatedItem[] | null>(
+    normalizedInitialSimilarItems
+  );
   const [itemMode, setItemMode] = useState<RecommendationMode>("related");
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
   const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
@@ -332,7 +340,7 @@ export default function ProductRelatedItemsClientSection({
     if (normalizedInitialItems) {
       setItemMode("related");
       setItems(normalizedInitialItems);
-      setSimilarItems(null);
+      setSimilarItems(normalizedInitialSimilarItems);
       setResolvedImages({});
       setPendingImageKeys({});
       setMissingImageKeys({});
@@ -353,7 +361,7 @@ export default function ProductRelatedItemsClientSection({
     setResolvedImages({});
     setPendingImageKeys({});
     setMissingImageKeys({});
-  }, [normalizedInitialItems, requestUrl]);
+  }, [normalizedInitialItems, normalizedInitialSimilarItems, requestUrl]);
 
   useEffect(() => {
     if (!requestUrl) {
@@ -416,6 +424,10 @@ export default function ProductRelatedItemsClientSection({
     if (normalizedInitialItems) {
       setItemMode("related");
       writeCachedItems(cacheKey, normalizedInitialItems);
+      if (normalizedInitialSimilarItems && normalizedInitialSimilarItems.length > 0) {
+        writeCachedItems(similarCacheKey, normalizedInitialSimilarItems);
+        setSimilarItems(normalizedInitialSimilarItems);
+      }
       return;
     }
 
@@ -527,7 +539,14 @@ export default function ProductRelatedItemsClientSection({
       cancelled = true;
       cancelScheduledLoad();
     };
-  }, [cacheKey, normalizedInitialItems, requestUrl, similarCacheKey, similarRequestUrl]);
+  }, [
+    cacheKey,
+    normalizedInitialItems,
+    normalizedInitialSimilarItems,
+    requestUrl,
+    similarCacheKey,
+    similarRequestUrl,
+  ]);
 
   const priceSourceItems = useMemo(
     () => [...(items ?? []), ...(similarItems ?? [])],

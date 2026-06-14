@@ -12,6 +12,10 @@ import {
   findCatalogProductByCode,
   findSimilarProductsBySubgroup,
 } from "app/lib/catalog-server";
+import {
+  getAllProductSitemapSnapshotEntries,
+  type ProductSitemapEntry,
+} from "app/lib/product-sitemap";
 import { buildVisibleProductName } from "app/lib/product-url";
 
 export type RelatedProductCardItem = {
@@ -35,6 +39,7 @@ type RelatedLookupContext = Pick<
 const RELATED_CACHE_TTL_MS = 1000 * 60 * 10;
 const MAX_RELATED_ITEMS = 12;
 const MAX_SIMILAR_ITEMS = 6;
+const MAX_STATIC_RECOMMENDATION_SCAN_ITEMS = 10000;
 const FAST_RELATED_TIMEOUT_MS = 440;
 const FALLBACK_RELATED_TIMEOUT_MS = 620;
 
@@ -147,6 +152,26 @@ const toRelatedCardItem = (item: CatalogProduct): RelatedProductCardItem => ({
   subGroup: item.subGroup || "",
   category: item.category || "",
   hasPhoto: item.hasPhoto,
+});
+
+const sitemapEntryToRelatedCardItem = (
+  entry: ProductSitemapEntry
+): RelatedProductCardItem => ({
+  code: (entry.code || entry.article || "").trim(),
+  article: (entry.article || "").trim(),
+  name: (entry.name || entry.article || entry.code || "Товар").trim(),
+  producer: (entry.producer || "").trim(),
+  quantity: Number.isFinite(entry.quantity) ? Math.max(0, entry.quantity) : 0,
+  priceEuro:
+    typeof entry.priceEuro === "number" &&
+    Number.isFinite(entry.priceEuro) &&
+    entry.priceEuro > 0
+      ? entry.priceEuro
+      : null,
+  group: (entry.group || "").trim(),
+  subGroup: (entry.subGroup || "").trim(),
+  category: (entry.category || "").trim(),
+  hasPhoto: entry.hasPhoto,
 });
 
 const resolveWithTimeout = async <T,>(
@@ -285,6 +310,107 @@ const collectAndFilterUnique = (
     return true;
   });
 };
+
+const collectAndFilterUniqueRelatedItems = (
+  source: RelatedProductCardItem[],
+  targetProduct: RelatedLookupContext
+) => {
+  const seenProducts = new Set<string>();
+  const targetCode = normalizeLookupValue(targetProduct.code);
+  const targetArticle = normalizeLookupValue(targetProduct.article);
+  const targetProducer = normalizeLookupValue(targetProduct.producer);
+
+  return source.filter((item) => {
+    const itemCode = normalizeLookupValue(item.code);
+    const itemArticle = normalizeLookupValue(item.article);
+    const itemProducer = normalizeLookupValue(item.producer);
+
+    if (itemCode && targetCode && itemCode === targetCode) return false;
+    if (
+      itemArticle &&
+      targetArticle &&
+      itemArticle === targetArticle &&
+      (!targetProducer || itemProducer === targetProducer)
+    ) {
+      return false;
+    }
+
+    const identity = [
+      itemCode,
+      itemArticle,
+      itemProducer,
+      normalizeLookupValue(buildVisibleProductName(item.name)),
+    ].join("::");
+    if (!identity || seenProducts.has(identity)) return false;
+    seenProducts.add(identity);
+    return true;
+  });
+};
+
+const scoreStaticRecommendation = (
+  item: RelatedProductCardItem,
+  targetProduct: RelatedLookupContext,
+  mode: "related" | "similar"
+) => {
+  const itemArticle = normalizeLookupValue(item.article);
+  const itemCode = normalizeLookupValue(item.code);
+  const itemName = normalizeLookupValue(buildVisibleProductName(item.name));
+  const itemProducer = normalizeLookupValue(item.producer);
+  const itemGroup = normalizeLookupValue(item.group || item.category);
+  const itemSubGroup = normalizeLookupValue(item.subGroup);
+  const targetArticle = normalizeLookupValue(targetProduct.article);
+  const targetCode = normalizeLookupValue(targetProduct.code);
+  const targetProducer = normalizeLookupValue(targetProduct.producer);
+  const targetGroup = normalizeLookupValue(targetProduct.group || targetProduct.category);
+  const targetSubGroup = normalizeLookupValue(targetProduct.subGroup);
+  const targetNameTokens = tokenizeLookupValue(buildSearchableProductName(targetProduct));
+
+  let score = 0;
+  if (item.quantity > 0) score += 4;
+  if (targetProducer && itemProducer === targetProducer) score += mode === "related" ? 5 : 2;
+  if (targetSubGroup && itemSubGroup === targetSubGroup) score += mode === "related" ? 7 : 9;
+  if (targetGroup && itemGroup === targetGroup) score += mode === "related" ? 3 : 6;
+  if (targetArticle && itemName.includes(targetArticle)) score += 10;
+  if (targetCode && itemName.includes(targetCode)) score += 8;
+  if (targetArticle && itemArticle && itemArticle !== targetArticle && itemArticle.includes(targetArticle)) {
+    score += 4;
+  }
+
+  if (targetNameTokens.length > 0) {
+    const sharedTokens = targetNameTokens.reduce(
+      (count, token) => (itemName.includes(token) ? count + 1 : count),
+      0
+    );
+    score += Math.min(sharedTokens * (mode === "related" ? 3 : 2), 9);
+  }
+
+  return score;
+};
+
+const sortStaticRecommendationItems = (
+  items: RelatedProductCardItem[],
+  targetProduct: RelatedLookupContext,
+  mode: "related" | "similar",
+  limit: number
+) =>
+  items
+    .sort((left, right) => {
+      const scoreDelta =
+        scoreStaticRecommendation(right, targetProduct, mode) -
+        scoreStaticRecommendation(left, targetProduct, mode);
+      if (scoreDelta !== 0) return scoreDelta;
+
+      if ((left.quantity > 0) !== (right.quantity > 0)) {
+        return left.quantity > 0 ? -1 : 1;
+      }
+
+      const leftPrice = typeof left.priceEuro === "number" ? left.priceEuro : 0;
+      const rightPrice = typeof right.priceEuro === "number" ? right.priceEuro : 0;
+      if ((leftPrice > 0) !== (rightPrice > 0)) return leftPrice > 0 ? -1 : 1;
+
+      return right.quantity - left.quantity;
+    })
+    .slice(0, limit);
 
 const filterRelevantRecommendationItems = (
   items: CatalogProduct[],
@@ -566,6 +692,82 @@ const getSimilarProductsCached = unstable_cache(
   { revalidate: 60 * 10 }
 );
 
+const getStaticProductRecommendationsUncached = async (
+  article: string,
+  code: string,
+  name = "",
+  producer = "",
+  group = "",
+  subGroup = "",
+  category = ""
+) => {
+  const targetProduct = buildLookupContext(
+    article,
+    code,
+    name,
+    producer,
+    group,
+    subGroup,
+    category
+  );
+  const entries = await getAllProductSitemapSnapshotEntries().catch(() => []);
+  if (entries.length === 0) {
+    return {
+      related: [] as RelatedProductCardItem[],
+      similar: [] as RelatedProductCardItem[],
+    };
+  }
+
+  const candidates = collectAndFilterUniqueRelatedItems(
+    entries
+      .slice(0, MAX_STATIC_RECOMMENDATION_SCAN_ITEMS)
+      .map(sitemapEntryToRelatedCardItem)
+      .filter((item) => item.code || item.article),
+    targetProduct
+  );
+
+  const relatedCandidates = candidates.filter(
+    (item) => scoreStaticRecommendation(item, targetProduct, "related") >= 7
+  );
+  const related = sortStaticRecommendationItems(
+    relatedCandidates,
+    targetProduct,
+    "related",
+    MAX_RELATED_ITEMS
+  );
+  const relatedIdentityKeys = new Set(
+    related.flatMap((item) => [
+      normalizeLookupValue(item.code) ? `code:${normalizeLookupValue(item.code)}` : "",
+      normalizeLookupValue(item.article) ? `article:${normalizeLookupValue(item.article)}` : "",
+    ].filter(Boolean))
+  );
+
+  const similarCandidates = candidates.filter((item) => {
+    const itemKeys = [
+      normalizeLookupValue(item.code) ? `code:${normalizeLookupValue(item.code)}` : "",
+      normalizeLookupValue(item.article) ? `article:${normalizeLookupValue(item.article)}` : "",
+    ].filter(Boolean);
+    if (itemKeys.some((key) => relatedIdentityKeys.has(key))) return false;
+    return scoreStaticRecommendation(item, targetProduct, "similar") >= 6;
+  });
+
+  return {
+    related,
+    similar: sortStaticRecommendationItems(
+      similarCandidates,
+      targetProduct,
+      "similar",
+      MAX_SIMILAR_ITEMS
+    ),
+  };
+};
+
+const getStaticProductRecommendationsCached = unstable_cache(
+  getStaticProductRecommendationsUncached,
+  ["product-recommendations:static-sitemap-v1"],
+  { revalidate: 60 * 60 }
+);
+
 export const getRelatedProducts = cache(
   async (
     article: string,
@@ -598,6 +800,27 @@ export const getSimilarProducts = cache(
     category = ""
   ) =>
     getSimilarProductsCached(
+      article,
+      code,
+      name,
+      producer,
+      group,
+      subGroup,
+      category
+    )
+);
+
+export const getStaticProductRecommendations = cache(
+  async (
+    article: string,
+    code: string,
+    name = "",
+    producer = "",
+    group = "",
+    subGroup = "",
+    category = ""
+  ) =>
+    getStaticProductRecommendationsCached(
       article,
       code,
       name,
