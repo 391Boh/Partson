@@ -14,6 +14,10 @@ const pickForwardedValue = (value: string | null) =>
   (value || "").split(",")[0]?.trim();
 
 const getSiteOrigin = (req: NextRequest) => {
+  const configured =
+    (process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "").trim();
+  if (configured) return configured.replace(/\/+$/g, "");
+
   const forwardedProto = pickForwardedValue(req.headers.get("x-forwarded-proto"));
   const forwardedHost = pickForwardedValue(req.headers.get("x-forwarded-host"));
   const host = forwardedHost || pickForwardedValue(req.headers.get("host"));
@@ -21,9 +25,7 @@ const getSiteOrigin = (req: NextRequest) => {
 
   if (host) return `${proto}://${host}`.replace(/\/+$/g, "");
 
-  const configured =
-    process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "";
-  return configured.replace(/\/+$/g, "");
+  return "";
 };
 
 const getClientId = () =>
