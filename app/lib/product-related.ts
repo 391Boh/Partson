@@ -353,7 +353,6 @@ const scoreStaticRecommendation = (
   mode: "related" | "similar"
 ) => {
   const itemArticle = normalizeLookupValue(item.article);
-  const itemCode = normalizeLookupValue(item.code);
   const itemName = normalizeLookupValue(buildVisibleProductName(item.name));
   const itemProducer = normalizeLookupValue(item.producer);
   const itemGroup = normalizeLookupValue(item.group || item.category);

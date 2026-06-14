@@ -22,14 +22,6 @@ type ProductDeferredRecommendationsProps = {
   euroRate?: number;
 };
 
-const ProductRelatedItemsClientSection = dynamic(
-  () => import("app/components/ProductRelatedItemsClientSection"),
-  {
-    ssr: false,
-    loading: () => <RecommendationSkeleton titleWidth="w-56" cards={3} />,
-  }
-);
-
 const ProductRecentlyViewedSection = dynamic(
   () => import("app/components/ProductRecentlyViewedSection"),
   {
@@ -77,21 +69,6 @@ export default function ProductDeferredRecommendations({
 }: ProductDeferredRecommendationsProps) {
   return (
     <div className="space-y-2.5">
-      <DeferredSection
-        rootMargin="1120px"
-        fallback={<RecommendationSkeleton titleWidth="w-56" cards={3} />}
-        minHeight="172px"
-        className="min-w-0"
-        initiallyVisible
-        fallbackDelayMs={0}
-      >
-        <ProductRelatedItemsClientSection
-          product={product}
-          initialItems={null}
-          euroRate={euroRate}
-        />
-      </DeferredSection>
-
       <DeferredSection
         rootMargin="1400px"
         fallback={<RecommendationSkeleton titleWidth="w-52" cards={3} />}

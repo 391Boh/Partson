@@ -279,16 +279,18 @@ export default function ProductRelatedItemsClientSection({
     () => normalizeRelatedItems(initialSimilarItems),
     [initialSimilarItems]
   );
-  const [items, setItems] = useState<RelatedItem[] | null>(normalizedInitialItems);
+  const initialDisplayItems = normalizedInitialItems ?? normalizedInitialSimilarItems;
+  const initialMode: RecommendationMode = normalizedInitialItems ? "related" : "similar";
+  const [items, setItems] = useState<RelatedItem[] | null>(initialDisplayItems);
   const [similarItems, setSimilarItems] = useState<RelatedItem[] | null>(
     normalizedInitialSimilarItems
   );
-  const [itemMode, setItemMode] = useState<RecommendationMode>("related");
+  const [itemMode, setItemMode] = useState<RecommendationMode>(initialMode);
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
   const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
   const [pendingImageKeys, setPendingImageKeys] = useState<Record<string, true>>({});
   const [missingImageKeys, setMissingImageKeys] = useState<Record<string, true>>({});
-  const itemsRef = useRef<RelatedItem[] | null>(normalizedInitialItems);
+  const itemsRef = useRef<RelatedItem[] | null>(initialDisplayItems);
 
   useEffect(() => {
     itemsRef.current = items;
@@ -337,9 +339,9 @@ export default function ProductRelatedItemsClientSection({
   );
 
   useEffect(() => {
-    if (normalizedInitialItems) {
-      setItemMode("related");
-      setItems(normalizedInitialItems);
+    if (normalizedInitialItems || normalizedInitialSimilarItems) {
+      setItemMode(normalizedInitialItems ? "related" : "similar");
+      setItems(normalizedInitialItems ?? normalizedInitialSimilarItems);
       setSimilarItems(normalizedInitialSimilarItems);
       setResolvedImages({});
       setPendingImageKeys({});

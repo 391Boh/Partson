@@ -13,6 +13,7 @@ import {
   toPriceUah,
 } from "app/lib/catalog-server";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
+import ProductRelatedItemsSection from "app/components/ProductRelatedItemsSection";
 import {
   buildCatalogCategoryPath,
   buildGroupItemPath,
@@ -1691,8 +1692,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
           findSitemapProductByLookupTokens(routeLookupTokens).catch(() => null),
         ])
     : null;
+  const sitemapRouteData = await sitemapRouteDataPromise;
   let routeData =
-    (await sitemapRouteDataPromise) ??
+    sitemapRouteData ??
     (canUseDirectFallbackCode && fallbackCodeFromRoute && !routeSlugs
       ? {
           code: "",
@@ -1810,6 +1812,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
   }
 
   const isModalView = false;
+  const shouldUseStaticRecommendationBlocks = Boolean(
+    !isModalView && hasResolvedCatalogProduct && sitemapRouteData?.product
+  );
   const isSeoResolvedInternally = false;
   const canonicalPath = buildCanonicalProductPath(product, resolvedCode);
   const currentRouteParam = safeDecodeURIComponent(rawCode || "").trim();
@@ -2263,24 +2268,100 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     />
                   }
                 />
+                <section className="rounded-[22px] border border-slate-200 bg-white/92 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.055)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
+                        Інформація для підбору
+                      </p>
+                      <h2 className="font-display-italic mt-1 text-[1.02rem] font-black leading-tight text-slate-950 sm:text-[1.16rem]">
+                        {visibleProductName}: артикул, сумісність і доставка
+                      </h2>
+                    </div>
+                    <Link
+                      href={categoryLandingHref}
+                      className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-sky-800 transition hover:border-sky-300 hover:bg-sky-100"
+                    >
+                      Перейти в розділ
+                    </Link>
+                  </div>
+                  <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                    {[
+                      {
+                        title: productIdentifierLabel,
+                        text: productIdentifierValue !== "-"
+                          ? productIdentifierValue
+                          : "Підбір за назвою або VIN",
+                      },
+                      {
+                        title: "Виробник",
+                        text: product.producer || "Уточнюється менеджером",
+                      },
+                      {
+                        title: "Категорія",
+                        text: visibleProductSubgroup || visibleProductGroup || "Автозапчастини",
+                      },
+                      {
+                        title: "Наявність",
+                        text: isInStock
+                          ? `${product.quantity} шт. у каталозі`
+                          : "Під замовлення або уточнення",
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.title}
+                        className="rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 py-2.5"
+                      >
+                        <p className="text-[9px] font-black uppercase tracking-[0.11em] text-slate-500">
+                          {item.title}
+                        </p>
+                        <p className="mt-1 text-[13px] font-extrabold leading-5 text-slate-950 [overflow-wrap:anywhere]">
+                          {item.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-sm font-medium leading-6 text-slate-700">
+                    PartsON допомагає купити {visibleProductName}
+                    {product.producer ? ` ${product.producer}` : ""} у Львові з перевіркою за VIN,
+                    підбором аналогів і доставкою Новою Поштою, Укрпоштою або Meest по Україні.
+                    Перед оформленням менеджер звіряє артикул, параметри деталі та сумісність з авто.
+                  </p>
+                </section>
               </div>
 
               {!isModalView && (
-                <ProductDeferredRecommendations
-                  product={{
-                    code: product.code,
-                    article: product.article,
-                    name: product.name,
-                    producer: product.producer,
-                    quantity: product.quantity,
-                    priceEuro: product.priceEuro,
-                    group: product.group,
-                    subGroup: product.subGroup,
-                    category: product.category,
-                    hasPhoto: product.hasPhoto,
-                  }}
-                  euroRate={recommendationEuroRate}
-                />
+                <>
+                  <ProductRelatedItemsSection
+                    product={{
+                      code: product.code,
+                      article: product.article,
+                      name: product.name,
+                      producer: product.producer,
+                      group: product.group,
+                      subGroup: product.subGroup,
+                      category: product.category,
+                    }}
+                    euroRate={recommendationEuroRate}
+                    preferStatic={shouldUseStaticRecommendationBlocks}
+                    ssrTimeoutMs={shouldUseStaticRecommendationBlocks ? null : undefined}
+                  />
+                  <ProductDeferredRecommendations
+                    product={{
+                      code: product.code,
+                      article: product.article,
+                      name: product.name,
+                      producer: product.producer,
+                      quantity: product.quantity,
+                      priceEuro: product.priceEuro,
+                      group: product.group,
+                      subGroup: product.subGroup,
+                      category: product.category,
+                      hasPhoto: product.hasPhoto,
+                    }}
+                    euroRate={recommendationEuroRate}
+                  />
+                </>
               )}
             </section>
           </div>
