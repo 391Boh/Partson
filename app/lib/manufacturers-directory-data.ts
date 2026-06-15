@@ -11,6 +11,7 @@ import {
 import { getCatalogSeoFacets, type CatalogSeoFacets } from "app/lib/catalog-seo";
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
+import { producerDescriptions } from "app/lib/producer-descriptions";
 import { buildSeoSlug } from "app/lib/seo-slug";
 
 export type ManufacturerListItem = {
@@ -76,6 +77,7 @@ const buildManufacturersDirectoryData = async (
       initials: existing?.initials || getProducerInitials(label),
       description:
         existing?.description ||
+        producerDescriptions[label] ||
         `Виробник ${label} у каталозі PartsON з прямим переходом до товарів бренду.`,
       logoPath: existing?.logoPath || resolveProducerLogo(label, logoMap) || null,
       productCount: Math.max(existing?.productCount || 0, producer.productCount || 0),
