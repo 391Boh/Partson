@@ -1,9 +1,11 @@
 ﻿"use client";
 
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle, Copy, Check } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
+import { brands } from "app/components/brandsData";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { pushEcommerceEvent } from "app/lib/gtm";
@@ -16,6 +18,40 @@ const safBackface = {
     backfaceVisibility: "hidden" as const,
     WebkitBackfaceVisibility: "hidden" as const,
     transformStyle: "preserve-3d" as const,
+};
+
+const normalizeProducerLogoKey = (value: string) =>
+    (value || "")
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\b(inc|ltd|gmbh|llc|corp|company|co|sa|ag|ooo)\b/g, "")
+        .replace(/[^a-z0-9]+/g, "")
+        .trim();
+
+const producerLogoByKey = new Map(
+    brands
+        .flatMap((brand) =>
+            typeof brand.logo === "string" && brand.logo.length > 0
+                ? ([[normalizeProducerLogoKey(brand.name), brand.logo]] as const)
+                : []
+        )
+);
+
+const resolveProducerLogoSrc = (producer: string) => {
+    const producerKey = normalizeProducerLogoKey(producer);
+    if (!producerKey) return null;
+
+    const directLogo = producerLogoByKey.get(producerKey);
+    if (directLogo) return directLogo;
+
+    for (const [logoKey, logoPath] of producerLogoByKey.entries()) {
+        if (producerKey.includes(logoKey) || logoKey.includes(producerKey)) {
+            return logoPath;
+        }
+    }
+
+    return null;
 };
 
 interface Product {
@@ -108,8 +144,11 @@ const ProductCard: React.FC<Props> = ({
         const query = new URLSearchParams({ producer: normalizedProducer }).toString();
         return `${manufacturerPath}?${query}`;
     }, [producer]);
+    const producerLogoSrc = useMemo(() => resolveProducerLogoSrc(producer), [producer]);
     const [articleCopied, setArticleCopied] = useState(false);
+    const [producerLogoFailed, setProducerLogoFailed] = useState(false);
     const articleCopyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const showProducerLogo = Boolean(producerLogoSrc && !producerLogoFailed);
 
     const handleCopyArticle = useMemo(
         () => async (event: React.MouseEvent) => {
@@ -170,6 +209,11 @@ const ProductCard: React.FC<Props> = ({
 
     const isAvailable = quantity > 0;
     const isPriceLoading = priceStatus === "loading";
+    const hasCostPrice =
+        isAdmin &&
+        typeof costPriceUAH === "number" &&
+        Number.isFinite(costPriceUAH) &&
+        costPriceUAH > 0;
     const hasPrice =
         priceStatus === "ready" &&
         typeof priceUAH === "number" &&
@@ -181,6 +225,7 @@ const ProductCard: React.FC<Props> = ({
     const isRequestAction = priceStatus === "request";
     const isCounterDisabled = !isAvailable;
     const [justAdded, setJustAdded] = useState(false);
+    const [showCostPrice, setShowCostPrice] = useState(false);
     const prevCartQty = useRef(cartQty);
     const isFrontVisible = !isFlipped;
     const frontVisibilityClass = isFrontVisible
@@ -200,6 +245,16 @@ const ProductCard: React.FC<Props> = ({
         }
         prevCartQty.current = cartQty;
     }, [cartQty]);
+
+    useEffect(() => {
+        if (!hasCostPrice && showCostPrice) {
+            setShowCostPrice(false);
+        }
+    }, [hasCostPrice, showCostPrice]);
+
+    useEffect(() => {
+        setProducerLogoFailed(false);
+    }, [producerLogoSrc]);
 
     useEffect(() => {
         return () => {
@@ -476,29 +531,70 @@ useEffect(() => {
                                   href={producerPath}
                                   prefetchOnIntent
                                   onClick={(event) => event.stopPropagation()}
-                                  className="flex justify-between min-h-0 hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors no-underline"
+                                  className="flex min-h-[30px] items-center justify-between gap-2 hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors no-underline"
+                                  title={producer}
                               >
                                   <span className="text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
-                                  <span className="min-w-0 max-w-[55%] truncate font-medium text-blue-700 hover:text-blue-800">{producer}</span>
+                                  {showProducerLogo ? (
+                                      <span className="flex min-w-0 max-w-[55%] justify-end">
+                                          <Image
+                                              src={producerLogoSrc || ""}
+                                              alt={producer}
+                                              width={112}
+                                              height={34}
+                                              loading="lazy"
+                                              onError={() => setProducerLogoFailed(true)}
+                                              className="h-7 w-auto max-w-[112px] object-contain object-right"
+                                          />
+                                      </span>
+                                  ) : (
+                                      <span className="min-w-0 max-w-[55%] truncate font-medium text-blue-700 hover:text-blue-800">{producer}</span>
+                                  )}
                               </SmartLink>
                           ) : (
-                              <div className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
+                              <div
+                                  className="flex min-h-[30px] items-center justify-between gap-2 hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors"
+                                  title={producer}
+                              >
                                   <span className="text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
-                                  <span className="min-w-0 max-w-[55%] truncate font-medium text-slate-700">{producer}</span>
+                                  {showProducerLogo ? (
+                                      <span className="flex min-w-0 max-w-[55%] justify-end">
+                                          <Image
+                                              src={producerLogoSrc || ""}
+                                              alt={producer}
+                                              width={112}
+                                              height={34}
+                                              loading="lazy"
+                                              onError={() => setProducerLogoFailed(true)}
+                                              className="h-7 w-auto max-w-[112px] object-contain object-right"
+                                          />
+                                      </span>
+                                  ) : (
+                                      <span className="min-w-0 max-w-[55%] truncate font-medium text-slate-700">{producer}</span>
+                                  )}
                               </div>
                           )}
                     </div>
 
                     {/* Р¦С–РЅР° */}
                     <div className="mt-2 flex w-full items-center justify-between gap-1.5 sm:mt-2.5">
-                        {isAdmin && costPriceUAH != null && (
-                            <div className="flex min-h-[28px] min-w-0 max-w-[43%] items-center justify-between gap-1.5 rounded-[11px] border border-amber-200 bg-amber-50/85 px-2 py-0.5 text-[10px] shadow-[0_7px_14px_rgba(245,158,11,0.08)]">
-                                <span className="shrink-0 font-bold uppercase tracking-[0.05em] text-amber-700">Закуп</span>
-                                <span className="min-w-0 truncate font-bold text-amber-800 tabular-nums">
-                                    {costPriceUAH.toLocaleString("uk-UA")}
-                                    <span className="ml-0.5 font-medium text-amber-600">грн</span>
-                                </span>
-                            </div>
+                        {hasCostPrice && (
+                            <button
+                                type="button"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    setShowCostPrice((value) => !value);
+                                }}
+                                aria-pressed={showCostPrice}
+                                title={showCostPrice ? "Показати продажну ціну" : "Показати закупівельну ціну"}
+                                className={`flex min-h-[32px] shrink-0 items-center justify-center rounded-[11px] border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] shadow-[0_7px_14px_rgba(245,158,11,0.08)] transition ${
+                                    showCostPrice
+                                        ? "border-amber-300 bg-amber-100 text-amber-900"
+                                        : "border-amber-200 bg-amber-50/85 text-amber-700 hover:border-amber-300 hover:bg-amber-100"
+                                }`}
+                            >
+                                Закуп
+                            </button>
                         )}
                         <div
                             className="
@@ -515,11 +611,20 @@ useEffect(() => {
                             "
                         >
                             <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
-                                {"\u0426\u0456\u043D\u0430:"}
+                                {showCostPrice && hasCostPrice ? "Закуп:" : "\u0426\u0456\u043D\u0430:"}
                             </span>
 
                             <span className="flex items-center justify-end gap-1 text-right tabular-nums">
-                                {hasPrice ? (
+                                {showCostPrice && hasCostPrice ? (
+                                    <>
+                                        <span className="text-amber-700 font-black text-[13px] leading-none">
+                                            {costPriceUAH.toLocaleString("uk-UA")}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-amber-600">
+                                            {"\u0433\u0440\u043D"}
+                                        </span>
+                                    </>
+                                ) : hasPrice ? (
                                     <>
                                         <span className="text-blue-600 font-black text-[13px] leading-none">
                                             {priceUAH.toLocaleString("uk-UA")}

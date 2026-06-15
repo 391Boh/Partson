@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 21600;
 
 export async function GET() {
   const data = await getFullManufacturersDirectoryData();

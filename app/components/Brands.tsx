@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { memo, useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Factory, Search, X } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Factory, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -12,8 +12,53 @@ import { brands } from "./brandsData";
 const MOBILE_ITEMS_PER_PAGE = 6;
 const DESKTOP_ITEMS_PER_PAGE = 8;
 
-type BrandItem = (typeof brands)[number];
+type BrandItem = {
+  name: string;
+  logo: string | null;
+  description: string;
+  productCount?: number;
+  groupsCount?: number;
+};
+type ManufacturerCountsApiItem = {
+  label: string;
+  logoPath: string | null;
+  description: string | null;
+  productCount: number;
+  groupsCount: number;
+};
+type ManufacturerCountsApiPayload = {
+  clientProducers?: ManufacturerCountsApiItem[];
+};
 const BRAND_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
+const INITIAL_BRANDS: BrandItem[] = brands.map((brand) => ({
+  name: brand.name,
+  logo: brand.logo,
+  description: brand.description,
+}));
+
+const buildSyncedBrandDescription = (item: ManufacturerCountsApiItem) => {
+  const baseDescription = (item.description || "").replace(/\s+/g, " ").trim();
+  if (baseDescription) return baseDescription;
+
+  const productSummary =
+    item.productCount > 0
+      ? `${item.productCount.toLocaleString("uk-UA")} товарних позицій`
+      : "товари виробника";
+  const groupSummary =
+    item.groupsCount > 0
+      ? `${item.groupsCount.toLocaleString("uk-UA")} груп`
+      : "групи каталогу";
+
+  return `${item.label} у PartsON: ${productSummary}, ${groupSummary} і швидкий перехід до каталогу бренду.`;
+};
+
+const normalizeSyncedBrand = (item: ManufacturerCountsApiItem): BrandItem => ({
+  name: item.label,
+  logo: item.logoPath,
+  description: buildSyncedBrandDescription(item),
+  productCount: item.productCount,
+  groupsCount: item.groupsCount,
+});
 
 const handleBrandLogoLoadError = (event: SyntheticEvent<HTMLImageElement>) => {
   const image = event.currentTarget;
@@ -34,21 +79,21 @@ const BrandSearchInput = memo(
 
     return (
       <label className={`relative block ${className ?? ""}`}>
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-400" />
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-500" />
         <input
           type="text"
           placeholder="Виробник"
           aria-label="Пошук виробника"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="font-ui w-full rounded-xl border border-blue-200 bg-white/90 px-9 py-2 text-xs font-semibold tracking-normal text-gray-700 placeholder:text-blue-300/95 shadow-inner transition select-text focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-300 sm:text-sm"
+          className="font-ui w-full rounded-[14px] border border-slate-200 bg-white/95 px-10 py-2.5 text-sm font-semibold tracking-normal text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_22px_rgba(15,23,42,0.045)] transition select-text placeholder:text-slate-400 focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-100"
         />
         {value && (
           <button
             type="button"
             onClick={() => onChange("")}
             aria-label="Очистити пошук"
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-white text-blue-500 border border-blue-100 shadow-sm hover:bg-blue-50 transition"
+            className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
           >
             <X className="h-3.5 w-3.5 mx-auto" />
           </button>
@@ -63,9 +108,11 @@ BrandSearchInput.displayName = "BrandSearchInput";
 function BrandCard({
   brand,
   onOpen,
+  priority = false,
 }: {
   brand: BrandItem;
   onOpen: (brandName: string) => void;
+  priority?: boolean;
 }) {
   return (
     <button
@@ -76,14 +123,13 @@ function BrandCard({
         onOpen(brand.name);
       }}
       onMouseLeave={(event) => event.currentTarget.blur()}
-      className="group relative isolate flex h-[198px] w-full flex-col gap-3 overflow-hidden rounded-2xl border-2 border-cyan-100/90 bg-[linear-gradient(145deg,rgba(255,255,255,0.97),rgba(240,249,255,0.91))] px-3.5 py-3.5 text-left shadow-[0_10px_22px_rgba(15,23,42,0.08),0_0_0_1px_rgba(255,255,255,0.82)_inset] ring-1 ring-sky-200/35 transition-[border-color,background-color,box-shadow,ring-color] duration-300 ease-out hover:border-sky-200/95 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/80 hover:to-blue-50/80 hover:shadow-[0_12px_26px_rgba(59,130,246,0.11),0_5px_16px_rgba(14,165,233,0.08),0_0_0_1px_rgba(34,211,238,0.2)_inset] hover:ring-cyan-200/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 touch-pan-y sm:h-[206px] sm:px-4"
+      className="group relative isolate flex h-[250px] w-full flex-col overflow-hidden rounded-[18px] border border-slate-200/90 bg-white/96 px-3.5 py-3.5 text-left shadow-[0_14px_30px_rgba(15,23,42,0.06)] ring-1 ring-white/80 transition-[border-color,box-shadow,transform,background-color] duration-300 ease-out hover:-translate-y-0.5 hover:border-sky-300 hover:bg-white hover:shadow-[0_20px_38px_rgba(14,165,233,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 touch-pan-y sm:h-[264px] sm:px-4"
     >
-      <span className="pointer-events-none absolute inset-0 z-0 rounded-[14px] border border-white/80" />
-      <span className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.12),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.08),transparent_34%)] opacity-55 transition-opacity duration-300 ease-out group-hover:opacity-68" />
-      <span className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-br from-white via-sky-50/50 to-blue-50/40 transition-colors duration-300 ease-out group-hover:from-white group-hover:via-sky-50/80 group-hover:to-blue-50/70" />
+      <span className="pointer-events-none absolute inset-x-0 top-0 z-0 h-1 bg-[linear-gradient(90deg,#38bdf8,#14b8a6,#6366f1)] opacity-80" />
+      <span className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(180deg,rgba(248,250,252,0.66),rgba(255,255,255,0.94)_42%,rgba(255,255,255,0.98))]" />
 
-      <span className="relative z-10 flex min-w-0 items-center gap-3">
-        <span className="flex h-[54px] w-[78px] shrink-0 items-center justify-center rounded-xl border border-sky-100/80 bg-white/92 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_6px_14px_rgba(15,23,42,0.07)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.015] group-active:scale-[0.99] sm:h-[58px] sm:w-[86px]">
+      <span className="relative z-10 flex min-w-0 items-start gap-3">
+        <span className="flex h-[58px] w-[86px] shrink-0 items-center justify-center rounded-[14px] border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(15,23,42,0.06)] transition duration-300 group-hover:border-sky-200 group-hover:shadow-[0_12px_24px_rgba(14,165,233,0.1)] sm:h-[62px] sm:w-[94px]">
           {brand.logo ? (
             <Image
               src={brand.logo}
@@ -91,8 +137,10 @@ function BrandCard({
               width={320}
               height={200}
               quality={100}
+              priority={priority}
+              loading={priority ? undefined : "lazy"}
               draggable={false}
-              className="max-h-[34px] w-auto max-w-[64px] object-contain drop-shadow-[0_5px_10px_rgba(15,23,42,0.1)] sm:max-h-[38px] sm:max-w-[72px]"
+              className="h-[38px] w-[72px] object-contain drop-shadow-[0_5px_10px_rgba(15,23,42,0.1)] sm:h-[42px] sm:w-[80px]"
               style={{ imageRendering: "auto" }}
               sizes="(max-width: 640px) 64px, 80px"
               onError={handleBrandLogoLoadError}
@@ -103,16 +151,34 @@ function BrandCard({
             </span>
           )}
         </span>
-        <span className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
-          <span className="block max-w-full break-words text-left text-[15px] font-black leading-tight tracking-[-0.02em] text-slate-800 transition-colors duration-300 group-hover:text-sky-800 sm:text-[16px]">
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="inline-flex w-fit rounded-[9px] border border-sky-200/80 bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-sky-800">
+            Виробник
+          </span>
+          <span className="block max-w-full break-words text-left text-[16px] font-black leading-tight text-slate-950 transition-colors duration-300 group-hover:text-sky-800 sm:text-[17px]">
             {brand.name}
           </span>
-          <span className="block h-0.5 w-14 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-blue-500 transition-all duration-300 group-hover:w-20" />
+          {brand.productCount && brand.productCount > 0 ? (
+            <span className="text-[11px] font-bold text-emerald-700">
+              {brand.productCount.toLocaleString("uk-UA")} товарів у каталозі
+            </span>
+          ) : null}
         </span>
       </span>
-      <span className="relative z-10 block min-w-0 border-t border-sky-100/80 pt-2.5">
-        <span className="font-ui block min-w-0 break-words text-left text-[11.5px] font-semibold leading-[1.48] text-slate-600 transition-colors duration-300 group-hover:text-slate-700 line-clamp-5 sm:text-[12.5px]">
+
+      <span className="relative z-10 mt-3 block min-w-0 rounded-[14px] border border-slate-200/80 bg-slate-50/70 px-3 py-2.5">
+        <span className="font-ui block min-w-0 break-words text-left text-[12px] font-semibold leading-5 text-slate-600 transition-colors duration-300 group-hover:text-slate-700 line-clamp-5">
           {brand.description}
+        </span>
+      </span>
+
+      <span className="relative z-10 mt-auto flex items-center justify-between gap-2 pt-3">
+        <span className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+          Сторінка бренду
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-[11px] border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-sky-800 transition group-hover:border-sky-300 group-hover:bg-sky-100">
+          Відкрити
+          <ArrowRight size={13} strokeWidth={2.4} aria-hidden="true" />
         </span>
       </span>
     </button>
@@ -132,6 +198,7 @@ export default function BrandCarousel({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [isSmUp, setIsSmUp] = useState(true);
+  const [syncedBrands, setSyncedBrands] = useState<BrandItem[]>(INITIAL_BRANDS);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -148,15 +215,15 @@ export default function BrandCarousel({
 
   const itemsPerPage = isSmUp ? DESKTOP_ITEMS_PER_PAGE : MOBILE_ITEMS_PER_PAGE;
   const brandNames = useMemo(
-    () => brands.map((item) => item?.name ?? "").filter(Boolean),
-    []
+    () => syncedBrands.map((item) => item?.name ?? "").filter(Boolean),
+    [syncedBrands]
   );
   const filteredBrands = useMemo(
     () =>
-      brands.filter((brand) =>
+      syncedBrands.filter((brand) =>
         brand.name.toLowerCase().includes(search.trim().toLowerCase())
       ),
-    [search]
+    [search, syncedBrands]
   );
 
   const totalPages = Math.max(1, Math.ceil(filteredBrands.length / itemsPerPage));
@@ -178,6 +245,26 @@ export default function BrandCarousel({
     }
   }, [page, totalPages]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/manufacturer-counts", {
+      headers: { Accept: "application/json" },
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: ManufacturerCountsApiPayload | null) => {
+        if (cancelled) return;
+        const items = payload?.clientProducers;
+        if (!Array.isArray(items) || items.length === 0) return;
+        setSyncedBrands(items.map(normalizeSyncedBrand));
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handlePrevPage = useCallback(() => {
     if (!canGoPrev) return;
     setPage((prev) => Math.max(0, prev - 1));
@@ -197,11 +284,10 @@ export default function BrandCarousel({
 
   return (
     <section
-      className="home-glow-section home-glow-section-indigo font-ui group/brandcars relative min-h-[320px] w-full select-none overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-5 pt-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)]"
+      className="home-glow-section home-glow-section-indigo font-ui group/brandcars relative min-h-[320px] w-full select-none overflow-hidden bg-[linear-gradient(180deg,#f8fafc_0%,#eef6fb_48%,#f0fdfa_100%)] pb-6 pt-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(15,23,42,0.06)]"
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
     >
-      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/brandcars:opacity-30 bg-[image:radial-gradient(circle_at_12%_16%,rgba(125,211,252,0.16),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.12),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(147,197,253,0.1),transparent_36%)]" />
       <motion.div
         className="page-shell-inline relative z-10"
         initial={shouldAnimate ? { opacity: 0, y: 14 } : false}
@@ -209,56 +295,60 @@ export default function BrandCarousel({
         transition={shouldAnimate ? { duration: 0.32, ease: "easeOut" } : undefined}
       >
         <div className="flex flex-col gap-4 group/brands">
-          <div className="grid w-full gap-3 rounded-2xl border border-white/80 bg-white/62 p-3 shadow-[0_12px_28px_rgba(37,99,235,0.08)] backdrop-blur-md sm:grid-cols-[minmax(0,1fr)_240px_auto] sm:items-center">
-            <div className="flex min-w-0 items-center gap-3 group hover:[&_span[data-underline]]:scale-x-100 group-hover/brands:[&_span[data-underline]]:scale-x-100">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shadow-inner">
+          <div className="flex w-full flex-col gap-3 rounded-[22px] border border-slate-200/85 bg-white/94 p-3.5 shadow-[0_16px_36px_rgba(15,23,42,0.065)] ring-1 ring-white/80 lg:flex-row lg:items-center lg:justify-between lg:p-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-sky-200/80 bg-sky-50 text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.08)]">
                 <Factory size={18} />
               </span>
-              <h3 className="font-display relative min-w-0 text-[21px] leading-tight tracking-[-0.035em] text-slate-800 sm:text-[25px]">
-                <span className="relative inline-block max-w-full break-words">
-                  {"Вибір із"} {filteredBrands.length} {"виробників авто"}
-                  <span
-                    data-underline
-                    className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-400 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 group-hover/brands:scale-x-100 shadow-[0_4px_12px_rgba(59,130,246,0.28)]"
-                  />
-                </span>
-              </h3>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-display min-w-0 text-[20px] leading-tight tracking-normal text-slate-950 sm:text-[24px]">
+                    Виробники запчастин
+                  </h3>
+                  <span className="inline-flex rounded-[10px] border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-sky-800">
+                    {filteredBrands.length.toLocaleString("uk-UA")}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                  Швидкий перехід до бренду, груп товарів і каталогу виробника
+                </p>
+              </div>
             </div>
 
-            <BrandSearchInput
-              className="relative min-w-0"
-              value={search}
-              onChange={setSearch}
-              brandNames={brandNames}
-            />
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-[430px]">
+              <BrandSearchInput
+                className="relative min-w-0 flex-1"
+                value={search}
+                onChange={setSearch}
+                brandNames={brandNames}
+              />
 
-            <div className="max-w-full overflow-x-auto no-scrollbar sm:justify-self-end">
-              <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
-                <button
-                  type="button"
-                  onClick={handlePrevPage}
-                  disabled={!canGoPrev}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
-                  aria-label="Попередня сторінка"
-                >
-                  <ChevronLeft size={12} />
-                </button>
+              <div className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-[13px] border border-slate-200 bg-slate-50/90 px-1.5 py-1 shadow-inner">
+                  <button
+                    type="button"
+                    onClick={handlePrevPage}
+                    disabled={!canGoPrev}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-sky-700 shadow-[0_4px_10px_rgba(15,23,42,0.05)] transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-40"
+                    aria-label="Попередня сторінка"
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
 
-                <div className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-1.5 py-0 text-[9px] font-semibold text-slate-600 shadow-inner">
-                  <span>{safePage + 1}</span>
-                  <span className="text-slate-400">/</span>
-                  <span>{totalPages}</span>
-                </div>
+                  <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-600 shadow-sm">
+                    <span>{safePage + 1}</span>
+                    <span className="text-slate-400">/</span>
+                    <span>{totalPages}</span>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={handleNextPage}
-                  disabled={!canGoNext}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
-                  aria-label="Наступна сторінка"
-                >
-                  <ChevronRight size={12} />
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleNextPage}
+                    disabled={!canGoNext}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-sky-700 shadow-[0_4px_10px_rgba(15,23,42,0.05)] transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-40"
+                    aria-label="Наступна сторінка"
+                  >
+                    <ChevronRight size={13} />
+                  </button>
               </div>
             </div>
           </div>
@@ -274,13 +364,14 @@ export default function BrandCarousel({
             initial={shouldAnimate ? { opacity: 0, y: 8 } : false}
             animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
             transition={shouldAnimate ? { duration: 0.22, ease: "easeOut" } : undefined}
-            className="group/logogrid mt-4 grid grid-cols-1 gap-3.5 place-items-stretch min-[420px]:grid-cols-2 sm:grid-cols-4 sm:gap-4"
+            className="group/logogrid mt-4 grid grid-cols-1 gap-3.5 place-items-stretch min-[420px]:grid-cols-2 sm:grid-cols-4 sm:gap-4 lg:gap-5"
           >
             {pagedBrands.map((brand, idx) => (
               <BrandCard
                 key={`${brand.name}-${safePage}-${idx}`}
                 brand={brand}
                 onOpen={openCatalog}
+                priority={safePage === 0 && idx < 4}
               />
             ))}
           </motion.div>

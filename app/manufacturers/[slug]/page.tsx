@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
 import Image from "next/image";
 import Link from "next/link";
+import { PackageSearch } from "lucide-react";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
@@ -43,6 +44,8 @@ import {
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import { fetchProductImageBase64Batch } from "app/lib/product-image";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getProducerSeoCopy } from "app/lib/seo-copy";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
@@ -58,8 +61,14 @@ const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
 const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 2400;
 const MANUFACTURER_FALLBACK_MAX_PAGES_DEFAULT = 40;
 const MANUFACTURER_FALLBACK_MAX_ITEMS_DEFAULT = 4800;
-const MANUFACTURER_TOP_PRODUCTS_LIMIT = 10;
+const MANUFACTURER_TOP_PRODUCTS_LIMIT = 48;
+const MANUFACTURER_VISIBLE_PRODUCTS_LIMIT = 12;
 const MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS = 1500;
+const MANUFACTURER_GROUP_SAMPLE_LIMIT = 2;
+const MANUFACTURER_GROUP_SAMPLE_CANDIDATE_LIMIT = 24;
+const MANUFACTURER_GROUP_SAMPLE_FETCH_CONCURRENCY = 4;
+const MANUFACTURER_GROUP_SAMPLE_FETCH_TIMEOUT_MS = 1500;
+const MANUFACTURER_GROUP_SAMPLE_IMAGE_MAX_KEYS = 800;
 const DEBUG_MANUFACTURER_PAGE =
   process.env.DEBUG_MANUFACTURER_PAGE === "1" ||
   process.env.NEXT_PUBLIC_DEBUG_MANUFACTURER_PAGE === "1";
@@ -99,6 +108,9 @@ type ManufacturerPageData = {
 };
 
 type ManufacturerTopGroup = ManufacturerPageData["topGroups"][number];
+type ManufacturerGroupProductSample = CatalogProduct & {
+  imageSrc: string;
+};
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
@@ -118,6 +130,121 @@ const normalizeValue = (value: string | null | undefined) =>
 
 const formatCount = (value: number) =>
   Number.isFinite(value) && value > 0 ? value.toLocaleString("uk-UA") : "0";
+
+const formatManufacturerProductCount = (value: number | null | undefined) =>
+  typeof value === "number" && Number.isFinite(value) && value > 0
+    ? `${Math.floor(value).toLocaleString("uk-UA")} шт`
+    : "за запитом";
+
+const buildManufacturerProductMeta = (
+  product: Pick<CatalogProduct, "group" | "subGroup" | "category">
+) =>
+  Array.from(
+    new Set(
+      [product.subGroup, product.group || product.category]
+        .map(normalizeValue)
+        .filter(Boolean)
+    )
+  )
+    .slice(0, 2);
+
+const buildManufacturerGroupSampleKey = (value: string | null | undefined) =>
+  normalizeValue(value).toLowerCase();
+
+const isAvailableCatalogProduct = (product: CatalogProduct) =>
+  Boolean(product.code) &&
+  Boolean(product.name) &&
+  typeof product.quantity === "number" &&
+  product.quantity > 0;
+
+const productBelongsToManufacturerGroup = (
+  product: CatalogProduct,
+  group: ManufacturerTopGroup
+) => {
+  const groupKeys = new Set(
+    [group.filterValue, group.label].map(buildManufacturerGroupSampleKey).filter(Boolean)
+  );
+  if (groupKeys.size === 0) return false;
+
+  const productGroupKey = buildManufacturerGroupSampleKey(product.group);
+  return Boolean(productGroupKey && groupKeys.has(productGroupKey));
+};
+
+const buildProductImageLookupKeys = (product: CatalogProduct) =>
+  Array.from(
+    new Set([product.article, product.code].map(normalizeValue).filter(Boolean))
+  );
+
+const productHasVerifiedImage = (
+  product: CatalogProduct,
+  resolvedImages: Record<string, string>
+) =>
+  buildProductImageLookupKeys(product).some(
+    (lookupKey) => Boolean(resolvedImages[lookupKey.toLowerCase()])
+  );
+
+const buildVerifiedProductImageMap = async (
+  products: CatalogProduct[],
+  options?: {
+    maxKeys?: number;
+    timeoutMs?: number;
+    allowUrlDownload?: boolean;
+  }
+) => {
+  const lookupKeys = new Set<string>();
+  for (const product of products) {
+    for (const lookupKey of buildProductImageLookupKeys(product)) {
+      lookupKeys.add(lookupKey);
+      if (lookupKeys.size >= (options?.maxKeys || 80)) break;
+    }
+    if (lookupKeys.size >= (options?.maxKeys || 80)) break;
+  }
+
+  if (lookupKeys.size === 0) {
+    return new Map<string, string>();
+  }
+
+  const resolvedImages = await fetchProductImageBase64Batch(Array.from(lookupKeys), {
+    timeoutMs: options?.timeoutMs || 650,
+    retries: 0,
+    retryDelayMs: 80,
+    cacheTtlMs: 1000 * 60 * 60,
+    missCacheTtlMs: 1000 * 60 * 8,
+    allowUrlDownload: options?.allowUrlDownload !== false,
+    batchConcurrency: 8,
+    maxKeys: options?.maxKeys || 80,
+  }).catch(() => ({} as Record<string, string>));
+
+  const imageMap = new Map<string, string>();
+  for (const product of products) {
+    if (!productHasVerifiedImage(product, resolvedImages)) continue;
+
+    const dedupeKey = buildProductDedupeKey(product);
+    if (!dedupeKey) continue;
+
+    imageMap.set(
+      dedupeKey,
+      buildProductImagePath(product.code, product.article, {
+        catalog: true,
+        noFallback: true,
+      })
+    );
+  }
+
+  return imageMap;
+};
+
+const pushGroupSampleCandidate = (
+  candidates: CatalogProduct[],
+  product: CatalogProduct
+) => {
+  if (candidates.length >= MANUFACTURER_GROUP_SAMPLE_CANDIDATE_LIMIT) return;
+  const dedupeKey = buildProductDedupeKey(product);
+  if (!dedupeKey || candidates.some((item) => buildProductDedupeKey(item) === dedupeKey)) {
+    return;
+  }
+  candidates.push(product);
+};
 
 const buildManufacturerTitle = (label: string) =>
   `${normalizeValue(label)} - каталог автозапчастин`;
@@ -177,23 +304,30 @@ const buildManufacturerGroupLead = (options: {
   producerLabel: string;
   groupLabel: string;
   subgroupCount: number;
+  productCount: number;
+  sampleNames?: string[];
 }) => {
   const producerLabel = normalizeValue(options.producerLabel);
   const groupLabel = normalizeValue(options.groupLabel);
+  const productCountLabel =
+    options.productCount > 0
+      ? `${options.productCount.toLocaleString("uk-UA")} товарних позицій`
+      : "товари цієї групи";
+  const sampleNames = (options.sampleNames || []).slice(
+    0,
+    MANUFACTURER_GROUP_SAMPLE_LIMIT
+  );
+  const sampleText =
+    sampleNames.length > 0
+      ? ` На прев'ю показані доступні позиції з цієї групи: ${sampleNames.join(", ")}.`
+      : "";
 
   if (options.subgroupCount > 0) {
-    return `Група ${groupLabel} бренду ${producerLabel} веде до конкретних категорій і товарів у каталозі PartsON.`;
+    return `Група ${groupLabel} бренду ${producerLabel}: ${productCountLabel} у ${options.subgroupCount.toLocaleString("uk-UA")} категоріях каталогу. Відкрийте групу, щоб швидко перейти до потрібних запчастин.${sampleText}`;
   }
 
-  return `Група ${groupLabel} відкриває товари бренду ${producerLabel} без додаткового налаштування фільтрів.`;
+  return `Група ${groupLabel} відкриває ${productCountLabel} бренду ${producerLabel} без додаткового налаштування фільтрів.${sampleText}`;
 };
-
-const buildManufacturerSubgroupLead = (options: {
-  producerLabel: string;
-  groupLabel: string;
-  subgroupLabel: string;
-}) =>
-  `Категорія ${normalizeValue(options.subgroupLabel)} бренду ${normalizeValue(options.producerLabel)} у групі ${normalizeValue(options.groupLabel)}.`;
 
 const buildProductDedupeKey = (item: {
   code?: string;
@@ -483,11 +617,144 @@ const fetchManufacturerTopProductsUncached = async (
 
 const getManufacturerTopProductsCached = unstable_cache(
   fetchManufacturerTopProductsUncached,
-  ["manufacturer:top-products:v1"],
+  ["manufacturer:top-products:v2"],
   { revalidate: 60 * 30 }
 );
 
 const getManufacturerTopProducts = cache(getManufacturerTopProductsCached);
+
+const fetchManufacturerGroupSampleCandidates = async (
+  producerLabel: string,
+  groups: ManufacturerTopGroup[]
+) => {
+  const normalizedProducer = normalizeValue(producerLabel);
+  if (!normalizedProducer || groups.length === 0) {
+    return new Map<string, CatalogProduct[]>();
+  }
+
+  const candidatesByGroup = new Map<string, CatalogProduct[]>();
+  let cursor = 0;
+  const workerCount = Math.min(
+    MANUFACTURER_GROUP_SAMPLE_FETCH_CONCURRENCY,
+    groups.length
+  );
+
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (cursor < groups.length) {
+      const currentIndex = cursor;
+      cursor += 1;
+
+      const group = groups[currentIndex];
+      const groupKey = buildManufacturerGroupSampleKey(group.filterValue || group.label);
+      if (!groupKey) continue;
+
+      const products = await resolveWithTimeout(
+        () =>
+          fetchCatalogProductsByQuery({
+            page: 1,
+            limit: MANUFACTURER_GROUP_SAMPLE_CANDIDATE_LIMIT,
+            producer: normalizedProducer,
+            group: group.filterValue || group.label,
+            sortOrder: "none",
+            includePriceEnrichment: false,
+            preferLegacySource: true,
+            forceAllgoodsSource: false,
+            timeoutMs: 900,
+            retries: 0,
+            retryDelayMs: 80,
+            cacheTtlMs: 1000 * 60 * 30,
+          }),
+        { items: [] as CatalogProduct[], hasMore: false, nextCursor: "" },
+        MANUFACTURER_GROUP_SAMPLE_FETCH_TIMEOUT_MS
+      ).catch(() => ({ items: [] as CatalogProduct[] }));
+
+      const candidates = candidatesByGroup.get(groupKey) || [];
+      for (const product of products.items || []) {
+        if (!isAvailableCatalogProduct(product)) continue;
+        if (!productBelongsToManufacturerGroup(product, group)) continue;
+        pushGroupSampleCandidate(candidates, product);
+      }
+      candidatesByGroup.set(groupKey, candidates);
+    }
+  });
+
+  await Promise.allSettled(workers);
+  return candidatesByGroup;
+};
+
+const buildManufacturerGroupProductSamples = async (
+  producerLabel: string,
+  groups: ManufacturerTopGroup[],
+  manufacturerProducts: CatalogProduct[]
+) => {
+  if (groups.length === 0 || isProductionBuildPhase) {
+    return new Map<string, ManufacturerGroupProductSample[]>();
+  }
+
+  const candidatesByGroup = new Map<string, CatalogProduct[]>();
+  for (const group of groups) {
+    const groupKey = buildManufacturerGroupSampleKey(group.filterValue || group.label);
+    if (!groupKey) continue;
+
+    const candidates = candidatesByGroup.get(groupKey) || [];
+    for (const product of manufacturerProducts) {
+      if (!isAvailableCatalogProduct(product)) continue;
+      if (!productBelongsToManufacturerGroup(product, group)) continue;
+      pushGroupSampleCandidate(candidates, product);
+    }
+    candidatesByGroup.set(groupKey, candidates);
+  }
+
+  const groupsNeedingMore = groups.filter((group) => {
+    const groupKey = buildManufacturerGroupSampleKey(group.filterValue || group.label);
+    return (
+      groupKey &&
+      (candidatesByGroup.get(groupKey)?.length || 0) <
+        MANUFACTURER_GROUP_SAMPLE_CANDIDATE_LIMIT
+    );
+  });
+
+  const fetchedCandidates = await fetchManufacturerGroupSampleCandidates(
+    producerLabel,
+    groupsNeedingMore
+  );
+  for (const [groupKey, products] of fetchedCandidates.entries()) {
+    const candidates = candidatesByGroup.get(groupKey) || [];
+    for (const product of products) {
+      pushGroupSampleCandidate(candidates, product);
+    }
+    candidatesByGroup.set(groupKey, candidates);
+  }
+
+  const imageMap = await buildVerifiedProductImageMap(
+    Array.from(candidatesByGroup.values()).flat(),
+    {
+      maxKeys: MANUFACTURER_GROUP_SAMPLE_IMAGE_MAX_KEYS,
+      timeoutMs: 700,
+      allowUrlDownload: true,
+    }
+  );
+
+  const samplesByGroup = new Map<string, ManufacturerGroupProductSample[]>();
+  for (const [groupKey, candidates] of candidatesByGroup.entries()) {
+    const samples: ManufacturerGroupProductSample[] = [];
+    for (const product of candidates) {
+      const imageSrc = imageMap.get(buildProductDedupeKey(product));
+      if (!imageSrc) continue;
+      samples.push({
+        ...product,
+        imageSrc,
+      });
+      if (samples.length >= MANUFACTURER_GROUP_SAMPLE_LIMIT) break;
+    }
+
+    if (samples.length > 0) {
+      samplesByGroup.set(groupKey, samples);
+    }
+  }
+
+  return samplesByGroup;
+};
 
 const findBrandMeta = (label: string) => {
   const normalizedLabel = normalizeValue(label);
@@ -733,7 +1000,13 @@ export default async function ManufacturerDetailPage({
         [] as CatalogProduct[],
         MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS
       );
-  const visibleProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
+  const manufacturerProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
+  const visibleProducts = manufacturerProducts.slice(0, MANUFACTURER_VISIBLE_PRODUCTS_LIMIT);
+  const productSamplesByGroup = await buildManufacturerGroupProductSamples(
+    producer.label,
+    producer.topGroups,
+    manufacturerProducts
+  );
 
   const siteUrl = getSiteUrl();
   const pagePath = buildManufacturerPath(producer.slug);
@@ -804,8 +1077,15 @@ export default async function ManufacturerDetailPage({
             item: {
               "@type": "Product",
               name: buildVisibleProductName(product.name),
+              url: `${siteUrl}${productPath}`,
+              image:
+                product.hasPhoto === true
+                  ? `${siteUrl}${buildProductImagePath(product.code, product.article)}`
+                  : undefined,
               sku: product.article || undefined,
               mpn: product.code || undefined,
+              category:
+                product.subGroup || product.group || product.category || undefined,
               brand: { "@type": "Brand", name: producer.label },
             },
           };
@@ -971,36 +1251,74 @@ export default async function ManufacturerDetailPage({
             </div>
           </div>
 
-          <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.95fr)]">
-            <div className="space-y-3 text-sm leading-6 text-slate-600">
-              <p className="rounded-lg border border-sky-100/80 bg-sky-50/55 px-3.5 py-3 font-semibold text-slate-700">
-                {producer.description}
+          <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.85fr)]">
+            <div className="rounded-xl border border-slate-200/85 bg-white/92 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-sky-800">
+                Коротко про бренд
               </p>
-              {seoCopy.paragraphs.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
+              <div className="mt-3 space-y-3 text-sm leading-6 text-slate-600 sm:text-[15px]">
+                <p className="rounded-lg border border-sky-100/80 bg-sky-50/55 px-3.5 py-3 font-semibold text-slate-700">
+                  {producer.description}
+                </p>
+                {seoCopy.paragraphs.slice(0, 2).map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
             </div>
 
-            <aside className="rounded-lg border border-teal-100/80 bg-[linear-gradient(165deg,rgba(240,253,250,0.94),rgba(239,246,255,0.92),rgba(255,255,255,0.98))] p-4 shadow-[0_16px_34px_rgba(13,148,136,0.08)]">
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
-                Популярні запити бренду
+            <aside className="rounded-xl border border-slate-200/85 bg-[linear-gradient(165deg,rgba(248,250,252,0.98),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-4 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-700">
+                Навігація бренду
               </p>
-              <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">
-                {seoCopy.highlights.map((highlight) => (
-                  <li
-                    key={highlight}
-                    className="flex items-start gap-2 border-b border-white/70 pb-2 last:border-b-0 last:pb-0"
-                  >
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500" />
-                    <span>{highlight}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="rounded-[13px] border border-slate-200 bg-white/88 px-2 py-2 text-center">
+                  <span className="block text-sm font-black text-slate-950">
+                    {formatCount(producer.productCount)}
+                  </span>
+                  <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                    товари
+                  </span>
+                </div>
+                <div className="rounded-[13px] border border-slate-200 bg-white/88 px-2 py-2 text-center">
+                  <span className="block text-sm font-black text-slate-950">
+                    {formatCount(producer.groupsCount)}
+                  </span>
+                  <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                    групи
+                  </span>
+                </div>
+                <div className="rounded-[13px] border border-slate-200 bg-white/88 px-2 py-2 text-center">
+                  <span className="block text-sm font-black text-slate-950">
+                    {formatCount(producer.categoriesCount)}
+                  </span>
+                  <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                    категорії
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2">
+                <CatalogPrefetchLink
+                  href={catalogPath}
+                  prefetchCatalogOnViewport
+                  className={directoryPrimaryButtonClass}
+                >
+                  Відкрити каталог бренду
+                </CatalogPrefetchLink>
+                <a
+                  href="#manufacturer-groups"
+                  className={directorySecondaryButtonClass}
+                >
+                  Перейти до груп
+                </a>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                Дані структури беруться з каталожного індексу PartsON і ведуть до фільтрів виробника без ручного налаштування.
+              </p>
             </aside>
           </div>
         </section>
 
-        <section className={directoryPanelClass}>
+        <section id="manufacturer-groups" className={directoryPanelClass}>
           <div className={directoryHeaderClass}>
             <p className={directoryBadgeClass}>
               Структура каталогу бренду
@@ -1015,90 +1333,140 @@ export default async function ManufacturerDetailPage({
 
           {producer.topGroups.length > 0 ? (
             <div className="space-y-4 px-4 py-4 sm:px-5 sm:py-5">
-              {producer.topGroups.map((group) => (
-                <article
-                  key={group.slug}
-                  className={directoryListCardClass}
-                >
-                  <div>
-                    <div className="flex flex-col gap-3 border-b border-slate-200/75 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
-                          Група
-                        </p>
-                        <CatalogPrefetchLink
-                          href={buildCatalogProducerPath(producer.label, group.filterValue)}
-                          prefetchCatalogOnViewport
-                          className="font-display mt-1 inline-flex text-[18px] font-[760] tracking-normal text-slate-950 transition hover:text-teal-700"
-                        >
-                          {normalizeValue(group.label)}
-                        </CatalogPrefetchLink>
-                        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                          {buildManufacturerGroupLead({
-                            producerLabel: producer.label,
-                            groupLabel: group.label,
-                            subgroupCount: group.subgroups.length,
-                          })}
-                        </p>
-                      </div>
+              {producer.topGroups.map((group) => {
+                const groupSamples =
+                  productSamplesByGroup.get(buildManufacturerGroupSampleKey(group.filterValue)) ||
+                  productSamplesByGroup.get(buildManufacturerGroupSampleKey(group.label)) ||
+                  [];
+                const groupSampleNames = groupSamples.map((sample) =>
+                  buildVisibleProductName(sample.name)
+                );
 
-                      <div className="flex flex-wrap gap-2">
-                        <span className={directoryCompactMetricClass}>
-                          {formatCount(group.productCount)} товарів
-                        </span>
-                        {group.subgroups.length > 0 ? (
-                          <span className={directoryCompactMetricAccentClass}>
-                            {formatCount(group.subgroups.length)} категорій
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    {group.subgroups.length > 0 ? (
-                      <div className="grid gap-2.5 px-4 py-4 sm:grid-cols-2 xl:grid-cols-3">
-                        {group.subgroups.map((subgroup) => (
+                return (
+                  <article
+                    key={group.slug}
+                    className={directoryListCardClass}
+                  >
+                    <div>
+                      <div className="flex flex-col gap-3 border-b border-slate-200/75 px-4 py-3.5 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+                            Група
+                          </p>
                           <CatalogPrefetchLink
-                            key={`${group.slug}:${subgroup.slug}`}
-                            href={buildCatalogProducerPath(
-                              producer.label,
-                              group.filterValue,
-                              subgroup.label
-                            )}
+                            href={buildCatalogProducerPath(producer.label, group.filterValue)}
                             prefetchCatalogOnViewport
-                            className="flex items-start justify-between gap-3 rounded-lg border border-slate-200/90 bg-white/90 px-3.5 py-3 text-sm text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition hover:border-teal-200 hover:bg-teal-50/45 hover:text-teal-800"
+                            className="font-display mt-1 inline-flex text-[18px] font-[760] tracking-normal text-slate-950 transition hover:text-teal-700"
                           >
-                            <span className="min-w-0 pr-3">
-                              <span className="block font-medium text-slate-800">
-                                {normalizeValue(subgroup.label)}
-                              </span>
-                              <span className="mt-0.5 block text-[12px] leading-4 text-slate-500">
-                                {buildManufacturerSubgroupLead({
-                                  producerLabel: producer.label,
-                                  groupLabel: group.label,
-                                  subgroupLabel: subgroup.label,
-                                })}
-                              </span>
-                            </span>
-                            <span className={directoryCompactMetricAccentClass}>
-                              {formatCount(subgroup.productCount)} товарів
-                            </span>
+                            {normalizeValue(group.label)}
                           </CatalogPrefetchLink>
-                        ))}
+                          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                            {buildManufacturerGroupLead({
+                              producerLabel: producer.label,
+                              groupLabel: group.label,
+                              subgroupCount: group.subgroups.length,
+                              productCount: group.productCount,
+                              sampleNames: groupSampleNames,
+                            })}
+                          </p>
+                        </div>
+
+                        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+                          {groupSamples.length > 0 ? (
+                            <div className="flex items-center gap-2 rounded-[16px] border border-emerald-100 bg-[linear-gradient(135deg,rgba(240,253,244,0.96),rgba(255,255,255,0.96))] px-2.5 py-2 shadow-[0_12px_28px_rgba(16,185,129,0.08)] ring-1 ring-white/70">
+                              <span className="hidden flex-col pr-0.5 leading-none sm:flex">
+                                <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                  Є фото
+                                </span>
+                                <span className="mt-1 text-[10px] font-semibold text-slate-500">
+                                  В наявності
+                                </span>
+                              </span>
+                              {groupSamples.map((sample) => {
+                                const sampleName = buildVisibleProductName(sample.name);
+                                const samplePath = buildProductPath({
+                                  code: sample.code,
+                                  article: sample.article,
+                                  name: sample.name,
+                                  producer: sample.producer,
+                                  group: sample.group,
+                                  subGroup: sample.subGroup,
+                                  category: sample.category,
+                                });
+
+                                return (
+                                  <Link
+                                    key={buildProductDedupeKey(sample)}
+                                    href={samplePath}
+                                    title={sampleName}
+                                    className="group/sample inline-flex h-[52px] w-[52px] items-center justify-center overflow-hidden rounded-[13px] border border-white bg-white shadow-[0_8px_18px_rgba(15,23,42,0.08)] ring-1 ring-emerald-100/80 transition hover:-translate-y-0.5 hover:border-sky-200 hover:ring-sky-100"
+                                  >
+                                    <Image
+                                      src={sample.imageSrc}
+                                      alt={`Фото ${sampleName}`}
+                                      width={56}
+                                      height={56}
+                                      sizes="48px"
+                                      className="h-11 w-11 object-contain transition duration-300 group-hover/sample:scale-[1.05]"
+                                    />
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                          <div className="flex flex-wrap gap-2">
+                            <span className={directoryCompactMetricClass}>
+                              {formatCount(group.productCount)} товарів
+                            </span>
+                            {group.subgroups.length > 0 ? (
+                              <span className={directoryCompactMetricAccentClass}>
+                                {formatCount(group.subgroups.length)} категорій
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="px-4 py-4">
-                        <CatalogPrefetchLink
-                          href={buildCatalogProducerPath(producer.label, group.filterValue)}
-                          prefetchCatalogOnViewport
-                          className={directoryPrimaryButtonClass}
-                        >
-                          Переглянути товари цієї групи
-                        </CatalogPrefetchLink>
-                      </div>
-                    )}
+
+                      {group.subgroups.length > 0 ? (
+                        <div className="grid gap-2.5 px-4 py-4 sm:grid-cols-2 xl:grid-cols-3">
+                          {group.subgroups.map((subgroup) => (
+                            <CatalogPrefetchLink
+                              key={`${group.slug}:${subgroup.slug}`}
+                              href={buildCatalogProducerPath(
+                                producer.label,
+                                group.filterValue,
+                                subgroup.label
+                              )}
+                              prefetchCatalogOnViewport
+                              className="flex items-start justify-between gap-3 rounded-lg border border-slate-200/90 bg-white/90 px-3.5 py-3 text-sm text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition hover:border-teal-200 hover:bg-teal-50/45 hover:text-teal-800"
+                            >
+                              <span className="min-w-0 pr-3">
+                                <span className="block font-medium text-slate-800">
+                                  {normalizeValue(subgroup.label)}
+                                </span>
+                              </span>
+                              <span className={directoryCompactMetricAccentClass}>
+                                {formatCount(subgroup.productCount)} товарів
+                              </span>
+                            </CatalogPrefetchLink>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="px-4 py-4">
+                          <CatalogPrefetchLink
+                            href={buildCatalogProducerPath(producer.label, group.filterValue)}
+                            prefetchCatalogOnViewport
+                            className={directoryPrimaryButtonClass}
+                          >
+                            Переглянути товари цієї групи
+                          </CatalogPrefetchLink>
+                        </div>
+                      )}
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="px-4 py-5 sm:px-5">
@@ -1116,13 +1484,31 @@ export default async function ManufacturerDetailPage({
         {visibleProducts.length > 0 && (
           <section className={directoryPanelClass}>
             <div className={directoryHeaderClass}>
-              <p className={directoryBadgeClass}>Популярні товари бренду</p>
-              <h2 className={directoryTitleClass}>
-                Товари {producer.label} у каталозі
-              </h2>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className={directoryBadgeClass}>Популярні товари бренду</p>
+                  <h2 className={directoryTitleClass}>
+                    Товари {producer.label} у каталозі
+                  </h2>
+                  <p className={directoryDescriptionClass}>
+                    Добірка позицій виробника з артикулом, кодом, категорією та швидким переходом на сторінку товару.
+                  </p>
+                </div>
+                <CatalogPrefetchLink
+                  href={catalogPath}
+                  prefetchCatalogOnViewport
+                  className={directorySecondaryButtonClass}
+                >
+                  Усі товари бренду
+                </CatalogPrefetchLink>
+              </div>
             </div>
-            <ul className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 sm:p-4">
-              {visibleProducts.map((product) => {
+            <ul
+              className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-3"
+              itemScope
+              itemType="https://schema.org/ItemList"
+            >
+              {visibleProducts.map((product, index) => {
                 const productPath = buildProductPath({
                   code: product.code,
                   article: product.article,
@@ -1132,17 +1518,100 @@ export default async function ManufacturerDetailPage({
                   subGroup: product.subGroup,
                   category: product.category,
                 });
+                const productName = buildVisibleProductName(product.name);
+                const productMeta = buildManufacturerProductMeta(product);
+                const productImageSrc =
+                  product.hasPhoto === true
+                    ? buildProductImagePath(product.code, product.article, { catalog: true })
+                    : "";
                 return (
-                  <li key={product.code}>
+                  <li
+                    key={buildProductDedupeKey(product)}
+                    itemProp="itemListElement"
+                    itemScope
+                    itemType="https://schema.org/ListItem"
+                  >
+                    <meta itemProp="position" content={String(index + 1)} />
                     <Link
                       href={productPath}
-                      className={`${directoryListCardClass} flex flex-col gap-0.5 px-3 py-2.5`}
+                      itemProp="url"
+                      className="group/product-card flex h-full min-h-[164px] overflow-hidden rounded-xl border border-slate-200/90 bg-white/92 text-slate-700 shadow-[0_12px_26px_rgba(15,23,42,0.055)] ring-1 ring-white/70 transition hover:-translate-y-0.5 hover:border-sky-200 hover:bg-white hover:shadow-[0_18px_34px_rgba(14,165,233,0.12)]"
                     >
-                      <span className="text-sm font-semibold leading-snug text-slate-800">
-                        {buildVisibleProductName(product.name)}
+                      <span className="flex w-[104px] shrink-0 items-center justify-center border-r border-slate-100 bg-[radial-gradient(circle_at_top,rgba(224,242,254,0.72),rgba(255,255,255,0.94)_58%,rgba(241,245,249,0.9))] p-2.5">
+                        {productImageSrc ? (
+                          <Image
+                            src={productImageSrc}
+                            alt={`Фото ${productName}`}
+                            width={112}
+                            height={112}
+                            sizes="104px"
+                            className="h-[82px] w-[82px] object-contain transition duration-300 group-hover/product-card:scale-[1.04]"
+                          />
+                        ) : (
+                          <span className="inline-flex h-[82px] w-[82px] items-center justify-center rounded-2xl border border-slate-200 bg-white/80 text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+                            <PackageSearch size={34} strokeWidth={1.8} aria-hidden="true" />
+                          </span>
+                        )}
                       </span>
-                      <span className="text-xs leading-snug text-slate-500">
-                        {[product.producer, product.article].filter(Boolean).join(" · ")}
+                      <span className="flex min-w-0 flex-1 flex-col justify-between gap-2 p-3">
+                        <span className="min-w-0">
+                          <span
+                            itemProp="name"
+                            className="line-clamp-2 text-[13px] font-black leading-snug text-slate-950 transition group-hover/product-card:text-sky-800 sm:text-sm"
+                          >
+                            {productName}
+                          </span>
+                          {productMeta.length > 0 && (
+                            <span className="mt-1.5 flex flex-wrap gap-1">
+                              {productMeta.map((meta) => (
+                                <span
+                                  key={meta}
+                                  className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold leading-4 text-slate-600"
+                                >
+                                  {meta}
+                                </span>
+                              ))}
+                            </span>
+                          )}
+                        </span>
+
+                        <span className="grid gap-1 text-[11px] leading-4 text-slate-500">
+                          <span className="flex min-w-0 justify-between gap-2">
+                            <span>Артикул</span>
+                            <span className="min-w-0 truncate font-bold text-slate-700">
+                              {product.article || "-"}
+                            </span>
+                          </span>
+                          <span className="flex min-w-0 justify-between gap-2">
+                            <span>Код</span>
+                            <span className="min-w-0 truncate font-bold text-slate-700">
+                              {product.code || "-"}
+                            </span>
+                          </span>
+                          <span className="flex items-center justify-between gap-2 border-t border-slate-100 pt-1.5">
+                            <span
+                              className={
+                                typeof product.quantity === "number" && product.quantity > 0
+                                  ? "font-bold text-emerald-700"
+                                  : "font-bold text-amber-700"
+                              }
+                            >
+                              {typeof product.quantity === "number" && product.quantity > 0
+                                ? "В наявності"
+                                : "Під замовлення"}
+                            </span>
+                            <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-black text-sky-700">
+                              {formatManufacturerProductCount(product.quantity)}
+                            </span>
+                          </span>
+                        </span>
+
+                        <span className="inline-flex items-center justify-between gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-sky-700">
+                          Детальніше
+                          <span aria-hidden="true" className="transition group-hover/product-card:translate-x-0.5">
+                            &rarr;
+                          </span>
+                        </span>
                       </span>
                     </Link>
                   </li>

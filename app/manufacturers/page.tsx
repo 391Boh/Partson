@@ -120,9 +120,14 @@ export default async function ManufacturersPage() {
       itemListElement: clientProducers.slice(0, 48).map((producer, index) => ({
         "@type": "ListItem",
         position: index + 1,
-        name: producer.label,
-        description: `Запчастини ${producer.label}: сторінка бренду, групи, категорії та товари виробника в PartsON.`,
         url: `${siteUrl}${buildManufacturerPath(producer.slug)}`,
+        item: {
+          "@type": "Brand",
+          name: producer.label,
+          url: `${siteUrl}${buildManufacturerPath(producer.slug)}`,
+          logo: producer.logoPath ? `${siteUrl}${producer.logoPath}` : undefined,
+          description: `Запчастини ${producer.label}: сторінка бренду, групи, категорії та товари виробника в PartsON.`,
+        },
       })),
     },
   };
