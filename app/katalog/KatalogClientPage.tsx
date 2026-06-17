@@ -2,11 +2,13 @@
 
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import type { PersistedCarSelection } from 'app/components/Auto';
 import CatalogData from 'app/components/Data';
+
+const MemoizedCatalogData = memo(CatalogData);
 
 const FilterSidebar = dynamic(() => import('app/components/filtrtion'), {
   ssr: false,
@@ -102,6 +104,8 @@ const Katalog: React.FC<KatalogProps> = ({
   const [selectedCars, setSelectedCars] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  const [priceMin, setPriceMin] = useState<number | null>(null);
+  const [priceMax, setPriceMax] = useState<number | null>(null);
   const [selectedCarSelection, setSelectedCarSelection] =
     useState<PersistedCarSelection | null>(null);
   const [selectedVin, setSelectedVin] = useState<string | null>(null);
@@ -605,6 +609,11 @@ const Katalog: React.FC<KatalogProps> = ({
       sortOrder={sortOrder}
       toggleSortOrder={toggleSortOrder}
       onResetSort={() => setSortOrder('none')}
+      onSortOrderChange={setSortOrder}
+      priceMin={priceMin}
+      priceMax={priceMax}
+      onPriceMinChange={setPriceMin}
+      onPriceMaxChange={setPriceMax}
       selectedCarSelection={selectedCarSelection}
       onSelectedCarSelectionChange={setSelectedCarSelection}
       onVinSelect={setSelectedVin}
@@ -641,10 +650,12 @@ const Katalog: React.FC<KatalogProps> = ({
           paddingTop: catalogTopOffset,
         }}
       >
-        <CatalogData
+        <MemoizedCatalogData
           selectedCars={selectedCars}
           selectedCategories={selectedCategories}
           sortOrder={sortOrder}
+          priceMin={priceMin}
+          priceMax={priceMax}
           initialPagePayload={initialPagePayload}
           initialQuerySignature={initialQuerySignature}
         />

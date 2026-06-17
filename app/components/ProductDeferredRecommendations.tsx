@@ -70,12 +70,11 @@ export default function ProductDeferredRecommendations({
   return (
     <div className="space-y-2.5">
       <DeferredSection
-        rootMargin="1400px"
+        rootMargin="720px"
         fallback={<RecommendationSkeleton titleWidth="w-52" cards={3} />}
         minHeight="172px"
         className="min-w-0"
-        initiallyVisible
-        fallbackDelayMs={40}
+        fallbackDelayMs={2200}
       >
         <ProductRecentlyViewedSection product={product} euroRate={euroRate} />
       </DeferredSection>

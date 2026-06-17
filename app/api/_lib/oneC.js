@@ -223,9 +223,29 @@ export function getOneCTimeoutMs(endpoint) {
     case "pricespost":
     case "allgoods":
       return 30000;
+    case "setdescription":
+      return 10000;
     default:
       return 12000;
   }
+}
+
+/**
+ * Evicts all in-memory cache entries whose key contains the given catalog
+ * number string. Call this after a successful description/price update so
+ * subsequent reads don't serve the stale 1C response.
+ */
+export function clearOneCCacheForProduct(catalogNumber) {
+  const normalized = String(catalogNumber || "").trim();
+  if (!normalized) return 0;
+  let cleared = 0;
+  for (const key of responseCache.keys()) {
+    if (key.includes(normalized)) {
+      responseCache.delete(key);
+      cleared++;
+    }
+  }
+  return cleared;
 }
 
 export async function oneCRequest(endpoint, options = {}) {

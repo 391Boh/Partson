@@ -40,7 +40,7 @@ export default function HomeDeferredStack() {
         className="section-reveal home-section-stage relative w-full"
         minHeight="clamp(360px, 74svh, 520px)"
         rootMargin="1180px"
-        fallbackDelayMs={2400}
+        fallbackDelayMs={1000}
         fallback={<HomeSectionFallback minHeight="clamp(360px, 74svh, 520px)" />}
       >
         <section className="relative w-full">
@@ -54,7 +54,7 @@ export default function HomeDeferredStack() {
         className="section-reveal home-section-stage relative w-full"
         minHeight="clamp(400px, 78svh, 560px)"
         rootMargin="1120px"
-        fallbackDelayMs={3200}
+        fallbackDelayMs={1400}
         fallback={<HomeSectionFallback minHeight="clamp(400px, 78svh, 560px)" />}
       >
         <section className="relative w-full">
@@ -71,7 +71,7 @@ export default function HomeDeferredStack() {
         className="section-reveal home-section-stage relative w-full"
         minHeight="clamp(300px, 62svh, 380px)"
         rootMargin="1040px"
-        fallbackDelayMs={3800}
+        fallbackDelayMs={1800}
         fallback={<HomeSectionFallback minHeight="clamp(300px, 62svh, 380px)" />}
       >
         <section className="relative w-full">

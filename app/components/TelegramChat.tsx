@@ -5,7 +5,6 @@ import { useState, useEffect, useRef, useCallback, type ChangeEvent } from 'reac
 import Link from 'next/link';
 import {
   collection,
-  addDoc,
   query,
   where,
   onSnapshot,
@@ -13,7 +12,6 @@ import {
   updateDoc,
   doc,
   Timestamp,
-  serverTimestamp,
 } from 'firebase/firestore';
 import { AnimatePresence, motion } from 'framer-motion';
 import { v4 as uuidv4 } from 'uuid';
@@ -33,7 +31,6 @@ import {
 import { db } from '../../firebase';
 import { useCart } from 'app/context/CartContext';
 import ProductCardImage from 'app/components/ProductCardImage';
-import { notifyTelegramAdmin } from 'app/lib/telegram-notify-client';
 
 interface Message {
   id: string;
@@ -252,6 +249,24 @@ async function optimizeChatImage(file: File): Promise<File> {
   });
 }
 
+async function createChatMessage(payload: {
+  userId: string;
+  text: string;
+  type: 'text' | 'image';
+  imageUrl?: string;
+  imageName?: string;
+}) {
+  const response = await fetch('/api/chat/message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`CHAT_MESSAGE_FAILED_${response.status}`);
+  }
+}
+
 /**
  * Flow:
  * - Determine userId from auth or localStorage.
@@ -452,20 +467,10 @@ export default function TelegramChat({
 
       const userId = getUserId();
 
-      await addDoc(collection(db, 'messages'), {
+      await createChatMessage({
         text: text.trim(),
-        sender: 'user',
         userId,
-        createdAt: serverTimestamp(),
-        textRead: true,
         type: 'text',
-      });
-
-      void notifyTelegramAdmin({
-        type: 'message',
-        userId,
-        text: text.trim(),
-        messageType: 'text',
       });
     },
     [getUserId]
@@ -516,21 +521,12 @@ export default function TelegramChat({
           return;
         }
 
-        await addDoc(collection(db, 'messages'), {
+        await createChatMessage({
           text: trimmedName || 'Фото',
-          sender: 'user',
           userId,
-          createdAt: serverTimestamp(),
-          textRead: true,
           type: 'image',
           imageUrl,
           imageName: trimmedName || 'Фото',
-        });
-        void notifyTelegramAdmin({
-          type: 'message',
-          userId,
-          text: trimmedName || 'Фото',
-          messageType: 'image',
         });
         setImageUploadProgress(100);
       } catch {

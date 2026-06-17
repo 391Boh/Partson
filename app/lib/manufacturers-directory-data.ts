@@ -8,8 +8,11 @@ import {
   getProducerInitials,
   resolveProducerLogo,
 } from "app/lib/brand-logo";
-import { getCatalogSeoFacets, type CatalogSeoFacets } from "app/lib/catalog-seo";
-import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
+import { getCatalogSeoFacetsWithTimeout, type CatalogSeoFacets } from "app/lib/catalog-seo";
+import {
+  readCatalogSeoFacetsSnapshot,
+  resolveCatalogSeoFacetsWithFallback,
+} from "app/lib/catalog-count-fallback";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { producerDescriptions } from "app/lib/producer-descriptions";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -40,6 +43,32 @@ const EMPTY_SEO_FACETS: CatalogSeoFacets = {
   producers: [],
   totalProductCount: 0,
   generatedAt: "",
+};
+
+const isProductionBuildPhase =
+  process.env.NODE_ENV === "production" &&
+  typeof process.env.NEXT_PHASE === "string" &&
+  process.env.NEXT_PHASE.includes("build");
+
+const hasSeoFacetData = (
+  seoFacets: CatalogSeoFacets | null | undefined
+): seoFacets is CatalogSeoFacets =>
+  Boolean(
+    seoFacets &&
+      (seoFacets.totalProductCount > 0 ||
+        seoFacets.groups.length > 0 ||
+        seoFacets.producers.length > 0)
+  );
+
+const loadManufacturersSeoFacets = async () => {
+  if (isProductionBuildPhase) {
+    const snapshot = await readCatalogSeoFacetsSnapshot().catch(() => null);
+    if (hasSeoFacetData(snapshot)) {
+      return snapshot;
+    }
+  }
+
+  return getCatalogSeoFacetsWithTimeout(500).catch(() => EMPTY_SEO_FACETS);
 };
 
 const buildManufacturersDirectoryData = async (
@@ -111,7 +140,7 @@ export const getFastManufacturersDirectoryData = cache(async () =>
 );
 
 export const getFullManufacturersDirectoryData = cache(async () => {
-  const rawSeoFacets = await getCatalogSeoFacets().catch(() => EMPTY_SEO_FACETS);
+  const rawSeoFacets = await loadManufacturersSeoFacets();
   const seoFacets = await resolveCatalogSeoFacetsWithFallback(
     rawSeoFacets,
     getAllProductSitemapEntries

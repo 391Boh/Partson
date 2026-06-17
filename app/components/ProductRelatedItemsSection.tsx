@@ -1,18 +1,18 @@
 import "server-only";
 
 import type { RelatedProductCardItem } from "app/lib/product-related";
-import {
-  getAnalogProducts,
-  getSimilarProducts,
-  getStaticProductRecommendations,
-} from "app/lib/product-related";
+import { getAnalogProducts } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import ProductRelatedItemsClientSection from "app/components/ProductRelatedItemsClientSection";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getSiteUrl } from "app/lib/site-url";
 
 // Cap the SSR prefetch so the Suspense boundary does not hold the page past this.
-const RELATED_SSR_TIMEOUT_MS = 160;
+const RELATED_SSR_TIMEOUT_MS = 120;
+const isProductionBuildPhase =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
+  process.env.npm_lifecycle_event === "build";
 
 type ProductRelatedItemsSectionProps = {
   product: {
@@ -25,8 +25,6 @@ type ProductRelatedItemsSectionProps = {
     category?: string;
   };
   euroRate?: number;
-  preferStatic?: boolean;
-  ssrTimeoutMs?: number | null;
 };
 
 const buildRecommendationItemListJsonLd = (
@@ -60,8 +58,6 @@ const buildRecommendationItemListJsonLd = (
 export default async function ProductRelatedItemsSection({
   product,
   euroRate = 50,
-  preferStatic = false,
-  ssrTimeoutMs = RELATED_SSR_TIMEOUT_MS,
 }: ProductRelatedItemsSectionProps) {
   const article = (product.article || "").trim();
   const code = (product.code || "").trim();
@@ -71,58 +67,17 @@ export default async function ProductRelatedItemsSection({
   const subGroup = (product.subGroup || "").trim();
   const category = (product.category || "").trim();
 
-  const staticRecommendations = preferStatic
-    ? await getStaticProductRecommendations(
-        article,
-        code,
-        name,
-        producer,
-        group,
-        subGroup,
-        category
-      ).catch(() => ({ related: [] as RelatedProductCardItem[], similar: [] as RelatedProductCardItem[] }))
-    : { related: [] as RelatedProductCardItem[], similar: [] as RelatedProductCardItem[] };
+  const initialRelatedItems = isProductionBuildPhase
+    ? null
+    : await resolveWithTimeout<RelatedProductCardItem[] | null>(
+        () => getAnalogProducts(article, code, name, producer, group, subGroup, category),
+        null,
+        RELATED_SSR_TIMEOUT_MS
+      ).then((items) => (items && items.length > 0 ? items : null));
 
-  // Аналоги: products found by article/name search
-  let initialRelatedItems: RelatedProductCardItem[] | null = null;
-  // Схожі: products from the same subgroup/group
-  let initialSimilarItems: RelatedProductCardItem[] | null = null;
-
-  if (staticRecommendations.related.length > 0 || staticRecommendations.similar.length > 0) {
-    initialRelatedItems = staticRecommendations.related.length > 0
-      ? staticRecommendations.related
-      : null;
-    initialSimilarItems = staticRecommendations.similar.length > 0
-      ? staticRecommendations.similar
-      : null;
-  } else {
-    // Fetch both in parallel with the same timeout
-    const timeout = ssrTimeoutMs ?? RELATED_SSR_TIMEOUT_MS;
-    const [fetchedRelated, fetchedSimilar] = await Promise.all([
-      ssrTimeoutMs == null
-        ? getAnalogProducts(article, code, name, producer, group, subGroup, category).catch(() => null)
-        : resolveWithTimeout<RelatedProductCardItem[] | null>(
-            () => getAnalogProducts(article, code, name, producer, group, subGroup, category),
-            null,
-            timeout
-          ),
-      ssrTimeoutMs == null
-        ? getSimilarProducts(article, code, name, producer, group, subGroup, category).catch(() => null)
-        : resolveWithTimeout<RelatedProductCardItem[] | null>(
-            () => getSimilarProducts(article, code, name, producer, group, subGroup, category),
-            null,
-            timeout
-          ),
-    ]);
-
-    initialRelatedItems = fetchedRelated && fetchedRelated.length > 0 ? fetchedRelated : null;
-    initialSimilarItems = fetchedSimilar && fetchedSimilar.length > 0 ? fetchedSimilar : null;
-  }
-
-  const jsonLdItems = [...(initialRelatedItems ?? []), ...(initialSimilarItems ?? [])];
   const recommendationItemListJsonLd = buildRecommendationItemListJsonLd(
-    jsonLdItems,
-    `Аналоги та схожі товари для ${buildVisibleProductName(name || article || code)}`
+    initialRelatedItems ?? [],
+    `Аналоги для ${buildVisibleProductName(name || article || code)}`
   );
 
   return (
@@ -130,7 +85,6 @@ export default async function ProductRelatedItemsSection({
       <ProductRelatedItemsClientSection
         product={product}
         initialRelatedItems={initialRelatedItems}
-        initialSimilarItems={initialSimilarItems}
         euroRate={euroRate}
       />
       {recommendationItemListJsonLd ? (

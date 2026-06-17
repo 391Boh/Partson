@@ -124,12 +124,17 @@ export const buildCatalogSeoFacetsFromSitemapEntries = (
     if (!productKey) continue;
     productKeys.add(productKey);
 
-    const group = normalizeValue(entry.group) || normalizeValue(entry.category);
+    // Use only the real 1C "Группа" field for group facets.
+    // Falling back to "Категорія" creates links like ?group=<category>,
+    // which do not match catalog filtering and can lead to empty results.
+    const group = normalizeValue(entry.group);
+    const category = normalizeValue(entry.category);
     const subgroup =
       normalizeValue(entry.subGroup) ||
-      (normalizeValue(entry.category).toLocaleLowerCase("uk-UA") !==
-      group.toLocaleLowerCase("uk-UA")
-        ? normalizeValue(entry.category)
+      (category &&
+      group &&
+      category.toLocaleLowerCase("uk-UA") !== group.toLocaleLowerCase("uk-UA")
+        ? category
         : "");
     const producer = normalizeValue(entry.producer);
 

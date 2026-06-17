@@ -9,6 +9,7 @@ import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
 import { buildGroupItemPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import { getCategoryIconPath } from "app/lib/category-icons";
+import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -265,6 +266,31 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
         buildManufacturerPath(producer.slug),
         contentLastModified,
         buildProducerImage(producer.label)
+      );
+      if (maxManufacturerPages != null && entries.length >= maxManufacturerPages + 1) {
+        break;
+      }
+    }
+  }
+
+  const directoryData = await resolveWithTimeout(
+    () => getFullManufacturersDirectoryData(),
+    null,
+    SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS
+  );
+
+  if (directoryData?.clientProducers?.length) {
+    for (const producer of directoryData.clientProducers) {
+      pushUniqueEntry(
+        buildManufacturerPath(producer.slug),
+        contentLastModified,
+        producer.logoPath
+          ? {
+              loc: producer.logoPath,
+              title: `${producer.label} - виробник автозапчастин`,
+              caption: `Логотип бренду ${producer.label} у каталозі автозапчастин PartsON`,
+            }
+          : buildProducerImage(producer.label)
       );
       if (maxManufacturerPages != null && entries.length >= maxManufacturerPages + 1) {
         break;

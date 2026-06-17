@@ -21,6 +21,19 @@ import {
 import { brands } from 'app/components/brandsData';
 import type { PersistedCarSelection } from 'app/components/Auto';
 
+type ProducerFilterBrand = {
+  name: string;
+  logo: string | null;
+  productCount?: number;
+};
+type ManufacturerCountsApiPayload = {
+  clientProducers?: Array<{
+    label: string;
+    logoPath: string | null;
+    productCount: number;
+  }>;
+};
+
 interface FilterSidebarProps {
   selectedCars: string[];
   handleCarChange: (car: string) => void;
@@ -29,6 +42,11 @@ interface FilterSidebarProps {
   sortOrder?: 'none' | 'asc' | 'desc';
   toggleSortOrder?: () => void;
   onResetSort?: () => void;
+  onSortOrderChange?: (order: 'none' | 'asc' | 'desc') => void;
+  priceMin?: number | null;
+  priceMax?: number | null;
+  onPriceMinChange?: (value: number | null) => void;
+  onPriceMaxChange?: (value: number | null) => void;
   selectedCarSelection?: PersistedCarSelection | null;
   onSelectedCarSelectionChange?: (selection: PersistedCarSelection | null) => void;
   onVinSelect?: (vin: string | null) => void;
@@ -85,14 +103,25 @@ const getFilterDisplayLabel = (value: string) => {
   return stripParentheticalMeta(trimmed);
 };
 
+const initialProducerBrands: ProducerFilterBrand[] = brands.map((brand) => ({
+  name: brand.name,
+  logo: brand.logo,
+}));
+const PRODUCER_FILTER_INITIAL_RENDER_LIMIT = 48;
+const PRODUCER_FILTER_SEARCH_RENDER_LIMIT = 96;
+
 const FilterSidebar: FC<FilterSidebarProps> = ({
   selectedCars,
   handleCarChange,
   selectedCategories,
   handleCategoryToggle,
   sortOrder: sortOrderProp,
-  toggleSortOrder: toggleSortOrderProp,
   onResetSort,
+  onSortOrderChange,
+  priceMin,
+  priceMax,
+  onPriceMinChange,
+  onPriceMaxChange,
   selectedCarSelection,
   onSelectedCarSelectionChange,
   onVinSelect,
@@ -112,7 +141,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const tabParam = currentSearchParams.get('tab');
   const router = useRouter();
   const pathname = usePathname() || '/katalog';
-  const [activeComponent, setActiveComponent] = useState<'auto' | 'category' | 'producer'>('auto');
+  const producerParam = (currentSearchParams.get('producer') || '').trim();
+  const [activeComponent, setActiveComponent] = useState<'auto' | 'category' | 'producer' | 'price'>('auto');
   const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>(selectedCars);
   const [localSortOrder, setLocalSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
   const [collapsed, setCollapsed] = useState(true);
@@ -128,12 +158,61 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   }, []);
   const [categoryResetSignal, setCategoryResetSignal] = useState(0);
   const [producerSearchTerm, setProducerSearchTerm] = useState('');
+  const [producerBrands, setProducerBrands] = useState<ProducerFilterBrand[]>(initialProducerBrands);
   const deferredProducerSearchTerm = useDeferredValue(producerSearchTerm);
   const filteredProducerBrands = useMemo(() => {
     const query = deferredProducerSearchTerm.trim().toLowerCase();
-    if (!query) return brands;
-    return brands.filter((brand) => brand.name.toLowerCase().includes(query));
-  }, [deferredProducerSearchTerm]);
+    if (!query) return producerBrands;
+    return producerBrands.filter((brand) => brand.name.toLowerCase().includes(query));
+  }, [deferredProducerSearchTerm, producerBrands]);
+  const visibleProducerBrands = useMemo(() => {
+    const hasQuery = deferredProducerSearchTerm.trim().length > 0;
+    const limit = hasQuery
+      ? PRODUCER_FILTER_SEARCH_RENDER_LIMIT
+      : PRODUCER_FILTER_INITIAL_RENDER_LIMIT;
+    const visible = filteredProducerBrands.slice(0, limit);
+    if (!producerParam || visible.some((brand) => brand.name === producerParam)) {
+      return visible;
+    }
+
+    const selected = filteredProducerBrands.find((brand) => brand.name === producerParam);
+    return selected ? [selected, ...visible.slice(0, Math.max(0, limit - 1))] : visible;
+  }, [deferredProducerSearchTerm, filteredProducerBrands, producerParam]);
+  const hiddenProducerCount = Math.max(
+    0,
+    filteredProducerBrands.length - visibleProducerBrands.length
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    if (activeComponent !== 'producer' && !producerParam) return;
+
+    const loadProducerBrands = () => {
+      fetch('/api/manufacturer-counts', {
+        headers: { Accept: 'application/json' },
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload: ManufacturerCountsApiPayload | null) => {
+          if (cancelled) return;
+          const items = payload?.clientProducers;
+          if (!Array.isArray(items) || items.length === 0) return;
+          setProducerBrands(
+            items.map((item) => ({
+              name: item.label,
+              logo: item.logoPath,
+              productCount: item.productCount,
+            }))
+          );
+        })
+        .catch(() => {});
+    };
+
+    loadProducerBrands();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeComponent, producerParam]);
 
   useEffect(() => {
     if (tabParam === 'category' || tabParam === 'auto' || tabParam === 'producer') {
@@ -158,18 +237,11 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   );
 
   const effectiveSortOrder = sortOrderProp ?? localSortOrder;
-  const handleSortToggle =
-    toggleSortOrderProp ??
-    (() =>
-      setLocalSortOrder((prev) =>
-        prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none'
-      ));
   const isSortNone = effectiveSortOrder === 'none';
   const isSortAsc = effectiveSortOrder === 'asc';
 
   const groupParam = currentSearchParams.get('group');
   const subcategoryParam = currentSearchParams.get('subcategory');
-  const producerParam = (currentSearchParams.get('producer') || '').trim();
   const categoryLabel =
     subcategoryParam ||
     groupParam ||
@@ -192,6 +264,9 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const isAutoTabActive = activeComponent === 'auto';
   const isCategoryTabActive = activeComponent === 'category';
   const isProducerTabActive = activeComponent === 'producer';
+  const isPriceTabActive = activeComponent === 'price';
+  const hasPriceRange = priceMin != null || priceMax != null;
+  const hasPriceFilter = !isSortNone || hasPriceRange;
   const searchFilterLabels: Record<string, string> = {
     name: 'Назва',
     code: 'Код',
@@ -213,7 +288,9 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     Boolean(selectedVin) ||
     Boolean(searchQuery) ||
     Boolean(subcategoryParam || groupParam) ||
-    Boolean(producerParam);
+    Boolean(producerParam) ||
+    hasPriceRange ||
+    !isSortNone;
   const carLabel = useMemo(() => {
     if (selectedVin) return '';
     if (selectedCarSelection?.label) return selectedCarSelection.label;
@@ -359,6 +436,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
 
     onResetSort?.();
     setLocalSortOrder('none');
+    onPriceMinChange?.(null);
+    onPriceMaxChange?.(null);
     onSelectedCarSelectionChange?.(null);
     setCategorySearchTerm('');
 
@@ -380,6 +459,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     internalSelectedCars,
     onVinSelect,
     onSelectedCarSelectionChange,
+    onPriceMinChange,
+    onPriceMaxChange,
     pathname,
     router,
     searchParamsKey,
@@ -398,6 +479,15 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     setActiveComponent('category');
     setCollapsed(false);
   }, [collapsed, isCategoryTabActive]);
+
+  const handleOpenPriceTab = useCallback(() => {
+    if (activeComponent === 'price' && !collapsed) {
+      setCollapsed(true);
+      return;
+    }
+    setActiveComponent('price');
+    setCollapsed(false);
+  }, [collapsed, activeComponent]);
 
   const handleOpenProducerTab = useCallback(() => {
     if (isProducerTabActive && !collapsed) {
@@ -470,16 +560,20 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     : isProducerSelected
       ? filterIconPurple
       : filterIconIdle;
-  const sortButtonClass = isSortNone
+  const sortButtonClass = !hasPriceFilter
     ? filterChipIdle
     : isSortAsc
       ? filterChipBlue
-      : filterChipEmerald;
-  const priceIconWrapClass = isSortNone
+      : hasPriceRange && isSortNone
+        ? filterChipPurple
+        : filterChipEmerald;
+  const priceIconWrapClass = !hasPriceFilter
     ? `${filterIconIdle} text-[11px] font-bold`
     : isSortAsc
       ? `${filterIconBlue} text-[11px] font-bold`
-      : `${filterIconEmerald} text-[11px] font-bold`;
+      : hasPriceRange && isSortNone
+        ? `${filterIconPurple} text-[11px] font-bold`
+        : `${filterIconEmerald} text-[11px] font-bold`;
   const overlayPanelHeight = 'min(72vh, calc(100dvh - var(--header-height, 4rem) - 6rem))';
 
   const renderActivePanel = () => {
@@ -521,7 +615,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             </div>
             <div className="catalog-filter-scroll overflow-x-auto overflow-y-hidden rounded-lg border border-white/72 bg-white/62 px-3 py-2 pb-3 pr-2 backdrop-blur-xl">
               <div className="grid min-w-max grid-flow-col grid-rows-2 gap-3">
-                {filteredProducerBrands.map((b) => (
+                {visibleProducerBrands.map((b) => (
                     <button
                       key={b.name}
                       type="button"
@@ -575,7 +669,116 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                       )}
                     </button>
                   ))}
+                {hiddenProducerCount > 0 ? (
+                  <div className="flex h-16 w-36 items-center justify-center rounded-lg border border-dashed border-purple-200/80 bg-white/54 px-3 text-center text-[11px] font-semibold leading-4 text-slate-500">
+                    +{hiddenProducerCount.toLocaleString('uk-UA')} виробників.
+                    Уточніть пошук
+                  </div>
+                ) : null}
               </div>
+            </div>
+          </div>
+        );
+      case 'price':
+        return (
+          <div className="space-y-3">
+            <div>
+              <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                Сортування
+              </p>
+              <div className="flex gap-1 rounded-[13px] border border-slate-200/70 bg-slate-50/60 p-1 backdrop-blur-sm">
+                {(['none', 'asc', 'desc'] as const).map((order) => {
+                  const config = {
+                    none: { label: 'За замовч.', icon: null },
+                    asc:  { label: 'Дешевші', icon: '↑' },
+                    desc: { label: 'Дорожчі', icon: '↓' },
+                  } as const;
+                  const isActive = effectiveSortOrder === order;
+                  return (
+                    <button
+                      key={order}
+                      type="button"
+                      onClick={() => {
+                        if (onSortOrderChange) {
+                          onSortOrderChange(order);
+                        } else {
+                          setLocalSortOrder(order);
+                        }
+                      }}
+                      className={`flex-1 rounded-[10px] px-2 py-1.5 text-[11px] font-bold transition-all duration-150 ${
+                        isActive
+                          ? order === 'asc'
+                            ? 'bg-sky-500 text-white shadow-[0_3px_8px_rgba(14,165,233,0.30)]'
+                            : order === 'desc'
+                              ? 'bg-emerald-500 text-white shadow-[0_3px_8px_rgba(16,185,129,0.30)]'
+                              : 'bg-white text-slate-600 shadow-sm'
+                          : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
+                      }`}
+                    >
+                      {config[order].icon && (
+                        <span className="mr-0.5 opacity-80">{config[order].icon}</span>
+                      )}
+                      {config[order].label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  Ціна (₴)
+                </p>
+                {hasPriceRange && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onPriceMinChange?.(null);
+                      onPriceMaxChange?.(null);
+                    }}
+                    className="text-[10px] font-semibold text-slate-400 transition hover:text-rose-500"
+                  >
+                    скинути ×
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={priceMin ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    onPriceMinChange?.(val === '' ? null : Number(val));
+                  }}
+                  placeholder="Від"
+                  className="min-w-0 flex-1 rounded-[11px] border border-slate-200/80 bg-white/80 px-3 py-2 text-[13px] font-bold text-slate-800 shadow-sm outline-none transition placeholder:font-normal placeholder:text-slate-300 focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                />
+                <div className="h-px w-3 shrink-0 rounded bg-slate-300" />
+                <input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={priceMax ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    onPriceMaxChange?.(val === '' ? null : Number(val));
+                  }}
+                  placeholder="До"
+                  className="min-w-0 flex-1 rounded-[11px] border border-slate-200/80 bg-white/80 px-3 py-2 text-[13px] font-bold text-slate-800 shadow-sm outline-none transition placeholder:font-normal placeholder:text-slate-300 focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                />
+              </div>
+              {hasPriceRange && (
+                <p className="mt-1.5 text-[10px] font-semibold text-slate-500">
+                  {priceMin != null && priceMax != null
+                    ? `${priceMin.toLocaleString('uk-UA')} — ${priceMax.toLocaleString('uk-UA')} ₴`
+                    : priceMin != null
+                      ? `від ${priceMin.toLocaleString('uk-UA')} ₴`
+                      : `до ${priceMax!.toLocaleString('uk-UA')} ₴`}
+                </p>
+              )}
             </div>
           </div>
         );
@@ -684,10 +887,11 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
-                handleSortToggle();
+                handleOpenPriceTab();
               }}
               className={sortButtonClass}
-              aria-label="Сортування за ціною"
+              aria-label="Фільтр та сортування за ціною"
+              aria-pressed={isPriceTabActive && !collapsed}
             >
               <span className="flex items-center gap-1 whitespace-nowrap sm:hidden">
                 <span
@@ -701,6 +905,9 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                     {isSortAsc ? '↓' : '↑'}
                   </span>
                 )}
+                {hasPriceRange && isSortNone && (
+                  <span className="text-[11px] font-semibold leading-none">…</span>
+                )}
               </span>
               <span className="hidden items-center gap-1 whitespace-nowrap sm:flex">
                 <span
@@ -710,7 +917,15 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                   ₴
                 </span>
                 <span className="whitespace-nowrap">
-                  {isSortNone ? 'Ціна' : isSortAsc ? 'Низька' : 'Висока'}
+                  {hasPriceRange && !isSortNone
+                    ? `${isSortAsc ? 'Низька' : 'Висока'} · фільтр`
+                    : hasPriceRange
+                      ? 'Ціна · фільтр'
+                      : isSortNone
+                        ? 'Ціна'
+                        : isSortAsc
+                          ? 'Низька'
+                          : 'Висока'}
                 </span>
               </span>
             </button>

@@ -270,14 +270,28 @@ export async function POST(request: Request) {
           : "none",
     } as const;
 
-    const toApiPayload = (result: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>>) => ({
-      items: result.items,
-      prices: buildInlinePrices(result.items),
-      images: {},
-      hasMore: result.hasMore,
-      nextCursor: result.nextCursor,
-      cursorField: result.cursorField || "",
-    });
+    const hasInlinePrice = (item: { priceEuro?: number | null }) =>
+      typeof item.priceEuro === "number" &&
+      Number.isFinite(item.priceEuro) &&
+      item.priceEuro > 0;
+
+    const toApiPayload = (result: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>>) => {
+      const rawItems = result.items;
+      // Always push items without inline price to the end.
+      // For asc/desc sorts 1C treats missing price as 0 and places those items first —
+      // this partition corrects that while preserving 1C's price-ordered sequence within each group.
+      const priced = rawItems.filter(hasInlinePrice);
+      const unpriced = rawItems.filter((item) => !hasInlinePrice(item));
+      const items = priced.length > 0 ? [...priced, ...unpriced] : rawItems;
+      return {
+        items,
+        prices: buildInlinePrices(items),
+        images: {},
+        hasMore: result.hasMore,
+        nextCursor: result.nextCursor,
+        cursorField: result.cursorField || "",
+      };
+    };
 
     const runQuery = async (runtime: {
       timeoutMs: number;

@@ -15,6 +15,7 @@ export interface CatalogProduct {
   subGroup?: string;
   category?: string;
   hasPhoto?: boolean;
+  hasPrice?: boolean;
   description?: string;
 }
 
@@ -125,6 +126,13 @@ const PHOTO_FIELDS = [
   "hasPhoto",
   "HasPhoto",
   "has_photo",
+];
+const HAS_PRICE_FIELDS = [
+  "\u0415\u0441\u0442\u044c\u0426\u0435\u043d\u0430", // \u0415\u0441\u0442\u044c\u0426\u0435\u043d\u0430
+  "\u0404\u0441\u0442\u044c\u0426\u0456\u043d\u0430", // \u0404\u0441\u0442\u044c\u0426\u0456\u043d\u0430
+  "hasPrice",
+  "HasPrice",
+  "has_price",
 ];
 const ALLGOODS_LIMIT_FIELD = "\u041b\u0438\u043c\u0438\u0442";
 const ALLGOODS_CURSOR_FIELD = "\u041f\u043e\u0441\u043b\u0435\u041a\u043e\u0434\u0430";
@@ -252,6 +260,7 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
   const subGroup = readFirstString(record, SUBGROUP_FIELDS);
   const category = readFirstString(record, CATEGORY_FIELDS);
   const hasPhoto = readFirstBoolean(record, PHOTO_FIELDS, true);
+  const hasPriceBool = readFirstBoolean(record, HAS_PRICE_FIELDS, undefined as unknown as boolean);
   const description = readDescriptionFromRecord(record) || undefined;
   const resolvedCode = code || article || readFirstString(record, ["ID", "Id"]) || name;
 
@@ -271,6 +280,7 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
     subGroup,
     category,
     hasPhoto,
+    hasPrice: hasPriceBool === true ? true : (hasPriceField && Number.isFinite(priceEuro) && priceEuro > 0) ? true : hasPriceBool === false ? false : undefined,
     description,
   };
 };
@@ -562,13 +572,18 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     }
 
     const parsed = parseAllgoodsPayload(response.text);
-    const pageSlice = parsed.items.slice(start, start + limit);
+    // When sorting by price, 1C places items with no price (treated as 0) first.
+    // Filter them out so only priced items are returned in the sorted window.
+    const pricedItems = isPriceSorted || options.pricedItemsOnly
+      ? parsed.items.filter((item) => typeof item.priceEuro === "number" && Number.isFinite(item.priceEuro) && item.priceEuro > 0)
+      : parsed.items;
+    const pageSlice = pricedItems.slice(start, start + limit);
     // Derive a cursor from the last item of this page so subsequent pages
     // use proper cursor-based pagination instead of repeating the window fetch.
     // The cursor-based path (below) already handles isPriceSorted correctly.
     const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(pageSlice);
     const hasMore =
-      parsed.items.length > start + limit ||
+      pricedItems.length > start + limit ||
       parsed.hasMore ||
       parsed.items.length >= requestLimit;
     return {
@@ -733,10 +748,12 @@ const scoreDescriptionSearchItem = (
     const descMatches = tokens.filter((token) => description.includes(token)).length;
     const allTokensInDescription = descMatches === tokens.length;
 
-    if (!allTokensInDescription) return 0;
+    if (!allTokensInDescription && !phraseInDescription) return 0;
 
-    score += descMatches * 22;
-    score += 55;
+    if (allTokensInDescription) {
+      score += descMatches * 22;
+      score += 55;
+    }
   }
 
   if (tokens.some((token) => name.includes(token))) score += 10;
@@ -1409,13 +1426,51 @@ export const fetchCatalogProductsByQuery = async (options: {
       const descriptionQuery = normalizeFacetValue(searchQuery);
       const descriptionTokens = buildDescriptionSearchTokens(searchQuery);
       const targetCount = limit;
-      const scanLimit = Math.min(240, Math.max(limit * 8, 96));
-      const maxScannedItems = Math.min(1200, Math.max(targetCount * 24, scanLimit));
+      // Smaller pages because each page triggers parallel getinfo enrichment calls
+      const scanLimit = Math.min(20, Math.max(limit, 10));
+      const maxScannedItems = Math.min(40, Math.max(targetCount * 2, scanLimit * 2));
       const matches: CatalogProduct[] = [];
       const seen = new Set<string>();
       let scanCursor = cursor;
       let scannedItems = 0;
       let hasMoreSource = false;
+
+      // Fetch descriptions for items that allgoods didn't include (getinfo fallback)
+      const enrichDescriptions = async (items: CatalogProduct[]): Promise<CatalogProduct[]> => {
+        const needEnrichment = items.filter((item) => !item.description);
+        if (needEnrichment.length === 0) return items;
+
+        const descMap = new Map<string, string | null>();
+        const concurrency = 8;
+        let enrichIdx = 0;
+
+        const workers = Array.from(
+          { length: Math.min(concurrency, needEnrichment.length) },
+          async () => {
+            while (enrichIdx < needEnrichment.length) {
+              const i = enrichIdx++;
+              const item = needEnrichment[i];
+              const lookup = (item.article || item.code || "").trim();
+              if (!lookup) continue;
+              const desc = await fetchProductDescription(lookup, {
+                timeoutMs: 550,
+                retries: 0,
+                cacheTtlMs: 1000 * 60 * 30,
+              }).catch(() => null);
+              descMap.set(lookup, desc ?? null);
+            }
+          }
+        );
+
+        await Promise.allSettled(workers);
+
+        return items.map((item) => {
+          if (item.description) return item;
+          const lookup = (item.article || item.code || "").trim();
+          const desc = lookup ? (descMap.get(lookup) ?? null) : null;
+          return desc ? { ...item, description: desc } : item;
+        });
+      };
 
       while (scannedItems < maxScannedItems && matches.length < targetCount) {
         const pageResult = await fetchAllgoodsProductsPageDetailed({
@@ -1432,7 +1487,9 @@ export const fetchCatalogProductsByQuery = async (options: {
         scannedItems += pageResult.items.length;
         hasMoreSource = pageResult.hasMore;
 
-        for (const item of pageResult.items) {
+        const enrichedItems = await enrichDescriptions(pageResult.items);
+
+        for (const item of enrichedItems) {
           const score = scoreDescriptionSearchItem(
             item,
             descriptionQuery,
@@ -2649,27 +2706,35 @@ export const findAnalogProductsByArticleInName = async (
       .map((entry) => entry.item);
   };
 
-  const directBatch = await fetchCatalogProductsByFacet({
-    group: product.group || product.category,
-    subGroup: product.subGroup,
-    page: 1,
-    limit: Math.max(limit * 12, 72),
-  });
-  const directResults = rankProducts(directBatch);
-  if (directResults.length >= Math.min(3, limit)) return directResults;
+  const searchQueries = Array.from(
+    new Set(
+      [product.article, normalizeArticleSearchToken(product.article)]
+        .map((value) => (value || "").replace(/\s+/g, " ").trim())
+        .filter((value) => value.length >= 3)
+    )
+  );
 
-  const fallbackBatch: CatalogProduct[] = [...directBatch];
-  for (let page = 1; page <= maxPages; page += 1) {
-    const batch = await fetchCatalogProductsPage({
-      page,
-      limit: pageSize,
-      includePriceEnrichment: false,
-    });
-    if (batch.length === 0) break;
-    fallbackBatch.push(...batch);
+  const candidates: CatalogProduct[] = [];
+  for (const query of searchQueries) {
+    for (let page = 1; page <= maxPages; page += 1) {
+      const batch = await fetchAllgoodsProductsByNameQuery(query, {
+        page,
+        limit: pageSize,
+        timeoutMs: 850,
+        retries: 0,
+        retryDelayMs: 80,
+        cacheTtlMs: 1000 * 60 * 10,
+      });
+      if (batch.length === 0) break;
+
+      candidates.push(...batch);
+      if (rankProducts(candidates).length >= limit) {
+        return rankProducts(candidates);
+      }
+    }
   }
 
-  return rankProducts(fallbackBatch);
+  return rankProducts(candidates);
 };
 
 export const fetchCatalogProductsByHeaderSearchQuery = async (

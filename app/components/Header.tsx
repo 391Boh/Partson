@@ -271,7 +271,7 @@ const Header: React.FC = () => {
 
     if (window.scrollY > 0) {
       event.preventDefault();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: 'auto' });
     }
   };
 

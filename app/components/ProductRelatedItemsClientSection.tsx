@@ -30,10 +30,8 @@ type ProductRelatedItemsClientSectionProps = {
     subGroup?: string;
     category?: string;
   };
-  // аналоги — products found by article/name search
+  // аналоги — products found by searching the current article in 1C product names
   initialRelatedItems?: RelatedItem[] | null;
-  // схожі — products from the same subgroup/group
-  initialSimilarItems?: RelatedItem[] | null;
   euroRate?: number;
 };
 
@@ -77,13 +75,10 @@ const buildRecommendationImageKey = (
   );
 
 const RELATED_ITEMS_CACHE_PREFIX = "partson:v1:product-analogs:";
-const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v3:product-similar:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
 const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1200;
-const SIMILAR_ITEMS_REQUEST_TIMEOUT_MS = 760;
 const RECOMMENDATION_PRICE_TIMEOUT_MS = 520;
 const RELATED_ITEMS_VISIBLE_LIMIT = 6;
-const SIMILAR_ITEMS_VISIBLE_LIMIT = 6;
 const RECOMMENDATION_VISIBLE_ITEMS_EVENT = "partson:product-recommendation-visible-items";
 
 const normalizeRelatedKeyPart = (value: string | null | undefined) =>
@@ -104,11 +99,6 @@ const buildRecommendationIdentityKeys = (
       ].filter(Boolean)
     )
   );
-
-const hasRecommendationIdentityOverlap = (
-  item: Pick<RelatedItem, "code" | "article">,
-  blockedKeys: Set<string>
-) => buildRecommendationIdentityKeys(item).some((key) => blockedKeys.has(key));
 
 const getRecommendationListClass = (count: number) =>
   count > 2
@@ -260,7 +250,6 @@ const RecommendationBlock = ({
 export default function ProductRelatedItemsClientSection({
   product,
   initialRelatedItems = null,
-  initialSimilarItems = null,
   euroRate = 50,
 }: ProductRelatedItemsClientSectionProps) {
   const articleLabel = (product.article || "").trim();
@@ -274,17 +263,10 @@ export default function ProductRelatedItemsClientSection({
     () => normalizeRelatedItems(initialRelatedItems),
     [initialRelatedItems]
   );
-  const normalizedInitialSimilarItems = useMemo(
-    () => normalizeRelatedItems(initialSimilarItems),
-    [initialSimilarItems]
-  );
 
   // null = still loading, [] = loaded & empty, [...] = loaded with results
   const [relatedItems, setRelatedItems] = useState<RelatedItem[] | null>(
     normalizedInitialRelatedItems
-  );
-  const [similarItems, setSimilarItems] = useState<RelatedItem[] | null>(
-    normalizedInitialSimilarItems
   );
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
   const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
@@ -320,17 +302,10 @@ export default function ProductRelatedItemsClientSection({
   const requestUrl = recommendationSearchParams
     ? `/api/product-analogs?${recommendationSearchParams}`
     : "";
-  const similarRequestUrl = recommendationSearchParams
-    ? `/api/product-similar?${recommendationSearchParams}`
-    : "";
 
   const cacheKey = useMemo(
     () => (requestUrl ? `${RELATED_ITEMS_CACHE_PREFIX}${requestUrl}` : ""),
     [requestUrl]
-  );
-  const similarCacheKey = useMemo(
-    () => (similarRequestUrl ? `${SIMILAR_ITEMS_CACHE_PREFIX}${similarRequestUrl}` : ""),
-    [similarRequestUrl]
   );
 
   const readCachedItems = (key: string): RelatedItem[] | null => {
@@ -447,85 +422,23 @@ export default function ProductRelatedItemsClientSection({
       cancelled = true;
       cancel();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normalizedInitialRelatedItems, requestUrl, cacheKey]);
-
-  // Load схожі (by subgroup/group) — independent
-  useEffect(() => {
-    if (!similarRequestUrl) {
-      setSimilarItems([]);
-      return;
-    }
-
-    if (normalizedInitialSimilarItems !== null) {
-      setSimilarItems(normalizedInitialSimilarItems);
-      if (normalizedInitialSimilarItems.length > 0) {
-        writeCachedItems(similarCacheKey, normalizedInitialSimilarItems);
-      }
-      return;
-    }
-
-    const cached = readCachedItems(similarCacheKey);
-    if (cached) {
-      setSimilarItems(cached);
-      return;
-    }
-
-    setSimilarItems(null);
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const items = await fetchItems(similarRequestUrl, SIMILAR_ITEMS_REQUEST_TIMEOUT_MS);
-        if (cancelled) return;
-        setSimilarItems(items.slice(0, SIMILAR_ITEMS_VISIBLE_LIMIT));
-        if (items.length > 0) writeCachedItems(similarCacheKey, items);
-      } catch {
-        if (cancelled) return;
-        setSimilarItems([]);
-      }
-    };
-
-    const cancel = scheduleProductRecommendationTask(() => { void load(); });
-    return () => {
-      cancelled = true;
-      cancel();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [normalizedInitialSimilarItems, similarRequestUrl, similarCacheKey]);
 
   const visibleRelatedItems = useMemo(
     () => (relatedItems ?? []).slice(0, RELATED_ITEMS_VISIBLE_LIMIT),
     [relatedItems]
   );
 
-  // Filter similar items to avoid duplicating items already shown in related
-  const visibleSimilarItems = useMemo(() => {
-    const blockedKeys = new Set([
-      ...buildRecommendationIdentityKeys({ code: productCode, article: articleLabel }),
-      ...visibleRelatedItems.flatMap(buildRecommendationIdentityKeys),
-    ]);
-
-    return (similarItems ?? [])
-      .filter((item) => !hasRecommendationIdentityOverlap(item, blockedKeys))
-      .slice(0, SIMILAR_ITEMS_VISIBLE_LIMIT);
-  }, [articleLabel, productCode, similarItems, visibleRelatedItems]);
-
   const visibleIdentityKeys = useMemo(
-    () => [...visibleRelatedItems, ...visibleSimilarItems].flatMap(buildRecommendationIdentityKeys),
-    [visibleRelatedItems, visibleSimilarItems]
-  );
-
-  const priceSourceItems = useMemo(
-    () => [...visibleRelatedItems, ...visibleSimilarItems],
-    [visibleRelatedItems, visibleSimilarItems]
+    () => visibleRelatedItems.flatMap(buildRecommendationIdentityKeys),
+    [visibleRelatedItems]
   );
 
   // Resolve prices for visible items that don't have prices yet
   useEffect(() => {
-    if (priceSourceItems.length === 0) return;
+    if (visibleRelatedItems.length === 0) return;
 
-    const priceItems = priceSourceItems
+    const priceItems = visibleRelatedItems
       .filter((item) => {
         if (
           typeof item.priceEuro === "number" &&
@@ -542,7 +455,7 @@ export default function ProductRelatedItemsClientSection({
 
         return buildPriceLookupKeys(item).length > 0;
       })
-      .slice(0, RELATED_ITEMS_VISIBLE_LIMIT + SIMILAR_ITEMS_VISIBLE_LIMIT)
+      .slice(0, RELATED_ITEMS_VISIBLE_LIMIT)
       .map((item) => ({
         stateKey: buildPriceStateKey(item),
         lookupKeys: buildPriceLookupKeys(item),
@@ -601,11 +514,11 @@ export default function ProductRelatedItemsClientSection({
       cancelled = true;
       cancelScheduledLoad();
     };
-  }, [priceSourceItems, resolvedPrices]);
+  }, [visibleRelatedItems, resolvedPrices]);
 
   // Load images for visible items
   useEffect(() => {
-    const imageItems = [...visibleRelatedItems, ...visibleSimilarItems]
+    const imageItems = visibleRelatedItems
       .map((item) => {
         const code = buildRecommendationImageCode(item, articleLabel);
         const article = buildRecommendationImageArticle(item, articleLabel);
@@ -624,7 +537,7 @@ export default function ProductRelatedItemsClientSection({
 
     const uniqueItems = Array.from(
       new Map(imageItems.map((item) => [item.key, item])).values()
-    ).slice(0, RELATED_ITEMS_VISIBLE_LIMIT + SIMILAR_ITEMS_VISIBLE_LIMIT);
+    ).slice(0, RELATED_ITEMS_VISIBLE_LIMIT);
 
     setPendingImageKeys((current) => {
       const next = { ...current };
@@ -718,7 +631,6 @@ export default function ProductRelatedItemsClientSection({
     pendingImageKeys,
     resolvedImages,
     visibleRelatedItems,
-    visibleSimilarItems,
   ]);
 
   useEffect(() => {
@@ -731,30 +643,19 @@ export default function ProductRelatedItemsClientSection({
 
   if (!articleLabel && !productCode && !productDisplayName) return null;
 
-  // Show a single skeleton while both are still loading
-  if (relatedItems === null && similarItems === null) {
+  if (relatedItems === null) {
     return <Skeleton />;
   }
 
-  if (visibleRelatedItems.length === 0 && visibleSimilarItems.length === 0) return null;
+  if (visibleRelatedItems.length === 0) return null;
 
   return (
     <div className="space-y-2.5">
       <RecommendationBlock
         eyebrow="Аналоги"
-        title="Сумісні варіанти та заміни"
+        title="Аналоги за артикулом у назві товару"
         badgeLabel={`${visibleRelatedItems.length} позицій`}
         items={visibleRelatedItems}
-        articleLabel={articleLabel}
-        euroRate={euroRate}
-        resolvedPrices={resolvedPrices}
-        resolvedImages={resolvedImages}
-      />
-      <RecommendationBlock
-        eyebrow="Схожі"
-        title="Схожі позиції з цього розділу"
-        badgeLabel={`${visibleSimilarItems.length} позицій`}
-        items={visibleSimilarItems}
         articleLabel={articleLabel}
         euroRate={euroRate}
         resolvedPrices={resolvedPrices}

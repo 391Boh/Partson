@@ -637,6 +637,8 @@ const buildProductBreadcrumbJsonLd = (options: {
   siteUrl: string;
   canonicalUrl: string;
   name: string;
+  topCategoryName?: string;
+  topCategoryPath?: string | null;
   groupName?: string;
   groupPath?: string | null;
   subGroupName?: string;
@@ -646,6 +648,8 @@ const buildProductBreadcrumbJsonLd = (options: {
     siteUrl,
     canonicalUrl,
     name,
+    topCategoryName,
+    topCategoryPath,
     groupName,
     groupPath,
     subGroupName,
@@ -667,10 +671,19 @@ const buildProductBreadcrumbJsonLd = (options: {
     },
   ];
 
+  if (topCategoryName && topCategoryPath) {
+    itemListElement.push({
+      "@type": "ListItem",
+      position: itemListElement.length + 1,
+      name: topCategoryName,
+      item: `${siteUrl}${topCategoryPath}`,
+    });
+  }
+
   if (groupName && groupPath) {
     itemListElement.push({
       "@type": "ListItem",
-      position: 3,
+      position: itemListElement.length + 1,
       name: groupName,
       item: `${siteUrl}${groupPath}`,
     });
@@ -1812,9 +1825,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
   }
 
   const isModalView = false;
-  const shouldUseStaticRecommendationBlocks = Boolean(
-    !isModalView && hasResolvedCatalogProduct && sitemapRouteData?.product
-  );
   const isSeoResolvedInternally = false;
   const canonicalPath = buildCanonicalProductPath(product, resolvedCode);
   const currentRouteParam = safeDecodeURIComponent(rawCode || "").trim();
@@ -1885,13 +1895,29 @@ export default async function ProductPage({ params }: ProductPageProps) {
     : "/katalog";
   const groupLandingPath = groupSeoFallbackPath;
   const categoryLandingPath = productSubgroup
-    ? buildProductGroupLandingFallbackPath(productGroup || productCategory, productSubgroup)
+    ? buildProductGroupLandingFallbackPath(productCategory || productGroup, productSubgroup)
     : groupSeoFallbackPath;
   const categoryLandingHref =
     categoryLandingPath ||
     groupLandingPath ||
     groupSeoFallbackPath ||
     categoryCatalogPath;
+  const topCategoryPath =
+    productCategory &&
+    productCategory.toLowerCase() !== productGroup.toLowerCase()
+      ? buildGroupPath(productCategory)
+      : null;
+  const categoryHierarchyParts = [
+    topCategoryPath ? productCategory : null,
+    productGroup || null,
+    productSubgroup && productSubgroup.toLowerCase() !== productGroup.toLowerCase()
+      ? productSubgroup
+      : null,
+  ].filter(Boolean) as string[];
+  const categoryHierarchyText = categoryHierarchyParts
+    .map(buildVisibleProductName)
+    .filter(Boolean)
+    .join(" → ");
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
   const fallbackImagePath = PRODUCT_PAGE_LOGO_FALLBACK_PATH;
   const productHasKnownPhoto = product.hasPhoto !== false;
@@ -1933,6 +1959,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     siteUrl,
     canonicalUrl,
     name: visibleProductName,
+    topCategoryName: topCategoryPath ? buildVisibleProductName(productCategory) : undefined,
+    topCategoryPath: topCategoryPath || undefined,
     groupName: productGroup || undefined,
     groupPath: groupLandingPath,
     subGroupName: productSubgroup || undefined,
@@ -1967,6 +1995,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const breadcrumbItems = ([
     { href: "/", label: "Головна" },
     { href: "/katalog", label: "Каталог" },
+    topCategoryPath
+      ? { href: topCategoryPath, label: buildVisibleProductName(productCategory) }
+      : null,
     groupLandingPath && productGroup
       ? { href: groupLandingPath, label: visibleProductGroup }
       : null,
@@ -2008,7 +2039,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
       : null,
     visibleProductSubgroup || visibleProductGroup
       ? {
-          label: "Категорія",
+          label: visibleProductSubgroup
+            ? "Підкатегорія"
+            : topCategoryPath
+              ? "Група"
+              : "Категорія",
           value: visibleProductSubgroup || visibleProductGroup,
           href: categoryLandingHref,
         }
@@ -2024,9 +2059,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
     subGroup: productSubgroup,
   });
   const productFitmentText = [
-    visibleProductSubgroup || visibleProductGroup
-      ? `Розділ каталогу: ${visibleProductSubgroup || visibleProductGroup}.`
-      : null,
+    categoryHierarchyText
+      ? `Розділ каталогу: ${categoryHierarchyText}.`
+      : visibleProductSubgroup || visibleProductGroup
+        ? `Розділ каталогу: ${visibleProductSubgroup || visibleProductGroup}.`
+        : null,
     "Надішліть VIN або дані авто в чат — менеджер перевірить сумісність, підбере аналоги та підкаже по наявності.",
   ]
     .filter(Boolean)
@@ -2041,7 +2078,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         ? `Виробник: ${product.producer}. Якщо потрібен аналог, менеджер підбере сумісну заміну цього бренду або альтернативного виробника.`
         : "Для позицій без явного виробника перевіряємо сумісність за артикулом, кодом і описом з 1С.",
       visibleProductSubgroup || visibleProductGroup
-        ? `Категорія: ${visibleProductSubgroup || visibleProductGroup}. Це допомагає швидко перейти до суміжних товарів і груп каталогу.`
+        ? `Категорія: ${categoryHierarchyText || visibleProductSubgroup || visibleProductGroup}. Це допомагає швидко перейти до суміжних товарів і груп каталогу.`
         : "Сторінка товару доповнена описом, щоб його було легше знайти за кодом, артикулом і назвою.",
       product.quantity > 0
         ? "Наявність показана в картці товару, але перед оформленням замовлення ціну й залишок можна уточнити."
@@ -2272,55 +2309,62 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
                     <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
-                        Інформація для підбору
+                        Розділ каталогу
                       </p>
                       <h2 className="font-display-italic mt-1 text-[1.02rem] font-black leading-tight text-slate-950 sm:text-[1.16rem]">
-                        {visibleProductName}: артикул, сумісність і доставка
+                        {visibleProductName} у каталозі PartsON
                       </h2>
                     </div>
-                    <Link
-                      href={categoryLandingHref}
-                      className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-sky-800 transition hover:border-sky-300 hover:bg-sky-100"
-                    >
-                      Перейти в розділ
-                    </Link>
-                  </div>
-                  <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-                    {[
-                      {
-                        title: productIdentifierLabel,
-                        text: productIdentifierValue !== "-"
-                          ? productIdentifierValue
-                          : "Підбір за назвою або VIN",
-                      },
-                      {
-                        title: "Виробник",
-                        text: product.producer || "Уточнюється менеджером",
-                      },
-                      {
-                        title: "Категорія",
-                        text: visibleProductSubgroup || visibleProductGroup || "Автозапчастини",
-                      },
-                      {
-                        title: "Наявність",
-                        text: isInStock
-                          ? `${product.quantity} шт. у каталозі`
-                          : "Під замовлення або уточнення",
-                      },
-                    ].map((item) => (
-                      <div
-                        key={item.title}
-                        className="rounded-[16px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-3 py-2.5"
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <Link
+                        href={categoryLandingHref}
+                        className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-sky-800 transition hover:border-sky-300 hover:bg-sky-100"
                       >
-                        <p className="text-[9px] font-black uppercase tracking-[0.11em] text-slate-500">
-                          {item.title}
-                        </p>
-                        <p className="mt-1 text-[13px] font-extrabold leading-5 text-slate-950 [overflow-wrap:anywhere]">
-                          {item.text}
-                        </p>
-                      </div>
-                    ))}
+                        Перейти в розділ
+                      </Link>
+                      {categoryCatalogPath !== categoryLandingHref && (
+                        <Link
+                          href={categoryCatalogPath}
+                          className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                        >
+                          Усі товари
+                        </Link>
+                      )}
+                    </div>
                   </div>
+                  {categoryHierarchyParts.length > 0 && (
+                    <nav
+                      aria-label="Шлях до категорії"
+                      className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-2"
+                    >
+                      {[
+                        topCategoryPath
+                          ? { label: buildVisibleProductName(productCategory), href: topCategoryPath }
+                          : null,
+                        groupLandingPath && productGroup
+                          ? { label: visibleProductGroup, href: groupLandingPath }
+                          : null,
+                        productSubgroup &&
+                        productSubgroup.toLowerCase() !== productGroup.toLowerCase()
+                          ? { label: visibleProductSubgroup, href: categoryLandingHref }
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .map((item, index) => (
+                          <span key={(item as { href: string }).href} className="inline-flex items-center gap-1.5">
+                            {index > 0 && (
+                              <span className="text-slate-300" aria-hidden="true">›</span>
+                            )}
+                            <Link
+                              href={(item as { href: string; label: string }).href}
+                              className="inline-flex items-center rounded-lg border border-slate-200 bg-[linear-gradient(180deg,#f8fafc,#ffffff)] px-2.5 py-1 text-[12px] font-semibold text-slate-700 shadow-[0_2px_4px_rgba(15,23,42,0.04)] transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+                            >
+                              {(item as { href: string; label: string }).label}
+                            </Link>
+                          </span>
+                        ))}
+                    </nav>
+                  )}
                   <p className="mt-3 text-sm font-medium leading-6 text-slate-700">
                     PartsON допомагає купити {visibleProductName}
                     {product.producer ? ` ${product.producer}` : ""} у Львові з перевіркою за VIN,
@@ -2343,8 +2387,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       category: product.category,
                     }}
                     euroRate={recommendationEuroRate}
-                    preferStatic={shouldUseStaticRecommendationBlocks}
-                    ssrTimeoutMs={shouldUseStaticRecommendationBlocks ? null : undefined}
                   />
                   <ProductDeferredRecommendations
                     product={{

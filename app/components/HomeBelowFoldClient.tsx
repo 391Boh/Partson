@@ -106,7 +106,7 @@ export default function HomeBelowFoldClient() {
             (entries) => {
               if (entries.some((entry) => entry.isIntersecting)) {
                 observer?.disconnect();
-                scheduleReady(900);
+                scheduleReady(200);
               }
             },
             {
@@ -123,9 +123,9 @@ export default function HomeBelowFoldClient() {
     let idleId: number | null = null;
 
     if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(markReady, { timeout: 3600 });
+      idleId = win.requestIdleCallback(markReady, { timeout: 700 });
     } else {
-      timeoutId = window.setTimeout(markReady, 3600);
+      timeoutId = window.setTimeout(markReady, 700);
     }
 
     return () => {

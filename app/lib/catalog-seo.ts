@@ -60,10 +60,15 @@ export interface SeoProducerGroupFacet extends SeoFacetItem {
   subgroups: SeoFacetItem[];
 }
 
+export interface SeoProducerCategoryFacet extends SeoFacetItem {
+  groups: SeoProducerGroupFacet[];
+}
+
 export interface SeoProducerFacet extends SeoFacetItem {
   groupsCount: number;
   categoriesCount: number;
   topGroups: SeoProducerGroupFacet[];
+  topCategories?: SeoProducerCategoryFacet[];
 }
 
 export interface CatalogSeoFacets {
@@ -291,6 +296,11 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
   // Populated only when resolveFacetHierarchy corrects a swapped Группа/Категорія pair so
   // that the human-visible label differs from the raw Группа filter value.
   const producerGroupDisplayLabels = new Map<string, Map<string, string>>();
+  // 3-level: producerSlug → categorySlug → Map<groupSlug, FacetCounterEntry>
+  // Only populated when a product has both Категорія and Группа fields.
+  const producerCategoryGroupCounts = new Map<string, NestedFacetCounterMap>();
+  // producerSlug → Map<categorySlug, categoryLabel> for building topCategories
+  const producerCategoryLabels = new Map<string, Map<string, string>>();
 
   let totalItems = 0;
   const dataset = await getProductTreeDataset().catch(() => null);
@@ -341,16 +351,12 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
         registerFacetProduct(producerCounts, producer, productKey);
       }
 
-      // Use the original product.group (Группа field as returned by 1C) rather than
-      // the swap-corrected `group` for producer→group registration.
-      //
-      // resolveFacetHierarchy may replace `group` with `product.category` when it
-      // detects swapped 1C fields; the corrected label is useful for global category
-      // display but causes empty catalog results when used as a URL filter, because
-      // the catalog queries 1C with Группа=<label> and 1C never has Группа=<corrected>
-      // for those products — it only has Группа=<original subgroup value>.
-      const rawGroupForFilter =
-        normalizeValue(product.group) || normalizeValue(product.category);
+      // Use the raw product.group (1C Группа field) for producer→group registration.
+      // Do NOT fall back to product.category — items with no Группа should not appear
+      // under any group filter, and using Категорія as a fallback causes category values
+      // to surface as group entries on the manufacturer page (wrong hierarchy).
+      const rawGroupForFilter = normalizeValue(product.group);
+      const rawCategory = normalizeValue(product.category);
 
       if (producer && rawGroupForFilter) {
         registerNestedFacetProduct(producerGroupCounts, producer, rawGroupForFilter, productKey);
@@ -371,6 +377,30 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
             if (!displayMap.has(groupFilterSlug)) {
               displayMap.set(groupFilterSlug, group);
             }
+          }
+        }
+
+        // Build 3-level category→group mapping for the manufacturer page.
+        // Only when both Категорія and Группа are present.
+        if (rawCategory) {
+          const producerSlug = buildSeoSlug(normalizeValue(producer));
+          const categorySlug = buildSeoSlug(rawCategory);
+          if (producerSlug && categorySlug) {
+            let catLabels = producerCategoryLabels.get(producerSlug);
+            if (!catLabels) {
+              catLabels = new Map<string, string>();
+              producerCategoryLabels.set(producerSlug, catLabels);
+            }
+            if (!catLabels.has(categorySlug)) {
+              catLabels.set(categorySlug, rawCategory);
+            }
+            registerDoubleNestedFacetProduct(
+              producerCategoryGroupCounts,
+              producer,
+              rawCategory,
+              rawGroupForFilter,
+              productKey
+            );
           }
         }
       }
@@ -442,11 +472,49 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
       (sum, groupFacet) => sum + groupFacet.subgroups.length,
       0
     );
+
+    // Build 3-level topCategories: Категорія → Группа → Підгруппа
+    const catGroupMap =
+      producerCategoryGroupCounts.get(producerFacet.slug) ||
+      new Map<string, FacetCounterMap>();
+    const catLabels =
+      producerCategoryLabels.get(producerFacet.slug) || new Map<string, string>();
+    const topCategories: SeoProducerCategoryFacet[] = Array.from(catGroupMap.entries())
+      .map(([catSlug, groupsInCat]) => {
+        const catLabel = catLabels.get(catSlug) || catSlug;
+        const catGroups = toFacetList(groupsInCat).map((gf) => {
+          const subgroupMap =
+            producerSubgroupMap.get(gf.slug) || new Map<string, FacetCounterEntry>();
+          const subgroups = toFacetList(subgroupMap);
+          const displayLabel = displayLabels.get(gf.slug) || gf.label;
+          return {
+            ...gf,
+            label: displayLabel,
+            filterValue: gf.label,
+            subgroups,
+          };
+        });
+        const catProductCount = catGroups.reduce((sum, g) => sum + g.productCount, 0);
+        return {
+          label: catLabel,
+          slug: catSlug,
+          productCount: catProductCount,
+          groups: catGroups,
+        };
+      })
+      .filter((cat) => cat.productCount > 0 && cat.groups.length > 0)
+      .sort((a, b) =>
+        b.productCount !== a.productCount
+          ? b.productCount - a.productCount
+          : a.label.localeCompare(b.label, "uk")
+      );
+
     return {
       ...producerFacet,
       groupsCount: producerGroups.length,
       categoriesCount,
       topGroups,
+      topCategories: topCategories.length > 0 ? topCategories : undefined,
     };
   });
 
@@ -460,7 +528,7 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
 
 const collectSeoFacetsWithRevalidate = unstable_cache(
   buildCatalogSeoFacets,
-  ["catalog-seo-facets-v12-producer-raw-group-filter"],
+  ["catalog-seo-facets-v13-category-groups-3level"],
   {
     revalidate: 60 * 60 * 6,
     tags: ["catalog-seo-facets"],

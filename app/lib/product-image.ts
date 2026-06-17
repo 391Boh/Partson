@@ -750,6 +750,7 @@ export const fetchProductImageBase64Batch = async (
   options?: ProductImageLookupOptions & {
     batchConcurrency?: number;
     maxKeys?: number;
+    batchOnly?: boolean;
   }
 ) => {
   const maxKeys =
@@ -775,6 +776,10 @@ export const fetchProductImageBase64Batch = async (
       if (!imageBase64) continue;
       resolved.set(lookupKey.toLowerCase(), imageBase64);
     }
+  }
+
+  if (options?.batchOnly) {
+    return Object.fromEntries(resolved);
   }
 
   const remainingKeys = normalizedKeys.filter(
@@ -807,6 +812,30 @@ export const fetchProductImageBase64Batch = async (
 
   await Promise.allSettled(workers);
   return Object.fromEntries(resolved);
+};
+
+/**
+ * Evicts in-memory image caches for a given product code/article so that the
+ * next lookup fetches a fresh copy from 1C (e.g. after an admin image upload).
+ */
+export const clearProductImageCacheForProduct = (lookupKey: string) => {
+  const normalized = (lookupKey || "").trim().toLowerCase();
+  if (!normalized) return;
+
+  imageBase64Cache.delete(normalized);
+
+  // imageMissCache keys are formatted as "<lookupKey>::<timeoutMs>::<0|1>"
+  for (const key of imageMissCache.keys()) {
+    if (key.startsWith(`${normalized}::`)) {
+      imageMissCache.delete(key);
+    }
+  }
+
+  for (const key of imageInFlightCache.keys()) {
+    if (key === normalized || key.startsWith(`${normalized}::`)) {
+      imageInFlightCache.delete(key);
+    }
+  }
 };
 
 export const getProductImagePath = (code: string, articleHint?: string) => {

@@ -50,6 +50,7 @@ type ManufacturerCountsApiPayload = {
 type ManufacturerCardProps = {
   item: ManufacturerItem;
   prefetchOnViewport?: boolean;
+  priorityLogo?: boolean;
 };
 
 const collapseWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -116,6 +117,7 @@ const formatDirectoryCount = (value: number, fallback: string) =>
 const ManufacturerCard = memo(function ManufacturerCard({
   item,
   prefetchOnViewport = false,
+  priorityLogo = false,
 }: ManufacturerCardProps) {
   const manufacturerHref = buildManufacturerPath(item.slug);
 
@@ -142,7 +144,8 @@ const ManufacturerCard = memo(function ManufacturerCard({
                   width={96}
                   height={56}
                   sizes="64px"
-                  loading="lazy"
+                  priority={priorityLogo}
+                  loading={priorityLogo ? undefined : "lazy"}
                   className="relative z-[1] h-11 w-14 object-contain transition duration-300 group-hover:scale-[1.05]"
                 />
               ) : (
@@ -347,6 +350,7 @@ export default function ManufacturersDirectory({
                     <ManufacturerCard
                       item={item}
                       prefetchOnViewport={index < 12}
+                      priorityLogo={index < 6}
                     />
                   </div>
                 ))}

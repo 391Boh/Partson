@@ -2,7 +2,7 @@
 
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle, Copy, Check } from "lucide-react";
+import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle, Copy, Check, Pencil } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
 import { brands } from "app/components/brandsData";
@@ -61,6 +61,7 @@ interface Product {
     producer: string;
     quantity: number;
     hasPhoto?: boolean;
+    hasPrice?: boolean;
     group?: string;
     subGroup?: string;
     category?: string;
@@ -91,6 +92,7 @@ interface Props {
     onQtyChange: (code: string, delta: number) => void;
     onFlip: (code: string) => void;
     onImageOpen: (code: string, article?: string) => void;
+    onAdminEdit?: (data: { description?: string; priceUAH?: number; costPriceUAH?: number; imageDataUrl?: string; imageName?: string }) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const ProductCard: React.FC<Props> = ({
@@ -117,6 +119,7 @@ const ProductCard: React.FC<Props> = ({
     onQtyChange,
     onFlip,
     onImageOpen,
+    onAdminEdit,
 }) => {
     const motionEnabled = motionEnabledProp ?? true;
     const cardMotionClass = motionEnabled
@@ -268,6 +271,94 @@ const ProductCard: React.FC<Props> = ({
 const [description, setDescription] = useState<string | null>(null);
 const [loadingDesc, setLoadingDesc] = useState(false);
 const descLoaded = useRef(false);
+
+// ================== ADMIN EDIT ==================
+const [isEditMode, setIsEditMode] = useState(false);
+const [editDesc, setEditDesc] = useState('');
+const [editPrice, setEditPrice] = useState('');
+const [editCostPrice, setEditCostPrice] = useState('');
+const [editImageDataUrl, setEditImageDataUrl] = useState<string | null>(null);
+const [editImageName, setEditImageName] = useState<string>('');
+const [editSaving, setEditSaving] = useState(false);
+const [editError, setEditError] = useState<string | null>(null);
+const [editSuccess, setEditSuccess] = useState(false);
+const imageInputRef = useRef<HTMLInputElement | null>(null);
+
+const enterEditMode = () => {
+    setEditDesc(description ?? '');
+    setEditPrice(priceUAH != null ? String(priceUAH) : '');
+    setEditCostPrice(costPriceUAH != null ? String(costPriceUAH) : '');
+    setEditImageDataUrl(null);
+    setEditImageName('');
+    setEditError(null);
+    setEditSuccess(false);
+    setIsEditMode(true);
+};
+
+const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        setEditImageDataUrl(ev.target?.result as string ?? null);
+        setEditImageName(file.name);
+    };
+    reader.readAsDataURL(file);
+};
+
+const handleAdminSave = async () => {
+    if (!onAdminEdit) return;
+    setEditSaving(true);
+    setEditError(null);
+
+    const data: { description?: string; priceUAH?: number; costPriceUAH?: number; imageDataUrl?: string; imageName?: string } = {};
+
+    const trimmedDesc = editDesc.trim();
+    if (trimmedDesc !== (description ?? '').trim()) {
+        data.description = trimmedDesc;
+    }
+
+    const newPrice = editPrice.trim() ? Number(editPrice) : null;
+    if (newPrice != null && Number.isFinite(newPrice) && newPrice >= 0 && newPrice !== priceUAH) {
+        data.priceUAH = newPrice;
+    }
+
+    const newCostPrice = editCostPrice.trim() ? Number(editCostPrice) : null;
+    if (newCostPrice != null && Number.isFinite(newCostPrice) && newCostPrice >= 0 && newCostPrice !== costPriceUAH) {
+        data.costPriceUAH = newCostPrice;
+    }
+
+    if (editImageDataUrl) {
+        data.imageDataUrl = editImageDataUrl;
+        if (editImageName) data.imageName = editImageName;
+    }
+
+    if (Object.keys(data).length === 0) {
+        setEditSaving(false);
+        setIsEditMode(false);
+        return;
+    }
+
+    const result = await onAdminEdit(data);
+    setEditSaving(false);
+
+    if (!result.ok) {
+        setEditError(result.error ?? 'Помилка збереження');
+        return;
+    }
+
+    if (data.description !== undefined) {
+        setDescription(data.description || null);
+        descLoaded.current = true;
+        try {
+            window.sessionStorage.removeItem(`${DESCRIPTION_CACHE_PREFIX}${descriptionRequestUrl}`);
+            window.localStorage.removeItem(`${DESCRIPTION_CACHE_PREFIX}${descriptionRequestUrl}`);
+        } catch { /* ignore */ }
+    }
+
+    setEditSuccess(true);
+    setTimeout(() => { setIsEditMode(false); setEditSuccess(false); }, 1800);
+};
 
 useEffect(() => {
     if (!isFlipped) return;
@@ -816,27 +907,147 @@ useEffect(() => {
 >
     {/* Header */}
     <div className="rounded-t-xl px-3 py-2.5 border-b border-slate-200 bg-gradient-to-r from-blue-50/70 via-white/70 to-slate-50/70 backdrop-blur-sm">
-        <h3 className="font-name-accent text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 text-left leading-[1.02] line-clamp-2">
-            {name}
-        </h3>
-
+        <div className="flex items-start gap-2">
+            <h3 className="font-name-accent flex-1 text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 text-left leading-[1.02] line-clamp-2">
+                {name}
+            </h3>
+            {isAdmin && onAdminEdit && !isEditMode && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); enterEditMode(); }}
+                    className="mt-0.5 flex-shrink-0 p-1 rounded-md border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors"
+                    aria-label="Редагувати"
+                    title="Редагувати опис та ціну"
+                >
+                    <Pencil size={13} />
+                </button>
+            )}
+        </div>
     </div>
 
     {/* Content */}
     <div className="flex-1 overflow-y-auto px-3 py-2 pb-12 text-slate-700">
-        {loadingDesc && (
-            <div className="space-y-2 animate-pulse">
-                <div className="h-2 bg-slate-200 rounded w-5/6" />
-                <div className="h-2 bg-slate-200 rounded w-full" />
-                <div className="h-2 bg-slate-200 rounded w-4/6" />
+        {!isEditMode && (
+            <>
+                {loadingDesc && (
+                    <div className="space-y-2 animate-pulse">
+                        <div className="h-2 bg-slate-200 rounded w-5/6" />
+                        <div className="h-2 bg-slate-200 rounded w-full" />
+                        <div className="h-2 bg-slate-200 rounded w-4/6" />
+                    </div>
+                )}
+                {!loadingDesc && (
+                    <div className="rounded-xl border border-slate-200 bg-white/70 p-2 text-[11px] sm:text-[12px] leading-relaxed text-slate-700 whitespace-pre-line">
+                        {description || "\u041E\u043F\u0438\u0441 \u0432\u0456\u0434\u0441\u0443\u0442\u043D\u0456\u0439"}
+                    </div>
+                )}
+            </>
+        )}
+        {isEditMode && (
+            <div className="space-y-2 text-[11px]">
+                <div className="flex items-center gap-1.5 flex-wrap pb-0.5">
+                    <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${item.hasPrice === true || (priceUAH != null && priceUAH > 0) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                        \u20B4 {item.hasPrice === true || (priceUAH != null && priceUAH > 0) ? '\u0404 \u0446\u0456\u043D\u0430' : '\u0411\u0435\u0437 \u0446\u0456\u043D\u0438'}
+                    </span>
+                    <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${item.hasPhoto !== false ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}>
+                        \u25FB {item.hasPhoto !== false ? '\u0404 \u0444\u043E\u0442\u043E' : '\u0411\u0435\u0437 \u0444\u043E\u0442\u043E'}
+                    </span>
+                    <span className="ml-auto text-[9px] text-slate-400 font-mono truncate max-w-[100px]" title={item.article || item.code}>{item.article || item.code}</span>
+                </div>
+                <div>
+                    <label className="block text-slate-500 font-semibold mb-0.5">\u041E\u043F\u0438\u0441</label>
+                    <textarea
+                        value={editDesc}
+                        onChange={(e) => setEditDesc(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white/90 p-1.5 text-[11px] text-slate-800 resize-none focus:outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-200"
+                        rows={3}
+                        disabled={editSaving}
+                    />
+                </div>
+                <div className="flex gap-2">
+                    <div className="flex-1">
+                        <label className="block text-slate-500 font-semibold mb-0.5">\u0426\u0456\u043D\u0430 \u043F\u0440\u043E\u0434\u0430\u0436\u0443 (\u0433\u0440\u043D)</label>
+                        <input
+                            type="number"
+                            min="0"
+                            value={editPrice}
+                            onChange={(e) => setEditPrice(e.target.value)}
+                            className="w-full rounded-lg border border-slate-200 bg-white/90 p-1.5 text-[11px] text-slate-800 focus:outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-200"
+                            placeholder="0"
+                            disabled={editSaving}
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <label className="block text-slate-500 font-semibold mb-0.5">\u0426\u0456\u043D\u0430 \u0437\u0430\u043A\u0443\u043F\u0443 (\u0433\u0440\u043D)</label>
+                        <input
+                            type="number"
+                            min="0"
+                            value={editCostPrice}
+                            onChange={(e) => setEditCostPrice(e.target.value)}
+                            className="w-full rounded-lg border border-slate-200 bg-white/90 p-1.5 text-[11px] text-slate-800 focus:outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-200"
+                            placeholder="0"
+                            disabled={editSaving}
+                        />
+                    </div>
+                </div>
+                <div>
+                    <label className="block text-slate-500 font-semibold mb-0.5">Фото товару</label>
+                    <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={handleImageFileChange}
+                        disabled={editSaving}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => imageInputRef.current?.click()}
+                        disabled={editSaving}
+                        className="w-full rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-500 text-[10px] font-medium py-1.5 hover:bg-slate-100 hover:border-slate-400 transition-colors disabled:opacity-50"
+                    >
+                        {editImageDataUrl ? `✓ ${editImageName || 'Фото обрано'}` : '📷 Обрати фото (JPG/PNG/WebP)'}
+                    </button>
+                    {editImageDataUrl && (
+                        <div className="mt-1 flex items-center gap-1">
+                            <img src={editImageDataUrl} alt="preview" className="h-10 w-10 rounded object-cover border border-slate-200" />
+                            <button
+                                type="button"
+                                onClick={() => { setEditImageDataUrl(null); setEditImageName(''); if (imageInputRef.current) imageInputRef.current.value = ''; }}
+                                className="text-[10px] text-rose-500 hover:text-rose-700"
+                            >
+                                ✕ Скасувати
+                            </button>
+                        </div>
+                    )}
+                </div>
+                {editError && (
+                    <p className="text-[10px] text-rose-600 font-medium">{editError}</p>
+                )}
+                {editSuccess && (
+                    <p className="text-[10px] text-emerald-600 font-semibold">\u2713 \u0417\u0431\u0435\u0440\u0435\u0436\u0435\u043D\u043E</p>
+                )}
+                <div className="flex gap-1.5 pt-0.5">
+                    <button
+                        onClick={handleAdminSave}
+                        disabled={editSaving}
+                        className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-violet-300 bg-violet-100 text-violet-800 text-[10px] font-bold py-1.5 hover:bg-violet-200 disabled:opacity-50 transition-colors"
+                    >
+                        {editSaving ? (
+                            <span className="inline-block h-3 w-3 rounded-full border-2 border-violet-300 border-t-violet-700 animate-spin" />
+                        ) : (
+                            '\u2713 \u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438'
+                        )}
+                    </button>
+                    <button
+                        onClick={() => { setIsEditMode(false); setEditError(null); }}
+                        disabled={editSaving}
+                        className="flex-1 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 text-[10px] font-bold py-1.5 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                    >
+                        \u0421\u043A\u0430\u0441\u0443\u0432\u0430\u0442\u0438
+                    </button>
+                </div>
             </div>
         )}
-        {!loadingDesc && (
-            <div className="rounded-xl border border-slate-200 bg-white/70 p-2 text-[11px] sm:text-[12px] leading-relaxed text-slate-700 whitespace-pre-line">
-                {description || "\u041E\u043F\u0438\u0441 \u0432\u0456\u0434\u0441\u0443\u0442\u043D\u0456\u0439"}
-            </div>
-        )}
-        
     </div>
 
     <button

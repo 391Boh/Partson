@@ -18,10 +18,7 @@ import {
 } from "app/lib/product-image-client";
 
 
-// Delay before final image retry (ms)
 const FINAL_RETRY_DELAY_MS = 180;
-const DEFERRED_DIRECT_LOAD_DELAY_MS = 8;
-const BATCH_DIRECT_FALLBACK_DELAY_MS = 28;
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
@@ -65,8 +62,6 @@ const ProductCardImage: React.FC<Props> = ({
   onClick,
   loadingMode = "lazy",
   fetchPriority = "low",
-  deferDirectLoad = false,
-  disableDirectLoad = false,
   batchImagePending = false,
 }) => {
   const [requestSrc, setRequestSrc] = useState("");
@@ -91,7 +86,6 @@ const ProductCardImage: React.FC<Props> = ({
   const lastSuccessfulSrcRef = useRef("");
   const requestSrcRef = useRef("");
   const statusRef = useRef<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
-  const deferredDirectLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     requestSrcRef.current = requestSrc;
@@ -126,11 +120,6 @@ const ProductCardImage: React.FC<Props> = ({
   }, [normalizedArticle, normalizedCode, requestSrc]);
 
   useEffect(() => {
-    if (deferredDirectLoadTimerRef.current) {
-      clearTimeout(deferredDirectLoadTimerRef.current);
-      deferredDirectLoadTimerRef.current = null;
-    }
-
     if (!hasKnownPhoto) {
       writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
       setRequestSrc("");
@@ -182,42 +171,6 @@ const ProductCardImage: React.FC<Props> = ({
       setFinalRetryQueued(false);
       return;
     }
-    if (disableDirectLoad) {
-      setRequestSrc("");
-      setStatus("loading");
-      setFinalRetryQueued(false);
-
-      deferredDirectLoadTimerRef.current = setTimeout(() => {
-        deferredDirectLoadTimerRef.current = null;
-        setRequestSrc(primarySrc);
-        setStatus("loading");
-      }, BATCH_DIRECT_FALLBACK_DELAY_MS);
-
-      return () => {
-        if (deferredDirectLoadTimerRef.current) {
-          clearTimeout(deferredDirectLoadTimerRef.current);
-          deferredDirectLoadTimerRef.current = null;
-        }
-      };
-    }
-    if (deferDirectLoad) {
-      setRequestSrc("");
-      setStatus("loading");
-      setFinalRetryQueued(false);
-
-      deferredDirectLoadTimerRef.current = setTimeout(() => {
-        deferredDirectLoadTimerRef.current = null;
-        setRequestSrc(primarySrc);
-        setStatus("loading");
-      }, DEFERRED_DIRECT_LOAD_DELAY_MS);
-
-      return () => {
-        if (deferredDirectLoadTimerRef.current) {
-          clearTimeout(deferredDirectLoadTimerRef.current);
-          deferredDirectLoadTimerRef.current = null;
-        }
-      };
-    }
     setRequestSrc(primarySrc);
     setStatus("loading");
     setFinalRetryQueued(false);
@@ -227,8 +180,6 @@ const ProductCardImage: React.FC<Props> = ({
     normalizedCode,
     normalizedPrefetchedSrc,
     primarySrc,
-    deferDirectLoad,
-    disableDirectLoad,
     batchImagePending,
   ]);
   useEffect(() => {

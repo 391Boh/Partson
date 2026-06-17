@@ -7,7 +7,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { ChevronsDown, Search } from "lucide-react";
 
@@ -22,12 +22,15 @@ import {
   buildProductImagePath,
 } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
+import { getFirebaseAuthSnapshot } from "app/lib/firebase-auth-state";
 
 // --- Types ---
 interface DataProps {
   selectedCars: string[];
   selectedCategories: string[];
   sortOrder: "none" | "asc" | "desc";
+  priceMin?: number | null;
+  priceMax?: number | null;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
 }
@@ -46,6 +49,7 @@ export interface Product {
   subGroup?: string;
   category?: string;
   hasPhoto?: boolean;
+  hasPrice?: boolean;
 }
 
 // --- Constants ---
@@ -59,18 +63,18 @@ const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PRICE_STALE_POSITIVE_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 12;
 const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 24;
-const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 4;
-const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 3;
+const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 5;
+const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 4;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 8;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 60 * 4;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60 * 4;
 const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
 const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
-const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
-const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 180;
+const BACKGROUND_PAGE_PREFETCH_DEPTH = 2;
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 0;
 const IMAGE_PRIORITY_ITEMS_COUNT = 12;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 3;
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 4;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 45;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
@@ -184,6 +188,13 @@ const PHOTO_FIELDS = [
   "hasPhoto",
   "HasPhoto",
   "has_photo",
+];
+const HAS_PRICE_FIELDS = [
+  "\u0415\u0441\u0442\u044c\u0426\u0435\u043d\u0430", // \u0415\u0441\u0442\u044c\u0426\u0435\u043d\u0430
+  "\u0404\u0441\u0442\u044c\u0426\u0456\u043d\u0430", // \u0404\u0441\u0442\u044c\u0426\u0456\u043d\u0430
+  "hasPrice",
+  "HasPrice",
+  "has_price",
 ];
 const readFirstString = (
   source: Record<string, unknown>,
@@ -524,6 +535,9 @@ const normalizeProduct = (raw: unknown): Product => {
   const subGroup = readFirstString(record, SUBGROUP_FIELDS);
   const category = readFirstString(record, CATEGORY_FIELDS);
   const hasPhoto = readFirstBoolean(record, PHOTO_FIELDS, true);
+  const hasPriceRaw = readFirstBoolean(record, HAS_PRICE_FIELDS, undefined as unknown as boolean);
+  const hasPriceFromValue = Number.isFinite(priceEuro) && priceEuro > 0;
+  const hasPrice: boolean | undefined = hasPriceRaw === true ? true : hasPriceRaw === false ? false : hasPriceFromValue ? true : undefined;
 
   const resolvedCode =
     code ||
@@ -545,6 +559,7 @@ const normalizeProduct = (raw: unknown): Product => {
     subGroup,
     category,
     hasPhoto,
+    hasPrice,
   };
 };
 
@@ -1080,6 +1095,8 @@ function useCatalogData(params: {
   producerFromURL: string | null;
   expandHierarchyFromURL: boolean;
   sortOrder: "none" | "asc" | "desc";
+  priceMin?: number | null;
+  priceMax?: number | null;
   includeCostPrices?: boolean;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
@@ -1094,6 +1111,8 @@ function useCatalogData(params: {
     producerFromURL,
     expandHierarchyFromURL,
     sortOrder,
+    priceMin = null,
+    priceMax = null,
     includeCostPrices = false,
     initialPagePayload,
     initialQuerySignature,
@@ -2799,6 +2818,22 @@ function useCatalogData(params: {
         const memoryHit = readPageFromMemory(targetCacheKey);
 
         if (memoryHit) {
+          applyResolvedPagePrices(memoryHit.items, memoryHit.prices);
+          void fetchCatalogPagePrices(memoryHit.items, {
+            prefetchedPrices: memoryHit.prices,
+            cacheKey: targetCacheKey,
+            ttlMs: ttl,
+            querySignatureSnapshot: querySignature,
+            signal: controller.signal,
+            allowFullLookup: shouldAllowCatalogDirectPriceLookup,
+          }).catch(swallowAbortError);
+          fetchCatalogPageImages(memoryHit.items, {
+            prefetchedImages: memoryHit.images,
+            cacheKey: targetCacheKey,
+            ttlMs: ttl,
+            querySignatureSnapshot: querySignature,
+            signal: controller.signal,
+          });
           if (canUseCursorPagination && memoryHit.nextCursor) {
             nextCursorByPageRef.current[targetPage + 1] = memoryHit.nextCursor;
             nextCursorFieldByPageRef.current[targetPage + 1] =
@@ -2822,6 +2857,22 @@ function useCatalogData(params: {
 
           writePageToMemory(targetCacheKey, payload, ttl);
           writePageToSession(targetCacheKey, payload, ttl);
+          applyResolvedPagePrices(payload.items, payload.prices);
+          void fetchCatalogPagePrices(payload.items, {
+            prefetchedPrices: payload.prices,
+            cacheKey: targetCacheKey,
+            ttlMs: ttl,
+            querySignatureSnapshot: querySignature,
+            signal: controller.signal,
+            allowFullLookup: shouldAllowCatalogDirectPriceLookup,
+          }).catch(swallowAbortError);
+          fetchCatalogPageImages(payload.items, {
+            prefetchedImages: payload.images,
+            cacheKey: targetCacheKey,
+            ttlMs: ttl,
+            querySignatureSnapshot: querySignature,
+            signal: controller.signal,
+          });
           if (canUseCursorPagination && payload.nextCursor) {
             nextCursorByPageRef.current[targetPage + 1] = payload.nextCursor;
             nextCursorFieldByPageRef.current[targetPage + 1] =
@@ -2849,19 +2900,23 @@ function useCatalogData(params: {
       window.clearTimeout(timerId);
       abortControllerSafely(controller);
     };
-	  }, [
-	    buildCacheKey,
-	    canUseCursorPagination,
-	    fetchCatalogPagePayload,
-	    hasMore,
-	    loading,
-	    normalizedSearch,
-	    page,
-	    querySignature,
-	    safeData.length,
-	    selectedCars.length,
-	    sortOrder,
-	  ]);
+  }, [
+    applyResolvedPagePrices,
+    buildCacheKey,
+    canUseCursorPagination,
+    fetchCatalogPageImages,
+    fetchCatalogPagePayload,
+    fetchCatalogPagePrices,
+    hasMore,
+    loading,
+    normalizedSearch,
+    page,
+    querySignature,
+    safeData.length,
+    selectedCars.length,
+    shouldAllowCatalogDirectPriceLookup,
+    sortOrder,
+  ]);
 // --- Р†РЅС–С†С–Р°Р»С–Р·Р°С†С–СЏ РєС–Р»СЊРєРѕСЃС‚РµР№ ---
   useEffect(() => {
     setQuantities((prev) => {
@@ -3003,7 +3058,17 @@ function useCatalogData(params: {
           selectedCategorySet.has(normalizeFilterToken(item.group)) ||
           selectedCategorySet.has(normalizeFilterToken(item.category));
 
-        return (isDescriptionSearch || match) && catMatch && producerMatch;
+        if (!(isDescriptionSearch || match) || !catMatch || !producerMatch) return false;
+
+        if (priceMin != null || priceMax != null) {
+          const priceUAH = getResolvedProductPriceUAH(item, prices, euroRate);
+          if (priceUAH != null) {
+            if (priceMin != null && priceUAH < priceMin) return false;
+            if (priceMax != null && priceUAH > priceMax) return false;
+          }
+        }
+
+        return true;
       })
       .map(({ item }) => item);
   }, [
@@ -3012,6 +3077,10 @@ function useCatalogData(params: {
     searchFilter,
     effectiveSelectedCategories,
     producerFromURL,
+    priceMin,
+    priceMax,
+    euroRate,
+    prices,
   ]);
 
   // --- handlers ---
@@ -3201,6 +3270,8 @@ const Data: React.FC<DataProps> = ({
   selectedCars,
   selectedCategories,
   sortOrder,
+  priceMin = null,
+  priceMax = null,
   initialPagePayload = null,
   initialQuerySignature = null,
 }) => {
@@ -3219,6 +3290,8 @@ const Data: React.FC<DataProps> = ({
   const expandHierarchyFromURL = currentSearchParams.get("scope") === "hierarchy";
   const lastFilterSignatureRef = useRef<string | null>(null);
   const lastStableSortedSignatureRef = useRef("");
+  const selectedCarsRef = useRef(selectedCars);
+  useEffect(() => { selectedCarsRef.current = selectedCars; }, [selectedCars]);
   const softTransitionStartedAtRef = useRef(0);
   const softTransitionHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lastStableSortedData, setLastStableSortedData] = useState<Product[]>([]);
@@ -3251,6 +3324,80 @@ const Data: React.FC<DataProps> = ({
     window.addEventListener("partson:adminStateChange", handleAdminChange);
     return () => window.removeEventListener("partson:adminStateChange", handleAdminChange);
   }, []);
+
+  const getAdminToken = useCallback(async (): Promise<string | null> => {
+    const snapshot = getFirebaseAuthSnapshot();
+    if (!snapshot.user) return null;
+    return (snapshot.user as { getIdToken: () => Promise<string> })
+      .getIdToken()
+      .catch(() => null);
+  }, []);
+
+  const handleAdminEdit = useCallback(
+    async (
+      code: string,
+      article: string,
+      data: { description?: string; priceUAH?: number; costPriceUAH?: number; imageDataUrl?: string; imageName?: string }
+    ): Promise<{ ok: boolean; error?: string }> => {
+      const token = await getAdminToken();
+      if (!token) return { ok: false, error: "Не авторизовано" };
+
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      };
+
+      const tasks: Array<Promise<{ ok: boolean; error?: string }>> = [];
+
+      if (data.description !== undefined) {
+        // getinfo uses НомерПоКаталогу (= article), not internal Код
+        tasks.push(
+          fetch("/api/product-update-description", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ article, description: data.description }),
+          })
+            .then((r) => r.json() as Promise<{ ok: boolean; error?: string }>)
+            .catch(() => ({ ok: false, error: "Помилка мережі (опис)" }))
+        );
+      }
+
+      if (data.priceUAH !== undefined || data.costPriceUAH !== undefined) {
+        const priceBody: Record<string, unknown> = { code };
+        if (data.priceUAH !== undefined) priceBody.priceUAH = data.priceUAH;
+        if (data.costPriceUAH !== undefined) priceBody.costPriceUAH = data.costPriceUAH;
+        tasks.push(
+          fetch("/api/product-update-price", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(priceBody),
+          })
+            .then((r) => r.json() as Promise<{ ok: boolean; error?: string }>)
+            .catch(() => ({ ok: false, error: "Помилка мережі (ціна)" }))
+        );
+      }
+
+      if (data.imageDataUrl) {
+        // images endpoint uses НомерПоКаталогу (= article) as code field
+        tasks.push(
+          fetch("/api/product-upload-image", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ code: article, imageDataUrl: data.imageDataUrl, imageName: data.imageName }),
+          })
+            .then((r) => r.json() as Promise<{ ok: boolean; error?: string }>)
+            .catch(() => ({ ok: false, error: "Помилка мережі (фото)" }))
+        );
+      }
+
+      if (tasks.length === 0) return { ok: true };
+
+      const results = await Promise.all(tasks);
+      const failed = results.find((r) => !r.ok);
+      return failed ?? { ok: true };
+    },
+    [getAdminToken]
+  );
 
   const {
     filteredData,
@@ -3291,10 +3438,65 @@ const Data: React.FC<DataProps> = ({
     producerFromURL,
     expandHierarchyFromURL,
     sortOrder,
+    priceMin,
+    priceMax,
     includeCostPrices: isAdmin,
     initialPagePayload,
     initialQuerySignature,
   });
+
+  const router = useRouter();
+  // Зберігає оригінальний запит до будь-яких редіректів (для опису потрібен оригінал)
+  const fallbackOriginalQueryRef = useRef<string>("");
+  const articleFallbackAttemptedRef = useRef<string>("");
+  const descFallbackAttemptedRef = useRef<string>("");
+
+  // Триступеневий фолбек: назва → артикул → опис
+  useEffect(() => {
+    if (!hasLoadedOnce || loading || error) return;
+
+    if (filteredData.length > 0) {
+      fallbackOriginalQueryRef.current = "";
+      articleFallbackAttemptedRef.current = "";
+      descFallbackAttemptedRef.current = "";
+      return;
+    }
+
+    if (searchFilter !== "all" && searchFilter !== "name") return;
+
+    const raw = rawSearchQuery.trim();
+    if (raw.length < 3) return;
+
+    // Рівень 2: артикул — тільки для однослівних запитів + зміна кирилиці на латиницю
+    if (!raw.includes(" ") && articleFallbackAttemptedRef.current !== raw) {
+      articleFallbackAttemptedRef.current = raw;
+      const sanitized = normalizeArticleToken(raw.toLowerCase());
+      if (sanitized && sanitized !== raw.toLowerCase() && sanitized.length >= 2) {
+        if (!fallbackOriginalQueryRef.current) fallbackOriginalQueryRef.current = raw;
+        const params = new URLSearchParams(currentSearchParams.toString());
+        params.set("search", sanitized);
+        params.set("filter", "name");
+        router.replace(`/katalog?${params.toString()}`);
+        return;
+      }
+    }
+
+    // Рівень 3: опис — використати оригінальний запит (до артикульного редіректу)
+    // Якщо поточний raw є sanitized-версією оригіналу — відновити оригінал
+    const storedOriginal = fallbackOriginalQueryRef.current;
+    const isSanitizedOfOriginal =
+      storedOriginal.length > 0 &&
+      normalizeArticleToken(storedOriginal.toLowerCase()) === raw.toLowerCase();
+    const descQuery = isSanitizedOfOriginal ? storedOriginal : raw;
+
+    if (descFallbackAttemptedRef.current !== descQuery) {
+      descFallbackAttemptedRef.current = descQuery;
+      const params = new URLSearchParams(currentSearchParams.toString());
+      params.set("search", descQuery);
+      params.set("filter", "description");
+      router.replace(`/katalog?${params.toString()}`);
+    }
+  }, [hasLoadedOnce, loading, error, filteredData.length, searchFilter, rawSearchQuery, currentSearchParams, router]);
 
   const filterSignature = useMemo(
     () =>
@@ -3321,35 +3523,34 @@ const Data: React.FC<DataProps> = ({
   );
 
   const sortedEntries = useMemo(() => {
-    const shouldUseClientPriceSort = sortOrder !== "none";
-    const entries = filteredData.map((item, index) => ({
-      item,
-      index,
-      code: item.code,
-      stableKey: getProductStableListKey(item),
-      priceKey: getProductPriceStateKey(item),
-      priceUAH: shouldUseClientPriceSort
-        ? (() => {
-            // Prefer inline priceEuro to match server sort order and avoid
-            // items jumping positions when the batch-price API responds.
-            const inlineEuro =
-              typeof item.priceEuro === "number" &&
-              Number.isFinite(item.priceEuro) &&
-              item.priceEuro > 0
-                ? item.priceEuro
-                : null;
-            const euro = inlineEuro ?? getResolvedProductPriceEuro(item, prices);
-            return toPriceUAH(euro, euroRate);
-          })()
-        : null,
-    }));
-
-    if (!shouldUseClientPriceSort) return entries;
+    const entries = filteredData.map((item, index) => {
+      const inlineEuro =
+        typeof item.priceEuro === "number" &&
+        Number.isFinite(item.priceEuro) &&
+        item.priceEuro > 0
+          ? item.priceEuro
+          : null;
+      const euro = inlineEuro ?? getResolvedProductPriceEuro(item, prices);
+      return {
+        item,
+        index,
+        code: item.code,
+        stableKey: getProductStableListKey(item),
+        priceKey: getProductPriceStateKey(item),
+        priceUAH: toPriceUAH(euro, euroRate),
+        priceResolved: hasResolvedProductPriceState(item, prices),
+      };
+    });
 
     const priceSortFn = (a: (typeof entries)[0], b: (typeof entries)[0]) => {
-      const aHasPrice = a.priceUAH != null ? 0 : 1;
-      const bHasPrice = b.priceUAH != null ? 0 : 1;
-      if (aHasPrice !== bHasPrice) return aHasPrice - bHasPrice;
+      // 0 = confirmed has price, 1 = price status unknown (batch not loaded), 2 = confirmed no price
+      const priceGroup = (e: typeof a) => {
+        if (e.priceUAH != null) return 0;
+        return e.priceResolved ? 2 : 1;
+      };
+      const ag = priceGroup(a);
+      const bg = priceGroup(b);
+      if (ag !== bg) return ag - bg;
       if (a.priceUAH != null && b.priceUAH != null) {
         if (sortOrder === "asc" && a.priceUAH !== b.priceUAH) return a.priceUAH - b.priceUAH;
         if (sortOrder === "desc" && a.priceUAH !== b.priceUAH) return b.priceUAH - a.priceUAH;
@@ -3357,7 +3558,6 @@ const Data: React.FC<DataProps> = ({
       return a.index - b.index;
     };
 
-    // Sort all items by best-available price; items without price go to the end in server order
     return [...entries].sort(priceSortFn);
   }, [filteredData, prices, euroRate, sortOrder]);
   const sortedData = useMemo(
@@ -3599,6 +3799,7 @@ const Data: React.FC<DataProps> = ({
     }
   }, [loading, setFilterLoading]);
 
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -3749,7 +3950,7 @@ const Data: React.FC<DataProps> = ({
         !categoryLabel && selectedCategories.length > 0
           ? selectedCategories.join(", ")
           : "";
-      const carLabel = selectedCars.length > 0 ? selectedCars.join(", ") : "";
+      const carLabel = selectedCarsRef.current.length > 0 ? selectedCarsRef.current.join(", ") : "";
       const producerFilterLabel = producerFromURL ? `Виробник (фільтр): ${producerFromURL}` : "";
 
       const lines: string[] = ["Потрібна ціна на товар (за запитом)."];
@@ -3774,7 +3975,6 @@ const Data: React.FC<DataProps> = ({
       subcategoryFromURL,
       groupFromURL,
       selectedCategories,
-      selectedCars,
       producerFromURL,
     ]
   );
@@ -3893,6 +4093,7 @@ const Data: React.FC<DataProps> = ({
                       priceUAH={priceUAH}
                       costPriceUAH={isAdmin && stateCostPriceEuro != null ? Math.round(stateCostPriceEuro * euroRate) : null}
                       isAdmin={isAdmin}
+                      onAdminEdit={isAdmin ? (data) => handleAdminEdit(code, item.article || code, data) : undefined}
                       priceStatus={priceStatus}
                       imageLoadingMode={shouldPrioritizeImage ? "eager" : "lazy"}
                       imageFetchPriority={shouldPrioritizeImage ? "high" : "auto"}

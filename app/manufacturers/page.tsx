@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Factory, Layers3 } from "lucide-react";
+import { Factory, PackageSearch, Search, Tags } from "lucide-react";
 
 import CatalogHubHero from "app/components/CatalogHubHero";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
@@ -87,9 +87,12 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ManufacturersPage() {
   const siteUrl = getSiteUrl();
-  const { clientProducers, indexedProducts, hasIndexedCounts } =
+  const { clientProducers, indexedBrands, indexedProducts, hasIndexedCounts } =
     await getFullManufacturersDirectoryData();
   const featuredManufacturers = clientProducers.slice(0, 2);
+  const totalBrandsLabel = clientProducers.length.toLocaleString("uk-UA");
+  const indexedBrandsLabel = indexedBrands.toLocaleString("uk-UA");
+  const indexedProductsLabel = indexedProducts.toLocaleString("uk-UA");
   const manufacturersStructuredData = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
@@ -117,7 +120,7 @@ export default async function ManufacturersPage() {
       "@type": "ItemList",
       name: "Список виробників автозапчастин PartsON",
       numberOfItems: clientProducers.length,
-      itemListElement: clientProducers.slice(0, 48).map((producer, index) => ({
+      itemListElement: clientProducers.map((producer, index) => ({
         "@type": "ListItem",
         position: index + 1,
         url: `${siteUrl}${buildManufacturerPath(producer.slug)}`,
@@ -126,7 +129,9 @@ export default async function ManufacturersPage() {
           name: producer.label,
           url: `${siteUrl}${buildManufacturerPath(producer.slug)}`,
           logo: producer.logoPath ? `${siteUrl}${producer.logoPath}` : undefined,
-          description: `Запчастини ${producer.label}: сторінка бренду, групи, категорії та товари виробника в PartsON.`,
+          description:
+            producer.description ||
+            `Запчастини ${producer.label}: сторінка бренду, групи, категорії та товари виробника в PartsON.`,
         },
       })),
     },
@@ -161,36 +166,36 @@ export default async function ManufacturersPage() {
             badge="Бренди та виробники"
             icon={Factory}
             title="Виробники автозапчастин і бренди"
-            description="Оберіть виробника, щоб перейти до товарів бренду, популярних груп, категорій, аналогів і актуальної наявності."
+            description="Єдиний список виробників PartsON з окремими сторінками брендів, товарами, групами, підгрупами та швидким переходом у відфільтрований каталог."
             highlights={[
-                "Окремі сторінки брендів і виробників",
+              "Пошук виробника за назвою без зайвих переходів",
               hasIndexedCounts && indexedProducts > 0
-                ? "Швидкий вхід у каталог виробника з групами і категоріями"
+                ? "Сторінки брендів генеруються з каталожного індексу"
                 : "Сторінки брендів оновлюються з каталожного індексу",
-              "Швидкий пошук по назві бренду",
+              "Групи, підгрупи і товари бренду відкриваються готовими фільтрами",
             ]}
             stats={[
               {
-                label: "Маршрут",
-                value: "Бренд / каталог",
+                label: "Виробників",
+                value: totalBrandsLabel,
                 icon: Factory,
               },
               {
-                label: "Пошук",
-                value: "Назва виробника",
-                icon: Layers3,
+                label: "З товарами",
+                value: hasIndexedCounts ? indexedBrandsLabel : "Індекс",
+                icon: PackageSearch,
               },
               {
-                label: "Результат",
-                value: "Групи і категорії бренду",
-                icon: Layers3,
+                label: "Позицій",
+                value: hasIndexedCounts && indexedProducts > 0 ? indexedProductsLabel : "Каталог",
+                icon: Tags,
               },
             ]}
             quickLinks={[
               {
                 href: "#manufacturers-directory",
                 label: "Усі бренди",
-                icon: Layers3,
+                icon: Search,
                 accent: true,
               },
               ...featuredManufacturers.map((manufacturer) => ({

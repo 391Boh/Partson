@@ -22,24 +22,24 @@ const CATALOG_IMAGE_READY_CACHE_TTL_MS = 1000 * 60 * 60;
 const CATALOG_IMAGE_MISSING_CACHE_TTL_MS = 1000 * 60 * 5;
 
 const PRIMARY_LOOKUP_OPTIONS = {
-  timeoutMs: 480,
+  timeoutMs: 680,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 60 * 2,
   missCacheTtlMs: 1000 * 60 * 5,
   allowUrlDownload: false,
-  batchConcurrency: 10,
+  batchOnly: true,
   maxKeys: MAX_BATCH_ITEMS * 2,
 };
 const DEEP_RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 850,
+  timeoutMs: 1200,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 20,
   missCacheTtlMs: 1000 * 60 * 5,
   allowUrlDownload: true,
   skipMissCache: true,
-  batchConcurrency: 6,
+  batchOnly: true,
   maxKeys: MAX_BATCH_ITEMS * 4,
 };
 const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
