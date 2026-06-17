@@ -61,11 +61,11 @@ const PRICE_CACHE_PREFIX = "partson:v12:price:";
 const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PRICE_STALE_POSITIVE_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
-const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 12;
-const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 24;
-const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 5;
-const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 4;
-const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 8;
+const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 60;
+const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 120;
+const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 8;
+const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 6;
+const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 45;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 60 * 4;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60 * 4;
 const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
@@ -3551,9 +3551,8 @@ const Data: React.FC<DataProps> = ({
       const ag = priceGroup(a);
       const bg = priceGroup(b);
       if (ag !== bg) return ag - bg;
-      if (a.priceUAH != null && b.priceUAH != null) {
-        if (sortOrder === "asc" && a.priceUAH !== b.priceUAH) return a.priceUAH - b.priceUAH;
-        if (sortOrder === "desc" && a.priceUAH !== b.priceUAH) return b.priceUAH - a.priceUAH;
+      if (a.priceUAH != null && b.priceUAH != null && a.priceUAH !== b.priceUAH) {
+        return sortOrder === "desc" ? b.priceUAH - a.priceUAH : a.priceUAH - b.priceUAH;
       }
       return a.index - b.index;
     };

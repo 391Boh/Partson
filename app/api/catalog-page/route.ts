@@ -308,6 +308,7 @@ export async function POST(request: Request) {
       const runAllgoodsQuery = () =>
         fetchCatalogProductsByQuery({
           ...queryBase,
+          sortOrder: queryBase.sortOrder === "none" ? "asc" : queryBase.sortOrder,
           timeoutMs: runtime.timeoutMs,
           retries: runtime.retries,
           retryDelayMs: runtime.retryDelayMs,
