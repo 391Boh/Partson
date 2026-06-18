@@ -538,6 +538,8 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   retryDelayMs?: number;
   cacheTtlMs?: number;
   pricedItemsOnly?: boolean;
+  priceFrom?: number | null;
+  priceTo?: number | null;
 }): Promise<CatalogQueryPageResult> => {
   const page =
     Number.isFinite(options.page) && (options.page || 0) > 0
@@ -557,11 +559,15 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     requestBodyBase[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = false;
   }
 
-  // Do not send ALLGOODS_ONLY_WITH_PRICE_FIELD here. The current 1C allgoods
-  // implementation returns an empty result for ТолькоСЦеной even when products
-  // exist, so price filtering must use the actual ЦінаПрод/ЕстьЦена fields from
-  // the response.
-  delete requestBodyBase[ALLGOODS_ONLY_WITH_PRICE_FIELD];
+  if (options.pricedItemsOnly) {
+    requestBodyBase[ALLGOODS_ONLY_WITH_PRICE_FIELD] = true;
+  }
+  if (typeof options.priceFrom === "number" && Number.isFinite(options.priceFrom)) {
+    requestBodyBase["ЦенаОт"] = options.priceFrom;
+  }
+  if (typeof options.priceTo === "number" && Number.isFinite(options.priceTo)) {
+    requestBodyBase["ЦенаДо"] = options.priceTo;
+  }
 
   const hasUsablePrice = (item: CatalogProduct) =>
     (typeof item.priceEuro === "number" &&
@@ -617,47 +623,22 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   if (isPriceSorted) {
     const start = (page - 1) * limit;
     const targetCount = start + limit + 1;
-    const collected: CatalogProduct[] = [];
-    let cursorForWindow = requestedCursor;
-    let lastParsedHasMore = false;
-    let lastResolvedCursor = "";
-    let scanned = 0;
-    const requestLimit = Math.min(100, Math.max(limit, 100));
-    const maxScans = Math.max(
-      1,
-      Math.ceil(Math.min(ALLGOODS_SORT_WINDOW_MAX_LIMIT, Math.max(targetCount, 300)) / requestLimit)
-    );
-
-    for (let scan = 0; scan < maxScans && collected.length < targetCount; scan += 1) {
-      const body: Record<string, unknown> = {
-        ...requestBodyBase,
-        [ALLGOODS_LIMIT_FIELD]: requestLimit,
-      };
-      if (cursorForWindow) {
-        body[ALLGOODS_CURSOR_FIELD] = cursorForWindow;
-      }
-
-      const parsed = await requestAllgoodsPage(body);
-      const nextItems = filterPricedItems(parsed.items);
-      collected.push(...nextItems);
-      scanned += parsed.items.length;
-      lastParsedHasMore = parsed.hasMore;
-      lastResolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
-      if (!parsed.hasMore || !lastResolvedCursor || parsed.items.length === 0) break;
-      cursorForWindow = lastResolvedCursor;
-    }
-
-    const sourceItems = sortPricedWindow(collected);
+    const requestLimit = Math.min(100, Math.max(limit + 1, targetCount));
+    const parsed = await requestAllgoodsPage({
+      ...requestBodyBase,
+      [ALLGOODS_LIMIT_FIELD]: requestLimit,
+    });
+    const sourceItems = sortPricedWindow(filterPricedItems(parsed.items));
     const pageSlice = sourceItems.slice(start, start + limit);
-    const resolvedCursor = lastResolvedCursor || deriveAllgoodsFallbackCursor(pageSlice);
+    const resolvedCursor = deriveAllgoodsFallbackCursor(pageSlice);
     const hasMore =
       sourceItems.length > start + limit ||
-      lastParsedHasMore ||
-      scanned >= Math.min(ALLGOODS_SORT_WINDOW_MAX_LIMIT, Math.max(targetCount, 300));
+      parsed.hasMore ||
+      parsed.items.length >= requestLimit;
     return {
       items: pageSlice,
       hasMore,
-      nextCursor: hasMore ? resolvedCursor : "",
+      nextCursor: hasMore && requestLimit < 100 ? resolvedCursor : "",
       cursorField: null,
     };
   }
@@ -1230,6 +1211,8 @@ export const fetchCatalogProductsByQuery = async (options: {
   preferLegacySource?: boolean;
   forceAllgoodsSource?: boolean;
   pricedItemsOnly?: boolean;
+  priceFrom?: number | null;
+  priceTo?: number | null;
   onlyInStock?: boolean;
   expandHierarchy?: boolean;
 }): Promise<CatalogQueryPageResult> => {
@@ -1419,6 +1402,16 @@ export const fetchCatalogProductsByQuery = async (options: {
       allgoodsBaseBody[ALLGOODS_SORT_PRICE_FIELD] = "DESC";
     }
 
+    if (options.pricedItemsOnly) {
+      allgoodsBaseBody[ALLGOODS_ONLY_WITH_PRICE_FIELD] = true;
+    }
+    if (typeof options.priceFrom === "number" && Number.isFinite(options.priceFrom)) {
+      allgoodsBaseBody["ЦенаОт"] = options.priceFrom;
+    }
+    if (typeof options.priceTo === "number" && Number.isFinite(options.priceTo)) {
+      allgoodsBaseBody["ЦенаДо"] = options.priceTo;
+    }
+
     if (options.onlyInStock) {
       allgoodsBaseBody[ALLGOODS_ONLY_IN_STOCK_FIELD] = true;
     }
@@ -1458,6 +1451,8 @@ export const fetchCatalogProductsByQuery = async (options: {
           options.cacheTtlMs ??
           (page === 1 ? 1000 * 20 : 1000 * 15),
         pricedItemsOnly: options.pricedItemsOnly,
+        priceFrom: options.priceFrom,
+        priceTo: options.priceTo,
       });
     };
 
@@ -1521,6 +1516,9 @@ export const fetchCatalogProductsByQuery = async (options: {
           retries: options.retries,
           retryDelayMs: options.retryDelayMs,
           cacheTtlMs: options.cacheTtlMs ?? 1000 * 20,
+          pricedItemsOnly: options.pricedItemsOnly,
+          priceFrom: options.priceFrom,
+          priceTo: options.priceTo,
         });
 
         scannedItems += pageResult.items.length;

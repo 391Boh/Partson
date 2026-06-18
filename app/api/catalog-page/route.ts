@@ -43,6 +43,13 @@ const toPositiveInt = (value: unknown, fallback: number) => {
   return Math.floor(parsed);
 };
 
+const toNonNegativeNumber = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return parsed;
+};
+
 const CYRILLIC_TO_LATIN: Record<string, string> = {
   "й":"q","ц":"w","у":"e","к":"r","е":"t","н":"y","г":"u","ш":"i","щ":"o","з":"p",
   "ф":"a","і":"s","в":"d","а":"f","п":"g","р":"h","о":"j","л":"k","д":"l",
@@ -69,7 +76,7 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawSearch = toTrimmedString(body.searchQuery);
   const effectiveSearch = rawFilter === "article" ? normalizeArticleQuery(rawSearch) : rawSearch;
   return JSON.stringify({
-    source: "catalog-page:v26-priced-only",
+    source: "catalog-page:v27-1c-price-range",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -87,6 +94,8 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
         ? body.sortOrder
         : "none",
     pricedOnly: body.pricedOnly === true,
+    priceFrom: toNonNegativeNumber(body.priceFrom),
+    priceTo: toNonNegativeNumber(body.priceTo),
     inStock: body.inStock === true,
   });
 };
@@ -274,6 +283,8 @@ export async function POST(request: Request) {
           ? body.sortOrder
           : "none",
       pricedOnly: body.pricedOnly === true,
+      priceFrom: toNonNegativeNumber(body.priceFrom),
+      priceTo: toNonNegativeNumber(body.priceTo),
       inStock: body.inStock === true,
     } as const;
 
@@ -299,14 +310,16 @@ export async function POST(request: Request) {
       const shouldUseCursorBackedSource =
         Boolean(queryBase.cursor || queryBase.cursorField) ||
         queryBase.pricedOnly ||
+        queryBase.priceFrom !== null ||
+        queryBase.priceTo !== null ||
         queryBase.sortOrder !== "none" ||
         isDescriptionSearch;
 
       const runAllgoodsQuery = () =>
         fetchCatalogProductsByQuery({
           ...queryBase,
-          // sortOrder "none" → cursor pagination in allgoods.
-          // "asc"/"desc" → explicit СортировкаПоЦене with local filtering by returned price fields.
+          // Contract from 1C НайтиТовары/ПолучитьТоварыПакетом:
+          // ТолькоСЦеной, ЦенаОт/ЦенаДо, СортировкаПоЦене.
           sortOrder: queryBase.sortOrder,
           timeoutMs: runtime.timeoutMs,
           retries: runtime.retries,
@@ -315,9 +328,13 @@ export async function POST(request: Request) {
           includePriceEnrichment: false,
           preferLegacySource: false,
           forceAllgoodsSource: true,
-          // allgoods currently returns an empty response for ТолькоСЦеной, so
-          // pricedItemsOnly filters by returned ЦінаПрод/ЕстьЦена instead.
-          pricedItemsOnly: queryBase.pricedOnly || queryBase.sortOrder !== "none",
+          pricedItemsOnly:
+            queryBase.pricedOnly ||
+            queryBase.priceFrom !== null ||
+            queryBase.priceTo !== null ||
+            queryBase.sortOrder !== "none",
+          priceFrom: queryBase.priceFrom,
+          priceTo: queryBase.priceTo,
           onlyInStock: queryBase.inStock,
         });
 
@@ -330,6 +347,8 @@ export async function POST(request: Request) {
           allgoodsPrimary &&
           (allgoodsPrimary.items.length > 0 ||
             queryBase.pricedOnly ||
+            queryBase.priceFrom !== null ||
+            queryBase.priceTo !== null ||
             Boolean(queryBase.cursor || queryBase.cursorField))
         ) {
           return allgoodsPrimary;
@@ -353,7 +372,13 @@ export async function POST(request: Request) {
         includePriceEnrichment: false,
         preferLegacySource: true,
         forceAllgoodsSource: false,
-        pricedItemsOnly: queryBase.pricedOnly || queryBase.sortOrder !== "none",
+        pricedItemsOnly:
+          queryBase.pricedOnly ||
+          queryBase.priceFrom !== null ||
+          queryBase.priceTo !== null ||
+          queryBase.sortOrder !== "none",
+        priceFrom: queryBase.priceFrom,
+        priceTo: queryBase.priceTo,
         onlyInStock: queryBase.inStock,
       }).catch((error) => {
         if (queryBase.selectedCars.length > 0) throw error;
@@ -393,7 +418,13 @@ export async function POST(request: Request) {
         includePriceEnrichment: false,
         preferLegacySource: false,
         forceAllgoodsSource: true,
-        pricedItemsOnly: queryBase.pricedOnly || queryBase.sortOrder !== "none",
+        pricedItemsOnly:
+          queryBase.pricedOnly ||
+          queryBase.priceFrom !== null ||
+          queryBase.priceTo !== null ||
+          queryBase.sortOrder !== "none",
+        priceFrom: queryBase.priceFrom,
+        priceTo: queryBase.priceTo,
         onlyInStock: queryBase.inStock,
       }).catch(() => null);
 
@@ -425,7 +456,13 @@ export async function POST(request: Request) {
         includePriceEnrichment: false,
         preferLegacySource: false,
         forceAllgoodsSource: true,
-        pricedItemsOnly: queryBase.pricedOnly || queryBase.sortOrder !== "none",
+        pricedItemsOnly:
+          queryBase.pricedOnly ||
+          queryBase.priceFrom !== null ||
+          queryBase.priceTo !== null ||
+          queryBase.sortOrder !== "none",
+        priceFrom: queryBase.priceFrom,
+        priceTo: queryBase.priceTo,
         onlyInStock: queryBase.inStock,
       });
     };

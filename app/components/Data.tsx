@@ -30,6 +30,8 @@ interface DataProps {
   selectedCategories: string[];
   sortOrder: "none" | "asc" | "desc";
   pricedOnly?: boolean;
+  priceFrom?: number | null;
+  priceTo?: number | null;
   inStock?: boolean;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
@@ -1108,6 +1110,8 @@ function useCatalogData(params: {
   expandHierarchyFromURL: boolean;
   sortOrder: "none" | "asc" | "desc";
   pricedOnly?: boolean;
+  priceFrom?: number | null;
+  priceTo?: number | null;
   inStock?: boolean;
   includeCostPrices?: boolean;
   initialPagePayload?: CatalogPagePayload | null;
@@ -1124,6 +1128,8 @@ function useCatalogData(params: {
     expandHierarchyFromURL,
     sortOrder,
     pricedOnly = false,
+    priceFrom = null,
+    priceTo = null,
     inStock = false,
     includeCostPrices = false,
     initialPagePayload,
@@ -1175,6 +1181,8 @@ function useCatalogData(params: {
         expandHierarchy: expandHierarchyFromURL,
         sortOrder: effectiveServerSortOrder,
         pricedOnly,
+        priceFrom,
+        priceTo,
         inStock,
       }),
     [
@@ -1188,6 +1196,8 @@ function useCatalogData(params: {
       expandHierarchyFromURL,
       effectiveServerSortOrder,
       pricedOnly,
+      priceFrom,
+      priceTo,
       inStock,
     ]
   );
@@ -2151,6 +2161,8 @@ function useCatalogData(params: {
         hierarchy: expandHierarchyFromURL,
         sort: effectiveServerSortOrder || "none",
         pricedOnly,
+        priceFrom,
+        priceTo,
         inStock,
       }),
     [
@@ -2163,6 +2175,8 @@ function useCatalogData(params: {
       expandHierarchyFromURL,
       effectiveServerSortOrder,
       pricedOnly,
+      priceFrom,
+      priceTo,
       inStock,
     ]
   );
@@ -2209,6 +2223,8 @@ function useCatalogData(params: {
             expandHierarchy: expandHierarchyFromURL,
             sortOrder: effectiveServerSortOrder,
             pricedOnly,
+            priceFrom,
+            priceTo,
             inStock,
           }),
           cache: "no-store",
@@ -2289,6 +2305,9 @@ function useCatalogData(params: {
       selectedCars,
       effectiveServerSortOrder,
       subcategoryFromURL,
+      pricedOnly,
+      priceFrom,
+      priceTo,
       inStock,
     ]
   );
@@ -3330,6 +3349,8 @@ const Data: React.FC<DataProps> = ({
   selectedCategories,
   sortOrder,
   pricedOnly = false,
+  priceFrom = null,
+  priceTo = null,
   inStock = false,
   initialPagePayload = null,
   initialQuerySignature = null,
@@ -3503,6 +3524,8 @@ const Data: React.FC<DataProps> = ({
     expandHierarchyFromURL,
     sortOrder,
     pricedOnly,
+    priceFrom,
+    priceTo,
     inStock,
     includeCostPrices: isAdmin,
     initialPagePayload,
@@ -3574,6 +3597,8 @@ const Data: React.FC<DataProps> = ({
         selectedCars,
         sortOrder,
         pricedOnly,
+        priceFrom,
+        priceTo,
         inStock,
       }),
     [
@@ -3586,6 +3611,8 @@ const Data: React.FC<DataProps> = ({
       selectedCars,
       sortOrder,
       pricedOnly,
+      priceFrom,
+      priceTo,
       inStock,
     ]
   );

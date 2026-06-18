@@ -1,4 +1,4 @@
-export const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v43-priced-only-allgoods";
+export const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v44-1c-price-range";
 export const CATALOG_PRODUCTS_CACHE_KEY = "partson:getprod";
 export const CATALOG_PRODUCTS_CACHE_TTL_MS = 1000 * 60 * 5;
 export const CATALOG_PRODUCTS_STALE_TTL_MS = 1000 * 60 * 60 * 24;

@@ -105,6 +105,8 @@ const Katalog: React.FC<KatalogProps> = ({
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
   const [pricedOnly, setPricedOnly] = useState(false);
+  const [priceFrom, setPriceFrom] = useState<number | null>(null);
+  const [priceTo, setPriceTo] = useState<number | null>(null);
   const [inStock, setInStock] = useState(false);
   const [selectedCarSelection, setSelectedCarSelection] =
     useState<PersistedCarSelection | null>(null);
@@ -224,6 +226,8 @@ const Katalog: React.FC<KatalogProps> = ({
     setSelectedCarSelection(null);
     setSortOrder('none');
     setPricedOnly(false);
+    setPriceFrom(null);
+    setPriceTo(null);
     setInStock(false);
     setCarsLoaded(true);
     setLocalReady(true);
@@ -622,6 +626,12 @@ const Katalog: React.FC<KatalogProps> = ({
       onLayoutChange={measureFilterShell}
       pricedOnly={pricedOnly}
       onPricedOnlyChange={setPricedOnly}
+      priceFrom={priceFrom}
+      priceTo={priceTo}
+      onPriceRangeChange={(from, to) => {
+        setPriceFrom(from);
+        setPriceTo(to);
+      }}
       inStock={inStock}
       onInStockChange={setInStock}
     />
@@ -657,6 +667,8 @@ const Katalog: React.FC<KatalogProps> = ({
           selectedCategories={selectedCategories}
           sortOrder={sortOrder}
           pricedOnly={pricedOnly}
+          priceFrom={priceFrom}
+          priceTo={priceTo}
           inStock={inStock}
           initialPagePayload={initialPagePayload}
           initialQuerySignature={initialQuerySignature}

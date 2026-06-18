@@ -53,6 +53,9 @@ interface FilterSidebarProps {
   onLayoutChange?: (height?: number) => void;
   pricedOnly?: boolean;
   onPricedOnlyChange?: (v: boolean) => void;
+  priceFrom?: number | null;
+  priceTo?: number | null;
+  onPriceRangeChange?: (from: number | null, to: number | null) => void;
   inStock?: boolean;
   onInStockChange?: (v: boolean) => void;
 }
@@ -128,6 +131,9 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   onLayoutChange,
   pricedOnly = false,
   onPricedOnlyChange,
+  priceFrom = null,
+  priceTo = null,
+  onPriceRangeChange,
   inStock = false,
   onInStockChange,
 }) => {
@@ -143,6 +149,14 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const pathname = usePathname() || '/katalog';
   const producerParam = (currentSearchParams.get('producer') || '').trim();
   const [activeComponent, setActiveComponent] = useState<'auto' | 'category' | 'producer' | 'price'>('auto');
+  const formatPriceInput = (value: number | null | undefined) =>
+    typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
+  const parsePriceInput = (value: string) => {
+    const normalized = value.replace(',', '.').trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  };
   const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>(selectedCars);
   const [localSortOrder, setLocalSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
   const [collapsed, setCollapsed] = useState(true);
@@ -289,6 +303,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     Boolean(subcategoryParam || groupParam) ||
     Boolean(producerParam) ||
     pricedOnly ||
+    priceFrom != null ||
+    priceTo != null ||
     inStock ||
     !isSortNone;
   const carLabel = useMemo(() => {
@@ -437,6 +453,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     onResetSort?.();
     setLocalSortOrder('none');
     onPricedOnlyChange?.(false);
+    onPriceRangeChange?.(null, null);
     onInStockChange?.(false);
     onSelectedCarSelectionChange?.(null);
     setCategorySearchTerm('');
@@ -460,6 +477,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     onVinSelect,
     onSelectedCarSelectionChange,
     onPricedOnlyChange,
+    onPriceRangeChange,
     onInStockChange,
     pathname,
     router,
@@ -720,12 +738,40 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 })}
               </div>
             </div>
-            {(onPricedOnlyChange || onInStockChange) && (
+            {(onPricedOnlyChange || onPriceRangeChange || onInStockChange) && (
               <div>
                 <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
                   Фільтри
                 </p>
                 <div className="grid gap-2">
+                  {onPriceRangeChange && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        inputMode="decimal"
+                        value={formatPriceInput(priceFrom)}
+                        onChange={(event) =>
+                          onPriceRangeChange(parsePriceInput(event.target.value), priceTo ?? null)
+                        }
+                        placeholder="Від"
+                        className="h-9 rounded-[10px] border border-slate-200/80 bg-white/80 px-3 text-[11px] font-bold text-slate-700 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        aria-label="Ціна від"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        inputMode="decimal"
+                        value={formatPriceInput(priceTo)}
+                        onChange={(event) =>
+                          onPriceRangeChange(priceFrom ?? null, parsePriceInput(event.target.value))
+                        }
+                        placeholder="До"
+                        className="h-9 rounded-[10px] border border-slate-200/80 bg-white/80 px-3 text-[11px] font-bold text-slate-700 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        aria-label="Ціна до"
+                      />
+                    </div>
+                  )}
                   {onPricedOnlyChange && (
                     <button
                       type="button"
