@@ -319,7 +319,10 @@ export async function POST(request: Request) {
         fetchCatalogProductsByQuery({
           ...queryBase,
           // Contract from 1C НайтиТовары/ПолучитьТоварыПакетом:
-          // ТолькоСЦеной, ЦенаОт/ЦенаДо, СортировкаПоЦене.
+          // ЦенаОт/ЦенаДо and СортировкаПоЦене work independently from
+          // ТолькоСЦеной. Do not force ТолькоСЦеной for every price control:
+          // some 1C bases return an empty page for that flag while still
+          // supporting range/sort parameters.
           sortOrder: queryBase.sortOrder,
           timeoutMs: runtime.timeoutMs,
           retries: runtime.retries,
@@ -328,11 +331,7 @@ export async function POST(request: Request) {
           includePriceEnrichment: false,
           preferLegacySource: false,
           forceAllgoodsSource: true,
-          pricedItemsOnly:
-            queryBase.pricedOnly ||
-            queryBase.priceFrom !== null ||
-            queryBase.priceTo !== null ||
-            queryBase.sortOrder !== "none",
+          pricedItemsOnly: queryBase.pricedOnly,
           priceFrom: queryBase.priceFrom,
           priceTo: queryBase.priceTo,
           onlyInStock: queryBase.inStock,
