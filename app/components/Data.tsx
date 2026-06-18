@@ -1167,6 +1167,7 @@ function useCatalogData(params: {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [filterLoading, setFilterLoading] = useState(false);
   const [isLoadingNextPage, setIsLoadingNextPage] = useState(false);
+  const [firstPageResolvedItemCount, setFirstPageResolvedItemCount] = useState(0);
   const isRefetching = loading && page === 1;
   const querySignature = useMemo(
     () =>
@@ -2371,6 +2372,7 @@ function useCatalogData(params: {
     setPage(1);
     setHasMore(true);
     setHasLoadedOnce(false);
+    setFirstPageResolvedItemCount(0);
     setFlippedCard(null);
     setSelectedImage(null);
     setError(null);
@@ -2413,6 +2415,7 @@ function useCatalogData(params: {
         });
         dataRef.current = nextItems;
         setData(nextItems);
+        setFirstPageResolvedItemCount(memoryHit.items.length);
         nextCursorByPageRef.current[2] = memoryHit.nextCursor || "";
         nextCursorFieldByPageRef.current[2] = memoryHit.cursorField || "";
         setHasMore(
@@ -2458,6 +2461,7 @@ function useCatalogData(params: {
         });
         dataRef.current = nextItems;
         setData(nextItems);
+        setFirstPageResolvedItemCount(sessionHit.items.length);
         nextCursorByPageRef.current[2] = sessionHit.nextCursor || "";
         nextCursorFieldByPageRef.current[2] = sessionHit.cursorField || "";
         setHasMore(
@@ -2597,6 +2601,9 @@ function useCatalogData(params: {
       });
       dataRef.current = nextData;
       setData(nextData);
+      if (page === 1) {
+        setFirstPageResolvedItemCount(items.length);
+      }
       if (payload.nextCursor) {
         nextCursorByPageRef.current[page + 1] = payload.nextCursor;
         nextCursorFieldByPageRef.current[page + 1] = payload.cursorField || "";
@@ -3336,6 +3343,7 @@ function useCatalogData(params: {
     isLoadingNextPage,
     isRefetching,
     hasLoadedOnce,
+    firstPageResolvedItemCount,
     filterLoading,
     setFilterLoading,
   };
@@ -3511,6 +3519,7 @@ const Data: React.FC<DataProps> = ({
     isLoadingNextPage,
     isRefetching,
     hasLoadedOnce,
+    firstPageResolvedItemCount,
     filterLoading,
     setFilterLoading,
   } = useCatalogData({
@@ -3542,7 +3551,7 @@ const Data: React.FC<DataProps> = ({
   useEffect(() => {
     if (!hasLoadedOnce || loading || error) return;
 
-    if (filteredData.length > 0) {
+    if (filteredData.length > 0 || firstPageResolvedItemCount > 0) {
       fallbackOriginalQueryRef.current = "";
       articleFallbackAttemptedRef.current = "";
       descFallbackAttemptedRef.current = "";
@@ -3583,7 +3592,7 @@ const Data: React.FC<DataProps> = ({
       params.set("filter", "description");
       router.replace(`/katalog?${params.toString()}`);
     }
-  }, [hasLoadedOnce, loading, error, filteredData.length, searchFilter, rawSearchQuery, currentSearchParams, router]);
+  }, [hasLoadedOnce, loading, error, filteredData.length, firstPageResolvedItemCount, searchFilter, rawSearchQuery, currentSearchParams, router]);
 
   const filterSignature = useMemo(
     () =>
