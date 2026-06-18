@@ -169,10 +169,13 @@ const sanitizeCatalogErrorMessage = (value: string | null | undefined) => {
   return stripped.length > 220 ? `${stripped.slice(0, 220)}...` : stripped;
 };
 
-const buildInlinePrices = (
+function buildInlinePrices(
   items: Array<{ code?: string; article?: string; priceEuro?: number | null }>
-) => {
+): Record<string, number | null> {
   const prices: Record<string, number | null> = {};
+
+  const normalizeKey = (value: string | undefined) =>
+    (value || "").replace(/\s+/g, " ").trim().toLowerCase();
 
   for (const item of items) {
     const price = item?.priceEuro;
@@ -180,8 +183,8 @@ const buildInlinePrices = (
       continue;
     }
 
-    const code = typeof item.code === "string" ? item.code.trim() : "";
-    const article = typeof item.article === "string" ? item.article.trim() : "";
+    const code = normalizeKey(item.code);
+    const article = normalizeKey(item.article);
 
     if (code && prices[code] === undefined) {
       prices[code] = price;
@@ -192,7 +195,7 @@ const buildInlinePrices = (
   }
 
   return prices;
-};
+}
 
 export async function POST(request: Request) {
   let body: Record<string, unknown> = {};
@@ -302,9 +305,8 @@ export async function POST(request: Request) {
       const runAllgoodsQuery = () =>
         fetchCatalogProductsByQuery({
           ...queryBase,
-          // sortOrder "none" → 1C uses natural ORDER BY ЕстьЦена DESC (priced items first)
-          // + enables cursor pagination instead of the expensive window approach.
-          // "asc"/"desc" → explicit СортировкаПоЦене, ТолькоСЦеной:true, no cursor.
+          // sortOrder "none" → cursor pagination in allgoods.
+          // "asc"/"desc" → explicit СортировкаПоЦене with local filtering by returned price fields.
           sortOrder: queryBase.sortOrder,
           timeoutMs: runtime.timeoutMs,
           retries: runtime.retries,
@@ -313,7 +315,8 @@ export async function POST(request: Request) {
           includePriceEnrichment: false,
           preferLegacySource: false,
           forceAllgoodsSource: true,
-          // ТолькоСЦеной: true for explicit user price filter or price sort.
+          // allgoods currently returns an empty response for ТолькоСЦеной, so
+          // pricedItemsOnly filters by returned ЦінаПрод/ЕстьЦена instead.
           pricedItemsOnly: queryBase.pricedOnly || queryBase.sortOrder !== "none",
           onlyInStock: queryBase.inStock,
         });
@@ -350,6 +353,8 @@ export async function POST(request: Request) {
         includePriceEnrichment: false,
         preferLegacySource: true,
         forceAllgoodsSource: false,
+        pricedItemsOnly: queryBase.pricedOnly || queryBase.sortOrder !== "none",
+        onlyInStock: queryBase.inStock,
       }).catch((error) => {
         if (queryBase.selectedCars.length > 0) throw error;
         return null;
@@ -388,6 +393,8 @@ export async function POST(request: Request) {
         includePriceEnrichment: false,
         preferLegacySource: false,
         forceAllgoodsSource: true,
+        pricedItemsOnly: queryBase.pricedOnly || queryBase.sortOrder !== "none",
+        onlyInStock: queryBase.inStock,
       }).catch(() => null);
 
       if (allgoodsFallback && allgoodsFallback.items.length > 0) {
@@ -418,6 +425,8 @@ export async function POST(request: Request) {
         includePriceEnrichment: false,
         preferLegacySource: false,
         forceAllgoodsSource: true,
+        pricedItemsOnly: queryBase.pricedOnly || queryBase.sortOrder !== "none",
+        onlyInStock: queryBase.inStock,
       });
     };
 

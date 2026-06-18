@@ -557,104 +557,42 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     requestBodyBase[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = false;
   }
 
-  // Use server-side price filter when requested — 1C returns only priced items
-  if (options.pricedItemsOnly && !Object.prototype.hasOwnProperty.call(requestBodyBase, ALLGOODS_ONLY_WITH_PRICE_FIELD)) {
-    requestBodyBase[ALLGOODS_ONLY_WITH_PRICE_FIELD] = true;
-  }
+  // Do not send ALLGOODS_ONLY_WITH_PRICE_FIELD here. The current 1C allgoods
+  // implementation returns an empty result for ТолькоСЦеной even when products
+  // exist, so price filtering must use the actual ЦінаПрод/ЕстьЦена fields from
+  // the response.
+  delete requestBodyBase[ALLGOODS_ONLY_WITH_PRICE_FIELD];
 
-  if (isPriceSorted) {
-    const start = (page - 1) * limit;
-    const targetCount = start + limit + 1;
-    const requestLimit = Math.min(
-      ALLGOODS_SORT_WINDOW_MAX_LIMIT,
-      Math.max(limit, targetCount)
-    );
-    const response = await oneCRequest("allgoods", {
-      method: "POST",
-      body: {
-        ...requestBodyBase,
-        [ALLGOODS_LIMIT_FIELD]: requestLimit,
-      },
-      timeoutMs: options.timeoutMs,
-      retries: options.retries ?? 1,
-      retryDelayMs: options.retryDelayMs ?? 250,
-      cacheTtlMs: options.cacheTtlMs,
+  const hasUsablePrice = (item: CatalogProduct) =>
+    (typeof item.priceEuro === "number" &&
+      Number.isFinite(item.priceEuro) &&
+      item.priceEuro > 0) ||
+    item.hasPrice === true;
+
+  const filterPricedItems = (items: CatalogProduct[]) =>
+    options.pricedItemsOnly ? items.filter(hasUsablePrice) : items;
+
+  const sortPricedWindow = (items: CatalogProduct[]) => {
+    const sortDirection = requestBodyBase[ALLGOODS_SORT_PRICE_FIELD];
+    if (sortDirection !== "ASC" && sortDirection !== "DESC") return items;
+
+    return [...items].sort((left, right) => {
+      const leftPrice =
+        typeof left.priceEuro === "number" && Number.isFinite(left.priceEuro)
+          ? left.priceEuro
+          : Number.POSITIVE_INFINITY;
+      const rightPrice =
+        typeof right.priceEuro === "number" && Number.isFinite(right.priceEuro)
+          ? right.priceEuro
+          : Number.POSITIVE_INFINITY;
+      if (leftPrice !== rightPrice) {
+        return sortDirection === "DESC" ? rightPrice - leftPrice : leftPrice - rightPrice;
+      }
+      return (left.code || left.article || "").localeCompare(right.code || right.article || "");
     });
+  };
 
-    if (response.status < 200 || response.status >= 300) {
-      const details = extractResponseErrorDetails(response.text);
-      throw new Error(
-        details
-          ? `Catalog allgoods failed: ${response.status} ${details}`
-          : `Catalog allgoods failed: ${response.status}`
-      );
-    }
-
-    const parsed = parseAllgoodsPayload(response.text);
-    const sourceItems = options.pricedItemsOnly
-      ? parsed.items.filter((item) => typeof item.priceEuro === "number" && Number.isFinite(item.priceEuro) && item.priceEuro > 0)
-      : parsed.items;
-    const pageSlice = sourceItems.slice(start, start + limit);
-    // Derive a cursor from the last item of this page so subsequent pages
-    // use proper cursor-based pagination instead of repeating the window fetch.
-    // The cursor-based path (below) already handles isPriceSorted correctly.
-    const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(pageSlice);
-    const hasMore =
-      sourceItems.length > start + limit ||
-      parsed.hasMore ||
-      parsed.items.length >= requestLimit;
-    return {
-      items: pageSlice,
-      hasMore,
-      nextCursor: hasMore ? resolvedCursor : "",
-      cursorField: null,
-    };
-  }
-
-  if (requestedCursor) {
-    const response = await oneCRequest("allgoods", {
-      method: "POST",
-      body: {
-        ...requestBodyBase,
-        [ALLGOODS_LIMIT_FIELD]: limit,
-        [ALLGOODS_CURSOR_FIELD]: requestedCursor,
-      },
-      timeoutMs: options.timeoutMs,
-      retries: options.retries ?? 1,
-      retryDelayMs: options.retryDelayMs ?? 250,
-      cacheTtlMs: options.cacheTtlMs,
-    });
-
-    if (response.status < 200 || response.status >= 300) {
-      const details = extractResponseErrorDetails(response.text);
-      throw new Error(
-        details
-          ? `Catalog allgoods failed: ${response.status} ${details}`
-          : `Catalog allgoods failed: ${response.status}`
-      );
-    }
-
-    const parsed = parseAllgoodsPayload(response.text);
-    const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
-    const hasMoreFromWindow =
-      isPriceSorted && !parsed.nextCursor && parsed.items.length >= limit;
-    return {
-      items: parsed.items.slice(0, limit),
-      hasMore: parsed.hasMore || hasMoreFromWindow || Boolean(resolvedCursor),
-      nextCursor: resolvedCursor,
-    };
-  }
-
-  let cursor = "";
-  for (let currentPage = 1; currentPage <= page; currentPage += 1) {
-    const body: Record<string, unknown> = {
-      ...requestBodyBase,
-      [ALLGOODS_LIMIT_FIELD]: limit,
-    };
-    if (cursor) {
-      body[ALLGOODS_CURSOR_FIELD] = cursor;
-    }
-
+  const requestAllgoodsPage = async (body: Record<string, unknown>) => {
     const response = await oneCRequest("allgoods", {
       method: "POST",
       body,
@@ -673,13 +611,92 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       );
     }
 
-    const parsed = parseAllgoodsPayload(response.text);
+    return parseAllgoodsPayload(response.text);
+  };
+
+  if (isPriceSorted) {
+    const start = (page - 1) * limit;
+    const targetCount = start + limit + 1;
+    const collected: CatalogProduct[] = [];
+    let cursorForWindow = requestedCursor;
+    let lastParsedHasMore = false;
+    let lastResolvedCursor = "";
+    let scanned = 0;
+    const requestLimit = Math.min(100, Math.max(limit, 100));
+    const maxScans = Math.max(
+      1,
+      Math.ceil(Math.min(ALLGOODS_SORT_WINDOW_MAX_LIMIT, Math.max(targetCount, 300)) / requestLimit)
+    );
+
+    for (let scan = 0; scan < maxScans && collected.length < targetCount; scan += 1) {
+      const body: Record<string, unknown> = {
+        ...requestBodyBase,
+        [ALLGOODS_LIMIT_FIELD]: requestLimit,
+      };
+      if (cursorForWindow) {
+        body[ALLGOODS_CURSOR_FIELD] = cursorForWindow;
+      }
+
+      const parsed = await requestAllgoodsPage(body);
+      const nextItems = filterPricedItems(parsed.items);
+      collected.push(...nextItems);
+      scanned += parsed.items.length;
+      lastParsedHasMore = parsed.hasMore;
+      lastResolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
+      if (!parsed.hasMore || !lastResolvedCursor || parsed.items.length === 0) break;
+      cursorForWindow = lastResolvedCursor;
+    }
+
+    const sourceItems = sortPricedWindow(collected);
+    const pageSlice = sourceItems.slice(start, start + limit);
+    const resolvedCursor = lastResolvedCursor || deriveAllgoodsFallbackCursor(pageSlice);
+    const hasMore =
+      sourceItems.length > start + limit ||
+      lastParsedHasMore ||
+      scanned >= Math.min(ALLGOODS_SORT_WINDOW_MAX_LIMIT, Math.max(targetCount, 300));
+    return {
+      items: pageSlice,
+      hasMore,
+      nextCursor: hasMore ? resolvedCursor : "",
+      cursorField: null,
+    };
+  }
+
+  if (requestedCursor) {
+    const parsed = await requestAllgoodsPage({
+      ...requestBodyBase,
+      [ALLGOODS_LIMIT_FIELD]: limit,
+      [ALLGOODS_CURSOR_FIELD]: requestedCursor,
+    });
+    const items = filterPricedItems(parsed.items);
+    const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
+    const hasMoreFromWindow =
+      isPriceSorted && !parsed.nextCursor && parsed.items.length >= limit;
+    return {
+      items: items.slice(0, limit),
+      hasMore: parsed.hasMore || hasMoreFromWindow || Boolean(resolvedCursor),
+      nextCursor: resolvedCursor,
+    };
+  }
+
+  let cursor = "";
+  for (let currentPage = 1; currentPage <= page; currentPage += 1) {
+    const body: Record<string, unknown> = {
+      ...requestBodyBase,
+      [ALLGOODS_LIMIT_FIELD]: limit,
+    };
+    if (cursor) {
+      body[ALLGOODS_CURSOR_FIELD] = cursor;
+    }
+
+    const parsed = await requestAllgoodsPage(body);
+    const items = filterPricedItems(parsed.items);
     const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
     if (currentPage === page) {
       const hasMoreFromWindow =
         isPriceSorted && !parsed.nextCursor && parsed.items.length >= limit;
       return {
-        items: parsed.items.slice(0, limit),
+        items: items.slice(0, limit),
         hasMore:
           parsed.hasMore ||
           hasMoreFromWindow ||
@@ -1630,6 +1647,12 @@ export const fetchCatalogProductsByQuery = async (options: {
     const q = queryOverride ?? searchQuery;
     if (q && keys) {
       applySearchKeys(body, keys, q);
+    }
+    if (
+      options.onlyInStock &&
+      !Object.prototype.hasOwnProperty.call(body, ALLGOODS_ONLY_IN_STOCK_FIELD)
+    ) {
+      body[ALLGOODS_ONLY_IN_STOCK_FIELD] = true;
     }
     return body;
   };

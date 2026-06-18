@@ -32,10 +32,14 @@ const catalogPricesRouteInFlight = new Map<string, Promise<CatalogPricesPayload>
 
 const normalizeLookupKeys = (value: unknown) =>
   Array.isArray(value)
-    ? value
-        .filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim())
-        .filter(Boolean)
+    ? Array.from(
+        new Set(
+          value
+            .filter((item): item is string => typeof item === "string")
+            .map((item) => item.replace(/\s+/g, " ").trim().toLowerCase())
+            .filter(Boolean)
+        )
+      )
     : [];
 
 const normalizeStateKey = (value: unknown) =>

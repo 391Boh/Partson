@@ -427,12 +427,20 @@ const writeCachedEuroRate = (rate: number) => {
   } catch {}
 };
 
+const normalizePriceKey = (value: string | null | undefined) => {
+  return (value || "").replace(/\s+/g, " ").trim().toLowerCase();
+};
+
 const getProductPriceStateKey = (item: Pick<Product, "code" | "article">) =>
-  (item.code || item.article || "").trim();
+  normalizePriceKey(item.code || item.article);
 
 const getProductPriceLookupKeys = (item: Pick<Product, "code" | "article">) =>
   Array.from(
-    new Set([(item.article || "").trim(), (item.code || "").trim()].filter(Boolean))
+    new Set(
+      [(item.article || ""), (item.code || "")]
+        .map(normalizePriceKey)
+        .filter(Boolean)
+    )
   );
 
 const getResolvedProductPriceEuro = (
@@ -804,7 +812,7 @@ const normalizePagePriceMap = (value: unknown): Record<string, number | null> =>
 
   const next: Record<string, number | null> = {};
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-    const normalizedKey = key.trim();
+    const normalizedKey = normalizePriceKey(key);
     if (!normalizedKey) continue;
 
     if (entry === null) {
