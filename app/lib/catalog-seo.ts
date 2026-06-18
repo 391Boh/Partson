@@ -381,26 +381,39 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
         }
 
         // Build 3-level category→group mapping for the manufacturer page.
-        // Only when both Категорія and Группа are present.
+        // Only when both Категорія and Группа are present AND they carry
+        // distinct values (identical values mean no real hierarchy above group
+        // level).  Also skip when the 1C fields look swapped — rawGroupForFilter
+        // is a known subgroup while rawCategory is a known group — to prevent
+        // a group name from surfacing as a category header.
         if (rawCategory) {
-          const producerSlug = buildSeoSlug(normalizeValue(producer));
-          const categorySlug = buildSeoSlug(rawCategory);
-          if (producerSlug && categorySlug) {
-            let catLabels = producerCategoryLabels.get(producerSlug);
-            if (!catLabels) {
-              catLabels = new Map<string, string>();
-              producerCategoryLabels.set(producerSlug, catLabels);
+          const rawGroupKey = normalizeHierarchyKey(rawGroupForFilter);
+          const rawCategoryKey = normalizeHierarchyKey(rawCategory);
+          const sameValue = rawCategoryKey === rawGroupKey;
+          const looksSwapped =
+            !sameValue &&
+            hierarchyLookup.subgroups.has(rawGroupKey) &&
+            hierarchyLookup.groups.has(rawCategoryKey);
+          if (!sameValue && !looksSwapped) {
+            const producerSlug = buildSeoSlug(normalizeValue(producer));
+            const categorySlug = buildSeoSlug(rawCategory);
+            if (producerSlug && categorySlug) {
+              let catLabels = producerCategoryLabels.get(producerSlug);
+              if (!catLabels) {
+                catLabels = new Map<string, string>();
+                producerCategoryLabels.set(producerSlug, catLabels);
+              }
+              if (!catLabels.has(categorySlug)) {
+                catLabels.set(categorySlug, rawCategory);
+              }
+              registerDoubleNestedFacetProduct(
+                producerCategoryGroupCounts,
+                producer,
+                rawCategory,
+                rawGroupForFilter,
+                productKey
+              );
             }
-            if (!catLabels.has(categorySlug)) {
-              catLabels.set(categorySlug, rawCategory);
-            }
-            registerDoubleNestedFacetProduct(
-              producerCategoryGroupCounts,
-              producer,
-              rawCategory,
-              rawGroupForFilter,
-              productKey
-            );
           }
         }
       }
@@ -528,7 +541,7 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
 
 const collectSeoFacetsWithRevalidate = unstable_cache(
   buildCatalogSeoFacets,
-  ["catalog-seo-facets-v13-category-groups-3level"],
+  ["catalog-seo-facets-v14-category-groups-fixed"],
   {
     revalidate: 60 * 60 * 6,
     tags: ["catalog-seo-facets"],

@@ -58,7 +58,7 @@ import ManufacturerGroupSampleImage from "app/manufacturers/[slug]/ManufacturerG
 
 export const revalidate = 21600;
 export const dynamicParams = true;
-const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
+const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 0;
 const MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS = 1800;
 const MANUFACTURER_BUILD_SEO_LOOKUP_TIMEOUT_MS = 6000;
 const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
@@ -486,7 +486,9 @@ const collectProducerFallbackStats = cache(async (producerLabel: string) => {
       if (!categoryLabel && !groupLabel) continue;
 
       // --- 3-level: register under Категорія → Группа → Підгруппа ---
-      if (categoryLabel) {
+      // Skip when category equals group — that means the 1C Категорія field
+      // merely duplicates Группа, so there's no real top-level separation.
+      if (categoryLabel && categoryLabel.toLocaleLowerCase("uk-UA") !== groupLabel.toLocaleLowerCase("uk-UA")) {
         const catSlug = buildSeoSlug(categoryLabel);
         if (catSlug) {
           let catEntry = categoryCounts.get(catSlug);
@@ -1709,18 +1711,28 @@ export default async function ManufacturerDetailPage({
                   Структура каталогу бренду
                 </p>
                 <h2 className={directoryTitleClass}>
-                  Групи, категорії та підгрупи {producer.label}
+                  {producer.topCategories?.length
+                    ? `Групи, категорії та підгрупи ${producer.label}`
+                    : `Групи та підгрупи ${producer.label}`}
                 </h2>
                 <p className={directoryDescriptionClass}>
-                  Структура показує реальні напрямки каталогу бренду: група веде до основного фільтра, а підгрупи одразу відкривають точніші результати.
+                  {producer.topCategories?.length
+                    ? "Категорія — загальний напрямок, група веде до основного фільтра, а підгрупи відкривають точніші результати."
+                    : "Група веде до основного фільтра каталогу бренду, а підгрупи одразу відкривають точніші результати."}
                 </p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[25rem]">
-                {[
-                  { label: "Категорія", text: "загальний напрямок" },
-                  { label: "Група", text: "основний фільтр" },
-                  { label: "Підгрупа", text: "точний результат" },
-                ].map((level) => (
+              <div className={`grid gap-2 lg:min-w-[25rem] ${producer.topCategories?.length ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+                {(producer.topCategories?.length
+                  ? [
+                      { label: "Категорія", text: "загальний напрямок" },
+                      { label: "Група", text: "основний фільтр" },
+                      { label: "Підгрупа", text: "точний результат" },
+                    ]
+                  : [
+                      { label: "Група", text: "основний фільтр" },
+                      { label: "Підгрупа", text: "точний результат" },
+                    ]
+                ).map((level) => (
                   <div
                     key={level.label}
                     className="rounded-[16px] border border-slate-200 bg-white/82 px-3 py-2 shadow-[0_8px_18px_rgba(15,23,42,0.04)]"

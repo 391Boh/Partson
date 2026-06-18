@@ -154,8 +154,9 @@ const ALLGOODS_GROUP_FIELD = "\u0413\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SUBGROUP_FIELD = "\u041f\u043e\u0434\u0433\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SORT_PRICE_FIELD = "\u0421\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u043a\u0430\u041f\u043e\u0426\u0435\u043d\u0435";
 const ALLGOODS_INCLUDE_DESCRIPTION_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435";
+const ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u0424\u043e\u0442\u043eBase64";
 const ALLGOODS_ONLY_WITH_PRICE_FIELD = "\u0422\u043e\u043b\u044c\u043a\u043e\u0421\u0426\u0435\u043d\u043e\u0439";
-const ALLGOODS_SORT_WINDOW_MAX_LIMIT = 2500;
+
 const INFO_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443";
 const INFO_DESC_FIELDS = ["\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", "\u041e\u043f\u0438\u0441"];
 const ALLGOODS_DESC_FIELDS = [
@@ -558,6 +559,8 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   if (!Object.prototype.hasOwnProperty.call(requestBodyBase, ALLGOODS_INCLUDE_DESCRIPTION_FIELD)) {
     requestBodyBase[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = false;
   }
+  // Explicitly disable base64 photo data — not needed for catalog listings.
+  requestBodyBase[ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD] = false;
 
   if (options.pricedItemsOnly) {
     requestBodyBase[ALLGOODS_ONLY_WITH_PRICE_FIELD] = true;
@@ -927,72 +930,6 @@ const parseLoosePayloadText = (input: string): unknown => {
   return current;
 };
 
-const buildCatalogPriceLookupMap = (
-  payload: unknown,
-  lookupKeys?: readonly string[]
-) => {
-  const requested =
-    Array.isArray(lookupKeys) && lookupKeys.length > 0
-      ? new Set(
-          lookupKeys
-            .map((key) => normalizeFacetValue(key))
-            .filter(Boolean)
-        )
-      : null;
-  const prices = new Map<string, number>();
-  const seenRecords = new WeakSet<Record<string, unknown>>();
-
-  const addCandidate = (rawKey: string, price: number) => {
-    const normalizedKey = normalizeFacetValue(rawKey);
-    if (!normalizedKey) return;
-    if (requested && !requested.has(normalizedKey)) return;
-    if (!prices.has(normalizedKey)) {
-      prices.set(normalizedKey, price);
-    }
-  };
-
-  const visit = (value: unknown, depth = 0) => {
-    if (depth > 6 || value == null) return;
-
-    if (Array.isArray(value)) {
-      for (const item of value) visit(item, depth + 1);
-      return;
-    }
-
-    const record = asRecord(value);
-    if (!record || seenRecords.has(record)) return;
-    seenRecords.add(record);
-
-    const product = normalizeProduct(record);
-    if (
-      typeof product.priceEuro === "number" &&
-      Number.isFinite(product.priceEuro) &&
-      product.priceEuro > 0
-    ) {
-      addCandidate(product.code, product.priceEuro);
-      addCandidate(product.article, product.priceEuro);
-      addCandidate(readFirstString(record, [PRICE_CODE_FIELD, ...CODE_FIELDS]), product.priceEuro);
-      addCandidate(readFirstString(record, ARTICLE_FIELDS), product.priceEuro);
-    }
-
-    for (const [entryKey, nested] of Object.entries(record)) {
-      const directNumericPrice =
-        typeof nested === "number"
-          ? nested
-          : typeof nested === "string"
-            ? Number(nested.replace(/\s+/g, "").replace(",", "."))
-            : Number.NaN;
-      if (Number.isFinite(directNumericPrice) && directNumericPrice > 0) {
-        addCandidate(entryKey, directNumericPrice);
-      }
-
-      visit(nested, depth + 1);
-    }
-  };
-
-  visit(payload);
-  return prices;
-};
 
 const buildCatalogPriceLookupMaps = (
   payload: unknown,
@@ -1575,6 +1512,9 @@ export const fetchCatalogProductsByQuery = async (options: {
         const directDescriptionQuery = normalizeFacetValue(searchQuery);
         const directDescriptionTokens = buildDescriptionSearchTokens(searchQuery);
 
+        let totalAllgoodsHits = 0;
+        let lastDirectPageResult: Awaited<ReturnType<typeof runAllgoods>> | null = null;
+
         for (const searchKey of ALLGOODS_DESC_FIELDS.slice(0, 3)) {
           const directPageResult = await runAllgoods(searchKey);
           const directMatches = directPageResult.items.filter(
@@ -1586,6 +1526,11 @@ export const fetchCatalogProductsByQuery = async (options: {
               ) > 0
           );
 
+          totalAllgoodsHits += directPageResult.items.length;
+          if (directPageResult.items.length > 0) {
+            lastDirectPageResult = directPageResult;
+          }
+
           if (directMatches.length > 0 || cursor) {
             return {
               ...directPageResult,
@@ -1594,6 +1539,17 @@ export const fetchCatalogProductsByQuery = async (options: {
               cursorField: searchKey,
             };
           }
+        }
+
+        // Allgoods found items via description fields but none passed the score
+        // filter — trust the server-side allgoods filter and return those items
+        // directly. Only fall back to the expensive page scan when allgoods
+        // returned nothing at all.
+        if (totalAllgoodsHits > 0 && lastDirectPageResult) {
+          return {
+            ...lastDirectPageResult,
+            cursorField: null,
+          };
         }
 
         const pageResult = await runAllgoodsDescriptionSearch();
@@ -1635,6 +1591,21 @@ export const fetchCatalogProductsByQuery = async (options: {
           };
         }
       }
+
+      // Name / article / code searches all returned nothing.
+      // For "all" filter, try description as the final fallback (client-side
+      // scoring against the description text, since allgoods has no server-side
+      // description search parameter).
+      if (searchQuery && searchFilter !== "description") {
+        allgoodsBaseBody[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = true;
+        const descResult = await runAllgoodsDescriptionSearch();
+        return { ...descResult, cursorField: null };
+      }
+
+      // No results in any allgoods pass — return empty rather than falling
+      // through to getdata, which may return unfiltered products when the 1C
+      // backend does not recognise the search field.
+      return { items: [], hasMore: false, nextCursor: "", cursorField: null };
     } catch {
       // Fall back to the legacy getdata integration below.
     }
@@ -2053,6 +2024,7 @@ export const fetchCatalogPricesByLookupKeys = async (
     timeoutMs?: number;
     cacheTtlMs?: number;
     includePricesPost?: boolean;
+    concurrency?: number;
   }
 ) => {
   const normalizedKeys = Array.from(
@@ -2062,67 +2034,72 @@ export const fetchCatalogPricesByLookupKeys = async (
     return {} as Record<string, number>;
   }
 
-  const mergeFromResponse = (text: string, target: Map<string, number>) => {
-    const payload = parseLoosePayloadText(text);
-    if (payload == null) return;
+  const timeoutMs =
+    Number.isFinite(options?.timeoutMs) && (options?.timeoutMs || 0) > 0
+      ? Math.floor(options?.timeoutMs as number)
+      : 1800;
+  const cacheTtlMs =
+    Number.isFinite(options?.cacheTtlMs) && (options?.cacheTtlMs || 0) > 0
+      ? Math.floor(options?.cacheTtlMs as number)
+      : 1000 * 60 * 3;
+  const concurrency = Math.min(
+    Number.isFinite(options?.concurrency) && (options?.concurrency || 0) > 0
+      ? Math.floor(options?.concurrency as number)
+      : 8,
+    normalizedKeys.length
+  );
 
-    const nextMap = buildCatalogPriceLookupMap(payload, normalizedKeys);
-    for (const [key, value] of nextMap.entries()) {
-      if (!target.has(key)) {
-        target.set(key, value);
+  const resolved = new Map<string, number>();
+  let keyCursor = 0;
+
+  const lookupPriceForKey = async (key: string): Promise<void> => {
+    for (const field of [ALLGOODS_CODE_FIELD, ALLGOODS_ARTICLE_FIELD]) {
+      const body: Record<string, unknown> = {
+        [ALLGOODS_LIMIT_FIELD]: 1,
+        [field]: key,
+        [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: false,
+        [ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD]: false,
+      };
+
+      const response = await oneCRequest("allgoods", {
+        method: "POST",
+        body,
+        timeoutMs,
+        retries: 0,
+        cacheTtlMs,
+        cacheKey: JSON.stringify({ endpoint: "allgoods", body }),
+      }).catch(() => null);
+
+      if (!response || response.status < 200 || response.status >= 300) continue;
+
+      const items = parseAllgoodsPayload(response.text).items;
+      const match = items.find((item) => {
+        const codeKey = normalizeFacetValue(item.code);
+        const articleKey = normalizeFacetValue(item.article);
+        return codeKey === key || articleKey === key;
+      });
+
+      if (
+        match &&
+        typeof match.priceEuro === "number" &&
+        Number.isFinite(match.priceEuro) &&
+        match.priceEuro > 0
+      ) {
+        resolved.set(key, match.priceEuro);
+        return;
       }
     }
   };
 
-  const resolved = new Map<string, number>();
-  const timeoutMs =
-    Number.isFinite(options?.timeoutMs) && (options?.timeoutMs || 0) > 0
-      ? Math.floor(options?.timeoutMs as number)
-      : 2200;
-  const cacheTtlMs =
-    Number.isFinite(options?.cacheTtlMs) && (options?.cacheTtlMs || 0) > 0
-      ? Math.floor(options?.cacheTtlMs as number)
-      : 1000 * 12;
-  const sourceReaders: Array<() => Promise<Awaited<ReturnType<typeof oneCRequest>> | null>> = [
-    async () =>
-      oneCRequest("allgoods", {
-        method: "POST",
-        body: {
-          [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(normalizedKeys.length * 6, 120)),
-        },
-        timeoutMs,
-        retries: 0,
-        cacheTtlMs,
-        cacheKey: JSON.stringify({
-          endpoint: "allgoods",
-          body: {
-            [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(normalizedKeys.length * 6, 120)),
-          },
-        }),
-      }).catch(() => null),
-  ];
+  const workers = Array.from({ length: concurrency }, async () => {
+    while (keyCursor < normalizedKeys.length) {
+      const idx = keyCursor++;
+      const key = normalizedKeys[idx];
+      await lookupPriceForKey(key).catch(() => undefined);
+    }
+  });
 
-  const attempts = sourceReaders.map((reader, index) =>
-    Promise.resolve()
-      .then(() => reader())
-      .then((response) => ({ index, response }))
-      .catch(() => ({ index, response: null }))
-  );
-
-  const pending = new Set<number>(attempts.map((_, index) => index));
-  while (pending.size > 0 && resolved.size < normalizedKeys.length) {
-    const result = await Promise.race(
-      Array.from(pending, (index) => attempts[index])
-    );
-    pending.delete(result.index);
-
-    const response = result.response;
-    if (!response) continue;
-    if (response.status < 200 || response.status >= 300) continue;
-
-    mergeFromResponse(response.text, resolved);
-  }
-
+  await Promise.allSettled(workers);
   return Object.fromEntries(resolved);
 };
 
