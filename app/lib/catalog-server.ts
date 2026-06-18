@@ -144,6 +144,7 @@ const ALLGOODS_GROUP_FIELD = "\u0413\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SUBGROUP_FIELD = "\u041f\u043e\u0434\u0433\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SORT_PRICE_FIELD = "\u0421\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u043a\u0430\u041f\u043e\u0426\u0435\u043d\u0435";
 const ALLGOODS_INCLUDE_DESCRIPTION_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435";
+const ALLGOODS_ONLY_WITH_PRICE_FIELD = "\u0422\u043e\u043b\u044c\u043a\u043e\u0421\u0426\u0435\u043d\u043e\u0439";
 const ALLGOODS_SORT_WINDOW_MAX_LIMIT = 2500;
 const INFO_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443";
 const INFO_DESC_FIELDS = ["\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", "\u041e\u043f\u0438\u0441"];
@@ -543,6 +544,11 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     requestBodyBase[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = false;
   }
 
+  // Use server-side price filter when requested — 1C returns only priced items
+  if (options.pricedItemsOnly && !Object.prototype.hasOwnProperty.call(requestBodyBase, ALLGOODS_ONLY_WITH_PRICE_FIELD)) {
+    requestBodyBase[ALLGOODS_ONLY_WITH_PRICE_FIELD] = true;
+  }
+
   if (isPriceSorted) {
     const start = (page - 1) * limit;
     const targetCount = start + limit + 1;
@@ -572,18 +578,16 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     }
 
     const parsed = parseAllgoodsPayload(response.text);
-    // When sorting by price, 1C places items with no price (treated as 0) first.
-    // Filter them out so only priced items are returned in the sorted window.
-    const pricedItems = isPriceSorted || options.pricedItemsOnly
+    const sourceItems = options.pricedItemsOnly
       ? parsed.items.filter((item) => typeof item.priceEuro === "number" && Number.isFinite(item.priceEuro) && item.priceEuro > 0)
       : parsed.items;
-    const pageSlice = pricedItems.slice(start, start + limit);
+    const pageSlice = sourceItems.slice(start, start + limit);
     // Derive a cursor from the last item of this page so subsequent pages
     // use proper cursor-based pagination instead of repeating the window fetch.
     // The cursor-based path (below) already handles isPriceSorted correctly.
     const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(pageSlice);
     const hasMore =
-      pricedItems.length > start + limit ||
+      sourceItems.length > start + limit ||
       parsed.hasMore ||
       parsed.items.length >= requestLimit;
     return {
@@ -1380,8 +1384,10 @@ export const fetchCatalogProductsByQuery = async (options: {
 
     if (sortOrder === "asc") {
       allgoodsBaseBody[ALLGOODS_SORT_PRICE_FIELD] = "ASC";
+      allgoodsBaseBody[ALLGOODS_ONLY_WITH_PRICE_FIELD] = true;
     } else if (sortOrder === "desc") {
       allgoodsBaseBody[ALLGOODS_SORT_PRICE_FIELD] = "DESC";
+      allgoodsBaseBody[ALLGOODS_ONLY_WITH_PRICE_FIELD] = true;
     }
 
     if (group && !subcategory) {

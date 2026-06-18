@@ -29,8 +29,6 @@ interface DataProps {
   selectedCars: string[];
   selectedCategories: string[];
   sortOrder: "none" | "asc" | "desc";
-  priceMin?: number | null;
-  priceMax?: number | null;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
 }
@@ -1095,8 +1093,6 @@ function useCatalogData(params: {
   producerFromURL: string | null;
   expandHierarchyFromURL: boolean;
   sortOrder: "none" | "asc" | "desc";
-  priceMin?: number | null;
-  priceMax?: number | null;
   includeCostPrices?: boolean;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
@@ -1111,8 +1107,6 @@ function useCatalogData(params: {
     producerFromURL,
     expandHierarchyFromURL,
     sortOrder,
-    priceMin = null,
-    priceMax = null,
     includeCostPrices = false,
     initialPagePayload,
     initialQuerySignature,
@@ -3060,14 +3054,6 @@ function useCatalogData(params: {
 
         if (!(isDescriptionSearch || match) || !catMatch || !producerMatch) return false;
 
-        if (priceMin != null || priceMax != null) {
-          const priceUAH = getResolvedProductPriceUAH(item, prices, euroRate);
-          if (priceUAH != null) {
-            if (priceMin != null && priceUAH < priceMin) return false;
-            if (priceMax != null && priceUAH > priceMax) return false;
-          }
-        }
-
         return true;
       })
       .map(({ item }) => item);
@@ -3077,10 +3063,6 @@ function useCatalogData(params: {
     searchFilter,
     effectiveSelectedCategories,
     producerFromURL,
-    priceMin,
-    priceMax,
-    euroRate,
-    prices,
   ]);
 
   // --- handlers ---
@@ -3270,8 +3252,6 @@ const Data: React.FC<DataProps> = ({
   selectedCars,
   selectedCategories,
   sortOrder,
-  priceMin = null,
-  priceMax = null,
   initialPagePayload = null,
   initialQuerySignature = null,
 }) => {
@@ -3438,8 +3418,6 @@ const Data: React.FC<DataProps> = ({
     producerFromURL,
     expandHierarchyFromURL,
     sortOrder,
-    priceMin,
-    priceMax,
     includeCostPrices: isAdmin,
     initialPagePayload,
     initialQuerySignature,
@@ -3557,7 +3535,7 @@ const Data: React.FC<DataProps> = ({
       return a.index - b.index;
     };
 
-    return [...entries].sort(priceSortFn);
+    return sortOrder === "none" ? entries : [...entries].sort(priceSortFn);
   }, [filteredData, prices, euroRate, sortOrder]);
   const sortedData = useMemo(
     () => sortedEntries.map(({ item }) => item),

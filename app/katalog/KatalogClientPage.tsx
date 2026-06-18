@@ -104,8 +104,6 @@ const Katalog: React.FC<KatalogProps> = ({
   const [selectedCars, setSelectedCars] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
-  const [priceMin, setPriceMin] = useState<number | null>(null);
-  const [priceMax, setPriceMax] = useState<number | null>(null);
   const [selectedCarSelection, setSelectedCarSelection] =
     useState<PersistedCarSelection | null>(null);
   const [selectedVin, setSelectedVin] = useState<string | null>(null);
@@ -610,10 +608,6 @@ const Katalog: React.FC<KatalogProps> = ({
       toggleSortOrder={toggleSortOrder}
       onResetSort={() => setSortOrder('none')}
       onSortOrderChange={setSortOrder}
-      priceMin={priceMin}
-      priceMax={priceMax}
-      onPriceMinChange={setPriceMin}
-      onPriceMaxChange={setPriceMax}
       selectedCarSelection={selectedCarSelection}
       onSelectedCarSelectionChange={setSelectedCarSelection}
       onVinSelect={setSelectedVin}
@@ -654,8 +648,6 @@ const Katalog: React.FC<KatalogProps> = ({
           selectedCars={selectedCars}
           selectedCategories={selectedCategories}
           sortOrder={sortOrder}
-          priceMin={priceMin}
-          priceMax={priceMax}
           initialPagePayload={initialPagePayload}
           initialQuerySignature={initialQuerySignature}
         />

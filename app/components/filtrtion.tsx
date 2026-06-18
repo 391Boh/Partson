@@ -43,10 +43,6 @@ interface FilterSidebarProps {
   toggleSortOrder?: () => void;
   onResetSort?: () => void;
   onSortOrderChange?: (order: 'none' | 'asc' | 'desc') => void;
-  priceMin?: number | null;
-  priceMax?: number | null;
-  onPriceMinChange?: (value: number | null) => void;
-  onPriceMaxChange?: (value: number | null) => void;
   selectedCarSelection?: PersistedCarSelection | null;
   onSelectedCarSelectionChange?: (selection: PersistedCarSelection | null) => void;
   onVinSelect?: (vin: string | null) => void;
@@ -118,10 +114,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   sortOrder: sortOrderProp,
   onResetSort,
   onSortOrderChange,
-  priceMin,
-  priceMax,
-  onPriceMinChange,
-  onPriceMaxChange,
   selectedCarSelection,
   onSelectedCarSelectionChange,
   onVinSelect,
@@ -265,8 +257,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const isCategoryTabActive = activeComponent === 'category';
   const isProducerTabActive = activeComponent === 'producer';
   const isPriceTabActive = activeComponent === 'price';
-  const hasPriceRange = priceMin != null || priceMax != null;
-  const hasPriceFilter = !isSortNone || hasPriceRange;
+  const hasPriceFilter = !isSortNone;
   const searchFilterLabels: Record<string, string> = {
     name: 'Назва',
     code: 'Код',
@@ -289,7 +280,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     Boolean(searchQuery) ||
     Boolean(subcategoryParam || groupParam) ||
     Boolean(producerParam) ||
-    hasPriceRange ||
     !isSortNone;
   const carLabel = useMemo(() => {
     if (selectedVin) return '';
@@ -436,8 +426,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
 
     onResetSort?.();
     setLocalSortOrder('none');
-    onPriceMinChange?.(null);
-    onPriceMaxChange?.(null);
     onSelectedCarSelectionChange?.(null);
     setCategorySearchTerm('');
 
@@ -459,8 +447,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     internalSelectedCars,
     onVinSelect,
     onSelectedCarSelectionChange,
-    onPriceMinChange,
-    onPriceMaxChange,
     pathname,
     router,
     searchParamsKey,
@@ -564,16 +550,12 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     ? filterChipIdle
     : isSortAsc
       ? filterChipBlue
-      : hasPriceRange && isSortNone
-        ? filterChipPurple
-        : filterChipEmerald;
+      : filterChipEmerald;
   const priceIconWrapClass = !hasPriceFilter
     ? `${filterIconIdle} text-[11px] font-bold`
     : isSortAsc
       ? `${filterIconBlue} text-[11px] font-bold`
-      : hasPriceRange && isSortNone
-        ? `${filterIconPurple} text-[11px] font-bold`
-        : `${filterIconEmerald} text-[11px] font-bold`;
+      : `${filterIconEmerald} text-[11px] font-bold`;
   const overlayPanelHeight = 'min(72vh, calc(100dvh - var(--header-height, 4rem) - 6rem))';
 
   const renderActivePanel = () => {
@@ -724,62 +706,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 })}
               </div>
             </div>
-
-            <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-                  Ціна (₴)
-                </p>
-                {hasPriceRange && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onPriceMinChange?.(null);
-                      onPriceMaxChange?.(null);
-                    }}
-                    className="text-[10px] font-semibold text-slate-400 transition hover:text-rose-500"
-                  >
-                    скинути ×
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  step={100}
-                  value={priceMin ?? ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    onPriceMinChange?.(val === '' ? null : Number(val));
-                  }}
-                  placeholder="Від"
-                  className="min-w-0 flex-1 rounded-[11px] border border-slate-200/80 bg-white/80 px-3 py-2 text-[13px] font-bold text-slate-800 shadow-sm outline-none transition placeholder:font-normal placeholder:text-slate-300 focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                />
-                <div className="h-px w-3 shrink-0 rounded bg-slate-300" />
-                <input
-                  type="number"
-                  min={0}
-                  step={100}
-                  value={priceMax ?? ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    onPriceMaxChange?.(val === '' ? null : Number(val));
-                  }}
-                  placeholder="До"
-                  className="min-w-0 flex-1 rounded-[11px] border border-slate-200/80 bg-white/80 px-3 py-2 text-[13px] font-bold text-slate-800 shadow-sm outline-none transition placeholder:font-normal placeholder:text-slate-300 focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                />
-              </div>
-              {hasPriceRange && (
-                <p className="mt-1.5 text-[10px] font-semibold text-slate-500">
-                  {priceMin != null && priceMax != null
-                    ? `${priceMin.toLocaleString('uk-UA')} — ${priceMax.toLocaleString('uk-UA')} ₴`
-                    : priceMin != null
-                      ? `від ${priceMin.toLocaleString('uk-UA')} ₴`
-                      : `до ${priceMax!.toLocaleString('uk-UA')} ₴`}
-                </p>
-              )}
-            </div>
           </div>
         );
       default:
@@ -905,9 +831,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                     {isSortAsc ? '↓' : '↑'}
                   </span>
                 )}
-                {hasPriceRange && isSortNone && (
-                  <span className="text-[11px] font-semibold leading-none">…</span>
-                )}
               </span>
               <span className="hidden items-center gap-1 whitespace-nowrap sm:flex">
                 <span
@@ -917,15 +840,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                   ₴
                 </span>
                 <span className="whitespace-nowrap">
-                  {hasPriceRange && !isSortNone
-                    ? `${isSortAsc ? 'Низька' : 'Висока'} · фільтр`
-                    : hasPriceRange
-                      ? 'Ціна · фільтр'
-                      : isSortNone
-                        ? 'Ціна'
-                        : isSortAsc
-                          ? 'Низька'
-                          : 'Висока'}
+                  {isSortNone ? 'Ціна' : isSortAsc ? 'Низька' : 'Висока'}
                 </span>
               </span>
             </button>

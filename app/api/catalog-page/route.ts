@@ -69,7 +69,7 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawSearch = toTrimmedString(body.searchQuery);
   const effectiveSearch = rawFilter === "article" ? normalizeArticleQuery(rawSearch) : rawSearch;
   return JSON.stringify({
-    source: "catalog-page:v23-sort-fix",
+    source: "catalog-page:v24-price-query-sort",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -270,19 +270,8 @@ export async function POST(request: Request) {
           : "none",
     } as const;
 
-    const hasInlinePrice = (item: { priceEuro?: number | null }) =>
-      typeof item.priceEuro === "number" &&
-      Number.isFinite(item.priceEuro) &&
-      item.priceEuro > 0;
-
     const toApiPayload = (result: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>>) => {
-      const rawItems = result.items;
-      // Always push items without inline price to the end.
-      // For asc/desc sorts 1C treats missing price as 0 and places those items first —
-      // this partition corrects that while preserving 1C's price-ordered sequence within each group.
-      const priced = rawItems.filter(hasInlinePrice);
-      const unpriced = rawItems.filter((item) => !hasInlinePrice(item));
-      const items = priced.length > 0 ? [...priced, ...unpriced] : rawItems;
+      const items = result.items;
       return {
         items,
         prices: buildInlinePrices(items),
@@ -308,7 +297,7 @@ export async function POST(request: Request) {
       const runAllgoodsQuery = () =>
         fetchCatalogProductsByQuery({
           ...queryBase,
-          sortOrder: queryBase.sortOrder === "none" ? "asc" : queryBase.sortOrder,
+          sortOrder: queryBase.sortOrder,
           timeoutMs: runtime.timeoutMs,
           retries: runtime.retries,
           retryDelayMs: runtime.retryDelayMs,
@@ -316,7 +305,7 @@ export async function POST(request: Request) {
           includePriceEnrichment: false,
           preferLegacySource: false,
           forceAllgoodsSource: true,
-          pricedItemsOnly: false,
+          pricedItemsOnly: queryBase.sortOrder !== "none",
         });
 
       let allgoodsPrimary: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>> | null = null;
@@ -410,7 +399,7 @@ export async function POST(request: Request) {
 
       return fetchCatalogProductsByQuery({
         ...queryBase,
-        sortOrder: "asc",
+        sortOrder: queryBase.sortOrder,
         timeoutMs: Math.min(Math.max(runtime.timeoutMs, 4200), 5200),
         retries: 0,
         retryDelayMs: runtime.retryDelayMs,
