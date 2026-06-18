@@ -69,7 +69,7 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawSearch = toTrimmedString(body.searchQuery);
   const effectiveSearch = rawFilter === "article" ? normalizeArticleQuery(rawSearch) : rawSearch;
   return JSON.stringify({
-    source: "catalog-page:v24-price-query-sort",
+    source: "catalog-page:v26-priced-only",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -86,6 +86,8 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
       body.sortOrder === "asc" || body.sortOrder === "desc"
         ? body.sortOrder
         : "none",
+    pricedOnly: body.pricedOnly === true,
+    inStock: body.inStock === true,
   });
 };
 
@@ -268,6 +270,8 @@ export async function POST(request: Request) {
         body.sortOrder === "asc" || body.sortOrder === "desc"
           ? body.sortOrder
           : "none",
+      pricedOnly: body.pricedOnly === true,
+      inStock: body.inStock === true,
     } as const;
 
     const toApiPayload = (result: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>>) => {
@@ -291,12 +295,16 @@ export async function POST(request: Request) {
       const canUseCompleteAllgoodsCatalog = queryBase.selectedCars.length === 0;
       const shouldUseCursorBackedSource =
         Boolean(queryBase.cursor || queryBase.cursorField) ||
+        queryBase.pricedOnly ||
         queryBase.sortOrder !== "none" ||
         isDescriptionSearch;
 
       const runAllgoodsQuery = () =>
         fetchCatalogProductsByQuery({
           ...queryBase,
+          // sortOrder "none" → 1C uses natural ORDER BY ЕстьЦена DESC (priced items first)
+          // + enables cursor pagination instead of the expensive window approach.
+          // "asc"/"desc" → explicit СортировкаПоЦене, ТолькоСЦеной:true, no cursor.
           sortOrder: queryBase.sortOrder,
           timeoutMs: runtime.timeoutMs,
           retries: runtime.retries,
@@ -305,7 +313,9 @@ export async function POST(request: Request) {
           includePriceEnrichment: false,
           preferLegacySource: false,
           forceAllgoodsSource: true,
-          pricedItemsOnly: queryBase.sortOrder !== "none",
+          // ТолькоСЦеной: true for explicit user price filter or price sort.
+          pricedItemsOnly: queryBase.pricedOnly || queryBase.sortOrder !== "none",
+          onlyInStock: queryBase.inStock,
         });
 
       let allgoodsPrimary: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>> | null = null;
@@ -316,6 +326,7 @@ export async function POST(request: Request) {
         if (
           allgoodsPrimary &&
           (allgoodsPrimary.items.length > 0 ||
+            queryBase.pricedOnly ||
             Boolean(queryBase.cursor || queryBase.cursorField))
         ) {
           return allgoodsPrimary;

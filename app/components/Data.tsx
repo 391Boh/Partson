@@ -29,6 +29,8 @@ interface DataProps {
   selectedCars: string[];
   selectedCategories: string[];
   sortOrder: "none" | "asc" | "desc";
+  pricedOnly?: boolean;
+  inStock?: boolean;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
 }
@@ -60,10 +62,10 @@ const PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRICE_PERSISTED_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const PRICE_STALE_POSITIVE_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 60;
-const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 120;
+const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 30;
 const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 8;
 const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 6;
-const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 45;
+const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 12;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 60 * 4;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60 * 4;
 const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
@@ -464,7 +466,7 @@ const getResolvedProductPriceEuro = (
 };
 
 const hasResolvedProductPriceState = (
-  item: Pick<Product, "code" | "article" | "priceEuro">,
+  item: Pick<Product, "code" | "article" | "priceEuro" | "hasPrice">,
   prices: Record<string, number | null>
 ) => {
   if (
@@ -472,6 +474,10 @@ const hasResolvedProductPriceState = (
     Number.isFinite(item.priceEuro) &&
     item.priceEuro > 0
   ) {
+    return true;
+  }
+
+  if (item.priceEuro === null || item.hasPrice === false) {
     return true;
   }
 
@@ -1093,6 +1099,8 @@ function useCatalogData(params: {
   producerFromURL: string | null;
   expandHierarchyFromURL: boolean;
   sortOrder: "none" | "asc" | "desc";
+  pricedOnly?: boolean;
+  inStock?: boolean;
   includeCostPrices?: boolean;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
@@ -1107,6 +1115,8 @@ function useCatalogData(params: {
     producerFromURL,
     expandHierarchyFromURL,
     sortOrder,
+    pricedOnly = false,
+    inStock = false,
     includeCostPrices = false,
     initialPagePayload,
     initialQuerySignature,
@@ -1156,6 +1166,8 @@ function useCatalogData(params: {
         producer: producerFromURL,
         expandHierarchy: expandHierarchyFromURL,
         sortOrder: effectiveServerSortOrder,
+        pricedOnly,
+        inStock,
       }),
     [
       normalizedSearch,
@@ -1167,6 +1179,8 @@ function useCatalogData(params: {
       producerFromURL,
       expandHierarchyFromURL,
       effectiveServerSortOrder,
+      pricedOnly,
+      inStock,
     ]
   );
   const activeQuerySignatureRef = useRef(querySignature);
@@ -1174,6 +1188,7 @@ function useCatalogData(params: {
   const firstPageReadySignatureRef = useRef<string | null>(null);
   const pagingRequestedRef = useRef(false);
   const duplicatePageStreakRef = useRef(0);
+  const cursorDuplicateStreakRef = useRef(0);
   const nextCursorByPageRef = useRef<Record<number, string>>({ 1: "" });
   const nextCursorFieldByPageRef = useRef<Record<number, string>>({ 1: "" });
   const dataRef = useRef<Product[]>([]);
@@ -1419,9 +1434,15 @@ function useCatalogData(params: {
             if (!needsCostPrice) continue;
             // Has regular price in state but cost price not yet fetched — fall through
           } else if (currentPrice === null) {
-            priceRetryCooldownUntilRef.current[stateKey] =
-              nowTs + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
-            continue;
+            // Null already committed — only retry if the cooldown has expired.
+            const nullCooldown = priceRetryCooldownUntilRef.current[stateKey] ?? 0;
+            if (nullCooldown > nowTs) {
+              continue;
+            }
+            // Cooldown elapsed: fall through to retry the price API.
+            if (nullCooldown > 0) {
+              delete priceRetryCooldownUntilRef.current[stateKey];
+            }
           }
         }
 
@@ -2121,6 +2142,8 @@ function useCatalogData(params: {
         producer: normalizeOptionalCacheString(producerFromURL),
         hierarchy: expandHierarchyFromURL,
         sort: effectiveServerSortOrder || "none",
+        pricedOnly,
+        inStock,
       }),
     [
       searchFilter,
@@ -2131,6 +2154,8 @@ function useCatalogData(params: {
       producerFromURL,
       expandHierarchyFromURL,
       effectiveServerSortOrder,
+      pricedOnly,
+      inStock,
     ]
   );
 
@@ -2175,6 +2200,8 @@ function useCatalogData(params: {
             producer: producerFromURL,
             expandHierarchy: expandHierarchyFromURL,
             sortOrder: effectiveServerSortOrder,
+            pricedOnly,
+            inStock,
           }),
           cache: "no-store",
         });
@@ -2254,6 +2281,7 @@ function useCatalogData(params: {
       selectedCars,
       effectiveServerSortOrder,
       subcategoryFromURL,
+      inStock,
     ]
   );
 
@@ -2307,6 +2335,7 @@ function useCatalogData(params: {
     firstPageReadySignatureRef.current = null;
     pagingRequestedRef.current = false;
     duplicatePageStreakRef.current = 0;
+    cursorDuplicateStreakRef.current = 0;
     lastNextPageRequestAtRef.current = 0;
     nextCursorByPageRef.current = { 1: "" };
     nextCursorFieldByPageRef.current = { 1: "" };
@@ -2563,6 +2592,15 @@ function useCatalogData(params: {
         !pageIntroducedNewItems &&
         !payload.nextCursor;
 
+      // Cursor mode: same items returned repeatedly despite a non-empty cursor means the
+      // backend cursor is broken (e.g. 1C ignoring ПосляКода with inStock filter).
+      const isCursorDuplicate =
+        page > 1 &&
+        items.length > 0 &&
+        !pageIntroducedNewItems &&
+        Boolean(payload.nextCursor) &&
+        sortOrder === "none";
+
       // Price-sorted pages can legally overlap when backend has no stable cursor.
       // Do not stop infinite scroll on duplicate chunks in this mode.
       const isCursorlessSortedMode =
@@ -2574,9 +2612,16 @@ function useCatalogData(params: {
         duplicatePageStreakRef.current = 0;
       }
 
+      if (isCursorDuplicate) {
+        cursorDuplicateStreakRef.current += 1;
+      } else {
+        cursorDuplicateStreakRef.current = 0;
+      }
+
       // Some backend pages can overlap; stop only after a long duplicate streak.
       const shouldStopPaginationOnDuplicatePage =
-        !isCursorlessSortedMode && !payload.nextCursor && duplicatePageStreakRef.current >= 6;
+        (!isCursorlessSortedMode && !payload.nextCursor && duplicatePageStreakRef.current >= 6) ||
+        cursorDuplicateStreakRef.current >= 3;
 
       setHasMore(
         shouldStopPaginationOnDuplicatePage ? false : payloadHasMore
@@ -3213,6 +3258,30 @@ function useCatalogData(params: {
     return () => window.clearTimeout(timerId);
   }, [data.length, includeCostPrices, fetchCatalogPagePrices]);
 
+  // Periodically retry prices that were committed as null (typically due to a timeout).
+  // Without this, items with null prices stay null until the user triggers a new fetch.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const retryIntervalMs = PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS + 2000;
+    const timerId = window.setInterval(() => {
+      const nowTs = Date.now();
+      const staleNulls = dataRef.current.filter((item) => {
+        const stateKey = getProductPriceStateKey(item);
+        if (!stateKey) return false;
+        if (pricesRef.current[stateKey] !== null) return false;
+        const cooldown = priceRetryCooldownUntilRef.current[stateKey] ?? 0;
+        return cooldown <= nowTs;
+      });
+      if (staleNulls.length === 0) return;
+      void fetchCatalogPagePrices(staleNulls, {
+        prefetchedPrices: {},
+        querySignatureSnapshot: activeQuerySignatureRef.current,
+        allowFullLookup: shouldAllowCatalogDirectPriceLookup,
+      }).catch(swallowAbortError);
+    }, retryIntervalMs);
+    return () => window.clearInterval(timerId);
+  }, [fetchCatalogPagePrices, shouldAllowCatalogDirectPriceLookup]);
+
   return {
     filteredData,
     quantities,
@@ -3252,6 +3321,8 @@ const Data: React.FC<DataProps> = ({
   selectedCars,
   selectedCategories,
   sortOrder,
+  pricedOnly = false,
+  inStock = false,
   initialPagePayload = null,
   initialQuerySignature = null,
 }) => {
@@ -3317,7 +3388,7 @@ const Data: React.FC<DataProps> = ({
     async (
       code: string,
       article: string,
-      data: { description?: string; priceUAH?: number; costPriceUAH?: number; imageDataUrl?: string; imageName?: string }
+      data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string }
     ): Promise<{ ok: boolean; error?: string }> => {
       const token = await getAdminToken();
       if (!token) return { ok: false, error: "Не авторизовано" };
@@ -3327,7 +3398,15 @@ const Data: React.FC<DataProps> = ({
         "Content-Type": "application/json",
       };
 
-      const tasks: Array<Promise<{ ok: boolean; error?: string }>> = [];
+      type AdminMutationResult = { ok: boolean; error?: string; details?: string };
+      const normalizeAdminResult = (payload: AdminMutationResult): AdminMutationResult => ({
+        ...payload,
+        error: payload.ok
+          ? payload.error
+          : [payload.error, payload.details].filter(Boolean).join(": ") || "Помилка збереження",
+      });
+
+      const tasks: Array<Promise<AdminMutationResult>> = [];
 
       if (data.description !== undefined) {
         // getinfo uses НомерПоКаталогу (= article), not internal Код
@@ -3337,36 +3416,33 @@ const Data: React.FC<DataProps> = ({
             headers,
             body: JSON.stringify({ article, description: data.description }),
           })
-            .then((r) => r.json() as Promise<{ ok: boolean; error?: string }>)
+            .then((r) => r.json() as Promise<AdminMutationResult>)
+            .then(normalizeAdminResult)
             .catch(() => ({ ok: false, error: "Помилка мережі (опис)" }))
         );
       }
 
-      if (data.priceUAH !== undefined || data.costPriceUAH !== undefined) {
-        const priceBody: Record<string, unknown> = { code };
-        if (data.priceUAH !== undefined) priceBody.priceUAH = data.priceUAH;
-        if (data.costPriceUAH !== undefined) priceBody.costPriceUAH = data.costPriceUAH;
+      if (
+        data.priceEuro !== undefined ||
+        data.costPriceEuro !== undefined ||
+        data.imageDataUrl
+      ) {
+        const productUpdateBody: Record<string, unknown> = { code, article };
+        if (data.priceEuro !== undefined) productUpdateBody.priceEuro = data.priceEuro;
+        if (data.costPriceEuro !== undefined) productUpdateBody.costPriceEuro = data.costPriceEuro;
+        if (data.imageDataUrl) {
+          productUpdateBody.imageDataUrl = data.imageDataUrl;
+          if (data.imageName) productUpdateBody.file_name = data.imageName;
+        }
         tasks.push(
-          fetch("/api/product-update-price", {
+          fetch("/api/product-update", {
             method: "POST",
             headers,
-            body: JSON.stringify(priceBody),
+            body: JSON.stringify(productUpdateBody),
           })
-            .then((r) => r.json() as Promise<{ ok: boolean; error?: string }>)
-            .catch(() => ({ ok: false, error: "Помилка мережі (ціна)" }))
-        );
-      }
-
-      if (data.imageDataUrl) {
-        // images endpoint uses НомерПоКаталогу (= article) as code field
-        tasks.push(
-          fetch("/api/product-upload-image", {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ code: article, imageDataUrl: data.imageDataUrl, imageName: data.imageName }),
-          })
-            .then((r) => r.json() as Promise<{ ok: boolean; error?: string }>)
-            .catch(() => ({ ok: false, error: "Помилка мережі (фото)" }))
+            .then((r) => r.json() as Promise<AdminMutationResult>)
+            .then(normalizeAdminResult)
+            .catch(() => ({ ok: false, error: "Помилка мережі (товар)" }))
         );
       }
 
@@ -3418,6 +3494,8 @@ const Data: React.FC<DataProps> = ({
     producerFromURL,
     expandHierarchyFromURL,
     sortOrder,
+    pricedOnly,
+    inStock,
     includeCostPrices: isAdmin,
     initialPagePayload,
     initialQuerySignature,
@@ -3487,6 +3565,8 @@ const Data: React.FC<DataProps> = ({
         selectedCategories,
         selectedCars,
         sortOrder,
+        pricedOnly,
+        inStock,
       }),
     [
       rawSearchQuery,
@@ -3497,6 +3577,8 @@ const Data: React.FC<DataProps> = ({
       selectedCategories,
       selectedCars,
       sortOrder,
+      pricedOnly,
+      inStock,
     ]
   );
 
@@ -3535,6 +3617,9 @@ const Data: React.FC<DataProps> = ({
       return a.index - b.index;
     };
 
+    // For "none" sort: preserve server order (1C already returns priced items first via
+    // ORDER BY ЕстьЦена DESC). Sorting here would cause items to jump when new pages load.
+    // For asc/desc: sort all accumulated items so the user sees a globally-sorted list.
     return sortOrder === "none" ? entries : [...entries].sort(priceSortFn);
   }, [filteredData, prices, euroRate, sortOrder]);
   const sortedData = useMemo(

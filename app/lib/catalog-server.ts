@@ -16,6 +16,7 @@ export interface CatalogProduct {
   category?: string;
   hasPhoto?: boolean;
   hasPrice?: boolean;
+  inStock?: boolean;
   description?: string;
 }
 
@@ -134,6 +135,15 @@ const HAS_PRICE_FIELDS = [
   "HasPrice",
   "has_price",
 ];
+const IN_STOCK_FIELDS = [
+  "\u0412\u041d\u0430\u043b\u0438\u0447\u0438\u0438", // \u0412\u041d\u0430\u043b\u0438\u0447\u0438\u0438
+  "\u0412\u041d\u0430\u044f\u0432\u043d\u043e\u0441\u0442\u0456", // \u0412\u041d\u0430\u044f\u0432\u043d\u043e\u0441\u0442\u0456
+  "inStock",
+  "InStock",
+  "in_stock",
+  "isInStock",
+];
+const ALLGOODS_ONLY_IN_STOCK_FIELD = "\u0422\u043e\u043b\u044c\u043a\u043e\u0412\u041d\u0430\u043b\u0438\u0447\u0438\u0438"; // \u0422\u043e\u043b\u044c\u043a\u043e\u0412\u041d\u0430\u043b\u0438\u0447\u0438\u0438
 const ALLGOODS_LIMIT_FIELD = "\u041b\u0438\u043c\u0438\u0442";
 const ALLGOODS_CURSOR_FIELD = "\u041f\u043e\u0441\u043b\u0435\u041a\u043e\u0434\u0430";
 const ALLGOODS_NAME_FIELD = "\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435";
@@ -262,15 +272,17 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
   const category = readFirstString(record, CATEGORY_FIELDS);
   const hasPhoto = readFirstBoolean(record, PHOTO_FIELDS, true);
   const hasPriceBool = readFirstBoolean(record, HAS_PRICE_FIELDS, undefined as unknown as boolean);
+  const inStockBool = readFirstBoolean(record, IN_STOCK_FIELDS, undefined as unknown as boolean);
   const description = readDescriptionFromRecord(record) || undefined;
   const resolvedCode = code || article || readFirstString(record, ["ID", "Id"]) || name;
+  const safeQty = Number.isFinite(quantity) ? quantity : 0;
 
   return {
     code: resolvedCode,
     article,
     name,
     producer,
-    quantity: Number.isFinite(quantity) ? quantity : 0,
+    quantity: safeQty,
     priceEuro: hasPriceField
       ? Number.isFinite(priceEuro) && priceEuro > 0
         ? priceEuro
@@ -282,6 +294,7 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
     category,
     hasPhoto,
     hasPrice: hasPriceBool === true ? true : (hasPriceField && Number.isFinite(priceEuro) && priceEuro > 0) ? true : hasPriceBool === false ? false : undefined,
+    inStock: inStockBool === true ? true : inStockBool === false ? false : safeQty > 0 ? true : undefined,
     description,
   };
 };
@@ -1200,6 +1213,7 @@ export const fetchCatalogProductsByQuery = async (options: {
   preferLegacySource?: boolean;
   forceAllgoodsSource?: boolean;
   pricedItemsOnly?: boolean;
+  onlyInStock?: boolean;
   expandHierarchy?: boolean;
 }): Promise<CatalogQueryPageResult> => {
   const page =
@@ -1384,10 +1398,12 @@ export const fetchCatalogProductsByQuery = async (options: {
 
     if (sortOrder === "asc") {
       allgoodsBaseBody[ALLGOODS_SORT_PRICE_FIELD] = "ASC";
-      allgoodsBaseBody[ALLGOODS_ONLY_WITH_PRICE_FIELD] = true;
     } else if (sortOrder === "desc") {
       allgoodsBaseBody[ALLGOODS_SORT_PRICE_FIELD] = "DESC";
-      allgoodsBaseBody[ALLGOODS_ONLY_WITH_PRICE_FIELD] = true;
+    }
+
+    if (options.onlyInStock) {
+      allgoodsBaseBody[ALLGOODS_ONLY_IN_STOCK_FIELD] = true;
     }
 
     if (group && !subcategory) {
@@ -2182,7 +2198,7 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
   // for finding specific items' cost prices. Run for all unresolved keys in parallel.
   const unresolvedCostKeys = normalizedKeys.filter((k) => !resolvedCostPrices.has(k));
   if (unresolvedCostKeys.length > 0) {
-    const lookupTimeoutMs = Math.min(600, Math.max(300, Math.floor(timeoutMs * 0.7)));
+    const lookupTimeoutMs = Math.min(1500, Math.max(300, Math.floor(timeoutMs * 0.5)));
     await Promise.allSettled(
       unresolvedCostKeys.map(async (key) => {
         const exactProduct = await fetchExactCatalogProductByLookup(key, {

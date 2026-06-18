@@ -10,7 +10,11 @@ export const runtime = "nodejs";
 
 // images endpoint handles both GET (no image_base64) and upload (with image_base64)
 const ONEC_UPLOAD_IMAGE_ENDPOINT =
-  (process.env.ONEC_UPLOAD_IMAGE_ENDPOINT || "images").trim();
+  (
+    process.env.ONEC_PRODUCT_UPDATE_ENDPOINT ||
+    process.env.ONEC_UPLOAD_IMAGE_ENDPOINT ||
+    "ОбновитьТовар"
+  ).trim();
 
 const ADMIN_EMAILS = new Set(
   (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
@@ -79,37 +83,45 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "Invalid JSON body" }, 400);
   }
 
-  const code = typeof parsed.code === "string" ? parsed.code.trim() : "";
+  const code =
+    typeof parsed.code === "string" && parsed.code.trim()
+      ? parsed.code.trim()
+      : typeof parsed["Код"] === "string"
+        ? parsed["Код"].trim()
+        : "";
   if (!isNonEmptyString(code, { minLength: 1, maxLength: 200 })) {
-    return json({ ok: false, error: "code is required" }, 400);
+    return json({ ok: false, error: "code/Код is required" }, 400);
   }
 
   const imageDataUrl = typeof parsed.imageDataUrl === "string" ? parsed.imageDataUrl.trim() : "";
-  if (!imageDataUrl) {
-    return json({ ok: false, error: "imageDataUrl is required (data:image/...;base64,...)" }, 400);
-  }
-
-  const match = DATA_URI_REGEX.exec(imageDataUrl);
-  if (!match) {
+  const rawImageBase64 =
+    typeof parsed.image_base64 === "string" ? parsed.image_base64.trim() : "";
+  const match = imageDataUrl ? DATA_URI_REGEX.exec(imageDataUrl) : null;
+  if (imageDataUrl && !match) {
     return json(
       { ok: false, error: "imageDataUrl must be a valid data URI (jpeg/png/webp/gif)" },
       400
     );
   }
 
-  const mimeType = match[1].toLowerCase();
-  const base64Data = match[2].replace(/[\r\n\s]/g, "");
+  const mimeType = match?.[1].toLowerCase() ?? "";
+  const base64Data = (match?.[2] ?? rawImageBase64).replace(/[\r\n\s]/g, "");
+  if (!base64Data) {
+    return json({ ok: false, error: "imageDataUrl or image_base64 is required" }, 400);
+  }
 
   const ext = mimeType === "image/jpeg" ? "jpg" : mimeType.split("/")[1] ?? "jpg";
   const fileName =
-    typeof parsed.imageName === "string" && parsed.imageName.trim()
+    typeof parsed.file_name === "string" && parsed.file_name.trim()
+      ? parsed.file_name.trim()
+      : typeof parsed.imageName === "string" && parsed.imageName.trim()
       ? parsed.imageName.trim()
-      : `${code}.${ext}`;
+      : `${code}.${ext || "png"}`;
 
-  // 1C images endpoint: { code, file_name, image_base64 }
+  // 1C images endpoint: { Код, file_name, image_base64 }
   // Passes the pure base64 string (without data URI prefix)
   const oneCBody = {
-    code,
+    Код: code,
     file_name: fileName,
     image_base64: base64Data,
   };
@@ -149,6 +161,10 @@ export async function POST(request: NextRequest) {
 
   clearOneCCacheForProduct(code);
   clearProductImageCacheForProduct(code);
+  if (typeof parsed.article === "string" && parsed.article.trim()) {
+    clearOneCCacheForProduct(parsed.article.trim());
+    clearProductImageCacheForProduct(parsed.article.trim());
+  }
 
   return json({
     ok: true,

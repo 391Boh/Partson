@@ -10,7 +10,11 @@ export const runtime = "nodejs";
 // Endpoint in the 1C HTTP-service that handles price reads and updates.
 // Must match the endpoint name registered in the 1C configuration.
 const ONEC_PRICE_ADMIN_ENDPOINT =
-  (process.env.ONEC_PRICE_ADMIN_ENDPOINT || "prices").trim();
+  (
+    process.env.ONEC_PRODUCT_UPDATE_ENDPOINT ||
+    process.env.ONEC_PRICE_ADMIN_ENDPOINT ||
+    "ОбновитьТовар"
+  ).trim();
 
 const ADMIN_EMAILS = new Set(
   (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
@@ -72,31 +76,44 @@ export async function POST(request: NextRequest) {
 
   const { value } = body;
 
-  const code = typeof value.code === "string" ? value.code.trim() : "";
+  const code =
+    typeof value.code === "string" && value.code.trim()
+      ? value.code.trim()
+      : typeof value["Код"] === "string"
+        ? value["Код"].trim()
+        : "";
   if (!isNonEmptyString(code, { minLength: 1, maxLength: 200 })) {
-    return json({ ok: false, error: "code is required" }, 400);
+    return json({ ok: false, error: "code/Код is required" }, 400);
   }
 
-  const hasPriceUAH = value.priceUAH !== undefined && value.priceUAH !== null;
-  const hasCostPriceUAH = value.costPriceUAH !== undefined && value.costPriceUAH !== null;
+  const salePriceValue =
+    value.priceEuro !== undefined && value.priceEuro !== null
+      ? value.priceEuro
+      : value["ЦінаПрод"];
+  const costPriceValue =
+    value.costPriceEuro !== undefined && value.costPriceEuro !== null
+      ? value.costPriceEuro
+      : value["ЦінаЗакуп"];
+  const hasSalePrice = salePriceValue !== undefined && salePriceValue !== null;
+  const hasCostPrice = costPriceValue !== undefined && costPriceValue !== null;
 
-  if (!hasPriceUAH && !hasCostPriceUAH) {
-    return json({ ok: false, error: "Provide priceUAH and/or costPriceUAH" }, 400);
+  if (!hasSalePrice && !hasCostPrice) {
+    return json({ ok: false, error: "Provide priceEuro/ЦінаПрод and/or costPriceEuro/ЦінаЗакуп" }, 400);
   }
 
-  const priceUAH = hasPriceUAH ? Number(value.priceUAH) : undefined;
-  const costPriceUAH = hasCostPriceUAH ? Number(value.costPriceUAH) : undefined;
+  const priceEuro = hasSalePrice ? Number(salePriceValue) : undefined;
+  const costPriceEuro = hasCostPrice ? Number(costPriceValue) : undefined;
 
-  if (priceUAH !== undefined && (!Number.isFinite(priceUAH) || priceUAH < 0)) {
-    return json({ ok: false, error: "priceUAH must be a non-negative number" }, 400);
+  if (priceEuro !== undefined && (!Number.isFinite(priceEuro) || priceEuro < 0)) {
+    return json({ ok: false, error: "priceEuro must be a non-negative number" }, 400);
   }
-  if (costPriceUAH !== undefined && (!Number.isFinite(costPriceUAH) || costPriceUAH < 0)) {
-    return json({ ok: false, error: "costPriceUAH must be a non-negative number" }, 400);
+  if (costPriceEuro !== undefined && (!Number.isFinite(costPriceEuro) || costPriceEuro < 0)) {
+    return json({ ok: false, error: "costPriceEuro must be a non-negative number" }, 400);
   }
 
   const oneCBody: Record<string, unknown> = { Код: code };
-  if (priceUAH !== undefined) oneCBody["ЦінаПрод"] = priceUAH;
-  if (costPriceUAH !== undefined) oneCBody["ЦінаЗакуп"] = costPriceUAH;
+  if (priceEuro !== undefined) oneCBody["ЦінаПрод"] = priceEuro;
+  if (costPriceEuro !== undefined) oneCBody["ЦінаЗакуп"] = costPriceEuro;
 
   const result = await oneCRequest(ONEC_PRICE_ADMIN_ENDPOINT, {
     method: "POST",
@@ -138,7 +155,7 @@ export async function POST(request: NextRequest) {
     code,
     endpoint: ONEC_PRICE_ADMIN_ENDPOINT,
     updatedBy: adminEmail,
-    ...(priceUAH !== undefined ? { priceUAH } : {}),
-    ...(costPriceUAH !== undefined ? { costPriceUAH } : {}),
+    ...(priceEuro !== undefined ? { priceEuro } : {}),
+    ...(costPriceEuro !== undefined ? { costPriceEuro } : {}),
   });
 }

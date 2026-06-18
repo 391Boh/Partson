@@ -104,6 +104,8 @@ const Katalog: React.FC<KatalogProps> = ({
   const [selectedCars, setSelectedCars] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  const [pricedOnly, setPricedOnly] = useState(false);
+  const [inStock, setInStock] = useState(false);
   const [selectedCarSelection, setSelectedCarSelection] =
     useState<PersistedCarSelection | null>(null);
   const [selectedVin, setSelectedVin] = useState<string | null>(null);
@@ -221,6 +223,8 @@ const Katalog: React.FC<KatalogProps> = ({
     setSelectedCategories([]);
     setSelectedCarSelection(null);
     setSortOrder('none');
+    setPricedOnly(false);
+    setInStock(false);
     setCarsLoaded(true);
     setLocalReady(true);
 
@@ -616,6 +620,10 @@ const Katalog: React.FC<KatalogProps> = ({
       onConfirmRequest={allowRequestActions ? handleConfirmRequest : undefined}
       onCancelRequest={allowRequestActions ? handleCancelRequest : undefined}
       onLayoutChange={measureFilterShell}
+      pricedOnly={pricedOnly}
+      onPricedOnlyChange={setPricedOnly}
+      inStock={inStock}
+      onInStockChange={setInStock}
     />
   );
 
@@ -648,6 +656,8 @@ const Katalog: React.FC<KatalogProps> = ({
           selectedCars={selectedCars}
           selectedCategories={selectedCategories}
           sortOrder={sortOrder}
+          pricedOnly={pricedOnly}
+          inStock={inStock}
           initialPagePayload={initialPagePayload}
           initialQuerySignature={initialQuerySignature}
         />

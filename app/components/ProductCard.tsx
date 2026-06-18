@@ -62,6 +62,8 @@ interface Product {
     quantity: number;
     hasPhoto?: boolean;
     hasPrice?: boolean;
+    priceEuro?: number | null;
+    costPriceEuro?: number | null;
     group?: string;
     subGroup?: string;
     category?: string;
@@ -92,7 +94,7 @@ interface Props {
     onQtyChange: (code: string, delta: number) => void;
     onFlip: (code: string) => void;
     onImageOpen: (code: string, article?: string) => void;
-    onAdminEdit?: (data: { description?: string; priceUAH?: number; costPriceUAH?: number; imageDataUrl?: string; imageName?: string }) => Promise<{ ok: boolean; error?: string }>;
+    onAdminEdit?: (data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string }) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const ProductCard: React.FC<Props> = ({
@@ -286,8 +288,8 @@ const imageInputRef = useRef<HTMLInputElement | null>(null);
 
 const enterEditMode = () => {
     setEditDesc(description ?? '');
-    setEditPrice(priceUAH != null ? String(priceUAH) : '');
-    setEditCostPrice(costPriceUAH != null ? String(costPriceUAH) : '');
+    setEditPrice(item.priceEuro != null && item.priceEuro > 0 ? String(item.priceEuro) : '');
+    setEditCostPrice(item.costPriceEuro != null && item.costPriceEuro > 0 ? String(item.costPriceEuro) : '');
     setEditImageDataUrl(null);
     setEditImageName('');
     setEditError(null);
@@ -311,7 +313,7 @@ const handleAdminSave = async () => {
     setEditSaving(true);
     setEditError(null);
 
-    const data: { description?: string; priceUAH?: number; costPriceUAH?: number; imageDataUrl?: string; imageName?: string } = {};
+    const data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string } = {};
 
     const trimmedDesc = editDesc.trim();
     if (trimmedDesc !== (description ?? '').trim()) {
@@ -319,13 +321,13 @@ const handleAdminSave = async () => {
     }
 
     const newPrice = editPrice.trim() ? Number(editPrice) : null;
-    if (newPrice != null && Number.isFinite(newPrice) && newPrice >= 0 && newPrice !== priceUAH) {
-        data.priceUAH = newPrice;
+    if (newPrice != null && Number.isFinite(newPrice) && newPrice >= 0 && newPrice !== item.priceEuro) {
+        data.priceEuro = newPrice;
     }
 
     const newCostPrice = editCostPrice.trim() ? Number(editCostPrice) : null;
-    if (newCostPrice != null && Number.isFinite(newCostPrice) && newCostPrice >= 0 && newCostPrice !== costPriceUAH) {
-        data.costPriceUAH = newCostPrice;
+    if (newCostPrice != null && Number.isFinite(newCostPrice) && newCostPrice >= 0 && newCostPrice !== item.costPriceEuro) {
+        data.costPriceEuro = newCostPrice;
     }
 
     if (editImageDataUrl) {
@@ -946,15 +948,15 @@ useEffect(() => {
             <div className="space-y-2 text-[11px]">
                 <div className="flex items-center gap-1.5 flex-wrap pb-0.5">
                     <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${item.hasPrice === true || (priceUAH != null && priceUAH > 0) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
-                        \u20B4 {item.hasPrice === true || (priceUAH != null && priceUAH > 0) ? '\u0404 \u0446\u0456\u043D\u0430' : '\u0411\u0435\u0437 \u0446\u0456\u043D\u0438'}
+                        {item.hasPrice === true || (priceUAH != null && priceUAH > 0) ? '€ Є ціна' : '€ Без ціни'}
                     </span>
                     <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${item.hasPhoto !== false ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}>
-                        \u25FB {item.hasPhoto !== false ? '\u0404 \u0444\u043E\u0442\u043E' : '\u0411\u0435\u0437 \u0444\u043E\u0442\u043E'}
+                        {item.hasPhoto !== false ? '◻ Є фото' : '◻ Без фото'}
                     </span>
                     <span className="ml-auto text-[9px] text-slate-400 font-mono truncate max-w-[100px]" title={item.article || item.code}>{item.article || item.code}</span>
                 </div>
                 <div>
-                    <label className="block text-slate-500 font-semibold mb-0.5">\u041E\u043F\u0438\u0441</label>
+                    <label className="block text-slate-500 font-semibold mb-0.5">Опис</label>
                     <textarea
                         value={editDesc}
                         onChange={(e) => setEditDesc(e.target.value)}
@@ -965,7 +967,7 @@ useEffect(() => {
                 </div>
                 <div className="flex gap-2">
                     <div className="flex-1">
-                        <label className="block text-slate-500 font-semibold mb-0.5">\u0426\u0456\u043D\u0430 \u043F\u0440\u043E\u0434\u0430\u0436\u0443 (\u0433\u0440\u043D)</label>
+                        <label className="block text-slate-500 font-semibold mb-0.5">Ціна продажу (EUR)</label>
                         <input
                             type="number"
                             min="0"
@@ -977,7 +979,7 @@ useEffect(() => {
                         />
                     </div>
                     <div className="flex-1">
-                        <label className="block text-slate-500 font-semibold mb-0.5">\u0426\u0456\u043D\u0430 \u0437\u0430\u043A\u0443\u043F\u0443 (\u0433\u0440\u043D)</label>
+                        <label className="block text-slate-500 font-semibold mb-0.5">Ціна закупу (EUR)</label>
                         <input
                             type="number"
                             min="0"
@@ -1024,7 +1026,7 @@ useEffect(() => {
                     <p className="text-[10px] text-rose-600 font-medium">{editError}</p>
                 )}
                 {editSuccess && (
-                    <p className="text-[10px] text-emerald-600 font-semibold">\u2713 \u0417\u0431\u0435\u0440\u0435\u0436\u0435\u043D\u043E</p>
+                    <p className="text-[10px] text-emerald-600 font-semibold">✓ Збережено</p>
                 )}
                 <div className="flex gap-1.5 pt-0.5">
                     <button
@@ -1043,7 +1045,7 @@ useEffect(() => {
                         disabled={editSaving}
                         className="flex-1 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 text-[10px] font-bold py-1.5 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                     >
-                        \u0421\u043A\u0430\u0441\u0443\u0432\u0430\u0442\u0438
+                        Скасувати
                     </button>
                 </div>
             </div>

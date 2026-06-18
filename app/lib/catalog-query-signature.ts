@@ -8,6 +8,8 @@ export type CatalogQuerySignatureInput = {
   producer: string | null;
   expandHierarchy?: boolean;
   sortOrder: "none" | "asc" | "desc";
+  pricedOnly?: boolean;
+  inStock?: boolean;
 };
 
 export const buildCatalogQuerySignature = ({
@@ -20,6 +22,8 @@ export const buildCatalogQuerySignature = ({
   producer,
   expandHierarchy = false,
   sortOrder,
+  pricedOnly = false,
+  inStock = false,
 }: CatalogQuerySignatureInput) =>
   JSON.stringify({
     q: normalizedSearch,
@@ -31,4 +35,6 @@ export const buildCatalogQuerySignature = ({
     producer,
     hierarchy: expandHierarchy,
     sort: sortOrder,
+    pricedOnly,
+    inStock,
   });

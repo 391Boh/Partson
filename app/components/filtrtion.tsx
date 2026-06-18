@@ -51,6 +51,10 @@ interface FilterSidebarProps {
   onConfirmRequest?: () => void;
   onCancelRequest?: () => void;
   onLayoutChange?: (height?: number) => void;
+  pricedOnly?: boolean;
+  onPricedOnlyChange?: (v: boolean) => void;
+  inStock?: boolean;
+  onInStockChange?: (v: boolean) => void;
 }
 
 interface AutoProps {
@@ -122,6 +126,10 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   onConfirmRequest,
   onCancelRequest,
   onLayoutChange,
+  pricedOnly = false,
+  onPricedOnlyChange,
+  inStock = false,
+  onInStockChange,
 }) => {
   const rootRef = useRef<HTMLElement | null>(null);
   const headerRef = useRef<HTMLDivElement | null>(null);
@@ -280,6 +288,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     Boolean(searchQuery) ||
     Boolean(subcategoryParam || groupParam) ||
     Boolean(producerParam) ||
+    pricedOnly ||
+    inStock ||
     !isSortNone;
   const carLabel = useMemo(() => {
     if (selectedVin) return '';
@@ -426,6 +436,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
 
     onResetSort?.();
     setLocalSortOrder('none');
+    onPricedOnlyChange?.(false);
+    onInStockChange?.(false);
     onSelectedCarSelectionChange?.(null);
     setCategorySearchTerm('');
 
@@ -447,6 +459,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     internalSelectedCars,
     onVinSelect,
     onSelectedCarSelectionChange,
+    onPricedOnlyChange,
+    onInStockChange,
     pathname,
     router,
     searchParamsKey,
@@ -706,6 +720,43 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 })}
               </div>
             </div>
+            {(onPricedOnlyChange || onInStockChange) && (
+              <div>
+                <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  Фільтри
+                </p>
+                <div className="grid gap-2">
+                  {onPricedOnlyChange && (
+                    <button
+                      type="button"
+                      onClick={() => onPricedOnlyChange(!pricedOnly)}
+                      className={`flex w-full items-center justify-between rounded-[10px] px-3 py-2 text-[11px] font-bold transition-all duration-150 ${
+                        pricedOnly
+                          ? 'bg-sky-500 text-white shadow-[0_3px_8px_rgba(14,165,233,0.30)]'
+                          : 'border border-slate-200/70 bg-slate-50/60 text-slate-500 hover:bg-white/70 hover:text-slate-700'
+                      }`}
+                    >
+                      <span>З ціною</span>
+                      <span className={`h-4 w-4 rounded-full border-2 transition-colors ${pricedOnly ? 'border-white bg-white/30' : 'border-slate-300'}`} />
+                    </button>
+                  )}
+                  {onInStockChange && (
+                    <button
+                      type="button"
+                      onClick={() => onInStockChange(!inStock)}
+                      className={`flex w-full items-center justify-between rounded-[10px] px-3 py-2 text-[11px] font-bold transition-all duration-150 ${
+                        inStock
+                          ? 'bg-emerald-500 text-white shadow-[0_3px_8px_rgba(16,185,129,0.30)]'
+                          : 'border border-slate-200/70 bg-slate-50/60 text-slate-500 hover:bg-white/70 hover:text-slate-700'
+                      }`}
+                    >
+                      <span>В наявності</span>
+                      <span className={`h-4 w-4 rounded-full border-2 transition-colors ${inStock ? 'border-white bg-white/30' : 'border-slate-300'}`} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         );
       default:

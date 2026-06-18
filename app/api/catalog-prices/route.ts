@@ -207,7 +207,7 @@ export async function POST(request: Request) {
       const isFullMode = mode === "full";
       const lookupDetailsPromise = isFullMode
         ? fetchCatalogPriceDetailsByLookupKeys(allLookupKeys, {
-            timeoutMs: 1800,
+            timeoutMs: 3000,
             cacheTtlMs: 1000 * 20,
             includePricesPost: true,
           }).catch(() => ({
@@ -220,9 +220,9 @@ export async function POST(request: Request) {
           });
 
       const lookupPricesPromise = fetchPriceEuroMapByLookupKeys(allLookupKeys, {
-        sourceTimeoutMs: isFullMode ? 760 : 520,
+        sourceTimeoutMs: isFullMode ? 2000 : 1800,
         sourceCacheTtlMs: 1000 * 20,
-        timeoutMs: isFullMode ? 760 : 520,
+        timeoutMs: isFullMode ? 2000 : 1800,
         retries: 0,
         retryDelayMs: 80,
         cacheTtlMs: 1000 * 60 * 5,
