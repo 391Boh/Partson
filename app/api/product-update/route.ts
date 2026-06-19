@@ -198,9 +198,14 @@ export async function POST(request: NextRequest) {
   clearProductImageCacheForProduct(code);
 
   const article = typeof value.article === "string" ? value.article.trim() : "";
+  const productCode = typeof value.productCode === "string" ? value.productCode.trim() : "";
   if (article) {
     clearOneCCacheForProduct(article);
     clearProductImageCacheForProduct(article);
+  }
+  if (productCode) {
+    clearOneCCacheForProduct(productCode);
+    clearProductImageCacheForProduct(productCode);
   }
 
   const hasUpdatedPrice =

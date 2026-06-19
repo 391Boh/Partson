@@ -149,6 +149,9 @@ export async function POST(request: NextRequest) {
   }
 
   clearOneCCacheForProduct(code);
+  if (typeof value.productCode === "string" && value.productCode.trim()) {
+    clearOneCCacheForProduct(value.productCode.trim());
+  }
 
   const hasUpdatedPrice =
     (typeof priceEuro === "number" && Number.isFinite(priceEuro) && priceEuro > 0) ||

@@ -3576,6 +3576,7 @@ const Data: React.FC<DataProps> = ({
       });
 
       const tasks: Array<Promise<AdminMutationResult>> = [];
+      const priceArticle = article || code;
 
       if (data.description !== undefined) {
         // getinfo uses НомерПоКаталогу (= article), not internal Код
@@ -3596,7 +3597,12 @@ const Data: React.FC<DataProps> = ({
         data.costPriceEuro !== undefined ||
         data.imageDataUrl
       ) {
-        const productUpdateBody: Record<string, unknown> = { Код: code, article };
+        const productUpdateBody: Record<string, unknown> = {
+          Код: priceArticle,
+          НомерПоКаталогу: priceArticle,
+          article: priceArticle,
+          productCode: code,
+        };
         if (data.priceEuro !== undefined) productUpdateBody["ЦінаПрод"] = data.priceEuro;
         if (data.costPriceEuro !== undefined) productUpdateBody["ЦінаЗакуп"] = data.costPriceEuro;
         if (data.imageDataUrl) {
@@ -3629,8 +3635,8 @@ const Data: React.FC<DataProps> = ({
       );
       if (priceResult) {
         updateCatalogItemPrice({
-          code,
-          Код: priceResult.Код || priceResult.code || code,
+          code: priceResult.code || code,
+          Код: priceResult.Код || priceArticle,
           ЦінаПрод: priceResult.ЦінаПрод,
           ЦінаЗакуп: priceResult.ЦінаЗакуп,
           priceEuro: priceResult.priceEuro,
