@@ -379,13 +379,13 @@ const Header: React.FC = () => {
     Boolean(activeMenu) || showSearchModal || modals.contact || modals.order || modals.auth;
 
   const buttonBaseClass =
-    'font-ui flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-[14px] border border-white/15 bg-gray-700 px-2.5 py-1.5 text-[10px] font-bold tracking-[0.01em] text-slate-50 transition-all whitespace-nowrap hover:border-white/35 hover:bg-gray-600 sm:min-h-0 sm:min-w-0 sm:gap-1.5 sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[14px] cursor-pointer touch-manipulation active:scale-[0.98] select-none';
+    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/14 bg-white/[0.09] text-[10px] font-semibold text-slate-100 shadow-[0_2px_6px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-sm transition-all duration-150 whitespace-nowrap hover:border-white/24 hover:bg-white/[0.14] hover:shadow-[0_4px_10px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.16)] hover:text-white active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.20),inset_0_1px_2px_rgba(0,0,0,0.14)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[13px] touch-manipulation';
 
   const rightActionBaseClass =
-    'font-ui group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-sky-100/30 bg-[image:linear-gradient(145deg,rgba(71,85,105,0.96),rgba(37,78,117,0.94)_54%,rgba(14,116,144,0.92))] text-sky-50 shadow-[0_10px_24px_rgba(15,23,42,0.17),0_0_20px_rgba(56,189,248,0.13),inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur transition-[border-color,background-image,color,box-shadow,filter] duration-200 hover:border-sky-100/65 hover:bg-[image:linear-gradient(145deg,rgba(82,99,124,0.98),rgba(45,91,132,0.96)_54%,rgba(14,135,166,0.94))] hover:text-white hover:shadow-[0_12px_26px_rgba(15,23,42,0.19),0_0_24px_rgba(56,189,248,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-sky-200/55 active:scale-[0.98] sm:h-11 sm:w-auto sm:min-w-[44px] sm:gap-2 sm:rounded-[16px] sm:px-3 sm:text-[13px] sm:font-bold';
+    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/14 bg-white/[0.09] text-[10px] font-semibold text-slate-100 shadow-[0_2px_6px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-sm transition-all duration-150 whitespace-nowrap hover:border-white/24 hover:bg-white/[0.14] hover:shadow-[0_4px_10px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.16)] hover:text-white active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.20),inset_0_1px_2px_rgba(0,0,0,0.14)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-[13px] touch-manipulation';
 
   const rightActionActiveClass =
-    'border-sky-100/78 bg-[image:linear-gradient(145deg,rgba(8,145,178,0.98),rgba(14,165,233,0.96)_52%,rgba(59,130,246,0.92))] text-white shadow-[0_12px_28px_rgba(14,116,144,0.24),0_0_26px_rgba(56,189,248,0.22),inset_0_1px_0_rgba(255,255,255,0.26)]';
+    '!border-white/30 !bg-white/[0.18] !text-white !shadow-[0_2px_8px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.18),inset_0_1px_3px_rgba(0,0,0,0.10)]';
 
   const contactActionClass =
     'border-rose-100/56 bg-[image:linear-gradient(145deg,rgba(190,18,60,0.96),rgba(225,29,72,0.94)_54%,rgba(244,63,94,0.9))] text-rose-50 shadow-[0_10px_24px_rgba(127,29,29,0.18),0_0_20px_rgba(251,113,133,0.15),inset_0_1px_0_rgba(255,255,255,0.20)] hover:border-rose-50/78 hover:bg-[image:linear-gradient(145deg,rgba(225,29,72,0.98),rgba(244,63,94,0.95)_54%,rgba(251,113,133,0.92))] hover:shadow-[0_12px_26px_rgba(127,29,29,0.20),0_0_24px_rgba(251,113,133,0.19),inset_0_1px_0_rgba(255,255,255,0.24)]';
@@ -473,9 +473,7 @@ const Header: React.FC = () => {
                   onFocus={prefetchCatalogRoutes}
                   onTouchStart={prefetchCatalogRoutes}
                   className={`${buttonBaseClass} ${
-                    activeMenu === "menu"
-                      ? 'border-sky-400/80 bg-sky-500/20'
-                      : 'border-white/15'
+                    activeMenu === "menu" ? rightActionActiveClass : ''
                   }`}
                 >
                   <Menu size={16} className="sm:size-4" aria-hidden="true" />
@@ -540,9 +538,7 @@ const Header: React.FC = () => {
                   onFocus={prefetchInfoRoutes}
                   onTouchStart={prefetchInfoRoutes}
                   className={`${buttonBaseClass} ${
-                    activeMenu === "info"
-                      ? 'border-sky-400/80 bg-sky-500/20'
-                      : 'border-white/15'
+                    activeMenu === "info" ? rightActionActiveClass : ''
                   }`}
                 >
                   <Info size={16} className="sm:size-4 " aria-hidden="true" />

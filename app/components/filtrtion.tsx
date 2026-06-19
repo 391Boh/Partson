@@ -813,21 +813,21 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   return (
     <section
       ref={rootRef}
-        className={`w-full select-none overflow-hidden rounded-[18px] border border-slate-200/90 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.95)_0%,rgba(248,250,252,0.90)_48%,rgba(240,249,255,0.88)_100%)] text-slate-800 ring-1 ring-white/80 backdrop-blur-2xl transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out sm:rounded-[20px] ${
+        className={`w-full select-none overflow-hidden rounded-[18px] border border-blue-200/55 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.97)_0%,rgba(239,246,255,0.94)_45%,rgba(238,242,255,0.91)_100%)] text-slate-800 ring-1 ring-indigo-100/70 backdrop-blur-2xl transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out sm:rounded-[20px] ${
         collapsed
-          ? '-translate-y-1 shadow-[0_12px_28px_rgba(15,23,42,0.08)]'
-          : 'translate-y-0 shadow-[0_20px_46px_rgba(15,23,42,0.10)]'
+          ? '-translate-y-1 shadow-[0_4px_16px_rgba(59,130,246,0.07),0_12px_28px_rgba(15,23,42,0.07)]'
+          : 'translate-y-0 shadow-[0_4px_20px_rgba(59,130,246,0.10),0_20px_46px_rgba(15,23,42,0.09)]'
       }`}
     >
       <div
         ref={headerRef}
         onClick={handleHeaderToggle}
-        className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.58)_0%,rgba(241,245,249,0.54)_52%,rgba(224,242,254,0.48)_100%)] px-2 py-2 sm:flex sm:flex-wrap sm:px-4 sm:py-3 ${
-          collapsed ? '' : 'border-b border-slate-200/80'
+        className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-[image:linear-gradient(135deg,rgba(239,246,255,0.72)_0%,rgba(238,242,255,0.62)_52%,rgba(236,254,255,0.55)_100%)] px-2 py-2 sm:flex sm:flex-wrap sm:px-4 sm:py-3 ${
+          collapsed ? '' : 'border-b border-blue-200/50'
         }`}
       >
           <div className="flex shrink-0 items-center gap-2 text-[12px] font-semibold tracking-wide text-slate-700 sm:text-[13px]">
-            <Filter size={16} className="text-slate-600" />
+            <Filter size={16} className="text-blue-500" />
             <span className="hidden sm:inline">Фільтрація</span>
           </div>
           <div className="catalog-filter-mini-bar flex min-w-0 flex-1 items-center justify-center gap-1.5 overflow-x-auto overflow-y-hidden px-0.5 sm:flex-wrap sm:gap-2.5 sm:overflow-visible sm:px-0">

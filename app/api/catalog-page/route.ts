@@ -310,6 +310,7 @@ export async function POST(request: Request) {
       const canUseCompleteAllgoodsCatalog = queryBase.selectedCars.length === 0;
       const shouldUseCursorBackedSource =
         Boolean(queryBase.cursor || queryBase.cursorField) ||
+        Boolean(queryBase.searchQuery) ||
         queryBase.pricedOnly ||
         queryBase.priceFrom !== null ||
         queryBase.priceTo !== null ||

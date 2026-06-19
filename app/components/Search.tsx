@@ -63,10 +63,10 @@ const SuggestionImage: React.FC<{ code: string; article: string; name: string; h
   const showPlaceholder = hasPhoto === false || failed || !imgSrc;
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg border border-sky-100/55 bg-gradient-to-br from-white via-sky-50 to-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.86)]">
+    <div className="relative h-full w-full overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-slate-800 to-slate-700">
       {showPlaceholder ? (
         <div className="flex h-full w-full items-center justify-center">
-          <ImageOff size={14} className="text-slate-400" strokeWidth={1.6} />
+          <ImageOff size={14} className="text-slate-500" strokeWidth={1.6} />
         </div>
       ) : (
         <Image
@@ -230,28 +230,17 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           return;
         }
 
-        if (effectiveFilter === "all" || effectiveFilter === "name") {
-          // Рівень 2: артикул — тільки для однослівних запитів (без пробілів)
-          if (!trimmed.includes(" ")) {
-            const articleQ = sanitizeArticleQuery(trimmed);
-            if (articleQ.length >= 2 && articleQ !== trimmed) {
-              const articleResults = await fetchSuggestionsFromApi(articleQ, "name", controller.signal);
-              if (controller.signal.aborted) return;
-              if (articleResults.length > 0) {
-                setSuggestions(articleResults);
-                setSuggestionsFallback({ query: articleQ, filter: "name" });
-                return;
-              }
+        // Рівень 2: артикул (транслітерація кирилиці) — тільки для однослівних запитів
+        if ((effectiveFilter === "all" || effectiveFilter === "name") && !trimmed.includes(" ")) {
+          const articleQ = sanitizeArticleQuery(trimmed);
+          if (articleQ.length >= 2 && articleQ !== trimmed) {
+            const articleResults = await fetchSuggestionsFromApi(articleQ, "name", controller.signal);
+            if (controller.signal.aborted) return;
+            if (articleResults.length > 0) {
+              setSuggestions(articleResults);
+              setSuggestionsFallback({ query: articleQ, filter: "name" });
+              return;
             }
-          }
-
-          // Рівень 3: опис
-          const descResults = await fetchSuggestionsFromApi(trimmed, "description", controller.signal);
-          if (controller.signal.aborted) return;
-          if (descResults.length > 0) {
-            setSuggestions(descResults);
-            setSuggestionsFallback({ query: trimmed, filter: "description" });
-            return;
           }
         }
 
@@ -328,6 +317,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     setHistory([]);
   };
 
+  const dropdownClass =
+    'absolute left-0 right-0 z-50 mt-3.5 overflow-hidden rounded-[18px] border border-white/10 bg-[rgba(11,17,32,0.95)] shadow-[0_24px_52px_rgba(2,6,23,0.55),0_8px_20px_rgba(2,6,23,0.30),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl animate-fadeIn sm:left-1/2 sm:right-auto sm:w-[480px] sm:-translate-x-1/2';
+
   return (
     <div
       ref={wrapperRef}
@@ -336,12 +328,16 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     >
 
       {/* --- SEARCH BAR --- */}
-      <div className="font-ui flex w-full items-center overflow-hidden rounded-[16px] border border-sky-100/28 bg-[image:linear-gradient(145deg,rgba(71,85,105,0.96),rgba(37,78,117,0.94)_54%,rgba(14,116,144,0.92))] shadow-[0_10px_24px_rgba(15,23,42,0.16),0_0_18px_rgba(56,189,248,0.10),inset_0_1px_0_rgba(255,255,255,0.16)] transition-[border-color,box-shadow] duration-200 hover:border-sky-100/44 hover:shadow-[0_12px_28px_rgba(15,23,42,0.18),0_0_22px_rgba(56,189,248,0.14),inset_0_1px_0_rgba(255,255,255,0.2)] focus-within:border-sky-100/70 focus-within:shadow-[0_12px_30px_rgba(15,23,42,0.18),0_0_24px_rgba(56,189,248,0.18),inset_0_1px_0_rgba(255,255,255,0.24)]">
+      <div className={`font-ui flex w-full items-center overflow-hidden rounded-[16px] border transition-[border-color,box-shadow] duration-200 ${
+        showDropdown
+          ? 'border-sky-100/70 bg-[image:linear-gradient(145deg,rgba(71,85,105,0.96),rgba(37,78,117,0.94)_54%,rgba(14,116,144,0.92))] shadow-[0_4px_14px_rgba(0,0,0,0.30),0_0_24px_rgba(56,189,248,0.18),inset_0_1px_0_rgba(255,255,255,0.24)]'
+          : 'border-white/14 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.07)_0%,rgba(59,130,246,0.11)_60%,rgba(99,102,241,0.09)_100%)] shadow-[0_2px_6px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] hover:border-white/24 hover:bg-[image:linear-gradient(145deg,rgba(255,255,255,0.10)_0%,rgba(59,130,246,0.15)_60%,rgba(99,102,241,0.12)_100%)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.16)]'
+      }`}>
 
         <input
           type="text"
           placeholder="Пошук..."
-          className="font-ui w-full bg-transparent px-3 py-2 text-base font-semibold tracking-normal text-sky-50 outline-none placeholder:font-medium placeholder:text-sky-100/58 sm:text-sm"
+          className="font-ui w-full bg-transparent px-3 py-2 text-base font-semibold tracking-normal text-slate-100 outline-none placeholder:font-medium placeholder:text-slate-100/40 sm:text-sm"
           value={searchQuery}
           onChange={(e) => {
             prefetchCatalog();
@@ -359,7 +355,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         {searchQuery && (
           <button
             type="button"
-            className="px-2 text-sky-100/62 transition hover:text-white cursor-pointer"
+            className="px-2 text-slate-400 transition hover:text-white cursor-pointer"
             onClick={() => setSearchQuery("")}
             aria-label="Очистити поле пошуку"
           >
@@ -369,9 +365,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
 
         <select
           aria-label="Фільтр пошуку"
-          className="font-ui h-9 border-l border-sky-100/18 bg-slate-900/18 px-2 py-2 text-base font-semibold tracking-normal text-sky-50 outline-none transition hover:bg-white/8 sm:text-sm"
+          className="font-ui h-9 border-l border-white/10 bg-transparent px-2 py-2 text-base font-semibold tracking-normal text-slate-100 outline-none transition hover:bg-white/8 sm:text-sm"
           value={filterBy}
-          onFocus={prefetchCatalog}
+          onFocus={() => { prefetchCatalog(); setShowDropdown(true); }}
           onChange={(e) => {
             prefetchCatalog();
             setFilterBy(e.target.value as SearchFilter);
@@ -388,39 +384,39 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         <button
           type="submit"
           aria-label="Знайти"
-          className="flex items-center justify-center bg-[image:linear-gradient(145deg,rgba(225,29,72,0.98),rgba(244,63,94,0.95)_54%,rgba(251,113,133,0.92))] px-3 py-2 text-white shadow-[0_10px_20px_rgba(190,18,60,0.24),0_0_18px_rgba(251,113,133,0.15),inset_0_1px_0_rgba(255,255,255,0.24)] transition-[filter,box-shadow] duration-200 ease-out hover:brightness-105 hover:shadow-[0_12px_24px_rgba(190,18,60,0.26),0_0_22px_rgba(251,113,133,0.2),inset_0_1px_0_rgba(255,255,255,0.28)] active:scale-[0.97] cursor-pointer"
+          className="flex items-center justify-center bg-[image:linear-gradient(145deg,rgba(225,29,72,0.98),rgba(244,63,94,0.95)_54%,rgba(251,113,133,0.92))] px-3 py-2 text-white transition-[filter,box-shadow] duration-200 ease-out hover:brightness-105 active:scale-[0.97] cursor-pointer"
           onClick={() => handleSearch()}
         >
-          <Search size={20} className="text-white drop-shadow-[0_0_6px_rgba(0,0,0,0.35)]" />
+          <Search size={20} className="text-white" />
         </button>
       </div>
 
       {/* --- SUGGESTIONS DROPDOWN (3+ chars) --- */}
       {showDropdown && searchQuery.trim().length >= SUGGESTION_MIN_CHARS && (
-        <div className="absolute left-0 right-0 z-50 mt-3 overflow-hidden rounded-[18px] border border-sky-100/70 bg-white/96 shadow-[0_22px_48px_rgba(15,23,42,0.20),0_8px_20px_rgba(14,116,144,0.10),inset_0_1px_0_rgba(255,255,255,0.88)] backdrop-blur-xl animate-fadeIn sm:left-1/2 sm:right-auto sm:w-[480px] sm:-translate-x-1/2">
+        <div className={dropdownClass}>
 
           {/* header */}
-          <div className="flex items-center justify-between border-b border-sky-100/70 bg-sky-50/70 px-3 py-2 sm:px-3.5">
-            <span className="font-display flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">
-              <Search size={11} className="text-sky-600" strokeWidth={2.5} />
+          <div className="flex items-center justify-between border-b border-white/8 bg-white/[0.04] px-3.5 py-2.5">
+            <span className="font-display flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-400">
+              <Search size={11} className="text-sky-400" strokeWidth={2.5} />
               {suggestionsFallback?.filter === "description"
-                ? <span className="text-violet-700 normal-case tracking-normal">Результат за описом</span>
+                ? <span className="text-violet-400 normal-case tracking-normal">Результат за описом</span>
                 : suggestionsFallback?.filter === "name"
-                ? <span>Артикул: <span className="font-mono text-amber-700 normal-case tracking-normal">{suggestionsFallback.query}</span></span>
+                ? <span>Артикул: <span className="font-mono text-amber-400 normal-case tracking-normal">{suggestionsFallback.query}</span></span>
                 : "Швидкий пошук"
               }
             </span>
             {suggestionsLoading ? (
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-100 border-t-sky-500" />
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-600 border-t-sky-400" />
             ) : (
-              <span className="text-[11px] text-slate-400">{suggestions.length > 0 ? `${suggestions.length} з 5` : ""}</span>
+              <span className="text-[11px] text-slate-500">{suggestions.length > 0 ? `${suggestions.length} з 5` : ""}</span>
             )}
           </div>
 
           {/* empty state */}
           {!suggestionsLoading && suggestions.length === 0 && (
-            <div className="flex flex-col items-center gap-1 px-4 py-5 text-center">
-              <Search size={20} className="text-slate-300" strokeWidth={1.5} />
+            <div className="flex flex-col items-center gap-1 px-4 py-6 text-center">
+              <Search size={20} className="text-slate-600" strokeWidth={1.5} />
               <span className="text-sm text-slate-500">Нічого не знайдено</span>
             </div>
           )}
@@ -433,7 +429,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
             return (
               <button
                 key={product.code}
-                className={`font-ui flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors duration-100 hover:bg-sky-50/78 active:bg-sky-100/70 cursor-pointer sm:gap-3 sm:px-3.5 sm:py-2.5 ${idx < suggestions.length - 1 ? "border-b border-slate-100" : ""}`}
+                className={`font-ui flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors duration-100 hover:bg-white/[0.06] active:bg-white/[0.09] cursor-pointer sm:gap-3 sm:px-3.5 ${idx < suggestions.length - 1 ? "border-b border-white/[0.06]" : ""}`}
                 onClick={() => {
                   router.push(`/product/${encodeURIComponent(product.code)}`);
                   setShowDropdown(false);
@@ -441,35 +437,35 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
                   onSearch(product.name, "name");
                 }}
               >
-                <div className="w-10 h-10 sm:w-11 sm:h-11 flex-shrink-0">
+                <div className="h-10 w-10 flex-shrink-0 sm:h-11 sm:w-11">
                   <SuggestionImage code={product.code} article={product.article} name={product.name} hasPhoto={product.hasPhoto} />
                 </div>
 
                 {/* center: name + meta */}
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[12.5px] font-semibold leading-snug text-slate-900 sm:text-[13px]">{product.name}</div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
+                  <div className="truncate text-[12.5px] font-semibold leading-snug text-slate-100 sm:text-[13px]">{product.name.replace(/\s*\(.*?\)\s*/g, " ").trim()}</div>
+                  <div className="mt-0.5 flex items-center gap-1.5">
                     {product.article && (
-                      <span className="rounded-md bg-slate-100 px-1.5 py-px font-mono text-[10.5px] text-slate-500 sm:text-[11px]">{product.article}</span>
+                      <span className="rounded-md bg-white/[0.08] px-1.5 py-px font-mono text-[10.5px] text-slate-400 sm:text-[11px]">{product.article}</span>
                     )}
                     {product.producer && (
-                      <span className="max-w-[90px] truncate text-[10.5px] text-sky-700/80 sm:max-w-[130px] sm:text-[11px]">{product.producer}</span>
+                      <span className="max-w-[90px] truncate text-[10.5px] text-sky-400/80 sm:max-w-[130px] sm:text-[11px]">{product.producer}</span>
                     )}
                   </div>
                 </div>
 
                 {/* right: price + stock */}
-                <div className="flex-shrink-0 text-right flex flex-col items-end gap-1 min-w-[64px] sm:min-w-[72px]">
+                <div className="flex min-w-[64px] flex-shrink-0 flex-col items-end gap-1 text-right sm:min-w-[72px]">
                   {priceStr ? (
-                    <span className="whitespace-nowrap text-[12px] font-bold leading-none tracking-tight text-emerald-600 sm:text-[13px]">{priceStr}</span>
+                    <span className="whitespace-nowrap text-[12px] font-bold leading-none tracking-tight text-emerald-400 sm:text-[13px]">{priceStr}</span>
                   ) : (
-                    <span className="text-[11px] leading-none text-slate-300">—</span>
+                    <span className="text-[11px] leading-none text-slate-600">—</span>
                   )}
-                  <span className={`flex items-center gap-0.5 text-[10px] font-semibold leading-none whitespace-nowrap ${inStock ? "text-emerald-600/80" : "text-red-500/75"}`}>
+                  <span className={`flex items-center gap-0.5 whitespace-nowrap text-[10px] font-semibold leading-none ${inStock ? "text-emerald-400/80" : "text-red-400/75"}`}>
                     {inStock ? (
-                      <><PackageCheck size={10} strokeWidth={2.5} /><span className="hidden xs:inline sm:inline">В наявн.</span></>
+                      <><PackageCheck size={10} strokeWidth={2.5} /><span className="hidden sm:inline">В наявн.</span></>
                     ) : (
-                      <><PackageX size={10} strokeWidth={2.5} /><span className="hidden xs:inline sm:inline">Немає</span></>
+                      <><PackageX size={10} strokeWidth={2.5} /><span className="hidden sm:inline">Немає</span></>
                     )}
                   </span>
                 </div>
@@ -479,7 +475,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
 
           {/* show all */}
           <button
-            className="font-ui flex w-full items-center justify-center gap-2 border-t border-sky-100/70 bg-sky-50/50 px-3.5 py-2.5 text-[12.5px] font-semibold text-sky-700 transition-colors hover:bg-sky-100/70 hover:text-sky-800 cursor-pointer"
+            className="font-ui flex w-full items-center justify-center gap-2 border-t border-white/8 bg-white/[0.03] px-3.5 py-2.5 text-[12.5px] font-semibold text-sky-400 transition-colors hover:bg-white/[0.07] hover:text-sky-300 cursor-pointer"
             onClick={() => handleSearch()}
           >
             <Search size={13} strokeWidth={2.5} />
@@ -491,11 +487,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
 
       {/* --- DROPDOWN HISTORY (shown only when < 3 chars) --- */}
       {showDropdown && searchQuery.trim().length < SUGGESTION_MIN_CHARS && history.length > 0 && (
-        <div className="absolute left-0 right-0 z-50 mt-2 max-h-64 overflow-y-auto overflow-x-hidden rounded-[18px] border border-sky-100/70 bg-white/96 shadow-[0_18px_38px_rgba(15,23,42,0.18),0_8px_18px_rgba(14,116,144,0.08),inset_0_1px_0_rgba(255,255,255,0.88)] backdrop-blur-xl animate-fadeIn">
+        <div className={`${dropdownClass} max-h-72 overflow-y-auto`}>
 
-          <div className="font-display flex items-center justify-between border-b border-sky-100/70 bg-sky-50/75 px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
+          <div className="font-display flex items-center justify-between border-b border-white/8 bg-white/[0.04] px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
             <span>Історія пошуку</span>
-            <button className="text-rose-500 transition hover:text-rose-600 cursor-pointer" onClick={clearHistory} aria-label="Очистити історію">
+            <button className="text-rose-400 transition hover:text-rose-300 cursor-pointer" onClick={clearHistory} aria-label="Очистити історію">
               <XCircle size={16} />
             </button>
           </div>
@@ -503,10 +499,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           {history.map((item) => (
             <button
               key={item}
-              className="font-ui flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold tracking-normal text-slate-700 transition hover:bg-sky-50/80 cursor-pointer"
+              className="font-ui flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-semibold tracking-normal text-slate-200 transition-colors hover:bg-white/[0.06] cursor-pointer"
               onClick={() => handleSearch(item)}
             >
-              <Clock size={14} className="text-sky-600" />
+              <Clock size={14} className="shrink-0 text-sky-400" />
               {item}
             </button>
           ))}

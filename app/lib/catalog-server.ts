@@ -1602,22 +1602,19 @@ export const fetchCatalogProductsByQuery = async (options: {
         }
       }
 
-      // Name / article / code searches all returned nothing.
-      // For "all" filter, try description as the final fallback (client-side
-      // scoring against the description text, since allgoods has no server-side
-      // description search parameter).
-      if (searchQuery && searchFilter !== "description") {
-        allgoodsBaseBody[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = true;
-        const descResult = await runAllgoodsDescriptionSearch();
-        return { ...descResult, cursorField: null };
-      }
-
-      // No results in any allgoods pass — return empty rather than falling
-      // through to getdata, which may return unfiltered products when the 1C
-      // backend does not recognise the search field.
+      // No results in any allgoods pass — return empty.
+      // Description fallback is intentionally disabled: it matches too broadly
+      // and shows the entire catalog when no specific results are found.
+      // Description search is only available via explicit filter="description".
       return { items: [], hasMore: false, nextCursor: "", cursorField: null };
-    } catch {
-      // Fall back to the legacy getdata integration below.
+    } catch (err) {
+      if (searchQuery) {
+        // For text searches, never fall through to legacy getdata.
+        // getdata ignores unknown search fields and returns the full catalog.
+        return { items: [], hasMore: false, nextCursor: "", cursorField: null };
+      }
+      // No search query — safe to fall back to legacy getdata for browsing.
+      void err;
     }
   }
 
