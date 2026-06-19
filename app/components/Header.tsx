@@ -382,10 +382,10 @@ const Header: React.FC = () => {
     'font-ui flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-[14px] border border-white/15 bg-gray-700 px-2.5 py-1.5 text-[10px] font-bold tracking-[0.01em] text-slate-50 transition-all whitespace-nowrap hover:border-white/35 hover:bg-gray-600 sm:min-h-0 sm:min-w-0 sm:gap-1.5 sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[14px] cursor-pointer touch-manipulation active:scale-[0.98] select-none';
 
   const rightActionBaseClass =
-    'font-ui group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-white/55 bg-white/88 text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.14),inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur transition-all hover:-translate-y-0.5 hover:border-sky-200 hover:bg-white hover:text-sky-700 hover:shadow-[0_14px_30px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-sky-200/80 active:translate-y-0 active:scale-[0.98] sm:h-11 sm:w-auto sm:min-w-[44px] sm:gap-2 sm:rounded-[16px] sm:px-3 sm:text-[13px] sm:font-bold';
+    'font-ui group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-sky-100/22 bg-[image:linear-gradient(145deg,rgba(51,65,85,0.96),rgba(30,58,89,0.94)_54%,rgba(8,79,112,0.92))] text-sky-50 shadow-[0_10px_24px_rgba(15,23,42,0.18),0_0_18px_rgba(14,165,233,0.10),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur transition-[border-color,background-image,color,box-shadow,filter] duration-200 hover:border-sky-200/55 hover:bg-[image:linear-gradient(145deg,rgba(59,77,101,0.98),rgba(37,75,113,0.96)_54%,rgba(14,96,135,0.94))] hover:text-white hover:shadow-[0_12px_26px_rgba(15,23,42,0.20),0_0_22px_rgba(56,189,248,0.14),inset_0_1px_0_rgba(255,255,255,0.18)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-sky-200/50 active:scale-[0.98] sm:h-11 sm:w-auto sm:min-w-[44px] sm:gap-2 sm:rounded-[16px] sm:px-3 sm:text-[13px] sm:font-bold';
 
   const rightActionActiveClass =
-    'border-sky-300 bg-sky-50 text-sky-800 shadow-[0_14px_30px_rgba(14,165,233,0.18),inset_0_1px_0_rgba(255,255,255,0.92)]';
+    'border-sky-200/70 bg-[image:linear-gradient(145deg,rgba(14,116,144,0.98),rgba(2,132,199,0.96)_52%,rgba(37,99,235,0.92))] text-white shadow-[0_12px_28px_rgba(14,116,144,0.24),0_0_24px_rgba(56,189,248,0.18),inset_0_1px_0_rgba(255,255,255,0.22)]';
 
 
   const dropdownBaseClass =
@@ -640,7 +640,7 @@ const Header: React.FC = () => {
             }}
             className={`${rightActionBaseClass} ${
               modals.contact
-                ? 'border-rose-300 bg-rose-50 text-rose-700 shadow-[0_14px_30px_rgba(244,63,94,0.16),inset_0_1px_0_rgba(255,255,255,0.92)]'
+                ? 'border-rose-200/70 bg-[image:linear-gradient(145deg,rgba(190,18,60,0.96),rgba(225,29,72,0.93)_54%,rgba(244,63,94,0.9))] text-white shadow-[0_12px_28px_rgba(190,18,60,0.22),0_0_22px_rgba(251,113,133,0.16),inset_0_1px_0_rgba(255,255,255,0.20)]'
                 : ''
             }`}
           >
