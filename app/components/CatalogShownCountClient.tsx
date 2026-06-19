@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 type CatalogShownCountClientProps = {
   className?: string;
   initialCount: number;
+  eventName?: "visible" | "filtered" | "none";
 };
 
 const formatCatalogCount = (count: number) => count.toLocaleString("uk-UA");
@@ -26,6 +27,7 @@ const formatShownCount = (count: number) =>
 export default function CatalogShownCountClient({
   className,
   initialCount,
+  eventName = "visible",
 }: CatalogShownCountClientProps) {
   const [count, setCount] = useState(initialCount);
 
@@ -34,17 +36,24 @@ export default function CatalogShownCountClient({
   }, [initialCount]);
 
   useEffect(() => {
+    if (eventName === "none") return;
+
     const handleCountChange = (event: Event) => {
       const detail = (event as CustomEvent<{ count?: number }>).detail;
       if (typeof detail?.count !== "number" || !Number.isFinite(detail.count)) return;
       setCount(detail.count);
     };
 
-    window.addEventListener("partson:catalog-visible-count", handleCountChange);
+    const eventType =
+      eventName === "filtered"
+        ? "partson:catalog-filter-total-count"
+        : "partson:catalog-visible-count";
+
+    window.addEventListener(eventType, handleCountChange);
     return () => {
-      window.removeEventListener("partson:catalog-visible-count", handleCountChange);
+      window.removeEventListener(eventType, handleCountChange);
     };
-  }, []);
+  }, [eventName]);
 
   return <span className={className}>{formatShownCount(count)}</span>;
 }

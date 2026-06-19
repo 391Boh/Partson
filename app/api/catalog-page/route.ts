@@ -297,6 +297,7 @@ export async function POST(request: Request) {
         hasMore: result.hasMore,
         nextCursor: result.nextCursor,
         cursorField: result.cursorField || "",
+        totalCount: result.totalCount ?? null,
       };
     };
 

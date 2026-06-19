@@ -25,6 +25,7 @@ export interface CatalogQueryPageResult {
   hasMore: boolean;
   nextCursor: string;
   cursorField?: string | null;
+  totalCount?: number | null;
 }
 
 export type CatalogSearchFilter =
@@ -319,6 +320,8 @@ const parseAllgoodsPayload = (payload: string) => {
   try {
     const parsed = JSON.parse(payload) as Record<string, unknown>;
     const records = Array.isArray(parsed?.items) ? parsed.items : [];
+    const rawCount = Number(parsed?.count ?? parsed?.totalCount ?? parsed?.total_count);
+    const totalCount = Number.isFinite(rawCount) && rawCount >= 0 ? Math.floor(rawCount) : null;
     const nextCursor = [
       parsed?.next_cursor,
       parsed?.nextCursor,
@@ -338,12 +341,14 @@ const parseAllgoodsPayload = (payload: string) => {
       items: records.map(normalizeProduct),
       hasMore,
       nextCursor: typeof nextCursor === "string" ? nextCursor.trim() : "",
+      totalCount,
     };
   } catch {
     return {
       items: parseItemsFromText(payload),
       hasMore: false,
       nextCursor: "",
+      totalCount: null,
     };
   }
 };
@@ -643,6 +648,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       hasMore,
       nextCursor: hasMore && requestLimit < 100 ? resolvedCursor : "",
       cursorField: null,
+      totalCount: parsed.totalCount,
     };
   }
 
@@ -660,6 +666,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       items: items.slice(0, limit),
       hasMore: parsed.hasMore || hasMoreFromWindow || Boolean(resolvedCursor),
       nextCursor: resolvedCursor,
+      totalCount: parsed.totalCount,
     };
   }
 
@@ -686,6 +693,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
           hasMoreFromWindow ||
           Boolean(resolvedCursor && parsed.items.length >= limit),
         nextCursor: resolvedCursor,
+        totalCount: parsed.totalCount,
       };
     }
 
@@ -694,6 +702,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
         items: [] as CatalogProduct[],
         hasMore: false,
         nextCursor: "",
+        totalCount: parsed.totalCount,
       };
     }
 
@@ -704,6 +713,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     items: [] as CatalogProduct[],
     hasMore: false,
     nextCursor: "",
+    totalCount: null,
   };
 };
 

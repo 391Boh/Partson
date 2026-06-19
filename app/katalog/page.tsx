@@ -64,6 +64,7 @@ type InitialCatalogPagePayload = {
   hasMore: boolean;
   nextCursor: string;
   cursorField?: string;
+  totalCount?: number | null;
   serviceUnavailable?: boolean;
   message?: string;
 };
@@ -166,6 +167,7 @@ const fetchCatalogSeoSnapshotPayload = async (
     hasMore: result.hasMore,
     nextCursor: result.nextCursor,
     cursorField: result.cursorField || "",
+    totalCount: result.totalCount ?? null,
   };
 };
 
@@ -708,7 +710,8 @@ const CatalogSeoSnapshot = ({
   const visibleItems = items.filter((item) => item.code && item.name);
   const visibleItemsCount = visibleItems.length;
   const isSearchState = Boolean(state.searchQuery);
-  const hasExactCount = typeof totalCount === "number" && totalCount > 0;
+  const hasExactCount = typeof totalCount === "number" && totalCount >= 0;
+  const initialFilteredCount = hasExactCount ? totalCount : visibleItemsCount;
   const listCountLabel =
     visibleItemsCount > 0
       ? `${formatCatalogCount(visibleItemsCount)} ${getCatalogProductWord(visibleItemsCount)}`
@@ -763,6 +766,13 @@ const CatalogSeoSnapshot = ({
   const showDiscovery = topGroups.length > 0 || topProducers.length > 0;
   const renderShownCount = (className = "text-slate-950") => (
     <CatalogShownCountClient initialCount={visibleItemsCount} className={className} />
+  );
+  const renderFilteredCount = (className = "text-slate-950") => (
+    <CatalogShownCountClient
+      initialCount={initialFilteredCount}
+      className={className}
+      eventName="filtered"
+    />
   );
   const renderSearchTotalCount = (className = "text-slate-950") => (
     <CatalogSearchTotalCountClient
@@ -839,7 +849,7 @@ const CatalogSeoSnapshot = ({
                 ? totalCountLabel
                 : isSearchState
                   ? renderSearchTotalCount()
-                  : renderShownCount()}
+                  : renderFilteredCount()}
             </p>
             <p className="mt-2 text-[11px] font-semibold leading-4 text-slate-500">
               {countCaption}
@@ -1076,7 +1086,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         state={state}
         items={initialPagePayload?.items ?? []}
         hasMore={initialPagePayload?.hasMore}
-        totalCount={seoTotalCount}
+        totalCount={seoTotalCount ?? initialPagePayload?.totalCount ?? null}
         topGroups={catalogNavigationGroups}
         topProducers={topProducers}
       />

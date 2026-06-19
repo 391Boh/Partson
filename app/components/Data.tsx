@@ -639,6 +639,7 @@ type CatalogPagePayload = {
   hasMore?: boolean;
   nextCursor?: string;
   cursorField?: string;
+  totalCount?: number | null;
   serviceUnavailable?: boolean;
   message?: string;
 };
@@ -1026,6 +1027,10 @@ const readPageFromSession = (key: string): CatalogPagePayload | null => {
       ),
       nextCursor: normalizePageCursor(record?.nextCursor),
       cursorField: normalizePageCursor(record?.cursorField),
+      totalCount:
+        typeof record?.totalCount === "number" && Number.isFinite(record.totalCount)
+          ? Math.max(0, Math.floor(record.totalCount))
+          : null,
     };
   } catch {
     return null;
@@ -1053,6 +1058,7 @@ const writePageToSession = (
             : payload.items.length === ITEMS_PER_PAGE,
         nextCursor: payload.nextCursor ?? "",
         cursorField: payload.cursorField ?? "",
+        totalCount: payload.totalCount ?? null,
         t: nowTs,
         expiresAt,
       })
@@ -1168,6 +1174,7 @@ function useCatalogData(params: {
   const [filterLoading, setFilterLoading] = useState(false);
   const [isLoadingNextPage, setIsLoadingNextPage] = useState(false);
   const [firstPageResolvedItemCount, setFirstPageResolvedItemCount] = useState(0);
+  const [catalogTotalCount, setCatalogTotalCount] = useState<number | null>(null);
   const isRefetching = loading && page === 1;
   const querySignature = useMemo(
     () =>
@@ -2237,6 +2244,7 @@ function useCatalogData(params: {
           hasMore?: boolean;
           nextCursor?: string;
           cursorField?: string;
+          totalCount?: number | null;
           serviceUnavailable?: boolean;
           message?: string;
         };
@@ -2267,6 +2275,10 @@ function useCatalogData(params: {
             typeof raw?.cursorField === "string" && raw.cursorField.trim()
               ? raw.cursorField.trim()
               : undefined,
+          totalCount:
+            typeof raw?.totalCount === "number" && Number.isFinite(raw.totalCount)
+              ? Math.max(0, Math.floor(raw.totalCount))
+              : null,
           serviceUnavailable: raw?.serviceUnavailable === true,
           message:
             typeof raw?.message === "string" && raw.message.trim()
@@ -2416,6 +2428,7 @@ function useCatalogData(params: {
         dataRef.current = nextItems;
         setData(nextItems);
         setFirstPageResolvedItemCount(memoryHit.items.length);
+        setCatalogTotalCount(memoryHit.totalCount ?? null);
         nextCursorByPageRef.current[2] = memoryHit.nextCursor || "";
         nextCursorFieldByPageRef.current[2] = memoryHit.cursorField || "";
         setHasMore(
@@ -2462,6 +2475,7 @@ function useCatalogData(params: {
         dataRef.current = nextItems;
         setData(nextItems);
         setFirstPageResolvedItemCount(sessionHit.items.length);
+        setCatalogTotalCount(sessionHit.totalCount ?? null);
         nextCursorByPageRef.current[2] = sessionHit.nextCursor || "";
         nextCursorFieldByPageRef.current[2] = sessionHit.cursorField || "";
         setHasMore(
@@ -2490,6 +2504,7 @@ function useCatalogData(params: {
       // No immediate cache hit for this filter/query, so clear stale products first.
       dataRef.current = [];
       setData([]);
+      setCatalogTotalCount(null);
       setLoading(true);
       setFilterLoading(true);
       return;
@@ -2497,6 +2512,7 @@ function useCatalogData(params: {
 
     dataRef.current = [];
     setData([]);
+    setCatalogTotalCount(null);
     setLoading(true);
     setFilterLoading(true);
     // Без cache показуємо чистий стан, щоб не змішувати товари старого та нового фільтра.
@@ -2603,6 +2619,11 @@ function useCatalogData(params: {
       setData(nextData);
       if (page === 1) {
         setFirstPageResolvedItemCount(items.length);
+        setCatalogTotalCount(
+          typeof payload.totalCount === "number" && Number.isFinite(payload.totalCount)
+            ? payload.totalCount
+            : null
+        );
       }
       if (payload.nextCursor) {
         nextCursorByPageRef.current[page + 1] = payload.nextCursor;
@@ -3418,6 +3439,7 @@ function useCatalogData(params: {
     filterLoading,
     setFilterLoading,
     updateCatalogItemPrice,
+    catalogTotalCount,
   };
 }
 
@@ -3524,6 +3546,7 @@ const Data: React.FC<DataProps> = ({
     filterLoading,
     setFilterLoading,
     updateCatalogItemPrice,
+    catalogTotalCount,
   } = useCatalogData({
     selectedCars,
     selectedCategories,
@@ -3805,15 +3828,22 @@ const Data: React.FC<DataProps> = ({
     const win = window as Window & {
       __partsonCatalogVisibleCount?: number;
       __partsonCatalogVisibleSignature?: string;
+      __partsonCatalogTotalCount?: number | null;
     };
     win.__partsonCatalogVisibleCount = visibleSortedData.length;
     win.__partsonCatalogVisibleSignature = filterSignature;
+    win.__partsonCatalogTotalCount = catalogTotalCount;
     window.dispatchEvent(
       new CustomEvent("partson:catalog-visible-count", {
         detail: { count: visibleSortedData.length, signature: filterSignature },
       })
     );
-  }, [filterSignature, visibleSortedData.length]);
+    window.dispatchEvent(
+      new CustomEvent("partson:catalog-filter-total-count", {
+        detail: { count: catalogTotalCount, signature: filterSignature },
+      })
+    );
+  }, [catalogTotalCount, filterSignature, visibleSortedData.length]);
 
   const visibleSortedEntries = useMemo(() => {
     if (visibleSortedData === sortedData) {
