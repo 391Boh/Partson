@@ -150,12 +150,19 @@ export async function POST(request: NextRequest) {
 
   clearOneCCacheForProduct(code);
 
+  const hasUpdatedPrice =
+    (typeof priceEuro === "number" && Number.isFinite(priceEuro) && priceEuro > 0) ||
+    (typeof costPriceEuro === "number" && Number.isFinite(costPriceEuro) && costPriceEuro > 0);
+
   return json({
     ok: true,
     code,
+    Код: code,
     endpoint: ONEC_PRICE_ADMIN_ENDPOINT,
     updatedBy: adminEmail,
-    ...(priceEuro !== undefined ? { priceEuro } : {}),
-    ...(costPriceEuro !== undefined ? { costPriceEuro } : {}),
+    ...(priceEuro !== undefined ? { priceEuro, "ЦінаПрод": priceEuro } : {}),
+    ...(costPriceEuro !== undefined ? { costPriceEuro, "ЦінаЗакуп": costPriceEuro } : {}),
+    hasPrice: hasUpdatedPrice,
+    "ЕстьЦена": hasUpdatedPrice,
   });
 }

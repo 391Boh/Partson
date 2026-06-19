@@ -3316,6 +3316,77 @@ function useCatalogData(params: {
     return () => window.clearInterval(timerId);
   }, [fetchCatalogPagePrices, shouldAllowCatalogDirectPriceLookup]);
 
+  const updateCatalogItemPrice = useCallback(
+    (payload: {
+      code?: string;
+      Код?: string;
+      priceEuro?: number;
+      costPriceEuro?: number;
+      ЦінаПрод?: number;
+      ЦінаЗакуп?: number;
+    }) => {
+      const payloadCode = normalizePriceKey(payload.Код || payload.code);
+      if (!payloadCode) return;
+
+      const nextPrice =
+        payload.ЦінаПрод !== undefined
+          ? Number(payload.ЦінаПрод)
+          : payload.priceEuro !== undefined
+            ? Number(payload.priceEuro)
+            : undefined;
+      const nextCostPrice =
+        payload.ЦінаЗакуп !== undefined
+          ? Number(payload.ЦінаЗакуп)
+          : payload.costPriceEuro !== undefined
+            ? Number(payload.costPriceEuro)
+            : undefined;
+      const hasPrice =
+        (typeof nextPrice === "number" && Number.isFinite(nextPrice) && nextPrice > 0) ||
+        (typeof nextCostPrice === "number" && Number.isFinite(nextCostPrice) && nextCostPrice > 0);
+
+      setData((prev) =>
+        prev.map((item) => {
+          const keys = getProductPriceLookupKeys(item);
+          if (!keys.includes(payloadCode)) return item;
+
+          return {
+            ...item,
+            priceEuro:
+              typeof nextPrice === "number" && Number.isFinite(nextPrice)
+                ? nextPrice > 0
+                  ? nextPrice
+                  : null
+                : item.priceEuro,
+            costPriceEuro:
+              typeof nextCostPrice === "number" && Number.isFinite(nextCostPrice)
+                ? nextCostPrice > 0
+                  ? nextCostPrice
+                  : undefined
+                : item.costPriceEuro,
+            hasPrice,
+          };
+        })
+      );
+
+      if (nextPrice !== undefined && Number.isFinite(nextPrice)) {
+        setPrices((prev) => {
+          const next = { ...prev, [payloadCode]: nextPrice > 0 ? nextPrice : null };
+          pricesRef.current = next;
+          return next;
+        });
+      }
+
+      if (nextCostPrice !== undefined && Number.isFinite(nextCostPrice)) {
+        setCostPrices((prev) => {
+          const next = { ...prev, [payloadCode]: nextCostPrice > 0 ? nextCostPrice : null };
+          costPricesRef.current = next;
+          return next;
+        });
+      }
+    },
+    []
+  );
+
   return {
     filteredData,
     quantities,
@@ -3346,6 +3417,7 @@ function useCatalogData(params: {
     firstPageResolvedItemCount,
     filterLoading,
     setFilterLoading,
+    updateCatalogItemPrice,
   };
 }
 
@@ -3421,77 +3493,6 @@ const Data: React.FC<DataProps> = ({
       .catch(() => null);
   }, []);
 
-  const handleAdminEdit = useCallback(
-    async (
-      code: string,
-      article: string,
-      data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string }
-    ): Promise<{ ok: boolean; error?: string }> => {
-      const token = await getAdminToken();
-      if (!token) return { ok: false, error: "Не авторизовано" };
-
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      };
-
-      type AdminMutationResult = { ok: boolean; error?: string; details?: string };
-      const normalizeAdminResult = (payload: AdminMutationResult): AdminMutationResult => ({
-        ...payload,
-        error: payload.ok
-          ? payload.error
-          : [payload.error, payload.details].filter(Boolean).join(": ") || "Помилка збереження",
-      });
-
-      const tasks: Array<Promise<AdminMutationResult>> = [];
-
-      if (data.description !== undefined) {
-        // getinfo uses НомерПоКаталогу (= article), not internal Код
-        tasks.push(
-          fetch("/api/product-update-description", {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ article, description: data.description }),
-          })
-            .then((r) => r.json() as Promise<AdminMutationResult>)
-            .then(normalizeAdminResult)
-            .catch(() => ({ ok: false, error: "Помилка мережі (опис)" }))
-        );
-      }
-
-      if (
-        data.priceEuro !== undefined ||
-        data.costPriceEuro !== undefined ||
-        data.imageDataUrl
-      ) {
-        const productUpdateBody: Record<string, unknown> = { code, article };
-        if (data.priceEuro !== undefined) productUpdateBody.priceEuro = data.priceEuro;
-        if (data.costPriceEuro !== undefined) productUpdateBody.costPriceEuro = data.costPriceEuro;
-        if (data.imageDataUrl) {
-          productUpdateBody.imageDataUrl = data.imageDataUrl;
-          if (data.imageName) productUpdateBody.file_name = data.imageName;
-        }
-        tasks.push(
-          fetch("/api/product-update", {
-            method: "POST",
-            headers,
-            body: JSON.stringify(productUpdateBody),
-          })
-            .then((r) => r.json() as Promise<AdminMutationResult>)
-            .then(normalizeAdminResult)
-            .catch(() => ({ ok: false, error: "Помилка мережі (товар)" }))
-        );
-      }
-
-      if (tasks.length === 0) return { ok: true };
-
-      const results = await Promise.all(tasks);
-      const failed = results.find((r) => !r.ok);
-      return failed ?? { ok: true };
-    },
-    [getAdminToken]
-  );
-
   const {
     filteredData,
     quantities,
@@ -3522,6 +3523,7 @@ const Data: React.FC<DataProps> = ({
     firstPageResolvedItemCount,
     filterLoading,
     setFilterLoading,
+    updateCatalogItemPrice,
   } = useCatalogData({
     selectedCars,
     selectedCategories,
@@ -3540,6 +3542,105 @@ const Data: React.FC<DataProps> = ({
     initialPagePayload,
     initialQuerySignature,
   });
+
+  const handleAdminEdit = useCallback(
+    async (
+      code: string,
+      article: string,
+      data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string }
+    ): Promise<{ ok: boolean; error?: string }> => {
+      const token = await getAdminToken();
+      if (!token) return { ok: false, error: "Не авторизовано" };
+
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      };
+
+      type AdminMutationResult = {
+        ok: boolean;
+        error?: string;
+        details?: string;
+        code?: string;
+        Код?: string;
+        priceEuro?: number;
+        costPriceEuro?: number;
+        ЦінаПрод?: number;
+        ЦінаЗакуп?: number;
+      };
+      const normalizeAdminResult = (payload: AdminMutationResult): AdminMutationResult => ({
+        ...payload,
+        error: payload.ok
+          ? payload.error
+          : [payload.error, payload.details].filter(Boolean).join(": ") || "Помилка збереження",
+      });
+
+      const tasks: Array<Promise<AdminMutationResult>> = [];
+
+      if (data.description !== undefined) {
+        // getinfo uses НомерПоКаталогу (= article), not internal Код
+        tasks.push(
+          fetch("/api/product-update-description", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ article, description: data.description }),
+          })
+            .then((r) => r.json() as Promise<AdminMutationResult>)
+            .then(normalizeAdminResult)
+            .catch(() => ({ ok: false, error: "Помилка мережі (опис)" }))
+        );
+      }
+
+      if (
+        data.priceEuro !== undefined ||
+        data.costPriceEuro !== undefined ||
+        data.imageDataUrl
+      ) {
+        const productUpdateBody: Record<string, unknown> = { Код: code, article };
+        if (data.priceEuro !== undefined) productUpdateBody["ЦінаПрод"] = data.priceEuro;
+        if (data.costPriceEuro !== undefined) productUpdateBody["ЦінаЗакуп"] = data.costPriceEuro;
+        if (data.imageDataUrl) {
+          productUpdateBody.imageDataUrl = data.imageDataUrl;
+          if (data.imageName) productUpdateBody.file_name = data.imageName;
+        }
+        tasks.push(
+          fetch("/api/product-update", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(productUpdateBody),
+          })
+            .then((r) => r.json() as Promise<AdminMutationResult>)
+            .then(normalizeAdminResult)
+            .catch(() => ({ ok: false, error: "Помилка мережі (товар)" }))
+        );
+      }
+
+      if (tasks.length === 0) return { ok: true };
+
+      const results = await Promise.all(tasks);
+      const failed = results.find((r) => !r.ok);
+      const priceResult = results.find(
+        (r) =>
+          r.ok &&
+          (r.ЦінаПрод !== undefined ||
+            r.ЦінаЗакуп !== undefined ||
+            r.priceEuro !== undefined ||
+            r.costPriceEuro !== undefined)
+      );
+      if (priceResult) {
+        updateCatalogItemPrice({
+          code,
+          Код: priceResult.Код || priceResult.code || code,
+          ЦінаПрод: priceResult.ЦінаПрод,
+          ЦінаЗакуп: priceResult.ЦінаЗакуп,
+          priceEuro: priceResult.priceEuro,
+          costPriceEuro: priceResult.costPriceEuro,
+        });
+      }
+      return failed ?? { ok: true };
+    },
+    [getAdminToken, updateCatalogItemPrice]
+  );
 
   const router = useRouter();
   // Зберігає оригінальний запит до будь-яких редіректів (для опису потрібен оригінал)

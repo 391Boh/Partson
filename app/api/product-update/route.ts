@@ -203,13 +203,21 @@ export async function POST(request: NextRequest) {
     clearProductImageCacheForProduct(article);
   }
 
+  const hasUpdatedPrice =
+    (typeof priceEuro === "number" && Number.isFinite(priceEuro) && priceEuro > 0) ||
+    (typeof costPriceEuro === "number" && Number.isFinite(costPriceEuro) && costPriceEuro > 0);
+
   return json({
     ok: true,
     code,
+    Код: code,
     endpoint: ONEC_PRODUCT_UPDATE_ENDPOINT,
     updatedBy: adminEmail,
-    ...(priceEuro !== undefined ? { priceEuro } : {}),
-    ...(costPriceEuro !== undefined ? { costPriceEuro } : {}),
+    ...(priceEuro !== undefined ? { priceEuro, "ЦінаПрод": priceEuro } : {}),
+    ...(costPriceEuro !== undefined ? { costPriceEuro, "ЦінаЗакуп": costPriceEuro } : {}),
+    ...((priceEuro !== undefined || costPriceEuro !== undefined)
+      ? { hasPrice: hasUpdatedPrice, "ЕстьЦена": hasUpdatedPrice }
+      : {}),
     ...(image.fileName ? { fileName: image.fileName } : {}),
   });
 }
