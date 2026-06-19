@@ -54,8 +54,9 @@ const IMAGE_URL_FIELDS = [
 const IMAGE_BATCH_ENDPOINT_CANDIDATES = Array.from(
   new Set(
     [
-      (process.env.ONEC_IMAGE_BATCH_ENDPOINT || "").trim().toLowerCase(),
-      (process.env.ONEC_GETIMAGES_BATCH_ENDPOINT || "").trim().toLowerCase(),
+      (process.env.ONEC_IMAGE_BATCH_ENDPOINT || "").trim(),
+      (process.env.ONEC_GETIMAGES_BATCH_ENDPOINT || "").trim(),
+      "ПолучитьФотоПакетом",
       "getimagesbatch",
       "getimages_batch",
       "getimagebatch",
@@ -510,55 +511,62 @@ const fetchProductImageBase64BatchFromEndpoint = async (
         : IMAGE_BATCH_ENDPOINT_CANDIDATES;
 
   for (const endpoint of endpoints) {
-    const response = await oneCRequest(endpoint, {
-      method: "POST",
-      body: { items: requestItems },
-      timeoutMs,
-      retries,
-      retryDelayMs,
-      cacheTtlMs,
-      cacheKey: JSON.stringify({
-        endpoint,
+    const requestBodies: Array<Record<string, unknown>> =
+      endpoint === "ПолучитьФотоПакетом"
+        ? [{ codes: lookupKeys }]
+        : [{ items: requestItems }, { codes: lookupKeys }];
+
+    for (const body of requestBodies) {
+      const response = await oneCRequest(endpoint, {
+        method: "POST",
+        body,
         timeoutMs,
         retries,
         retryDelayMs,
-        items: requestItems.map((item) => [item.key, item.code]),
-      }),
-    }).catch(() => null);
+        cacheTtlMs,
+        cacheKey: JSON.stringify({
+          endpoint,
+          timeoutMs,
+          retries,
+          retryDelayMs,
+          body,
+        }),
+      }).catch(() => null);
 
-    if (!response || response.status < 200 || response.status >= 300) continue;
+      if (!response || response.status < 200 || response.status >= 300) continue;
 
-    let payload: unknown;
-    try {
-      payload = JSON.parse(safeTrim(response.text || "")) as unknown;
-    } catch {
-      continue;
-    }
-
-    const parsed = parseImageBatchResponse(payload, requestedKeys);
-    if (!parsed) continue;
-
-    resolvedImageBatchEndpoint = endpoint;
-    lastImageBatchEndpointProbeAt = 0;
-
-    for (const [lookupKey, imageBase64] of Object.entries(parsed.resolved)) {
-      imageBase64Cache.set(lookupKey.toLowerCase(), {
-        value: imageBase64,
-        expiresAt: Date.now() + cacheTtlMs,
-      });
-    }
-
-    if (!skipMissCache) {
-      for (const handledKey of parsed.handledKeys) {
-        if (parsed.resolved[handledKey]) continue;
-        imageMissCache.set(
-          buildImageMissCacheKey(handledKey, timeoutMs, allowUrlDownload),
-          Date.now() + missCacheTtlMs
-        );
+      let payload: unknown;
+      try {
+        payload = JSON.parse(safeTrim(response.text || "")) as unknown;
+      } catch {
+        continue;
       }
-    }
 
-    return parsed;
+      const parsed = parseImageBatchResponse(payload, requestedKeys);
+      if (!parsed) continue;
+
+      resolvedImageBatchEndpoint = endpoint;
+      lastImageBatchEndpointProbeAt = 0;
+
+      for (const [lookupKey, imageBase64] of Object.entries(parsed.resolved)) {
+        imageBase64Cache.set(lookupKey.toLowerCase(), {
+          value: imageBase64,
+          expiresAt: Date.now() + cacheTtlMs,
+        });
+      }
+
+      if (!skipMissCache) {
+        for (const handledKey of parsed.handledKeys) {
+          if (parsed.resolved[handledKey]) continue;
+          imageMissCache.set(
+            buildImageMissCacheKey(handledKey, timeoutMs, allowUrlDownload),
+            Date.now() + missCacheTtlMs
+          );
+        }
+      }
+
+      return parsed;
+    }
   }
 
   if (typeof resolvedImageBatchEndpoint !== "string") {

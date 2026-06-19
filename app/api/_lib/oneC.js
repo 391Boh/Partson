@@ -46,6 +46,7 @@ function getEndpointConcurrencyLimit(endpoint) {
     case "getphotosbatch":
     case "getphotobatch":
     case "getimagespack":
+    case "ПолучитьФотоПакетом":
       return Math.min(5, ONEC_DEFAULT_CONCURRENCY);
     case "prices":
     case "pricespost":
@@ -214,6 +215,7 @@ export function getOneCTimeoutMs(endpoint) {
     case "getphotosbatch":
     case "getphotobatch":
     case "getimagespack":
+    case "ПолучитьФотоПакетом":
       return 18000;
     case "getprod":
     case "getauto":
