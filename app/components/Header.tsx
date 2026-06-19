@@ -381,6 +381,12 @@ const Header: React.FC = () => {
   const buttonBaseClass =
     'font-ui flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-[14px] border border-white/15 bg-gray-700 px-2.5 py-1.5 text-[10px] font-bold tracking-[0.01em] text-slate-50 transition-all whitespace-nowrap hover:border-white/35 hover:bg-gray-600 sm:min-h-0 sm:min-w-0 sm:gap-1.5 sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[14px] cursor-pointer touch-manipulation active:scale-[0.98] select-none';
 
+  const rightActionBaseClass =
+    'font-ui group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-white/55 bg-white/88 text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.14),inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur transition-all hover:-translate-y-0.5 hover:border-sky-200 hover:bg-white hover:text-sky-700 hover:shadow-[0_14px_30px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-sky-200/80 active:translate-y-0 active:scale-[0.98] sm:h-11 sm:w-auto sm:min-w-[44px] sm:gap-2 sm:rounded-[16px] sm:px-3 sm:text-[13px] sm:font-bold';
+
+  const rightActionActiveClass =
+    'border-sky-300 bg-sky-50 text-sky-800 shadow-[0_14px_30px_rgba(14,165,233,0.18),inset_0_1px_0_rgba(255,255,255,0.92)]';
+
 
   const dropdownBaseClass =
     'app-header-dropdown font-ui fixed inset-x-3 top-[calc(var(--header-height,4rem)+0.55rem)] z-[90] max-h-[calc(100svh-var(--header-height,4rem)-1rem)] origin-top overflow-y-auto rounded-[20px] border border-sky-100/16 p-2 text-white shadow-[0_18px_42px_rgba(2,6,23,0.34),0_12px_28px_rgba(2,6,23,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-sky-100/10 backdrop-blur-xl select-none transition-all duration-150 ease-out sm:absolute sm:inset-x-auto sm:left-1/2 sm:top-auto sm:mt-5 sm:-translate-x-1/2 sm:rounded-[18px] sm:p-1.5';
@@ -590,13 +596,13 @@ const Header: React.FC = () => {
               event.stopPropagation();
               toggleModal('auth');
             }}
-            className={`${buttonBaseClass} ${
+            className={`${rightActionBaseClass} ${
               modals.auth
-                ? 'border-sky-400/80 bg-sky-500/20'
-                : 'border-white/15'
+                ? rightActionActiveClass
+                : ''
             }`}
           >
-            <User size={16} className="sm:size-4" />
+            <User size={17} className="sm:size-4" />
             <span className="hidden sm:inline cursor-pointer select-none">Профіль</span>
           </button>
 
@@ -609,15 +615,15 @@ const Header: React.FC = () => {
               event.stopPropagation();
               toggleModal('order');
             }}
-            className={`${buttonBaseClass} relative ${
-              modals.order ? 'border-sky-400/80 bg-sky-500/20' : 'border-white/15'
+            className={`${rightActionBaseClass} ${
+              modals.order ? rightActionActiveClass : ''
             }`}
           >
-            <ShoppingCart size={16} className="sm:size-4" />
+            <ShoppingCart size={17} className="sm:size-4" />
             <span className="hidden sm:inline cursor-pointer select-none">Замовлення</span>
 
             {hasMounted && cartItems.length > 0 && (
-              <span className="absolute top-0 right-0 w-4 h-4 text-xs bg-orange-500 text-white rounded-full flex justify-center items-center font-bold">
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-orange-500 px-1 text-[10px] font-black leading-none text-white shadow-[0_8px_16px_rgba(249,115,22,0.32)]">
                 {cartItems.length}
               </span>
             )}
@@ -632,11 +638,13 @@ const Header: React.FC = () => {
               event.stopPropagation();
               toggleModal('contact');
             }}
-            className={`font-ui flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-[14px] border border-red-300/40 bg-gradient-to-r from-red-600 via-red-500 to-red-600 px-2.5 py-1.5 text-[10px] font-bold tracking-[0.01em] text-white shadow-sm shadow-red-500/30 hover:from-red-500 hover:via-red-400 hover:to-red-500 sm:min-h-0 sm:min-w-0 sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2 sm:text-[14px] cursor-pointer touch-manipulation ${
-              modals.contact ? 'ring-2 ring-red-300/60' : ''
+            className={`${rightActionBaseClass} ${
+              modals.contact
+                ? 'border-rose-300 bg-rose-50 text-rose-700 shadow-[0_14px_30px_rgba(244,63,94,0.16),inset_0_1px_0_rgba(255,255,255,0.92)]'
+                : ''
             }`}
           >
-            <Phone size={16} className="sm:size-5" />
+            <Phone size={17} className="sm:size-4" />
             <span className="hidden sm:inline cursor-pointer select-none">Контакти</span>
           </button>
         </div>

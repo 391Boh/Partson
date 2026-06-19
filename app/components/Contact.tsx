@@ -268,23 +268,23 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                       return (
                         <div
                           key={c.phone}
-                          className="group relative w-full overflow-hidden rounded-[16px] border border-sky-100/24 bg-[image:radial-gradient(circle_at_18%_12%,rgba(125,211,252,0.16),transparent_36%),linear-gradient(145deg,rgba(255,255,255,0.19),rgba(255,255,255,0.115)_54%,rgba(125,211,252,0.09))] px-2.5 py-2.5 text-left text-sky-50 shadow-[0_14px_28px_rgba(2,6,23,0.16),inset_0_1px_0_rgba(255,255,255,0.14)] transition-[border-color,background-image,box-shadow] duration-200 hover:border-sky-100/34 hover:bg-[image:radial-gradient(circle_at_18%_12%,rgba(125,211,252,0.2),transparent_36%),linear-gradient(145deg,rgba(255,255,255,0.22),rgba(255,255,255,0.13)_54%,rgba(125,211,252,0.105))] hover:shadow-[0_18px_34px_rgba(2,6,23,0.2),0_8px_18px_rgba(56,189,248,0.06),inset_0_1px_0_rgba(255,255,255,0.16)] sm:rounded-[18px] sm:px-3 sm:py-3"
+                          className="soft-surface-card group relative w-full overflow-hidden rounded-[16px] px-2.5 py-2.5 text-left text-slate-700 transition-[border-color,background-color,box-shadow] duration-200 hover:border-sky-200 hover:bg-white sm:rounded-[18px] sm:px-3 sm:py-3"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] border border-sky-100/24 bg-white/12 text-sky-100 shadow-[0_10px_22px_rgba(56,189,248,0.10)] ring-1 ring-white/10">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] border border-sky-100 bg-sky-50 text-sky-700 shadow-[0_10px_20px_rgba(14,165,233,0.10)]">
                               <User size={15} />
                             </span>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-[14px] font-semibold text-white">{c.name}</p>
-                              <p className="mt-0.5 line-clamp-2 text-[10px] font-bold uppercase tracking-[0.08em] text-sky-100/78">
+                              <p className="truncate text-[14px] font-semibold text-slate-900">{c.name}</p>
+                              <p className="mt-0.5 line-clamp-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
                                 {c.role}
                               </p>
                               <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-                                <p className="min-w-0 break-words text-[12px] font-medium text-sky-50/88">{c.phone}</p>
+                                <p className="min-w-0 break-words text-[12px] font-medium text-slate-700">{c.phone}</p>
                                 <button
                                   type="button"
                                   onClick={() => handleCopyPhone(c.phone)}
-                                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[9px] border border-sky-100/28 bg-white/16 text-sky-50 shadow-[0_5px_10px_rgba(2,6,23,0.12)] transition hover:border-sky-100/42 hover:bg-white/22 hover:text-white"
+                                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-slate-500 shadow-[0_5px_12px_rgba(148,163,184,0.18)] transition hover:border-sky-200 hover:text-sky-700"
                                   aria-label={`Скопіювати номер ${c.phone}`}
                                   title="Скопіювати номер"
                                 >
@@ -293,10 +293,10 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                               </div>
                             </div>
                             <span
-                              className="inline-flex min-h-7 shrink-0 items-center gap-1 rounded-[11px] border border-sky-100/18 bg-white/10 px-1.5 py-1 text-[9px] font-bold text-sky-50/82 sm:gap-1.5 sm:px-2 sm:text-[10px]"
+                              className="inline-flex min-h-7 shrink-0 items-center gap-1 rounded-[11px] border border-sky-100 bg-sky-50/80 px-1.5 py-1 text-[9px] font-bold text-sky-700 sm:gap-1.5 sm:px-2 sm:text-[10px]"
                               title={operator.label}
                             >
-                              <Signal size={12} className="text-sky-200" />
+                              <Signal size={12} className="text-sky-500" />
                               <OperatorIcon phone={c.phone} />
                               <span className="truncate">{operator.label}</span>
                             </span>
@@ -312,10 +312,10 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                                   c.actions.length === 1 ? "col-span-2" : ""
                                 } ${
                                   action === "viber"
-                                    ? "border-violet-100/34 bg-violet-300/22 text-violet-50 hover:border-violet-50/48 hover:bg-violet-300/30 hover:shadow-[0_10px_20px_rgba(167,139,250,0.16)]"
+                                    ? "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300 hover:bg-violet-100 hover:shadow-[0_10px_20px_rgba(167,139,250,0.16)]"
                                     : action === "telegram"
-                                      ? "border-cyan-100/34 bg-cyan-300/22 text-cyan-50 hover:border-cyan-50/48 hover:bg-cyan-300/30 hover:shadow-[0_10px_20px_rgba(34,211,238,0.16)]"
-                                    : "border-sky-100/34 bg-sky-300/22 text-sky-50 hover:border-sky-50/48 hover:bg-sky-300/30 hover:shadow-[0_10px_20px_rgba(125,211,252,0.16)]"
+                                      ? "border-cyan-200 bg-cyan-50 text-cyan-700 hover:border-cyan-300 hover:bg-cyan-100 hover:shadow-[0_10px_20px_rgba(34,211,238,0.16)]"
+                                    : "border-sky-200 bg-sky-50 text-sky-700 hover:border-sky-300 hover:bg-sky-100 hover:shadow-[0_10px_20px_rgba(125,211,252,0.16)]"
                                 }`}
                               >
                                 {action === "viber" ? <MessageCircle size={13} /> : action === "telegram" ? <Send size={13} /> : <Phone size={13} />}
@@ -332,28 +332,28 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
 
               {tab === "address" && (
                 <div className="space-y-2">
-                  <div className="soft-panel-hero rounded-[18px] bg-[image:radial-gradient(circle_at_14%_12%,rgba(125,211,252,0.18),transparent_36%),linear-gradient(145deg,rgba(255,255,255,0.18),rgba(255,255,255,0.105)_52%,rgba(14,165,233,0.095))] p-3 text-sky-50 shadow-[0_18px_34px_rgba(2,6,23,0.18),inset_0_1px_0_rgba(255,255,255,0.14)] sm:rounded-[20px] sm:p-3.5">
+                  <div className="soft-panel-hero rounded-[18px] p-3 sm:rounded-[20px] sm:p-3.5">
                     <div className="flex gap-2.5 sm:gap-3">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[17px] border border-sky-100/30 bg-white/12 text-sky-100 shadow-[0_14px_28px_rgba(56,189,248,0.12)] ring-1 ring-white/10 sm:h-12 sm:w-12 sm:rounded-[19px]">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[17px] border border-sky-100 bg-white/85 text-sky-700 shadow-[0_14px_28px_rgba(56,189,248,0.12)] sm:h-12 sm:w-12 sm:rounded-[19px]">
                         <Store size={18} />
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                           <div className="min-w-0">
-                            <p className="text-[15px] font-bold text-white sm:text-base">
+                            <p className="text-[15px] font-bold text-slate-900 sm:text-base">
                               <Link
                                 href="/"
-                                className="underline decoration-sky-200/60 underline-offset-4 transition hover:text-sky-100"
+                                className="underline decoration-sky-300/70 underline-offset-4 transition hover:text-sky-700"
                               >
                                 PartsON
                               </Link>{" "}
                               у Львові
                             </p>
-                            <p className="mt-0.5 text-[12px] leading-relaxed text-sky-100/72 sm:text-[13px]">
+                            <p className="mt-0.5 text-[12px] leading-relaxed text-slate-600 sm:text-[13px]">
                               Магазин, консультація та самовивіз замовлень.
                             </p>
                           </div>
-                          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-200/28 bg-emerald-300/12 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-emerald-100">
+                          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-emerald-700">
                             <MapPin size={12} />
                             Відчинено
                           </span>
@@ -362,22 +362,22 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                           href={STORE_MAPS_URL}
                           target="_blank"
                           rel="noreferrer"
-                          className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-[13px] border border-sky-100/28 bg-white/14 px-2.5 py-1.5 text-[13px] font-semibold leading-relaxed text-sky-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_16px_rgba(2,6,23,0.12)] transition hover:border-sky-100/42 hover:bg-white/18 hover:text-white sm:mt-2.5 sm:text-sm"
+                          className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-[13px] border border-sky-200 bg-white/85 px-2.5 py-1.5 text-[13px] font-semibold leading-relaxed text-sky-700 shadow-[0_8px_16px_rgba(14,165,233,0.10)] transition hover:border-sky-300 hover:bg-white sm:mt-2.5 sm:text-sm"
                         >
-                          <MapPin size={14} className="shrink-0 text-sky-200" />
+                          <MapPin size={14} className="shrink-0 text-sky-500" />
                           м. Львів, вул. Перфецького, 8
                         </a>
                         <div className="mt-2 grid gap-1.5 text-[11px] sm:mt-2.5 sm:grid-cols-3 sm:gap-2 sm:text-xs">
-                          <span className="inline-flex min-h-9 items-center gap-1.5 rounded-[13px] border border-white/12 bg-white/9 px-2.5 py-1.5 text-sky-50/88">
-                            <Clock3 size={13} className="shrink-0 text-sky-200" />
+                          <span className="inline-flex min-h-9 items-center gap-1.5 rounded-[13px] border border-slate-200 bg-white/78 px-2.5 py-1.5 text-slate-600">
+                            <Clock3 size={13} className="shrink-0 text-sky-500" />
                             <span>Пн-Сб: 08:00-18:00</span>
                           </span>
-                          <span className="inline-flex min-h-9 items-center gap-1.5 rounded-[13px] border border-white/12 bg-white/9 px-2.5 py-1.5 text-sky-50/88">
-                            <Clock3 size={13} className="shrink-0 text-sky-200" />
+                          <span className="inline-flex min-h-9 items-center gap-1.5 rounded-[13px] border border-slate-200 bg-white/78 px-2.5 py-1.5 text-slate-600">
+                            <Clock3 size={13} className="shrink-0 text-sky-500" />
                             <span>Нд: 08:00-16:00</span>
                           </span>
-                          <span className="inline-flex min-h-9 items-center gap-1.5 rounded-[13px] border border-cyan-200/20 bg-cyan-300/10 px-2.5 py-1.5 text-cyan-50">
-                            <Check size={13} className="shrink-0 text-cyan-100" />
+                          <span className="inline-flex min-h-9 items-center gap-1.5 rounded-[13px] border border-cyan-200 bg-cyan-50 px-2.5 py-1.5 text-cyan-700">
+                            <Check size={13} className="shrink-0 text-cyan-500" />
                             <span>Самовивіз</span>
                           </span>
                         </div>
