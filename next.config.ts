@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -115,8 +114,13 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withBundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
-  openAnalyzer: false,
-})(nextConfig);
+async function buildConfig(): Promise<NextConfig> {
+  if (process.env.ANALYZE === "true") {
+    const { default: withBundleAnalyzer } = await import("@next/bundle-analyzer");
+    return withBundleAnalyzer({ enabled: true, openAnalyzer: false })(nextConfig);
+  }
+  return nextConfig;
+}
+
+export default buildConfig();
 
