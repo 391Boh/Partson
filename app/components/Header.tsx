@@ -670,19 +670,19 @@ const Header: React.FC = () => {
         renderPortal(
           <div
             ref={searchModalRef}
-            className="fixed top-[calc(var(--header-height,4rem)+0.5rem)] left-2 right-2 sm:left-auto sm:right-6 w-auto sm:w-[80%] max-w-[420px] z-[95] rounded-2xl sm:rounded-3xl p-4 sm:p-5 bg-gradient-to-br from-slate-800 via-slate-700 to-sky-700 shadow-2xl border border-gray-500 animate-fadeIn"
+            className="fixed left-2 right-2 top-[calc(var(--header-height,4rem)+0.5rem)] z-[95] w-auto max-w-[420px] rounded-[20px] border border-sky-100/70 bg-[image:radial-gradient(circle_at_12%_0%,rgba(14,165,233,0.14),transparent_34%),linear-gradient(155deg,rgba(255,255,255,0.985),rgba(248,250,252,0.982)_54%,rgba(241,245,249,0.982))] p-3 shadow-[0_24px_64px_rgba(15,23,42,0.18),0_12px_28px_rgba(14,165,233,0.08),inset_0_1px_0_rgba(255,255,255,0.88)] backdrop-blur-xl animate-fadeIn sm:left-auto sm:right-6 sm:w-[80%] sm:rounded-[24px] sm:p-4"
           >
             <div className="flex items-center justify-between mb-3">
-              <h2 className="font-display flex items-center gap-2 text-lg font-semibold tracking-[-0.03em] text-white">
-                <MagnifyingGlassIcon className="w-5 h-5 text-blue-400" />
+              <h2 className="font-display flex items-center gap-2 text-lg font-semibold tracking-[-0.03em] text-slate-900">
+                <MagnifyingGlassIcon className="w-5 h-5 text-sky-600" />
                 Пошук
               </h2>
-              <button onClick={() => setShowSearchModal(false)} aria-label="Закрити пошук" className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowSearchModal(false)} aria-label="Закрити пошук" className="inline-flex h-9 w-9 items-center justify-center rounded-[13px] border border-slate-200 bg-white/84 text-slate-500 shadow-[0_8px_18px_rgba(148,163,184,0.12)] transition hover:border-sky-200 hover:text-slate-900">
                 <XMarkIcon className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700">
+            <div className="rounded-[18px] border border-sky-100/70 bg-white/70 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] sm:p-3">
               {renderSearchBar(() => setShowSearchModal(false))}
             </div>
           </div>
