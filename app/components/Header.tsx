@@ -387,6 +387,12 @@ const Header: React.FC = () => {
   const rightActionActiveClass =
     'border-sky-200/70 bg-[image:linear-gradient(145deg,rgba(14,116,144,0.98),rgba(2,132,199,0.96)_52%,rgba(37,99,235,0.92))] text-white shadow-[0_12px_28px_rgba(14,116,144,0.24),0_0_24px_rgba(56,189,248,0.18),inset_0_1px_0_rgba(255,255,255,0.22)]';
 
+  const contactActionClass =
+    'border-rose-200/48 bg-[image:linear-gradient(145deg,rgba(159,18,57,0.96),rgba(190,18,60,0.94)_54%,rgba(225,29,72,0.9))] text-rose-50 shadow-[0_10px_24px_rgba(127,29,29,0.18),0_0_18px_rgba(251,113,133,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] hover:border-rose-100/70 hover:bg-[image:linear-gradient(145deg,rgba(190,18,60,0.98),rgba(225,29,72,0.95)_54%,rgba(244,63,94,0.92))] hover:shadow-[0_12px_26px_rgba(127,29,29,0.20),0_0_22px_rgba(251,113,133,0.16),inset_0_1px_0_rgba(255,255,255,0.20)]';
+
+  const contactActionActiveClass =
+    'border-rose-100/80 bg-[image:linear-gradient(145deg,rgba(190,18,60,0.98),rgba(225,29,72,0.96)_50%,rgba(251,113,133,0.92))] text-white shadow-[0_12px_28px_rgba(190,18,60,0.24),0_0_24px_rgba(251,113,133,0.18),inset_0_1px_0_rgba(255,255,255,0.22)]';
+
 
   const dropdownBaseClass =
     'app-header-dropdown font-ui fixed inset-x-3 top-[calc(var(--header-height,4rem)+0.55rem)] z-[90] max-h-[calc(100svh-var(--header-height,4rem)-1rem)] origin-top overflow-y-auto rounded-[20px] border border-sky-100/16 p-2 text-white shadow-[0_18px_42px_rgba(2,6,23,0.34),0_12px_28px_rgba(2,6,23,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-sky-100/10 backdrop-blur-xl select-none transition-all duration-150 ease-out sm:absolute sm:inset-x-auto sm:left-1/2 sm:top-auto sm:mt-5 sm:-translate-x-1/2 sm:rounded-[18px] sm:p-1.5';
@@ -638,9 +644,9 @@ const Header: React.FC = () => {
               event.stopPropagation();
               toggleModal('contact');
             }}
-            className={`${rightActionBaseClass} ${
+            className={`${rightActionBaseClass} ${contactActionClass} ${
               modals.contact
-                ? 'border-rose-200/70 bg-[image:linear-gradient(145deg,rgba(190,18,60,0.96),rgba(225,29,72,0.93)_54%,rgba(244,63,94,0.9))] text-white shadow-[0_12px_28px_rgba(190,18,60,0.22),0_0_22px_rgba(251,113,133,0.16),inset_0_1px_0_rgba(255,255,255,0.20)]'
+                ? contactActionActiveClass
                 : ''
             }`}
           >
