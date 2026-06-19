@@ -9,7 +9,7 @@ import { clearProductImageCacheForProduct } from "app/lib/product-image";
 export const runtime = "nodejs";
 
 const ONEC_PRODUCT_UPDATE_ENDPOINT =
-  (process.env.ONEC_PRODUCT_UPDATE_ENDPOINT || "ОбновитьТовар").trim();
+  (process.env.ONEC_PRODUCT_UPDATE_ENDPOINT || "edit").trim();
 
 const ADMIN_EMAILS = new Set(
   (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
@@ -147,14 +147,38 @@ export async function POST(request: NextRequest) {
   const image = readImage(value, code);
   if (!image.ok) return json({ ok: false, error: image.error }, 400);
 
+  const productName =
+    typeof value["Наименование"] === "string" && value["Наименование"].trim()
+      ? value["Наименование"].trim()
+      : typeof value.name === "string" && value.name.trim()
+        ? value.name.trim()
+        : undefined;
+
+  const catalogNumber =
+    typeof value["НомерПоКаталогу"] === "string" && value["НомерПоКаталогу"].trim()
+      ? value["НомерПоКаталогу"].trim()
+      : typeof value.catalogNumber === "string" && value.catalogNumber.trim()
+        ? value.catalogNumber.trim()
+        : undefined;
+
+  // article = current catalog number, used as НомерПоКаталогу for 1C product lookup
+  const lookupArticle =
+    typeof value.article === "string" && value.article.trim()
+      ? value.article.trim()
+      : "";
+
   const oneCBody: Record<string, unknown> = { Код: code };
   if (priceEuro !== undefined) oneCBody["ЦінаПрод"] = priceEuro;
   if (costPriceEuro !== undefined) oneCBody["ЦінаЗакуп"] = costPriceEuro;
   if (image.fileName) oneCBody.file_name = image.fileName;
   if (image.imageBase64) oneCBody.image_base64 = image.imageBase64;
+  if (productName) oneCBody["Наименование"] = productName;
+  // catalogNumber = new value (update); lookupArticle = current value (lookup only)
+  const articleForOnec = catalogNumber || lookupArticle;
+  if (articleForOnec) oneCBody["НомерПоКаталогу"] = articleForOnec;
 
   if (Object.keys(oneCBody).length === 1) {
-    return json({ ok: false, error: "Provide price, cost price, or image data" }, 400);
+    return json({ ok: false, error: "Provide price, cost price, image, name, or catalog number" }, 400);
   }
 
   const result = await oneCRequest(ONEC_PRODUCT_UPDATE_ENDPOINT, {
@@ -177,7 +201,20 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "1C returned an error", details: oneCError, status: result.status }, 502);
   }
 
-  let parsed: { success?: boolean; found?: boolean; updated?: boolean; message?: string } = {};
+  let parsed: {
+    success?: boolean;
+    found?: boolean;
+    updated?: boolean;
+    message?: string;
+    Код?: string;
+    count?: number;
+    items?: unknown[];
+    has_more?: boolean;
+    next_cursor?: string;
+    product_result?: { success?: boolean; message?: string; Наименование?: string; НомерПоКаталогу?: string };
+    price_result?: { success?: boolean; message?: string; ЦінаПрод?: number | null; ЦінаЗакуп?: number | null; Артикул?: string };
+    photo_result?: { success?: boolean; message?: string; file_name?: string };
+  } = {};
   try {
     parsed = JSON.parse(result.text) as typeof parsed;
   } catch {
@@ -194,6 +231,38 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // 1C returned a catalog-search response instead of an update response:
+  // { success: true, count: 0, items: [], has_more: false } — product was not found/updated.
+  const isCatalogFormatResponse =
+    Array.isArray(parsed.items) &&
+    parsed.count !== undefined &&
+    parsed.price_result === undefined &&
+    parsed.photo_result === undefined;
+
+  if (isCatalogFormatResponse && parsed.count === 0) {
+    return json(
+      {
+        ok: false,
+        error: `Товар не знайдено в 1С (endpoint: ${ONEC_PRODUCT_UPDATE_ENDPOINT}). Перевірте правильність endpoint або НомерПоКаталогу.`,
+        oneCResponse: "catalog-format-count-0",
+        endpoint: ONEC_PRODUCT_UPDATE_ENDPOINT,
+      },
+      422
+    );
+  }
+
+  // Partial failure — any sub-result explicitly failed on 1C side
+  const productOk = !parsed.product_result || parsed.product_result.success !== false;
+  const priceOk = !parsed.price_result || parsed.price_result.success !== false;
+  const photoOk = !parsed.photo_result || parsed.photo_result.success !== false;
+  if (!productOk || !priceOk || !photoOk) {
+    const errors: string[] = [];
+    if (!productOk) errors.push(parsed.product_result?.message || "Помилка оновлення реквізитів");
+    if (!priceOk) errors.push(parsed.price_result?.message || "Помилка оновлення ціни");
+    if (!photoOk) errors.push(parsed.photo_result?.message || "Помилка оновлення фото");
+    return json({ ok: false, error: errors.join("; ") }, 422);
+  }
+
   clearOneCCacheForProduct(code);
   clearProductImageCacheForProduct(code);
 
@@ -208,21 +277,30 @@ export async function POST(request: NextRequest) {
     clearProductImageCacheForProduct(productCode);
   }
 
+  // Prefer confirmed values from 1C results, fall back to sent values
+  const confirmedPriceEuro =
+    typeof parsed.price_result?.ЦінаПрод === "number" ? parsed.price_result.ЦінаПрод : priceEuro;
+  const confirmedCostPriceEuro =
+    typeof parsed.price_result?.ЦінаЗакуп === "number" ? parsed.price_result.ЦінаЗакуп : costPriceEuro;
+  const confirmedName = parsed.product_result?.Наименование ?? productName;
+  const confirmedCatalogNumber = parsed.product_result?.НомерПоКаталогу ?? catalogNumber;
+
   const hasUpdatedPrice =
-    (typeof priceEuro === "number" && Number.isFinite(priceEuro) && priceEuro > 0) ||
-    (typeof costPriceEuro === "number" && Number.isFinite(costPriceEuro) && costPriceEuro > 0);
+    (typeof confirmedPriceEuro === "number" && Number.isFinite(confirmedPriceEuro) && confirmedPriceEuro > 0) ||
+    (typeof confirmedCostPriceEuro === "number" && Number.isFinite(confirmedCostPriceEuro) && confirmedCostPriceEuro > 0);
 
   return json({
     ok: true,
     code,
     Код: code,
-    endpoint: ONEC_PRODUCT_UPDATE_ENDPOINT,
     updatedBy: adminEmail,
-    ...(priceEuro !== undefined ? { priceEuro, "ЦінаПрод": priceEuro } : {}),
-    ...(costPriceEuro !== undefined ? { costPriceEuro, "ЦінаЗакуп": costPriceEuro } : {}),
-    ...((priceEuro !== undefined || costPriceEuro !== undefined)
+    ...(confirmedPriceEuro !== undefined ? { priceEuro: confirmedPriceEuro, "ЦінаПрод": confirmedPriceEuro } : {}),
+    ...(confirmedCostPriceEuro !== undefined ? { costPriceEuro: confirmedCostPriceEuro, "ЦінаЗакуп": confirmedCostPriceEuro } : {}),
+    ...((confirmedPriceEuro !== undefined || confirmedCostPriceEuro !== undefined)
       ? { hasPrice: hasUpdatedPrice, "ЕстьЦена": hasUpdatedPrice }
       : {}),
+    ...(confirmedName ? { name: confirmedName } : {}),
+    ...(confirmedCatalogNumber ? { catalogNumber: confirmedCatalogNumber } : {}),
     ...(image.fileName ? { fileName: image.fileName } : {}),
   });
 }

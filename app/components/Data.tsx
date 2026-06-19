@@ -609,7 +609,7 @@ const mergeUniqueProducts = (current: Product[], incoming: Product[]) => {
 };
 
 const CATALOG_GRID_CLASS =
-  "mx-auto mt-2 grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4";
+  "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 md:grid-cols-3 lg:grid-cols-4";
 
 const CatalogTransitionLoader = ({
   label = "Оновлюю каталог",
@@ -3408,6 +3408,18 @@ function useCatalogData(params: {
     []
   );
 
+  const updateCatalogItemFields = useCallback(
+    (code: string, fields: { name?: string; article?: string }) => {
+      if (!code || !Object.keys(fields).length) return;
+      setData((prev) =>
+        prev.map((item) =>
+          item.code === code ? { ...item, ...fields } : item
+        )
+      );
+    },
+    []
+  );
+
   return {
     filteredData,
     quantities,
@@ -3439,6 +3451,7 @@ function useCatalogData(params: {
     filterLoading,
     setFilterLoading,
     updateCatalogItemPrice,
+    updateCatalogItemFields,
     catalogTotalCount,
   };
 }
@@ -3546,6 +3559,7 @@ const Data: React.FC<DataProps> = ({
     filterLoading,
     setFilterLoading,
     updateCatalogItemPrice,
+    updateCatalogItemFields,
     catalogTotalCount,
   } = useCatalogData({
     selectedCars,
@@ -3570,7 +3584,7 @@ const Data: React.FC<DataProps> = ({
     async (
       code: string,
       article: string,
-      data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string }
+      data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string }
     ): Promise<{ ok: boolean; error?: string }> => {
       const token = await getAdminToken();
       if (!token) return { ok: false, error: "Не авторизовано" };
@@ -3590,6 +3604,8 @@ const Data: React.FC<DataProps> = ({
         costPriceEuro?: number;
         ЦінаПрод?: number;
         ЦінаЗакуп?: number;
+        name?: string;
+        catalogNumber?: string;
       };
       const normalizeAdminResult = (payload: AdminMutationResult): AdminMutationResult => ({
         ...payload,
@@ -3599,10 +3615,9 @@ const Data: React.FC<DataProps> = ({
       });
 
       const tasks: Array<Promise<AdminMutationResult>> = [];
-      const priceArticle = article || code;
 
       if (data.description !== undefined) {
-        // getinfo uses НомерПоКаталогу (= article), not internal Код
+        // description endpoint uses НомерПоКаталогу (= article), not internal Код
         tasks.push(
           fetch("/api/product-update-description", {
             method: "POST",
@@ -3618,20 +3633,22 @@ const Data: React.FC<DataProps> = ({
       if (
         data.priceEuro !== undefined ||
         data.costPriceEuro !== undefined ||
-        data.imageDataUrl
+        data.imageDataUrl ||
+        data.name !== undefined ||
+        data.catalogNumber !== undefined
       ) {
-        const productUpdateBody: Record<string, unknown> = {
-          Код: priceArticle,
-          НомерПоКаталогу: priceArticle,
-          article: priceArticle,
-          productCode: code,
-        };
+        // article (НомерПоКаталогу) is required by ОбновитьТовар for product lookup.
+        // Send Код (internal code) + article (current catalog number) on every request.
+        const productUpdateBody: Record<string, unknown> = { Код: code };
+        if (article) productUpdateBody.article = article;
         if (data.priceEuro !== undefined) productUpdateBody["ЦінаПрод"] = data.priceEuro;
         if (data.costPriceEuro !== undefined) productUpdateBody["ЦінаЗакуп"] = data.costPriceEuro;
         if (data.imageDataUrl) {
           productUpdateBody.imageDataUrl = data.imageDataUrl;
           if (data.imageName) productUpdateBody.file_name = data.imageName;
         }
+        if (data.name !== undefined) productUpdateBody["Наименование"] = data.name;
+        if (data.catalogNumber !== undefined) productUpdateBody["НомерПоКаталогу"] = data.catalogNumber;
         tasks.push(
           fetch("/api/product-update", {
             method: "POST",
@@ -3648,6 +3665,8 @@ const Data: React.FC<DataProps> = ({
 
       const results = await Promise.all(tasks);
       const failed = results.find((r) => !r.ok);
+
+      // Update price in local cache using confirmed values from 1C
       const priceResult = results.find(
         (r) =>
           r.ok &&
@@ -3659,16 +3678,30 @@ const Data: React.FC<DataProps> = ({
       if (priceResult) {
         updateCatalogItemPrice({
           code: priceResult.code || code,
-          Код: priceResult.Код || priceArticle,
+          Код: priceResult.Код || code,
           ЦінаПрод: priceResult.ЦінаПрод,
           ЦінаЗакуп: priceResult.ЦінаЗакуп,
           priceEuro: priceResult.priceEuro,
           costPriceEuro: priceResult.costPriceEuro,
         });
       }
+
+      // Update name / article using confirmed values from 1C (fall back to sent values)
+      if (!failed) {
+        const updateResult = results.find((r) => r.ok);
+        const confirmedName = updateResult?.name ?? data.name;
+        const confirmedArticle = updateResult?.catalogNumber ?? data.catalogNumber;
+        if (confirmedName || confirmedArticle) {
+          updateCatalogItemFields(code, {
+            ...(confirmedName ? { name: confirmedName } : {}),
+            ...(confirmedArticle ? { article: confirmedArticle } : {}),
+          });
+        }
+      }
+
       return failed ?? { ok: true };
     },
-    [getAdminToken, updateCatalogItemPrice]
+    [getAdminToken, updateCatalogItemPrice, updateCatalogItemFields]
   );
 
   const router = useRouter();
@@ -4335,6 +4368,7 @@ const Data: React.FC<DataProps> = ({
                       cartQty={cartQty}
                       priceUAH={priceUAH}
                       costPriceUAH={isAdmin && stateCostPriceEuro != null ? Math.round(stateCostPriceEuro * euroRate) : null}
+                      costPriceEuro={isAdmin ? stateCostPriceEuro : undefined}
                       isAdmin={isAdmin}
                       onAdminEdit={isAdmin ? (data) => handleAdminEdit(code, item.article || code, data) : undefined}
                       priceStatus={priceStatus}

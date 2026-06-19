@@ -2,7 +2,7 @@
 
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle, Copy, Check, Pencil } from "lucide-react";
+import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle, Copy, Check, Pencil, ImagePlus, X, Save } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
 import { brands } from "app/components/brandsData";
@@ -76,6 +76,7 @@ interface Props {
     cartQty: number;
     priceUAH: number | null;
     costPriceUAH?: number | null;
+    costPriceEuro?: number | null;
     isAdmin?: boolean;
     priceStatus: "loading" | "ready" | "request";
     imageLoadingMode?: "lazy" | "eager";
@@ -94,7 +95,7 @@ interface Props {
     onQtyChange: (code: string, delta: number) => void;
     onFlip: (code: string) => void;
     onImageOpen: (code: string, article?: string) => void;
-    onAdminEdit?: (data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string }) => Promise<{ ok: boolean; error?: string }>;
+    onAdminEdit?: (data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string }) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const ProductCard: React.FC<Props> = ({
@@ -104,6 +105,7 @@ const ProductCard: React.FC<Props> = ({
     cartQty,
     priceUAH,
     costPriceUAH,
+    costPriceEuro,
     isAdmin = false,
     priceStatus,
     imageLoadingMode,
@@ -277,35 +279,116 @@ const descLoaded = useRef(false);
 // ================== ADMIN EDIT ==================
 const [isEditMode, setIsEditMode] = useState(false);
 const [editDesc, setEditDesc] = useState('');
-const [editPrice, setEditPrice] = useState('');
-const [editCostPrice, setEditCostPrice] = useState('');
-const [editImageDataUrl, setEditImageDataUrl] = useState<string | null>(null);
-const [editImageName, setEditImageName] = useState<string>('');
 const [editSaving, setEditSaving] = useState(false);
 const [editError, setEditError] = useState<string | null>(null);
 const [editSuccess, setEditSuccess] = useState(false);
-const imageInputRef = useRef<HTMLInputElement | null>(null);
+
+// Quick price edit (front of card)
+const [quickEditPrice, setQuickEditPrice] = useState(false);
+const [quickPriceVal, setQuickPriceVal] = useState('');
+const [quickCostPriceVal, setQuickCostPriceVal] = useState('');
+const [quickPriceSaving, setQuickPriceSaving] = useState(false);
+const [quickPriceError, setQuickPriceError] = useState<string | null>(null);
+
+// Quick article edit (front of card)
+const [quickEditArticle, setQuickEditArticle] = useState(false);
+const [quickArticleVal, setQuickArticleVal] = useState('');
+const [quickArticleSaving, setQuickArticleSaving] = useState(false);
+const [quickArticleError, setQuickArticleError] = useState<string | null>(null);
+
+// Quick name edit (front of card)
+const [quickEditName, setQuickEditName] = useState(false);
+const [quickNameVal, setQuickNameVal] = useState('');
+const [quickNameSaving, setQuickNameSaving] = useState(false);
+const [quickNameError, setQuickNameError] = useState<string | null>(null);
+
+// Front image upload
+const frontImageInputRef = useRef<HTMLInputElement | null>(null);
+const [frontImageSaving, setFrontImageSaving] = useState(false);
+const [frontImageError, setFrontImageError] = useState<string | null>(null);
+const [localImageSrc, setLocalImageSrc] = useState<string | null>(null);
 
 const enterEditMode = () => {
     setEditDesc(description ?? '');
-    setEditPrice(item.priceEuro != null && item.priceEuro > 0 ? String(item.priceEuro) : '');
-    setEditCostPrice(item.costPriceEuro != null && item.costPriceEuro > 0 ? String(item.costPriceEuro) : '');
-    setEditImageDataUrl(null);
-    setEditImageName('');
     setEditError(null);
     setEditSuccess(false);
     setIsEditMode(true);
 };
 
-const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+const handleFrontImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !onAdminEdit) return;
+    setFrontImageSaving(true);
+    setFrontImageError(null);
     const reader = new FileReader();
-    reader.onload = (ev) => {
-        setEditImageDataUrl(ev.target?.result as string ?? null);
-        setEditImageName(file.name);
+    reader.onload = async (ev) => {
+        const imageDataUrl = ev.target?.result as string;
+        if (imageDataUrl) {
+            const result = await onAdminEdit({ imageDataUrl, imageName: file.name }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
+            if (result && result.ok) {
+                setLocalImageSrc(imageDataUrl);
+            } else {
+                setFrontImageError(result?.error ?? 'Помилка завантаження');
+                setTimeout(() => setFrontImageError(null), 4000);
+            }
+        }
+        setFrontImageSaving(false);
+        if (frontImageInputRef.current) frontImageInputRef.current.value = '';
     };
     reader.readAsDataURL(file);
+};
+
+const handleQuickPriceSave = async () => {
+    if (!onAdminEdit) return;
+    setQuickPriceSaving(true);
+    setQuickPriceError(null);
+    const data: { priceEuro?: number; costPriceEuro?: number } = {};
+    if (showCostPrice) {
+        const val = quickCostPriceVal.trim() ? Number(quickCostPriceVal) : undefined;
+        if (val !== undefined && Number.isFinite(val) && val >= 0) data.costPriceEuro = val;
+    } else {
+        const val = quickPriceVal.trim() ? Number(quickPriceVal) : undefined;
+        if (val !== undefined && Number.isFinite(val) && val >= 0) data.priceEuro = val;
+    }
+    if (Object.keys(data).length > 0) {
+        const result = await onAdminEdit(data).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
+        if (!result?.ok) {
+            setQuickPriceError(result?.error ?? 'Помилка збереження');
+            setQuickPriceSaving(false);
+            setTimeout(() => setQuickPriceError(null), 4000);
+            return;
+        }
+    }
+    setQuickPriceSaving(false);
+    setQuickEditPrice(false);
+};
+
+const handleQuickArticleSave = async () => {
+    if (!onAdminEdit || !quickArticleVal.trim()) return;
+    setQuickArticleSaving(true);
+    setQuickArticleError(null);
+    const result = await onAdminEdit({ catalogNumber: quickArticleVal.trim() }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
+    setQuickArticleSaving(false);
+    if (!result?.ok) {
+        setQuickArticleError(result?.error ?? 'Помилка збереження');
+        setTimeout(() => setQuickArticleError(null), 4000);
+        return;
+    }
+    setQuickEditArticle(false);
+};
+
+const handleQuickNameSave = async () => {
+    if (!onAdminEdit || !quickNameVal.trim()) return;
+    setQuickNameSaving(true);
+    setQuickNameError(null);
+    const result = await onAdminEdit({ name: quickNameVal.trim() }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
+    setQuickNameSaving(false);
+    if (!result?.ok) {
+        setQuickNameError(result?.error ?? 'Помилка збереження');
+        setTimeout(() => setQuickNameError(null), 4000);
+        return;
+    }
+    setQuickEditName(false);
 };
 
 const handleAdminSave = async () => {
@@ -313,33 +396,14 @@ const handleAdminSave = async () => {
     setEditSaving(true);
     setEditError(null);
 
-    const data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string } = {};
-
     const trimmedDesc = editDesc.trim();
-    if (trimmedDesc !== (description ?? '').trim()) {
-        data.description = trimmedDesc;
-    }
-
-    const newPrice = editPrice.trim() ? Number(editPrice) : null;
-    if (newPrice != null && Number.isFinite(newPrice) && newPrice >= 0 && newPrice !== item.priceEuro) {
-        data.priceEuro = newPrice;
-    }
-
-    const newCostPrice = editCostPrice.trim() ? Number(editCostPrice) : null;
-    if (newCostPrice != null && Number.isFinite(newCostPrice) && newCostPrice >= 0 && newCostPrice !== item.costPriceEuro) {
-        data.costPriceEuro = newCostPrice;
-    }
-
-    if (editImageDataUrl) {
-        data.imageDataUrl = editImageDataUrl;
-        if (editImageName) data.imageName = editImageName;
-    }
-
-    if (Object.keys(data).length === 0) {
+    if (trimmedDesc === (description ?? '').trim()) {
         setEditSaving(false);
         setIsEditMode(false);
         return;
     }
+
+    const data: { description: string } = { description: trimmedDesc };
 
     const result = await onAdminEdit(data);
     setEditSaving(false);
@@ -491,7 +555,7 @@ useEffect(() => {
     return (
         <>
         <article
-            className={`relative w-full h-[360px] sm:h-[320px] [perspective:1200px] select-none ${cardMotionClass}`}
+            className={`catalog-product-card relative w-full h-[340px] sm:h-[320px] [perspective:1200px] select-none ${cardMotionClass}`}
             itemScope
             itemType="https://schema.org/Product"
         >
@@ -547,7 +611,7 @@ useEffect(() => {
                             shadow-sm hover:shadow-md
                         "
                     >
-                        <div className="mr-2 flex h-full w-1/3 items-center justify-center overflow-hidden rounded-lg bg-white sm:w-2/5">
+                        <div className="relative mr-2 flex h-full w-1/3 items-center justify-center overflow-hidden rounded-lg bg-white sm:w-2/5 group/imgarea">
                             <ProductCardImage
                                 productCode={code}
                                 articleHint={item.article}
@@ -557,39 +621,110 @@ useEffect(() => {
                                 onClick={() => onImageOpen(code, item.article)}
                                 loadingMode={imageLoadingMode}
                                 fetchPriority={imageFetchPriority}
-                                prefetchedSrc={prefetchedImageSrc}
+                                prefetchedSrc={localImageSrc ?? prefetchedImageSrc}
                                 deferDirectLoad={batchImageOnly && !prefetchedImageSrc && !batchImageMissing}
                                 disableDirectLoad={batchImageOnly && batchImagePending && !prefetchedImageSrc && !batchImageMissing}
                                 batchImagePending={batchImagePending}
                             />
+                            {isAdmin && onAdminEdit && (
+                                <>
+                                    <input
+                                        ref={frontImageInputRef}
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp"
+                                        className="hidden"
+                                        onChange={handleFrontImageChange}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); frontImageInputRef.current?.click(); }}
+                                        disabled={frontImageSaving}
+                                        className="absolute top-1 left-1 p-1 rounded-md bg-white/90 border border-violet-200 text-violet-600 shadow-sm opacity-0 group-hover/imgarea:opacity-100 hover:bg-violet-50 hover:border-violet-300 transition-all duration-150 disabled:opacity-50"
+                                        title="Замінити фото"
+                                    >
+                                        {frontImageSaving
+                                            ? <span className="inline-block h-3 w-3 rounded-full border-2 border-violet-300 border-t-violet-600 animate-spin" />
+                                            : <ImagePlus size={11} />
+                                        }
+                                    </button>
+                                </>
+                            )}
+                            {frontImageError && (
+                                <div className="absolute inset-x-0 bottom-0 bg-rose-600/90 text-white text-[9px] font-medium px-1 py-0.5 rounded-b-lg text-center truncate" style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>
+                                    {frontImageError}
+                                </div>
+                            )}
                         </div>
 
-                        <div className="flex h-full w-2/3 items-center sm:w-3/5">
-                            <SmartLink
-                                href={productHref}
-                                itemProp="url"
-                                prefetchOnViewport={prefetchProductRoute}
-                                prefetchOnIntent
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    pushEcommerceEvent("select_item", {
-                                        currency: "UAH",
-                                        items: [
-                                            {
-                                                item_id: item.code,
-                                                item_name: item.name,
-                                                ...(item.subGroup || item.group || item.category
-                                                    ? { item_category: item.subGroup || item.group || item.category }
-                                                    : {}),
-                                                ...(priceUAH != null ? { price: priceUAH } : {}),
-                                            },
-                                        ],
-                                    });
-                                }}
-                                className="font-name-accent text-left text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 leading-[1.02] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
-                            >
-                                <span itemProp="name">{name}</span>
-                            </SmartLink>
+                        <div className="group/nameedit flex h-full w-2/3 flex-col justify-center gap-0.5 sm:w-3/5">
+                            {quickEditName ? (
+                                <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()} style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>
+                                    <input
+                                        type="text"
+                                        value={quickNameVal}
+                                        onChange={(e) => setQuickNameVal(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') void handleQuickNameSave(); if (e.key === 'Escape') setQuickEditName(false); }}
+                                        autoFocus
+                                        className="w-full rounded-lg border border-violet-300 bg-white px-2 py-1 text-[12px] text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-violet-100 disabled:opacity-50"
+                                        disabled={quickNameSaving}
+                                    />
+                                    <div className="flex gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); void handleQuickNameSave(); }}
+                                            disabled={quickNameSaving}
+                                            className="flex items-center gap-1 rounded-md bg-violet-600 text-white text-[9px] font-bold px-2 py-0.5 hover:bg-violet-700 active:scale-[0.95] disabled:opacity-50 transition-all"
+                                        >
+                                            {quickNameSaving ? <span className="inline-block h-2.5 w-2.5 rounded-full border-2 border-violet-300 border-t-white animate-spin" /> : <Check size={10} />}
+                                            Зберегти
+                                        </button>
+                                        <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditName(false); setQuickNameError(null); }} className="rounded-md border border-slate-200 text-slate-500 text-[9px] px-2 py-0.5 hover:bg-slate-50 transition-colors">
+                                            <X size={10} />
+                                        </button>
+                                    </div>
+                                    {quickNameError && (
+                                        <p className="text-[9px] text-rose-500 font-medium truncate" style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>{quickNameError}</p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    <SmartLink
+                                        href={productHref}
+                                        itemProp="url"
+                                        prefetchOnViewport={prefetchProductRoute}
+                                        prefetchOnIntent
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            pushEcommerceEvent("select_item", {
+                                                currency: "UAH",
+                                                items: [
+                                                    {
+                                                        item_id: item.code,
+                                                        item_name: item.name,
+                                                        ...(item.subGroup || item.group || item.category
+                                                            ? { item_category: item.subGroup || item.group || item.category }
+                                                            : {}),
+                                                        ...(priceUAH != null ? { price: priceUAH } : {}),
+                                                    },
+                                                ],
+                                            });
+                                        }}
+                                        className="font-name-accent text-left text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 leading-[1.02] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
+                                    >
+                                        <span itemProp="name">{name}</span>
+                                    </SmartLink>
+                                    {isAdmin && onAdminEdit && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); setQuickNameVal(item.name || ''); setQuickEditName(true); }}
+                                            className="absolute -top-0.5 -right-0.5 p-0.5 rounded-md bg-white/90 border border-violet-200 text-violet-500 shadow-sm opacity-0 group-hover/nameedit:opacity-100 hover:bg-violet-50 hover:border-violet-300 transition-all duration-150"
+                                            title="Редагувати назву"
+                                        >
+                                            <Pencil size={10} />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -599,26 +734,61 @@ useEffect(() => {
                             <span className="text-slate-500">{"\u041A\u043E\u0434:"}</span>
                             <span className="min-w-0 max-w-[55%] truncate font-medium text-slate-700">{code || "-"}</span>
                         </div>
-                          <button
-                              type="button"
-                              onClick={handleCopyArticle}
-                              className="group/copy flex w-full min-h-0 items-center justify-between px-1 py-0.5 rounded hover:bg-slate-100/70 transition-colors text-left"
-                              aria-label="Скопіювати артикул"
-                          >
-                            <span className="text-slate-500">Артикул:</span>
-                              <span className="inline-flex min-w-0 max-w-[55%] items-center gap-1.5 font-medium text-slate-700">
-                                  {articleCopied ? (
-                                      <Check size={13} className="text-emerald-600" aria-hidden="true" />
-                                  ) : (
-                                      <Copy
-                                          size={13}
-                                          className="text-slate-400 opacity-0 transition-opacity duration-150 group-hover/copy:opacity-100 group-focus-within/copy:opacity-100"
-                                          aria-hidden="true"
-                                      />
-                                  )}
-                                  <span className="truncate min-w-0">{article}</span>
-                              </span>
-                          </button>
+                          {quickEditArticle ? (
+                              <div className="flex items-center gap-1 px-1 py-0.5" onClick={(e) => e.stopPropagation()}>
+                                  <span className="text-slate-500 text-[10px] flex-shrink-0">Артикул:</span>
+                                  <input
+                                      type="text"
+                                      value={quickArticleVal}
+                                      onChange={(e) => setQuickArticleVal(e.target.value)}
+                                      onKeyDown={(e) => { if (e.key === 'Enter') { void handleQuickArticleSave(); } if (e.key === 'Escape') setQuickEditArticle(false); }}
+                                      autoFocus
+                                      className="flex-1 min-w-0 rounded-md border border-violet-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-200 disabled:opacity-50"
+                                      disabled={quickArticleSaving}
+                                  />
+                                  <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); void handleQuickArticleSave(); }}
+                                      disabled={quickArticleSaving}
+                                      className="flex-shrink-0 p-0.5 text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+                                  >
+                                      {quickArticleSaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-emerald-300 border-t-emerald-600 animate-spin" /> : <Check size={12} />}
+                                  </button>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditArticle(false); setQuickArticleError(null); }} className="flex-shrink-0 p-0.5 text-slate-400 hover:text-slate-600"><X size={12} /></button>
+                              </div>
+                          ) : (
+                              <div className="group/article flex w-full items-center justify-between px-1 py-0.5 rounded hover:bg-slate-100/70 transition-colors">
+                                  <span className="text-slate-500">Артикул:</span>
+                                  <span className="inline-flex min-w-0 max-w-[55%] items-center gap-1 font-medium text-slate-700">
+                                      {isAdmin && onAdminEdit && (
+                                          <button
+                                              type="button"
+                                              onClick={(e) => { e.stopPropagation(); setQuickArticleVal(article !== '-' ? article : ''); setQuickEditArticle(true); }}
+                                              className="flex-shrink-0 p-0.5 rounded text-violet-400 opacity-0 group-hover/article:opacity-100 hover:text-violet-600 hover:bg-violet-50 transition-all duration-150"
+                                              title="Редагувати артикул"
+                                          >
+                                              <Pencil size={10} />
+                                          </button>
+                                      )}
+                                      <button
+                                          type="button"
+                                          onClick={handleCopyArticle}
+                                          className="group/copy inline-flex items-center gap-1.5 min-w-0"
+                                          aria-label="Скопіювати артикул"
+                                      >
+                                          {articleCopied ? (
+                                              <Check size={13} className="text-emerald-600 flex-shrink-0" aria-hidden="true" />
+                                          ) : (
+                                              <Copy size={13} className="text-slate-400 flex-shrink-0 opacity-0 transition-opacity duration-150 group-hover/copy:opacity-100" aria-hidden="true" />
+                                          )}
+                                          <span className="truncate min-w-0">{article}</span>
+                                      </button>
+                                  </span>
+                              </div>
+                          )}
+                          {quickArticleError && (
+                              <p className="px-1 text-[9px] text-rose-500 font-medium truncate" style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>{quickArticleError}</p>
+                          )}
                           {producerPath ? (
                               <SmartLink
                                   href={producerPath}
@@ -669,75 +839,109 @@ useEffect(() => {
                           )}
                     </div>
 
-                    {/* Р¦С–РЅР° */}
-                    <div className="mt-2 flex w-full items-center justify-between gap-1.5 sm:mt-2.5">
-                        {hasCostPrice && (
+                    {/* Ціна */}
+                    {quickEditPrice ? (
+                        <div className="mt-2 flex w-full items-center gap-1.5 sm:mt-2.5" onClick={(e) => e.stopPropagation()} style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>
+                            <span className={`flex-shrink-0 text-[9px] font-bold uppercase tracking-wide ${showCostPrice ? 'text-amber-600' : 'text-blue-600'}`}>
+                                {showCostPrice ? 'Закуп €' : 'Продаж €'}
+                            </span>
+                            <div className="relative flex-1">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[9px] font-bold select-none">€</span>
+                                <input
+                                    type="number" min="0" step="0.01"
+                                    value={showCostPrice ? quickCostPriceVal : quickPriceVal}
+                                    onChange={(e) => showCostPrice ? setQuickCostPriceVal(e.target.value) : setQuickPriceVal(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') void handleQuickPriceSave(); if (e.key === 'Escape') setQuickEditPrice(false); }}
+                                    autoFocus
+                                    disabled={quickPriceSaving}
+                                    className={`w-full pl-5 pr-1 py-1.5 rounded-lg border bg-white text-[10px] text-slate-800 font-medium focus:outline-none focus:ring-2 disabled:opacity-50 transition-all ${showCostPrice ? 'border-amber-300 focus:ring-amber-100' : 'border-violet-300 focus:ring-violet-100'}`}
+                                />
+                            </div>
                             <button
                                 type="button"
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    setShowCostPrice((value) => !value);
-                                }}
-                                aria-pressed={showCostPrice}
-                                title={showCostPrice ? "Показати продажну ціну" : "Показати закупівельну ціну"}
-                                className={`flex min-h-[32px] shrink-0 items-center justify-center rounded-[11px] border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] shadow-[0_7px_14px_rgba(245,158,11,0.08)] transition ${
-                                    showCostPrice
-                                        ? "border-amber-300 bg-amber-100 text-amber-900"
-                                        : "border-amber-200 bg-amber-50/85 text-amber-700 hover:border-amber-300 hover:bg-amber-100"
-                                }`}
+                                onClick={(e) => { e.stopPropagation(); void handleQuickPriceSave(); }}
+                                disabled={quickPriceSaving}
+                                className={`flex-shrink-0 p-1.5 rounded-lg text-white active:scale-[0.95] transition-all disabled:opacity-50 ${showCostPrice ? 'bg-amber-500 hover:bg-amber-600' : 'bg-violet-600 hover:bg-violet-700'}`}
                             >
-                                Закуп
+                                {quickPriceSaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : <Check size={12} />}
                             </button>
-                        )}
-                        <div
-                            className="
-                                ml-auto flex min-h-[32px] w-fit max-w-[78%] items-center justify-between gap-2 px-2.5 py-1
-                                rounded-[13px]
-                                bg-white/90 backdrop-blur-md 
-                                border border-blue-200/90
-                                text-slate-900 font-semibold
-                                whitespace-nowrap 
-                                transition-all duration-300  
-                                shadow-[0_8px_18px_rgba(37,99,235,0.08)]
-                                hover:shadow-[0_10px_22px_rgba(37,99,235,0.12)] hover:border-blue-300
-                                hover:bg-white
-                            "
-                        >
-                            <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
-                                {showCostPrice && hasCostPrice ? "Закуп:" : "\u0426\u0456\u043D\u0430:"}
-                            </span>
-
-                            <span className="flex items-center justify-end gap-1 text-right tabular-nums">
-                                {showCostPrice && hasCostPrice ? (
-                                    <>
-                                        <span className="text-amber-700 font-black text-[13px] leading-none">
-                                            {costPriceUAH.toLocaleString("uk-UA")}
-                                        </span>
-                                        <span className="text-[10px] font-bold text-amber-600">
-                                            {"\u0433\u0440\u043D"}
-                                        </span>
-                                    </>
-                                ) : hasPrice ? (
-                                    <>
-                                        <span className="text-blue-600 font-black text-[13px] leading-none">
-                                            {priceUAH.toLocaleString("uk-UA")}
-                                        </span>
-                                        <span className="text-[10px] font-bold text-slate-500">
-                                            {"\u0433\u0440\u043D"}
-                                        </span>
-                                    </>
-                                ) : isPriceLoading ? (
-                                    <span className="text-[10px] font-bold text-blue-500">
-                                        {"\u0446\u0456\u043D\u0430..."}
-                                    </span>
-                                ) : (
-                                    <span className="text-slate-400 italic text-[10px] font-bold">
-                                        {"\u0437\u0430 \u0437\u0430\u043F\u0438\u0442\u043E\u043C"}
-                                    </span>
-                                )}
-                            </span>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditPrice(false); setQuickPriceError(null); }} className="flex-shrink-0 p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors">
+                                <X size={12} />
+                            </button>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="mt-2 flex w-full items-center gap-1.5 sm:mt-2.5">
+                            {/* Pill toggle Прод / Закуп */}
+                            {hasCostPrice && (
+                                <div className="flex shrink-0 rounded-[10px] border border-slate-200 bg-slate-100/70 p-[3px] shadow-inner gap-[2px]">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); setShowCostPrice(false); }}
+                                        className={`px-2 py-[3px] rounded-[7px] text-[9px] font-black uppercase tracking-[0.07em] transition-all duration-150 leading-none ${
+                                            !showCostPrice
+                                                ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-200/60'
+                                                : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                    >Прод</button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); setShowCostPrice(true); }}
+                                        className={`px-2 py-[3px] rounded-[7px] text-[9px] font-black uppercase tracking-[0.07em] transition-all duration-150 leading-none ${
+                                            showCostPrice
+                                                ? 'bg-white text-amber-700 shadow-sm ring-1 ring-amber-200/60'
+                                                : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                    >Закуп</button>
+                                </div>
+                            )}
+                            {/* Price display */}
+                            <div className={`ml-auto flex min-h-[32px] w-fit max-w-[72%] items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/90 backdrop-blur-md border whitespace-nowrap transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice && hasCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
+                                <span className={`text-[10px] font-bold uppercase tracking-[0.06em] ${showCostPrice && hasCostPrice ? 'text-amber-500' : 'text-slate-400'}`}>
+                                    {showCostPrice && hasCostPrice ? 'Закуп:' : 'Ціна:'}
+                                </span>
+                                <span className="flex items-center gap-1 tabular-nums">
+                                    {showCostPrice && hasCostPrice ? (
+                                        <>
+                                            <span className="text-amber-700 font-black text-[13px] leading-none">{costPriceUAH.toLocaleString('uk-UA')}</span>
+                                            <span className="text-[10px] font-bold text-amber-500">грн</span>
+                                        </>
+                                    ) : hasPrice ? (
+                                        <>
+                                            <span className="text-blue-600 font-black text-[13px] leading-none">{priceUAH.toLocaleString('uk-UA')}</span>
+                                            <span className="text-[10px] font-bold text-slate-400">грн</span>
+                                        </>
+                                    ) : isPriceLoading ? (
+                                        <span className="text-[10px] font-bold text-blue-400">ціна...</span>
+                                    ) : (
+                                        <span className="text-slate-400 italic text-[10px] font-bold">за запитом</span>
+                                    )}
+                                </span>
+                            </div>
+                            {/* Admin edit pencil */}
+                            {isAdmin && onAdminEdit && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (showCostPrice) {
+                                            const euro = costPriceEuro ?? item.costPriceEuro;
+                                            setQuickCostPriceVal(euro != null && euro > 0 ? String(euro) : '');
+                                        } else {
+                                            setQuickPriceVal(item.priceEuro != null ? String(item.priceEuro) : '');
+                                        }
+                                        setQuickEditPrice(true);
+                                    }}
+                                    className="flex-shrink-0 p-1 rounded-md border border-violet-200 bg-violet-50 text-violet-500 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-[0.95] transition-all duration-150"
+                                    title="Редагувати ціну"
+                                >
+                                    <Pencil size={11} />
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    {quickPriceError && (
+                        <p className="mt-1 text-[9px] text-rose-500 font-medium truncate text-right" style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>{quickPriceError}</p>
+                    )}
 
                     {/* Низ */}
                     <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-200 gap-1">
@@ -945,107 +1149,48 @@ useEffect(() => {
             </>
         )}
         {isEditMode && (
-            <div className="space-y-2 text-[11px]">
-                <div className="flex items-center gap-1.5 flex-wrap pb-0.5">
-                    <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${item.hasPrice === true || (priceUAH != null && priceUAH > 0) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
-                        {item.hasPrice === true || (priceUAH != null && priceUAH > 0) ? '€ Є ціна' : '€ Без ціни'}
-                    </span>
-                    <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${item.hasPhoto !== false ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}>
-                        {item.hasPhoto !== false ? '◻ Є фото' : '◻ Без фото'}
-                    </span>
-                    <span className="ml-auto text-[9px] text-slate-400 font-mono truncate max-w-[100px]" title={item.article || item.code}>{item.article || item.code}</span>
-                </div>
+            <div className="space-y-1.5 text-[11px]" style={{ animation: 'adminEditFadeIn 0.18s ease-out' }}>
+                {/* Description */}
                 <div>
-                    <label className="block text-slate-500 font-semibold mb-0.5">Опис</label>
+                    <label className="block text-[9px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Опис</label>
                     <textarea
                         value={editDesc}
                         onChange={(e) => setEditDesc(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white/90 p-1.5 text-[11px] text-slate-800 resize-none focus:outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-200"
-                        rows={3}
+                        className="w-full rounded-lg border border-slate-200 bg-white/95 p-1.5 text-[11px] text-slate-800 resize-none focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all disabled:opacity-50 hover:border-slate-300"
+                        rows={4}
                         disabled={editSaving}
                     />
                 </div>
-                <div className="flex gap-2">
-                    <div className="flex-1">
-                        <label className="block text-slate-500 font-semibold mb-0.5">Ціна продажу (EUR)</label>
-                        <input
-                            type="number"
-                            min="0"
-                            value={editPrice}
-                            onChange={(e) => setEditPrice(e.target.value)}
-                            className="w-full rounded-lg border border-slate-200 bg-white/90 p-1.5 text-[11px] text-slate-800 focus:outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-200"
-                            placeholder="0"
-                            disabled={editSaving}
-                        />
-                    </div>
-                    <div className="flex-1">
-                        <label className="block text-slate-500 font-semibold mb-0.5">Ціна закупу (EUR)</label>
-                        <input
-                            type="number"
-                            min="0"
-                            value={editCostPrice}
-                            onChange={(e) => setEditCostPrice(e.target.value)}
-                            className="w-full rounded-lg border border-slate-200 bg-white/90 p-1.5 text-[11px] text-slate-800 focus:outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-200"
-                            placeholder="0"
-                            disabled={editSaving}
-                        />
-                    </div>
-                </div>
-                <div>
-                    <label className="block text-slate-500 font-semibold mb-0.5">Фото товару</label>
-                    <input
-                        ref={imageInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        className="hidden"
-                        onChange={handleImageFileChange}
-                        disabled={editSaving}
-                    />
-                    <button
-                        type="button"
-                        onClick={() => imageInputRef.current?.click()}
-                        disabled={editSaving}
-                        className="w-full rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-500 text-[10px] font-medium py-1.5 hover:bg-slate-100 hover:border-slate-400 transition-colors disabled:opacity-50"
-                    >
-                        {editImageDataUrl ? `✓ ${editImageName || 'Фото обрано'}` : '📷 Обрати фото (JPG/PNG/WebP)'}
-                    </button>
-                    {editImageDataUrl && (
-                        <div className="mt-1 flex items-center gap-1">
-                            <img src={editImageDataUrl} alt="preview" className="h-10 w-10 rounded object-cover border border-slate-200" />
-                            <button
-                                type="button"
-                                onClick={() => { setEditImageDataUrl(null); setEditImageName(''); if (imageInputRef.current) imageInputRef.current.value = ''; }}
-                                className="text-[10px] text-rose-500 hover:text-rose-700"
-                            >
-                                ✕ Скасувати
-                            </button>
-                        </div>
-                    )}
-                </div>
+
                 {editError && (
-                    <p className="text-[10px] text-rose-600 font-medium">{editError}</p>
+                    <div className="flex items-center gap-1 rounded-lg bg-rose-50 border border-rose-200 px-2 py-1">
+                        <X size={10} className="text-rose-500 flex-shrink-0" />
+                        <p className="text-[10px] text-rose-600 font-medium leading-tight">{editError}</p>
+                    </div>
                 )}
                 {editSuccess && (
-                    <p className="text-[10px] text-emerald-600 font-semibold">✓ Збережено</p>
+                    <div className="flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1" style={{ animation: 'adminEditFadeIn 0.2s ease-out' }}>
+                        <Check size={10} className="text-emerald-500 flex-shrink-0" />
+                        <p className="text-[10px] text-emerald-600 font-semibold">Збережено</p>
+                    </div>
                 )}
-                <div className="flex gap-1.5 pt-0.5">
+
+                <div className="flex gap-1.5">
                     <button
                         onClick={handleAdminSave}
                         disabled={editSaving}
-                        className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-violet-300 bg-violet-100 text-violet-800 text-[10px] font-bold py-1.5 hover:bg-violet-200 disabled:opacity-50 transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-violet-300 bg-gradient-to-b from-violet-100 to-violet-50 text-violet-800 text-[10px] font-bold py-1.5 hover:from-violet-200 hover:to-violet-100 hover:border-violet-400 hover:shadow-sm active:scale-[0.97] disabled:opacity-50 transition-all duration-150"
                     >
-                        {editSaving ? (
-                            <span className="inline-block h-3 w-3 rounded-full border-2 border-violet-300 border-t-violet-700 animate-spin" />
-                        ) : (
-                            '\u2713 \u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438'
-                        )}
+                        {editSaving
+                            ? <span className="inline-block h-3 w-3 rounded-full border-2 border-violet-300 border-t-violet-700 animate-spin" />
+                            : <><Save size={10} />Зберегти</>}
                     </button>
                     <button
                         onClick={() => { setIsEditMode(false); setEditError(null); }}
                         disabled={editSaving}
-                        className="flex-1 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 text-[10px] font-bold py-1.5 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                        className="px-3 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 text-[10px] hover:bg-slate-50 hover:border-slate-300 active:scale-[0.97] disabled:opacity-50 transition-all duration-150"
                     >
-                        Скасувати
+                        <X size={11} />
                     </button>
                 </div>
             </div>

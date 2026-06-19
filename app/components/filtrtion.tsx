@@ -538,7 +538,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   }, []);
 
   const filterChipBase =
-    'flex min-h-[36px] max-w-full items-center gap-1.5 rounded-xl px-2 py-1 text-[11px] transition-all duration-200 active:scale-95 cursor-pointer touch-manipulation sm:px-2.5 sm:py-1.5 sm:text-[12px]';
+    'relative flex h-10 w-10 shrink-0 items-center justify-center gap-0 rounded-[14px] p-0 text-[0px] transition-all duration-200 active:scale-95 cursor-pointer touch-manipulation sm:min-h-[36px] sm:w-auto sm:max-w-full sm:gap-1.5 sm:rounded-xl sm:px-2.5 sm:py-1.5 sm:text-[12px]';
   const filterChipIdle =
     `${filterChipBase} border border-slate-200/90 bg-white/88 text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.07)] ring-1 ring-white/75 backdrop-blur-md hover:border-slate-300 hover:bg-white hover:text-slate-800`;
   const filterChipBlue =
@@ -549,7 +549,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     `${filterChipBase} border border-violet-300/90 bg-violet-50/86 text-violet-800 shadow-[0_10px_20px_rgba(139,92,246,0.10)] ring-1 ring-violet-100/90 backdrop-blur-md hover:border-violet-300 hover:bg-violet-50`;
 
   const filterIconBase =
-    'inline-flex h-5 w-5 items-center justify-center rounded-full border transition-all duration-200 ease-out backdrop-blur-md';
+    'inline-flex h-6 w-6 items-center justify-center rounded-full border transition-all duration-200 ease-out backdrop-blur-md sm:h-5 sm:w-5';
   const filterIconIdle =
     `${filterIconBase} border-slate-200/90 bg-white/92 text-slate-600 shadow-[0_6px_14px_rgba(15,23,42,0.08)] ring-1 ring-white/80`;
   const filterIconBlue =
@@ -813,7 +813,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   return (
     <section
       ref={rootRef}
-      className={`w-full select-none overflow-hidden rounded-[20px] border border-slate-200/90 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.95)_0%,rgba(248,250,252,0.90)_48%,rgba(240,249,255,0.88)_100%)] text-slate-800 ring-1 ring-white/80 backdrop-blur-2xl transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out ${
+        className={`w-full select-none overflow-hidden rounded-[18px] border border-slate-200/90 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.95)_0%,rgba(248,250,252,0.90)_48%,rgba(240,249,255,0.88)_100%)] text-slate-800 ring-1 ring-white/80 backdrop-blur-2xl transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out sm:rounded-[20px] ${
         collapsed
           ? '-translate-y-1 shadow-[0_12px_28px_rgba(15,23,42,0.08)]'
           : 'translate-y-0 shadow-[0_20px_46px_rgba(15,23,42,0.10)]'
@@ -822,7 +822,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       <div
         ref={headerRef}
         onClick={handleHeaderToggle}
-        className={`flex cursor-pointer flex-wrap items-center justify-between gap-2 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.58)_0%,rgba(241,245,249,0.54)_52%,rgba(224,242,254,0.48)_100%)] px-2.5 py-2.5 sm:gap-3 sm:px-4 sm:py-3 ${
+        className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.58)_0%,rgba(241,245,249,0.54)_52%,rgba(224,242,254,0.48)_100%)] px-2 py-2 sm:flex sm:flex-wrap sm:px-4 sm:py-3 ${
           collapsed ? '' : 'border-b border-slate-200/80'
         }`}
       >
@@ -830,7 +830,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             <Filter size={16} className="text-slate-600" />
             <span className="hidden sm:inline">Фільтрація</span>
           </div>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-2 sm:gap-2.5">
+          <div className="catalog-filter-mini-bar flex min-w-0 flex-1 items-center justify-center gap-1.5 overflow-x-auto overflow-y-hidden px-0.5 sm:flex-wrap sm:gap-2.5 sm:overflow-visible sm:px-0">
             {showSearchInfo && (
               <div
                 className="hidden items-center gap-1 text-[12px] text-slate-500 lg:flex"
@@ -854,7 +854,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               </span>
               <span className="hidden sm:inline">Авто</span>
               {carCount > 0 && (
-                <span className="ml-1 inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 sm:px-2 sm:text-[11px]">
+                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-500 px-1 text-[9px] font-black leading-none text-white ring-2 ring-white sm:static sm:ml-1 sm:h-auto sm:min-w-0 sm:bg-blue-50 sm:px-2 sm:py-0.5 sm:text-[11px] sm:font-semibold sm:text-blue-700 sm:ring-0">
                   {carCount}
                 </span>
               )}
@@ -873,7 +873,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               {hasCategoryLabel ? (
                 <>
                   <span className="hidden md:inline text-slate-500">Категорія</span>
-                  <span className="max-w-[150px] truncate font-medium text-slate-700 sm:max-w-[220px]">
+                  <span className="hidden max-w-[150px] truncate font-medium text-slate-700 sm:max-w-[220px] md:inline">
                     {displayCategoryLabel}
                   </span>
                 </>
@@ -881,7 +881,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 <span className="hidden sm:inline">Категорія</span>
               )}
               {categoryCount > 0 && (
-                <span className="ml-1 inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 sm:px-2 sm:text-[11px]">
+                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-black leading-none text-white ring-2 ring-white sm:static sm:ml-1 sm:h-auto sm:min-w-0 sm:bg-emerald-50 sm:px-2 sm:py-0.5 sm:text-[11px] sm:font-semibold sm:text-emerald-700 sm:ring-0">
                   {categoryCount}
                 </span>
               )}
@@ -901,7 +901,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               </span>
               <span className="hidden sm:inline">Виробник</span>
               {producerParam && (
-                <span className="ml-1 inline-flex items-center rounded-full bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 sm:px-2 sm:text-[11px]">
+                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-500 px-1 text-[9px] font-black leading-none text-white ring-2 ring-white sm:static sm:ml-1 sm:h-auto sm:min-w-0 sm:bg-purple-50 sm:px-2 sm:py-0.5 sm:text-[11px] sm:font-semibold sm:text-purple-700 sm:ring-0">
                   1
                 </span>
               )}
@@ -950,7 +950,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 event.stopPropagation();
                 handleClearFilters();
                 }}
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/72 bg-white/72 text-slate-500 shadow-[0_6px_16px_rgba(15,23,42,0.04)] backdrop-blur-md transition hover:bg-white/84 hover:text-slate-700 active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8"
+                className="flex h-9 w-9 items-center justify-center rounded-[13px] border border-white/72 bg-white/72 text-slate-500 shadow-[0_6px_16px_rgba(15,23,42,0.04)] backdrop-blur-md transition hover:bg-white/84 hover:text-slate-700 active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8 sm:rounded-full"
                 aria-label="Очистити фільтри"
               >
                 <X size={14} className="pointer-events-none sm:size-4" />
@@ -962,7 +962,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 event.stopPropagation();
                 setCollapsed((prev) => !prev);
               }}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-white/72 bg-white/72 text-slate-500 shadow-[0_6px_16px_rgba(15,23,42,0.04)] backdrop-blur-md transition hover:bg-white/84 hover:text-slate-700 active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8"
+              className="flex h-9 w-9 items-center justify-center rounded-[13px] border border-white/72 bg-white/72 text-slate-500 shadow-[0_6px_16px_rgba(15,23,42,0.04)] backdrop-blur-md transition hover:bg-white/84 hover:text-slate-700 active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8 sm:rounded-full"
               aria-label={collapsed ? 'Розгорнути фільтрацію' : 'Згорнути фільтрацію'}
               aria-expanded={!collapsed}
             >
