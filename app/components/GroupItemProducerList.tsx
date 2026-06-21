@@ -6,7 +6,16 @@ import { useEffect, useMemo, useState } from "react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import { directoryPrimaryButtonClass } from "app/components/catalog-directory-styles";
-import { getProducerInitials } from "app/lib/brand-logo";
+
+const getProducerInitials = (label: string) => {
+  const letters = (label || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0] || "")
+    .join("");
+  return letters.toUpperCase() || "BR";
+};
 
 type ProducerEntry = {
   label: string;
