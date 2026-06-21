@@ -154,6 +154,11 @@ const OpenChatButton = dynamic(() => import("app/components/OpenChatButton"), {
   ),
 });
 
+const ProducerInlineEdit = dynamic(
+  () => import("app/components/ProducerInlineEdit"),
+  { ssr: false }
+);
+
 const ProductDeferredRecommendations = dynamic(
   () => import("app/components/ProductDeferredRecommendations"),
   {
@@ -2248,7 +2253,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500 sm:text-[10px]">
                               {item.label}
                             </p>
-                            {item.href ? (
+                            {item.label === "Виробник" ? (
+                              <ProducerInlineEdit
+                                code={product.code || resolvedCode}
+                                article={product.article || ""}
+                                producer={product.producer || ""}
+                                href={item.href ?? null}
+                              />
+                            ) : item.href ? (
                               <Link
                                 href={item.href}
                                 className="mt-1 block text-[13.5px] font-bold leading-5 text-slate-900 transition hover:text-sky-700 [overflow-wrap:anywhere]"

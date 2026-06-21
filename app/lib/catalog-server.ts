@@ -1527,43 +1527,25 @@ export const fetchCatalogProductsByQuery = async (options: {
 
     try {
       if (searchFilter === "description" && searchQuery) {
-        const directDescriptionQuery = normalizeFacetValue(searchQuery);
-        const directDescriptionTokens = buildDescriptionSearchTokens(searchQuery);
+        // Send "Описание": query directly to allgoods — 1C filters server-side.
+        // ВключатьОписание=true is already set in allgoodsBaseBody so the
+        // description text is included in the response.
+        const descResult = await runAllgoods(ALLGOODS_DESC_FIELDS[0]);
+        if (descResult.items.length > 0 || cursor) {
+          return { ...descResult, cursorField: ALLGOODS_DESC_FIELDS[0] };
+        }
 
-        // Try each known description field as a server-side filter.
-        // Enrich descriptions via getinfo before scoring because allgoods
-        // often doesn't populate description text even with ВключатьОписание=true.
-        for (const searchKey of ALLGOODS_DESC_FIELDS.slice(0, 3)) {
-          const directPageResult = await runAllgoods(searchKey);
-          if (directPageResult.items.length === 0 && !cursor) continue;
-
-          const enrichedItems = await enrichDescriptions(directPageResult.items);
-          const directMatches = enrichedItems.filter(
-            (item) =>
-              scoreDescriptionSearchItem(
-                item,
-                directDescriptionQuery,
-                directDescriptionTokens
-              ) > 0
-          );
-
-          if (directMatches.length > 0 || cursor) {
-            return {
-              ...directPageResult,
-              items: directMatches,
-              hasMore: directPageResult.hasMore || directMatches.length >= limit,
-              cursorField: searchKey,
-            };
+        // Try alternate field names in case 1C uses a different key.
+        for (const searchKey of ALLGOODS_DESC_FIELDS.slice(1, 4)) {
+          const altResult = await runAllgoods(searchKey);
+          if (altResult.items.length > 0) {
+            return { ...altResult, cursorField: searchKey };
           }
         }
 
-        // No scored hits from direct path — run the full page-scan which also
-        // pre-filters by the description field and enriches via getinfo.
+        // No server-side hits — page-scan with local description enrichment.
         const pageResult = await runAllgoodsDescriptionSearch();
-        return {
-          ...pageResult,
-          cursorField: null,
-        };
+        return { ...pageResult, cursorField: null };
       }
 
       const effectiveAllgoodsSearchKeys =

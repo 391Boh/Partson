@@ -161,6 +161,13 @@ export async function POST(request: NextRequest) {
         ? value.catalogNumber.trim()
         : undefined;
 
+  const producer =
+    typeof value["ПроизводительНаименование"] === "string" && value["ПроизводительНаименование"].trim()
+      ? value["ПроизводительНаименование"].trim()
+      : typeof value.producer === "string" && value.producer.trim()
+        ? value.producer.trim()
+        : undefined;
+
   // article = current catalog number, used as НомерПоКаталогу for 1C product lookup
   const lookupArticle =
     typeof value.article === "string" && value.article.trim()
@@ -173,12 +180,13 @@ export async function POST(request: NextRequest) {
   if (image.fileName) oneCBody.file_name = image.fileName;
   if (image.imageBase64) oneCBody.image_base64 = image.imageBase64;
   if (productName) oneCBody["Наименование"] = productName;
+  if (producer !== undefined) oneCBody["ПроизводительНаименование"] = producer;
   // catalogNumber = new value (update); lookupArticle = current value (lookup only)
   const articleForOnec = catalogNumber || lookupArticle;
   if (articleForOnec) oneCBody["НомерПоКаталогу"] = articleForOnec;
 
   if (Object.keys(oneCBody).length === 1) {
-    return json({ ok: false, error: "Provide price, cost price, image, name, or catalog number" }, 400);
+    return json({ ok: false, error: "Provide price, cost price, image, name, catalog number, or producer" }, 400);
   }
 
   const result = await oneCRequest(ONEC_PRODUCT_UPDATE_ENDPOINT, {
@@ -301,6 +309,7 @@ export async function POST(request: NextRequest) {
       : {}),
     ...(confirmedName ? { name: confirmedName } : {}),
     ...(confirmedCatalogNumber ? { catalogNumber: confirmedCatalogNumber } : {}),
+    ...(producer !== undefined ? { producer } : {}),
     ...(image.fileName ? { fileName: image.fileName } : {}),
   });
 }
