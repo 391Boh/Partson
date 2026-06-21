@@ -155,8 +155,7 @@ const OpenChatButton = dynamic(() => import("app/components/OpenChatButton"), {
 });
 
 const ProducerInlineEdit = dynamic(
-  () => import("app/components/ProducerInlineEdit"),
-  { ssr: false }
+  () => import("app/components/ProducerInlineEdit")
 );
 
 const ProductDeferredRecommendations = dynamic(
