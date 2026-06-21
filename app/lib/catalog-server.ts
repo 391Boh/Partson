@@ -1403,6 +1403,43 @@ export const fetchCatalogProductsByQuery = async (options: {
       });
     };
 
+    // Enrich descriptions via getinfo for items that allgoods didn't populate.
+    const enrichDescriptions = async (items: CatalogProduct[]): Promise<CatalogProduct[]> => {
+      const needEnrichment = items.filter((item) => !item.description);
+      if (needEnrichment.length === 0) return items;
+
+      const descMap = new Map<string, string | null>();
+      const concurrency = 8;
+      let enrichIdx = 0;
+
+      const workers = Array.from(
+        { length: Math.min(concurrency, needEnrichment.length) },
+        async () => {
+          while (enrichIdx < needEnrichment.length) {
+            const i = enrichIdx++;
+            const item = needEnrichment[i];
+            const lookup = (item.article || item.code || "").trim();
+            if (!lookup) continue;
+            const desc = await fetchProductDescription(lookup, {
+              timeoutMs: 550,
+              retries: 0,
+              cacheTtlMs: 1000 * 60 * 30,
+            }).catch(() => null);
+            descMap.set(lookup, desc ?? null);
+          }
+        }
+      );
+
+      await Promise.allSettled(workers);
+
+      return items.map((item) => {
+        if (item.description) return item;
+        const lookup = (item.article || item.code || "").trim();
+        const desc = lookup ? (descMap.get(lookup) ?? null) : null;
+        return desc ? { ...item, description: desc } : item;
+      });
+    };
+
     const runAllgoodsDescriptionSearch = async () => {
       const descriptionQuery = normalizeFacetValue(searchQuery);
       const descriptionTokens = buildDescriptionSearchTokens(searchQuery);
@@ -1416,48 +1453,18 @@ export const fetchCatalogProductsByQuery = async (options: {
       let scannedItems = 0;
       let hasMoreSource = false;
 
-      // Fetch descriptions for items that allgoods didn't include (getinfo fallback)
-      const enrichDescriptions = async (items: CatalogProduct[]): Promise<CatalogProduct[]> => {
-        const needEnrichment = items.filter((item) => !item.description);
-        if (needEnrichment.length === 0) return items;
-
-        const descMap = new Map<string, string | null>();
-        const concurrency = 8;
-        let enrichIdx = 0;
-
-        const workers = Array.from(
-          { length: Math.min(concurrency, needEnrichment.length) },
-          async () => {
-            while (enrichIdx < needEnrichment.length) {
-              const i = enrichIdx++;
-              const item = needEnrichment[i];
-              const lookup = (item.article || item.code || "").trim();
-              if (!lookup) continue;
-              const desc = await fetchProductDescription(lookup, {
-                timeoutMs: 550,
-                retries: 0,
-                cacheTtlMs: 1000 * 60 * 30,
-              }).catch(() => null);
-              descMap.set(lookup, desc ?? null);
-            }
-          }
-        );
-
-        await Promise.allSettled(workers);
-
-        return items.map((item) => {
-          if (item.description) return item;
-          const lookup = (item.article || item.code || "").trim();
-          const desc = lookup ? (descMap.get(lookup) ?? null) : null;
-          return desc ? { ...item, description: desc } : item;
-        });
+      // Pass description field to 1C so it pre-filters — allgoods "Описание" key
+      // tells the server to search only items whose description contains the query.
+      const descSearchBody: Record<string, unknown> = {
+        ...allgoodsBaseBody,
+        [ALLGOODS_DESC_FIELDS[0]]: searchQuery,
       };
 
       while (scannedItems < maxScannedItems && matches.length < targetCount) {
         const pageResult = await fetchAllgoodsProductsPageDetailed({
           page: 1,
           limit: scanLimit,
-          body: allgoodsBaseBody,
+          body: descSearchBody,
           cursor: scanCursor,
           timeoutMs: options.timeoutMs,
           retries: options.retries,
@@ -1471,6 +1478,7 @@ export const fetchCatalogProductsByQuery = async (options: {
         scannedItems += pageResult.items.length;
         hasMoreSource = pageResult.hasMore;
 
+        // Enrich descriptions so scoreDescriptionSearchItem can check them.
         const enrichedItems = await enrichDescriptions(pageResult.items);
 
         for (const item of enrichedItems) {
@@ -1522,12 +1530,15 @@ export const fetchCatalogProductsByQuery = async (options: {
         const directDescriptionQuery = normalizeFacetValue(searchQuery);
         const directDescriptionTokens = buildDescriptionSearchTokens(searchQuery);
 
-        let totalAllgoodsHits = 0;
-        let lastDirectPageResult: Awaited<ReturnType<typeof runAllgoods>> | null = null;
-
+        // Try each known description field as a server-side filter.
+        // Enrich descriptions via getinfo before scoring because allgoods
+        // often doesn't populate description text even with ВключатьОписание=true.
         for (const searchKey of ALLGOODS_DESC_FIELDS.slice(0, 3)) {
           const directPageResult = await runAllgoods(searchKey);
-          const directMatches = directPageResult.items.filter(
+          if (directPageResult.items.length === 0 && !cursor) continue;
+
+          const enrichedItems = await enrichDescriptions(directPageResult.items);
+          const directMatches = enrichedItems.filter(
             (item) =>
               scoreDescriptionSearchItem(
                 item,
@@ -1535,11 +1546,6 @@ export const fetchCatalogProductsByQuery = async (options: {
                 directDescriptionTokens
               ) > 0
           );
-
-          totalAllgoodsHits += directPageResult.items.length;
-          if (directPageResult.items.length > 0) {
-            lastDirectPageResult = directPageResult;
-          }
 
           if (directMatches.length > 0 || cursor) {
             return {
@@ -1551,13 +1557,8 @@ export const fetchCatalogProductsByQuery = async (options: {
           }
         }
 
-        // Allgoods found items via description fields but none passed the
-        // relevance score filter — return empty rather than leaking unscored
-        // items (which caused the entire catalog to appear in search results).
-        if (totalAllgoodsHits > 0) {
-          return { items: [], hasMore: false, nextCursor: "", cursorField: null };
-        }
-
+        // No scored hits from direct path — run the full page-scan which also
+        // pre-filters by the description field and enriches via getinfo.
         const pageResult = await runAllgoodsDescriptionSearch();
         return {
           ...pageResult,
