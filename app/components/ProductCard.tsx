@@ -95,7 +95,7 @@ interface Props {
     onQtyChange: (code: string, delta: number) => void;
     onFlip: (code: string) => void;
     onImageOpen: (code: string, article?: string) => void;
-    onAdminEdit?: (data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string }) => Promise<{ ok: boolean; error?: string }>;
+    onAdminEdit?: (data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string; producer?: string }) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const ProductCard: React.FC<Props> = ({
@@ -302,6 +302,16 @@ const [quickNameVal, setQuickNameVal] = useState('');
 const [quickNameSaving, setQuickNameSaving] = useState(false);
 const [quickNameError, setQuickNameError] = useState<string | null>(null);
 
+// Quick producer edit (front of card)
+const [quickEditProducer, setQuickEditProducer] = useState(false);
+const [quickProducerVal, setQuickProducerVal] = useState('');
+const [quickProducerSaving, setQuickProducerSaving] = useState(false);
+const [quickProducerError, setQuickProducerError] = useState<string | null>(null);
+const [quickProducerSuggestions, setQuickProducerSuggestions] = useState<string[]>([]);
+const [quickProducerActiveSug, setQuickProducerActiveSug] = useState(-1);
+const producerSuggestAbortRef = useRef<AbortController | null>(null);
+const [displayProducer, setDisplayProducer] = useState(producer);
+
 // Front image upload
 const frontImageInputRef = useRef<HTMLInputElement | null>(null);
 const [frontImageSaving, setFrontImageSaving] = useState(false);
@@ -389,6 +399,32 @@ const handleQuickNameSave = async () => {
         return;
     }
     setQuickEditName(false);
+};
+
+const fetchProducerSuggestions = (q: string) => {
+    producerSuggestAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    producerSuggestAbortRef.current = ctrl;
+    fetch(`/api/producers-suggest?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
+        .then((r) => r.json() as Promise<{ suggestions?: string[] }>)
+        .then((data) => { setQuickProducerSuggestions(data.suggestions ?? []); setQuickProducerActiveSug(-1); })
+        .catch(() => {});
+};
+
+const handleQuickProducerSave = async () => {
+    if (!onAdminEdit || !quickProducerVal.trim()) return;
+    setQuickProducerSaving(true);
+    setQuickProducerError(null);
+    const result = await onAdminEdit({ producer: quickProducerVal.trim() }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
+    setQuickProducerSaving(false);
+    if (!result?.ok) {
+        setQuickProducerError(result?.error ?? 'Помилка збереження');
+        setTimeout(() => setQuickProducerError(null), 4000);
+        return;
+    }
+    setDisplayProducer(quickProducerVal.trim());
+    setQuickEditProducer(false);
+    setQuickProducerSuggestions([]);
 };
 
 const handleAdminSave = async () => {
@@ -791,52 +827,65 @@ useEffect(() => {
                           {quickArticleError && (
                               <p className="px-1 text-[9px] text-rose-500 font-medium truncate" style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>{quickArticleError}</p>
                           )}
-                          {producerPath ? (
-                              <SmartLink
-                                  href={producerPath}
-                                  prefetchOnIntent
-                                  onClick={(event) => event.stopPropagation()}
-                                  className="flex min-h-[30px] items-center justify-between gap-2 hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors no-underline"
-                                  title={producer}
-                              >
-                                  <span className="text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
-                                  {showProducerLogo ? (
-                                      <span className="flex min-w-0 max-w-[55%] justify-end">
-                                          <Image
-                                              src={producerLogoSrc || ""}
-                                              alt={producer}
-                                              width={112}
-                                              height={34}
-                                              loading="lazy"
-                                              onError={() => setProducerLogoFailed(true)}
-                                              className="h-7 w-auto max-w-[112px] object-contain object-right"
-                                          />
-                                      </span>
-                                  ) : (
-                                      <span className="min-w-0 max-w-[55%] truncate font-medium text-blue-700 hover:text-blue-800">{producer}</span>
+                          {quickEditProducer ? (
+                              <div className="relative px-1 py-0.5" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center gap-1">
+                                      <span className="flex-shrink-0 text-[10px] text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
+                                      <input
+                                          type="text"
+                                          value={quickProducerVal}
+                                          onChange={(e) => { setQuickProducerVal(e.target.value); fetchProducerSuggestions(e.target.value); }}
+                                          onKeyDown={(e) => {
+                                              if (e.key === 'ArrowDown') { e.preventDefault(); setQuickProducerActiveSug((p) => Math.min(p + 1, quickProducerSuggestions.length - 1)); }
+                                              else if (e.key === 'ArrowUp') { e.preventDefault(); setQuickProducerActiveSug((p) => Math.max(p - 1, -1)); }
+                                              else if (e.key === 'Enter') { e.preventDefault(); if (quickProducerActiveSug >= 0 && quickProducerSuggestions[quickProducerActiveSug]) { setQuickProducerVal(quickProducerSuggestions[quickProducerActiveSug]); setQuickProducerSuggestions([]); } else void handleQuickProducerSave(); }
+                                              else if (e.key === 'Escape') { setQuickEditProducer(false); setQuickProducerSuggestions([]); }
+                                          }}
+                                          autoFocus
+                                          className="flex-1 min-w-0 rounded-md border border-violet-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-200 disabled:opacity-50"
+                                          disabled={quickProducerSaving}
+                                      />
+                                      <button type="button" onClick={(e) => { e.stopPropagation(); void handleQuickProducerSave(); }} disabled={quickProducerSaving} className="flex-shrink-0 p-0.5 text-emerald-600 hover:text-emerald-700 disabled:opacity-50">
+                                          {quickProducerSaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-emerald-300 border-t-emerald-600 animate-spin" /> : <Check size={12} />}
+                                      </button>
+                                      <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditProducer(false); setQuickProducerSuggestions([]); }} className="flex-shrink-0 p-0.5 text-slate-400 hover:text-slate-600"><X size={12} /></button>
+                                  </div>
+                                  {quickProducerSuggestions.length > 0 && (
+                                      <div className="absolute left-0 top-full z-50 mt-0.5 w-full max-h-40 overflow-y-auto rounded-lg border border-sky-200 bg-white shadow-[0_6px_18px_rgba(14,165,233,0.14)]">
+                                          {quickProducerSuggestions.map((name, i) => (
+                                              <button key={name} type="button" onMouseDown={(e) => { e.preventDefault(); setQuickProducerVal(name); setQuickProducerSuggestions([]); }}
+                                                  className={`block w-full px-2.5 py-1.5 text-left text-[11px] font-medium transition ${i === quickProducerActiveSug ? 'bg-sky-50 text-sky-800' : 'text-slate-700 hover:bg-slate-50'}`}>
+                                                  {name}
+                                              </button>
+                                          ))}
+                                      </div>
                                   )}
-                              </SmartLink>
+                                  {quickProducerError && <p className="mt-0.5 text-[9px] text-rose-500 font-medium truncate">{quickProducerError}</p>}
+                              </div>
                           ) : (
-                              <div
-                                  className="flex min-h-[30px] items-center justify-between gap-2 hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors"
-                                  title={producer}
-                              >
+                              <div className="group/producer flex min-h-[30px] items-center justify-between gap-2 hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
                                   <span className="text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
-                                  {showProducerLogo ? (
-                                      <span className="flex min-w-0 max-w-[55%] justify-end">
-                                          <Image
-                                              src={producerLogoSrc || ""}
-                                              alt={producer}
-                                              width={112}
-                                              height={34}
-                                              loading="lazy"
-                                              onError={() => setProducerLogoFailed(true)}
-                                              className="h-7 w-auto max-w-[112px] object-contain object-right"
-                                          />
-                                      </span>
-                                  ) : (
-                                      <span className="min-w-0 max-w-[55%] truncate font-medium text-slate-700">{producer}</span>
-                                  )}
+                                  <span className="flex min-w-0 max-w-[55%] items-center gap-1 justify-end">
+                                      {isAdmin && onAdminEdit && (
+                                          <button type="button" onClick={(e) => { e.stopPropagation(); setQuickProducerVal(displayProducer !== '-' ? displayProducer : ''); setQuickEditProducer(true); fetchProducerSuggestions(displayProducer !== '-' ? displayProducer : ''); }}
+                                              className="flex-shrink-0 p-0.5 rounded text-violet-400 opacity-0 group-hover/producer:opacity-100 hover:text-violet-600 hover:bg-violet-50 transition-all duration-150" title={"\u0420\u0435\u0434\u0430\u0433\u0443\u0432\u0430\u0442\u0438 \u0432\u0438\u0440\u043E\u0431\u043D\u0438\u043A\u0430"}>
+                                              <Pencil size={10} />
+                                          </button>
+                                      )}
+                                      {producerPath ? (
+                                          <SmartLink href={producerPath} prefetchOnIntent onClick={(event) => event.stopPropagation()} className="flex min-w-0 justify-end no-underline" title={displayProducer}>
+                                              {showProducerLogo ? (
+                                                  <Image src={producerLogoSrc || ""} alt={displayProducer} width={112} height={34} loading="lazy" onError={() => setProducerLogoFailed(true)} className="h-7 w-auto max-w-[112px] object-contain object-right" />
+                                              ) : (
+                                                  <span className="min-w-0 truncate font-medium text-blue-700 hover:text-blue-800">{displayProducer}</span>
+                                              )}
+                                          </SmartLink>
+                                      ) : showProducerLogo ? (
+                                          <Image src={producerLogoSrc || ""} alt={displayProducer} width={112} height={34} loading="lazy" onError={() => setProducerLogoFailed(true)} className="h-7 w-auto max-w-[112px] object-contain object-right" />
+                                      ) : (
+                                          <span className="min-w-0 truncate font-medium text-slate-700">{displayProducer}</span>
+                                      )}
+                                  </span>
                               </div>
                           )}
                     </div>

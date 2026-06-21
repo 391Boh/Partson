@@ -3584,7 +3584,7 @@ const Data: React.FC<DataProps> = ({
     async (
       code: string,
       article: string,
-      data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string }
+      data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string; producer?: string }
     ): Promise<{ ok: boolean; error?: string }> => {
       const token = await getAdminToken();
       if (!token) return { ok: false, error: "Не авторизовано" };
@@ -3635,7 +3635,8 @@ const Data: React.FC<DataProps> = ({
         data.costPriceEuro !== undefined ||
         data.imageDataUrl ||
         data.name !== undefined ||
-        data.catalogNumber !== undefined
+        data.catalogNumber !== undefined ||
+        data.producer !== undefined
       ) {
         // article (НомерПоКаталогу) is required by ОбновитьТовар for product lookup.
         // Send Код (internal code) + article (current catalog number) on every request.
@@ -3649,6 +3650,7 @@ const Data: React.FC<DataProps> = ({
         }
         if (data.name !== undefined) productUpdateBody["Наименование"] = data.name;
         if (data.catalogNumber !== undefined) productUpdateBody["НомерПоКаталогу"] = data.catalogNumber;
+        if (data.producer !== undefined) productUpdateBody.producer = data.producer;
         tasks.push(
           fetch("/api/product-update", {
             method: "POST",

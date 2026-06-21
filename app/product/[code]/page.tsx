@@ -45,6 +45,8 @@ import {
   type ProductSitemapEntry,
 } from "app/lib/product-sitemap";
 import { getGoogleRating } from "app/lib/google-rating";
+import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
+import { producerDescriptions } from "app/lib/producer-descriptions";
 
 const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 1600;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1500;
@@ -1894,6 +1896,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const producerLandingPath = product.producer
     ? buildManufacturerPath(product.producer)
     : null;
+  const brandLogoMap = await getBrandLogoMap().catch(() => new Map<string, string>());
+  const producerLogoPath = product.producer
+    ? resolveProducerLogo(product.producer, brandLogoMap)
+    : null;
+  const producerDescription = product.producer
+    ? (producerDescriptions[product.producer] ?? null)
+    : null;
   const categoryCatalogPath = categoryCatalogGroupValue
     ? buildCatalogCategoryPath(categoryCatalogGroupValue, categoryCatalogSubcategoryValue)
     : "/katalog";
@@ -2208,7 +2217,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       {isInStock ? "В наявності" : "Під замовлення"}
                     </span>
                     {product.producer ? (
-                      <span className="inline-flex rounded-[13px] border border-slate-200 bg-white/84 px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.09em] text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.045)]">
+                      <span className="inline-flex rounded-[13px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(248,250,252,0.96))] px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.09em] text-slate-600 shadow-[0_2px_4px_rgba(15,23,42,0.04),0_6px_14px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,1)]">
                         {product.producer}
                       </span>
                     ) : null}
@@ -2221,7 +2230,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     {productHeroHighlights.map((item) => (
                       <span
                         key={item}
-                        className="inline-flex min-h-7 items-center rounded-[11px] border border-slate-200 bg-white/82 px-2.5 py-1 text-[10px] font-semibold tracking-normal text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.045)] backdrop-blur-sm"
+                        className="inline-flex min-h-7 items-center rounded-[11px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(248,250,252,0.96))] px-2.5 py-1 text-[10px] font-semibold tracking-normal text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06),0_8px_18px_rgba(15,23,42,0.04),inset_0_1px_0_rgba(255,255,255,1)] backdrop-blur-sm"
                       >
                         {item}
                       </span>
@@ -2245,33 +2254,67 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     {productHeaderInfoItems.length > 0 ? (
                       <div className="grid gap-2 sm:grid-cols-2">
                         {productHeaderInfoItems.map((item) => (
-                          <div
-                            key={item.label}
-                            className="rounded-[15px] border border-slate-200 bg-white/82 px-3 py-2.5 shadow-[0_10px_20px_rgba(15,23,42,0.05)] backdrop-blur-sm transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-200 hover:bg-white/94 hover:shadow-[0_12px_24px_rgba(15,23,42,0.07)]"
-                          >
-                            <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500 sm:text-[10px]">
-                              {item.label}
-                            </p>
-                            {item.label === "Виробник" ? (
-                              <ProducerInlineEdit
-                                code={product.code || resolvedCode}
-                                article={product.article || ""}
-                                producer={product.producer || ""}
-                                href={item.href ?? null}
-                              />
-                            ) : item.href ? (
-                              <Link
-                                href={item.href}
-                                className="mt-1 block text-[13.5px] font-bold leading-5 text-slate-900 transition hover:text-sky-700 [overflow-wrap:anywhere]"
-                              >
-                                {item.value}
-                              </Link>
-                            ) : (
-                              <p className="mt-1 text-[13.5px] font-bold leading-5 text-slate-900 [overflow-wrap:anywhere]">
-                                {item.value}
+                          item.label === "Виробник" ? (
+                            <div
+                              key="producer-card"
+                              className={`relative overflow-hidden rounded-[15px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1)_0%,rgba(248,250,252,0.97)_55%,rgba(240,249,255,0.93)_100%)] shadow-[0_2px_4px_rgba(15,23,42,0.04),0_8px_20px_rgba(15,23,42,0.07),0_18px_36px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)] backdrop-blur-sm transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_2px_6px_rgba(14,165,233,0.04),0_10px_24px_rgba(14,165,233,0.09),0_24px_44px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)] ${producerDescription ? "sm:col-span-2" : ""}`}
+                            >
+                              <div className="flex items-start gap-3 px-3 py-2.5">
+                                {producerLogoPath ? (
+                                  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/70 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(241,245,249,0.95))] shadow-[0_2px_8px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,1)]">
+                                    <img
+                                      src={producerLogoPath}
+                                      alt={product.producer}
+                                      width={64}
+                                      height={40}
+                                      className="h-8 w-10 object-contain"
+                                      loading="eager"
+                                    />
+                                  </div>
+                                ) : null}
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500 sm:text-[10px]">
+                                    Виробник
+                                  </p>
+                                  <ProducerInlineEdit
+                                    code={product.code || resolvedCode}
+                                    article={product.article || ""}
+                                    producer={product.producer || ""}
+                                    href={item.href ?? null}
+                                  />
+                                  {producerDescription ? (
+                                    <p className="mt-1.5 line-clamp-2 text-[11.5px] leading-[1.5] text-slate-500">
+                                      {producerDescription.replace(
+                                        new RegExp(`^\\s*${(product.producer || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[-–—]?\\s*`, "i"),
+                                        ""
+                                      ).trim()}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              key={item.label}
+                              className="rounded-[15px] border border-slate-200 bg-white/82 px-3 py-2.5 shadow-[0_2px_4px_rgba(15,23,42,0.03),0_8px_18px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-sm transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-200 hover:bg-white/94 hover:shadow-[0_2px_6px_rgba(14,165,233,0.04),0_10px_22px_rgba(14,165,233,0.08),inset_0_1px_0_rgba(255,255,255,1)]"
+                            >
+                              <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500 sm:text-[10px]">
+                                {item.label}
                               </p>
-                            )}
-                          </div>
+                              {item.href ? (
+                                <Link
+                                  href={item.href}
+                                  className="mt-1 block text-[13.5px] font-bold leading-5 text-slate-900 transition hover:text-sky-700 [overflow-wrap:anywhere]"
+                                >
+                                  {item.value}
+                                </Link>
+                              ) : (
+                                <p className="mt-1 text-[13.5px] font-bold leading-5 text-slate-900 [overflow-wrap:anywhere]">
+                                  {item.value}
+                                </p>
+                              )}
+                            </div>
+                          )
                         ))}
                       </div>
                     ) : null}
