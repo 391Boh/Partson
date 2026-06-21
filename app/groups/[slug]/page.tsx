@@ -584,9 +584,9 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                     <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-teal-800">
                       Підгрупа
                     </p>
-                    <h2 className="mt-1 text-base font-extrabold leading-snug tracking-normal text-slate-950">
+                    <h3 className="mt-1 text-base font-extrabold leading-snug tracking-normal text-slate-950">
                       {buildVisibleProductName(subgroup.label)}
-                    </h2>
+                    </h3>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                       {buildSubgroupLead({
                         groupLabel: group.label,

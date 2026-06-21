@@ -8,6 +8,7 @@ type ProductPurchasePanelClientProps = {
   lookupKeys: string[];
   isModalView: boolean;
   initialPriceUah?: number | null;
+  initialCostPriceUah?: number | null;
   hasKnownNoPrice: boolean;
   resolvedCode: string;
   product: {
@@ -39,6 +40,7 @@ export default function ProductPurchasePanelClient(
 ) {
   const {
     initialPriceUah,
+    initialCostPriceUah,
     hasKnownNoPrice,
     isInStock,
     isModalView,
@@ -46,6 +48,29 @@ export default function ProductPurchasePanelClient(
     product,
     resolvedCode,
   } = props;
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showCostPrice, setShowCostPrice] = useState(false);
+
+  useEffect(() => {
+    try {
+      const uid = localStorage.getItem("user_id");
+      if (uid && localStorage.getItem(`partson:isAdmin:${uid}`) === "1") setIsAdmin(true);
+    } catch {}
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ isAdmin: boolean }>).detail;
+      setIsAdmin(Boolean(detail?.isAdmin));
+    };
+    window.addEventListener("partson:adminStateChange", handler);
+    return () => window.removeEventListener("partson:adminStateChange", handler);
+  }, []);
+
+  const hasCostPrice =
+    isAdmin &&
+    typeof initialCostPriceUah === "number" &&
+    Number.isFinite(initialCostPriceUah) &&
+    initialCostPriceUah > 0;
+
   const normalizedInitialPrice = useMemo(() => {
     if (
       typeof initialPriceUah === "number" &&
@@ -307,12 +332,32 @@ export default function ProductPurchasePanelClient(
               : "Під замовлення"}
           </p>
         </div>
-        <div className={priceCardClass}>
-          <p className={`text-[10px] font-bold uppercase tracking-[0.08em] ${priceLabelClass}`}>
-            Ціна
-          </p>
-          <p className={`mt-1 text-[14.5px] font-extrabold leading-5 ${priceValueClass} sm:text-[15px]`}>
-            {isLoading ? "Завантажуємо" : formatPriceUah(priceUah ?? null)}
+        <div className={showCostPrice && hasCostPrice
+          ? "rounded-[16px] border border-amber-200 bg-amber-50 px-3 py-2.5 shadow-[0_12px_24px_rgba(245,158,11,0.08)]"
+          : priceCardClass}>
+          <div className="flex items-center justify-between gap-1">
+            <p className={`text-[10px] font-bold uppercase tracking-[0.08em] ${showCostPrice && hasCostPrice ? "text-amber-700" : priceLabelClass}`}>
+              {showCostPrice && hasCostPrice ? "Закуп" : "Ціна"}
+            </p>
+            {hasCostPrice && (
+              <div className="flex rounded-[7px] border border-slate-200 bg-slate-100/60 p-[2px] gap-[2px]">
+                <button
+                  type="button"
+                  onClick={() => setShowCostPrice(false)}
+                  className={`rounded-[5px] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.06em] transition-all leading-none ${!showCostPrice ? "bg-white text-blue-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                >Прод</button>
+                <button
+                  type="button"
+                  onClick={() => setShowCostPrice(true)}
+                  className={`rounded-[5px] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.06em] transition-all leading-none ${showCostPrice ? "bg-white text-amber-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                >Закуп</button>
+              </div>
+            )}
+          </div>
+          <p className={`mt-1 text-[14.5px] font-extrabold leading-5 sm:text-[15px] ${showCostPrice && hasCostPrice ? "text-amber-950" : priceValueClass}`}>
+            {showCostPrice && hasCostPrice
+              ? `${initialCostPriceUah!.toLocaleString("uk-UA")} грн`
+              : isLoading ? "Завантажуємо" : formatPriceUah(priceUah ?? null)}
           </p>
         </div>
       </div>

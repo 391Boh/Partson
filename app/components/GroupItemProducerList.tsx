@@ -87,7 +87,6 @@ const normalizeProducerItems = (value: unknown): ProducerEntry[] => {
 
 export default function GroupItemProducerList({
   initialItems,
-  groupLabel,
   catalogGroupLabel,
   categoryLabel,
   catalogPath,

@@ -2231,8 +2231,8 @@ function useCatalogData(params: {
             expandHierarchy: expandHierarchyFromURL,
             sortOrder: effectiveServerSortOrder,
             pricedOnly,
-            priceFrom,
-            priceTo,
+            priceFrom: priceFrom != null ? Math.round((priceFrom / euroRate) * 100) / 100 : null,
+            priceTo: priceTo != null ? Math.round((priceTo / euroRate) * 100) / 100 : null,
             inStock,
           }),
           cache: "no-store",
@@ -2322,6 +2322,7 @@ function useCatalogData(params: {
       priceFrom,
       priceTo,
       inStock,
+      euroRate,
     ]
   );
 
@@ -3472,7 +3473,7 @@ const Data: React.FC<DataProps> = ({
 }) => {
   const searchParams = useSearchParams();
   const catalogGridRef = useRef<HTMLDivElement | null>(null);
-  const currentSearchParams = searchParams ?? new URLSearchParams();
+  const currentSearchParams = useMemo(() => searchParams ?? new URLSearchParams(), [searchParams]);
 
   const rawSearchQuery = currentSearchParams.get("search") || "";
   const searchFilter =

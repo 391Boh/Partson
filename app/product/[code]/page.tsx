@@ -2,6 +2,7 @@ import { cache, type CSSProperties } from "react";
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -156,8 +157,8 @@ const OpenChatButton = dynamic(() => import("app/components/OpenChatButton"), {
   ),
 });
 
-const ProducerInlineEdit = dynamic(
-  () => import("app/components/ProducerInlineEdit")
+const ProductPageAdminEditPanel = dynamic(
+  () => import("app/components/ProductPageAdminEditPanel")
 );
 
 const ProductDeferredRecommendations = dynamic(
@@ -1873,6 +1874,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
   ]);
   const initialPriceUah = pagePrice.priceUah;
   const recommendationEuroRate = pagePrice.euroRate ?? undefined;
+  const initialCostPriceUah =
+    product.costPriceEuro != null && pagePrice.euroRate != null
+      ? toPriceUah(product.costPriceEuro, pagePrice.euroRate)
+      : null;
   const fallbackDescription = buildProductFallbackDescription({
     visibleName: visibleProductName,
     producer: product.producer,
@@ -2255,44 +2260,36 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       <div className="grid gap-2 sm:grid-cols-2">
                         {productHeaderInfoItems.map((item) => (
                           item.label === "Виробник" ? (
-                            <div
-                              key="producer-card"
-                              className={`relative overflow-hidden rounded-[15px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1)_0%,rgba(248,250,252,0.97)_55%,rgba(240,249,255,0.93)_100%)] shadow-[0_2px_4px_rgba(15,23,42,0.04),0_8px_20px_rgba(15,23,42,0.07),0_18px_36px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)] backdrop-blur-sm transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_2px_6px_rgba(14,165,233,0.04),0_10px_24px_rgba(14,165,233,0.09),0_24px_44px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)] ${producerDescription ? "sm:col-span-2" : ""}`}
-                            >
-                              <div className="flex items-start gap-3 px-3 py-2.5">
-                                {producerLogoPath ? (
-                                  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/70 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(241,245,249,0.95))] shadow-[0_2px_8px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,1)]">
-                                    <img
+                            producerLogoPath ? (
+                              <div
+                                key="producer-card"
+                                className="flex items-center justify-center overflow-hidden rounded-[15px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1)_0%,rgba(248,250,252,0.97)_55%,rgba(240,249,255,0.93)_100%)] shadow-[0_2px_4px_rgba(15,23,42,0.04),0_8px_20px_rgba(15,23,42,0.07),0_18px_36px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)] backdrop-blur-sm transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_2px_6px_rgba(14,165,233,0.04),0_10px_24px_rgba(14,165,233,0.09),0_24px_44px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)]"
+                              >
+                                {producerLandingPath ? (
+                                  <Link href={producerLandingPath} className="flex items-center justify-center px-3 py-2.5" title={product.producer}>
+                                    <Image
                                       src={producerLogoPath}
                                       alt={product.producer}
-                                      width={64}
-                                      height={40}
-                                      className="h-8 w-10 object-contain"
-                                      loading="eager"
+                                      width={80}
+                                      height={44}
+                                      className="h-9 w-auto max-w-[80px] object-contain"
+                                      priority
+                                    />
+                                  </Link>
+                                ) : (
+                                  <div className="flex items-center justify-center px-3 py-2.5">
+                                    <Image
+                                      src={producerLogoPath}
+                                      alt={product.producer}
+                                      width={80}
+                                      height={44}
+                                      className="h-9 w-auto max-w-[80px] object-contain"
+                                      priority
                                     />
                                   </div>
-                                ) : null}
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500 sm:text-[10px]">
-                                    Виробник
-                                  </p>
-                                  <ProducerInlineEdit
-                                    code={product.code || resolvedCode}
-                                    article={product.article || ""}
-                                    producer={product.producer || ""}
-                                    href={item.href ?? null}
-                                  />
-                                  {producerDescription ? (
-                                    <p className="mt-1.5 line-clamp-2 text-[11.5px] leading-[1.5] text-slate-500">
-                                      {producerDescription.replace(
-                                        new RegExp(`^\\s*${(product.producer || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[-–—]?\\s*`, "i"),
-                                        ""
-                                      ).trim()}
-                                    </p>
-                                  ) : null}
-                                </div>
+                                )}
                               </div>
-                            </div>
+                            ) : null
                           ) : (
                             <div
                               key={item.label}
@@ -2326,6 +2323,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       lookupKeys={lookupKeys}
                       isModalView={isModalView}
                       initialPriceUah={initialPriceUah}
+                      initialCostPriceUah={initialCostPriceUah}
                       hasKnownNoPrice={product.priceEuro === null}
                       resolvedCode={resolvedCode}
                       product={product}
@@ -2336,6 +2334,58 @@ export default async function ProductPage({ params }: ProductPageProps) {
               </div>
             </div>
           </header>
+
+          <ProductPageAdminEditPanel
+            code={product.code || resolvedCode}
+            article={product.article || ""}
+            name={product.name || ""}
+            producer={product.producer || ""}
+            priceEuro={product.priceEuro ?? null}
+            costPriceEuro={product.costPriceEuro ?? null}
+          />
+
+          {producerDescription && product.producer ? (
+            <div className="border-b border-slate-100/80 px-3 py-3 sm:px-4 sm:py-3.5">
+              <div className="flex items-start gap-3 rounded-[18px] border border-slate-200/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(248,250,252,0.94))] px-3.5 py-3 shadow-[0_2px_8px_rgba(15,23,42,0.04),0_6px_18px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)] sm:px-4 sm:py-3.5">
+                {producerLogoPath ? (
+                  <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[9px] border border-slate-200/70 bg-white shadow-[0_2px_6px_rgba(15,23,42,0.07)]">
+                    <Image
+                      src={producerLogoPath}
+                      alt={product.producer}
+                      width={48}
+                      height={30}
+                      className="h-6 w-8 object-contain"
+                    />
+                  </div>
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                      Про виробника
+                    </p>
+                    {producerLandingPath ? (
+                      <Link
+                        href={producerLandingPath}
+                        className="text-[10px] font-semibold text-sky-600 transition hover:text-sky-800 hover:underline"
+                      >
+                        {product.producer}
+                      </Link>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-slate-600">{product.producer}</span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[12.5px] leading-[1.55] text-slate-600 [overflow-wrap:anywhere]">
+                    {producerDescription
+                      .replace(
+                        new RegExp(`^\\s*${(product.producer || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[-–—]?\\s*`, "i"),
+                        ""
+                      )
+                      .trim()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className={contentGridClass}>
             <section className="space-y-2.5">
@@ -2365,9 +2415,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       <p className="text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
                         Розділ каталогу
                       </p>
-                      <h2 className="font-display-italic mt-1 text-[1.02rem] font-black leading-tight text-slate-950 sm:text-[1.16rem]">
+                      <p className="font-display-italic mt-1 text-[1.02rem] font-black leading-tight text-slate-950 sm:text-[1.16rem]">
                         {visibleProductName} у каталозі PartsON
-                      </h2>
+                      </p>
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
                       <Link

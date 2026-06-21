@@ -695,112 +695,108 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
         );
       case 'price':
         return (
-          <div className="space-y-3">
-            <div>
-              <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-                Сортування
-              </p>
-              <div className="flex gap-1 rounded-[13px] border border-slate-200/70 bg-slate-50/60 p-1 backdrop-blur-sm">
-                {(['none', 'asc', 'desc'] as const).map((order) => {
-                  const config = {
-                    none: { label: 'За замовч.', icon: null },
-                    asc:  { label: 'Дешевші', icon: '↑' },
-                    desc: { label: 'Дорожчі', icon: '↓' },
-                  } as const;
-                  const isActive = effectiveSortOrder === order;
-                  return (
-                    <button
-                      key={order}
-                      type="button"
-                      onClick={() => {
-                        if (onSortOrderChange) {
-                          onSortOrderChange(order);
-                        } else {
-                          setLocalSortOrder(order);
-                        }
-                      }}
-                      className={`flex-1 rounded-[10px] px-2 py-1.5 text-[11px] font-bold transition-all duration-150 ${
-                        isActive
-                          ? order === 'asc'
-                            ? 'bg-sky-500 text-white shadow-[0_3px_8px_rgba(14,165,233,0.30)]'
-                            : order === 'desc'
-                              ? 'bg-emerald-500 text-white shadow-[0_3px_8px_rgba(16,185,129,0.30)]'
-                              : 'bg-white text-slate-600 shadow-sm'
-                          : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
-                      }`}
-                    >
-                      {config[order].icon && (
-                        <span className="mr-0.5 opacity-80">{config[order].icon}</span>
-                      )}
-                      {config[order].label}
-                    </button>
-                  );
-                })}
-              </div>
+          <div className="space-y-2">
+            {/* Sort order */}
+            <div className="flex rounded-[12px] border border-slate-200/60 bg-white/50 p-[3px] gap-[3px] backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+              {(['none', 'asc', 'desc'] as const).map((order) => {
+                const config = {
+                  none: { label: 'Будь-яка', icon: null },
+                  asc:  { label: 'Дешевші',  icon: '↑' },
+                  desc: { label: 'Дорожчі',  icon: '↓' },
+                } as const;
+                const isActive = effectiveSortOrder === order;
+                return (
+                  <button
+                    key={order}
+                    type="button"
+                    onClick={() => {
+                      if (onSortOrderChange) onSortOrderChange(order);
+                      else setLocalSortOrder(order);
+                    }}
+                    className={`flex flex-1 items-center justify-center gap-1 rounded-[9px] px-2 py-2 text-[11px] font-bold leading-none transition-all duration-150 ${
+                      isActive
+                        ? order === 'asc'
+                          ? 'bg-[linear-gradient(135deg,#38bdf8,#0ea5e9)] text-white shadow-[0_3px_10px_rgba(14,165,233,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]'
+                          : order === 'desc'
+                            ? 'bg-[linear-gradient(135deg,#34d399,#10b981)] text-white shadow-[0_3px_10px_rgba(16,185,129,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]'
+                            : 'bg-white text-slate-700 shadow-[0_2px_6px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,1)]'
+                        : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
+                    }`}
+                  >
+                    {config[order].icon && (
+                      <span className="text-[10px] opacity-80">{config[order].icon}</span>
+                    )}
+                    {config[order].label}
+                  </button>
+                );
+              })}
             </div>
-            {(onPricedOnlyChange || onPriceRangeChange || onInStockChange) && (
-              <div>
-                <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-                  Фільтри
-                </p>
-                <div className="grid gap-2">
-                  {onPriceRangeChange && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="number"
-                        min="0"
-                        inputMode="decimal"
-                        value={formatPriceInput(priceFrom)}
-                        onChange={(event) =>
-                          onPriceRangeChange(parsePriceInput(event.target.value), priceTo ?? null)
-                        }
-                        placeholder="Від"
-                        className="h-9 rounded-[10px] border border-slate-200/80 bg-white/80 px-3 text-[11px] font-bold text-slate-700 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                        aria-label="Ціна від"
-                      />
-                      <input
-                        type="number"
-                        min="0"
-                        inputMode="decimal"
-                        value={formatPriceInput(priceTo)}
-                        onChange={(event) =>
-                          onPriceRangeChange(priceFrom ?? null, parsePriceInput(event.target.value))
-                        }
-                        placeholder="До"
-                        className="h-9 rounded-[10px] border border-slate-200/80 bg-white/80 px-3 text-[11px] font-bold text-slate-700 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                        aria-label="Ціна до"
-                      />
-                    </div>
-                  )}
-                  {onPricedOnlyChange && (
-                    <button
-                      type="button"
-                      onClick={() => onPricedOnlyChange(!pricedOnly)}
-                      className={`flex w-full items-center justify-between rounded-[10px] px-3 py-2 text-[11px] font-bold transition-all duration-150 ${
-                        pricedOnly
-                          ? 'bg-sky-500 text-white shadow-[0_3px_8px_rgba(14,165,233,0.30)]'
-                          : 'border border-slate-200/70 bg-slate-50/60 text-slate-500 hover:bg-white/70 hover:text-slate-700'
-                      }`}
-                    >
-                      <span>З ціною</span>
-                      <span className={`h-4 w-4 rounded-full border-2 transition-colors ${pricedOnly ? 'border-white bg-white/30' : 'border-slate-300'}`} />
-                    </button>
-                  )}
-                  {onInStockChange && (
-                    <button
-                      type="button"
-                      onClick={() => onInStockChange(!inStock)}
-                      className={`flex w-full items-center justify-between rounded-[10px] px-3 py-2 text-[11px] font-bold transition-all duration-150 ${
-                        inStock
-                          ? 'bg-emerald-500 text-white shadow-[0_3px_8px_rgba(16,185,129,0.30)]'
-                          : 'border border-slate-200/70 bg-slate-50/60 text-slate-500 hover:bg-white/70 hover:text-slate-700'
-                      }`}
-                    >
-                      <span>В наявності</span>
-                      <span className={`h-4 w-4 rounded-full border-2 transition-colors ${inStock ? 'border-white bg-white/30' : 'border-slate-300'}`} />
-                    </button>
-                  )}
+
+            {/* Price range */}
+            {onPriceRangeChange && (
+              <div className="flex items-center gap-1.5 rounded-[12px] border border-slate-200/60 bg-white/60 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-sm">
+                <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">Ціна</span>
+                <div className="relative flex-1">
+                  <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 select-none text-[10px] font-bold text-sky-400">₴</span>
+                  <input
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    value={formatPriceInput(priceFrom)}
+                    onChange={(event) => onPriceRangeChange(parsePriceInput(event.target.value), priceTo ?? null)}
+                    placeholder="від"
+                    className="h-8 w-full rounded-[8px] border border-sky-200/60 bg-white/90 pl-6 pr-1.5 text-[11px] font-bold text-slate-700 outline-none transition placeholder:text-slate-300 focus:border-sky-300 focus:ring-2 focus:ring-sky-100/70"
+                    aria-label="Ціна від (грн)"
+                  />
                 </div>
+                <span className="shrink-0 text-[12px] font-light text-slate-300">—</span>
+                <div className="relative flex-1">
+                  <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 select-none text-[10px] font-bold text-sky-400">₴</span>
+                  <input
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    value={formatPriceInput(priceTo)}
+                    onChange={(event) => onPriceRangeChange(priceFrom ?? null, parsePriceInput(event.target.value))}
+                    placeholder="до"
+                    className="h-8 w-full rounded-[8px] border border-sky-200/60 bg-white/90 pl-6 pr-1.5 text-[11px] font-bold text-slate-700 outline-none transition placeholder:text-slate-300 focus:border-sky-300 focus:ring-2 focus:ring-sky-100/70"
+                    aria-label="Ціна до (грн)"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Toggles */}
+            {(onPricedOnlyChange || onInStockChange) && (
+              <div className={`grid gap-1.5 ${onPricedOnlyChange && onInStockChange ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {onPricedOnlyChange && (
+                  <button
+                    type="button"
+                    onClick={() => onPricedOnlyChange(!pricedOnly)}
+                    className={`flex items-center justify-center gap-1.5 rounded-[10px] px-3 py-2 text-[11px] font-bold leading-none transition-all duration-150 ${
+                      pricedOnly
+                        ? 'bg-[linear-gradient(135deg,#38bdf8,#0ea5e9)] text-white shadow-[0_3px_10px_rgba(14,165,233,0.28),inset_0_1px_0_rgba(255,255,255,0.2)]'
+                        : 'border border-slate-200/70 bg-white/60 text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm hover:bg-white/80 hover:text-slate-700'
+                    }`}
+                  >
+                    <span className={`h-3.5 w-3.5 rounded-full border-2 transition-colors ${pricedOnly ? 'border-white/50 bg-white/30' : 'border-slate-300'}`} />
+                    З ціною
+                  </button>
+                )}
+                {onInStockChange && (
+                  <button
+                    type="button"
+                    onClick={() => onInStockChange(!inStock)}
+                    className={`flex items-center justify-center gap-1.5 rounded-[10px] px-3 py-2 text-[11px] font-bold leading-none transition-all duration-150 ${
+                      inStock
+                        ? 'bg-[linear-gradient(135deg,#34d399,#10b981)] text-white shadow-[0_3px_10px_rgba(16,185,129,0.28),inset_0_1px_0_rgba(255,255,255,0.2)]'
+                        : 'border border-slate-200/70 bg-white/60 text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm hover:bg-white/80 hover:text-slate-700'
+                    }`}
+                  >
+                    <span className={`h-3.5 w-3.5 rounded-full border-2 transition-colors ${inStock ? 'border-white/50 bg-white/30' : 'border-slate-300'}`} />
+                    В наявності
+                  </button>
+                )}
               </div>
             )}
           </div>

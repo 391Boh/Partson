@@ -1193,14 +1193,18 @@ export const fetchCatalogProductsByQuery = async (options: {
     Boolean(searchQuery) &&
     !searchQuery.includes(" ") &&
     /\d|[-_/\\.]/.test(compactSearchQuery);
+  const hasPriceRangeFilter =
+    (typeof options.priceFrom === "number" && Number.isFinite(options.priceFrom) && options.priceFrom > 0) ||
+    (typeof options.priceTo === "number" && Number.isFinite(options.priceTo) && options.priceTo > 0);
   const shouldPreferLegacyGetdata =
     sortOrder === "none" &&
     !cursor &&
     !forceAllgoodsSource &&
+    !hasPriceRangeFilter &&
     (options.preferLegacySource === true || options.includePriceEnrichment !== true);
   const shouldEnrichInlinePrices = options.includePriceEnrichment === true;
   // allgoods is noticeably heavier on 1C. Use it only when cursor-based
-  // continuation or explicit sorting actually needs it.
+  // continuation, explicit sorting, or price range filtering actually needs it.
   const canUseAllgoods = selectedCars.length === 0 && !shouldPreferLegacyGetdata;
 
   if (
