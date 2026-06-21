@@ -39,6 +39,8 @@ export default function CatalogSearchTotalCountClient({
   const searchParams = useSearchParams();
   const [openCount, setOpenCount] = useState(initialOpenCount);
   const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [filterTotal, setFilterTotal] = useState<number | null>(null);
+  const [priceFilterActive, setPriceFilterActive] = useState(false);
   const [isExact, setIsExact] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -64,17 +66,39 @@ export default function CatalogSearchTotalCountClient({
   }, [initialOpenCount]);
 
   useEffect(() => {
-    const handleCountChange = (event: Event) => {
+    const handleVisibleCount = (event: Event) => {
       const detail = (event as CustomEvent<{ count?: number }>).detail;
       if (typeof detail?.count !== "number" || !Number.isFinite(detail.count)) return;
       setOpenCount(detail.count);
     };
-
-    window.addEventListener("partson:catalog-visible-count", handleCountChange);
-    return () => {
-      window.removeEventListener("partson:catalog-visible-count", handleCountChange);
-    };
+    window.addEventListener("partson:catalog-visible-count", handleVisibleCount);
+    return () => window.removeEventListener("partson:catalog-visible-count", handleVisibleCount);
   }, []);
+
+  useEffect(() => {
+    const handleFilterTotal = (event: Event) => {
+      const detail = (event as CustomEvent<{ count?: number }>).detail;
+      if (typeof detail?.count !== "number" || !Number.isFinite(detail.count)) return;
+      setFilterTotal(detail.count);
+    };
+    window.addEventListener("partson:catalog-filter-total-count", handleFilterTotal);
+    return () => window.removeEventListener("partson:catalog-filter-total-count", handleFilterTotal);
+  }, []);
+
+  useEffect(() => {
+    const handlePriceFilter = (event: Event) => {
+      const detail = (event as CustomEvent<{ active?: boolean }>).detail;
+      setPriceFilterActive(Boolean(detail?.active));
+    };
+    window.addEventListener("partson:price-filter-state", handlePriceFilter);
+    return () => window.removeEventListener("partson:price-filter-state", handlePriceFilter);
+  }, []);
+
+  // Reset filterTotal and price filter flag when search query changes
+  useEffect(() => {
+    setFilterTotal(null);
+    setPriceFilterActive(false);
+  }, [countQuery]);
 
   useEffect(() => {
     if (!countQuery) {
@@ -121,8 +145,13 @@ export default function CatalogSearchTotalCountClient({
     };
   }, [countQuery]);
 
-  const resolvedCount =
-    totalCount == null ? openCount : Math.max(openCount, totalCount);
+  const resolvedCount = useMemo(() => {
+    if (priceFilterActive) {
+      // Price filter is active — the API total ignores it. Use server filter total instead.
+      return Math.max(openCount, filterTotal ?? openCount);
+    }
+    return totalCount == null ? openCount : Math.max(openCount, totalCount);
+  }, [openCount, totalCount, filterTotal, priceFilterActive]);
 
   return (
     <span className={className}>

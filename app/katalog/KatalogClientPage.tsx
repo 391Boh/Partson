@@ -540,6 +540,15 @@ const Katalog: React.FC<KatalogProps> = ({
   }, [selectedCarSelection, selectedCars]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(
+      new CustomEvent('partson:price-filter-state', {
+        detail: { active: pricedOnly || priceFrom != null || priceTo != null },
+      })
+    );
+  }, [pricedOnly, priceFrom, priceTo]);
+
+  useEffect(() => {
     if (!requestMessage) {
       handledRequestRef.current = null;
       setPendingRequestMessage(null);

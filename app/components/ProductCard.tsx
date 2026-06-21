@@ -588,10 +588,12 @@ useEffect(() => {
                 <div
                     className={`
                         absolute inset-0 w-full h-full backface-hidden
-                        rounded-xl shadow-[0_10px_24px_rgba(15,23,42,0.06)] hover:shadow-[0_14px_30px_rgba(14,165,233,0.1)] border border-slate-200/80
-                        bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96),rgba(240,249,255,0.9))]
+                        rounded-xl border border-slate-200 hover:border-sky-200/90
+                        shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.07),0_12px_24px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)]
+                        hover:shadow-[0_2px_4px_rgba(14,165,233,0.05),0_8px_20px_rgba(14,165,233,0.10),0_20px_36px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)]
+                        bg-[linear-gradient(155deg,rgba(255,255,255,1)_0%,rgba(248,250,252,0.98)_50%,rgba(238,246,255,0.95)_100%)]
                         p-2.5 flex flex-col text-[11px] sm:text-[12px] relative overflow-hidden
-                        transition-[box-shadow,border-color,opacity] duration-200 hover:border-sky-200
+                        transition-[box-shadow,border-color,opacity] duration-200
                         ${frontVisibilityClass}
                     `}
                     style={{

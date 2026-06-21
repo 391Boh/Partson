@@ -815,8 +815,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       ref={rootRef}
         className={`w-full select-none overflow-hidden rounded-[18px] border border-sky-200/75 bg-[image:radial-gradient(circle_at_8%_0%,rgba(14,165,233,0.16),transparent_32%),radial-gradient(circle_at_88%_12%,rgba(45,212,191,0.12),transparent_30%),linear-gradient(145deg,rgba(255,255,255,0.985)_0%,rgba(239,246,255,0.965)_48%,rgba(224,242,254,0.94)_100%)] text-slate-800 ring-1 ring-white/85 backdrop-blur-2xl transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out sm:rounded-[20px] ${
         collapsed
-          ? '-translate-y-1 shadow-[0_8px_22px_rgba(14,116,144,0.08),0_14px_30px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.9)]'
-          : 'translate-y-0 border-sky-200/90 shadow-[0_10px_28px_rgba(14,116,144,0.12),0_24px_52px_rgba(15,23,42,0.10),inset_0_1px_0_rgba(255,255,255,0.94)]'
+          ? '-translate-y-1 shadow-[0_2px_4px_rgba(14,116,144,0.06),0_8px_22px_rgba(14,116,144,0.10),0_18px_36px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.96)]'
+          : 'translate-y-0 border-sky-300/70 shadow-[0_2px_6px_rgba(14,116,144,0.08),0_12px_32px_rgba(14,116,144,0.16),0_32px_64px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.98),inset_0_-1px_0_rgba(14,116,144,0.04)]'
       }`}
     >
       <div
