@@ -3706,11 +3706,11 @@ const Data: React.FC<DataProps> = ({
 
   const router = useRouter();
   // Зберігає оригінальний запит до будь-яких редіректів (для опису потрібен оригінал)
-  const fallbackOriginalQueryRef = useRef<string>("");
   const articleFallbackAttemptedRef = useRef<string>("");
-  const descFallbackAttemptedRef = useRef<string>("");
 
-  // Триступеневий фолбек: назва → артикул → опис
+  // Двоступеневий фолбек: назва → артикул (транслітерація кирилиці)
+  // Пошук по опису видалено: він редиректував на filter=description при
+  // будь-якому невдалому запиті і повертав весь каталог.
   useEffect(() => {
     if (!hasLoadedOnce || loading || error) return;
 
@@ -3719,9 +3719,7 @@ const Data: React.FC<DataProps> = ({
       firstPageResolvedItemCount > 0 ||
       (typeof catalogTotalCount === "number" && catalogTotalCount > 0)
     ) {
-      fallbackOriginalQueryRef.current = "";
       articleFallbackAttemptedRef.current = "";
-      descFallbackAttemptedRef.current = "";
       return;
     }
 
@@ -3735,29 +3733,11 @@ const Data: React.FC<DataProps> = ({
       articleFallbackAttemptedRef.current = raw;
       const sanitized = normalizeArticleToken(raw.toLowerCase());
       if (sanitized && sanitized !== raw.toLowerCase() && sanitized.length >= 2) {
-        if (!fallbackOriginalQueryRef.current) fallbackOriginalQueryRef.current = raw;
         const params = new URLSearchParams(currentSearchParams.toString());
         params.set("search", sanitized);
         params.set("filter", "name");
         router.replace(`/katalog?${params.toString()}`);
-        return;
       }
-    }
-
-    // Рівень 3: опис — використати оригінальний запит (до артикульного редіректу)
-    // Якщо поточний raw є sanitized-версією оригіналу — відновити оригінал
-    const storedOriginal = fallbackOriginalQueryRef.current;
-    const isSanitizedOfOriginal =
-      storedOriginal.length > 0 &&
-      normalizeArticleToken(storedOriginal.toLowerCase()) === raw.toLowerCase();
-    const descQuery = isSanitizedOfOriginal ? storedOriginal : raw;
-
-    if (descFallbackAttemptedRef.current !== descQuery) {
-      descFallbackAttemptedRef.current = descQuery;
-      const params = new URLSearchParams(currentSearchParams.toString());
-      params.set("search", descQuery);
-      params.set("filter", "description");
-      router.replace(`/katalog?${params.toString()}`);
     }
   }, [
     hasLoadedOnce,

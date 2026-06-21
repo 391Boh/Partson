@@ -1551,15 +1551,11 @@ export const fetchCatalogProductsByQuery = async (options: {
           }
         }
 
-        // Allgoods found items via description fields but none passed the score
-        // filter — trust the server-side allgoods filter and return those items
-        // directly. Only fall back to the expensive page scan when allgoods
-        // returned nothing at all.
-        if (totalAllgoodsHits > 0 && lastDirectPageResult) {
-          return {
-            ...lastDirectPageResult,
-            cursorField: null,
-          };
+        // Allgoods found items via description fields but none passed the
+        // relevance score filter — return empty rather than leaking unscored
+        // items (which caused the entire catalog to appear in search results).
+        if (totalAllgoodsHits > 0) {
+          return { items: [], hasMore: false, nextCursor: "", cursorField: null };
         }
 
         const pageResult = await runAllgoodsDescriptionSearch();
