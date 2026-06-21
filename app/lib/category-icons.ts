@@ -66,6 +66,7 @@ addCategoryIcon("Електроніка", "datchyky_ta_elektronika.png");
 addCategoryIcon("Кузовні елементи", "kuzovni_elementy.png");
 addCategoryIcon("Датчики та електроніка", "datchyky_ta_elektronika.png");
 addCategoryIcon("Рідини та мастила", "ridyny_ta_mastyla.png");
+addCategoryIcon("Рідина та мастило", "ridyny_ta_mastyla.png");
 
 export const getCategoryIconPath = (label: string) => {
   const resolved =
