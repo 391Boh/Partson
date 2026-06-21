@@ -813,17 +813,17 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   return (
     <section
       ref={rootRef}
-        className={`w-full select-none overflow-hidden rounded-[18px] border border-blue-200/55 bg-[image:linear-gradient(145deg,rgba(255,255,255,0.97)_0%,rgba(239,246,255,0.94)_45%,rgba(238,242,255,0.91)_100%)] text-slate-800 ring-1 ring-indigo-100/70 backdrop-blur-2xl transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out sm:rounded-[20px] ${
+        className={`w-full select-none overflow-hidden rounded-[18px] border border-sky-200/75 bg-[image:radial-gradient(circle_at_8%_0%,rgba(14,165,233,0.16),transparent_32%),radial-gradient(circle_at_88%_12%,rgba(45,212,191,0.12),transparent_30%),linear-gradient(145deg,rgba(255,255,255,0.985)_0%,rgba(239,246,255,0.965)_48%,rgba(224,242,254,0.94)_100%)] text-slate-800 ring-1 ring-white/85 backdrop-blur-2xl transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out sm:rounded-[20px] ${
         collapsed
-          ? '-translate-y-1 shadow-[0_4px_16px_rgba(59,130,246,0.07),0_12px_28px_rgba(15,23,42,0.07)]'
-          : 'translate-y-0 shadow-[0_4px_20px_rgba(59,130,246,0.10),0_20px_46px_rgba(15,23,42,0.09)]'
+          ? '-translate-y-1 shadow-[0_8px_22px_rgba(14,116,144,0.08),0_14px_30px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.9)]'
+          : 'translate-y-0 border-sky-200/90 shadow-[0_10px_28px_rgba(14,116,144,0.12),0_24px_52px_rgba(15,23,42,0.10),inset_0_1px_0_rgba(255,255,255,0.94)]'
       }`}
     >
       <div
         ref={headerRef}
         onClick={handleHeaderToggle}
-        className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-[image:linear-gradient(135deg,rgba(239,246,255,0.72)_0%,rgba(238,242,255,0.62)_52%,rgba(236,254,255,0.55)_100%)] px-2 py-2 sm:flex sm:flex-wrap sm:px-4 sm:py-3 ${
-          collapsed ? '' : 'border-b border-blue-200/50'
+        className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-[image:linear-gradient(135deg,rgba(239,246,255,0.88)_0%,rgba(236,254,255,0.72)_54%,rgba(255,255,255,0.72)_100%)] px-2 py-2 sm:flex sm:flex-wrap sm:px-4 sm:py-3 ${
+          collapsed ? '' : 'border-b border-sky-200/65'
         }`}
       >
           <div className="flex shrink-0 items-center gap-2 text-[12px] font-semibold tracking-wide text-slate-700 sm:text-[13px]">
@@ -986,7 +986,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
         <div className="min-h-0 overflow-hidden">
           <div ref={panelContentRef} className="p-2 sm:p-3">
             <div
-              className="catalog-filter-scroll overflow-y-auto rounded-[16px] border border-slate-200/85 bg-white/76 p-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_12px_28px_rgba(15,23,42,0.05)] ring-1 ring-white/75 backdrop-blur-2xl sm:p-3 sm:pr-2"
+              className="catalog-filter-scroll overflow-y-auto rounded-[16px] border border-sky-100/80 bg-white/82 p-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_14px_30px_rgba(14,116,144,0.07)] ring-1 ring-white/85 backdrop-blur-2xl sm:p-3 sm:pr-2"
               style={{ maxHeight: overlayPanelHeight }}
             >
               {renderActivePanel()}

@@ -75,8 +75,8 @@ const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 2;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 0;
-const IMAGE_PRIORITY_ITEMS_COUNT = 12;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 4;
+const IMAGE_PRIORITY_ITEMS_COUNT = 8;
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 45;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
@@ -3714,7 +3714,11 @@ const Data: React.FC<DataProps> = ({
   useEffect(() => {
     if (!hasLoadedOnce || loading || error) return;
 
-    if (filteredData.length > 0 || firstPageResolvedItemCount > 0) {
+    if (
+      filteredData.length > 0 ||
+      firstPageResolvedItemCount > 0 ||
+      (typeof catalogTotalCount === "number" && catalogTotalCount > 0)
+    ) {
       fallbackOriginalQueryRef.current = "";
       articleFallbackAttemptedRef.current = "";
       descFallbackAttemptedRef.current = "";
@@ -3755,7 +3759,18 @@ const Data: React.FC<DataProps> = ({
       params.set("filter", "description");
       router.replace(`/katalog?${params.toString()}`);
     }
-  }, [hasLoadedOnce, loading, error, filteredData.length, firstPageResolvedItemCount, searchFilter, rawSearchQuery, currentSearchParams, router]);
+  }, [
+    hasLoadedOnce,
+    loading,
+    error,
+    filteredData.length,
+    firstPageResolvedItemCount,
+    catalogTotalCount,
+    searchFilter,
+    rawSearchQuery,
+    currentSearchParams,
+    router,
+  ]);
 
   const filterSignature = useMemo(
     () =>
@@ -3857,6 +3872,10 @@ const Data: React.FC<DataProps> = ({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const totalCountForCurrentFilter =
+      typeof catalogTotalCount === "number" && Number.isFinite(catalogTotalCount)
+        ? catalogTotalCount
+        : visibleSortedData.length;
 
     const win = window as Window & {
       __partsonCatalogVisibleCount?: number;
@@ -3865,7 +3884,7 @@ const Data: React.FC<DataProps> = ({
     };
     win.__partsonCatalogVisibleCount = visibleSortedData.length;
     win.__partsonCatalogVisibleSignature = filterSignature;
-    win.__partsonCatalogTotalCount = catalogTotalCount;
+    win.__partsonCatalogTotalCount = totalCountForCurrentFilter;
     window.dispatchEvent(
       new CustomEvent("partson:catalog-visible-count", {
         detail: { count: visibleSortedData.length, signature: filterSignature },
@@ -3873,7 +3892,7 @@ const Data: React.FC<DataProps> = ({
     );
     window.dispatchEvent(
       new CustomEvent("partson:catalog-filter-total-count", {
-        detail: { count: catalogTotalCount, signature: filterSignature },
+        detail: { count: totalCountForCurrentFilter, signature: filterSignature },
       })
     );
   }, [catalogTotalCount, filterSignature, visibleSortedData.length]);
