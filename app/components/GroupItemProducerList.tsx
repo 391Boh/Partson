@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
-import {
-  directoryCardClass,
-  directoryCompactMetricAccentClass,
-  directoryPrimaryButtonClass,
-} from "app/components/catalog-directory-styles";
-import { buildVisibleProductName } from "app/lib/product-url";
+import { directoryPrimaryButtonClass } from "app/components/catalog-directory-styles";
+import { getProducerInitials } from "app/lib/brand-logo";
 
 type ProducerEntry = {
   label: string;
@@ -17,6 +14,9 @@ type ProducerEntry = {
   productCount: number;
   catalogPath: string;
   manufacturerPath: string;
+  logoPath?: string | null;
+  initials?: string;
+  description?: string | null;
 };
 
 type GroupItemProducerListProps = {
@@ -30,16 +30,9 @@ type GroupItemProducerListProps = {
 const formatCount = (value: number) =>
   Number.isFinite(value) && value > 0 ? value.toLocaleString("uk-UA") : "0";
 
-const buildProducerCategoryLead = (options: {
-  producerLabel: string;
-  categoryLabel: string;
-  groupLabel: string;
-}) => {
-  const visibleProducerLabel = buildVisibleProductName(options.producerLabel);
-  const visibleCategoryLabel = buildVisibleProductName(options.categoryLabel);
-  const visibleGroupLabel = buildVisibleProductName(options.groupLabel);
-
-  return `Виробник ${visibleProducerLabel} у категорії ${visibleCategoryLabel} групи ${visibleGroupLabel} з переходом на сторінку бренду або у відфільтрований каталог.`;
+const stripLeadingBrandName = (label: string, description: string) => {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return description.replace(new RegExp(`^\\s*${escaped}\\s*[-–—]?\\s*`, "i"), "").trim();
 };
 
 const normalizeProducerItems = (value: unknown): ProducerEntry[] => {
@@ -54,10 +47,14 @@ const normalizeProducerItems = (value: unknown): ProducerEntry[] => {
       const catalogPath =
         typeof record.catalogPath === "string" ? record.catalogPath.trim() : "";
       const manufacturerPath =
-        typeof record.manufacturerPath === "string"
-          ? record.manufacturerPath.trim()
-          : "";
+        typeof record.manufacturerPath === "string" ? record.manufacturerPath.trim() : "";
       const productCount = Number(record.productCount);
+      const logoPath =
+        typeof record.logoPath === "string" ? record.logoPath : null;
+      const initials =
+        typeof record.initials === "string" ? record.initials : getProducerInitials(label);
+      const description =
+        typeof record.description === "string" ? record.description : null;
 
       if (!label || !catalogPath || !manufacturerPath) return null;
 
@@ -70,9 +67,12 @@ const normalizeProducerItems = (value: unknown): ProducerEntry[] => {
           Number.isFinite(productCount) && productCount > 0
             ? Math.floor(productCount)
             : 0,
+        logoPath,
+        initials,
+        description,
       };
     })
-    .filter((item): item is ProducerEntry => Boolean(item))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
     .slice(0, 24);
 };
 
@@ -150,59 +150,103 @@ export default function GroupItemProducerList({
   }
 
   return (
-    <div className="grid gap-2.5 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-4">
-      {items.map((producer) => (
-        <article
-          key={producer.slug || producer.label}
-          className={`${directoryCardClass} border-l-4 border-l-teal-100 p-3 hover:border-l-teal-300`}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                Виробник
-              </p>
+    <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-4">
+      {items.map((producer) => {
+        const shortDescription = producer.description
+          ? stripLeadingBrandName(producer.label, producer.description)
+          : null;
+
+        return (
+          <article
+            key={producer.slug || producer.label}
+            className="group relative flex flex-col overflow-hidden rounded-[16px] border border-slate-200 bg-[linear-gradient(160deg,rgba(255,255,255,1)_0%,rgba(248,250,252,0.98)_55%,rgba(240,249,255,0.95)_100%)] shadow-[0_1px_3px_rgba(15,23,42,0.04),0_6px_16px_rgba(15,23,42,0.07),0_16px_32px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-sky-200/80 hover:shadow-[0_2px_6px_rgba(14,165,233,0.05),0_10px_24px_rgba(14,165,233,0.10),0_24px_44px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)]"
+            itemScope
+            itemType="https://schema.org/Brand"
+          >
+            {producer.logoPath ? (
+              <meta itemProp="logo" content={producer.logoPath} />
+            ) : null}
+
+            {/* Header: logo + name + count */}
+            <div className="flex items-start gap-3 p-3.5 pb-2.5">
+              {/* Logo tile */}
+              <div className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-slate-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(241,245,249,0.9))] shadow-[0_2px_6px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)]">
+                {producer.logoPath ? (
+                  <Image
+                    src={producer.logoPath}
+                    alt={producer.label}
+                    width={80}
+                    height={48}
+                    sizes="56px"
+                    loading="lazy"
+                    className="h-9 w-12 object-contain transition duration-200 group-hover:scale-[1.04]"
+                  />
+                ) : (
+                  <span className="text-[15px] font-black text-slate-600">
+                    {producer.initials}
+                  </span>
+                )}
+              </div>
+
+              {/* Name + badges */}
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="inline-flex rounded-[8px] border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.10em] text-teal-800">
+                    Виробник
+                  </span>
+                  {producer.productCount > 0 && (
+                    <span className="inline-flex rounded-[8px] border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] text-sky-800">
+                      {formatCount(producer.productCount)} поз.
+                    </span>
+                  )}
+                </div>
+                <Link
+                  href={producer.manufacturerPath}
+                  itemProp="url"
+                  className="mt-1.5 block text-[15px] font-extrabold leading-tight text-slate-900 transition-colors hover:text-teal-700"
+                >
+                  <span itemProp="name">{producer.label}</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Description */}
+            {shortDescription ? (
+              <div className="mx-3 mb-0 rounded-[12px] border border-slate-200/70 bg-[linear-gradient(135deg,rgba(248,250,252,0.9),rgba(255,255,255,0.96))] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+                <p
+                  itemProp="description"
+                  className="line-clamp-3 text-[11.5px] leading-[1.55] text-slate-600"
+                >
+                  {shortDescription}
+                </p>
+              </div>
+            ) : (
+              <div className="mx-3 mb-0 rounded-[12px] border border-slate-200/70 bg-[linear-gradient(135deg,rgba(248,250,252,0.9),rgba(255,255,255,0.96))] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+                <p className="line-clamp-3 text-[11.5px] leading-[1.55] text-slate-500 italic">
+                  {`${producer.label} — запчастини у категорії ${categoryLabel}.`}
+                </p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="mt-auto flex gap-2 border-t border-slate-100 p-3">
+              <CatalogPrefetchLink
+                href={producer.catalogPath}
+                prefetchCatalogOnViewport
+                className="flex-1 rounded-[12px] border border-teal-200 bg-[linear-gradient(145deg,rgba(240,253,250,1),rgba(204,251,241,0.7))] px-3 py-2 text-center text-[12px] font-bold text-teal-900 shadow-[0_2px_6px_rgba(20,184,166,0.10),inset_0_1px_0_rgba(255,255,255,0.8)] transition hover:border-teal-300 hover:shadow-[0_4px_10px_rgba(20,184,166,0.15)]"
+              >
+                В каталог
+              </CatalogPrefetchLink>
               <Link
                 href={producer.manufacturerPath}
-                className="mt-1 block text-[15px] font-extrabold leading-snug text-slate-950 transition hover:text-teal-800"
+                className="flex-1 rounded-[12px] border border-slate-200 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(248,250,252,0.9))] px-3 py-2 text-center text-[12px] font-bold text-slate-700 shadow-[0_2px_6px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] transition hover:border-sky-200 hover:text-sky-800"
               >
-                {producer.label}
+                Виробник
               </Link>
             </div>
-            <span className={directoryCompactMetricAccentClass}>
-              <span>{formatCount(producer.productCount)}</span>
-              <span className="font-semibold text-teal-700">товарів</span>
-            </span>
-          </div>
-
-          <p className="mt-2 text-[13px] leading-5 text-slate-600">
-            {buildProducerCategoryLead({
-              producerLabel: producer.label,
-              categoryLabel,
-              groupLabel,
-            })}
-          </p>
-
-          <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
-            <p className="text-[11px] font-semibold text-slate-500">
-              У цій категорії
-            </p>
-            <CatalogPrefetchLink
-              href={producer.catalogPath}
-              prefetchCatalogOnViewport
-              className="inline-flex rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-900 transition hover:border-teal-300 hover:bg-teal-100"
-            >
-              В каталог
-            </CatalogPrefetchLink>
-          </div>
-
-          <Link
-            href={producer.manufacturerPath}
-            className="mt-2 inline-flex text-xs font-bold text-slate-500 transition hover:text-teal-800"
-          >
-            Сторінка виробника
-          </Link>
-        </article>
-      ))}
+          </article>
+        );
+      })}
     </div>
   );
 }

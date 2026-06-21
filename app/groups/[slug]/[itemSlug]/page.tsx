@@ -35,6 +35,8 @@ import {
   buildManufacturerPath,
 } from "app/lib/catalog-links";
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
+import { getBrandLogoMap, getProducerInitials, resolveProducerLogo } from "app/lib/brand-logo";
+import { producerDescriptions } from "app/lib/producer-descriptions";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
@@ -87,6 +89,9 @@ type GroupItemPageData = {
     productCount: number;
     catalogPath: string;
     manufacturerPath: string;
+    logoPath?: string | null;
+    initials?: string;
+    description?: string | null;
   }>;
   children: Array<{
     label: string;
@@ -743,7 +748,13 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     (sum, producer) => sum + producer.productCount,
     0
   );
-  const topProducerSplit = item.producerSplit.slice(0, 24);
+  const brandLogoMap = await getBrandLogoMap().catch(() => new Map<string, string>());
+  const topProducerSplit = item.producerSplit.slice(0, 24).map((producer) => ({
+    ...producer,
+    logoPath: producer.logoPath ?? resolveProducerLogo(producer.label, brandLogoMap),
+    initials: producer.initials ?? getProducerInitials(producer.label),
+    description: producer.description ?? producerDescriptions[producer.label] ?? null,
+  }));
   const seoCopy = getGroupItemSeoCopy({
     label: item.label,
     groupLabel: item.groupLabel,
