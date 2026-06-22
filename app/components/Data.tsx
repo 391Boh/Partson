@@ -2043,7 +2043,10 @@ function useCatalogData(params: {
                 );
                 for (const item of recoveryItems) {
                   const key = buildProductImageBatchKey(item.code, item.article);
-                  warmImageRoute(item, key ? deepReadyByKey.get(key) : undefined);
+                  if (!key) continue;
+                  const src = deepReadyByKey.get(key);
+                  if (!src) continue;
+                  warmImageRoute(item, src);
                 }
               })
               .catch((error) => {
@@ -2059,7 +2062,10 @@ function useCatalogData(params: {
           );
           for (const item of requestItems) {
             const key = buildProductImageBatchKey(item.code, item.article);
-            warmImageRoute(item, key ? readyByKey.get(key) : undefined);
+            if (!key) continue;
+            const src = readyByKey.get(key);
+            if (!src) continue;
+            warmImageRoute(item, src);
           }
         })
         .catch((error) => {
@@ -3410,7 +3416,7 @@ function useCatalogData(params: {
   );
 
   const updateCatalogItemFields = useCallback(
-    (code: string, fields: { name?: string; article?: string }) => {
+    (code: string, fields: { name?: string; article?: string; group?: string; subGroup?: string; category?: string; producer?: string }) => {
       if (!code || !Object.keys(fields).length) return;
       setData((prev) =>
         prev.map((item) =>
@@ -3581,11 +3587,13 @@ const Data: React.FC<DataProps> = ({
     initialQuerySignature,
   });
 
+  const router = useRouter();
+
   const handleAdminEdit = useCallback(
     async (
       code: string,
       article: string,
-      data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string; producer?: string }
+      data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string; producer?: string; group?: string; subGroup?: string; category?: string }
     ): Promise<{ ok: boolean; error?: string }> => {
       const token = await getAdminToken();
       if (!token) return { ok: false, error: "Не авторизовано" };
@@ -3637,7 +3645,10 @@ const Data: React.FC<DataProps> = ({
         data.imageDataUrl ||
         data.name !== undefined ||
         data.catalogNumber !== undefined ||
-        data.producer !== undefined
+        data.producer !== undefined ||
+        data.group !== undefined ||
+        data.subGroup !== undefined ||
+        data.category !== undefined
       ) {
         // article (НомерПоКаталогу) is required by ОбновитьТовар for product lookup.
         // Send Код (internal code) + article (current catalog number) on every request.
@@ -3652,6 +3663,9 @@ const Data: React.FC<DataProps> = ({
         if (data.name !== undefined) productUpdateBody["Наименование"] = data.name;
         if (data.catalogNumber !== undefined) productUpdateBody["НомерПоКаталогу"] = data.catalogNumber;
         if (data.producer !== undefined) productUpdateBody.producer = data.producer;
+        if (data.group !== undefined) productUpdateBody.group = data.group;
+        if (data.subGroup !== undefined) productUpdateBody.subGroup = data.subGroup;
+        if (data.category !== undefined) productUpdateBody.category = data.category;
         tasks.push(
           fetch("/api/product-update", {
             method: "POST",
@@ -3689,25 +3703,31 @@ const Data: React.FC<DataProps> = ({
         });
       }
 
-      // Update name / article using confirmed values from 1C (fall back to sent values)
+      // Update local catalog item with all confirmed values from 1C
       if (!failed) {
         const updateResult = results.find((r) => r.ok);
         const confirmedName = updateResult?.name ?? data.name;
         const confirmedArticle = updateResult?.catalogNumber ?? data.catalogNumber;
-        if (confirmedName || confirmedArticle) {
-          updateCatalogItemFields(code, {
-            ...(confirmedName ? { name: confirmedName } : {}),
-            ...(confirmedArticle ? { article: confirmedArticle } : {}),
-          });
+        const fieldsToUpdate: { name?: string; article?: string; group?: string; subGroup?: string; category?: string; producer?: string } = {};
+        if (confirmedName) fieldsToUpdate.name = confirmedName;
+        if (confirmedArticle) fieldsToUpdate.article = confirmedArticle;
+        if (data.group !== undefined) fieldsToUpdate.group = data.group;
+        if (data.subGroup !== undefined) fieldsToUpdate.subGroup = data.subGroup;
+        if (data.category !== undefined) fieldsToUpdate.category = data.category;
+        if (data.producer !== undefined) fieldsToUpdate.producer = data.producer;
+        if (Object.keys(fieldsToUpdate).length) {
+          updateCatalogItemFields(code, fieldsToUpdate);
         }
+        // Small delay so the server finishes committing pendingRevalidatedTags
+        // before the RSC re-fetch arrives — avoids a race with revalidateTag.
+        setTimeout(() => router.refresh(), 300);
       }
 
       return failed ?? { ok: true };
     },
-    [getAdminToken, updateCatalogItemPrice, updateCatalogItemFields]
+    [getAdminToken, updateCatalogItemPrice, updateCatalogItemFields, router]
   );
 
-  const router = useRouter();
   // Зберігає оригінальний запит до будь-яких редіректів (для опису потрібен оригінал)
   const articleFallbackAttemptedRef = useRef<string>("");
 
@@ -3722,7 +3742,6 @@ const Data: React.FC<DataProps> = ({
       firstPageResolvedItemCount > 0 ||
       (typeof catalogTotalCount === "number" && catalogTotalCount > 0)
     ) {
-      articleFallbackAttemptedRef.current = "";
       return;
     }
 
@@ -3731,11 +3750,12 @@ const Data: React.FC<DataProps> = ({
     const raw = rawSearchQuery.trim();
     if (raw.length < 3) return;
 
-    // Рівень 2: артикул — тільки для однослівних запитів + зміна кирилиці на латиницю
+    // Рівень 2: транслітерація кирилиці → артикул.
+    // Спрацьовує тільки якщо результат містить цифру (реальний артикул, не українське слово).
     if (!raw.includes(" ") && articleFallbackAttemptedRef.current !== raw) {
       articleFallbackAttemptedRef.current = raw;
       const sanitized = normalizeArticleToken(raw.toLowerCase());
-      if (sanitized && sanitized !== raw.toLowerCase() && sanitized.length >= 2) {
+      if (sanitized && sanitized !== raw.toLowerCase() && sanitized.length >= 2 && /\d/.test(sanitized)) {
         const params = new URLSearchParams(currentSearchParams.toString());
         params.set("search", sanitized);
         params.set("filter", "name");

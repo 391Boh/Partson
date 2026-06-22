@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { ImageOff, Maximize2 } from "lucide-react";
 
 import ImageModal from "app/components/ImageModal";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import {
   clearProductImageMissing,
+  clearProductImageSuccess,
   readProductImageMissing,
   readProductImageSuccess,
   writeProductImageMissing,
@@ -14,8 +16,6 @@ import {
 } from "app/lib/product-image-client";
 
 interface ProductImageWithFallbackProps {
-  src: string;
-  fallbackSrc: string;
   alt: string;
   width: number;
   height: number;
@@ -28,25 +28,17 @@ interface ProductImageWithFallbackProps {
   articleHint?: string;
   hasKnownPhoto?: boolean;
   preferCachedPreview?: boolean;
+  unoptimized?: boolean;
 }
 
 const BLUR_DATA_URL =
   "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiNmMWY1ZjkiLz48L3N2Zz4=";
 
-const normalizeSrcPath = (value: string) => {
-  const trimmed = (value || "").trim();
-  if (!trimmed) return "";
+const FINAL_RETRY_DELAY_MS = 180;
 
-  try {
-    return new URL(trimmed, "http://localhost").pathname.toLowerCase();
-  } catch {
-    return trimmed.toLowerCase();
-  }
-};
+type ImageStatus = "loading" | "loaded" | "missing";
 
 export default function ProductImageWithFallback({
-  src,
-  fallbackSrc,
   alt,
   width,
   height,
@@ -59,94 +51,70 @@ export default function ProductImageWithFallback({
   articleHint,
   hasKnownPhoto = true,
   preferCachedPreview = true,
+  unoptimized: unoptimizedProp = false,
 }: ProductImageWithFallbackProps) {
-  const openPhotoTitle = "\u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0438 \u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f";
-  const photoLabel = "\u0424\u043E\u0442\u043E";
+  const openPhotoTitle = "Відкрити зображення";
+  const photoLabel = "Фото";
 
-  const candidateSrc = (src || "").trim();
-  const normalizedFallbackPath = useMemo(() => normalizeSrcPath(fallbackSrc), [fallbackSrc]);
   const normalizedProductCode = (productCode || "").trim();
   const normalizedArticleHint = (articleHint || "").trim();
 
-  const [loadedSrc, setLoadedSrc] = useState("");
-  const [failedSrc, setFailedSrc] = useState("");
-  const [cachedPreviewSrc, setCachedPreviewSrc] = useState("");
-  const [cachedMissingSrc, setCachedMissingSrc] = useState("");
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const imageRef = useRef<HTMLImageElement | null>(null);
-
-  const activeSrc = cachedPreviewSrc || candidateSrc;
-  const showPlaceholder =
-    !hasKnownPhoto ||
-    !activeSrc ||
-    failedSrc === activeSrc ||
-    cachedMissingSrc === activeSrc;
-  const isLoaded = !showPlaceholder && loadedSrc === activeSrc;
-  const showPlaceholderOverlay = !showPlaceholder && !isLoaded;
-  const canOpen = zoomEnabled && isLoaded;
-  const preferImmediateDecode = loading === "eager" && fetchPriority === "high";
-  const openLightbox = useCallback(() => {
-    if (!canOpen) return;
-    setLightboxOpen(true);
-  }, [canOpen]);
-
-  const applyLoadedCandidate = useCallback(
-    (element: HTMLImageElement | null) => {
-      if (!element || !activeSrc) return;
-
-      const loadedPath = normalizeSrcPath(
-        element.currentSrc || element.src || activeSrc
-      );
-
-      if (normalizedFallbackPath && loadedPath === normalizedFallbackPath) {
-        setFailedSrc(activeSrc);
-        return;
-      }
-
-      if (normalizedProductCode) {
-        writeProductImageSuccess(
-          normalizedProductCode,
-          normalizedArticleHint || undefined,
-          activeSrc
-        );
-        clearProductImageMissing(
-          normalizedProductCode,
-          normalizedArticleHint || undefined
-        );
-      }
-
-      setLoadedSrc(activeSrc);
-      setFailedSrc("");
-    },
-    [activeSrc, normalizedArticleHint, normalizedFallbackPath, normalizedProductCode]
+  const primarySrc = useMemo(
+    () =>
+      hasKnownPhoto && normalizedProductCode
+        ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
+            catalog: true,
+          })
+        : "",
+    [hasKnownPhoto, normalizedProductCode, normalizedArticleHint]
+  );
+  const recoverySrc = useMemo(
+    () =>
+      hasKnownPhoto && normalizedProductCode
+        ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
+            catalog: true,
+            retryToken: 1,
+          })
+        : "",
+    [hasKnownPhoto, normalizedProductCode, normalizedArticleHint]
+  );
+  const finalRetrySrc = useMemo(
+    () =>
+      hasKnownPhoto && normalizedProductCode
+        ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
+            catalog: true,
+            retryToken: 2,
+          })
+        : "",
+    [hasKnownPhoto, normalizedProductCode, normalizedArticleHint]
   );
 
-  const handleImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
-    applyLoadedCandidate(event.currentTarget);
-  };
-
-  const handleImageError = () => {
-    if (!activeSrc) return;
-    if (normalizedProductCode) {
-      writeProductImageMissing(
-        normalizedProductCode,
-        normalizedArticleHint || undefined
-      );
-    }
-    setFailedSrc(activeSrc);
-  };
+  const [requestSrc, setRequestSrc] = useState(primarySrc || "");
+  const [status, setStatus] = useState<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
+  const [finalRetryQueued, setFinalRetryQueued] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const requestSrcRef = useRef("");
+  const statusRef = useRef<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
 
   useEffect(() => {
+    requestSrcRef.current = requestSrc;
+  }, [requestSrc]);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  // Initialize / reset when product identity changes
+  useEffect(() => {
     setLightboxOpen(false);
+    setFinalRetryQueued(false);
 
     if (!hasKnownPhoto) {
       if (normalizedProductCode) {
-        writeProductImageMissing(
-          normalizedProductCode,
-          normalizedArticleHint || undefined
-        );
+        writeProductImageMissing(normalizedProductCode, normalizedArticleHint || undefined);
       }
-      setCachedPreviewSrc("");
+      setRequestSrc("");
+      setStatus("missing");
       return;
     }
 
@@ -155,9 +123,9 @@ export default function ProductImageWithFallback({
         normalizedProductCode,
         normalizedArticleHint || undefined
       );
-      if (isKnownMissing && candidateSrc) {
-        setCachedPreviewSrc("");
-        setCachedMissingSrc(candidateSrc);
+      if (isKnownMissing) {
+        setRequestSrc("");
+        setStatus("missing");
         return;
       }
 
@@ -165,57 +133,112 @@ export default function ProductImageWithFallback({
         normalizedProductCode,
         normalizedArticleHint || undefined
       );
-      setCachedPreviewSrc(cached || "");
-      setCachedMissingSrc("");
-    } else {
-      setCachedPreviewSrc("");
-      setCachedMissingSrc("");
+      if (cached) {
+        const isAlreadyShowingSameSrc =
+          statusRef.current === "loaded" && requestSrcRef.current === cached;
+        setRequestSrc(cached);
+        if (!isAlreadyShowingSameSrc) setStatus("loading");
+        return;
+      }
     }
+
+    if (!primarySrc) {
+      setRequestSrc("");
+      setStatus("missing");
+      return;
+    }
+
+    setRequestSrc(primarySrc);
+    setStatus("loading");
   }, [
-    candidateSrc,
     hasKnownPhoto,
     normalizedArticleHint,
     normalizedProductCode,
     preferCachedPreview,
+    primarySrc,
   ]);
 
+  // Delayed final retry — mirrors ProductCardImage behaviour
   useEffect(() => {
-    setLightboxOpen(false);
+    if (!hasKnownPhoto) return;
+    if (status !== "missing") return;
+    if (!finalRetrySrc) return;
+    if (finalRetryQueued) return;
 
-    if (!activeSrc) {
-      setLoadedSrc("");
-      setFailedSrc("");
+    const timeoutId = window.setTimeout(() => {
+      setFinalRetryQueued(true);
+      setRequestSrc(finalRetrySrc);
+      setStatus("loading");
+    }, FINAL_RETRY_DELAY_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
+
+  const handleLoad = useCallback(() => {
+      if (!requestSrc) return;
+      writeProductImageSuccess(
+        normalizedProductCode,
+        normalizedArticleHint || undefined,
+        requestSrc
+      );
+      clearProductImageMissing(normalizedProductCode, normalizedArticleHint || undefined);
+      setStatus("loaded");
+    },
+    [normalizedArticleHint, normalizedProductCode, requestSrc]
+  );
+
+  const handleError = useCallback(() => {
+    clearProductImageSuccess(normalizedProductCode, normalizedArticleHint || undefined);
+
+    if (!hasKnownPhoto) {
+      writeProductImageMissing(normalizedProductCode, normalizedArticleHint || undefined);
+      setRequestSrc("");
+      setStatus("missing");
       return;
     }
 
-    const element = imageRef.current;
-    if (!element) {
-      setLoadedSrc(cachedPreviewSrc ? activeSrc : "");
-      setFailedSrc("");
+    if (finalRetryQueued) {
+      setStatus("missing");
       return;
     }
 
-    if (element.complete) {
-      if (element.naturalWidth > 0 && element.naturalHeight > 0) {
-        applyLoadedCandidate(element);
-        return;
-      }
-
-      setLoadedSrc("");
-      setFailedSrc(activeSrc);
+    if (requestSrc && requestSrc !== recoverySrc && recoverySrc) {
+      setRequestSrc(recoverySrc);
+      setStatus("loading");
       return;
     }
 
-    setLoadedSrc("");
-    setFailedSrc("");
-  }, [activeSrc, applyLoadedCandidate, cachedPreviewSrc]);
+    if (requestSrc && requestSrc !== finalRetrySrc && finalRetrySrc) {
+      setFinalRetryQueued(true);
+      setRequestSrc(finalRetrySrc);
+      setStatus("loading");
+      return;
+    }
 
-  const renderPlaceholder = (overlay = false) => (
-    <div
-      className={`relative flex items-center justify-center text-center ${
-        overlay ? "px-4" : "px-5"
-      }`}
-    >
+    setStatus("missing");
+  }, [
+    finalRetryQueued,
+    finalRetrySrc,
+    hasKnownPhoto,
+    normalizedArticleHint,
+    normalizedProductCode,
+    recoverySrc,
+    requestSrc,
+  ]);
+
+  const isLoaded = status === "loaded";
+  const showPlaceholder = !hasKnownPhoto || status === "missing";
+  const showSkeleton = !showPlaceholder && !isLoaded;
+  const canOpen = zoomEnabled && isLoaded;
+  const preferImmediateDecode = loading === "eager" && fetchPriority === "high";
+
+  const openLightbox = useCallback(() => {
+    if (!canOpen) return;
+    setLightboxOpen(true);
+  }, [canOpen]);
+
+  const renderPlaceholder = () => (
+    <div className="relative flex items-center justify-center text-center px-5">
       <div className="absolute inset-x-3 top-1/2 hidden h-px -translate-y-5 bg-gradient-to-r from-transparent via-slate-300/75 to-transparent sm:block" />
       <ImageOff
         size={34}
@@ -246,34 +269,32 @@ export default function ProductImageWithFallback({
           canOpen ? "cursor-zoom-in" : ""
         }`}
       >
-        {showPlaceholderOverlay ? (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[image:linear-gradient(160deg,#f8fafc,#f1f5f9)]/92">
-            {renderPlaceholder(true)}
-          </div>
+        {showSkeleton ? (
+          <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 transition-opacity duration-200" />
         ) : null}
 
-        <Image
-          ref={imageRef}
-          src={activeSrc}
-          alt={alt}
-          priority={preferImmediateDecode}
-          loading={loading}
-          decoding={preferImmediateDecode ? "sync" : decoding}
-          fetchPriority={fetchPriority}
-          onLoad={handleImageLoad}
-          onError={handleImageError}
-          width={width}
-          height={height}
-          sizes="(max-width: 767px) 100vw, (max-width: 1279px) 46vw, 520px"
-          placeholder="blur"
-          blurDataURL={BLUR_DATA_URL}
-          unoptimized={activeSrc.startsWith("data:image/")}
-          className={`h-full w-full object-contain transition-[opacity,transform] ${
-            preferImmediateDecode ? "duration-100" : "duration-180"
-          } ${
-            isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.01]"
-          }`}
-        />
+        {requestSrc ? (
+          <Image
+            key={requestSrc}
+            src={requestSrc}
+            alt={alt}
+            priority={preferImmediateDecode}
+            loading={loading}
+            decoding={preferImmediateDecode ? "sync" : decoding}
+            fetchPriority={fetchPriority}
+            onLoad={handleLoad}
+            onError={handleError}
+            width={width}
+            height={height}
+            sizes="(max-width: 767px) 100vw, (max-width: 1279px) 46vw, 520px"
+            placeholder="blur"
+            blurDataURL={BLUR_DATA_URL}
+            unoptimized={unoptimizedProp || requestSrc.startsWith("data:image/")}
+            className={`h-full w-full object-contain transition-[opacity,transform] ${
+              preferImmediateDecode ? "duration-100" : "duration-180"
+            } ${isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.01]"}`}
+          />
+        ) : null}
 
         {canOpen ? (
           <button
@@ -293,7 +314,7 @@ export default function ProductImageWithFallback({
       </div>
 
       {lightboxOpen && canOpen ? (
-        <ImageModal src={activeSrc} onClose={() => setLightboxOpen(false)} />
+        <ImageModal src={requestSrc} onClose={() => setLightboxOpen(false)} />
       ) : null}
     </>
   );

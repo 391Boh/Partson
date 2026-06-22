@@ -1,6 +1,7 @@
+import { revalidatePath, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 
-import { clearOneCCacheForProduct, oneCRequest } from "app/api/_lib/oneC";
+import { clearAllOneCCache, clearOneCCacheForProduct, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
@@ -168,11 +169,15 @@ export async function POST(request: NextRequest) {
         ? value.producer.trim()
         : undefined;
 
-  // article = current catalog number, used as НомерПоКаталогу for 1C product lookup
-  const lookupArticle =
-    typeof value.article === "string" && value.article.trim()
-      ? value.article.trim()
-      : "";
+  const readOptionalString = (jsKey: string, onecKey: string) => {
+    if (typeof value[jsKey] === "string") return value[jsKey] as string;
+    if (typeof value[onecKey] === "string") return value[onecKey] as string;
+    return undefined;
+  };
+
+  const group = readOptionalString("group", "Группа");
+  const subGroup = readOptionalString("subGroup", "Подгруппа");
+  const category = readOptionalString("category", "Категория");
 
   const oneCBody: Record<string, unknown> = { Код: code };
   if (priceEuro !== undefined) oneCBody["ЦінаПрод"] = priceEuro;
@@ -181,12 +186,16 @@ export async function POST(request: NextRequest) {
   if (image.imageBase64) oneCBody.image_base64 = image.imageBase64;
   if (productName) oneCBody["Наименование"] = productName;
   if (producer !== undefined) oneCBody["ПроизводительНаименование"] = producer;
-  // catalogNumber = new value (update); lookupArticle = current value (lookup only)
-  const articleForOnec = catalogNumber || lookupArticle;
-  if (articleForOnec) oneCBody["НомерПоКаталогу"] = articleForOnec;
+  if (group !== undefined) oneCBody["Группа"] = group.trim();
+  if (subGroup !== undefined) oneCBody["Подгруппа"] = subGroup.trim();
+  if (category !== undefined) oneCBody["Категория"] = category.trim();
+  // Only send НомерПоКаталогу when the user explicitly updates it.
+  // Sending it for price-only updates causes 1C to try writing it to the Ціна
+  // catalog object (which has no such field) and the price update fails.
+  if (catalogNumber) oneCBody["НомерПоКаталогу"] = catalogNumber;
 
   if (Object.keys(oneCBody).length === 1) {
-    return json({ ok: false, error: "Provide price, cost price, image, name, catalog number, or producer" }, 400);
+    return json({ ok: false, error: "Provide price, cost price, image, name, catalog number, producer, group, or category" }, 400);
   }
 
   const result = await oneCRequest(ONEC_PRODUCT_UPDATE_ENDPOINT, {
@@ -271,18 +280,29 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: errors.join("; ") }, 422);
   }
 
-  clearOneCCacheForProduct(code);
+  // Clear the entire 1C in-memory cache so that catalog query responses
+  // (whose cache keys contain only filter params, not individual product codes)
+  // are also evicted. Without this, router.refresh() on the catalog page would
+  // still return stale data even after the product was updated in 1C.
+  clearAllOneCCache();
   clearProductImageCacheForProduct(code);
 
   const article = typeof value.article === "string" ? value.article.trim() : "";
   const productCode = typeof value.productCode === "string" ? value.productCode.trim() : "";
-  if (article) {
-    clearOneCCacheForProduct(article);
-    clearProductImageCacheForProduct(article);
-  }
-  if (productCode) {
-    clearOneCCacheForProduct(productCode);
-    clearProductImageCacheForProduct(productCode);
+  if (article) clearProductImageCacheForProduct(article);
+  if (productCode) clearProductImageCacheForProduct(productCode);
+
+  // Bust ISR page cache so the next render fetches fresh data from 1C.
+  // Use the dynamic segment pattern '/product/[code]' (not a specific code) because
+  // actual product URLs include a SEO slug (e.g. /product/гальмівні-колодки~00-00000056)
+  // that never matches a path containing just the bare product code.
+  // revalidateTag busts any remaining unstable_cache entries for the route resolvers.
+  try {
+    revalidateTag("product-page-data", "max");
+    revalidatePath("/product/[code]", "page");
+    revalidatePath("/katalog", "page");
+  } catch {
+    // can throw outside of a request context (e.g., tests/build)
   }
 
   // Prefer confirmed values from 1C results, fall back to sent values

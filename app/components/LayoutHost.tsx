@@ -5,6 +5,8 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { Auth } from "firebase/auth";
 import type { Firestore } from "firebase/firestore";
 import Header from "./Header";
+import NavigationProgress from "./NavigationProgress";
+import ProductCreateModal from "./ProductCreateModal";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronUp, MessageCircle, Shield } from "lucide-react";
 import {
@@ -272,6 +274,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     isEmbeddedProductView: false,
   });
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const router = useRouter();
   const pathnameValue = usePathname();
@@ -1282,6 +1285,8 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         <RouteViewStateSync pathname={pathname} onChange={syncRouteViewState} />
       </Suspense>
 
+      <NavigationProgress />
+
       {!isEmbeddedProductView && (
         <div className="fixed top-0 left-0 right-0 z-50 h-[var(--header-height,4rem)] bg-slate-800">
           <Header />
@@ -1301,15 +1306,25 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       {!isEmbeddedProductView && (
         <div className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] z-50 flex flex-col items-end gap-2 sm:bottom-6 sm:right-6 sm:gap-4 lg:right-7">
           {isAdmin && !isAdminPanelOpen && (
-            <button
-              onClick={() => setIsAdminPanelOpen((prev) => !prev)}
-              className="relative z-[60] mr-2 inline-flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border border-white/18 bg-sky-800 text-white shadow-[0_18px_38px_rgba(8,47,73,0.26)] transition hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
-              aria-label="Адмін панель"
-              title="Адмін панель"
-            >
-              <Shield className="h-[30px] w-[30px]" strokeWidth={2.2} aria-hidden="true" />
-              {renderBadge(totalNotifications)}
-            </button>
+            <div className="flex flex-col items-end gap-1.5">
+              <button
+                onClick={() => setIsAdminPanelOpen((prev) => !prev)}
+                className="relative z-[60] mr-2 inline-flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border border-white/18 bg-sky-800 text-white shadow-[0_18px_38px_rgba(8,47,73,0.26)] transition hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
+                aria-label="Адмін панель"
+                title="Адмін панель"
+              >
+                <Shield className="h-[30px] w-[30px]" strokeWidth={2.2} aria-hidden="true" />
+                {renderBadge(totalNotifications)}
+              </button>
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="relative z-[60] mr-2 inline-flex h-10 items-center gap-1.5 rounded-[14px] border border-white/18 bg-violet-700 px-3 text-[11px] font-black text-white shadow-[0_10px_24px_rgba(109,40,217,0.28)] transition hover:bg-violet-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-violet-300/45 md:mr-2.5"
+                aria-label="Новий товар"
+                title="Створити новий товар"
+              >
+                + Товар
+              </button>
+            </div>
           )}
 
           <div className="flex items-end gap-2 sm:gap-3">
@@ -1392,6 +1407,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           onClose={closeChat}
           prefillMessage={prefillMessage}
           onPrefillSent={() => setPrefillMessage(null)}
+        />
+      )}
+
+      {isAdmin && (
+        <ProductCreateModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
         />
       )}
     </div>

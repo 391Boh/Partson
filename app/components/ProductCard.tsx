@@ -95,7 +95,7 @@ interface Props {
     onQtyChange: (code: string, delta: number) => void;
     onFlip: (code: string) => void;
     onImageOpen: (code: string, article?: string) => void;
-    onAdminEdit?: (data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string; producer?: string }) => Promise<{ ok: boolean; error?: string }>;
+    onAdminEdit?: (data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string; producer?: string; group?: string; subGroup?: string; category?: string }) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const ProductCard: React.FC<Props> = ({
@@ -318,11 +318,30 @@ const [frontImageSaving, setFrontImageSaving] = useState(false);
 const [frontImageError, setFrontImageError] = useState<string | null>(null);
 const [localImageSrc, setLocalImageSrc] = useState<string | null>(null);
 
+const [editGroup, setEditGroup] = useState('');
+const [editSubGroup, setEditSubGroup] = useState('');
+const [editCategory, setEditCategory] = useState('');
+const [groupSuggestions, setGroupSuggestions] = useState<string[]>([]);
+const [subGroupSuggestions, setSubGroupSuggestions] = useState<string[]>([]);
+const [categorySuggestions, setCategorySuggestions] = useState<string[]>([]);
+const [groupActiveSug, setGroupActiveSug] = useState(-1);
+const [subGroupActiveSug, setSubGroupActiveSug] = useState(-1);
+const [categoryActiveSug, setCategoryActiveSug] = useState(-1);
+const metaSuggestAbortRef = useRef<Record<string, AbortController | null>>({});
 const enterEditMode = () => {
+    const cat = item.category ?? '';
+    const grp = item.group ?? '';
+    const sub = item.subGroup ?? '';
     setEditDesc(description ?? '');
+    setEditCategory(cat);
+    setEditGroup(grp);
+    setEditSubGroup(sub);
     setEditError(null);
     setEditSuccess(false);
     setIsEditMode(true);
+    fetchMetaSuggestions('category', cat);
+    fetchMetaSuggestions('group', grp, cat);
+    fetchMetaSuggestions('subGroup', sub, grp);
 };
 
 const handleFrontImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -432,14 +451,23 @@ const handleAdminSave = async () => {
     setEditSaving(true);
     setEditError(null);
 
-    const trimmedDesc = editDesc.trim();
-    if (trimmedDesc === (description ?? '').trim()) {
+    const descChanged = editDesc.trim() !== (description ?? '').trim();
+    const groupChanged = editGroup.trim() !== (item.group ?? '');
+    const subGroupChanged = editSubGroup.trim() !== (item.subGroup ?? '');
+    const categoryChanged = editCategory.trim() !== (item.category ?? '');
+
+    if (!descChanged && !groupChanged && !subGroupChanged && !categoryChanged) {
         setEditSaving(false);
         setIsEditMode(false);
         return;
     }
 
-    const data: { description: string } = { description: trimmedDesc };
+    type EditData = { description?: string; group?: string; subGroup?: string; category?: string };
+    const data: EditData = {};
+    if (descChanged) data.description = editDesc.trim();
+    if (groupChanged) data.group = editGroup.trim();
+    if (subGroupChanged) data.subGroup = editSubGroup.trim();
+    if (categoryChanged) data.category = editCategory.trim();
 
     const result = await onAdminEdit(data);
     setEditSaving(false);
@@ -449,7 +477,7 @@ const handleAdminSave = async () => {
         return;
     }
 
-    if (data.description !== undefined) {
+    if (descChanged && data.description !== undefined) {
         setDescription(data.description || null);
         descLoaded.current = true;
         try {
@@ -461,6 +489,25 @@ const handleAdminSave = async () => {
     setEditSuccess(true);
     setTimeout(() => { setIsEditMode(false); setEditSuccess(false); }, 1800);
 };
+
+const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string, parent?: string) => {
+    metaSuggestAbortRef.current[type]?.abort();
+    const ctrl = new AbortController();
+    metaSuggestAbortRef.current[type] = ctrl;
+    const params = new URLSearchParams({ type });
+    if (q.trim()) params.set('q', q);
+    if (parent?.trim()) params.set('parent', parent);
+    fetch(`/api/catalog-meta-suggest?${params.toString()}`, { signal: ctrl.signal })
+        .then((r) => r.json() as Promise<{ suggestions?: string[] }>)
+        .then((d) => {
+            const sugg = d.suggestions ?? [];
+            if (type === 'group') { setGroupSuggestions(sugg); setGroupActiveSug(-1); }
+            else if (type === 'subGroup') { setSubGroupSuggestions(sugg); setSubGroupActiveSug(-1); }
+            else { setCategorySuggestions(sugg); setCategoryActiveSug(-1); }
+        })
+        .catch(() => {});
+};
+
 
 useEffect(() => {
     if (!isFlipped) return;
@@ -591,7 +638,7 @@ useEffect(() => {
     return (
         <>
         <article
-            className={`catalog-product-card relative w-full h-[340px] sm:h-[320px] [perspective:1200px] select-none ${cardMotionClass}`}
+            className={`catalog-product-card relative w-full h-[360px] sm:h-[340px] [perspective:1200px] select-none ${cardMotionClass}`}
             itemScope
             itemType="https://schema.org/Product"
         >
@@ -1129,6 +1176,17 @@ useEffect(() => {
                                  )}
                              </button>
 
+                             {isAdmin && onAdminEdit && (
+                                 <button
+                                     type="button"
+                                     onClick={(e) => { e.stopPropagation(); enterEditMode(); if (!isFlipped) onFlip(code); }}
+                                     className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border border-violet-100 bg-violet-50 text-violet-600 shadow-[0_6px_12px_rgba(109,40,217,0.08)] hover:border-violet-200 hover:bg-violet-100 hover:text-violet-700 transition-all duration-200"
+                                     aria-label="Редагувати товар"
+                                     title="Редагувати товар"
+                                 >
+                                     <Pencil size={16} />
+                                 </button>
+                             )}
                              <button
                                  onClick={(e) => {
                                      e.stopPropagation();
@@ -1141,6 +1199,7 @@ useEffect(() => {
                              </button>
                          </div>
                     </div>
+
                 </div>
 
       {/* ---------- BACK ---------- */}
@@ -1164,27 +1223,153 @@ useEffect(() => {
 >
     {/* Header */}
     <div className="rounded-t-xl px-3 py-2.5 border-b border-slate-200 bg-gradient-to-r from-blue-50/70 via-white/70 to-slate-50/70 backdrop-blur-sm">
-        <div className="flex items-start gap-2">
-            <h3 className="font-name-accent flex-1 text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 text-left leading-[1.02] line-clamp-2">
-                {name}
-            </h3>
-            {isAdmin && onAdminEdit && !isEditMode && (
-                <button
-                    onClick={(e) => { e.stopPropagation(); enterEditMode(); }}
-                    className="mt-0.5 flex-shrink-0 p-1 rounded-md border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors"
-                    aria-label="Редагувати"
-                    title="Редагувати опис та ціну"
-                >
-                    <Pencil size={13} />
-                </button>
-            )}
-        </div>
+        <h3 className="font-name-accent text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 text-left leading-[1.02] line-clamp-2">
+            {name}
+        </h3>
     </div>
 
-    {/* Content */}
-    <div className="flex-1 overflow-y-auto px-3 py-2 pb-12 text-slate-700">
-        {!isEditMode && (
-            <>
+    {/* Breadcrumb: positional labels (topmost filled = Категорія, next = Група, leaf = Підгрупа) */}
+    {(item.group || item.subGroup || item.category) && (() => {
+        const cat = (item.category || "").trim();
+        const grp = (item.group || "").trim();
+        const sub = (item.subGroup || "").trim();
+        const catL = cat.toLowerCase();
+        const grpL = grp.toLowerCase();
+        const subL = sub.toLowerCase();
+        const levels: string[] = [];
+        if (cat && catL !== grpL && catL !== subL) levels.push(cat);
+        if (grp) levels.push(grp);
+        if (sub && subL !== grpL) levels.push(sub);
+        if (levels.length === 0) return null;
+        const styles = [
+            { label: "Категорія", dot: "bg-teal-400",   text: "text-teal-600" },
+            { label: "Група",     dot: "bg-violet-400", text: "text-violet-600" },
+            { label: "Підгрупа",  dot: "bg-sky-400",    text: "text-sky-600" },
+        ] as const;
+        return (
+            <div className="border-b border-slate-100/80 px-3 py-1.5 bg-gradient-to-r from-slate-50/70 to-white/50">
+                <div className="flex flex-col gap-[3px]">
+                    {levels.map((value, i) => {
+                        const s = styles[i] ?? styles[2];
+                        return (
+                            <div key={i} className="flex items-center gap-1.5 min-w-0">
+                                <span className={`h-[5px] w-[5px] flex-shrink-0 rounded-full ${s.dot}`} />
+                                <span className={`w-[50px] flex-shrink-0 text-[8px] font-black uppercase tracking-[0.1em] ${s.text}`}>{s.label}</span>
+                                <span className="flex-1 min-w-0 truncate text-[10px] font-semibold text-slate-700">
+                                    {buildVisibleProductName(value)}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    })()}
+
+    {/* Content: edit form or description */}
+    {isAdmin && onAdminEdit && isEditMode ? (
+        <>
+            <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+                <div>
+                    <label className="block text-[8px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Опис</label>
+                    <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-800 resize-none focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-100 transition-all disabled:opacity-50 hover:border-slate-300" rows={2} disabled={editSaving} />
+                </div>
+                <div className="relative">
+                    <label className="block text-[8px] font-semibold text-teal-600 uppercase tracking-wide mb-0.5">Категорія</label>
+                    <input type="text" value={editCategory}
+                        onChange={(e) => { setEditCategory(e.target.value); fetchMetaSuggestions('category', e.target.value); setEditGroup(''); setEditSubGroup(''); setGroupSuggestions([]); setSubGroupSuggestions([]); }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'ArrowDown') { e.preventDefault(); setCategoryActiveSug((p) => Math.min(p + 1, categorySuggestions.length - 1)); }
+                            else if (e.key === 'ArrowUp') { e.preventDefault(); setCategoryActiveSug((p) => Math.max(p - 1, -1)); }
+                            else if (e.key === 'Enter' && categoryActiveSug >= 0 && categorySuggestions[categoryActiveSug]) { e.preventDefault(); const v = categorySuggestions[categoryActiveSug]; setEditCategory(v); setCategorySuggestions([]); setCategoryActiveSug(-1); setEditGroup(''); setEditSubGroup(''); fetchMetaSuggestions('group', '', v); setGroupSuggestions([]); setSubGroupSuggestions([]); }
+                            else if (e.key === 'Escape') { setCategorySuggestions([]); setCategoryActiveSug(-1); }
+                        }}
+                        onFocus={() => { fetchMetaSuggestions('category', editCategory); }}
+                        onBlur={() => { setTimeout(() => setCategorySuggestions([]), 150); }}
+                        disabled={editSaving} placeholder="Категорія товару"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] text-slate-800 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-100 disabled:opacity-50 transition-all" />
+                    {categorySuggestions.length > 0 && (
+                        <div className="absolute left-0 top-full z-50 mt-0.5 w-full max-h-28 overflow-y-auto rounded-lg border border-teal-200 bg-white shadow-[0_6px_18px_rgba(20,184,166,0.14)]">
+                            {categorySuggestions.map((s, i) => (
+                                <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); setEditCategory(s); setCategorySuggestions([]); setCategoryActiveSug(-1); setEditGroup(''); setEditSubGroup(''); fetchMetaSuggestions('group', '', s); setGroupSuggestions([]); setSubGroupSuggestions([]); }}
+                                    className={`block w-full px-2.5 py-2 text-left text-[11px] font-medium transition ${i === categoryActiveSug ? 'bg-teal-50 text-teal-800' : 'text-slate-700 hover:bg-slate-50'}`}>{s}</button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <div className="relative">
+                    <label className="block text-[8px] font-semibold text-violet-600 uppercase tracking-wide mb-0.5">Група</label>
+                    <input type="text" value={editGroup}
+                        onChange={(e) => { setEditGroup(e.target.value); fetchMetaSuggestions('group', e.target.value, editCategory); setEditSubGroup(''); setSubGroupSuggestions([]); }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'ArrowDown') { e.preventDefault(); setGroupActiveSug((p) => Math.min(p + 1, groupSuggestions.length - 1)); }
+                            else if (e.key === 'ArrowUp') { e.preventDefault(); setGroupActiveSug((p) => Math.max(p - 1, -1)); }
+                            else if (e.key === 'Enter' && groupActiveSug >= 0 && groupSuggestions[groupActiveSug]) { e.preventDefault(); const v = groupSuggestions[groupActiveSug]; setEditGroup(v); setGroupSuggestions([]); setGroupActiveSug(-1); setEditSubGroup(''); fetchMetaSuggestions('subGroup', '', v); setSubGroupSuggestions([]); }
+                            else if (e.key === 'Escape') { setGroupSuggestions([]); setGroupActiveSug(-1); }
+                        }}
+                        onFocus={() => { fetchMetaSuggestions('group', editGroup, editCategory); }}
+                        onBlur={() => { setTimeout(() => setGroupSuggestions([]), 150); }}
+                        disabled={editSaving} placeholder="Група товарів"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] text-slate-800 focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-100 disabled:opacity-50 transition-all" />
+                    {groupSuggestions.length > 0 && (
+                        <div className="absolute left-0 top-full z-50 mt-0.5 w-full max-h-28 overflow-y-auto rounded-lg border border-violet-200 bg-white shadow-[0_6px_18px_rgba(109,40,217,0.12)]">
+                            {groupSuggestions.map((s, i) => (
+                                <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); setEditGroup(s); setGroupSuggestions([]); setGroupActiveSug(-1); setEditSubGroup(''); fetchMetaSuggestions('subGroup', '', s); setSubGroupSuggestions([]); }}
+                                    className={`block w-full px-2.5 py-2 text-left text-[11px] font-medium transition ${i === groupActiveSug ? 'bg-violet-50 text-violet-800' : 'text-slate-700 hover:bg-slate-50'}`}>{s}</button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <div className="relative">
+                    <label className="block text-[8px] font-semibold text-sky-600 uppercase tracking-wide mb-0.5">Підгрупа</label>
+                    <input type="text" value={editSubGroup}
+                        onChange={(e) => { setEditSubGroup(e.target.value); fetchMetaSuggestions('subGroup', e.target.value, editGroup); }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'ArrowDown') { e.preventDefault(); setSubGroupActiveSug((p) => Math.min(p + 1, subGroupSuggestions.length - 1)); }
+                            else if (e.key === 'ArrowUp') { e.preventDefault(); setSubGroupActiveSug((p) => Math.max(p - 1, -1)); }
+                            else if (e.key === 'Enter' && subGroupActiveSug >= 0 && subGroupSuggestions[subGroupActiveSug]) { e.preventDefault(); setEditSubGroup(subGroupSuggestions[subGroupActiveSug]); setSubGroupSuggestions([]); setSubGroupActiveSug(-1); }
+                            else if (e.key === 'Escape') { setSubGroupSuggestions([]); setSubGroupActiveSug(-1); }
+                        }}
+                        onFocus={() => { fetchMetaSuggestions('subGroup', editSubGroup, editGroup); }}
+                        onBlur={() => { setTimeout(() => setSubGroupSuggestions([]), 150); }}
+                        disabled={editSaving} placeholder="Підгрупа товарів"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] text-slate-800 focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100 disabled:opacity-50 transition-all" />
+                    {subGroupSuggestions.length > 0 && (
+                        <div className="absolute left-0 top-full z-50 mt-0.5 w-full max-h-28 overflow-y-auto rounded-lg border border-sky-200 bg-white shadow-[0_6px_18px_rgba(14,165,233,0.12)]">
+                            {subGroupSuggestions.map((s, i) => (
+                                <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); setEditSubGroup(s); setSubGroupSuggestions([]); setSubGroupActiveSug(-1); }}
+                                    className={`block w-full px-2.5 py-2 text-left text-[11px] font-medium transition ${i === subGroupActiveSug ? 'bg-sky-50 text-sky-800' : 'text-slate-700 hover:bg-slate-50'}`}>{s}</button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+            <div className="px-2.5 pb-2.5 pt-1.5 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+                {editError && (
+                    <div className="flex items-center gap-1 rounded-lg bg-rose-50 border border-rose-200 px-2 py-1 mb-1.5">
+                        <X size={10} className="text-rose-500 flex-shrink-0" />
+                        <p className="text-[10px] text-rose-600 font-medium leading-tight">{editError}</p>
+                    </div>
+                )}
+                {editSuccess && (
+                    <div className="flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1 mb-1.5" style={{ animation: 'adminEditFadeIn 0.2s ease-out' }}>
+                        <Check size={10} className="text-emerald-500 flex-shrink-0" />
+                        <p className="text-[10px] text-emerald-600 font-semibold">Збережено</p>
+                    </div>
+                )}
+                <div className="flex gap-1.5">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); void handleAdminSave(); }} disabled={editSaving} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-violet-300 bg-gradient-to-b from-violet-100 to-violet-50 text-violet-800 text-[10px] font-bold py-2 hover:from-violet-200 hover:to-violet-100 hover:border-violet-400 hover:shadow-sm active:scale-[0.97] disabled:opacity-50 transition-all duration-150">
+                        {editSaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-violet-300 border-t-violet-700 animate-spin" /> : <><Save size={10} />Зберегти</>}
+                    </button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setIsEditMode(false); setEditError(null); setGroupSuggestions([]); setSubGroupSuggestions([]); setCategorySuggestions([]); onFlip(code); }} disabled={editSaving} className="px-4 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 text-[10px] hover:bg-slate-50 hover:border-slate-300 active:scale-[0.97] disabled:opacity-50 transition-all duration-150">
+                        <X size={13} />
+                    </button>
+                </div>
+            </div>
+        </>
+    ) : (
+        <>
+            <div className="flex-1 overflow-y-auto px-3 py-2 pb-12 text-slate-700">
                 {loadingDesc && (
                     <div className="space-y-2 animate-pulse">
                         <div className="h-2 bg-slate-200 rounded w-5/6" />
@@ -1197,77 +1382,16 @@ useEffect(() => {
                         {description || "\u041E\u043F\u0438\u0441 \u0432\u0456\u0434\u0441\u0443\u0442\u043D\u0456\u0439"}
                     </div>
                 )}
-            </>
-        )}
-        {isEditMode && (
-            <div className="space-y-1.5 text-[11px]" style={{ animation: 'adminEditFadeIn 0.18s ease-out' }}>
-                {/* Description */}
-                <div>
-                    <label className="block text-[9px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Опис</label>
-                    <textarea
-                        value={editDesc}
-                        onChange={(e) => setEditDesc(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white/95 p-1.5 text-[11px] text-slate-800 resize-none focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all disabled:opacity-50 hover:border-slate-300"
-                        rows={4}
-                        disabled={editSaving}
-                    />
-                </div>
-
-                {editError && (
-                    <div className="flex items-center gap-1 rounded-lg bg-rose-50 border border-rose-200 px-2 py-1">
-                        <X size={10} className="text-rose-500 flex-shrink-0" />
-                        <p className="text-[10px] text-rose-600 font-medium leading-tight">{editError}</p>
-                    </div>
-                )}
-                {editSuccess && (
-                    <div className="flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1" style={{ animation: 'adminEditFadeIn 0.2s ease-out' }}>
-                        <Check size={10} className="text-emerald-500 flex-shrink-0" />
-                        <p className="text-[10px] text-emerald-600 font-semibold">Збережено</p>
-                    </div>
-                )}
-
-                <div className="flex gap-1.5">
-                    <button
-                        onClick={handleAdminSave}
-                        disabled={editSaving}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-violet-300 bg-gradient-to-b from-violet-100 to-violet-50 text-violet-800 text-[10px] font-bold py-1.5 hover:from-violet-200 hover:to-violet-100 hover:border-violet-400 hover:shadow-sm active:scale-[0.97] disabled:opacity-50 transition-all duration-150"
-                    >
-                        {editSaving
-                            ? <span className="inline-block h-3 w-3 rounded-full border-2 border-violet-300 border-t-violet-700 animate-spin" />
-                            : <><Save size={10} />Зберегти</>}
-                    </button>
-                    <button
-                        onClick={() => { setIsEditMode(false); setEditError(null); }}
-                        disabled={editSaving}
-                        className="px-3 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 text-[10px] hover:bg-slate-50 hover:border-slate-300 active:scale-[0.97] disabled:opacity-50 transition-all duration-150"
-                    >
-                        <X size={11} />
-                    </button>
-                </div>
             </div>
-        )}
-    </div>
-
-    <button
-        onClick={(e) => {
-            e.stopPropagation();
-            onFlip(code);
-        }}
-        className="
-            absolute right-3 bottom-3
-            p-2 rounded-full
-            border border-slate-200
-            bg-white/95 backdrop-blur
-            text-slate-600
-            shadow-sm
-            hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50
-            transition-all
-            hover:scale-[1.03] active:scale-[0.96] motion-reduce:hover:scale-100 motion-reduce:active:scale-100
-        "
-        aria-label="Назад"
-    >
-        <ChevronDown size={16} className="rotate-180" />
-    </button>
+            <button
+                onClick={(e) => { e.stopPropagation(); onFlip(code); }}
+                className="absolute right-3 bottom-3 p-2 rounded-full border border-slate-200 bg-white/95 backdrop-blur text-slate-600 shadow-sm hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all hover:scale-[1.03] active:scale-[0.96] motion-reduce:hover:scale-100 motion-reduce:active:scale-100"
+                aria-label="\u041D\u0430\u0437\u0430\u0434"
+            >
+                <ChevronDown size={16} className="rotate-180" />
+            </button>
+        </>
+    )}
 </div>
 
 

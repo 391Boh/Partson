@@ -56,6 +56,7 @@ const IMAGE_BATCH_ENDPOINT_CANDIDATES = Array.from(
     [
       (process.env.ONEC_IMAGE_BATCH_ENDPOINT || "").trim(),
       (process.env.ONEC_GETIMAGES_BATCH_ENDPOINT || "").trim(),
+      "getimages",
       "ПолучитьФотоПакетом",
       "getimagesbatch",
       "getimages_batch",
@@ -512,8 +513,8 @@ const fetchProductImageBase64BatchFromEndpoint = async (
 
   for (const endpoint of endpoints) {
     const requestBodies: Array<Record<string, unknown>> =
-      endpoint === "ПолучитьФотоПакетом"
-        ? [{ codes: lookupKeys }]
+      endpoint === "ПолучитьФотоПакетом" || endpoint === "getimages"
+        ? [{ codes: lookupKeys }, { Коды: lookupKeys }]
         : [{ items: requestItems }, { codes: lookupKeys }];
 
     for (const body of requestBodies) {
@@ -636,15 +637,13 @@ export const fetchProductImageBase64 = async (
     return inFlight;
   }
 
-  const queryBodies: Array<Record<string, string>> = [
-    { code: normalized },
-    { "\u041a\u043e\u0434": normalized }, // Код
-    { article: normalized },
-    { "\u0410\u0440\u0442\u0438\u043a\u0443\u043b": normalized }, // Артикул
-    { "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443": normalized }, // НомерПоКаталогу
+  // \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c\u0424\u043e\u0442\u043e\u041f\u0430\u043a\u0435\u0442\u043e\u043c (mapped to getimages) expects {codes:[...]} \u2014 use batch format even for single lookup.
+  const queryBodies: Array<Record<string, unknown>> = [
+    { codes: [normalized] },
+    { "\u041a\u043e\u0434\u044b": [normalized] }, // \u041a\u043e\u0434\u044b
   ];
 
-  const loadFromBody = async (body: Record<string, string>) => {
+  const loadFromBody = async (body: Record<string, unknown>) => {
     const response = await oneCRequest("getimages", {
       method: "POST",
       body,
@@ -665,20 +664,23 @@ export const fetchProductImageBase64 = async (
     const text = safeTrim(response.text || "");
     if (!text) return null;
 
-    const dataUriBase64 = extractDataUriBase64(text);
-    if (dataUriBase64 && hasBinaryContent(dataUriBase64)) return dataUriBase64;
-
-    if (isLikelyBase64(text) && hasBinaryContent(text)) {
-      return normalizeBase64(text);
-    }
-
     let payload: unknown;
     try {
       payload = JSON.parse(text) as unknown;
     } catch {
+      const dataUriBase64 = extractDataUriBase64(text);
+      if (dataUriBase64 && hasBinaryContent(dataUriBase64)) return dataUriBase64;
+      if (isLikelyBase64(text) && hasBinaryContent(text)) return normalizeBase64(text);
       return null;
     }
 
+    // Batch response: {success, items:[{code, image_base64}]}
+    const batchResult = parseImageBatchResponse(payload, new Set([normalized.toLowerCase()]));
+    if (batchResult && Object.keys(batchResult.resolved).length > 0) {
+      return Object.values(batchResult.resolved)[0];
+    }
+
+    // Legacy fallback: single-image response with image_base64 at top level
     const record = asRecord(payload);
     if (record?.success === false) return null;
 
@@ -689,56 +691,19 @@ export const fetchProductImageBase64 = async (
     if (!imageUrl || !allowUrlDownload) return null;
 
     const downloaded = await fetchImageUrlAsBase64(imageUrl);
-    if (downloaded) return downloaded;
-    return null;
-  };
-
-  const uniqueBodies = queryBodies.filter((body, index, list) => {
-    const serialized = JSON.stringify(body);
-    return list.findIndex((entry) => JSON.stringify(entry) === serialized) === index;
-  });
-  const isCodeBody = (body: Record<string, string>) =>
-    Object.prototype.hasOwnProperty.call(body, "code") ||
-    Object.prototype.hasOwnProperty.call(body, "\u041a\u043e\u0434");
-
-  const resolveFirstAvailable = async (bodies: Array<Record<string, string>>) => {
-    if (bodies.length === 0) return null;
-
-    const attempts = bodies.map((body, index) =>
-      Promise.resolve()
-        .then(() => loadFromBody(body))
-        .then((value) => ({ index, value }))
-        .catch(() => ({ index, value: null as string | null }))
-    );
-
-    const pending = new Set<number>(attempts.map((_, index) => index));
-    while (pending.size > 0) {
-      const result = await Promise.race(
-        Array.from(pending, (index) => attempts[index])
-      );
-      pending.delete(result.index);
-      if (typeof result.value === "string" && result.value) {
-        return result.value;
-      }
-    }
-
-    return null;
+    return downloaded || null;
   };
 
   const requestPromise = (async () => {
-    const stagedBodies = [
-      uniqueBodies.filter((body) => isCodeBody(body)),
-      uniqueBodies.filter((body) => !isCodeBody(body)),
-    ].filter((stage) => stage.length > 0);
-    for (const stage of stagedBodies) {
-      const resolved = await resolveFirstAvailable(stage);
-      if (!resolved) continue;
-
-      imageBase64Cache.set(positiveCacheKey, {
-        value: resolved,
-        expiresAt: Date.now() + cacheTtlMs,
-      });
-      return resolved;
+    for (const body of queryBodies) {
+      const resolved = await loadFromBody(body).catch(() => null);
+      if (typeof resolved === "string" && resolved) {
+        imageBase64Cache.set(positiveCacheKey, {
+          value: resolved,
+          expiresAt: Date.now() + cacheTtlMs,
+        });
+        return resolved;
+      }
     }
 
     if (!skipMissCache) {

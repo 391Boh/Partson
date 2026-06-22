@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { clearOneCCacheForProduct, oneCRequest } from "app/api/_lib/oneC";
+import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString, readJsonObject } from "app/api/_lib/requestValidation";
 import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     }, 422);
   }
 
-  clearOneCCacheForProduct(article);
+  clearAllOneCCache();
 
   return json({
     ok: true,

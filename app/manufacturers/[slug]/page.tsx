@@ -1250,6 +1250,9 @@ export default async function ManufacturerDetailPage({
     producer.groupsCount
   );
   const seoCopy = getProducerSeoCopy(producer.label, producer.productCount);
+  const hasAnySubgroups = producer.topCategories?.length
+    ? producer.topCategories.some((cat) => cat.groups.some((g) => g.subgroups.length > 0))
+    : producer.topGroups.some((g) => g.subgroups.length > 0);
   const seoTextBlocks = buildUniqueTextBlocks(
     producer.description,
     seoCopy.intro,
@@ -1498,17 +1501,15 @@ export default async function ManufacturerDetailPage({
             </div>
           </div>
         ) : (
-          <div className="px-4 py-4 text-sm leading-6 text-slate-600">
-            Підгруп для цієї групи немає, тому посилання відкриває всю групу товарів виробника.
-            <div className="mt-3">
-              <CatalogPrefetchLink
-                href={buildCatalogProducerPath(producer.label, group.filterValue)}
-                prefetchCatalogOnViewport
-                className={directoryPrimaryButtonClass}
-              >
-                Переглянути товари цієї групи
-              </CatalogPrefetchLink>
-            </div>
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sky-100 bg-sky-50 text-sky-600">
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path d="m9 18 6-6-6-6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <p className="text-[12px] leading-5 text-slate-500">
+              Ця група є кінцевим рівнем ієрархії — перехід відкриває весь асортимент одразу.
+            </p>
           </div>
         )}
       </article>
@@ -1696,7 +1697,7 @@ export default async function ManufacturerDetailPage({
                   href="#manufacturer-groups"
                   className={directorySecondaryButtonClass}
                 >
-                  Дивитись групи і підгрупи
+                  {hasAnySubgroups ? "Дивитись групи і підгрупи" : "Дивитись групи товарів"}
                 </a>
               </div>
             </aside>
@@ -1712,26 +1713,43 @@ export default async function ManufacturerDetailPage({
                 </p>
                 <h2 className={directoryTitleClass}>
                   {producer.topCategories?.length
-                    ? `Групи, категорії та підгрупи ${producer.label}`
-                    : `Групи та підгрупи ${producer.label}`}
+                    ? hasAnySubgroups
+                      ? `Категорії, групи та підгрупи ${producer.label}`
+                      : `Категорії та групи ${producer.label}`
+                    : hasAnySubgroups
+                      ? `Групи та підгрупи ${producer.label}`
+                      : `Групи товарів ${producer.label}`}
                 </h2>
                 <p className={directoryDescriptionClass}>
                   {producer.topCategories?.length
-                    ? "Категорія — загальний напрямок, група веде до основного фільтра, а підгрупи відкривають точніші результати."
-                    : "Група веде до основного фільтра каталогу бренду, а підгрупи одразу відкривають точніші результати."}
+                    ? hasAnySubgroups
+                      ? "Категорія — загальний напрямок, група веде до основного фільтра, а підгрупи відкривають точніші результати."
+                      : "Категорія — загальний напрямок; кожна група веде безпосередньо до відповідного розділу каталогу."
+                    : hasAnySubgroups
+                      ? "Група веде до основного фільтра каталогу бренду, а підгрупи одразу відкривають точніші результати."
+                      : "Кожна група веде безпосередньо до відповідного розділу каталогу цього виробника."}
                 </p>
               </div>
-              <div className={`grid gap-2 lg:min-w-[25rem] ${producer.topCategories?.length ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+              <div className={`grid gap-2 lg:min-w-[25rem] ${producer.topCategories?.length ? (hasAnySubgroups ? "sm:grid-cols-3" : "sm:grid-cols-2") : (hasAnySubgroups ? "sm:grid-cols-2" : "sm:grid-cols-1")}`}>
                 {(producer.topCategories?.length
-                  ? [
-                      { label: "Категорія", text: "загальний напрямок" },
-                      { label: "Група", text: "основний фільтр" },
-                      { label: "Підгрупа", text: "точний результат" },
-                    ]
-                  : [
-                      { label: "Група", text: "основний фільтр" },
-                      { label: "Підгрупа", text: "точний результат" },
-                    ]
+                  ? hasAnySubgroups
+                    ? [
+                        { label: "Категорія", text: "загальний напрямок" },
+                        { label: "Група", text: "основний фільтр" },
+                        { label: "Підгрупа", text: "точний результат" },
+                      ]
+                    : [
+                        { label: "Категорія", text: "загальний напрямок" },
+                        { label: "Група", text: "перехід до каталогу" },
+                      ]
+                  : hasAnySubgroups
+                    ? [
+                        { label: "Група", text: "основний фільтр" },
+                        { label: "Підгрупа", text: "точний результат" },
+                      ]
+                    : [
+                        { label: "Група", text: "перехід до каталогу" },
+                      ]
                 ).map((level) => (
                   <div
                     key={level.label}

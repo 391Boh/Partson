@@ -171,6 +171,7 @@ const ProductCardImage: React.FC<Props> = ({
       setFinalRetryQueued(false);
       return;
     }
+
     setRequestSrc(primarySrc);
     setStatus("loading");
     setFinalRetryQueued(false);

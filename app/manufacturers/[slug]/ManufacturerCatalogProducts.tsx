@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ImageModal from "app/components/ImageModal";
 import ProductCard from "app/components/ProductCard";
 import { useCart } from "app/context/CartContext";
+import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
 import { buildProductImageBatchKey, buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
 
@@ -54,7 +55,7 @@ const buildCartMap = (items: Array<{ code: string; quantity: number }>) => {
 
 export default function ManufacturerCatalogProducts({
   products,
-  images = {},
+  images: serverImages = {},
   euroRate = DEFAULT_EURO_RATE,
 }: ManufacturerCatalogProductsProps) {
   const { addToCart, cartItems, removeFromCart } = useCart();
@@ -62,6 +63,90 @@ export default function ManufacturerCatalogProducts({
   const [flippedCard, setFlippedCard] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const cartMap = useMemo(() => buildCartMap(cartItems), [cartItems]);
+
+  // Batch image state — merges server pre-fetch with client batch results
+  const [batchImages, setBatchImages] = useState<Record<string, string>>(serverImages);
+  const [batchPending, setBatchPending] = useState<Record<string, boolean>>({});
+  const [batchMissing, setBatchMissing] = useState<Record<string, boolean>>({});
+  const batchFiredRef = useRef(false);
+
+  // Fire one batch request on mount for all products that lack a server image
+  useEffect(() => {
+    if (batchFiredRef.current) return;
+    batchFiredRef.current = true;
+
+    const needsBatch = products.filter((item) => {
+      if (item.hasPhoto === false) return false;
+      const key = buildProductImageBatchKey(item.code, item.article);
+      return key && !serverImages[key];
+    });
+
+    if (needsBatch.length === 0) return;
+
+    const pendingKeys: Record<string, boolean> = {};
+    for (const item of needsBatch) {
+      const key = buildProductImageBatchKey(item.code, item.article);
+      if (key) pendingKeys[key] = true;
+    }
+    setBatchPending(pendingKeys);
+
+    const ctrl = new AbortController();
+
+    void primeCatalogImageBatch(needsBatch, { deep: false, signal: ctrl.signal })
+      .then((results) => {
+        if (ctrl.signal.aborted) return;
+
+        const nextImages: Record<string, string> = {};
+        const nextMissing: Record<string, boolean> = {};
+
+        for (const result of results) {
+          if (result.status === "ready" && result.src) {
+            nextImages[result.key] = result.src;
+          } else {
+            nextMissing[result.key] = true;
+          }
+        }
+
+        setBatchImages((prev) => ({ ...prev, ...nextImages }));
+        setBatchMissing(nextMissing);
+        setBatchPending({});
+
+        // Deep recovery pass for items still missing
+        const stillMissing = needsBatch.filter((item) => {
+          const key = buildProductImageBatchKey(item.code, item.article);
+          return key && nextMissing[key];
+        });
+
+        if (stillMissing.length === 0) return;
+
+        void primeCatalogImageBatch(stillMissing, { deep: true, signal: ctrl.signal })
+          .then((deepResults) => {
+            if (ctrl.signal.aborted) return;
+            const deepImages: Record<string, string> = {};
+            const resolvedKeys = new Set<string>();
+            for (const result of deepResults) {
+              if (result.status === "ready" && result.src) {
+                deepImages[result.key] = result.src;
+                resolvedKeys.add(result.key);
+              }
+            }
+            if (Object.keys(deepImages).length > 0) {
+              setBatchImages((prev) => ({ ...prev, ...deepImages }));
+              setBatchMissing((prev) => {
+                const next = { ...prev };
+                for (const key of resolvedKeys) delete next[key];
+                return next;
+              });
+            }
+          })
+          .catch(() => {});
+      })
+      .catch(() => {
+        setBatchPending({});
+      });
+
+    return () => ctrl.abort();
+  }, [products, serverImages]);
 
   const handleFlip = useCallback((code: string) => {
     setFlippedCard((current) => (current === code ? null : code));
@@ -150,7 +235,6 @@ export default function ManufacturerCatalogProducts({
           });
           const priceUAH = toPriceUAH(item.priceEuro, euroRate);
           const imageKey = buildProductImageBatchKey(item.code, item.article);
-          const prefetchedImageSrc = imageKey ? images[imageKey] || null : null;
 
           return (
             <div
@@ -170,8 +254,12 @@ export default function ManufacturerCatalogProducts({
                 priceStatus={priceUAH != null ? "ready" : "request"}
                 imageLoadingMode={index < 2 ? "eager" : "lazy"}
                 imageFetchPriority={index < 2 ? "high" : "auto"}
-                prefetchedImageSrc={prefetchedImageSrc}
-                batchImageMissing={item.hasPhoto === false}
+                prefetchedImageSrc={imageKey ? (batchImages[imageKey] ?? null) : null}
+                batchImagePending={Boolean(imageKey && batchPending[imageKey])}
+                batchImageMissing={
+                  item.hasPhoto === false ||
+                  Boolean(imageKey && batchMissing[imageKey])
+                }
                 isFlipped={flippedCard === item.code}
                 motionEnabled={false}
                 prefetchProductRoute={index < 3}

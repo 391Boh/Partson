@@ -250,6 +250,17 @@ export function clearOneCCacheForProduct(catalogNumber) {
   return cleared;
 }
 
+/**
+ * Evicts ALL in-memory cache entries. Use after admin product edits to ensure
+ * catalog query responses (whose keys don't contain the product code) are also
+ * cleared — so router.refresh() on catalog/product pages returns fresh 1C data.
+ */
+export function clearAllOneCCache() {
+  const size = responseCache.size;
+  responseCache.clear();
+  return size;
+}
+
 export async function oneCRequest(endpoint, options = {}) {
   const {
     method = "GET",

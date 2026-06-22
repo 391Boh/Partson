@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getSimilarProducts } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
-const PRODUCT_SIMILAR_API_TIMEOUT_MS = 1700;
+const PRODUCT_SIMILAR_API_TIMEOUT_MS = 2800;
 const PRODUCT_SIMILAR_LIMIT = 6;
 const PRODUCT_SIMILAR_CACHE_CONTROL =
   "public, max-age=900, s-maxage=900, stale-while-revalidate=7200";

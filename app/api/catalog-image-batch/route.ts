@@ -93,6 +93,20 @@ const pruneCatalogImageResultCache = () => {
   }
 };
 
+export const clearCatalogImageResultCacheForProduct = (code: string, article?: string) => {
+  const normalized = (code || "").trim().toLowerCase();
+  if (!normalized) return;
+  for (const key of catalogImageResultCache.keys()) {
+    if (key.includes(normalized)) catalogImageResultCache.delete(key);
+  }
+  if (article) {
+    const normalizedArticle = article.trim().toLowerCase();
+    for (const key of catalogImageResultCache.keys()) {
+      if (key.includes(normalizedArticle)) catalogImageResultCache.delete(key);
+    }
+  }
+};
+
 const buildReadyResultCacheKey = (key: string) => `ready:${key}`;
 const buildMissingResultCacheKey = (key: string, deep: boolean) =>
   `${deep ? "deep" : "fast"}:missing:${key}`;

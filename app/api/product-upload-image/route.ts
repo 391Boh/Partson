@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { clearOneCCacheForProduct, oneCRequest } from "app/api/_lib/oneC";
+import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
+import { clearCatalogImageResultCacheForProduct } from "app/api/catalog-image-batch/route";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
@@ -159,12 +160,11 @@ export async function POST(request: NextRequest) {
     }, 422);
   }
 
-  clearOneCCacheForProduct(code);
+  const article = typeof parsed.article === "string" ? parsed.article.trim() : "";
+  clearAllOneCCache();
   clearProductImageCacheForProduct(code);
-  if (typeof parsed.article === "string" && parsed.article.trim()) {
-    clearOneCCacheForProduct(parsed.article.trim());
-    clearProductImageCacheForProduct(parsed.article.trim());
-  }
+  clearCatalogImageResultCacheForProduct(code, article || undefined);
+  if (article) clearProductImageCacheForProduct(article);
 
   return json({
     ok: true,

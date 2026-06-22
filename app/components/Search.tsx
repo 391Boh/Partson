@@ -230,10 +230,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           return;
         }
 
-        // Рівень 2: артикул (транслітерація кирилиці) — тільки для однослівних запитів
+        // Рівень 2: транслітерація кирилиці → артикул (тільки якщо результат виглядає як артикул — містить цифру)
         if ((effectiveFilter === "all" || effectiveFilter === "name") && !trimmed.includes(" ")) {
           const articleQ = sanitizeArticleQuery(trimmed);
-          if (articleQ.length >= 2 && articleQ !== trimmed) {
+          if (articleQ.length >= 2 && articleQ !== trimmed && /\d/.test(articleQ)) {
             const articleResults = await fetchSuggestionsFromApi(articleQ, "name", controller.signal);
             if (controller.signal.aborted) return;
             if (articleResults.length > 0) {
@@ -283,13 +283,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   };
 
   const handleSearch = (query?: string) => {
-    const explicitQuery = query !== undefined;
-    const rawQuery = explicitQuery ? query : searchQuery;
-
-    // Якщо є fallback з підказок — використати його запит і фільтр
-    const useFallback = !explicitQuery && suggestionsFallback !== null;
-    const queryToUse = useFallback ? suggestionsFallback!.query : rawQuery;
-    const filterToUse: SearchFilter = useFallback ? suggestionsFallback!.filter : filterBy;
+    const rawQuery = query !== undefined ? query : searchQuery;
+    const queryToUse = rawQuery;
+    const filterToUse: SearchFilter = filterBy;
 
     const sanitized = sanitizeQuery(queryToUse, filterToUse);
     if (!sanitized) return;

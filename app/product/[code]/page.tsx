@@ -53,7 +53,6 @@ const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 1600;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1500;
 const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 700;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 120;
-const PRODUCT_PAGE_LOGO_FALLBACK_PATH = PRODUCT_IMAGE_FALLBACK_PATH;
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_PHONE_TEL = "+380634211851";
@@ -835,18 +834,11 @@ const getCatalogProductUncached = async (code: string) => {
   );
 };
 
-const getCatalogProductCached = unstable_cache(
-  getCatalogProductUncached,
-  ["product-page:catalog-product-v3"],
-  { revalidate: 900 }
-);
-
-const getCatalogProduct = cache(async (code: string) => {
-  const cachedProduct = await getCatalogProductCached(code);
-  if (cachedProduct) return cachedProduct;
-
-  return getCatalogProductUncached(code);
-});
+// No unstable_cache here — ISR (revalidate=3600) + oneC.js in-memory cache are sufficient.
+// unstable_cache with a 900s TTL would prevent admin edits from showing immediately
+// because revalidateTag has a race condition with router.refresh() in Next.js 16.
+// After clearOneCCacheForProduct() + revalidatePath(), the next RSC render fetches fresh.
+const getCatalogProduct = cache(getCatalogProductUncached);
 
 const buildProductMetaDescription = (options: {
   article: string;
@@ -1380,7 +1372,7 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
 const resolveProductCodeFromRouteParamCached = unstable_cache(
   resolveProductCodeFromRouteParamUncached,
   ["product-page:resolve-route-v13-article-slug-variants"],
-  { revalidate: 900 }
+  { revalidate: 900, tags: ["product-page-data"] }
 );
 
 const resolveProductCodeFromRouteParam = cache(async (rawCode: string) => {
@@ -1422,7 +1414,7 @@ const getResolvedProductRouteDataUncached = async (
 const getResolvedProductRouteDataCached = unstable_cache(
   getResolvedProductRouteDataUncached,
   ["product-page:resolved-route-product-v13-article-slug-variants"],
-  { revalidate: 900 }
+  { revalidate: 900, tags: ["product-page-data"] }
 );
 
 const getResolvedProductRouteData = cache(async (rawCode: string) => {
@@ -1937,13 +1929,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
     .filter(Boolean)
     .join(" → ");
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
-  const fallbackImagePath = PRODUCT_PAGE_LOGO_FALLBACK_PATH;
   const productHasKnownPhoto = product.hasPhoto !== false;
   const productDisplayImagePath = productHasKnownPhoto
     ? buildProductImagePath(product.code || resolvedCode, product.article, {
-        noFallback: false,
+        catalog: true,
       })
-    : PRODUCT_PAGE_LOGO_FALLBACK_PATH;
+    : "";
   const productSeoImagePath = productHasKnownPhoto
     ? buildProductImagePath(product.code || resolvedCode, product.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
@@ -2186,8 +2177,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 <div className="order-2 min-w-0 self-stretch xl:order-1">
                   <div className="flex h-full min-h-[220px] items-center justify-center overflow-hidden rounded-[20px] border border-white/80 bg-white/86 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_14px_30px_rgba(14,165,233,0.1)] backdrop-blur-sm transition-[box-shadow,border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-sky-200/90 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.94),0_18px_36px_rgba(14,165,233,0.14)] sm:min-h-[260px] xl:min-h-0">
                     <ProductImageWithFallback
-                      src={productDisplayImagePath}
-                      fallbackSrc={fallbackImagePath}
                       alt={`Фото товару ${product.name}`}
                       width={640}
                       height={640}
@@ -2199,6 +2188,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       articleHint={product.article}
                       hasKnownPhoto={productHasKnownPhoto}
                       preferCachedPreview
+                      unoptimized
                       className={heroProductImageClass}
                     />
                   </div>
@@ -2231,26 +2221,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   <h1 className="font-display mt-2.5 max-w-none break-words text-[clamp(1.22rem,1.9vw,1.72rem)] font-extrabold italic leading-[1.12] tracking-normal text-slate-950 [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[42ch]">
                     {productHeadingText}
                   </h1>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {productHeroHighlights.map((item) => (
-                      <span
-                        key={item}
-                        className="inline-flex min-h-7 items-center rounded-[11px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(248,250,252,0.96))] px-2.5 py-1 text-[10px] font-semibold tracking-normal text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_10px_rgba(15,23,42,0.06),0_8px_18px_rgba(15,23,42,0.04),inset_0_1px_0_rgba(255,255,255,1)] backdrop-blur-sm"
-                      >
-                        {item}
-                      </span>
-                    ))}
-                  </div>
                   <div className={productHeaderMetaGridClass}>
-                    <div className="rounded-[16px] border border-sky-200/80 bg-[linear-gradient(145deg,rgba(240,249,255,0.98),rgba(255,255,255,0.92))] px-3.5 py-3 shadow-[0_12px_24px_rgba(14,165,233,0.08)] transition-[box-shadow,border-color] duration-300 hover:border-sky-300 hover:shadow-[0_14px_28px_rgba(14,165,233,0.12)]">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.11em] text-sky-700 sm:text-[11px]">
+                    <div className="rounded-[14px] border border-sky-200/80 bg-[linear-gradient(145deg,rgba(240,249,255,0.98),rgba(255,255,255,0.94))] px-3 py-2.5 shadow-[0_8px_18px_rgba(14,165,233,0.07)]">
+                      <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-sky-700">
                         {productIdentifierLabel}
                       </p>
-                      <p className="mt-1.5 font-mono text-[15px] font-extrabold leading-5 tracking-normal text-slate-950 [overflow-wrap:anywhere] sm:text-[17px]">
+                      <p className="mt-1 font-mono text-[13px] font-extrabold leading-5 tracking-normal text-slate-950 [overflow-wrap:anywhere]">
                         {productIdentifierValue}
                       </p>
                       {productIdentifierHint ? (
-                        <p className="mt-1 text-[12px] font-medium leading-5 text-slate-500">
+                        <p className="mt-0.5 text-[11px] font-medium leading-4 text-slate-500">
                           {productIdentifierHint}
                         </p>
                       ) : null}
@@ -2263,16 +2243,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             producerLogoPath ? (
                               <div
                                 key="producer-card"
-                                className="flex items-center justify-center overflow-hidden rounded-[15px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1)_0%,rgba(248,250,252,0.97)_55%,rgba(240,249,255,0.93)_100%)] shadow-[0_2px_4px_rgba(15,23,42,0.04),0_8px_20px_rgba(15,23,42,0.07),0_18px_36px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)] backdrop-blur-sm transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_2px_6px_rgba(14,165,233,0.04),0_10px_24px_rgba(14,165,233,0.09),0_24px_44px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)]"
+                                className="flex items-center justify-center overflow-hidden rounded-[14px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(248,250,252,0.97),rgba(240,249,255,0.93))] shadow-[0_4px_12px_rgba(15,23,42,0.06)] transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_6px_16px_rgba(14,165,233,0.09)]"
                               >
                                 {producerLandingPath ? (
                                   <Link href={producerLandingPath} className="flex items-center justify-center px-3 py-2.5" title={product.producer}>
                                     <Image
                                       src={producerLogoPath}
                                       alt={product.producer}
-                                      width={80}
-                                      height={44}
-                                      className="h-9 w-auto max-w-[80px] object-contain"
+                                      width={72}
+                                      height={38}
+                                      className="h-8 w-auto max-w-[72px] object-contain"
                                       priority
                                     />
                                   </Link>
@@ -2281,9 +2261,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
                                     <Image
                                       src={producerLogoPath}
                                       alt={product.producer}
-                                      width={80}
-                                      height={44}
-                                      className="h-9 w-auto max-w-[80px] object-contain"
+                                      width={72}
+                                      height={38}
+                                      className="h-8 w-auto max-w-[72px] object-contain"
                                       priority
                                     />
                                   </div>
@@ -2293,20 +2273,20 @@ export default async function ProductPage({ params }: ProductPageProps) {
                           ) : (
                             <div
                               key={item.label}
-                              className="rounded-[15px] border border-slate-200 bg-white/82 px-3 py-2.5 shadow-[0_2px_4px_rgba(15,23,42,0.03),0_8px_18px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-sm transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-200 hover:bg-white/94 hover:shadow-[0_2px_6px_rgba(14,165,233,0.04),0_10px_22px_rgba(14,165,233,0.08),inset_0_1px_0_rgba(255,255,255,1)]"
+                              className="rounded-[14px] border border-slate-200 bg-white/82 px-3 py-2.5 shadow-[0_4px_10px_rgba(15,23,42,0.05)] backdrop-blur-sm transition-[box-shadow,border-color] duration-300 hover:border-sky-200"
                             >
-                              <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500 sm:text-[10px]">
+                              <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500">
                                 {item.label}
                               </p>
                               {item.href ? (
                                 <Link
                                   href={item.href}
-                                  className="mt-1 block text-[13.5px] font-bold leading-5 text-slate-900 transition hover:text-sky-700 [overflow-wrap:anywhere]"
+                                  className="mt-1 block text-[13px] font-bold leading-5 text-slate-900 transition hover:text-sky-700 [overflow-wrap:anywhere]"
                                 >
                                   {item.value}
                                 </Link>
                               ) : (
-                                <p className="mt-1 text-[13.5px] font-bold leading-5 text-slate-900 [overflow-wrap:anywhere]">
+                                <p className="mt-1 text-[13px] font-bold leading-5 text-slate-900 [overflow-wrap:anywhere]">
                                   {item.value}
                                 </p>
                               )}
@@ -2315,6 +2295,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         ))}
                       </div>
                     ) : null}
+                  </div>
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {productHeroHighlights.map((item) => (
+                      <span
+                        key={item}
+                        className="inline-flex min-h-6 items-center rounded-[9px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(248,250,252,0.96))] px-2 py-0.5 text-[10px] font-semibold tracking-normal text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_8px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)] backdrop-blur-sm"
+                      >
+                        {item}
+                      </span>
+                    ))}
                   </div>
                 </div>
                 <div className="order-3 min-w-0 self-stretch xl:pl-1">
@@ -2342,6 +2332,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
             producer={product.producer || ""}
             priceEuro={product.priceEuro ?? null}
             costPriceEuro={product.costPriceEuro ?? null}
+            group={product.group || ""}
+            subGroup={product.subGroup || ""}
+            category={product.category || ""}
           />
 
           {producerDescription && product.producer ? (
@@ -2409,38 +2402,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     />
                   }
                 />
-                <section className="rounded-[22px] border border-slate-200 bg-white/92 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.055)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
-                        Розділ каталогу
-                      </p>
-                      <p className="font-display-italic mt-1 text-[1.02rem] font-black leading-tight text-slate-950 sm:text-[1.16rem]">
-                        {visibleProductName} у каталозі PartsON
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      <Link
-                        href={categoryLandingHref}
-                        className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-sky-800 transition hover:border-sky-300 hover:bg-sky-100"
-                      >
-                        Перейти в розділ
-                      </Link>
-                      {categoryCatalogPath !== categoryLandingHref && (
-                        <Link
-                          href={categoryCatalogPath}
-                          className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
-                        >
-                          Усі товари
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                  {categoryHierarchyParts.length > 0 && (
-                    <nav
-                      aria-label="Шлях до категорії"
-                      className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-2"
-                    >
+                {(categoryHierarchyParts.length > 0 || Boolean(visibleProductGroup)) && (
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-2 rounded-[14px] border border-slate-100 bg-white/80 px-3 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+                    <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.1em] text-sky-700">
+                      Розділ:
+                    </span>
+                    <nav aria-label="Шлях до категорії" className="flex flex-wrap items-center gap-1.5">
                       {[
                         topCategoryPath
                           ? { label: buildVisibleProductName(productCategory), href: topCategoryPath }
@@ -2461,21 +2428,21 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             )}
                             <Link
                               href={(item as { href: string; label: string }).href}
-                              className="inline-flex items-center rounded-lg border border-slate-200 bg-[linear-gradient(180deg,#f8fafc,#ffffff)] px-2.5 py-1 text-[12px] font-semibold text-slate-700 shadow-[0_2px_4px_rgba(15,23,42,0.04)] transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+                              className="inline-flex items-center rounded-[9px] border border-slate-200 bg-[linear-gradient(180deg,#f8fafc,#ffffff)] px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
                             >
                               {(item as { href: string; label: string }).label}
                             </Link>
                           </span>
                         ))}
                     </nav>
-                  )}
-                  <p className="mt-3 text-sm font-medium leading-6 text-slate-700">
-                    PartsON допомагає купити {visibleProductName}
-                    {product.producer ? ` ${product.producer}` : ""} у Львові з перевіркою за VIN,
-                    підбором аналогів і доставкою Новою Поштою, Укрпоштою або Meest по Україні.
-                    Перед оформленням менеджер звіряє артикул, параметри деталі та сумісність з авто.
-                  </p>
-                </section>
+                    <Link
+                      href={categoryCatalogPath}
+                      className="ml-auto text-[10px] font-semibold text-sky-600 transition hover:text-sky-800 hover:underline"
+                    >
+                      Усі товари →
+                    </Link>
+                  </div>
+                )}
               </div>
 
               {!isModalView && (
@@ -2513,35 +2480,31 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
 
           {!isModalView && (
-            <section className="border-t border-slate-900/8 bg-[linear-gradient(180deg,rgba(226,232,240,0.34),rgba(255,255,255,0.95))] px-3 py-3.5 sm:px-4 sm:py-4">
-              <div className="space-y-3">
-                <div className="overflow-hidden rounded-[24px] border border-slate-900/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,244,248,0.96))] shadow-[0_20px_44px_rgba(2,6,23,0.1)] sm:rounded-[26px]">
-                  <div className="border-b border-slate-900/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(8,47,73,0.9))] px-4 py-4 sm:px-5">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-cyan-300">
-                      Поширені питання
-                    </p>
-                    <h2 className="font-display mt-1 text-[1.06rem] font-extrabold italic leading-[1.12] tracking-normal text-white sm:text-[1.2rem]">
-                      Що варто знати перед замовленням
-                    </h2>
-                  </div>
-
-                  <div className="grid gap-3 px-4 py-4 sm:px-5 lg:grid-cols-3">
-                    {faqItems.map((item) => (
-                      <div
-                        key={item.question}
-                        className="rounded-[20px] border border-slate-900/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(236,243,248,0.94))] px-4 py-3.5 shadow-[0_12px_24px_rgba(2,6,23,0.06)]"
-                      >
-                        <h3 className="text-[15px] font-bold leading-5 text-slate-950 not-italic">
-                          {item.question}
-                        </h3>
-                        <p className="mt-2 text-sm font-medium leading-6 text-slate-700">
-                          {item.answer}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+            <section className="border-t border-slate-100/80 bg-[linear-gradient(180deg,rgba(226,232,240,0.28),rgba(255,255,255,0.92))] px-3 py-3 sm:px-4 sm:py-3.5">
+              <div className="overflow-hidden rounded-[20px] border border-slate-900/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,244,248,0.96))] shadow-[0_16px_36px_rgba(2,6,23,0.09)]">
+                <div className="border-b border-slate-900/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(8,47,73,0.9))] px-4 py-3 sm:px-5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">
+                    Сумісність та характеристики
+                  </p>
+                  <h2 className="font-display mt-0.5 text-[1rem] font-extrabold italic leading-[1.12] tracking-normal text-white sm:text-[1.1rem]">
+                    Що важливо знати про цей товар
+                  </h2>
                 </div>
-
+                <div className="grid gap-2.5 px-3 py-3 sm:px-4 sm:py-3.5 lg:grid-cols-3">
+                  {faqItems.map((item) => (
+                    <div
+                      key={item.question}
+                      className="rounded-[16px] border border-slate-900/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(236,243,248,0.94))] px-3.5 py-3 shadow-[0_8px_18px_rgba(2,6,23,0.05)]"
+                    >
+                      <h3 className="text-[13.5px] font-bold leading-5 text-slate-950 not-italic">
+                        {item.question}
+                      </h3>
+                      <p className="mt-1.5 text-[13px] font-medium leading-[1.55] text-slate-600">
+                        {item.answer}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </section>
           )}
