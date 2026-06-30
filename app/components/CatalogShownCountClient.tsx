@@ -30,6 +30,7 @@ export default function CatalogShownCountClient({
   eventName = "visible",
 }: CatalogShownCountClientProps) {
   const [count, setCount] = useState(initialCount);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     setCount(initialCount);
@@ -38,22 +39,29 @@ export default function CatalogShownCountClient({
   useEffect(() => {
     if (eventName === "none") return;
 
-    const handleCountChange = (event: Event) => {
-      const detail = (event as CustomEvent<{ count?: number }>).detail;
-      if (typeof detail?.count !== "number" || !Number.isFinite(detail.count)) return;
-      setCount(detail.count);
-    };
-
     const eventType =
       eventName === "filtered"
         ? "partson:catalog-filter-total-count"
         : "partson:catalog-visible-count";
 
-    window.addEventListener(eventType, handleCountChange);
-    return () => {
-      window.removeEventListener(eventType, handleCountChange);
+    const handleCountChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ count?: number; loading?: boolean }>).detail;
+      if (detail?.loading) {
+        setIsLoading(true);
+        return;
+      }
+      setIsLoading(false);
+      if (typeof detail?.count !== "number" || !Number.isFinite(detail.count)) return;
+      setCount(detail.count);
     };
+
+    window.addEventListener(eventType, handleCountChange);
+    return () => window.removeEventListener(eventType, handleCountChange);
   }, [eventName]);
 
-  return <span className={className}>{formatShownCount(count)}</span>;
+  return (
+    <span className={className}>
+      {isLoading ? "рахую…" : formatShownCount(count)}
+    </span>
+  );
 }

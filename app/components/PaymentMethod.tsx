@@ -35,6 +35,7 @@ interface Props {
   name: string;
   phone: string;
   deliveryMethod: string;
+  onCardPaymentStarted?: (orderData: OrderPayload) => Promise<void> | void;
   onPaymentConfirmed: (orderData: OrderPayload) => Promise<void> | void;
   onConfirm: () => void;
 }
@@ -79,6 +80,7 @@ const PaymentMethod: React.FC<Props> = ({
   name,
   phone,
   deliveryMethod,
+  onCardPaymentStarted,
   onPaymentConfirmed,
   onConfirm,
 }) => {
@@ -296,6 +298,22 @@ const PaymentMethod: React.FC<Props> = ({
           return;
         }
 
+        await onCardPaymentStarted?.({
+          name,
+          phone,
+          amount,
+          subtotalAmount,
+          discountAmount,
+          isFirstOrderDiscountApplied,
+          orderId,
+          paymentMethod,
+          deliveryMethod,
+          paymentStatus: 'pending',
+          paymentProvider: 'liqpay',
+        });
+
+        if (cancelled) return;
+
         const checkoutContainer = document.getElementById(checkoutContainerId);
         if (checkoutContainer) {
           checkoutContainer.innerHTML = '';
@@ -369,6 +387,7 @@ const PaymentMethod: React.FC<Props> = ({
     name,
     phone,
     deliveryMethod,
+    onCardPaymentStarted,
     sdkStatus,
     isPaymentWindowOpen,
     paymentAttempt,

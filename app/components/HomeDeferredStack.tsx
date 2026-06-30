@@ -10,7 +10,7 @@ const ProductFetcher = dynamic(() => import("./tovar"), {
 });
 const Auto = dynamic(() => import("./Auto"), {
   ssr: false,
-  loading: () => <HomeSectionFallback minHeight="clamp(400px, 78svh, 560px)" />,
+  loading: () => <HomeSectionFallback minHeight="112px" />,
 });
 const BrandCarousel = dynamic(() => import("./Brands"), {
   ssr: false,
@@ -23,10 +23,10 @@ const HomeSectionFallback = ({
   minHeight: string;
 }) => (
   <div className="page-shell-inline">
-    <div className="rounded-[20px] border border-sky-100/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.88))] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.05)] sm:rounded-[28px] sm:p-5 sm:shadow-[0_18px_36px_rgba(15,23,42,0.06)]">
-      <div className="h-5 w-36 rounded-full bg-slate-200/80" />
+    <div className="rounded-[18px] border border-sky-100/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.88))] p-2.5 shadow-[0_10px_22px_rgba(15,23,42,0.045)] sm:rounded-[28px] sm:p-5 sm:shadow-[0_18px_36px_rgba(15,23,42,0.06)]">
+      <div className="h-4 w-32 rounded-full bg-slate-200/80 sm:h-5 sm:w-36" />
       <div
-        className="mt-4 rounded-[22px] bg-[linear-gradient(135deg,rgba(226,232,240,0.8),rgba(255,255,255,0.92),rgba(224,242,254,0.76))]"
+        className="mt-3 rounded-[18px] bg-[linear-gradient(135deg,rgba(226,232,240,0.76),rgba(255,255,255,0.9),rgba(224,242,254,0.7))] sm:mt-4 sm:rounded-[22px]"
         style={{ minHeight }}
       />
     </div>
@@ -52,10 +52,10 @@ export default function HomeDeferredStack() {
 
       <DeferredSection
         className="section-reveal home-section-stage relative w-full"
-        minHeight="clamp(400px, 78svh, 560px)"
+        minHeight="clamp(260px, 48svh, 380px)"
         rootMargin="1120px"
-        fallbackDelayMs={1400}
-        fallback={<HomeSectionFallback minHeight="clamp(400px, 78svh, 560px)" />}
+        fallbackDelayMs={400}
+        fallback={<HomeSectionFallback minHeight="clamp(260px, 48svh, 380px)" />}
       >
         <section className="relative w-full">
           <SectionBoundary title="Модуль підбору авто тимчасово недоступний">

@@ -369,6 +369,7 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
 
     let closeTimer = 0;
     let closeGraceTimer = 0;
+    let closeTimerDelay = 0;
     let storagePollTimer = 0;
     let broadcastChannel: BroadcastChannel | null = null;
 
@@ -414,6 +415,7 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
       window.clearInterval(closeTimer);
       window.clearInterval(storagePollTimer);
       window.clearTimeout(closeGraceTimer);
+      window.clearTimeout(closeTimerDelay);
       broadcastChannel?.close();
       broadcastChannel = null;
       if (oidcPopupCleanupRef.current === cleanup) {
@@ -443,23 +445,26 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
       consumeStoredTelegramResult();
     }, 250);
 
-    closeTimer = window.setInterval(() => {
-      if (!popup.closed) return;
-      window.clearInterval(closeTimer);
+    // Delay close-detection by 4s to avoid false positives during OAuth redirect chain
+    closeTimerDelay = window.setTimeout(() => {
+      closeTimer = window.setInterval(() => {
+        if (!popup.closed) return;
+        window.clearInterval(closeTimer);
 
-      closeGraceTimer = window.setTimeout(() => {
-        if (consumeStoredTelegramResult()) return;
+        closeGraceTimer = window.setTimeout(() => {
+          if (consumeStoredTelegramResult()) return;
 
-        cleanup();
-        setStatus((currentStatus) => {
-          if (currentStatus === "loading") {
-            setErrorMessage("Telegram-вікно закрите до завершення входу.");
-            return "error";
-          }
-          return currentStatus;
-        });
-      }, 2500);
-    }, 500);
+          cleanup();
+          setStatus((currentStatus) => {
+            if (currentStatus === "loading") {
+              setErrorMessage("Telegram-вікно закрите до завершення входу.");
+              return "error";
+            }
+            return currentStatus;
+          });
+        }, 12_000);
+      }, 500);
+    }, 4_000);
 
     window.addEventListener("message", handleMessage);
     oidcPopupCleanupRef.current = cleanup;

@@ -61,6 +61,7 @@ interface FilterSidebarProps {
 }
 
 interface AutoProps {
+  variant?: string;
   selectedCars: string[];
   handleCarChange: (car: string) => void;
   initialSelection?: PersistedCarSelection | null;
@@ -397,21 +398,23 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       frameId = window.requestAnimationFrame(() => {
         frameId = 0;
         const nextScrollY = window.scrollY;
-        const delta = Math.abs(nextScrollY - lastKnownScrollY);
+        // Signed delta: positive = scrolling down, negative = scrolling up.
+        const delta = nextScrollY - lastKnownScrollY;
         lastKnownScrollY = nextScrollY;
 
-        const activeElement = document.activeElement as HTMLElement | null;
-        const isEditingField =
-          activeElement != null &&
-          (activeElement.matches("input, textarea, select, [contenteditable='true']") ||
-            activeElement.closest("[data-search='true']") != null);
+        if (!collapsed) {
+          const activeElement = document.activeElement as HTMLElement | null;
+          const isEditingField =
+            activeElement != null &&
+            (activeElement.matches("input, textarea, select, [contenteditable='true']") ||
+              activeElement.closest("[data-search='true']") != null);
 
-        if (collapsed) return;
-        if (isEditingField) return;
-        if (nextScrollY < 20) return;
-        if (delta < 12) return;
-
-        setCollapsed(true);
+          if (isEditingField) return;
+          // Only collapse on deliberate downward scroll past 60px from top.
+          if (nextScrollY < 60) return;
+          if (delta < 24) return;
+          setCollapsed(true);
+        }
       });
     };
 
@@ -595,6 +598,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       case 'auto':
         return (
           <Auto
+            variant="filter"
             selectedCars={internalSelectedCars}
             handleCarChange={handleInternalCarChange}
             initialSelection={selectedVin ? null : selectedCarSelection}
@@ -826,7 +830,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             <Filter size={16} className="text-blue-500" />
             <span className="hidden sm:inline">Фільтрація</span>
           </div>
-          <div className="catalog-filter-mini-bar flex min-w-0 flex-1 items-center justify-center gap-1.5 overflow-x-auto overflow-y-hidden px-0.5 sm:flex-wrap sm:gap-2.5 sm:overflow-visible sm:px-0">
+          <div className="catalog-filter-mini-bar flex min-w-0 flex-1 items-center justify-center gap-1.5 overflow-x-auto py-1.5 -my-1.5 px-0.5 sm:flex-wrap sm:gap-2.5 sm:overflow-visible sm:py-0 sm:-my-0 sm:px-0">
             {showSearchInfo && (
               <div
                 className="hidden items-center gap-1 text-[12px] text-slate-500 lg:flex"

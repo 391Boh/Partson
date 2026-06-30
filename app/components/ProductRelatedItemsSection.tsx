@@ -6,6 +6,7 @@ import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import ProductRelatedItemsClientSection from "app/components/ProductRelatedItemsClientSection";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getSiteUrl } from "app/lib/site-url";
+import { safeJsonLd } from "app/lib/safe-json-ld";
 
 // Cap the SSR prefetch so the Suspense boundary does not hold the page past this.
 const RELATED_SSR_TIMEOUT_MS = 120;
@@ -91,7 +92,7 @@ export default async function ProductRelatedItemsSection({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(recommendationItemListJsonLd),
+            __html: safeJsonLd(recommendationItemListJsonLd),
           }}
         />
       ) : null}

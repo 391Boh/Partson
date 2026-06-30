@@ -7,9 +7,13 @@ type TelegramNotifyPayload = {
 
 export const notifyTelegramAdmin = async (payload: TelegramNotifyPayload) => {
   try {
+    const secret = process.env.NEXT_PUBLIC_NOTIFY_SECRET || "";
     const response = await fetch("/api/telegram/notify", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(secret ? { "x-notify-secret": secret } : {}),
+      },
       body: JSON.stringify(payload),
       keepalive: true,
     });

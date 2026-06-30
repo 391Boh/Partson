@@ -19,8 +19,12 @@ import {
   getDocs,
 } from "firebase/firestore";
 import {
+  AlertCircle,
   ArrowRight,
   CarFront,
+  CheckCircle2,
+  Eye,
+  EyeOff,
   LogOut,
   Key,
   Mail,
@@ -70,6 +74,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
   const [activeTab, setActiveTab] = useState<"profile" | "vins" | "security">(
     initialTab ?? "profile"
   );
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const vinSectionRef = useRef<HTMLElement>(null);
   const userId = user?.uid ?? null;
@@ -228,6 +237,12 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
     return () => window.cancelAnimationFrame(frame);
   }, [activeTab, isVinFieldVisible]);
 
+  const showToast = (type: "success" | "error", text: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ type, text });
+    toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut(auth);
@@ -265,32 +280,34 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
 
   const handleChangePassword = async () => {
     if (!validatePassword(newPassword)) return;
+    if (!currentPassword.trim()) {
+      setPasswordError("Введіть поточний пароль для підтвердження.");
+      return;
+    }
 
     try {
       if (auth.currentUser) {
         const email = auth.currentUser.email;
-        const currentPassword = prompt("Будь ласка, введіть ваш поточний пароль для підтвердження:");
-
-        if (!email || !currentPassword) {
-          alert("Необхідно надати поточний пароль.");
-          return;
-        }
+        if (!email) { showToast("error", "Користувач не авторизований."); return; }
 
         const credential = EmailAuthProvider.credential(email, currentPassword);
         await reauthenticateWithCredential(auth.currentUser, credential);
         await updatePassword(auth.currentUser, newPassword);
-        alert("Пароль успішно змінено!");
+        showToast("success", "Пароль успішно змінено");
         setShowPasswordField(false);
         setNewPassword("");
+        setCurrentPassword("");
+        setPasswordError(null);
       } else {
-        alert("Користувач не авторизований.");
+        showToast("error", "Користувач не авторизований.");
       }
     } catch (error) {
       console.error("Помилка зміни паролю:", error);
-      if ((error as { code: string }).code === "auth/wrong-password") {
-        alert("Введено неправильний поточний пароль.");
+      const code = (error as { code?: string }).code ?? "";
+      if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
+        setPasswordError("Неправильний поточний пароль.");
       } else {
-        alert("Не вдалося змінити пароль. Будь ласка, спробуйте ще раз.");
+        showToast("error", "Не вдалося змінити пароль. Спробуйте ще раз.");
       }
     }
   };
@@ -305,10 +322,10 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       setVins(updatedVins);
       setNewVin("");
       setIsVinFieldVisible(false);
-      alert("VIN успішно додано!");
+      showToast("success", "VIN успішно додано");
     } catch (error) {
       console.error("Помилка збереження VIN:", error);
-      alert("Не вдалося додати VIN.");
+      showToast("error", "Не вдалося додати VIN.");
     }
   };
 
@@ -318,21 +335,21 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       const docRef = doc(db, "users", user?.uid || "");
       await setDoc(docRef, { vins: updatedVins }, { merge: true });
       setVins(updatedVins);
-      alert("VIN успішно видалено!");
+      showToast("success", "VIN видалено");
     } catch (error) {
       console.error("Помилка видалення VIN:", error);
-      alert("Не вдалося видалити VIN.");
+      showToast("error", "Не вдалося видалити VIN.");
     }
   };
 
   const handleSaveName = async () => {
     if (!tempName || tempName.trim() === "") {
-      alert("Ім'я не може бути порожнім.");
+      showToast("error", "Ім’я не може бути порожнім.");
       return;
     }
 
-    if (!/^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ'’\-\s]+$/.test(tempName.trim())) {
-      alert("Ім'я може містити лише літери, пробіли, дефіси та апострофи.");
+    if (!/^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ’’\-\s]+$/.test(tempName.trim())) {
+      showToast("error", "Ім’я може містити лише літери, пробіли та дефіси.");
       return;
     }
 
@@ -342,20 +359,21 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       setName(tempName);
       setIsEditingName(false);
       setSuccessField("name");
+      showToast("success", "Ім’я збережено");
     } catch (error) {
       console.error("Помилка збереження імені:", error);
-      alert("Не вдалося зберегти ім'я.");
+      showToast("error", "Не вдалося зберегти ім’я.");
     }
   };
 
   const handleSavePhone = async () => {
     if (!tempPhone || tempPhone.trim() === "") {
-      alert("Номер телефону не може бути порожнім.");
+      showToast("error", "Номер телефону не може бути порожнім.");
       return;
     }
 
     if (!/^\+380\d{9}$/.test(tempPhone.trim())) {
-      setPhoneError("Номер телефону має бути у форматі +380XXXXXXXXX.");
+      setPhoneError("Формат: +380XXXXXXXXX");
       return;
     }
 
@@ -370,7 +388,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       );
 
       if (phoneIsUsedByAnotherUser) {
-        setPhoneError("Цей номер телефону вже використовується.");
+        setPhoneError("Цей номер вже використовується.");
         return;
       }
 
@@ -380,9 +398,10 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       setIsEditingPhone(false);
       setPhoneError(null);
       setSuccessField("phone");
+      showToast("success", "Телефон збережено");
     } catch (error) {
       console.error("Помилка збереження телефону:", error);
-      alert("Не вдалося зберегти номер телефону.");
+      showToast("error", "Не вдалося зберегти телефон.");
     }
   };
 
@@ -394,13 +413,6 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       : name;
   const hasPhoneValue = Boolean(phone && !/не вказ|не знайден|помилка/i.test(phone));
   const profileInitial = (displayName || "Г").trim().charAt(0).toUpperCase();
-  const activeTabDescription =
-    activeTab === "profile"
-      ? "Основні дані, контакти та швидкий доступ до ключових дій."
-      : activeTab === "vins"
-        ? "Збережені VIN-коди для швидшого підбору деталей."
-        : "Оновлення паролю та базова безпека вашого акаунта.";
-
   return (
     <div
       ref={modalRef}
@@ -409,15 +421,29 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-4">
         <div className="soft-panel-accent h-1 rounded-full" />
 
+        {toast && (
+          <div
+            className={`flex items-center gap-2 rounded-[14px] px-3 py-2.5 text-[13px] font-semibold ${
+              toast.type === "success"
+                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border border-rose-200 bg-rose-50 text-rose-600"
+            }`}
+            style={{ animation: "adminEditFadeIn 0.2s ease-out" }}
+          >
+            {toast.type === "success" ? <CheckCircle2 size={15} className="shrink-0" /> : <AlertCircle size={15} className="shrink-0" />}
+            {toast.text}
+          </div>
+        )}
+
         <div className="soft-panel-header">
           <div className="min-w-0">
             <span className="soft-panel-eyebrow">
               <UserRound size={14} />
               Профіль
             </span>
-            <h2 className="soft-panel-title mt-3">Особистий кабінет</h2>
+            <h2 className="soft-panel-title">Особистий кабінет</h2>
             <p className="soft-panel-subtitle">
-              Керуйте даними профілю, VIN-кодами та налаштуваннями безпеки в одному інтерфейсі.
+              Ім&#39;я, телефон, VIN-коди та безпека — все в одному місці.
             </p>
           </div>
           <button
@@ -464,57 +490,74 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         </div>
 
         <div className="app-panel-scroll min-h-0 flex-1 overflow-y-auto pr-0 sm:pr-1">
-          <section className="soft-panel-hero px-3 py-3 sm:px-4 sm:py-4">
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-white/70 bg-white/82 text-[1.1rem] font-black uppercase tracking-[-0.06em] text-sky-700 shadow-[0_16px_28px_rgba(14,165,233,0.16)] sm:h-14 sm:w-14 sm:rounded-[18px] sm:text-[1.35rem]">
+          <section className="soft-panel-hero px-3 py-3 sm:px-4 sm:py-3.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="relative shrink-0">
+                <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 text-[1.2rem] font-black uppercase tracking-[-0.04em] text-white shadow-[0_16px_32px_rgba(14,165,233,0.38),0_4px_10px_rgba(14,165,233,0.24)] sm:h-14 sm:w-14 sm:rounded-[20px] sm:text-[1.4rem]">
                   {profileInitial}
                 </div>
-                <div className="min-w-0">
-                  <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200/70 bg-white/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-800 sm:gap-2 sm:px-3 sm:text-[11px] sm:tracking-[0.14em]">
-                    <Sparkles size={13} />
-                    Особистий простір
-                  </div>
-                  <h3 className="mt-2 truncate text-[1rem] font-[780] tracking-[-0.05em] text-slate-900 sm:mt-2.5 sm:text-[1.08rem]">
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-emerald-400 shadow-[0_2px_6px_rgba(16,185,129,0.4)]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <h3 className="truncate text-[1rem] font-[800] tracking-[-0.04em] text-slate-900 sm:text-[1.06rem]">
                     {displayName}
                   </h3>
-                  <p className="mt-0.5 break-all text-[12px] text-slate-600 sm:text-[13px] sm:break-normal">{emailValue}</p>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200/80 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-700">
+                    <ShieldCheck size={10} />
+                    Активний
+                  </span>
                 </div>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                <span className="soft-chip px-2.5 py-1 text-[11px] font-semibold text-emerald-700 sm:px-3 sm:py-1.5 sm:text-xs">
-                  <ShieldCheck size={14} className="mr-1.5" />
-                  Акаунт активний
-                </span>
-                <span className="soft-chip px-2.5 py-1 text-[11px] font-semibold text-slate-600 sm:px-3 sm:py-1.5 sm:text-xs">
-                  {activeTab === "profile" ? "Профіль" : activeTab === "vins" ? "VIN" : "Безпека"}
-                </span>
+                <p className="mt-0.5 truncate text-[11px] text-slate-500">{emailValue}</p>
+                <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-sky-200/60 bg-white/72 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">
+                  <Sparkles size={10} />
+                  Особистий кабінет
+                </div>
               </div>
             </div>
 
-            <p className="mt-2.5 max-w-3xl text-[12px] leading-5 text-slate-600 sm:mt-3 sm:text-[13px]">
-              {activeTabDescription}
-            </p>
-
-            <div className="soft-panel-stat-grid mt-2.5">
+            <div className="mt-2.5 grid grid-cols-4 gap-1.5">
               <div className="soft-panel-stat-card">
-                <span className="soft-panel-stat-label">Телефон</span>
-                <span className="soft-panel-stat-value">{hasPhoneValue ? "Додано" : "Потрібно"}</span>
+                <span className="soft-panel-stat-label">Тел.</span>
+                <span className={`soft-panel-stat-value text-[0.82rem] ${hasPhoneValue ? "text-emerald-600" : "text-slate-400"}`}>{hasPhoneValue ? "✓" : "—"}</span>
               </div>
               <div className="soft-panel-stat-card">
-                <span className="soft-panel-stat-label">VIN-коди</span>
-                <span className="soft-panel-stat-value">{vins.length}</span>
+                <span className="soft-panel-stat-label">VIN</span>
+                <span className={`soft-panel-stat-value ${vins.length > 0 ? "text-emerald-600" : ""}`}>{vins.length}</span>
               </div>
               <div className="soft-panel-stat-card">
                 <span className="soft-panel-stat-label">Email</span>
-                <span className="soft-panel-stat-value">{hasEmailValue ? "Додано" : "Не вказано"}</span>
+                <span className={`soft-panel-stat-value text-[0.82rem] ${hasEmailValue ? "text-emerald-600" : "text-slate-400"}`}>{hasEmailValue ? "✓" : "—"}</span>
               </div>
               <div className="soft-panel-stat-card">
-                <span className="soft-panel-stat-label">Безпека</span>
-                <span className="soft-panel-stat-value">{showPasswordField ? "Оновлення" : "Норма"}</span>
+                <span className="soft-panel-stat-label">Захист</span>
+                <span className="soft-panel-stat-value text-[0.82rem] text-emerald-600">✓</span>
               </div>
             </div>
+
+            {!loading && (() => {
+              const filled = [
+                hasPhoneValue,
+                hasEmailValue,
+                Boolean(name && !/не вказ|не знайден|помилка/i.test(name)),
+                vins.length > 0,
+              ].filter(Boolean).length;
+              const pct = Math.round((filled / 4) * 100);
+              return (
+                <div className="mt-2.5 pt-2 border-t border-sky-200/30">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">Заповненість профілю</span>
+                    <span className={`text-[11px] font-black tabular-nums ${pct >= 75 ? "text-emerald-600" : pct >= 50 ? "text-amber-500" : "text-rose-500"}`}>{pct}%</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200/50">
+                    <div
+                      className={`h-1.5 rounded-full transition-all duration-700 ease-out ${pct >= 75 ? "bg-gradient-to-r from-emerald-400 to-emerald-500" : pct >= 50 ? "bg-gradient-to-r from-amber-400 to-amber-500" : "bg-gradient-to-r from-rose-400 to-rose-500"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
           </section>
 
           <div className="mt-2 grid grid-cols-1 gap-2 pb-1 md:col-span-full md:grid-cols-2 md:gap-2.5">
@@ -875,37 +918,66 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:mt-3 sm:gap-2">
           {showPasswordField ? (
-            <div className="flex w-full max-w-xl flex-col gap-2 sm:flex-row sm:items-center">
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Новий пароль"
-                className={`w-full rounded-[14px] border bg-white px-2.5 py-2 text-[13px] placeholder-slate-400 sm:rounded-[16px] sm:px-3 ${
-                  passwordError ? "border-red-500" : "border-sky-200"
-                } text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition`}
-                autoFocus
-              />
-              <button
-                onClick={handleChangePassword}
-                className="w-full rounded-[14px] border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100 cursor-pointer sm:w-auto sm:rounded-[16px]"
-                aria-label="Змінити пароль"
-                title="Змінити пароль"
-              >
-                <Save size={18} />
-              </button>
-              <button
-                onClick={() => {
-                  setShowPasswordField(false);
-                  setNewPassword("");
-                  setPasswordError(null);
-                }}
-                className="w-full rounded-[14px] border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 cursor-pointer sm:w-auto sm:rounded-[16px]"
-                aria-label="Скасувати зміну паролю"
-                title="Скасувати"
-              >
-                <X size={20} />
-              </button>
+            <div className="flex w-full max-w-sm flex-col gap-2">
+              <div className="relative">
+                <input
+                  type={showCurrentPassword ? "text" : "password"}
+                  value={currentPassword}
+                  onChange={(e) => { setCurrentPassword(e.target.value); setPasswordError(null); }}
+                  placeholder="Поточний пароль"
+                  className={`w-full rounded-[14px] border bg-white px-2.5 py-2 pr-9 text-[13px] placeholder-slate-400 sm:rounded-[16px] sm:px-3 sm:pr-10 ${
+                    passwordError ? "border-red-500" : "border-sky-200"
+                  } text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition`}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword((p) => !p)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showCurrentPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => { setNewPassword(e.target.value); setPasswordError(null); }}
+                  placeholder="Новий пароль (мін. 6 символів)"
+                  className={`w-full rounded-[14px] border bg-white px-2.5 py-2 pr-9 text-[13px] placeholder-slate-400 sm:rounded-[16px] sm:px-3 sm:pr-10 ${
+                    passwordError ? "border-red-500" : "border-sky-200"
+                  } text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300 transition`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((p) => !p)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={handleChangePassword}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[13px] font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer sm:rounded-[16px]"
+                >
+                  <Save size={15} />
+                  Зберегти
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPasswordField(false);
+                    setNewPassword("");
+                    setCurrentPassword("");
+                    setPasswordError(null);
+                  }}
+                  className="rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 cursor-pointer sm:rounded-[16px]"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
           ) : (
             <button

@@ -11,6 +11,8 @@ import {
   linkWithPopup,
   sendPasswordResetEmail,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   updatePassword,
 } from "firebase/auth";
 import type { User as FirebaseUser } from "firebase/auth";
@@ -24,7 +26,7 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import { Eye, EyeOff, LogIn, ShieldCheck, User, UserPlus, X } from "lucide-react";
+import { Bell, BookOpen, Eye, EyeOff, LogIn, ShieldCheck, ShoppingBag, User, UserPlus, X } from "lucide-react";
 import LoginTelegram from "./LoginTelegram";
 
 type AuthMode = "login" | "register";
@@ -134,6 +136,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
   );
   const [socialAuthError, setSocialAuthError] = useState<string | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isGoogleRedirectPending, setIsGoogleRedirectPending] = useState(false);
   const [isResetPasswordLoading, setIsResetPasswordLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isEmailValid, setIsEmailValid] = useState<boolean | null>(null);
@@ -201,6 +204,30 @@ const AuthForm: React.FC<AuthFormProps> = ({
     });
 
     return () => window.cancelAnimationFrame(frameId);
+  }, []);
+
+  useEffect(() => {
+    setIsGoogleRedirectPending(true);
+    getRedirectResult(auth)
+      .then(async (credential) => {
+        if (!credential) return;
+        try {
+          await syncAuthUserProfile(credential.user, "google");
+        } catch (profileError) {
+          console.warn("Google redirect sign-in: profile sync failed:", profileError);
+        }
+        closeModal();
+      })
+      .catch((error: unknown) => {
+        const code = getFirebaseErrorCode(error);
+        if (code && code !== "auth/null-user" && code !== "auth/no-auth-event") {
+          setSocialAuthError("Не вдалося завершити Google-вхід. Спробуйте ще раз.");
+        }
+      })
+      .finally(() => {
+        setIsGoogleRedirectPending(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const validateEmail = (email: string) =>
@@ -287,7 +314,15 @@ const AuthForm: React.FC<AuthFormProps> = ({
       if (code === "auth/popup-closed-by-user") {
         setSocialAuthError("Вхід через Google скасовано.");
       } else if (code === "auth/popup-blocked") {
-        setSocialAuthError("Браузер заблокував Google-вікно. Дозвольте popup і спробуйте ще раз.");
+        try {
+          await setPersistence(auth, browserLocalPersistence);
+          const provider = new GoogleAuthProvider();
+          provider.setCustomParameters({ prompt: "select_account" });
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch {
+          setSocialAuthError("Браузер заблокував Google-вікно. Дозвольте popup і спробуйте ще раз.");
+        }
       } else if (code === "auth/account-exists-with-different-credential") {
         setSocialAuthError(
           "Для цього email вже є акаунт з паролем. Введіть email і пароль у поля вище, тоді натисніть Google ще раз, щоб прив'язати обидва способи входу."
@@ -529,26 +564,31 @@ const AuthForm: React.FC<AuthFormProps> = ({
             : "translate-x-4 scale-[0.98] opacity-0"
         }`}
       >
-        <button
-          onClick={closeModal}
-          className="auth-modal-close soft-icon-button absolute right-3 top-7 z-10 sm:right-4 sm:top-8"
-          aria-label="Закрити"
-        >
-          <X size={17} strokeWidth={2.4} />
-        </button>
-
         <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
           <div className="soft-panel-accent h-1 w-full shrink-0 rounded-full" />
 
-          <div className="auth-panel-header soft-panel-header pr-10">
+          <div className="soft-panel-header">
             <div className="min-w-0">
-              <span className="auth-panel-mark" aria-hidden="true">
-                {mode === "login" ? <LogIn size={16} /> : <UserPlus size={16} />}
+              <span className="soft-panel-eyebrow">
+                {mode === "login" ? <LogIn size={14} /> : <UserPlus size={14} />}
+                {mode === "login" ? "Вхід" : "Реєстрація"}
               </span>
               <h2 className="soft-panel-title">
-                {mode === "login" ? "Авторизація" : "Реєстрація"}
+                {mode === "login" ? "Авторизація" : "Новий акаунт"}
               </h2>
+              <p className="soft-panel-subtitle">
+                {mode === "login"
+                  ? "Доступ до замовлень, VIN та персональних знижок"
+                  : "Один акаунт — усі переваги швидкого замовлення"}
+              </p>
             </div>
+            <button
+              onClick={closeModal}
+              className="soft-icon-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
+              aria-label="Закрити"
+            >
+              <X size={18} />
+            </button>
           </div>
 
           <div className="soft-panel-tabs">
@@ -580,6 +620,23 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
           {mode === "login" ? (
             <form onSubmit={handleLoginSubmit} className="flex flex-col gap-3">
+              <div className="flex flex-wrap gap-1.5">
+                {(
+                  [
+                    { Icon: BookOpen, text: "VIN автомобіля" },
+                    { Icon: ShoppingBag, text: "Швидке замовлення" },
+                    { Icon: Bell, text: "Статус доставки" },
+                  ] as const
+                ).map(({ Icon, text }) => (
+                  <span
+                    key={text}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-sky-200/80 bg-sky-50/70 px-2.5 py-1 text-[11px] font-semibold text-sky-700"
+                  >
+                    <Icon size={11} />
+                    {text}
+                  </span>
+                ))}
+              </div>
               <input
                 ref={emailInputRef}
                 type="email"
@@ -683,7 +740,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
                 <div className="soft-note flex items-start gap-2 rounded-[16px] px-3 py-2 text-xs">
                   <ShieldCheck size={16} className="mt-0.5 shrink-0 text-sky-700" />
-                  <span>Ваші дані використовуються для входу та швидкого оформлення замовлень.</span>
+                  <span>Дані захищені та використовуються виключно для доступу до акаунту і замовлень.</span>
                 </div>
               </div>
             </form>
@@ -779,7 +836,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 </button>
                 <div className="soft-note flex items-start gap-2 rounded-[16px] px-3 py-2 text-xs">
                   <User className="mt-0.5 h-4 w-4 shrink-0 text-sky-700" />
-                  <span>Профіль буде готовий для замовлень і збереження VIN.</span>
+                  <span>Профіль готовий з першої хвилини — збережіть VIN і оформлюйте замовлення швидше.</span>
                 </div>
               </div>
             </form>
@@ -795,14 +852,14 @@ const AuthForm: React.FC<AuthFormProps> = ({
               <button
                 type="button"
                 onClick={handleGoogleAuth}
-                disabled={isGoogleLoading}
+                disabled={isGoogleLoading || isGoogleRedirectPending}
                 className={socialButtonClass}
               >
                 <span className={socialIconShellClass}>
                   <GoogleLogo className="h-5 w-5" />
                 </span>
                 <span className="min-w-0 truncate tracking-normal">
-                  {isGoogleLoading ? "Підключення..." : "Google"}
+                  {isGoogleLoading || isGoogleRedirectPending ? "Підключення..." : "Google"}
                 </span>
               </button>
               <LoginTelegram className="w-full" onSuccess={closeModal} />

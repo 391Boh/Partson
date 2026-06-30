@@ -24,6 +24,7 @@ type InitialCatalogPagePayload = {
 export default function KatalogPageShell(props: {
   initialPagePayload?: InitialCatalogPagePayload | null;
   initialQuerySignature?: string | null;
+  initialTotalCount?: number | null;
 }) {
   return <KatalogClientPage {...props} />;
 }

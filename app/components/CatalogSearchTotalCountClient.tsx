@@ -67,7 +67,9 @@ export default function CatalogSearchTotalCountClient({
 
   useEffect(() => {
     const handleVisibleCount = (event: Event) => {
-      const detail = (event as CustomEvent<{ count?: number }>).detail;
+      const detail = (event as CustomEvent<{ count?: number; loading?: boolean }>).detail;
+      if (detail?.loading) { setIsLoading(true); return; }
+      setIsLoading(false);
       if (typeof detail?.count !== "number" || !Number.isFinite(detail.count)) return;
       setOpenCount(detail.count);
     };
@@ -77,7 +79,8 @@ export default function CatalogSearchTotalCountClient({
 
   useEffect(() => {
     const handleFilterTotal = (event: Event) => {
-      const detail = (event as CustomEvent<{ count?: number }>).detail;
+      const detail = (event as CustomEvent<{ count?: number; loading?: boolean }>).detail;
+      if (detail?.loading) return;
       if (typeof detail?.count !== "number" || !Number.isFinite(detail.count)) return;
       setFilterTotal(detail.count);
     };
@@ -147,10 +150,11 @@ export default function CatalogSearchTotalCountClient({
 
   const resolvedCount = useMemo(() => {
     if (priceFilterActive) {
-      // Price filter is active — the API total ignores it. Use server filter total instead.
-      return Math.max(openCount, filterTotal ?? openCount);
+      // Price filter applied locally — server total is irrelevant, use local count
+      return filterTotal ?? openCount;
     }
-    return totalCount == null ? openCount : Math.max(openCount, totalCount);
+    // Prefer authoritative API total; fall back to locally loaded count
+    return totalCount ?? openCount;
   }, [openCount, totalCount, filterTotal, priceFilterActive]);
 
   return (

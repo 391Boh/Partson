@@ -46,6 +46,7 @@ import { getGroupItemSeoCopy } from "app/lib/seo-copy";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
+import { safeJsonLd } from "app/lib/safe-json-ld";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
 export const revalidate = 3600;
@@ -57,7 +58,7 @@ const GROUP_ITEM_PRODUCER_SPLIT_PAGE_SIZE = 220;
 const GROUP_ITEM_PRODUCER_SPLIT_MAX_PAGES = 3;
 const GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS = 2200;
 const CATEGORY_TOP_PRODUCTS_LIMIT = 10;
-const CATEGORY_TOP_PRODUCTS_TIMEOUT_MS = 1500;
+const CATEGORY_TOP_PRODUCTS_TIMEOUT_MS = 1200;
 const isProductionBuildPhase =
   process.env.NEXT_PHASE === "phase-production-build" ||
   process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
@@ -572,11 +573,7 @@ const buildStaticSlugCandidates = (
 
 const buildGroupItemTitle = (item: GroupItemPageData) => {
   const visibleLabel = buildVisibleProductName(item.label);
-  const visibleGroupLabel = buildVisibleProductName(item.groupLabel);
-
-  return item.parentSubgroupLabel
-    ? `${visibleLabel} - купити автозапчастини | ${visibleGroupLabel}`
-    : `${visibleLabel} - купити запчастини | ${visibleGroupLabel}`;
+  return `${visibleLabel} — купити у Львові`;
 };
 
 const buildChildCategoryLead = (options: {
@@ -705,9 +702,6 @@ export async function generateMetadata({ params }: GroupItemPageProps): Promise<
       width: 512,
       height: 512,
       alt: `${title} | PartsON`,
-    },
-    icons: {
-      icon: [{ url: categoryIconPath, type: "image/png" }],
     },
   });
 }
@@ -1137,12 +1131,12 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
+          __html: safeJsonLd({
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
             itemListElement: breadcrumbItems,
@@ -1152,7 +1146,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
       {productItemListJsonLd && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(productItemListJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(productItemListJsonLd) }}
         />
       )}
     </main>

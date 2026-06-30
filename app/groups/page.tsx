@@ -8,6 +8,7 @@ import { getFullGroupsDirectoryData } from "app/lib/groups-directory-data";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
+import { safeJsonLd } from "app/lib/safe-json-ld";
 
 export const revalidate = 21600;
 
@@ -279,11 +280,11 @@ export default async function GroupsPage() {
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(groupsStructuredData) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(groupsStructuredData) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
     </main>
   );

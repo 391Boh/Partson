@@ -18,7 +18,8 @@ import {
 } from "app/lib/product-image-client";
 
 
-const FINAL_RETRY_DELAY_MS = 180;
+const FINAL_RETRY_DELAY_MS = 60;
+const DEFERRED_DIRECT_LOAD_DELAY_MS = 150;
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
@@ -62,6 +63,8 @@ const ProductCardImage: React.FC<Props> = ({
   onClick,
   loadingMode = "lazy",
   fetchPriority = "low",
+  deferDirectLoad = false,
+  disableDirectLoad = false,
   batchImagePending = false,
 }) => {
   const [requestSrc, setRequestSrc] = useState("");
@@ -86,6 +89,7 @@ const ProductCardImage: React.FC<Props> = ({
   const lastSuccessfulSrcRef = useRef("");
   const requestSrcRef = useRef("");
   const statusRef = useRef<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
+  const directFallbackQueuedRef = useRef(false);
 
   useEffect(() => {
     requestSrcRef.current = requestSrc;
@@ -120,14 +124,18 @@ const ProductCardImage: React.FC<Props> = ({
   }, [normalizedArticle, normalizedCode, requestSrc]);
 
   useEffect(() => {
+    let deferredLoadTimer: number | null = null;
+
     if (!hasKnownPhoto) {
+      directFallbackQueuedRef.current = false;
       writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
       setRequestSrc("");
       setStatus("missing");
       setFinalRetryQueued(false);
-      return;
+      return () => {};
     }
     if (normalizedPrefetchedSrc) {
+      directFallbackQueuedRef.current = false;
       const isAlreadyShowingSameSrc =
         statusRef.current === "loaded" &&
         requestSrcRef.current === normalizedPrefetchedSrc;
@@ -140,11 +148,12 @@ const ProductCardImage: React.FC<Props> = ({
         setStatus("loading");
         setFinalRetryQueued(false);
       }
-      return;
+      return () => {};
     }
 
     const cachedSrc = readProductImageSuccess(normalizedCode, normalizedArticle || undefined);
     if (cachedSrc) {
+      directFallbackQueuedRef.current = false;
       const isAlreadyShowingSameSrc =
         statusRef.current === "loaded" &&
         requestSrcRef.current === cachedSrc;
@@ -155,26 +164,56 @@ const ProductCardImage: React.FC<Props> = ({
         setStatus("loading");
         setFinalRetryQueued(false);
       }
-      return;
+      return () => {};
     }
 
     if (readProductImageMissing(normalizedCode, normalizedArticle || undefined)) {
+      directFallbackQueuedRef.current = false;
       setRequestSrc("");
       setStatus("missing");
       setFinalRetryQueued(false);
-      return;
+      return () => {};
     }
 
     if (!primarySrc) {
+      directFallbackQueuedRef.current = false;
       setRequestSrc("");
       setStatus("missing");
       setFinalRetryQueued(false);
-      return;
+      return () => {};
+    }
+
+    if (disableDirectLoad) {
+      directFallbackQueuedRef.current = false;
+      setRequestSrc("");
+      setStatus("loading");
+      setFinalRetryQueued(false);
+      return () => {};
+    }
+
+    if (deferDirectLoad) {
+      directFallbackQueuedRef.current = false;
+      setRequestSrc("");
+      setStatus("loading");
+      setFinalRetryQueued(false);
+      deferredLoadTimer = window.setTimeout(() => {
+        if (statusRef.current === "loaded" || requestSrcRef.current) return;
+        setRequestSrc(primarySrc);
+        setStatus("loading");
+      }, DEFERRED_DIRECT_LOAD_DELAY_MS);
+
+      return () => {
+        if (deferredLoadTimer !== null) {
+          window.clearTimeout(deferredLoadTimer);
+        }
+      };
     }
 
     setRequestSrc(primarySrc);
     setStatus("loading");
     setFinalRetryQueued(false);
+    directFallbackQueuedRef.current = false;
+    return () => {};
   }, [
     hasKnownPhoto,
     normalizedArticle,
@@ -182,9 +221,12 @@ const ProductCardImage: React.FC<Props> = ({
     normalizedPrefetchedSrc,
     primarySrc,
     batchImagePending,
+    deferDirectLoad,
+    disableDirectLoad,
   ]);
   useEffect(() => {
     if (!hasKnownPhoto) return;
+    if (disableDirectLoad || deferDirectLoad) return;
     if (status !== "missing") return;
     if (!finalRetrySrc) return;
     if (finalRetryQueued) return;
@@ -196,7 +238,7 @@ const ProductCardImage: React.FC<Props> = ({
     }, FINAL_RETRY_DELAY_MS);
 
     return () => window.clearTimeout(timeoutId);
-  }, [finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
+  }, [deferDirectLoad, disableDirectLoad, finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
 
 
   const handleError = useCallback(() => {
@@ -204,6 +246,20 @@ const ProductCardImage: React.FC<Props> = ({
 
     if (!hasKnownPhoto) {
       writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
+      setRequestSrc("");
+      setStatus("missing");
+      return;
+    }
+
+    if (disableDirectLoad || deferDirectLoad) {
+      if (!directFallbackQueuedRef.current && primarySrc) {
+        directFallbackQueuedRef.current = true;
+        setRequestSrc(primarySrc);
+        setStatus("retrying");
+        setFinalRetryQueued(false);
+        return;
+      }
+
       setRequestSrc("");
       setStatus("missing");
       return;
@@ -234,9 +290,12 @@ const ProductCardImage: React.FC<Props> = ({
   }, [
     finalRetryQueued,
     finalRetrySrc,
+    deferDirectLoad,
+    disableDirectLoad,
     hasKnownPhoto,
     normalizedArticle,
     normalizedCode,
+    primarySrc,
     recoverySrc,
     requestSrc,
   ]);
@@ -303,7 +362,10 @@ const ProductCardImage: React.FC<Props> = ({
               sizes="(max-width: 639px) 33vw, (max-width: 767px) 18vw, (max-width: 1023px) 13vw, 10vw"
               loading={loadingMode}
               fetchPriority={fetchPriority}
-              unoptimized={requestSrc.startsWith("data:image/")}
+              unoptimized={
+                requestSrc.startsWith("data:image/") ||
+                requestSrc.startsWith("/product-image/")
+              }
               decoding={imageDecodingMode}
               draggable={false}
               onLoad={handleLoad}

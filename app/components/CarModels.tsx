@@ -11,6 +11,7 @@ interface Props {
   onModelSelect: (model: string) => void;
   onYearSelect: (year: number | null) => void;
   onBack?: () => void;
+  onCountChange?: (count: number) => void;
   compact?: boolean;
 }
 
@@ -66,9 +67,7 @@ const isValidModelLabel = (value: string, selectedBrand?: string) => {
 const AUTO_ENDPOINT = "/api/proxy?endpoint=getauto";
 const LABEL_SEARCH_MODEL = "\u041f\u043e\u0448\u0443\u043a \u043c\u043e\u0434\u0435\u043b\u0456...";
 const LABEL_NO_MODELS = "\u041c\u043e\u0434\u0435\u043b\u0456 \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e.";
-const LABEL_SELECT_YEAR = "\u0420\u0456\u043a";
 const LABEL_YEAR_EMPTY = "\u0420\u043e\u043a\u0438 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0456.";
-const LABEL_SELECTED = "\u041e\u0431\u0440\u0430\u043d\u043e";
 const LABEL_BACK = "\u041d\u0430\u0437\u0430\u0434";
 const LABEL_PREV_PAGE = "\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430";
 const LABEL_NEXT_PAGE = "\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0430 \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430";
@@ -303,6 +302,7 @@ const extractErrorMessage = (text: string) => {
   onModelSelect,
   onYearSelect,
   onBack,
+  onCountChange,
   compact = false,
   }) => {
   const isCompact = Boolean(compact);
@@ -530,11 +530,15 @@ const extractErrorMessage = (text: string) => {
     return baseModels.filter((model) => model.toLowerCase().includes(term));
   }, [models, modelsForYear, searchTerm, selectedYear, modelYearMap]);
 
+  useEffect(() => {
+    onCountChange?.(filteredModels.length);
+  }, [filteredModels.length, onCountChange]);
+
   const compactModelRows = 3;
   const compactModelCols = isSmUp ? 4 : 2;
   const modelsPerPage = isCompact
     ? compactModelRows * compactModelCols
-    : 12;
+    : isSmUp ? 8 : 6;
   const totalModelPages = Math.max(
     1,
     Math.ceil(filteredModels.length / modelsPerPage)
@@ -551,6 +555,20 @@ const extractErrorMessage = (text: string) => {
     }
     return pages.length > 0 ? pages : [[]];
   }, [filteredModels, modelsPerPage]);
+
+  const modelYearRanges = useMemo(() => {
+    const result: Record<string, { min: number; max: number } | null> = {};
+    for (const [name, ranges] of Object.entries(modelYearMap)) {
+      let minYear = Infinity;
+      let maxYear = -Infinity;
+      for (const r of ranges) {
+        if (isPlausibleYear(r.start)) minYear = Math.min(minYear, r.start);
+        if (isPlausibleYear(r.end)) maxYear = Math.max(maxYear, r.end);
+      }
+      result[name] = minYear !== Infinity ? { min: minYear, max: maxYear === -Infinity ? minYear : maxYear } : null;
+    }
+    return result;
+  }, [modelYearMap]);
   const modelPagesRef = useRef<HTMLDivElement | null>(null);
   const getModelPageWidth = useCallback(() => {
     const container = modelPagesRef.current;
@@ -710,52 +728,42 @@ const extractErrorMessage = (text: string) => {
 
     return (
       <div className="w-full flex flex-col gap-3">
-        <div className="flex flex-col gap-3 group/models">
-          <div className="flex flex-wrap items-center gap-3 w-full sm:flex-nowrap sm:items-center sm:justify-between">
-            <div className="order-1 w-full sm:w-auto flex items-center gap-3 sm:gap-4 group hover:[&_span[data-underline]]:scale-x-100">
-              <h3 className="text-lg font-semibold tracking-tight text-slate-700 relative inline-block drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)]">
-                <span className="relative inline-flex items-center">
-                  {LABEL_SELECT_FROM} {filteredModels.length} {LABEL_MODELS_OF_CARS}
-                  <span
-                    data-underline
-                    className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-400 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 shadow-[0_4px_12px_rgba(59,130,246,0.28)]"
-                  />
-                </span>
-              </h3>
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full">
+            <div className="flex flex-col min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{LABEL_SELECT_FROM}</span>
+              <span className="text-sm font-bold text-slate-800 leading-tight">
+                {filteredModels.length} {LABEL_MODELS_OF_CARS}
+              </span>
             </div>
 
-            <input
-              type="text"
-              placeholder={LABEL_SEARCH_MODEL}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="order-2 relative min-w-0 flex-1 sm:w-[220px] sm:mx-auto sm:flex-none h-10 rounded-xl border border-sky-200/70 bg-white/95 px-3 text-xs font-semibold text-slate-800 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] outline-none transition placeholder:text-slate-400 focus:border-sky-300 focus:ring-2 focus:ring-sky-200/80"
-              data-search="true"
-            />
-
-            <div className="order-2 shrink-0 max-w-full overflow-x-auto no-scrollbar sm:mr-1">
-              <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
+            <div className="ml-auto flex items-center gap-1.5">
+              <input
+                type="text"
+                placeholder={LABEL_SEARCH_MODEL}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-8 w-[130px] rounded-lg border border-slate-200/70 bg-white px-2.5 text-xs text-slate-700 outline-none placeholder:text-slate-300 transition-all focus:border-sky-300 focus:ring-2 focus:ring-sky-200/70"
+                data-search="true"
+              />
+              <div className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200/70 bg-white px-1 py-0.5 shadow-sm">
                 <button
                   type="button"
                   onClick={handlePrevPage}
                   disabled={!canGoPrev}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-all hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
                   aria-label={LABEL_PREV_PAGE}
                 >
                   <ChevronLeft size={12} />
                 </button>
-
-                <div className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-1.5 py-0 text-[9px] font-semibold text-slate-600 shadow-inner">
-                  <span>{Math.min(safeModelPage + 1, totalModelPages)}</span>
-                  <span className="text-slate-400">/</span>
-                  <span>{totalModelPages}</span>
-                </div>
-
+                <span className="min-w-[28px] text-center text-[10px] font-semibold text-slate-500">
+                  {Math.min(safeModelPage + 1, totalModelPages)}/{totalModelPages}
+                </span>
                 <button
                   type="button"
                   onClick={handleNextPage}
                   disabled={!canGoNext}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-all hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
                   aria-label={LABEL_NEXT_PAGE}
                 >
                   <ChevronRight size={12} />
@@ -764,41 +772,43 @@ const extractErrorMessage = (text: string) => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/80 to-cyan-50/75 px-2.5 py-1.5 shadow-[0_8px_18px_rgba(14,116,144,0.12),0_3px_8px_rgba(30,64,175,0.07)]">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 whitespace-nowrap">
+          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200/70 bg-white px-2.5 py-1.5 shadow-sm">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 whitespace-nowrap">
               {LABEL_PRODUCTION_YEAR}
             </span>
-            <button
-              type="button"
-              onClick={handleDecreaseYear}
-              disabled={!canDecreaseYear}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
-              aria-label={LABEL_PREV_YEAR}
-            >
-              <ChevronLeft size={12} />
-            </button>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={yearInput}
-              onChange={(e) => handleYearInputChange(e.target.value)}
-              className="h-8 w-20 rounded-md border border-sky-200/80 bg-white/90 px-2 text-xs font-semibold text-slate-800 outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-200/80"
-              placeholder="----"
-            />
-            <button
-              type="button"
-              onClick={handleIncreaseYear}
-              disabled={!canIncreaseYear}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
-              aria-label={LABEL_NEXT_YEAR}
-            >
-              <ChevronRight size={12} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleDecreaseYear}
+                disabled={!canDecreaseYear}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition-all hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
+                aria-label={LABEL_PREV_YEAR}
+              >
+                <ChevronLeft size={11} />
+              </button>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={yearInput}
+                onChange={(e) => handleYearInputChange(e.target.value)}
+                className="h-7 w-16 rounded-md border border-slate-200 bg-slate-50 px-1.5 text-center text-xs font-bold text-slate-700 placeholder:text-slate-300 focus:border-sky-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-200/70"
+                placeholder="——"
+              />
+              <button
+                type="button"
+                onClick={handleIncreaseYear}
+                disabled={!canIncreaseYear}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition-all hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
+                aria-label={LABEL_NEXT_YEAR}
+              >
+                <ChevronRight size={11} />
+              </button>
+            </div>
             <button
               type="button"
               onClick={clearYearSelection}
               disabled={selectedYear == null && yearInput.trim() === ""}
-              className="h-7 rounded-md border border-sky-200/80 bg-white/90 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600 transition hover:bg-sky-50 disabled:opacity-40"
+              className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500 transition hover:bg-slate-50 disabled:opacity-35"
             >
               {LABEL_CLEAR_YEAR}
             </button>
@@ -824,11 +834,11 @@ const extractErrorMessage = (text: string) => {
           className="overflow-hidden rounded-2xl border border-sky-100/80 bg-gradient-to-br from-white/92 via-sky-50/68 to-blue-50/60 shadow-[0_14px_32px_rgba(59,130,246,0.12)]"
         >
           {isBusy ? (
-            <div className="flex min-h-[124px] items-center justify-center">
+            <div className="flex min-h-[90px] items-center justify-center">
               <div className="loader" />
             </div>
           ) : error ? (
-            <div className="flex min-h-[124px] items-center justify-center px-3 text-center text-xs font-semibold text-red-600">
+            <div className="flex min-h-[90px] items-center justify-center px-3 text-center text-xs font-semibold text-red-600">
               {error}
             </div>
           ) : (
@@ -840,7 +850,7 @@ const extractErrorMessage = (text: string) => {
                   className="min-w-full shrink-0 snap-start p-1 sm:p-1.5"
                 >
                   {!hasPagedModels ? (
-                    <div className="flex min-h-[124px] items-center justify-center text-xs font-semibold text-slate-400">
+                    <div className="flex min-h-[90px] items-center justify-center text-xs font-semibold text-slate-400">
                       {LABEL_NO_MODELS}
                     </div>
                   ) : (
@@ -853,18 +863,13 @@ const extractErrorMessage = (text: string) => {
                             type="button"
                             onClick={() => onModelSelect(model)}
                             title={model}
-                            className={`group relative isolate flex h-8 sm:h-8 items-center justify-center overflow-hidden rounded-lg border px-1 text-center text-[9px] font-semibold uppercase tracking-[0.02em] leading-tight transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                            className={`flex h-8 items-center justify-center rounded-lg border px-1.5 text-center text-[9px] font-semibold uppercase tracking-[0.04em] leading-tight transition-all duration-200 active:scale-[0.96] ${
                               isActive
-                                ? "border-sky-300 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_16px_36px_rgba(59,130,246,0.28)] ring-2 ring-sky-200/80"
-                                : "border-slate-100/90 bg-white/94 text-slate-800 shadow-[0_12px_30px_rgba(15,23,42,0.1)] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 hover:shadow-[0_18px_38px_rgba(59,130,246,0.14)] hover:ring-1 hover:ring-sky-200/80"
+                                ? "border-sky-400/50 bg-sky-500 text-white shadow-[0_3px_10px_rgba(14,165,233,0.25)]"
+                                : "border-slate-200/70 bg-white text-slate-600 hover:border-sky-200 hover:bg-sky-50/60"
                             }`}
                           >
-                            <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
-                            <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
-                            <span className="pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full bg-sky-200/25 blur-3xl transition-opacity duration-300 ease-out group-hover:opacity-90" />
-                            <span className="pointer-events-none absolute -left-12 -bottom-12 h-28 w-28 rounded-full bg-cyan-200/20 blur-3xl transition-opacity duration-300 ease-out group-hover:opacity-90" />
-                            <span className="pointer-events-none absolute inset-y-[-28%] left-[-24%] w-[52%] rotate-[16deg] bg-gradient-to-br from-white/0 via-white/28 to-white/0 opacity-0 blur-[2px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[18%] group-hover:opacity-80" />
-                            <span className="relative line-clamp-2">{model}</span>
+                            <span className="line-clamp-2">{model}</span>
                           </button>
                         );
                       })}
@@ -881,119 +886,107 @@ const extractErrorMessage = (text: string) => {
 
   return (
     <div
-      className={`w-full mx-auto flex flex-col gap-2 sm:gap-2.5 ${
-        isCompact ? "min-h-[280px]" : "min-h-[340px] sm:min-h-[360px]"
-      }`}
+      className="w-full mx-auto flex flex-col gap-2 sm:gap-2.5"
     >
-      <div className="flex flex-col gap-2 sm:gap-2.5 group/models">
-        <div className="flex flex-wrap items-center gap-3 w-full sm:flex-nowrap sm:items-center sm:justify-between">
-          <div className="order-1 w-full sm:w-auto flex items-center gap-3 sm:gap-4 group hover:[&_span[data-underline]]:scale-x-100">
-            {onBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)]"
-                aria-label={LABEL_BACK}
-              >
-                <ChevronLeft size={15} className="pointer-events-none" />
-              </button>
-            )}
-            <h3 className="text-xl font-semibold tracking-tight text-slate-700 relative inline-block drop-shadow-[0_3px_8px_rgba(15,23,42,0.22)]">
-              <span className="relative inline-flex items-center">
-                {LABEL_SELECT_FROM} {filteredModels.length} {LABEL_MODELS_OF_CARS}
-                <span
-                  data-underline
-                  className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-400 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 shadow-[0_4px_12px_rgba(59,130,246,0.28)]"
-                />
-              </span>
-            </h3>
+      <div className="flex flex-col gap-2 sm:gap-2.5">
+        <div className="flex items-center gap-2 w-full">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-500 shadow-sm transition-all duration-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-600 hover:shadow-[0_4px_12px_rgba(14,165,233,0.18)] active:scale-[0.94]"
+              aria-label={LABEL_BACK}
+            >
+              <ChevronLeft size={15} className="pointer-events-none" />
+            </button>
+          )}
+
+          <div className="flex flex-col min-w-0 flex-1">
+            <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 leading-none">{LABEL_SELECT_FROM}</span>
+            <span className="text-[14px] font-bold text-slate-800 leading-tight truncate">
+              {filteredModels.length} {LABEL_MODELS_OF_CARS}
+            </span>
           </div>
 
-          <input
-            type="text"
-            placeholder={LABEL_SEARCH_MODEL}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="order-2 relative min-w-0 flex-1 sm:w-[220px] sm:mx-auto sm:flex-none h-10 rounded-xl border border-sky-200/70 bg-white/95 px-3 text-sm font-semibold text-slate-800 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] outline-none transition placeholder:text-slate-400 focus:border-sky-300 focus:ring-2 focus:ring-sky-200/80"
-            data-search="true"
-          />
+          <div className="flex items-center gap-1.5 shrink-0">
+            <input
+              type="text"
+              placeholder={LABEL_SEARCH_MODEL}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-9 w-[100px] sm:w-[140px] rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 text-xs text-slate-700 shadow-sm outline-none placeholder:text-slate-400 transition-all focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-200/80 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.10)]"
+              data-search="true"
+            />
 
-          <div className="order-2 shrink-0 max-w-full overflow-x-auto no-scrollbar sm:mr-1">
-            <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/85 to-cyan-50/80 px-1.5 py-0.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm">
+            <div className="inline-flex items-center gap-0.5 rounded-xl border border-slate-200/70 bg-white px-1 py-0.5 shadow-sm">
               <button
                 type="button"
                 onClick={handlePrevPage}
                 disabled={!canGoPrev}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-all duration-150 hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
                 aria-label={LABEL_PREV_PAGE}
               >
-                <ChevronLeft size={12} />
+                <ChevronLeft size={13} />
               </button>
-
-              <div className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-1.5 py-0 text-[9px] font-semibold text-slate-600 shadow-inner">
-                <span>{safeModelPage + 1}</span>
-                <span className="text-slate-400">/</span>
-                <span>{totalModelPages}</span>
-              </div>
-
+              <span className="min-w-[30px] text-center text-[10px] font-semibold text-slate-500">
+                {safeModelPage + 1}/{totalModelPages}
+              </span>
               <button
                 type="button"
                 onClick={handleNextPage}
                 disabled={!canGoNext}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-all duration-150 hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
                 aria-label={LABEL_NEXT_PAGE}
               >
-                <ChevronRight size={12} />
+                <ChevronRight size={13} />
               </button>
             </div>
           </div>
         </div>
 
-        <div className="flex w-full flex-col gap-2 rounded-xl border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/80 to-cyan-50/75 px-3 py-2.5 shadow-[0_8px_18px_rgba(14,116,144,0.12),0_3px_8px_rgba(30,64,175,0.07)] sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500 whitespace-nowrap">
-              {LABEL_PRODUCTION_YEAR}
-            </span>
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-sky-100/90 bg-gradient-to-r from-sky-50/70 to-blue-50/50 px-3 py-2 shadow-sm">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-600/80 whitespace-nowrap">
+            {LABEL_PRODUCTION_YEAR}
+          </span>
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-500 shadow-sm transition-all duration-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-600 hover:shadow-[0_3px_8px_rgba(14,165,233,0.18)] active:scale-[0.92] disabled:opacity-35"
               onClick={handleDecreaseYear}
               disabled={!canDecreaseYear}
               aria-label={LABEL_PREV_YEAR}
             >
-              <ChevronLeft size={14} />
+              <ChevronLeft size={12} />
             </button>
             <input
               type="text"
               inputMode="numeric"
               value={yearInput}
               onChange={(e) => handleYearInputChange(e.target.value)}
-              className={`h-9 w-20 rounded-lg border border-sky-200/80 bg-white/90 px-2 text-slate-800 placeholder:text-slate-400 focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200/80 ${
-                isCompact ? "text-[12px]" : "text-sm"
-              }`}
-              placeholder="----"
+              className="h-8 w-[68px] rounded-xl border border-slate-200/80 bg-white px-2 text-center text-[13px] font-bold text-slate-700 shadow-sm placeholder:text-slate-300 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200/80 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.10)]"
+              placeholder="——"
             />
             <button
               type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)]"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-500 shadow-sm transition-all duration-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-600 hover:shadow-[0_3px_8px_rgba(14,165,233,0.18)] active:scale-[0.92] disabled:opacity-35"
               onClick={handleIncreaseYear}
               disabled={!canIncreaseYear}
               aria-label={LABEL_NEXT_YEAR}
             >
-              <ChevronRight size={14} />
-            </button>
-            <button
-              type="button"
-              onClick={clearYearSelection}
-              disabled={selectedYear == null && yearInput.trim() === ""}
-              className="h-8 rounded-md border border-sky-200/80 bg-white/90 px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600 transition hover:bg-sky-50 disabled:opacity-40"
-            >
-              {LABEL_CLEAR_YEAR}
+              <ChevronRight size={12} />
             </button>
           </div>
+          <button
+            type="button"
+            onClick={clearYearSelection}
+            disabled={selectedYear == null && yearInput.trim() === ""}
+            className="rounded-full border border-slate-200/80 bg-white px-3 py-1 text-[10px] font-semibold text-slate-500 shadow-sm transition-all duration-150 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
+          >
+            {LABEL_CLEAR_YEAR}
+          </button>
           {yearBounds && (
-            <span className="text-[11px] font-semibold text-slate-500">
-              {LABEL_AVAILABLE}: {yearBounds.min}-{yearBounds.max}
+            <span className="ml-auto text-[10px] font-semibold text-sky-600/60 hidden sm:inline">
+              {yearBounds.min}–{yearBounds.max}
             </span>
           )}
         </div>
@@ -1012,7 +1005,7 @@ const extractErrorMessage = (text: string) => {
 
       <div
         className={`flex-1 overflow-hidden mt-0 ${
-          isCompact ? "min-h-[160px] px-1" : "min-h-[200px] sm:min-h-[220px] px-1.5"
+          isCompact ? "min-h-[90px] px-1" : "min-h-[100px] px-1.5"
         }`}
       >
         {(loading || (yearLoading && selectedYear != null)) && (
@@ -1026,7 +1019,7 @@ const extractErrorMessage = (text: string) => {
         {error && <p className="text-red-600 font-semibold">{error}</p>}
 
         {!loading && !(yearLoading && selectedYear != null) && !error && (
-          <div className="min-h-[160px]">
+          <div>
             {filteredModels.length === 0 && (
               <p className="text-slate-500 text-center w-full">
                 {LABEL_NO_MODELS}
@@ -1034,48 +1027,49 @@ const extractErrorMessage = (text: string) => {
             )}
 
             <div
-              className="group/logogrid mt-0 sm:mt-0"
+              className="group/logogrid mt-2 sm:mt-3"
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
             >
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 place-items-stretch">
-              {pagedModels.map((model) => (
-                <button
-                  key={model}
-                  onClick={() => {
-                    if (isSwiping.current) return;
-                    onModelSelect(model);
-                  }}
-                  title={model}
-                  className={`group relative isolate overflow-hidden rounded-xl border px-2.5 py-2 transition-[border-color,background-color,box-shadow,ring-color] duration-250 ease-out ${
-                    isCompact ? "min-h-[48px]" : "min-h-[60px]"
-                  } ${
-                    selectedModel === model
-                      ? "border-sky-300 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_16px_36px_rgba(59,130,246,0.28)] ring-2 ring-sky-200/80"
-                      : "border-slate-100/90 bg-white/94 text-slate-800 shadow-[0_12px_30px_rgba(15,23,42,0.1)] hover:border-sky-100 hover:bg-gradient-to-br hover:from-white hover:via-sky-50/70 hover:to-blue-50 hover:shadow-[0_18px_38px_rgba(59,130,246,0.14)] hover:ring-1 hover:ring-sky-200/80"
-                  }`}
-                >
-                  <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_20%,rgba(125,211,252,0.22),transparent_32%),radial-gradient(circle_at_82%_14%,rgba(59,130,246,0.18),transparent_34%)] opacity-70 transition-opacity duration-500 ease-out group-hover:opacity-100" />
-                  <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-sky-50/55 to-blue-50/46 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:from-white group-hover:via-sky-100 group-hover:to-indigo-100" />
-                  <span className="pointer-events-none absolute -right-10 -top-12 h-24 w-24 rounded-full bg-sky-200/25 blur-3xl transition-opacity duration-300 ease-out group-hover:opacity-90" />
-                  <span className="pointer-events-none absolute -left-12 -bottom-12 h-28 w-28 rounded-full bg-cyan-200/20 blur-3xl transition-opacity duration-300 ease-out group-hover:opacity-90" />
-                  <span className="pointer-events-none absolute inset-y-[-28%] left-[-24%] w-[52%] rotate-[16deg] bg-gradient-to-br from-white/0 via-white/28 to-white/0 opacity-0 blur-[2px] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[18%] group-hover:opacity-80" />
-                  <div className="relative flex items-center justify-between gap-2">
-                    <div className="text-[13px] font-semibold truncate uppercase tracking-[0.05em]">{model}</div>
-                    {selectedModel === model && (
-                      <span className="text-[10px] font-semibold uppercase tracking-wide bg-white/20 text-white px-2 py-1 rounded-full">
-                        {LABEL_SELECTED}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 place-items-stretch">
+              {pagedModels.map((model) => {
+                const isActive = selectedModel === model;
+                const yr = modelYearRanges[model];
+                const yearLabel = yr
+                  ? yr.min === yr.max
+                    ? `${yr.min}`
+                    : `${yr.min}–${yr.max}`
+                  : null;
+                return (
+                  <button
+                    key={model}
+                    type="button"
+                    onClick={() => {
+                      if (isSwiping.current) return;
+                      onModelSelect(model);
+                    }}
+                    title={yearLabel ? `${model} (${yearLabel})` : model}
+                    className={`group relative flex min-h-[56px] flex-col justify-center overflow-hidden rounded-xl border px-3 py-2 text-left transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:min-h-[64px] ${
+                      isActive
+                        ? "border-sky-400/60 bg-sky-500 text-white shadow-[0_6px_22px_rgba(14,165,233,0.38)] ring-1 ring-sky-300/60"
+                        : "border-slate-200/60 bg-white text-slate-700 shadow-[0_2px_6px_rgba(15,23,42,0.07)] hover:-translate-y-[3px] hover:border-sky-400/70 hover:shadow-[0_12px_32px_rgba(14,165,233,0.28)]"
+                    }`}
+                  >
+                    <span className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-sky-50/0 to-blue-100/0 transition-all duration-300 group-hover:from-sky-50 group-hover:to-blue-100/70" />
+                    <span className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-inset ring-transparent transition-all duration-300 group-hover:ring-sky-400/40" />
+                    <span className={`relative truncate text-[14px] font-extrabold leading-tight tracking-[0.02em] sm:text-[15px] ${isActive ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.18)]" : "text-slate-800 group-hover:text-sky-800"}`}>{model}</span>
+                    {yearLabel && (
+                      <span className={`relative mt-1 text-[11px] font-semibold leading-none tracking-[0.03em] ${isActive ? "text-sky-100" : "text-slate-400 group-hover:text-sky-600/80"}`}>
+                        {yearLabel}
                       </span>
                     )}
-                  </div>
-                  {selectedModel === model && selectedYear && (
-                    <div className="text-[11px] text-blue-100 mt-1">
-                      {`${LABEL_SELECT_YEAR}: ${selectedYear}`}
-                    </div>
-                  )}
-                </button>
-              ))}
+                    {isActive && selectedYear && !yearLabel && (
+                      <span className="relative mt-1 text-[11px] font-semibold text-sky-100">{selectedYear} р.</span>
+                    )}
+                  </button>
+                );
+              })}
               </div>
             </div>
             {/* Pagination moved to top row */}

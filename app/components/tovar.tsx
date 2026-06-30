@@ -302,7 +302,7 @@ const toProductNodes = (value: unknown): ProductNode[] => {
 };
 
 const ITEMS_PER_PAGE = 6;
-const QUICK_SEARCH_MAX_ROWS = 5;
+const QUICK_SEARCH_MAX_ROWS = 6;
 
 const collectLeafPaths = (
   nodes?: ProductNode[],
@@ -735,17 +735,36 @@ const ProductFetcher: React.FC<Props> = ({
   return (
     <section
       ref={sectionRef}
-      className={`home-glow-section home-glow-section-sky font-ui group/tovar relative tovar-touch min-h-[420px] w-full overflow-hidden bg-gradient-to-br from-sky-50/92 via-blue-100/70 to-indigo-100/78 pb-4 pt-4 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(30,64,175,0.12),0_14px_30px_rgba(37,99,235,0.12)] ${
+      className={`home-glow-section home-glow-section-sky font-ui group/tovar relative tovar-touch min-h-[420px] w-full overflow-hidden bg-gradient-to-br from-white/95 via-sky-50/85 to-blue-100/70 pb-4 pt-4 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.96),inset_0_-1px_0_rgba(30,64,175,0.18),0_24px_48px_rgba(37,99,235,0.20),0_8px_16px_rgba(14,116,144,0.12)] ${
         canHover
-          ? "transition-[box-shadow,background-image,filter] duration-300 ease-out hover:from-cyan-50/95 hover:via-sky-100/80 hover:to-blue-100/85 hover:brightness-[1.015] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(30,64,175,0.18),0_18px_38px_rgba(37,99,235,0.18)]"
+          ? "transition-[box-shadow,background-image,filter] duration-300 ease-out hover:from-sky-50/90 hover:via-sky-50/80 hover:to-blue-100/80 hover:brightness-[1.02] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.98),inset_0_-1px_0_rgba(30,64,175,0.24),0_30px_56px_rgba(37,99,235,0.26),0_10px_20px_rgba(14,116,144,0.16)]"
           : ""
       } sm:pb-0`}
     >
-      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/tovar:opacity-100 bg-[image:radial-gradient(circle_at_12%_16%,rgba(125,211,252,0.26),transparent_40%),radial-gradient(circle_at_84%_18%,rgba(56,189,248,0.22),transparent_42%),radial-gradient(circle_at_52%_88%,rgba(147,197,253,0.2),transparent_36%)]" />
+      {/* top bridge — receives hero's sky-blue fade */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[image:linear-gradient(to_bottom,rgba(186,230,253,0.22)_0%,rgba(186,230,253,0.06)_55%,transparent_100%)]" />
+      {/* primary light source — top-left warm spot */}
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_140%_90%_at_-4%_-6%,rgba(255,255,255,0.58)_0%,rgba(186,230,253,0.30)_26%,rgba(186,230,253,0.06)_50%,transparent_64%)]" />
+      {/* secondary light — top-right cool accent */}
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_80%_65%_at_110%_-4%,rgba(147,197,253,0.34)_0%,rgba(186,230,253,0.08)_40%,transparent_60%)]" />
+      {/* depth sink — bottom gets heavier/darker */}
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_110%_55%_at_50%_112%,rgba(30,64,175,0.12)_0%,rgba(37,99,235,0.04)_46%,transparent_70%)]" />
+      {/* diagonal shimmer — light brushing across surface */}
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:linear-gradient(132deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.06)_22%,rgba(255,255,255,0.02)_40%,transparent_58%)]" />
+      {/* surface shine — thin bright strip at very top */}
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:linear-gradient(to_bottom,rgba(255,255,255,0.50)_0%,rgba(255,255,255,0.12)_2.5%,transparent_9%)]" />
+      {/* corner vignette — edges sink into shadow */}
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_90%_88%_at_50%_48%,transparent_52%,rgba(15,23,42,0.07)_100%)]" />
+      {/* bottom edge shadow — reinforces depth */}
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_100%_38%_at_50%_100%,rgba(30,64,175,0.09)_0%,transparent_70%)]" />
+      {/* hover bloom — vivid sweep on hover */}
+      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-[700ms] ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/tovar:opacity-100 bg-[image:radial-gradient(ellipse_180%_100%_at_-4%_3%,rgba(56,189,248,0.30)_0%,rgba(125,211,252,0.10)_36%,transparent_58%),radial-gradient(ellipse_110%_75%_at_110%_6%,rgba(147,197,253,0.24)_0%,rgba(56,189,248,0.06)_40%,transparent_62%),radial-gradient(ellipse_120%_58%_at_50%_106%,rgba(37,99,235,0.14)_0%,transparent_64%),linear-gradient(to_bottom,rgba(255,255,255,0.10)_0%,transparent_30%)]" />
+      {/* bottom bridge — eases into Auto's white/sky top */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-10 bg-[image:linear-gradient(to_bottom,transparent_0%,rgba(186,230,253,0.18)_100%)]" />
       <div className="page-shell-inline relative z-10 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <motion.aside
         {...entryMotion}
-        className={`${canHover ? "group " : ""}home-panel-hover relative z-10 min-w-0 self-start overflow-hidden rounded-2xl border border-sky-100/90 bg-gradient-to-br from-white/96 via-sky-50/82 to-blue-100/72 backdrop-blur-sm shadow-[0_18px_44px_rgba(2,132,199,0.2),0_10px_26px_rgba(30,64,175,0.14)] px-5 pb-1 pt-3 text-gray-800 transition-all duration-300 hover:shadow-[0_26px_56px_rgba(2,132,199,0.28),0_12px_30px_rgba(30,64,175,0.18)]`}
+        className={`${canHover ? "group " : ""}home-panel-hover home-section-surface relative z-10 min-w-0 self-start overflow-hidden rounded-2xl border border-sky-200/70 bg-gradient-to-br from-white via-sky-50/90 to-blue-100/80 backdrop-blur-sm shadow-[0_20px_48px_rgba(2,132,199,0.24),0_8px_20px_rgba(30,64,175,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] px-4 pb-1 pt-2.5 mb-2 text-gray-800 transition-all duration-300 hover:shadow-[0_28px_60px_rgba(2,132,199,0.32),0_10px_28px_rgba(30,64,175,0.22),inset_0_1px_0_rgba(255,255,255,1)]`}
       >
             <div className="absolute inset-0 pointer-events-none opacity-75 bg-[image:radial-gradient(circle_at_20%_20%,rgba(224,242,254,0.95),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(59,130,246,0.18),transparent_36%)]" />
             <div className="relative">
@@ -772,7 +791,7 @@ const ProductFetcher: React.FC<Props> = ({
                 </span>
               </div>
 
-              <div className="pr-1 pb-4">
+              <div className="pr-1 pb-3 mt-2">
                 {showSkeleton ? (
                   <motion.div
                     key="loading"
@@ -813,22 +832,23 @@ const ProductFetcher: React.FC<Props> = ({
                           onMouseLeave={(event) => event.currentTarget.blur()}
                           className={`group/row relative w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-all duration-300 ${
                             isActive
-                              ? "border-cyan-300/80 bg-[image:linear-gradient(115deg,rgba(224,242,254,0.96)_0%,rgba(240,249,255,0.95)_52%,rgba(220,252,231,0.88)_100%)] shadow-[0_10px_22px_rgba(6,182,212,0.18)] ring-1 ring-cyan-200/60"
+                              ? "border-cyan-400/90 bg-[image:linear-gradient(115deg,rgba(207,250,254,0.98)_0%,rgba(224,242,254,0.97)_50%,rgba(186,230,253,0.95)_100%)] shadow-[0_12px_28px_rgba(6,182,212,0.30),0_4px_10px_rgba(8,145,178,0.18),inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-cyan-300/70"
                               : [
-                                  "border-sky-100/95 bg-[image:linear-gradient(120deg,rgba(255,255,255,0.96)_0%,rgba(240,249,255,0.93)_48%,rgba(224,242,254,0.9)_100%)] shadow-[0_8px_18px_rgba(8,145,178,0.14)]",
-                                  "hover:border-cyan-200/90",
-                                  "hover:shadow-[0_10px_22px_rgba(8,145,178,0.16)]",
-                                  "hover:ring-1 hover:ring-cyan-100/70",
-                                  "hover:bg-[image:linear-gradient(116deg,rgba(255,255,255,0.97)_0%,rgba(235,248,255,0.94)_50%,rgba(224,247,250,0.9)_100%)]",
-                                  "hover:saturate-[1.02]",
+                                  "border-sky-200/80 bg-[image:linear-gradient(120deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.95)_48%,rgba(224,242,254,0.92)_100%)] shadow-[0_4px_14px_rgba(8,145,178,0.12),0_1px_4px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]",
+                                  "hover:-translate-y-[2px]",
+                                  "hover:border-cyan-300/80",
+                                  "hover:shadow-[0_16px_36px_rgba(6,182,212,0.28),0_4px_12px_rgba(8,145,178,0.18),inset_0_1px_0_rgba(255,255,255,0.95)]",
+                                  "hover:ring-1 hover:ring-cyan-200/70",
+                                  "hover:bg-[image:linear-gradient(115deg,rgba(240,249,255,0.99)_0%,rgba(224,250,254,0.97)_50%,rgba(186,230,253,0.94)_100%)]",
+                                  "active:translate-y-0 active:shadow-[0_4px_12px_rgba(8,145,178,0.14)]",
                                 ].join(" ")
                           }`}
                         >
                           <div
                             className={`pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 ${
                               isActive
-                                ? ""
-                                : "group-hover/row:opacity-45 bg-[image:radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.08),transparent_42%),radial-gradient(circle_at_86%_16%,rgba(56,189,248,0.07),transparent_38%)]"
+                                ? "opacity-100 bg-[image:radial-gradient(circle_at_10%_10%,rgba(34,211,238,0.18),transparent_40%),radial-gradient(circle_at_90%_20%,rgba(56,189,248,0.14),transparent_38%)]"
+                                : "group-hover/row:opacity-100 bg-[image:radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.16),transparent_42%),radial-gradient(circle_at_86%_16%,rgba(56,189,248,0.12),transparent_38%)]"
                             }`}
                           />
                           <div className="relative flex items-center gap-2.5">
@@ -843,8 +863,8 @@ const ProductFetcher: React.FC<Props> = ({
                             <span
                               className={`inline-flex h-7 w-7 flex-none items-center justify-center rounded-lg border transition-all duration-300 ${
                                 isActive
-                                  ? "border-cyan-300 bg-white/90 text-cyan-700 shadow-[0_6px_14px_rgba(6,182,212,0.2)]"
-                                  : "border-sky-200/70 bg-white/80 text-sky-500 group-hover/row:border-cyan-200 group-hover/row:bg-cyan-50/90 group-hover/row:text-cyan-700"
+                                  ? "border-cyan-400/80 bg-white text-cyan-700 shadow-[0_6px_16px_rgba(6,182,212,0.28),0_2px_6px_rgba(8,145,178,0.18),inset_0_1px_0_rgba(255,255,255,0.9)]"
+                                  : "border-sky-200/80 bg-white/90 text-sky-500 shadow-[0_2px_6px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)] group-hover/row:border-cyan-300/80 group-hover/row:bg-cyan-50 group-hover/row:text-cyan-600 group-hover/row:shadow-[0_6px_16px_rgba(6,182,212,0.22),0_2px_6px_rgba(8,145,178,0.14)]"
                               }`}
                             >
                               <ChevronRight
@@ -860,25 +880,47 @@ const ProductFetcher: React.FC<Props> = ({
                 ) : productLoadError ? (
                   <motion.div
                     key="error"
-                    initial={shouldAnimate ? { opacity: 0 } : false}
-                    animate={shouldAnimate ? { opacity: 1 } : undefined}
-                    className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-700"
+                    initial={shouldAnimate ? { opacity: 0, y: 6 } : false}
+                    animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
+                    transition={{ duration: 0.25 }}
+                    className="rounded-xl border border-red-200/80 bg-gradient-to-br from-red-50 via-white to-red-50/60 px-4 py-5 text-center shadow-[0_4px_14px_rgba(220,38,38,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]"
                   >
-                    Помилка завантаження категорій: {productLoadError}
+                    <div className="mb-1.5 inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-100 bg-white shadow-[0_2px_8px_rgba(220,38,38,0.10)]">
+                      <X size={16} className="text-red-400" />
+                    </div>
+                    <div className="text-[13px] font-bold text-red-600">Помилка завантаження</div>
+                    <div className="mt-1 text-[11px] text-red-400/90">{productLoadError}</div>
                   </motion.div>
                 ) : (
                   <motion.div
                     key="empty"
-                    initial={shouldAnimate ? { opacity: 0 } : false}
-                    animate={shouldAnimate ? { opacity: 1 } : undefined}
-                    className="rounded-xl border border-dashed border-cyan-100 bg-cyan-50 px-4 py-6 text-center text-sm text-gray-500"
+                    initial={shouldAnimate ? { opacity: 0, y: 6 } : false}
+                    animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
+                    transition={{ duration: 0.25 }}
+                    className="rounded-xl border border-sky-100/80 bg-gradient-to-br from-sky-50/70 via-white to-blue-50/50 px-4 py-5 text-center shadow-[0_4px_14px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]"
                   >
-                    <div className="font-semibold text-gray-700">
-                      {"\u041d\u0456\u0447\u043e\u0433\u043e \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}
+                    <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-full border border-sky-100/90 bg-white shadow-[0_2px_8px_rgba(8,145,178,0.12)]">
+                      <Search size={15} className="text-sky-400" />
                     </div>
-                    <div className="mt-1 text-xs text-gray-500">
-                      {"\u0421\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0456\u043d\u0448\u0438\u0439 \u0437\u0430\u043f\u0438\u0442"}
-                    </div>
+                    <div className="text-[13px] font-bold text-slate-700">Нічого не знайдено</div>
+                    {searchTerm ? (
+                      <>
+                        <div className="mt-1 text-[11px] text-slate-400">
+                          За запитом{" "}
+                          <span className="font-semibold text-slate-600">«{searchTerm}»</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSearchTerm("")}
+                          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-sky-200/70 bg-white px-3 py-1.5 text-[11px] font-semibold text-sky-600 shadow-[0_2px_8px_rgba(8,145,178,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-200 hover:-translate-y-[1px] hover:border-sky-300/80 hover:shadow-[0_6px_16px_rgba(8,145,178,0.20)]"
+                        >
+                          <X size={11} />
+                          Очистити пошук
+                        </button>
+                      </>
+                    ) : (
+                      <div className="mt-1 text-[11px] text-slate-400">Спробуйте інший запит</div>
+                    )}
                   </motion.div>
                 )}
               
@@ -949,7 +991,7 @@ const ProductFetcher: React.FC<Props> = ({
                   {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
                     <div
                       key={`card-skeleton-${index}`}
-                      className="skeleton-card relative overflow-hidden rounded-xl border border-cyan-100/80 bg-[image:linear-gradient(120deg,rgba(255,255,255,0.94)_0%,rgba(240,249,255,0.9)_52%,rgba(224,242,254,0.88)_100%)] px-4 py-5 shadow-[0_8px_18px_rgba(8,145,178,0.14)]"
+                      className="skeleton-card relative overflow-hidden rounded-xl border border-sky-200/70 bg-[image:linear-gradient(148deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.94)_52%,rgba(219,234,254,0.90)_100%)] px-4 py-5 shadow-[0_8px_22px_rgba(8,145,178,0.16),0_2px_8px_rgba(8,145,178,0.09),inset_0_1px_0_rgba(255,255,255,0.95)]"
                       aria-hidden="true"
                     >
                       <div className="pointer-events-none absolute inset-0 opacity-70 bg-[image:radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.2),transparent_42%),radial-gradient(circle_at_85%_18%,rgba(56,189,248,0.16),transparent_40%)]" />
@@ -981,25 +1023,29 @@ const ProductFetcher: React.FC<Props> = ({
               )}
         </motion.div>
 
-        <div className="mt-4 flex max-w-full items-center justify-center pb-2 sm:pb-3">
-          <div className="flex w-full max-w-[260px] items-center justify-between gap-2 rounded-2xl border border-sky-200/70 bg-gradient-to-r from-white/95 via-sky-50/90 to-cyan-50/85 px-2 py-1.5 shadow-[0_8px_18px_rgba(14,116,144,0.14),0_3px_8px_rgba(30,64,175,0.07)] backdrop-blur-sm sm:w-auto sm:max-w-full sm:justify-center sm:px-1.5 sm:py-1">
+        <div className="mt-5 flex items-center justify-center pb-3 sm:pb-4">
+          <div className="flex items-center gap-2 rounded-2xl border border-sky-200/70 bg-gradient-to-r from-white via-sky-50/70 to-white px-3 py-2 shadow-[0_10px_24px_rgba(8,145,178,0.12),0_2px_8px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm">
+
+            {/* Prev */}
             <button
               type="button"
               onClick={prevPage}
               disabled={page <= 1}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40 sm:h-7 sm:w-7 sm:rounded-lg"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
               aria-label="\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
             >
-              <ChevronLeft size={14} />
+              <ChevronLeft size={15} />
             </button>
 
-            <div className="flex min-w-[92px] items-center justify-center gap-1 rounded-full border border-sky-100 bg-white/85 px-3 py-1 text-xs font-bold text-slate-700 shadow-inner sm:hidden">
-              <span>{page}</span>
-              <span className="text-slate-400">/</span>
-              <span>{totalPages}</span>
+            {/* Mobile: N / total */}
+            <div className="flex min-w-[68px] items-center justify-center gap-1 rounded-xl border border-sky-100/80 bg-white/90 px-3 py-1.5 shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)] sm:hidden">
+              <span className="text-[13px] font-extrabold text-sky-600">{page}</span>
+              <span className="text-[11px] font-semibold text-slate-300">/</span>
+              <span className="text-[13px] font-bold text-slate-400">{totalPages}</span>
             </div>
 
-            <div className="hidden items-center gap-1 px-0.5 sm:flex">
+            {/* Desktop: dots */}
+            <div className="hidden items-center gap-2 px-1 sm:flex">
               {Array.from({ length: totalPages }).map((_, index) => {
                 const dotPage = index + 1;
                 const isActive = dotPage === page;
@@ -1009,30 +1055,32 @@ const ProductFetcher: React.FC<Props> = ({
                     type="button"
                     onClick={() => goToPage(dotPage)}
                     aria-label={`\u0421\u0442\u043e\u0440\u0456\u043d\u043a\u0430 ${dotPage}`}
-                    className={`inline-flex h-6 items-center justify-center rounded-full transition-all duration-200 ${
+                    className={`rounded-full transition-all duration-300 ${
                       isActive
-                        ? "w-6 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-500 shadow-[0_2px_8px_rgba(14,116,144,0.32)]"
-                        : "w-6 bg-slate-300/90 hover:bg-slate-400/90"
+                        ? "h-2.5 w-7 bg-gradient-to-r from-cyan-400 via-sky-500 to-blue-500 shadow-[0_3px_10px_rgba(14,116,144,0.38),0_1px_4px_rgba(8,145,178,0.22)]"
+                        : "h-2.5 w-2.5 bg-sky-200/80 hover:w-4 hover:bg-sky-300/90 hover:shadow-[0_2px_6px_rgba(8,145,178,0.18)]"
                     }`}
                   />
                 );
               })}
             </div>
 
+            {/* Next */}
             <button
               type="button"
               onClick={nextPage}
               disabled={page >= totalPages}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-white/95 text-sky-700 shadow-[0_2px_6px_rgba(14,116,144,0.14)] transition-all duration-150 hover:bg-sky-50 hover:shadow-[0_4px_10px_rgba(14,116,144,0.2)] disabled:opacity-40 sm:h-7 sm:w-7 sm:rounded-lg"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
               aria-label="\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0430 \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
             >
-              <ChevronRight size={14} />
+              <ChevronRight size={15} />
             </button>
 
-            <div className="hidden sm:flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-1.5 py-0 text-[9px] font-semibold text-slate-600 shadow-inner">
-              <span>{page}</span>
-              <span className="text-slate-400">/</span>
-              <span>{totalPages}</span>
+            {/* Desktop: N / total */}
+            <div className="hidden items-center gap-0.5 rounded-lg border border-sky-100/80 bg-white/90 px-2.5 py-1 shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)] sm:flex">
+              <span className="text-[11px] font-extrabold text-sky-600">{page}</span>
+              <span className="mx-0.5 text-[10px] font-semibold text-slate-300">/</span>
+              <span className="text-[11px] font-bold text-slate-400">{totalPages}</span>
             </div>
           </div>
         </div>

@@ -1,9 +1,10 @@
+import { revalidatePath, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 
 import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
-import { clearCatalogImageResultCacheForProduct } from "app/api/catalog-image-batch/route";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
+import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
 import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
 import { clearProductImageCacheForProduct } from "app/lib/product-image";
 
@@ -146,7 +147,12 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "1C returned an error", details: oneCError, status: result.status }, 502);
   }
 
-  let oneCResult: { success?: boolean; found?: boolean; message?: string } = {};
+  let oneCResult: {
+    success?: boolean;
+    found?: boolean;
+    message?: string;
+    photo_result?: { success?: boolean; message?: string };
+  } = {};
   try {
     oneCResult = JSON.parse(result.text) as typeof oneCResult;
   } catch {
@@ -160,11 +166,27 @@ export async function POST(request: NextRequest) {
     }, 422);
   }
 
+  // When image goes through the combined "edit" endpoint, photo result is nested
+  const photoResult = oneCResult.photo_result;
+  if (photoResult && photoResult.success === false) {
+    return json({
+      ok: false,
+      error: photoResult.message || "1C повернула помилку при завантаженні фото",
+    }, 422);
+  }
+
   const article = typeof parsed.article === "string" ? parsed.article.trim() : "";
   clearAllOneCCache();
   clearProductImageCacheForProduct(code);
   clearCatalogImageResultCacheForProduct(code, article || undefined);
   if (article) clearProductImageCacheForProduct(article);
+  try {
+    revalidateTag("product-page-data", "max");
+    revalidatePath("/product/[code]", "page");
+    revalidatePath("/katalog", "page");
+  } catch {
+    // can throw outside of a request context
+  }
 
   return json({
     ok: true,

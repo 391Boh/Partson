@@ -76,7 +76,7 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, onBack, userData }) => {
               <PhoneCall size={14} />
               Зв&apos;язок
             </span>
-            <h3 className="soft-panel-title mt-3">
+            <h3 className="soft-panel-title">
               Зворотний дзвінок
             </h3>
             <p className="soft-panel-subtitle">

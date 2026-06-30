@@ -1,4 +1,4 @@
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 
 import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
@@ -200,6 +200,7 @@ export async function POST(request: NextRequest) {
 
   clearAllOneCCache();
   try {
+    revalidateTag("product-page-data", "max");
     revalidatePath("/product/[code]", "page");
     revalidatePath("/katalog", "page");
   } catch {

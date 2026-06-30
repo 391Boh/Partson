@@ -8,6 +8,8 @@ const homeDescription = appendSeoContact(
   "PartsON - автозапчастини у Львові з онлайн-каталогом, цінами й наявністю. Підбір за VIN, кодом, артикулом і виробником, самовивіз та доставка по Україні."
 );
 
+export const revalidate = 86400;
+
 export const metadata: Metadata = buildPageMetadata({
   title: homeTitle,
   description: homeDescription,

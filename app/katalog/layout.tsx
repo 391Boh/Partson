@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 import { appendSeoContact } from "app/lib/seo-metadata";
@@ -6,6 +6,18 @@ import { appendSeoContact } from "app/lib/seo-metadata";
 const katalogDescription = appendSeoContact(
   "Каталог PartsON: автозапчастини за кодом, артикулом, виробником і категорією, ціни та наявність онлайн. VIN-підбір, самовивіз і доставка по Україні."
 );
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  minimumScale: 1,
+  maximumScale: 5,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0ea5e9" },
+    { media: "(prefers-color-scheme: dark)", color: "#0369a1" },
+  ],
+  colorScheme: "light dark",
+};
 
 export const metadata: Metadata = {
   title: "Каталог автозапчастин",

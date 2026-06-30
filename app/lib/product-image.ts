@@ -513,9 +513,9 @@ const fetchProductImageBase64BatchFromEndpoint = async (
 
   for (const endpoint of endpoints) {
     const requestBodies: Array<Record<string, unknown>> =
-      endpoint === "ПолучитьФотоПакетом" || endpoint === "getimages"
+      endpoint === "ПолучитьФотоПакетом"
         ? [{ codes: lookupKeys }, { Коды: lookupKeys }]
-        : [{ items: requestItems }, { codes: lookupKeys }];
+        : [{ items: requestItems }, { codes: lookupKeys }, { Коды: lookupKeys }];
 
     for (const body of requestBodies) {
       const response = await oneCRequest(endpoint, {
@@ -637,10 +637,14 @@ export const fetchProductImageBase64 = async (
     return inFlight;
   }
 
-  // \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c\u0424\u043e\u0442\u043e\u041f\u0430\u043a\u0435\u0442\u043e\u043c (mapped to getimages) expects {codes:[...]} \u2014 use batch format even for single lookup.
   const queryBodies: Array<Record<string, unknown>> = [
     { codes: [normalized] },
-    { "\u041a\u043e\u0434\u044b": [normalized] }, // \u041a\u043e\u0434\u044b
+    { "\u041a\u043e\u0434\u044b": [normalized] },
+    { code: normalized },
+    { "\u041a\u043e\u0434": normalized },
+    { article: normalized },
+    { "\u0410\u0440\u0442\u0438\u043a\u0443\u043b": normalized },
+    { "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443": normalized },
   ];
 
   const loadFromBody = async (body: Record<string, unknown>) => {

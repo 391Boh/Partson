@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { checkRateLimit, setRateLimitHeaders } from '../../_lib/rateLimit';
 import { isNonEmptyString } from '../../_lib/requestValidation';
+import { getFirebaseAdminDb } from 'app/lib/firebase-admin';
 
 function sha1(str: string) {
   return crypto.createHash('sha1').update(str).digest('base64');
@@ -45,6 +46,15 @@ function decodeData(data: string) {
     return null;
   }
 }
+
+const readString = (value: unknown) =>
+  typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
+
+const getPaymentStatus = (liqpayStatus: string) => {
+  if (liqpayStatus === 'success') return 'paid';
+  if (['failure', 'error', 'reversed'].includes(liqpayStatus)) return 'failed';
+  return 'pending';
+};
 
 export async function POST(req: NextRequest) {
   const rateResult = checkRateLimit({
@@ -97,18 +107,53 @@ export async function POST(req: NextRequest) {
     return invalidData;
   }
 
-  // TODO: update Firestore order to paymentStatus: "paid" when decoded.status === "success".
-  // Requires firebase-admin (not yet installed) to write from a server route.
-  // Also requires a pre-existing Firestore document whose ID is used as the LiqPay
-  // order_id — the current client architecture creates the document after the widget
-  // fires, so the callback may arrive before the document exists.
-  // Until this is wired up, payment confirmation is client-side only (LiqPay widget
-  // callback) and the GA4 purchase event is fired from app/components/zamovl.tsx.
+  const liqpayStatus = readString(decoded.status).toLowerCase();
+  const orderId = readString(decoded.order_id);
+  const transactionId = readString(decoded.transaction_id);
+  const paymentId = readString(decoded.payment_id);
+  const paymentStatus = getPaymentStatus(liqpayStatus);
+
+  if (!orderId) {
+    const invalidOrder = NextResponse.json({ error: 'Callback has no order_id' }, { status: 400 });
+    setRateLimitHeaders(invalidOrder.headers, rateResult);
+    return invalidOrder;
+  }
+
+  try {
+    const adminDb = getFirebaseAdminDb();
+    const now = new Date();
+    await adminDb.collection('orders').doc(orderId).set(
+      {
+        orderId,
+        paymentMethod: 'Картка',
+        paymentProvider: 'liqpay',
+        paymentStatus,
+        liqpayStatus,
+        liqpayTransactionId: transactionId || null,
+        liqpayPaymentId: paymentId || null,
+        liqpayCallbackData: decoded,
+        liqpayCallbackReceivedAt: now,
+        updatedAt: now,
+        ...(paymentStatus === 'paid' ? { paidAt: now } : {}),
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    console.error('Failed to persist LiqPay callback:', error);
+    const failed = NextResponse.json(
+      { error: 'Failed to update order payment status' },
+      { status: 500 }
+    );
+    setRateLimitHeaders(failed.headers, rateResult);
+    return failed;
+  }
+
   const response = NextResponse.json({
     ok: true,
-    status: decoded.status ?? null,
-    orderId: decoded.order_id ?? null,
-    transactionId: decoded.transaction_id ?? null,
+    status: liqpayStatus || null,
+    paymentStatus,
+    orderId,
+    transactionId: transactionId || null,
   });
   setRateLimitHeaders(response.headers, rateResult);
   return response;

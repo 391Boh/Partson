@@ -2,7 +2,7 @@
 
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import type { PersistedCarSelection } from 'app/components/Auto';
@@ -95,11 +95,13 @@ const loadCatalogFirebaseDeps = (() => {
 interface KatalogProps {
   initialPagePayload?: InitialCatalogPagePayload | null;
   initialQuerySignature?: string | null;
+  initialTotalCount?: number | null;
 }
 
 const Katalog: React.FC<KatalogProps> = ({
   initialPagePayload = null,
   initialQuerySignature = null,
+  initialTotalCount = null,
 }) => {
   const [selectedCars, setSelectedCars] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -651,6 +653,20 @@ const Katalog: React.FC<KatalogProps> = ({
       ? filterHeight + FILTER_TOP_GAP + FILTER_RESULTS_GAP
       : FILTER_RESULTS_FALLBACK_OFFSET;
 
+  // When the filter panel collapses, catalogTopOffset decreases and catalog content
+  // shifts up. Compensate the scroll position synchronously before the browser paints
+  // so the user's viewed content stays at the same viewport position.
+  const prevCatalogTopOffsetRef = useRef(catalogTopOffset);
+  useLayoutEffect(() => {
+    const prev = prevCatalogTopOffsetRef.current;
+    prevCatalogTopOffsetRef.current = catalogTopOffset;
+    if (prev === 0) return; // skip initial mount
+    const delta = catalogTopOffset - prev;
+    if (delta < 0 && window.scrollY > 0) {
+      window.scrollBy(0, delta);
+    }
+  }, [catalogTopOffset]);
+
   const fixedFilterLayer = (
     <div
       className="catalog-filter-shell pointer-events-none fixed inset-x-0 z-40"
@@ -681,6 +697,7 @@ const Katalog: React.FC<KatalogProps> = ({
           inStock={inStock}
           initialPagePayload={initialPagePayload}
           initialQuerySignature={initialQuerySignature}
+          initialTotalCount={initialTotalCount}
         />
       </div>
     </section>

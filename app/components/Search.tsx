@@ -10,6 +10,7 @@ import {
   safeSetStorageItem,
 } from "app/lib/safe-storage";
 import { buildProductImagePath } from "app/lib/product-image-path";
+import { buildProductPath } from "app/lib/product-url";
 
 interface SearchBarProps {
   onSearch: (
@@ -427,7 +428,12 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
                 key={product.code}
                 className={`font-ui flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors duration-100 hover:bg-white/[0.06] active:bg-white/[0.09] cursor-pointer sm:gap-3 sm:px-3.5 ${idx < suggestions.length - 1 ? "border-b border-white/[0.06]" : ""}`}
                 onClick={() => {
-                  router.push(`/product/${encodeURIComponent(product.code)}`);
+                  router.push(buildProductPath({
+                    code: product.code,
+                    article: product.article,
+                    name: product.name,
+                    producer: product.producer,
+                  }));
                   setShowDropdown(false);
                   setSearchQuery("");
                   onSearch(product.name, "name");

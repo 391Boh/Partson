@@ -33,6 +33,7 @@ import { getGroupSeoCopy } from "app/lib/seo-copy";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
+import { safeJsonLd } from "app/lib/safe-json-ld";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
@@ -133,7 +134,7 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
 });
 
 const buildGroupTitle = (label: string) =>
-  `${buildVisibleProductName(label)} - каталог автозапчастин`;
+  `${buildVisibleProductName(label)} — купити у Львові`;
 
 const buildGroupDescription = (
   label: string,
@@ -316,9 +317,6 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
       width: 512,
       height: 512,
       alt: `Каталог автозапчастин ${group.label} | PartsON`,
-    },
-    icons: {
-      icon: [{ url: categoryIconPath, type: "image/png" }],
     },
   });
 }
@@ -669,19 +667,19 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(webPageJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(offerCatalogJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(offerCatalogJsonLd) }}
       />
     </main>
   );

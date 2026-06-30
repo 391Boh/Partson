@@ -12,6 +12,7 @@ import {
 } from "./lib/seo-metadata";
 import { getSiteUrl } from "./lib/site-url";
 import { getGoogleRating } from "./lib/google-rating";
+import { safeJsonLd } from "./lib/safe-json-ld";
 import "./globals.css";
 
 const siteUrl = getSiteUrl();
@@ -271,11 +272,7 @@ const localBusinessJsonLd = {
 
 const layoutFallback = <PageLoadingShell label="Завантаження сторінки..." cardsCount={4} />;
 
-export default async function RootLayout({
-  children,
-}: Readonly<{
-  children: ReactNode;
-}>) {
+async function LocalBusinessJsonLdWithRating() {
   const googleRating = await getGoogleRating();
   const localBusinessWithRating = {
     ...localBusinessJsonLd,
@@ -287,7 +284,19 @@ export default async function RootLayout({
       worstRating: "1",
     },
   };
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: safeJsonLd(localBusinessWithRating) }}
+    />
+  );
+}
 
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: ReactNode;
+}>) {
   return (
     <html lang="uk">
       <head>
@@ -308,6 +317,10 @@ export default async function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
+        <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
+        <link rel="preconnect" href="https://lh3.googleusercontent.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://lh3.googleusercontent.com" />
         {googleTagManagerId ? (
           <link rel="preconnect" href="https://www.googletagmanager.com" crossOrigin="anonymous" />
         ) : null}
@@ -345,19 +358,15 @@ export default async function RootLayout({
         ) : null}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(websiteJsonLd) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteNavigationJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(siteNavigationJsonLd) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessWithRating) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(organizationJsonLd) }}
         />
       </head>
       <body>
@@ -380,6 +389,9 @@ export default async function RootLayout({
             </Suspense>
           </ClientWrapper>
         </div>
+        <Suspense>
+          <LocalBusinessJsonLdWithRating />
+        </Suspense>
       </body>
     </html>
   );

@@ -327,7 +327,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                 <ClipboardList size={14} />
                 Замовлення
               </span>
-              <h3 className="soft-panel-title mt-3">Історія замовлень</h3>
+              <h3 className="soft-panel-title">Історія замовлень</h3>
               <p className="soft-panel-subtitle">
                 Перегляд попередніх оформлень, сум, способу доставки та оплати.
               </p>
@@ -595,7 +595,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               <ShoppingCart size={14} />
               Кошик
             </span>
-            <h3 className="soft-panel-title mt-3">Моє замовлення</h3>
+            <h3 className="soft-panel-title">Моє замовлення</h3>
             <p className="soft-panel-subtitle">
               Перевірте товари, суму та перейдіть до оформлення без зайвих кроків.
             </p>

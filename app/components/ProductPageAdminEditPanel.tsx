@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, ChevronDown, ImagePlus, Pencil, Settings2, X } from "lucide-react";
+import { Check, ChevronDown, ImagePlus, Minus, Package, Pencil, Plus, Settings2, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { getFirebaseAuthSnapshot } from "app/lib/firebase-auth-state";
@@ -25,6 +26,8 @@ type Props = {
   group?: string;
   subGroup?: string;
   category?: string;
+  quantity?: number;
+  description?: string;
 };
 
 const fmt = (v: number | null) =>
@@ -98,7 +101,12 @@ export default function ProductPageAdminEditPanel({
   group: initialGroup = "",
   subGroup: initialSubGroup = "",
   category: initialCategory = "",
+  quantity: initialQuantity = 0,
+  description: initialDescription = "",
 }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const refreshPage = () => { router.refresh(); router.push(pathname); };
   const [isAdmin, setIsAdmin] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState<FieldKey | null>(null);
@@ -125,6 +133,20 @@ export default function ProductPageAdminEditPanel({
   const [metaActive, setMetaActive] = useState(-1);
   const metaAbort = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const [quantity, setQuantity] = useState(initialQuantity);
+  const [qtyInput, setQtyInput] = useState("");
+  const [qtySaving, setQtySaving] = useState(false);
+  const [qtyError, setQtyError] = useState<string | null>(null);
+  const [qtySavedType, setQtySavedType] = useState<"receipt" | "sale" | null>(null);
+
+  useEffect(() => { setQuantity(initialQuantity); }, [initialQuantity]);
+
+  const [descVal, setDescVal] = useState(initialDescription);
+  const [descEditing, setDescEditing] = useState(false);
+  const [descSaving, setDescSaving] = useState(false);
+  const [descError, setDescError] = useState<string | null>(null);
+  const [descSaved, setDescSaved] = useState(false);
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -246,10 +268,7 @@ export default function ProductPageAdminEditPanel({
       }));
       setSavedField(field);
       closeEdit();
-      // Full reload bypasses ISR — router.refresh() can still get the cached
-      // ISR version even after revalidatePath. 600ms gives revalidatePath
-      // time to commit before the browser makes a fresh HTTP request.
-      setTimeout(() => window.location.reload(), 600);
+      setTimeout(() => refreshPage(), 400);
     } catch { setError("Помилка мережі"); } finally { setSaving(false); }
   };
 
@@ -298,6 +317,56 @@ export default function ProductPageAdminEditPanel({
       setImageFile(null);
       setImagePreview(null);
     } catch { setImageError("Помилка мережі"); } finally { setImageUploading(false); }
+  };
+
+  const saveDescription = async () => {
+    const token = await getToken();
+    if (!token) { setDescError("Не авторизовано"); return; }
+    setDescSaving(true);
+    setDescError(null);
+    setDescSaved(false);
+    try {
+      const res = await fetch("/api/product-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ Код: code, article: values.article, description: descVal }),
+      });
+      const data = (await res.json()) as { ok: boolean; error?: string };
+      if (!data.ok) { setDescError(data.error ?? "Помилка збереження"); return; }
+      setDescSaved(true);
+      setDescEditing(false);
+      setTimeout(() => setDescSaved(false), 3000);
+      setTimeout(() => refreshPage(), 400);
+    } catch { setDescError("Помилка мережі"); } finally { setDescSaving(false); }
+  };
+
+  const changeQuantity = async (type: "receipt" | "sale") => {
+    const n = Number(qtyInput.replace(",", "."));
+    if (!Number.isFinite(n) || n <= 0) { setQtyError("Введіть число > 0"); return; }
+    const token = await getToken();
+    if (!token) { setQtyError("Не авторизовано"); return; }
+    setQtySaving(true);
+    setQtyError(null);
+    setQtySavedType(null);
+    try {
+      const body: Record<string, unknown> = { Код: code, article: values.article };
+      body[type] = n;
+      const res = await fetch("/api/product-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json()) as { ok: boolean; error?: string; quantity?: number };
+      if (!data.ok) { setQtyError(data.error ?? "Помилка"); return; }
+      const newQty = typeof data.quantity === "number"
+        ? data.quantity
+        : type === "receipt" ? quantity + n : Math.max(0, quantity - n);
+      setQuantity(newQty);
+      setQtyInput("");
+      setQtySavedType(type);
+      setTimeout(() => setQtySavedType(null), 3000);
+      setTimeout(() => refreshPage(), 400);
+    } catch { setQtyError("Помилка мережі"); } finally { setQtySaving(false); }
   };
 
   if (!isAdmin) return null;
@@ -431,6 +500,64 @@ export default function ProductPageAdminEditPanel({
             </div>
           ))}
 
+          {/* Quantity management */}
+          <div className="border-t border-slate-100 px-3 py-2.5">
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <p className="text-[8px] font-black uppercase tracking-[0.12em] text-orange-500">Залишки</p>
+              <span className="flex items-center gap-1 rounded-[6px] border border-orange-200 bg-orange-50 px-1.5 py-0.5">
+                <Package size={9} className="text-orange-500" />
+                <span className="text-[10px] font-bold text-orange-700">{quantity} шт.</span>
+              </span>
+              {qtySavedType && (
+                <span className="inline-flex items-center gap-0.5 rounded-[5px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600">
+                  <Check size={8} />
+                  {qtySavedType === "receipt" ? "+Поступлення" : "−Продаж"}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={qtyInput}
+                onChange={(e) => { setQtyInput(e.target.value); setQtyError(null); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void changeQuantity("receipt");
+                  if (e.key === "Escape") setQtyInput("");
+                }}
+                disabled={qtySaving}
+                placeholder="Кількість"
+                className="w-28 rounded-[8px] border border-slate-200 px-2.5 py-1.5 text-[12px] text-slate-900 outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-200/60 disabled:opacity-60"
+              />
+              <button
+                type="button"
+                onClick={() => void changeQuantity("receipt")}
+                disabled={qtySaving || !qtyInput.trim()}
+                title="Поступлення (додати)"
+                className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-emerald-200 bg-emerald-50 px-2.5 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100 active:scale-95 disabled:opacity-40"
+              >
+                {qtySaving
+                  ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
+                  : <Plus size={11} />}
+                Прихід
+              </button>
+              <button
+                type="button"
+                onClick={() => void changeQuantity("sale")}
+                disabled={qtySaving || !qtyInput.trim()}
+                title="Продаж (відняти)"
+                className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-red-200 bg-red-50 px-2.5 text-[11px] font-bold text-red-600 transition hover:bg-red-100 active:scale-95 disabled:opacity-40"
+              >
+                {qtySaving
+                  ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-red-300 border-t-red-500" />
+                  : <Minus size={11} />}
+                Продаж
+              </button>
+            </div>
+            {qtyError && <p className="mt-1 text-[10px] font-semibold text-red-500">{qtyError}</p>}
+          </div>
+
           {/* Image upload */}
           <div className="border-t border-slate-100 px-3 py-2.5">
             <p className="mb-1.5 text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">Фото</p>
@@ -494,6 +621,66 @@ export default function ProductPageAdminEditPanel({
             )}
             {imageError && !imagePreview && (
               <p className="mt-1 text-[10px] font-semibold text-red-500">{imageError}</p>
+            )}
+          </div>
+
+          {/* Description edit */}
+          <div className="border-t border-slate-100 px-3 py-2.5">
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <p className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">Опис</p>
+              {descSaved && (
+                <span className="inline-flex items-center gap-0.5 rounded-[5px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600">
+                  <Check size={8} /> Збережено
+                </span>
+              )}
+            </div>
+            {descEditing ? (
+              <div className="space-y-1.5">
+                <textarea
+                  value={descVal}
+                  onChange={(e) => setDescVal(e.target.value)}
+                  rows={5}
+                  disabled={descSaving}
+                  className="w-full rounded-[8px] border border-violet-200 px-2.5 py-1.5 text-[12px] text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/60 disabled:opacity-60 resize-none"
+                />
+                {descError && <p className="text-[10px] font-semibold text-red-500">{descError}</p>}
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void saveDescription()}
+                    disabled={descSaving}
+                    className="inline-flex items-center gap-1 rounded-[8px] border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+                  >
+                    {descSaving
+                      ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
+                      : <Check size={10} />}
+                    {descSaving ? "Збереження..." : "Зберегти"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setDescEditing(false); setDescVal(initialDescription); setDescError(null); }}
+                    disabled={descSaving}
+                    className="inline-flex items-center gap-1 rounded-[8px] border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    <X size={10} /> Скасувати
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setDescEditing(true)}
+                onKeyDown={(e) => e.key === "Enter" && setDescEditing(true)}
+                className="group/desc min-h-[36px] cursor-pointer rounded-[8px] border border-dashed border-slate-200 bg-slate-50/40 px-2.5 py-2 transition hover:border-violet-200 hover:bg-violet-50/30"
+              >
+                {descVal ? (
+                  <p className="text-[11px] leading-relaxed text-slate-600 line-clamp-3 whitespace-pre-line">{descVal}</p>
+                ) : (
+                  <p className="text-[11px] italic text-slate-400">Опис відсутній — натисніть для редагування</p>
+                )}
+                <p className="mt-1 text-[9px] text-violet-400 opacity-0 group-hover/desc:opacity-100 transition">Редагувати</p>
+              </div>
             )}
           </div>
         </div>

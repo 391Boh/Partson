@@ -20,6 +20,7 @@ interface ModDetails {
 }
 
 interface AutoFilterCompactProps {
+  variant?: string;
   selectedCars?: string[];
   handleCarChange?: (car: string) => void;
   initialSelection?: PersistedCarSelection | null;

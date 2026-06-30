@@ -1,7 +1,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 
-import { clearAllOneCCache, clearOneCCacheForProduct, oneCRequest } from "app/api/_lib/oneC";
+import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
@@ -162,6 +162,10 @@ export async function POST(request: NextRequest) {
         ? value.catalogNumber.trim()
         : undefined;
 
+  // Read article BEFORE building oneCBody so артикул_ціни reaches the 1C BSL.
+  const article = typeof value.article === "string" ? value.article.trim() : "";
+  const productCode = typeof value.productCode === "string" ? value.productCode.trim() : "";
+
   const producer =
     typeof value["ПроизводительНаименование"] === "string" && value["ПроизводительНаименование"].trim()
       ? value["ПроизводительНаименование"].trim()
@@ -178,6 +182,18 @@ export async function POST(request: NextRequest) {
   const group = readOptionalString("group", "Группа");
   const subGroup = readOptionalString("subGroup", "Подгруппа");
   const category = readOptionalString("category", "Категория");
+  const description = readOptionalString("description", "Описание");
+
+  // Quantity fields: absolute set, receipt (add), sale (subtract)
+  const readQuantity = (key: string) => {
+    const raw = value[key];
+    if (raw === undefined || raw === null || raw === "") return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : undefined;
+  };
+  const quantity = readQuantity("quantity") ?? readQuantity("Кількість");
+  const receipt = readQuantity("receipt") ?? readQuantity("Поступлення");
+  const sale = readQuantity("sale") ?? readQuantity("Реалізація");
 
   const oneCBody: Record<string, unknown> = { Код: code };
   if (priceEuro !== undefined) oneCBody["ЦінаПрод"] = priceEuro;
@@ -189,13 +205,27 @@ export async function POST(request: NextRequest) {
   if (group !== undefined) oneCBody["Группа"] = group.trim();
   if (subGroup !== undefined) oneCBody["Подгруппа"] = subGroup.trim();
   if (category !== undefined) oneCBody["Категория"] = category.trim();
+  if (description !== undefined) oneCBody["Описание"] = description.trim();
   // Only send НомерПоКаталогу when the user explicitly updates it.
   // Sending it for price-only updates causes 1C to try writing it to the Ціна
   // catalog object (which has no such field) and the price update fails.
   if (catalogNumber) oneCBody["НомерПоКаталогу"] = catalogNumber;
+  // артикул_ціни lets the 1C BSL find the Ціна record by article without
+  // triggering the НомерПоКаталогу update branch in ОбновитьТовар.
+  // Must be set BEFORE the request is sent.
+  if (article && (priceEuro !== undefined || costPriceEuro !== undefined)) {
+    oneCBody["артикул_ціни"] = article;
+  }
+  // Always send article for quantity updates so 1C BSL can find the product by ор_НомерПоКаталогу
+  if (article && (quantity !== undefined || receipt !== undefined || sale !== undefined)) {
+    oneCBody["article"] = article;
+  }
+  if (quantity !== undefined) oneCBody["Кількість"] = quantity;
+  if (receipt !== undefined) oneCBody["Поступлення"] = receipt;
+  if (sale !== undefined) oneCBody["Реалізація"] = sale;
 
   if (Object.keys(oneCBody).length === 1) {
-    return json({ ok: false, error: "Provide price, cost price, image, name, catalog number, producer, group, or category" }, 400);
+    return json({ ok: false, error: "Provide price, cost price, image, name, catalog number, producer, group, category, or quantity" }, 400);
   }
 
   const result = await oneCRequest(ONEC_PRODUCT_UPDATE_ENDPOINT, {
@@ -223,14 +253,16 @@ export async function POST(request: NextRequest) {
     found?: boolean;
     updated?: boolean;
     message?: string;
+    error_message?: string;
     Код?: string;
     count?: number;
     items?: unknown[];
     has_more?: boolean;
     next_cursor?: string;
-    product_result?: { success?: boolean; message?: string; Наименование?: string; НомерПоКаталогу?: string };
+    product_result?: { success?: boolean; message?: string; error_message?: string; Наименование?: string; НомерПоКаталогу?: string; ПроизводительНаименование?: string };
     price_result?: { success?: boolean; message?: string; ЦінаПрод?: number | null; ЦінаЗакуп?: number | null; Артикул?: string };
     photo_result?: { success?: boolean; message?: string; file_name?: string };
+    quantity_result?: { success?: boolean; message?: string; Кількість?: number; КількістьДо?: number };
   } = {};
   try {
     parsed = JSON.parse(result.text) as typeof parsed;
@@ -242,7 +274,10 @@ export async function POST(request: NextRequest) {
     return json(
       {
         ok: false,
-        error: parsed.message || (parsed.found === false ? "Товар не знайдено в 1С" : "1C повернула помилку"),
+        error:
+          parsed.message ||
+          parsed.error_message ||
+          (parsed.found === false ? "Товар не знайдено в 1С" : "1C повернула помилку"),
       },
       422
     );
@@ -272,11 +307,13 @@ export async function POST(request: NextRequest) {
   const productOk = !parsed.product_result || parsed.product_result.success !== false;
   const priceOk = !parsed.price_result || parsed.price_result.success !== false;
   const photoOk = !parsed.photo_result || parsed.photo_result.success !== false;
-  if (!productOk || !priceOk || !photoOk) {
+  const quantityOk = !parsed.quantity_result || parsed.quantity_result.success !== false;
+  if (!productOk || !priceOk || !photoOk || !quantityOk) {
     const errors: string[] = [];
     if (!productOk) errors.push(parsed.product_result?.message || "Помилка оновлення реквізитів");
     if (!priceOk) errors.push(parsed.price_result?.message || "Помилка оновлення ціни");
     if (!photoOk) errors.push(parsed.photo_result?.message || "Помилка оновлення фото");
+    if (!quantityOk) errors.push(parsed.quantity_result?.message || "Помилка оновлення кількості");
     return json({ ok: false, error: errors.join("; ") }, 422);
   }
 
@@ -286,17 +323,10 @@ export async function POST(request: NextRequest) {
   // still return stale data even after the product was updated in 1C.
   clearAllOneCCache();
   clearProductImageCacheForProduct(code);
-
-  const article = typeof value.article === "string" ? value.article.trim() : "";
-  const productCode = typeof value.productCode === "string" ? value.productCode.trim() : "";
   if (article) clearProductImageCacheForProduct(article);
   if (productCode) clearProductImageCacheForProduct(productCode);
 
   // Bust ISR page cache so the next render fetches fresh data from 1C.
-  // Use the dynamic segment pattern '/product/[code]' (not a specific code) because
-  // actual product URLs include a SEO slug (e.g. /product/гальмівні-колодки~00-00000056)
-  // that never matches a path containing just the bare product code.
-  // revalidateTag busts any remaining unstable_cache entries for the route resolvers.
   try {
     revalidateTag("product-page-data", "max");
     revalidatePath("/product/[code]", "page");
@@ -331,5 +361,8 @@ export async function POST(request: NextRequest) {
     ...(confirmedCatalogNumber ? { catalogNumber: confirmedCatalogNumber } : {}),
     ...(producer !== undefined ? { producer } : {}),
     ...(image.fileName ? { fileName: image.fileName } : {}),
+    ...(parsed.quantity_result?.Кількість !== undefined
+      ? { quantity: parsed.quantity_result.Кількість, "Кількість": parsed.quantity_result.Кількість }
+      : {}),
   });
 }

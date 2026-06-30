@@ -13,16 +13,21 @@ import {
   buildProductImageBatchKey,
   buildProductImagePath,
 } from "app/lib/product-image-path";
+import {
+  type CatalogImageBatchResult,
+  getCachedCatalogImageResult,
+  writeCatalogImageResultCache,
+} from "app/lib/catalog-image-result-cache";
 
 export const runtime = "nodejs";
 
 const MAX_BATCH_ITEMS = 60;
-const BATCH_CONCURRENCY = 10;
+const BATCH_CONCURRENCY = 20;
 const CATALOG_IMAGE_READY_CACHE_TTL_MS = 1000 * 60 * 60;
 const CATALOG_IMAGE_MISSING_CACHE_TTL_MS = 1000 * 60 * 5;
 
 const PRIMARY_LOOKUP_OPTIONS = {
-  timeoutMs: 680,
+  timeoutMs: 1000,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 60 * 2,
@@ -58,18 +63,6 @@ type CatalogImageBatchItem = {
   hasPhoto?: boolean;
 };
 
-type CatalogImageBatchResult = {
-  key: string;
-  code: string;
-  article?: string;
-  status: "ready" | "missing";
-  src?: string;
-};
-
-const catalogImageResultCache = new Map<
-  string,
-  { expiresAt: number; result: CatalogImageBatchResult }
->();
 let fallbackImageHashPromise: Promise<string | null> | null = null;
 
 const getFallbackImageHash = async () => {
@@ -82,77 +75,6 @@ const getFallbackImageHash = async () => {
     .catch(() => null);
 
   return fallbackImageHashPromise;
-};
-
-const pruneCatalogImageResultCache = () => {
-  const now = Date.now();
-  for (const [key, entry] of catalogImageResultCache.entries()) {
-    if (!entry || entry.expiresAt <= now) {
-      catalogImageResultCache.delete(key);
-    }
-  }
-};
-
-export const clearCatalogImageResultCacheForProduct = (code: string, article?: string) => {
-  const normalized = (code || "").trim().toLowerCase();
-  if (!normalized) return;
-  for (const key of catalogImageResultCache.keys()) {
-    if (key.includes(normalized)) catalogImageResultCache.delete(key);
-  }
-  if (article) {
-    const normalizedArticle = article.trim().toLowerCase();
-    for (const key of catalogImageResultCache.keys()) {
-      if (key.includes(normalizedArticle)) catalogImageResultCache.delete(key);
-    }
-  }
-};
-
-const buildReadyResultCacheKey = (key: string) => `ready:${key}`;
-const buildMissingResultCacheKey = (key: string, deep: boolean) =>
-  `${deep ? "deep" : "fast"}:missing:${key}`;
-
-const getCachedCatalogImageResult = (key: string, deep: boolean) => {
-  pruneCatalogImageResultCache();
-
-  const readyEntry = catalogImageResultCache.get(buildReadyResultCacheKey(key));
-  if (readyEntry && readyEntry.expiresAt > Date.now()) {
-    return { ...readyEntry.result };
-  }
-
-  const missingEntry = catalogImageResultCache.get(
-    buildMissingResultCacheKey(key, deep)
-  );
-  if (missingEntry && missingEntry.expiresAt > Date.now()) {
-    return { ...missingEntry.result };
-  }
-
-  return null;
-};
-
-const writeCatalogImageResultCache = (
-  result: CatalogImageBatchResult,
-  deep: boolean
-) => {
-  if (!result.key) return;
-
-  const isReady = result.status === "ready" && Boolean(result.src);
-  const cacheKey = isReady
-    ? buildReadyResultCacheKey(result.key)
-    : buildMissingResultCacheKey(result.key, deep);
-
-  if (isReady) {
-    catalogImageResultCache.delete(buildMissingResultCacheKey(result.key, true));
-    catalogImageResultCache.delete(buildMissingResultCacheKey(result.key, false));
-  } else {
-    catalogImageResultCache.delete(buildReadyResultCacheKey(result.key));
-  }
-
-  catalogImageResultCache.set(cacheKey, {
-    expiresAt:
-      Date.now() +
-      (isReady ? CATALOG_IMAGE_READY_CACHE_TTL_MS : CATALOG_IMAGE_MISSING_CACHE_TTL_MS),
-    result: { ...result },
-  });
 };
 
 const buildBufferHash = (buffer: Buffer) =>
@@ -360,7 +282,10 @@ export async function POST(request: Request) {
         article: item.article,
         status: "missing",
       };
-      writeCatalogImageResultCache(result, deep);
+      writeCatalogImageResultCache(result, deep, {
+        ready: CATALOG_IMAGE_READY_CACHE_TTL_MS,
+        missing: CATALOG_IMAGE_MISSING_CACHE_TTL_MS,
+      });
       results[index] = result;
       continue;
     }
@@ -379,7 +304,7 @@ export async function POST(request: Request) {
       { items: results.filter((item): item is CatalogImageBatchResult => Boolean(item)) },
       {
         headers: {
-          "cache-control": "private, no-store",
+          "cache-control": "private, max-age=300, stale-while-revalidate=3600",
         },
       }
     );
@@ -462,7 +387,10 @@ export async function POST(request: Request) {
           article: item.article,
           status: "missing",
         };
-        writeCatalogImageResultCache(result, deep);
+        writeCatalogImageResultCache(result, deep, {
+          ready: CATALOG_IMAGE_READY_CACHE_TTL_MS,
+          missing: CATALOG_IMAGE_MISSING_CACHE_TTL_MS,
+        });
         results[index] = result;
         continue;
       }
@@ -475,7 +403,10 @@ export async function POST(request: Request) {
           article: item.article,
           status: "missing",
         };
-        writeCatalogImageResultCache(result, deep);
+        writeCatalogImageResultCache(result, deep, {
+          ready: CATALOG_IMAGE_READY_CACHE_TTL_MS,
+          missing: CATALOG_IMAGE_MISSING_CACHE_TTL_MS,
+        });
         results[index] = result;
         continue;
       }
@@ -487,7 +418,10 @@ export async function POST(request: Request) {
         status: "ready",
         src,
       };
-      writeCatalogImageResultCache(result, deep);
+      writeCatalogImageResultCache(result, deep, {
+        ready: CATALOG_IMAGE_READY_CACHE_TTL_MS,
+        missing: CATALOG_IMAGE_MISSING_CACHE_TTL_MS,
+      });
       results[index] = result;
     }
   });
@@ -498,7 +432,7 @@ export async function POST(request: Request) {
     { items: results.filter((item): item is CatalogImageBatchResult => Boolean(item)) },
     {
       headers: {
-        "cache-control": "private, no-store",
+        "cache-control": "private, max-age=300, stale-while-revalidate=3600",
       },
     }
   );

@@ -7,6 +7,7 @@ import { buildManufacturerPath } from "app/lib/catalog-links";
 import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
+import { safeJsonLd } from "app/lib/safe-json-ld";
 import ManufacturersDirectory from "app/manufacturers/ManufacturersDirectory";
 
 export const revalidate = 21600;
@@ -254,11 +255,11 @@ export default async function ManufacturersPage() {
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(manufacturersStructuredData) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(manufacturersStructuredData) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
     </main>
   );

@@ -125,7 +125,7 @@ function BrandCard({
       onMouseLeave={(event) => event.currentTarget.blur()}
       className="group relative isolate flex h-[250px] w-full flex-col overflow-hidden rounded-[18px] border border-slate-200/90 bg-white/96 px-3.5 py-3.5 text-left shadow-[0_14px_30px_rgba(15,23,42,0.06)] ring-1 ring-white/80 transition-[border-color,box-shadow,transform,background-color] duration-300 ease-out hover:-translate-y-0.5 hover:border-sky-300 hover:bg-white hover:shadow-[0_20px_38px_rgba(14,165,233,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 touch-pan-y sm:h-[264px] sm:px-4"
     >
-      <span className="pointer-events-none absolute inset-x-0 top-0 z-0 h-1 bg-[linear-gradient(90deg,#38bdf8,#14b8a6,#6366f1)] opacity-80" />
+      <span className="pointer-events-none absolute inset-x-0 top-0 z-0 h-1 bg-[linear-gradient(90deg,#38bdf8,#0ea5e9,#3b82f6)] opacity-80" />
       <span className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(180deg,rgba(248,250,252,0.66),rgba(255,255,255,0.94)_42%,rgba(255,255,255,0.98))]" />
 
       <span className="relative z-10 flex min-w-0 items-start gap-3">
@@ -284,10 +284,18 @@ export default function BrandCarousel({
 
   return (
     <section
-      className="home-glow-section home-glow-section-indigo font-ui group/brandcars relative min-h-[320px] w-full select-none overflow-hidden bg-[linear-gradient(180deg,#f8fafc_0%,#eef6fb_48%,#f0fdfa_100%)] pb-6 pt-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(15,23,42,0.06)]"
+      className="home-glow-section home-glow-section-sky font-ui group/brandcars relative min-h-[320px] w-full select-none overflow-hidden bg-[linear-gradient(180deg,#f0f9ff_0%,#e0f2fe_50%,#f0f9ff_100%)] pb-6 pt-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(15,23,42,0.06)] transition-[filter,box-shadow] duration-500 ease-out hover:brightness-[1.03] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.98),inset_0_-1px_0_rgba(15,23,42,0.09),0_8px_32px_rgba(14,165,233,0.10)]"
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
     >
+      {/* top bridge — receives Auto section's sky flow */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[image:linear-gradient(to_bottom,rgba(186,230,253,0.20)_0%,rgba(186,230,253,0.05)_55%,transparent_100%)]" />
+      {/* static depth — light source top-left */}
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_130%_80%_at_-4%_-8%,rgba(186,230,253,0.50)_0%,rgba(186,230,253,0.14)_36%,transparent_58%),radial-gradient(ellipse_80%_65%_at_108%_-5%,rgba(125,211,252,0.22)_0%,rgba(147,197,253,0.06)_40%,transparent_60%),linear-gradient(to_bottom,rgba(255,255,255,0.42)_0%,rgba(255,255,255,0.08)_4%,transparent_12%)]" />
+      {/* hover bloom — vivid sky sweep on hover */}
+      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-[700ms] ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/brandcars:opacity-100 bg-[image:radial-gradient(ellipse_180%_100%_at_-4%_2%,rgba(56,189,248,0.24)_0%,rgba(125,211,252,0.08)_38%,transparent_60%),radial-gradient(ellipse_120%_80%_at_110%_5%,rgba(56,189,248,0.14)_0%,rgba(147,197,253,0.05)_42%,transparent_62%),linear-gradient(to_bottom,rgba(255,255,255,0.10)_0%,transparent_30%)]" />
+      {/* bottom bridge — eases into AdvantagesSection's cyan-50 */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-10 bg-[image:linear-gradient(to_bottom,transparent_0%,rgba(186,230,253,0.14)_100%)]" />
       <motion.div
         className="page-shell-inline relative z-10"
         initial={shouldAnimate ? { opacity: 0, y: 14 } : false}
@@ -295,7 +303,7 @@ export default function BrandCarousel({
         transition={shouldAnimate ? { duration: 0.32, ease: "easeOut" } : undefined}
       >
         <div className="flex flex-col gap-4 group/brands">
-          <div className="flex w-full flex-col gap-3 rounded-[22px] border border-slate-200/85 bg-white/94 p-3.5 shadow-[0_16px_36px_rgba(15,23,42,0.065)] ring-1 ring-white/80 lg:flex-row lg:items-center lg:justify-between lg:p-4">
+          <div className="home-panel-hover home-section-surface flex w-full flex-col gap-3 overflow-hidden rounded-[22px] border border-sky-100/90 bg-[linear-gradient(135deg,rgba(255,255,255,0.97),rgba(239,246,255,0.9),rgba(236,254,255,0.84))] p-3.5 shadow-[0_16px_36px_rgba(15,23,42,0.065)] ring-1 ring-white/80 lg:flex-row lg:items-center lg:justify-between lg:p-4">
             <div className="flex min-w-0 items-center gap-3">
               <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-sky-200/80 bg-sky-50 text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.08)]">
                 <Factory size={18} />

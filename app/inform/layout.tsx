@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
+import { safeJsonLd } from "app/lib/safe-json-ld";
 
 const infoDescription = appendSeoContact(
   "Інформація PartsON: доставка, оплата, контакти, повернення, гарантія, локація магазину та комп'ютерна діагностика авто у Львові."
@@ -63,7 +64,7 @@ export default function InformLayout({ children }: { children: ReactNode }) {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(infoPageJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(infoPageJsonLd) }}
       />
       {children}
     </>

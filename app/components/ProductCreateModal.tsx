@@ -4,6 +4,7 @@ import { Check, ExternalLink, ImagePlus, PackagePlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { clearBrowserCatalogCache } from "app/components/Data";
 import { getFirebaseAuthSnapshot } from "app/lib/firebase-auth-state";
 
 interface Props {
@@ -12,6 +13,23 @@ interface Props {
 }
 
 const MAX_IMAGE_BYTES = 2_500_000;
+
+const compressImageDataUrl = (dataUrl: string, maxPx = 1600, quality = 0.82): Promise<string> =>
+  new Promise((resolve) => {
+    const img = document.createElement("img");
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height, 1));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(dataUrl); return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 
 const EMPTY = {
   name: "",
@@ -117,7 +135,10 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     setImageError(null);
     setImageFile(file);
     const reader = new FileReader();
-    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
+    reader.onload = async (ev) => {
+      const raw = ev.target?.result as string;
+      if (raw) setImagePreview(await compressImageDataUrl(raw));
+    };
     reader.readAsDataURL(file);
     e.target.value = "";
   };
@@ -164,8 +185,41 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       });
       const data = (await res.json()) as { ok: boolean; code?: string; article?: string; name?: string; error?: string };
       if (!data.ok) { setError(data.error ?? "Помилка створення"); return; }
-      setCreatedCode(data.code || "");
-      setCreatedArticle(data.article || data.code || "");
+
+      const code = data.code || "";
+      const article = data.article || data.code || "";
+      setCreatedCode(code);
+      setCreatedArticle(article);
+
+      // Article before ~: getCatalogProduct() searches by НомерПоКаталогу first,
+      // which reliably finds a product just created in 1C. Always include ~ to
+      // force canUseDirectFallbackCode=true on the product page.
+      const primary = article || code;
+      const secondary = code || article;
+      const navParam = primary ? `${primary}~${secondary}` : "";
+
+      // Fire-and-forget price update: 1C create does not write to the Ціна catalog,
+      // so we send a follow-up, but don't block navigation on it.
+      if (data.code && (price !== undefined || cost !== undefined)) {
+        fetch("/api/product-update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            Код: data.code,
+            article: data.article || data.code,
+            ...(price !== undefined ? { ЦінаПрод: price } : {}),
+            ...(cost !== undefined ? { ЦінаЗакуп: cost } : {}),
+          }),
+        }).catch(() => null);
+      }
+
+      if (navParam) {
+        clearBrowserCatalogCache();
+        setTimeout(() => {
+          onClose();
+          router.push(`/product/${encodeURIComponent(navParam)}?_refresh=${Date.now()}`);
+        }, 300);
+      }
     } catch { setError("Помилка мережі"); } finally { setSaving(false); }
   };
 
@@ -214,20 +268,26 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 Код в 1С: <span className="font-mono font-bold text-slate-700">{createdCode}</span>
               </p>
             )}
+            <p className="text-[10px] text-slate-400">Перехід відбудеться автоматично…</p>
             <div className="mt-2 flex gap-2">
-              {createdArticle && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    router.push(`/product/${encodeURIComponent(createdArticle)}`);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-[10px] bg-emerald-600 px-4 py-2 text-[12px] font-bold text-white transition hover:bg-emerald-700"
-                >
-                  <ExternalLink size={13} />
-                  Перейти до товару
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  const primary = createdArticle || createdCode;
+                  const secondary = createdCode || createdArticle;
+                  const navParam = primary ? `${primary}~${secondary}` : "";
+                  onClose();
+                  if (navParam) {
+                    router.push(`/product/${encodeURIComponent(navParam)}?_refresh=${Date.now()}`);
+                  } else {
+                    router.push("/katalog");
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-[10px] bg-emerald-600 px-4 py-2 text-[12px] font-bold text-white transition hover:bg-emerald-700"
+              >
+                <ExternalLink size={13} />
+                Перейти до товару
+              </button>
               <button
                 type="button"
                 onClick={onClose}

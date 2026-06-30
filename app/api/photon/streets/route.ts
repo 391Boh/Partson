@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, setRateLimitHeaders } from 'app/api/_lib/rateLimit';
 
 type PhotonFeature = {
   properties?: {
@@ -11,6 +12,13 @@ type PhotonResponse = {
 };
 
 export async function GET(req: NextRequest) {
+  const rateResult = checkRateLimit({ req, key: 'photon:streets', limit: 30, windowMs: 60_000 });
+  if (!rateResult.ok) {
+    const limited = NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    setRateLimitHeaders(limited.headers, rateResult);
+    return limited;
+  }
+
   const { searchParams } = new URL(req.url);
   const street = searchParams.get('street');
 

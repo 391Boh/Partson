@@ -110,7 +110,7 @@ export default function HomeBelowFoldClient() {
               }
             },
             {
-              rootMargin: "420px 0px",
+              rootMargin: "760px 0px",
             }
           )
         : null;
@@ -123,10 +123,11 @@ export default function HomeBelowFoldClient() {
     let idleId: number | null = null;
 
     if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(markReady, { timeout: 700 });
+      idleId = win.requestIdleCallback(markReady, { timeout: 1800 });
     } else {
-      timeoutId = window.setTimeout(markReady, 700);
+      timeoutId = window.setTimeout(markReady, 1400);
     }
+    const hardTimeoutId = window.setTimeout(markReady, 3200);
 
     return () => {
       cancelled = true;
@@ -137,6 +138,7 @@ export default function HomeBelowFoldClient() {
       if (timeoutId != null) {
         window.clearTimeout(timeoutId);
       }
+      window.clearTimeout(hardTimeoutId);
       if (pendingFrameId != null) {
         window.cancelAnimationFrame(pendingFrameId);
       }

@@ -1,18 +1,23 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight, Sparkles, Wrench } from "lucide-react";
-import HeroAccountClient from "./HeroAccountClient";
+import LazyHeroAccountClient from "./LazyHeroAccountClient";
 
 const depthBackground = [
-  "radial-gradient(circle at 18% 18%, rgba(56,189,248,0.22), transparent 42%)",
-  "radial-gradient(circle at 86% 12%, rgba(59,130,246,0.16), transparent 38%)",
-  "linear-gradient(180deg, rgba(7,15,30,0.98) 0%, rgba(15,23,42,0.95) 38%, rgba(30,64,175,0.2) 100%)",
+  // sky-blue top-left — triple-stop for silky fade
+  "radial-gradient(ellipse 148% 86% at 7% 4%, rgba(56,189,248,0.42) 0%, rgba(56,189,248,0.14) 38%, rgba(56,189,248,0.03) 58%, transparent 72%)",
+  // blue top-right — soft triple-stop
+  "radial-gradient(ellipse 98% 70% at 95% 4%, rgba(37,99,235,0.26) 0%, rgba(37,99,235,0.07) 40%, transparent 66%)",
+  // blue bottom — very gentle lift
+  "radial-gradient(ellipse 135% 60% at 50% 112%, rgba(37,99,235,0.18) 0%, rgba(37,99,235,0.04) 44%, transparent 74%)",
+  // base dark-to-blue — 10 stops, no abrupt jumps
+  "linear-gradient(180deg, rgba(2,6,23,1.00) 0%, rgba(6,13,38,0.98) 10%, rgba(11,21,56,0.95) 20%, rgba(15,29,74,0.91) 30%, rgba(19,38,95,0.84) 40%, rgba(23,48,118,0.74) 50%, rgba(27,59,144,0.60) 60%, rgba(31,70,168,0.44) 70%, rgba(35,80,190,0.30) 82%, rgba(39,90,208,0.22) 100%)",
 ].join(", ");
 
 const cardGradientBase =
   "bg-gradient-to-b from-slate-950/44 via-slate-900/24 to-sky-200/12";
 const cardGradientHover =
-  "motion-safe:hover:bg-white/[0.11]";
+  "motion-safe:hover:bg-white/[0.14] motion-safe:hover:border-sky-300/28";
 const cardInteractionStatic =
   "transition-[box-shadow,background-color,border-color] duration-300 ease-out";
 const heroHeadingText =
@@ -21,23 +26,28 @@ const heroHeadingText =
 const Hero = () => {
   return (
     <section
-      className="home-glow-section home-glow-section-indigo hero-section-smooth group/hero font-ui relative isolate flex min-h-0 w-full select-none items-start overflow-hidden py-4 sm:items-center sm:py-7 lg:py-8"
+      className="home-glow-section home-glow-section-sky hero-section-smooth group/hero font-ui relative isolate flex min-h-0 w-full select-none items-start overflow-hidden py-4 transition-[filter] duration-700 ease-out hover:brightness-[1.04] sm:items-center sm:py-7 lg:py-8"
       style={{
         backgroundImage: depthBackground,
       }}
       >
-      <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_5%,rgba(56,189,248,0.16),transparent_42%),radial-gradient(circle_at_88%_10%,rgba(37,99,235,0.09),transparent_46%),radial-gradient(circle_at_60%_80%,rgba(14,165,233,0.06),transparent_54%)] opacity-60" />
-      <span className="pointer-events-none absolute inset-0 bg-[image:linear-gradient(132deg,rgba(15,23,42,0.14)_0%,rgba(14,165,233,0.08)_28%,rgba(56,189,248,0.07)_58%,rgba(2,6,23,0.08)_100%)] opacity-46" />
+      {/* static ambient glow — soft triple-stop radials */}
+      <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(ellipse_135%_76%_at_12%_2%,rgba(56,189,248,0.34)_0%,rgba(56,189,248,0.08)_42%,transparent_70%),radial-gradient(ellipse_84%_60%_at_88%_5%,rgba(37,99,235,0.20)_0%,rgba(37,99,235,0.04)_44%,transparent_68%),radial-gradient(ellipse_96%_52%_at_56%_90%,rgba(37,99,235,0.14)_0%,rgba(37,99,235,0.02)_46%,transparent_68%)] opacity-100" />
+      <span className="pointer-events-none absolute inset-0 bg-[image:linear-gradient(138deg,rgba(15,23,42,0.06)_0%,rgba(14,165,233,0.10)_20%,rgba(56,189,248,0.10)_44%,rgba(56,189,248,0.07)_64%,rgba(37,99,235,0.08)_82%,rgba(15,23,42,0.04)_100%)] opacity-70" />
+      {/* hover bloom — diffused moonlight from above */}
+      <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-[900ms] ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/hero:opacity-100 bg-[image:radial-gradient(ellipse_240%_120%_at_50%_-12%,rgba(125,211,252,0.16)_0%,rgba(56,189,248,0.06)_38%,transparent_60%),radial-gradient(ellipse_170%_92%_at_6%_4%,rgba(56,189,248,0.18)_0%,rgba(56,189,248,0.04)_44%,transparent_68%),radial-gradient(ellipse_120%_66%_at_94%_5%,rgba(56,189,248,0.10)_0%,rgba(37,99,235,0.02)_42%,transparent_64%),linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.01)_28%,transparent_52%)]" />
+      {/* bottom edge — subtle sky hint, stays dark */}
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-16 bg-[image:linear-gradient(to_bottom,transparent_0%,rgba(56,189,248,0.06)_60%,rgba(56,189,248,0.12)_100%)]" />
       <div className="page-shell-inline">
         <div className="relative grid gap-4 text-slate-100 md:grid-cols-2 lg:grid-cols-3 lg:items-stretch">
           <div className="h-full min-w-0">
             <div
               tabIndex={0}
-              className={`group/intro home-glass-card hero-intro-card relative flex min-h-[214px] h-full cursor-pointer flex-col justify-between gap-3 overflow-hidden rounded-2xl border border-sky-100/18 p-4 shadow-[0_12px_28px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] outline-none ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:shadow-[0_14px_30px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.1)] sm:min-h-[230px] sm:p-4.5 lg:min-h-0`}
+              className={`group/intro home-glass-card hero-intro-card relative flex min-h-[214px] h-full cursor-pointer flex-col justify-between gap-3 overflow-hidden rounded-2xl border border-sky-100/18 p-4 shadow-[0_12px_28px_rgba(2,6,23,0.28),0_4px_12px_rgba(56,189,248,0.18),inset_0_1px_0_rgba(255,255,255,0.10)] outline-none ${cardInteractionStatic} ${cardGradientBase} ${cardGradientHover} bg-white/10 hover:shadow-[0_28px_60px_rgba(14,116,144,0.38),0_12px_30px_rgba(56,189,248,0.44),0_4px_14px_rgba(37,99,235,0.22),inset_0_1px_0_rgba(255,255,255,0.20)] sm:min-h-[230px] sm:p-4.5 lg:min-h-0`}
             >
-              <span className="pointer-events-none absolute inset-0 rounded-2xl border border-sky-200/14" />
-              <div className="pointer-events-none absolute inset-0 opacity-38 transition-opacity duration-700 bg-[image:radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_44%),radial-gradient(circle_at_88%_82%,rgba(37,99,235,0.09),transparent_48%)] group-hover/hero:opacity-44" />
-              <div className="relative z-10 flex items-start gap-3">
+              <span className="pointer-events-none absolute inset-0 rounded-2xl border border-sky-200/14 transition-[border-color] duration-500 group-hover/intro:border-sky-300/36" />
+              <div className="pointer-events-none absolute inset-0 opacity-40 transition-opacity duration-700 bg-[image:radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.26),transparent_44%),radial-gradient(circle_at_88%_82%,rgba(37,99,235,0.18),transparent_48%),radial-gradient(circle_at_50%_110%,rgba(37,99,235,0.12),transparent_50%)] group-hover/intro:opacity-100 group-hover/hero:opacity-75" />
+              <div className="relative z-10 flex items-center gap-3">
                 <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-sky-200/34 bg-sky-100/10 text-sky-100 shadow-[0_0_18px_rgba(56,189,248,0.24)]">
                   <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M3 9l2-5h14l2 5" />
@@ -47,14 +57,14 @@ const Hero = () => {
                   </svg>
                 </span>
                 <div className="relative flex min-w-0 flex-1 flex-col">
-                  <div className="flex w-full items-start">
-                    <h1 className="font-display min-w-0 flex-1 pr-12 text-[15px] font-extrabold italic leading-[1.12] tracking-[0.01em] text-sky-50 min-[380px]:text-[16px] sm:text-[18px] md:text-[19px]">
+                  <div className="flex w-full items-center gap-2">
+                    <h1 className="font-display min-w-0 flex-1 text-[15px] font-extrabold italic leading-[1.12] tracking-[0.01em] text-sky-50 min-[380px]:text-[16px] sm:text-[18px] md:text-[19px]">
                       <span className="block whitespace-nowrap">Інтернет-магазин</span>
                       <span className="block whitespace-nowrap text-sky-100/92">
                         автозапчастин у Львові
                       </span>
                     </h1>
-                    <span className="absolute right-0 top-0 inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200/36 bg-emerald-300/12 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.13em] text-emerald-100 shadow-[0_0_12px_rgba(52,211,153,0.12)] sm:px-2 sm:text-[9px]">
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200/36 bg-emerald-300/12 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.13em] text-emerald-100 shadow-[0_0_12px_rgba(52,211,153,0.12)] sm:px-2 sm:text-[9px]">
                       <Sparkles className="h-3 w-3" strokeWidth={2} aria-hidden="true" />
                       New
                     </span>
@@ -66,7 +76,7 @@ const Hero = () => {
                   className="space-y-2 transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/intro:pointer-events-none group-hover/intro:absolute group-hover/intro:inset-x-0 group-hover/intro:top-0 group-hover/intro:-translate-y-2 group-hover/intro:opacity-0 group-focus-within/intro:pointer-events-none group-focus-within/intro:absolute group-focus-within/intro:inset-x-0 group-focus-within/intro:top-0 group-focus-within/intro:-translate-y-2 group-focus-within/intro:opacity-0"
                 >
                   <p
-                    className={`${heroHeadingText} mt-1 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[18px] leading-tight sm:text-[20px] md:mb-2 md:flex-nowrap md:items-baseline md:text-[22px] lg:text-[24px]`}
+                    className={`${heroHeadingText} mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[18px] leading-tight sm:text-[20px] md:mb-2 md:flex-nowrap md:items-baseline md:text-[22px] lg:text-[24px]`}
                   >
                     <Link
                       href="/"
@@ -112,7 +122,6 @@ const Hero = () => {
                   alt="PartsOn Logo"
                   width={98}
                   height={49}
-                  priority
                   className="relative z-[2] h-auto w-[72px] object-contain drop-shadow-[0_10px_20px_rgba(15,23,42,0.18)] transition-transform duration-500 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:transform-gpu md:w-[108px] motion-safe:group-hover/logo:-translate-y-0.5 motion-safe:group-hover/logo:scale-[1.04]"
                   sizes="(min-width: 768px) 108px, 72px"
                 />
@@ -120,14 +129,14 @@ const Hero = () => {
                   Оновити сторінку
                 </span>
               </Link>
-              <HeroAccountClient
+              <LazyHeroAccountClient
                 cardGradientBase={cardGradientBase}
                 cardGradientHover={cardGradientHover}
                 cardInteractionStatic={cardInteractionStatic}
               />
             </div>
           </div>
-          <HeroAccountClient
+          <LazyHeroAccountClient
             cardGradientBase={cardGradientBase}
             cardGradientHover={cardGradientHover}
             cardInteractionStatic={cardInteractionStatic}

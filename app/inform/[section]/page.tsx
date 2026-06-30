@@ -9,12 +9,16 @@ import {
   type InformationSectionKey,
 } from "../section-config";
 import { getSiteUrl } from "app/lib/site-url";
+import { safeJsonLd } from "app/lib/safe-json-ld";
 
 interface InformationSectionPageProps {
   params: Promise<{
     section: string;
   }>;
 }
+
+export const revalidate = 86400;
+export const dynamicParams = false;
 
 export function generateStaticParams() {
   return informationSections.map((section) => ({ section: section.key }));
@@ -426,25 +430,25 @@ export default async function InformationSectionPage({
       {genericInformationSchema ? (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(genericInformationSchema) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(genericInformationSchema) }}
         />
       ) : null}
       {deliverySchema ? (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(deliverySchema) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(deliverySchema) }}
         />
       ) : null}
       {aboutSchema ? (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutSchema) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(aboutSchema) }}
         />
       ) : null}
       {diagnosticsSchema ? (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(diagnosticsSchema) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(diagnosticsSchema) }}
         />
       ) : null}
       <InformationPageClient

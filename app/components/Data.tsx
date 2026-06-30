@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useCallback,
   useRef,
+  startTransition,
 } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
@@ -35,6 +36,7 @@ interface DataProps {
   inStock?: boolean;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
+  initialTotalCount?: number | null;
 }
 
 export interface Product {
@@ -73,10 +75,10 @@ const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60 * 4;
 const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
 const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
-const BACKGROUND_PAGE_PREFETCH_DEPTH = 2;
-const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 0;
-const IMAGE_PRIORITY_ITEMS_COUNT = 8;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
+const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 80;
+const IMAGE_PRIORITY_ITEMS_COUNT = 16;
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 45;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
@@ -990,6 +992,20 @@ const prunePageSessionCache = (activeKey?: string) => {
   writeSessionCacheIndex(kept.slice(0, PAGE_SESSION_CACHE_MAX_ENTRIES));
 };
 
+// Clears the browser-side catalog page caches (in-memory + sessionStorage).
+// Call this before router.refresh() after admin edits so Data.tsx re-fetches
+// fresh data instead of serving stale cache entries.
+export const clearBrowserCatalogCache = () => {
+  pageCache.clear();
+  if (typeof window === "undefined") return;
+  try {
+    for (const key of listSessionPageCacheKeys()) {
+      window.sessionStorage.removeItem(key);
+    }
+    window.sessionStorage.removeItem(PAGE_SESSION_CACHE_INDEX_KEY);
+  } catch {}
+};
+
 const readPageFromSession = (key: string): CatalogPagePayload | null => {
   if (typeof window === "undefined") return null;
   try {
@@ -1122,6 +1138,7 @@ function useCatalogData(params: {
   includeCostPrices?: boolean;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
+  initialTotalCount?: number | null;
 }) {
   const {
     selectedCars,
@@ -1140,6 +1157,7 @@ function useCatalogData(params: {
     includeCostPrices = false,
     initialPagePayload,
     initialQuerySignature,
+    initialTotalCount = null,
   } = params;
 
   const { addToCart, cartItems, removeFromCart } = useCart();
@@ -1174,7 +1192,27 @@ function useCatalogData(params: {
   const [filterLoading, setFilterLoading] = useState(false);
   const [isLoadingNextPage, setIsLoadingNextPage] = useState(false);
   const [firstPageResolvedItemCount, setFirstPageResolvedItemCount] = useState(0);
-  const [catalogTotalCount, setCatalogTotalCount] = useState<number | null>(null);
+  const [catalogTotalCount, setCatalogTotalCount] = useState<number | null>(
+    typeof initialTotalCount === "number" && initialTotalCount > 0 ? initialTotalCount : null
+  );
+  // Determines the display total from a first-page payload.
+  // 1C returns count=items.length (page count, not grand total), so we can't
+  // naively use it. Rules: no more pages → exact count; server has a real total
+  // (> page size) → use it; otherwise fall back to the SSR snapshot total.
+  const resolveFirstPageTotal = useCallback(
+    (items: Product[], cachedTotal: number | null | undefined, hasMore: boolean | undefined): number | null => {
+      const pageHasMore =
+        typeof hasMore === "boolean" ? hasMore : items.length >= ITEMS_PER_PAGE;
+      if (!pageHasMore) return items.length;
+      if (
+        typeof cachedTotal === "number" &&
+        Number.isFinite(cachedTotal) &&
+        cachedTotal > items.length
+      ) return cachedTotal;
+      return initialTotalCount ?? null;
+    },
+    [initialTotalCount]
+  );
   const isRefetching = loading && page === 1;
   const querySignature = useMemo(
     () =>
@@ -1224,12 +1262,12 @@ function useCatalogData(params: {
   const pageImagePendingRef = useRef<Record<string, true>>({});
   const pageImageMissingRef = useRef<Record<string, true>>({});
   const imageBatchAttemptKeysRef = useRef<Set<string>>(new Set());
-  const imageWarmupKeysRef = useRef<Set<string>>(new Set());
   const priceLoadingKeysRef = useRef<Set<string>>(new Set());
   const priceRetryCooldownUntilRef = useRef<Record<string, number>>({});
   const nextPageLoaderShownAtRef = useRef(0);
   const nextPageLoaderHideTimerRef = useRef<number | null>(null);
   const lastNextPageRequestAtRef = useRef(0);
+  const prefetchNextPageTriggerRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     dataRef.current = data;
@@ -1870,56 +1908,6 @@ function useCatalogData(params: {
         });
       }
 
-      const warmImageRoute = (item: Product, srcOverride?: string) => {
-        if (options?.signal?.aborted) return;
-        if (item.hasPhoto === false) return;
-
-        const key = buildProductImageBatchKey(item.code, item.article);
-        if (!key) return;
-        if (pageImageMissingRef.current[key]) return;
-        if (imageWarmupKeysRef.current.has(key)) return;
-
-        const src =
-          srcOverride ||
-          options?.prefetchedImages?.[key] ||
-          pageImagesRef.current[key] ||
-          buildProductImagePath(item.code, item.article, { catalog: true });
-        if (!src) return;
-
-        imageWarmupKeysRef.current.add(key);
-        const img = new window.Image();
-        img.decoding = "async";
-        if ("fetchPriority" in img) {
-          (img as HTMLImageElement & { fetchPriority?: "high" | "low" | "auto" }).fetchPriority =
-            "low";
-        }
-        img.onload = () => {
-          if (options?.signal?.aborted) return;
-          pageImagesRef.current = pageImagesRef.current[key]
-            ? pageImagesRef.current
-            : { ...pageImagesRef.current, [key]: src };
-          setPageImages((prev) => (prev[key] ? prev : { ...prev, [key]: src }));
-        };
-        img.onerror = () => {
-          imageWarmupKeysRef.current.delete(key);
-        };
-        img.src = src;
-      };
-
-      for (const item of warmupItems) {
-        const key = buildProductImageBatchKey(item.code, item.article);
-        if (!key) continue;
-        const src = prefetchedImageEntries[key] || pageImagesRef.current[key];
-        if (src) warmImageRoute(item, src);
-      }
-
-      // Pre-warm only items explicitly flagged as having a photo so we don't
-      // waste the browser's 6 concurrent connections on items with no image.
-      // Items with unknown hasPhoto will be warmed after the batch API responds.
-      for (const item of requestItems) {
-        if (item.hasPhoto === true) warmImageRoute(item);
-      }
-
       if (requestItems.length === 0) return;
 
       const pendingKeys = requestItems
@@ -1954,15 +1942,17 @@ function useCatalogData(params: {
           delete pageImagePendingRef.current[key];
         }
 
-        setPageImagePending((prev) => {
-          let didChange = false;
-          const next = { ...prev };
-          for (const key of pendingKeys) {
-            if (!next[key]) continue;
-            delete next[key];
-            didChange = true;
-          }
-          return didChange ? next : prev;
+        startTransition(() => {
+          setPageImagePending((prev) => {
+            let didChange = false;
+            const next = { ...prev };
+            for (const key of pendingKeys) {
+              if (!next[key]) continue;
+              delete next[key];
+              didChange = true;
+            }
+            return didChange ? next : prev;
+          });
         });
       };
 
@@ -1972,33 +1962,75 @@ function useCatalogData(params: {
         const validEntries = readyEntries.filter((item) => item.src);
         if (validEntries.length === 0) return;
 
-        setPageImages((prev) => {
-          let didChange = false;
-          const next = { ...prev };
-          for (const item of validEntries) {
-            if (!item.src || next[item.key]) continue;
-            next[item.key] = item.src;
-            didChange = true;
-          }
-          if (didChange) {
-            pageImagesRef.current = next;
-          }
-          return didChange ? next : prev;
-        });
-
-        pageImageMissingRef.current = { ...pageImageMissingRef.current };
+        // Update refs synchronously so deduplication logic sees current state immediately.
         for (const item of validEntries) {
+          if (item.src) pageImagesRef.current[item.key] = item.src;
           delete pageImageMissingRef.current[item.key];
         }
-        setPageImageMissing((prev) => {
-          let didChange = false;
-          const next = { ...prev };
-          for (const item of validEntries) {
-            if (!next[item.key]) continue;
-            delete next[item.key];
-            didChange = true;
-          }
-          return didChange ? next : prev;
+
+        // Defer React state updates so image arrivals don't interrupt active scrolling.
+        startTransition(() => {
+          setPageImages((prev) => {
+            let didChange = false;
+            const next = { ...prev };
+            for (const item of validEntries) {
+              if (!item.src || next[item.key]) continue;
+              next[item.key] = item.src;
+              didChange = true;
+            }
+            return didChange ? next : prev;
+          });
+
+          setPageImageMissing((prev) => {
+            let didChange = false;
+            const next = { ...prev };
+            for (const item of validEntries) {
+              if (!next[item.key]) continue;
+              delete next[item.key];
+              didChange = true;
+            }
+            return didChange ? next : prev;
+          });
+        });
+      };
+
+      const applyMissingImageEntries = (
+        missingEntries: Array<{ key: string; status: "ready" | "missing" }>
+      ) => {
+        const validEntries = missingEntries.filter((item) => item.status === "missing");
+        if (validEntries.length === 0) return;
+
+        // Update refs synchronously for deduplication.
+        for (const item of validEntries) {
+          pageImageMissingRef.current[item.key] = true;
+          delete pageImageMissingRef.current[item.key];
+        }
+
+        startTransition(() => {
+          setPageImageMissing((prev) => {
+            let didChange = false;
+            const next = { ...prev };
+            for (const item of validEntries) {
+              if (next[item.key]) continue;
+              next[item.key] = true;
+              didChange = true;
+            }
+            return didChange ? next : prev;
+          });
+
+          setPageImages((prev) => {
+            let didChange = false;
+            const next = { ...prev };
+            for (const item of validEntries) {
+              if (!next[item.key]) continue;
+              delete next[item.key];
+              didChange = true;
+            }
+            if (didChange) {
+              pageImagesRef.current = { ...next };
+            }
+            return didChange ? next : prev;
+          });
         });
       };
 
@@ -2037,42 +2069,15 @@ function useCatalogData(params: {
                   (item) => item.status === "ready" && item.src
                 );
                 applyReadyImageEntries(deepReadyEntries);
-
-                const deepReadyByKey = new Map(
-                  deepReadyEntries.map((item) => [item.key, item.src as string])
-                );
-                for (const item of recoveryItems) {
-                  const key = buildProductImageBatchKey(item.code, item.article);
-                  if (!key) continue;
-                  const src = deepReadyByKey.get(key);
-                  if (!src) continue;
-                  warmImageRoute(item, src);
-                }
+                applyMissingImageEntries(deepResults);
               })
               .catch((error) => {
                 if (isAbortLikeError(error)) return;
-                for (const item of recoveryItems.slice(0, IMAGE_PRIORITY_ITEMS_COUNT)) {
-                  warmImageRoute(item);
-                }
               });
-          }
-
-          const readyByKey = new Map(
-            readyEntries.map((item) => [item.key, item.src as string])
-          );
-          for (const item of requestItems) {
-            const key = buildProductImageBatchKey(item.code, item.article);
-            if (!key) continue;
-            const src = readyByKey.get(key);
-            if (!src) continue;
-            warmImageRoute(item, src);
           }
         })
         .catch((error) => {
           if (isAbortLikeError(error)) return;
-          for (const item of requestItems.slice(0, IMAGE_PRIORITY_ITEMS_COUNT)) {
-            warmImageRoute(item);
-          }
         })
         .finally(() => {
           clearPendingKeys();
@@ -2215,7 +2220,20 @@ function useCatalogData(params: {
       );
       const existing = inFlightPageRequests.get(cacheKey);
       if (existing) {
-        return await awaitWithAbortSignal(existing, signal);
+        try {
+          return await awaitWithAbortSignal(existing, signal);
+        } catch (err) {
+          // If OUR signal was aborted, propagate cleanly.
+          if (signal?.aborted) throw createAbortError();
+          // The shared in-flight request was externally aborted (e.g. background
+          // prefetch cancelled when the user triggered "load more"). Remove the stale
+          // entry and fall through to make a fresh request below.
+          if (isAbortLikeError(err)) {
+            inFlightPageRequests.delete(cacheKey);
+          } else {
+            throw err;
+          }
+        }
       }
 
       const requestPromise: Promise<CatalogPagePayload> = (async () => {
@@ -2435,7 +2453,7 @@ function useCatalogData(params: {
         dataRef.current = nextItems;
         setData(nextItems);
         setFirstPageResolvedItemCount(memoryHit.items.length);
-        setCatalogTotalCount(memoryHit.totalCount ?? null);
+        setCatalogTotalCount(resolveFirstPageTotal(memoryHit.items, memoryHit.totalCount, memoryHit.hasMore));
         nextCursorByPageRef.current[2] = memoryHit.nextCursor || "";
         nextCursorFieldByPageRef.current[2] = memoryHit.cursorField || "";
         setHasMore(
@@ -2482,7 +2500,7 @@ function useCatalogData(params: {
         dataRef.current = nextItems;
         setData(nextItems);
         setFirstPageResolvedItemCount(sessionHit.items.length);
-        setCatalogTotalCount(sessionHit.totalCount ?? null);
+        setCatalogTotalCount(resolveFirstPageTotal(sessionHit.items, sessionHit.totalCount, sessionHit.hasMore));
         nextCursorByPageRef.current[2] = sessionHit.nextCursor || "";
         nextCursorFieldByPageRef.current[2] = sessionHit.cursorField || "";
         setHasMore(
@@ -2511,7 +2529,7 @@ function useCatalogData(params: {
       // No immediate cache hit for this filter/query, so clear stale products first.
       dataRef.current = [];
       setData([]);
-      setCatalogTotalCount(null);
+      setCatalogTotalCount(initialTotalCount ?? null);
       setLoading(true);
       setFilterLoading(true);
       return;
@@ -2519,10 +2537,11 @@ function useCatalogData(params: {
 
     dataRef.current = [];
     setData([]);
-    setCatalogTotalCount(null);
+    setCatalogTotalCount(initialTotalCount ?? null);
     setLoading(true);
     setFilterLoading(true);
     // Без cache показуємо чистий стан, щоб не змішувати товари старого та нового фільтра.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     applyResolvedPagePrices,
     fetchCatalogPagePrices,
@@ -2626,11 +2645,7 @@ function useCatalogData(params: {
       setData(nextData);
       if (page === 1) {
         setFirstPageResolvedItemCount(items.length);
-        setCatalogTotalCount(
-          typeof payload.totalCount === "number" && Number.isFinite(payload.totalCount)
-            ? payload.totalCount
-            : null
-        );
+        setCatalogTotalCount(resolveFirstPageTotal(items, payload.totalCount, payload.hasMore));
       }
       if (payload.nextCursor) {
         nextCursorByPageRef.current[page + 1] = payload.nextCursor;
@@ -2680,9 +2695,10 @@ function useCatalogData(params: {
         cursorDuplicateStreakRef.current = 0;
       }
 
-      // Some backend pages can overlap; stop only after a long duplicate streak.
+      // Without a cursor there is no way to advance past duplicate pages — stop immediately.
+      // With a cursor tolerate a short streak in case 1C returns occasional overlaps.
       const shouldStopPaginationOnDuplicatePage =
-        (!isCursorlessSortedMode && !payload.nextCursor && duplicatePageStreakRef.current >= 6) ||
+        (!isCursorlessSortedMode && !payload.nextCursor && duplicatePageStreakRef.current >= 1) ||
         cursorDuplicateStreakRef.current >= 3;
 
       setHasMore(
@@ -2862,6 +2878,7 @@ function useCatalogData(params: {
       }
       cancelPageWarmup();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     page,
     querySignature,
@@ -2992,12 +3009,16 @@ function useCatalogData(params: {
       }
     };
 
-    const timerId = window.setTimeout(() => {
+    prefetchNextPageTriggerRef.current = () =>
       void prefetchUpcomingPages().catch(swallowAbortError);
+
+    const timerId = window.setTimeout(() => {
+      prefetchNextPageTriggerRef.current?.();
     }, BACKGROUND_PAGE_PREFETCH_DELAY_MS);
 
     return () => {
       cancelled = true;
+      prefetchNextPageTriggerRef.current = null;
       window.clearTimeout(timerId);
       abortControllerSafely(controller);
     };
@@ -3416,7 +3437,7 @@ function useCatalogData(params: {
   );
 
   const updateCatalogItemFields = useCallback(
-    (code: string, fields: { name?: string; article?: string; group?: string; subGroup?: string; category?: string; producer?: string }) => {
+    (code: string, fields: { name?: string; article?: string; group?: string; subGroup?: string; category?: string; producer?: string; quantity?: number }) => {
       if (!code || !Object.keys(fields).length) return;
       setData((prev) =>
         prev.map((item) =>
@@ -3449,6 +3470,7 @@ function useCatalogData(params: {
     handleImageOpen,
     handleImageClose,
     loadNextPage,
+    prefetchNextPageTriggerRef,
     prefetchVisibleCatalogPrices,
     prefetchVisibleCatalogImages,
     isLoadingNextPage,
@@ -3557,6 +3579,7 @@ const Data: React.FC<DataProps> = ({
     handleImageOpen,
     handleImageClose,
     loadNextPage,
+    prefetchNextPageTriggerRef,
     prefetchVisibleCatalogPrices,
     prefetchVisibleCatalogImages,
     isLoadingNextPage,
@@ -3589,12 +3612,28 @@ const Data: React.FC<DataProps> = ({
 
   const router = useRouter();
 
+  const loadMoreButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const button = loadMoreButtonRef.current;
+    if (!button || !hasMore || loading) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          prefetchNextPageTriggerRef.current?.();
+        }
+      },
+      { rootMargin: "300px" }
+    );
+    observer.observe(button);
+    return () => observer.disconnect();
+  }, [hasMore, loading, prefetchNextPageTriggerRef]);
+
   const handleAdminEdit = useCallback(
     async (
       code: string,
       article: string,
-      data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string; producer?: string; group?: string; subGroup?: string; category?: string }
-    ): Promise<{ ok: boolean; error?: string }> => {
+      data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string; producer?: string; group?: string; subGroup?: string; category?: string; receipt?: number; sale?: number }
+    ): Promise<{ ok: boolean; error?: string; quantity?: number }> => {
       const token = await getAdminToken();
       if (!token) return { ok: false, error: "Не авторизовано" };
 
@@ -3615,6 +3654,7 @@ const Data: React.FC<DataProps> = ({
         ЦінаЗакуп?: number;
         name?: string;
         catalogNumber?: string;
+        quantity?: number;
       };
       const normalizeAdminResult = (payload: AdminMutationResult): AdminMutationResult => ({
         ...payload,
@@ -3648,7 +3688,9 @@ const Data: React.FC<DataProps> = ({
         data.producer !== undefined ||
         data.group !== undefined ||
         data.subGroup !== undefined ||
-        data.category !== undefined
+        data.category !== undefined ||
+        data.receipt !== undefined ||
+        data.sale !== undefined
       ) {
         // article (НомерПоКаталогу) is required by ОбновитьТовар for product lookup.
         // Send Код (internal code) + article (current catalog number) on every request.
@@ -3666,6 +3708,8 @@ const Data: React.FC<DataProps> = ({
         if (data.group !== undefined) productUpdateBody.group = data.group;
         if (data.subGroup !== undefined) productUpdateBody.subGroup = data.subGroup;
         if (data.category !== undefined) productUpdateBody.category = data.category;
+        if (data.receipt !== undefined) productUpdateBody.receipt = data.receipt;
+        if (data.sale !== undefined) productUpdateBody.sale = data.sale;
         tasks.push(
           fetch("/api/product-update", {
             method: "POST",
@@ -3718,14 +3762,20 @@ const Data: React.FC<DataProps> = ({
         if (Object.keys(fieldsToUpdate).length) {
           updateCatalogItemFields(code, fieldsToUpdate);
         }
-        // Small delay so the server finishes committing pendingRevalidatedTags
-        // before the RSC re-fetch arrives — avoids a race with revalidateTag.
-        setTimeout(() => router.refresh(), 300);
+        const qtyResult = results.find((r) => r.ok && r.quantity !== undefined);
+        if (qtyResult?.quantity !== undefined) {
+          updateCatalogItemFields(code, { quantity: qtyResult.quantity });
+        }
+        // Clear browser page cache so the next filter/scroll fetch hits 1C fresh.
+        // router.refresh() is intentionally NOT called: it would trigger a slow
+        // catalog re-fetch (empty cache → full 1C round-trip) and overwrite the
+        // optimistic update that is already visible via updateCatalogItemFields above.
+        clearBrowserCatalogCache();
       }
 
-      return failed ?? { ok: true };
+      return failed ?? { ok: true, quantity: results.find((r) => r.ok && r.quantity !== undefined)?.quantity };
     },
-    [getAdminToken, updateCatalogItemPrice, updateCatalogItemFields, router]
+    [getAdminToken, updateCatalogItemPrice, updateCatalogItemFields]
   );
 
   // Зберігає оригінальний запит до будь-яких редіректів (для опису потрібен оригінал)
@@ -3875,6 +3925,7 @@ const Data: React.FC<DataProps> = ({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const isDataLoading = loading || filterLoading;
     const totalCountForCurrentFilter =
       typeof catalogTotalCount === "number" && Number.isFinite(catalogTotalCount)
         ? catalogTotalCount
@@ -3890,15 +3941,15 @@ const Data: React.FC<DataProps> = ({
     win.__partsonCatalogTotalCount = totalCountForCurrentFilter;
     window.dispatchEvent(
       new CustomEvent("partson:catalog-visible-count", {
-        detail: { count: visibleSortedData.length, signature: filterSignature },
+        detail: { count: visibleSortedData.length, signature: filterSignature, loading: isDataLoading },
       })
     );
     window.dispatchEvent(
       new CustomEvent("partson:catalog-filter-total-count", {
-        detail: { count: totalCountForCurrentFilter, signature: filterSignature },
+        detail: { count: totalCountForCurrentFilter, signature: filterSignature, loading: isDataLoading },
       })
     );
-  }, [catalogTotalCount, filterSignature, visibleSortedData.length]);
+  }, [catalogTotalCount, filterSignature, visibleSortedData.length, loading, filterLoading]);
 
   const visibleSortedEntries = useMemo(() => {
     if (visibleSortedData === sortedData) {
@@ -4289,6 +4340,7 @@ const Data: React.FC<DataProps> = ({
           <div className="text-center text-red-500 mb-4">{error}</div>
         )}
 
+
         {shouldShowCatalogGrid && (
           <div className="relative">
             <div
@@ -4450,6 +4502,7 @@ const Data: React.FC<DataProps> = ({
         {!shouldShowInitialSkeleton && hasMore && visibleSortedData.length > 0 && (
           <div className="col-span-full flex w-full justify-center pt-3" aria-live="polite">
             <button
+              ref={loadMoreButtonRef}
               type="button"
               onClick={loadNextPage}
               disabled={loading || isLoadingNextPage}

@@ -119,16 +119,16 @@ const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
   cacheTtlMs: 1000 * 60 * 10,
 };
 const OPTIMIZED_IMAGE_CACHE_TTL_MS = 1000 * 60 * 60;
-const ROUTE_IMAGE_HIT_CACHE_TTL_MS = 1000 * 60 * 12;
+const ROUTE_IMAGE_HIT_CACHE_TTL_MS = 1000 * 60 * 45;
 const ROUTE_IMAGE_HIT_CACHE_TTL_MS_FULL = 1000 * 60 * 30;
 const FULL_ROUTE_MISS_CACHE_TTL_MS = 1000 * 60;
 const FULL_ROUTE_LOOKUP_BUDGET_MS = 2400;
-const CATALOG_IMAGE_MAX_WIDTH = 320;
-const CATALOG_IMAGE_MAX_HEIGHT = 320;
-const CATALOG_IMAGE_QUALITY = 58;
-const FULL_IMAGE_MAX_WIDTH = 1120;
-const FULL_IMAGE_MAX_HEIGHT = 1120;
-const FULL_IMAGE_QUALITY = 70;
+const CATALOG_IMAGE_MAX_WIDTH = 384;
+const CATALOG_IMAGE_MAX_HEIGHT = 384;
+const CATALOG_IMAGE_QUALITY = 68;
+const FULL_IMAGE_MAX_WIDTH = 1400;
+const FULL_IMAGE_MAX_HEIGHT = 1400;
+const FULL_IMAGE_QUALITY = 82;
 const CATALOG_WEBP_PASSTHROUGH_MAX_BYTES = 120 * 1024;
 const CATALOG_ROUTE_MISS_CACHE_TTL_MS = 1000 * 120;
 const CATALOG_ROUTE_RETRY_MISS_CACHE_TTL_MS = 1000 * 180;
@@ -428,7 +428,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     Math.max(0, Number(requestUrl.searchParams.get("retry") || "0") || 0)
   );
   const catalogMissCacheControl =
-    "public, max-age=60, s-maxage=60, stale-while-revalidate=300";
+    "public, max-age=300, s-maxage=300, stale-while-revalidate=7200";
   const articleHint = safeDecode(requestUrl.searchParams.get("article") || "").trim();
   const allowDeepCatalogRecovery = catalogMode && (retryAttempt > 0 || !articleHint);
   const acceptsAvif = (request.headers.get("accept") || "").includes("image/avif");

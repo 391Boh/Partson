@@ -8,6 +8,7 @@ import { catalogPageBackgroundClass } from "app/components/catalog-directory-sty
 import { carBrands } from "app/components/carBrands";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
+import { safeJsonLd } from "app/lib/safe-json-ld";
 
 export const revalidate = 21600;
 
@@ -104,12 +105,12 @@ export default function AutoPage() {
       <Script
         id="auto-page-jsonld"
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <Script
         id="auto-page-breadcrumb-jsonld"
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
 
       <section className="page-shell-inline catalog-hub-stage">

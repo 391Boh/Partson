@@ -150,6 +150,7 @@ const ALLGOODS_CURSOR_FIELD = "\u041f\u043e\u0441\u043b\u0435\u041a\u043e\u0434\
 const ALLGOODS_NAME_FIELD = "\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435";
 const ALLGOODS_CODE_FIELD = "\u041a\u043e\u0434";
 const ALLGOODS_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443";
+const ALLGOODS_ARTICLE_ALT_FIELD = "\u0410\u0440\u0442\u0438\u043a\u0443\u043b"; // \u0410\u0440\u0442\u0438\u043a\u0443\u043b
 const ALLGOODS_PRODUCER_FIELD = "\u041f\u0440\u043e\u0438\u0437\u0432\u043e\u0434\u0438\u0442\u0435\u043b\u044c\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435";
 const ALLGOODS_GROUP_FIELD = "\u0413\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SUBGROUP_FIELD = "\u041f\u043e\u0434\u0433\u0440\u0443\u043f\u043f\u0430";
@@ -409,6 +410,11 @@ const fetchAllgoodsProductsByExactLookup = async (
     {
       [ALLGOODS_LIMIT_FIELD]: limit,
       [ALLGOODS_ARTICLE_FIELD]: normalized,
+      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: options?.includeDescription === true,
+    },
+    {
+      [ALLGOODS_LIMIT_FIELD]: limit,
+      [ALLGOODS_ARTICLE_ALT_FIELD]: normalized,
       [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: options?.includeDescription === true,
     },
   ];

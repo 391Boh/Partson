@@ -161,22 +161,10 @@ export async function POST(req: NextRequest) {
   }
   const normalizedPublicKey = publicKey!.trim();
   const normalizedPrivateKey = privateKey!.trim();
-  const isSandboxMode = readBooleanEnv(process.env.LIQPAY_SANDBOX);
   const hasSandboxKeys =
     normalizedPublicKey.startsWith("sandbox_") ||
     normalizedPrivateKey.startsWith("sandbox_");
-
-  if (!isSandboxMode && hasSandboxKeys) {
-    const misconfigured = NextResponse.json(
-      {
-        error:
-          "LiqPay live mode requires production keys. Replace sandbox_ keys and keep LIQPAY_SANDBOX=0.",
-      },
-      { status: 500 }
-    );
-    setRateLimitHeaders(misconfigured.headers, rateResult);
-    return misconfigured;
-  }
+  const isSandboxMode = readBooleanEnv(process.env.LIQPAY_SANDBOX) || hasSandboxKeys;
 
   const parsed = await readJsonObject(req, { maxBytes: 8_192 });
   if (!parsed.ok) {

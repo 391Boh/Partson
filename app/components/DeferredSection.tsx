@@ -27,17 +27,25 @@ const scheduleIdleRender = (callback: () => void, timeout = 900) => {
     requestIdleCallback?: RequestIdleCallback;
     cancelIdleCallback?: (id: number) => void;
   };
+  let didRun = false;
+  const runOnce = () => {
+    if (didRun) return;
+    didRun = true;
+    callback();
+  };
 
   if (typeof win.requestIdleCallback === "function") {
-    const idleId = win.requestIdleCallback(callback, { timeout });
+    const idleId = win.requestIdleCallback(runOnce, { timeout });
+    const timeoutId = window.setTimeout(runOnce, timeout + 180);
     return () => {
       if (typeof win.cancelIdleCallback === "function") {
         win.cancelIdleCallback(idleId);
       }
+      window.clearTimeout(timeoutId);
     };
   }
 
-  const timeoutId = window.setTimeout(callback, Math.min(timeout, 80));
+  const timeoutId = window.setTimeout(runOnce, Math.min(timeout, 80));
   return () => window.clearTimeout(timeoutId);
 };
 

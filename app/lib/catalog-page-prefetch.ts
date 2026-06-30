@@ -1,8 +1,9 @@
 "use client";
 
+import { CATALOG_PAGE_CACHE_VERSION } from "app/lib/catalog-client-cache";
+
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_ITEMS_PER_PAGE = 12;
-const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v37-hierarchy-scope";
 
 type CatalogSearchFilter = "all" | "article" | "name" | "code" | "producer" | "description";
 
@@ -54,6 +55,10 @@ const buildCatalogPageCacheKey = (params: {
     producer: params.producer,
     hierarchy: params.expandHierarchy,
     sort: "none",
+    pricedOnly: false,
+    priceFrom: null,
+    priceTo: null,
+    inStock: false,
   });
 
 const hasCatalogPageSessionCache = (cacheKey: string) => {
@@ -66,11 +71,17 @@ const hasCatalogPageSessionCache = (cacheKey: string) => {
   }
 };
 
+const PREFETCH_SESSION_TTL_MS = 1000 * 60 * 4;
+
 const writeCatalogPageSessionCache = (cacheKey: string, payload: unknown) => {
   if (typeof window === "undefined") return;
 
+  const now = Date.now();
   try {
-    window.sessionStorage.setItem(cacheKey, JSON.stringify(payload));
+    window.sessionStorage.setItem(
+      cacheKey,
+      JSON.stringify({ ...(payload as object), t: now, expiresAt: now + PREFETCH_SESSION_TTL_MS })
+    );
   } catch {
     // Ignore storage quota issues.
   }

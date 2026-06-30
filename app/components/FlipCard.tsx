@@ -140,8 +140,8 @@ function FlipCardComponent({
         reduceMotion
           ? undefined
           : {
-              boxShadow: "0 18px 40px rgba(6,182,212,0.22)",
-              filter: "saturate(1.05)",
+              boxShadow: "0 24px 52px rgba(6,182,212,0.30), 0 8px_20px rgba(8,145,178,0.20)",
+              filter: "saturate(1.06) brightness(1.01)",
               transition: { type: "spring", stiffness: 220, damping: 20, mass: 0.9 },
             }
       }
@@ -157,21 +157,24 @@ function FlipCardComponent({
       >
         {/* FRONT */}
         <div
-        className="
-            group/card absolute inset-0 rounded-xl border border-slate-300/30
-            bg-gradient-to-br from-sky-50 via-white to-indigo-50
-            shadow-[0_6px_16px_rgba(0,0,0,0.08)]
+          className="
+            group/card absolute inset-0 rounded-xl overflow-hidden
+            border border-sky-200/70
+            bg-[image:linear-gradient(148deg,rgba(255,255,255,0.99)_0%,rgba(240,249,255,0.95)_50%,rgba(219,234,254,0.90)_100%)]
+            shadow-[0_8px_24px_rgba(8,145,178,0.18),0_2px_8px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(8,145,178,0.06)]
             flex flex-col items-center justify-center text-center px-4
             transition-all duration-500
-            hover:bg-gradient-to-br hover:from-sky-100 hover:via-white hover:to-indigo-100
-            hover:border-blue-400/70
-            hover:shadow-[0_16px_36px_rgba(59,130,246,0.22),0_10px_24px_rgba(0,0,0,0.08)]
+            hover:border-sky-300/90
+            hover:bg-[image:linear-gradient(148deg,rgba(255,255,255,1)_0%,rgba(224,242,254,0.97)_50%,rgba(186,230,253,0.93)_100%)]
+            hover:shadow-[0_20px_44px_rgba(6,182,212,0.30),0_6px_16px_rgba(8,145,178,0.20),inset_0_1px_0_rgba(255,255,255,0.98),inset_0_-1px_0_rgba(8,145,178,0.10)]
           "
           style={{
             ...safBackface,
             transform: "rotateY(0deg) translateZ(1px)" as string,
           }}
         >
+          {/* inner glow overlay */}
+          <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover/card:opacity-100 bg-[image:radial-gradient(circle_at_22%_18%,rgba(56,189,248,0.16),transparent_52%),radial-gradient(circle_at_80%_82%,rgba(8,145,178,0.12),transparent_48%)]" />
           <Image
             src={getCategoryIconPath(displayProductName)}
             alt={displayProductName}
@@ -183,30 +186,29 @@ function FlipCardComponent({
               if (target.src.includes("/Katlogo/rul.png")) return;
               target.src = "/Katlogo/rul.png";
             }}
-            className="
-              mb-3 transition-transform duration-500
-              group-hover/card:scale-[1.18]
-            "
+            className="relative mb-4 drop-shadow-[0_4px_10px_rgba(8,145,178,0.22)] transition-transform duration-500 group-hover/card:scale-[1.18] group-hover/card:drop-shadow-[0_8px_18px_rgba(6,182,212,0.36)]"
           />
 
-          <h3 className="text-[13px] font-semibold text-slate-800 line-clamp-2 mb-1">
+          <h3 className="relative text-[13px] font-bold text-slate-800 line-clamp-2 mb-2.5">
             {displayProductName}
           </h3>
 
-          <span className="px-2 py-1 rounded-full text-[11px] bg-white/70 text-slate-600">
-            {children.length} категорій
+          <span className="relative px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/95 text-sky-700 border border-sky-100/90 shadow-[0_2px_8px_rgba(8,145,178,0.14),inset_0_1px_0_rgba(255,255,255,0.9)]">
+            {children.length} груп
           </span>
         </div>
 
         {/* BACK */}
         <div
           className="
-            absolute inset-0 rounded-xl
-            bg-gradient-to-br from-white to-slate-50
-            border border-slate-200 shadow-md
+            absolute inset-0 rounded-xl overflow-hidden
+            bg-[image:linear-gradient(148deg,rgba(255,255,255,0.99)_0%,rgba(240,249,255,0.95)_52%,rgba(219,234,254,0.90)_100%)]
+            border border-sky-200/70
+            shadow-[0_8px_24px_rgba(8,145,178,0.16),0_2px_8px_rgba(8,145,178,0.09),inset_0_1px_0_rgba(255,255,255,0.95)]
             flex flex-col px-2 py-2 select-none
-            transition-all duration-500
-            hover:bg-gradient-to-br hover:from-blue-50 hover:to-white
+            transition-all duration-300
+            hover:border-sky-300/80
+            hover:shadow-[0_12px_30px_rgba(8,145,178,0.22),0_4px_12px_rgba(8,145,178,0.12),inset_0_1px_0_rgba(255,255,255,0.98)]
           "
           style={{
             ...safBackface,
@@ -219,10 +221,12 @@ function FlipCardComponent({
           {/* HEADER */}
           <div
             className="
-              h-9 flex items-center justify-between px-2 rounded-md mb-2
-              bg-gradient-to-r from-slate-200/60 to-white
-              transition-all duration-500
-              hover:from-blue-200/40 hover:to-blue-100/40
+              h-9 flex items-center justify-between px-2 rounded-lg mb-2
+              bg-gradient-to-r from-sky-100/70 via-white/90 to-sky-50/60
+              border border-sky-200/50
+              shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)]
+              transition-all duration-300
+              hover:from-sky-200/60 hover:to-sky-100/50
             "
           >
             <span className="text-[11px] font-semibold text-slate-700 mx-1 truncate">
@@ -301,11 +305,14 @@ function FlipCardComponent({
                   }
                 }}
                 className="
-                  w-full px-2 py-[7px] rounded-md text-[12px] text-slate-700 
-                  bg-white/80 border border-slate-200
-                  hover:bg-gradient-to-r hover:from-sky-50 hover:via-white hover:to-indigo-50
-                  hover:border-blue-400 hover:shadow-[0_10px_24px_rgba(59,130,246,0.12)]
-                  text-left truncate transition-all
+                  w-full px-2 py-[7px] rounded-lg text-[12px] text-slate-700 font-medium
+                  bg-white/95 border border-sky-100/90
+                  shadow-[0_1px_4px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]
+                  hover:bg-[image:linear-gradient(120deg,rgba(240,249,255,0.99)_0%,rgba(255,255,255,0.98)_50%,rgba(219,234,254,0.96)_100%)]
+                  hover:border-sky-300/80
+                  hover:shadow-[0_8px_20px_rgba(8,145,178,0.20),0_2px_8px_rgba(8,145,178,0.12),inset_0_1px_0_rgba(255,255,255,0.98)]
+                  hover:-translate-y-[1px]
+                  text-left truncate transition-all duration-300
                 "
               >
                 <div className="flex items-center justify-between gap-2">

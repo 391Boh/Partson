@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { checkRateLimit, setRateLimitHeaders } from "../../_lib/rateLimit";
@@ -118,11 +119,29 @@ const buildNotificationText = (body: Record<string, unknown>) => {
   return "";
 };
 
+const NOTIFY_SECRET = (process.env.NOTIFY_SECRET || "").trim();
+
 export async function POST(req: NextRequest) {
+  if (NOTIFY_SECRET) {
+    const incoming = (req.headers.get("x-notify-secret") || "").trim();
+    if (!incoming) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    try {
+      const a = Buffer.from(incoming);
+      const b = Buffer.from(NOTIFY_SECRET);
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    } catch {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
   const rateResult = checkRateLimit({
     req,
     key: "telegram:notify",
-    limit: 40,
+    limit: 20,
     windowMs: 60_000,
   });
 

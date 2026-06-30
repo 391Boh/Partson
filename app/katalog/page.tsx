@@ -26,12 +26,13 @@ import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
+import { safeJsonLd } from "app/lib/safe-json-ld";
 
 export const revalidate = 900;
 
-const INITIAL_CATALOG_PAGE_LIMIT = 12;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS = 950;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 1350;
+const INITIAL_CATALOG_PAGE_LIMIT = 16;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS = 1100;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 1500;
 const CATALOG_SEO_FACETS_TIMEOUT_MS = 320;
 const CATALOG_PRODUCT_TREE_TIMEOUT_MS = 950;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
@@ -261,7 +262,7 @@ const resolveCatalogSeoState = (
   const hasSupportedTab = !tab || tab === "category" || tab === "producer" || tab === "auto";
 
   let canonicalPath = "/katalog";
-  let title = "Каталог автозапчастин";
+  let title = "Каталог автозапчастин у Львові";
   let description = appendSeoContact(
     "Каталог PartsON: автозапчастини за артикулом, кодом, виробником і категорією, актуальна наявність, ціни онлайн, VIN-підбір і доставка по Україні."
   );
@@ -654,7 +655,7 @@ const buildCatalogItemListJsonLd = (
                   availability:
                     item.quantity > 0
                       ? "https://schema.org/InStock"
-                      : "https://schema.org/BackOrder",
+                      : "https://schema.org/OutOfStock",
                   itemCondition: "https://schema.org/NewCondition",
                   url,
                 }
@@ -679,19 +680,6 @@ const buildCatalogItemListJsonLd = (
 type CatalogSeoDiscoveryItem = { label: string; slug: string };
 type CatalogSeoGroupDiscoveryItem = CatalogSeoDiscoveryItem & { href: string };
 
-const formatCatalogCount = (count: number) => count.toLocaleString("uk-UA");
-
-const getCatalogProductWord = (count: number) => {
-  const abs = Math.abs(count);
-  const lastTwo = abs % 100;
-  const last = abs % 10;
-
-  if (lastTwo >= 11 && lastTwo <= 14) return "товарів";
-  if (last === 1) return "товар";
-  if (last >= 2 && last <= 4) return "товари";
-  return "товарів";
-};
-
 const CatalogSeoSnapshot = ({
   state,
   items,
@@ -712,13 +700,6 @@ const CatalogSeoSnapshot = ({
   const isSearchState = Boolean(state.searchQuery);
   const hasExactCount = typeof totalCount === "number" && totalCount >= 0;
   const initialFilteredCount = hasExactCount ? totalCount : visibleItemsCount;
-  const listCountLabel =
-    visibleItemsCount > 0
-      ? `${formatCatalogCount(visibleItemsCount)} ${getCatalogProductWord(visibleItemsCount)}`
-      : "0 товарів";
-  const totalCountLabel = hasExactCount
-    ? `${formatCatalogCount(totalCount)} ${getCatalogProductWord(totalCount)}`
-    : null;
   const primaryCountTitle = hasExactCount
     ? "Загалом товарів"
     : isSearchState
@@ -845,20 +826,14 @@ const CatalogSeoSnapshot = ({
               {primaryCountTitle}
             </p>
             <p className="mt-1 text-[1.65rem] font-black leading-none text-slate-950">
-              {hasExactCount
-                ? totalCountLabel
-                : isSearchState
-                  ? renderSearchTotalCount()
-                  : renderFilteredCount()}
+              {isSearchState ? renderSearchTotalCount() : renderFilteredCount()}
             </p>
             <p className="mt-2 text-[11px] font-semibold leading-4 text-slate-500">
               {countCaption}
             </p>
-            {(hasExactCount && totalCountLabel !== listCountLabel) || isSearchState ? (
-              <p className="mt-3 rounded-[13px] border border-slate-200 bg-slate-50/90 px-3 py-2 text-[11px] font-bold leading-4 text-slate-600">
-                Відкрито зараз: {renderShownCount("text-slate-950")}
-              </p>
-            ) : null}
+            <p className="mt-3 rounded-[13px] border border-slate-200 bg-slate-50/90 px-3 py-2 text-[11px] font-bold leading-4 text-slate-600">
+              Відкрито зараз: {renderShownCount("text-slate-950")}
+            </p>
           </div>
 
           {visibleItems.length > 0 && (
@@ -1081,6 +1056,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       <KatalogPageShell
         initialPagePayload={initialPagePayload}
         initialQuerySignature={initialQuerySignature}
+        initialTotalCount={seoTotalCount ?? null}
       />
       <CatalogSeoSnapshot
         state={state}
@@ -1092,16 +1068,16 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(collectionJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
       {catalogItemListJsonLd ? (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(catalogItemListJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(catalogItemListJsonLd) }}
         />
       ) : null}
     </>

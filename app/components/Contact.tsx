@@ -37,21 +37,6 @@ const formatPhone = (raw: string) => {
   return raw;
 };
 
-/* 🔹 оператор */
-const OperatorIcon = ({ phone }: { phone: string }) => {
-  const d = phone.replace(/\D/g, "");
-
-  if (/^(38063|38093|38073)/.test(d)) {
-    return <span className="w-3 h-3 rounded-full bg-yellow-400" title="lifecell" />;
-  }
-
-  if (/^(38067|38097|38098|38068)/.test(d)) {
-    return <span className="w-3 h-3 rounded-full bg-blue-600" title="Kyivstar" />;
-  }
-
-  return null;
-};
-
 const getOperatorInfo = (phone: string) => {
   const digits = phone.replace(/\D/g, "");
 
@@ -100,6 +85,47 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
   const [showZvyaz, setShowZvyaz] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
   const [userData, setUserData] = useState<{ name: string; phone: string } | null>(null);
+  const [openStatus, setOpenStatus] = useState<{
+    open: boolean;
+    label: string;
+    note: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const compute = () => {
+      const now = new Date();
+      const day = now.getDay(); // 0=Sun
+      const totalMin = now.getHours() * 60 + now.getMinutes();
+      const openMin = 8 * 60;
+      const closeMin = day === 0 ? 16 * 60 : 18 * 60; // Sun 16:00, rest 18:00
+      const isOpen = totalMin >= openMin && totalMin < closeMin;
+
+      let note = "";
+      if (isOpen) {
+        const minsLeft = closeMin - totalMin;
+        if (minsLeft <= 60) {
+          note = `закриваємось через ${minsLeft} хв`;
+        } else {
+          note = `до ${Math.floor(closeMin / 60)}:00`;
+        }
+      } else if (totalMin < openMin) {
+        note = "відкриємось о 08:00";
+      } else {
+        const days = ["нд", "пн", "вт", "ср", "чт", "пт", "сб"];
+        const nextDay = (day + 1) % 7;
+        note = `відкриємось у ${days[nextDay]} о 08:00`;
+      }
+
+      setOpenStatus({
+        open: isOpen,
+        label: isOpen ? "Зараз відчинено" : "Зачинено",
+        note,
+      });
+    };
+    compute();
+    const id = setInterval(compute, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   /* Close on outside click */
   useEffect(() => {
@@ -217,7 +243,10 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                 <Phone size={14} />
                 Контакти
               </span>
-              <h2 className="soft-panel-title mt-3">Зв&apos;язок і підтримка</h2>
+              <h2 className="soft-panel-title">Зв&apos;язок і підтримка</h2>
+              <p className="soft-panel-subtitle">
+                Телефонуйте, пишіть у Viber або Telegram — відповімо швидко.
+              </p>
             </div>
 
             <button onClick={onClose} className="soft-icon-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10">
@@ -268,36 +297,40 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                       return (
                         <div
                           key={c.phone}
-                          className="soft-surface-card group relative w-full overflow-hidden rounded-[16px] px-2.5 py-2.5 text-left text-slate-700 transition-[border-color,background-color,box-shadow] duration-200 hover:border-sky-200 hover:bg-white sm:rounded-[18px] sm:px-3 sm:py-3"
+                          className="soft-surface-card group relative w-full overflow-hidden rounded-[18px] px-2.5 py-2.5 text-left text-slate-700 transition-[border-color,box-shadow] duration-200 hover:border-sky-200 hover:shadow-[0_20px_44px_rgba(2,6,23,0.18),0_6px_14px_rgba(14,165,233,0.09)] sm:rounded-[20px] sm:px-3 sm:py-3"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] border border-sky-100 bg-sky-50 text-sky-700 shadow-[0_10px_20px_rgba(14,165,233,0.10)]">
-                              <User size={15} />
-                            </span>
+                            <div className="relative shrink-0">
+                              <span className="flex h-9 w-9 items-center justify-center rounded-[14px] bg-gradient-to-br from-sky-400 to-blue-600 text-white shadow-[0_10px_22px_rgba(14,165,233,0.28),0_3px_7px_rgba(14,165,233,0.18)] sm:h-10 sm:w-10 sm:rounded-[15px]">
+                                <User size={15} />
+                              </span>
+                              {openStatus?.open && (
+                                <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full border-2 border-white bg-emerald-400 shadow-[0_2px_6px_rgba(16,185,129,0.4)]" />
+                              )}
+                            </div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-[14px] font-semibold text-slate-900">{c.name}</p>
-                              <p className="mt-0.5 line-clamp-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                              <p className="truncate text-[13px] font-bold text-slate-900">{c.name}</p>
+                              <p className="mt-0.5 truncate text-[9.5px] font-bold uppercase tracking-[0.09em] text-slate-400">
                                 {c.role}
                               </p>
-                              <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-                                <p className="min-w-0 break-words text-[12px] font-medium text-slate-700">{c.phone}</p>
+                              <div className="mt-1 flex min-w-0 items-center gap-1.5">
+                                <p className="min-w-0 truncate text-[11.5px] font-semibold text-slate-600">{c.phone}</p>
                                 <button
                                   type="button"
                                   onClick={() => handleCopyPhone(c.phone)}
-                                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-slate-500 shadow-[0_5px_12px_rgba(148,163,184,0.18)] transition hover:border-sky-200 hover:text-sky-700"
+                                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[8px] border border-slate-200 bg-white/90 text-slate-400 shadow-[0_4px_10px_rgba(148,163,184,0.16)] transition hover:border-sky-200 hover:text-sky-600"
                                   aria-label={`Скопіювати номер ${c.phone}`}
                                   title="Скопіювати номер"
                                 >
-                                  {copiedPhone === c.phone ? <Check size={12} /> : <Copy size={12} />}
+                                  {copiedPhone === c.phone ? <Check size={11} /> : <Copy size={11} />}
                                 </button>
                               </div>
                             </div>
                             <span
-                              className="inline-flex min-h-7 shrink-0 items-center gap-1 rounded-[11px] border border-sky-100 bg-sky-50/80 px-1.5 py-1 text-[9px] font-bold text-sky-700 sm:gap-1.5 sm:px-2 sm:text-[10px]"
+                              className={`inline-flex min-h-6 shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${operator.chipClass}`}
                               title={operator.label}
                             >
-                              <Signal size={12} className="text-sky-500" />
-                              <OperatorIcon phone={c.phone} />
+                              <Signal size={10} />
                               <span className="truncate">{operator.label}</span>
                             </span>
                           </div>
@@ -308,14 +341,14 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                                 key={action}
                                 type="button"
                                 onClick={() => handleContactAction(c.phone, action)}
-                                  className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-[12px] border px-2 py-1.5 text-[11px] font-bold shadow-[0_8px_16px_rgba(2,6,23,0.13)] transition-[border-color,background-color,box-shadow,filter] hover:brightness-105 ${
+                                className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-[12px] border px-2 py-1.5 text-[11px] font-bold shadow-[0_8px_18px_rgba(2,6,23,0.12)] transition-[border-color,background-color,box-shadow] ${
                                   c.actions.length === 1 ? "col-span-2" : ""
                                 } ${
                                   action === "viber"
-                                    ? "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300 hover:bg-violet-100 hover:shadow-[0_10px_20px_rgba(167,139,250,0.16)]"
+                                    ? "border-violet-200 bg-gradient-to-b from-violet-50 to-violet-100/60 text-violet-700 hover:border-violet-300 hover:shadow-[0_12px_24px_rgba(167,139,250,0.22)]"
                                     : action === "telegram"
-                                      ? "border-cyan-200 bg-cyan-50 text-cyan-700 hover:border-cyan-300 hover:bg-cyan-100 hover:shadow-[0_10px_20px_rgba(34,211,238,0.16)]"
-                                    : "border-sky-200 bg-sky-50 text-sky-700 hover:border-sky-300 hover:bg-sky-100 hover:shadow-[0_10px_20px_rgba(125,211,252,0.16)]"
+                                      ? "border-cyan-200 bg-gradient-to-b from-cyan-50 to-cyan-100/60 text-cyan-700 hover:border-cyan-300 hover:shadow-[0_12px_24px_rgba(34,211,238,0.22)]"
+                                    : "border-sky-200 bg-gradient-to-b from-sky-50 to-sky-100/60 text-sky-700 hover:border-sky-300 hover:shadow-[0_12px_24px_rgba(125,211,252,0.22)]"
                                 }`}
                               >
                                 {action === "viber" ? <MessageCircle size={13} /> : action === "telegram" ? <Send size={13} /> : <Phone size={13} />}
@@ -353,10 +386,19 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                               Магазин, консультація та самовивіз замовлень.
                             </p>
                           </div>
-                          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-emerald-700">
-                            <MapPin size={12} />
-                            Відчинено
-                          </span>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${
+                              openStatus?.open
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : "border-amber-200 bg-amber-50 text-amber-700"
+                            }`}>
+                              {openStatus?.open ? <Check size={12} /> : <Clock3 size={12} />}
+                              {openStatus?.label ?? "Відчинено"}
+                            </span>
+                            {openStatus?.note && (
+                              <span className="text-[10px] text-slate-400 pr-0.5">{openStatus.note}</span>
+                            )}
+                          </div>
                         </div>
                         <a
                           href={STORE_MAPS_URL}

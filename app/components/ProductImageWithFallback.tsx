@@ -28,6 +28,7 @@ interface ProductImageWithFallbackProps {
   articleHint?: string;
   hasKnownPhoto?: boolean;
   preferCachedPreview?: boolean;
+  variant?: "full" | "catalog";
   unoptimized?: boolean;
 }
 
@@ -37,6 +38,15 @@ const BLUR_DATA_URL =
 const FINAL_RETRY_DELAY_MS = 180;
 
 type ImageStatus = "loading" | "loaded" | "missing";
+
+const isCatalogImageSrc = (src: string) => {
+  try {
+    const parsed = new URL(src, "http://localhost");
+    return parsed.searchParams.get("catalog") === "1";
+  } catch {
+    return src.includes("catalog=1");
+  }
+};
 
 export default function ProductImageWithFallback({
   alt,
@@ -51,6 +61,7 @@ export default function ProductImageWithFallback({
   articleHint,
   hasKnownPhoto = true,
   preferCachedPreview = true,
+  variant = "full",
   unoptimized: unoptimizedProp = false,
 }: ProductImageWithFallbackProps) {
   const openPhotoTitle = "Відкрити зображення";
@@ -63,30 +74,30 @@ export default function ProductImageWithFallback({
     () =>
       hasKnownPhoto && normalizedProductCode
         ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
-            catalog: true,
+            catalog: variant === "catalog",
           })
         : "",
-    [hasKnownPhoto, normalizedProductCode, normalizedArticleHint]
+    [hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant]
   );
   const recoverySrc = useMemo(
     () =>
       hasKnownPhoto && normalizedProductCode
         ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
-            catalog: true,
+            catalog: variant === "catalog",
             retryToken: 1,
           })
         : "",
-    [hasKnownPhoto, normalizedProductCode, normalizedArticleHint]
+    [hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant]
   );
   const finalRetrySrc = useMemo(
     () =>
       hasKnownPhoto && normalizedProductCode
         ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
-            catalog: true,
+            catalog: variant === "catalog",
             retryToken: 2,
           })
         : "",
-    [hasKnownPhoto, normalizedProductCode, normalizedArticleHint]
+    [hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant]
   );
 
   const [requestSrc, setRequestSrc] = useState(primarySrc || "");
@@ -133,7 +144,7 @@ export default function ProductImageWithFallback({
         normalizedProductCode,
         normalizedArticleHint || undefined
       );
-      if (cached) {
+      if (cached && !(variant === "full" && isCatalogImageSrc(cached))) {
         const isAlreadyShowingSameSrc =
           statusRef.current === "loaded" && requestSrcRef.current === cached;
         setRequestSrc(cached);
@@ -156,6 +167,7 @@ export default function ProductImageWithFallback({
     normalizedProductCode,
     preferCachedPreview,
     primarySrc,
+    variant,
   ]);
 
   // Delayed final retry — mirrors ProductCardImage behaviour
@@ -289,7 +301,11 @@ export default function ProductImageWithFallback({
             sizes="(max-width: 767px) 100vw, (max-width: 1279px) 46vw, 520px"
             placeholder="blur"
             blurDataURL={BLUR_DATA_URL}
-            unoptimized={unoptimizedProp || requestSrc.startsWith("data:image/")}
+            unoptimized={
+              unoptimizedProp ||
+              requestSrc.startsWith("data:image/") ||
+              requestSrc.startsWith("/product-image/")
+            }
             className={`h-full w-full object-contain transition-[opacity,transform] ${
               preferImmediateDecode ? "duration-100" : "duration-180"
             } ${isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.01]"}`}

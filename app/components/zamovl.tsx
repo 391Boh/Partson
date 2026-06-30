@@ -1,18 +1,17 @@
 "use client";
 
-import { type ComponentProps, useEffect, useState } from "react";
+import { type ComponentProps, useEffect, useRef, useState } from "react";
 import { pushEcommerceEvent } from "app/lib/gtm";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import {
   getFirestore,
   doc,
   getDoc,
-  collection,
-  addDoc,
+  setDoc,
   updateDoc,
   Timestamp,
 } from "firebase/firestore";
-import { X } from "lucide-react";
+import { ShoppingBag, X } from "lucide-react";
 
 import CustomerDetails from "./CustomerDetails";
 import DeliveryMethod from "./DeliveryMethod";
@@ -79,6 +78,8 @@ const Zamovl: React.FC<ZamovlProps> = ({
   const [selectedLvivStreet, setSelectedLvivStreet] = useState<string | null>(null);
 
   const [orderId] = useState(() => `${Date.now()}`);
+  const orderCreatedRef = useRef(false);
+  const orderNotifiedRef = useRef(false);
   const [confirmedAmount, setConfirmedAmount] = useState<number | null>(null);
   const [confirmedPaymentMethod, setConfirmedPaymentMethod] =
     useState<PaymentMethodType>("");
@@ -115,26 +116,10 @@ const Zamovl: React.FC<ZamovlProps> = ({
     return () => unsubscribe();
   }, []);
 
-  const handleSubmitOrder = async (paymentData?: PaymentConfirmationPayload) => {
-    pushEcommerceEvent("add_payment_info", {
-      currency: "UAH",
-      value: payableAmount,
-      payment_type: paymentMethod || undefined,
-      ...(isFirstOrderDiscountApplied
-        ? {
-            coupon: discountCode || FIRST_ORDER_DISCOUNT_CODE,
-            discount: discountAmount,
-          }
-        : {}),
-      items: cartItems.map((item) => ({
-        item_id: item.code,
-        item_name: item.name,
-        ...(item.category ? { item_category: item.category } : {}),
-        price: item.price,
-        quantity: item.quantity,
-      })),
-    });
-
+  const persistOrder = async (
+    paymentData: PaymentConfirmationPayload | undefined,
+    options: { completeCheckout: boolean }
+  ) => {
     const db = getFirestore();
     const isCardPayment = paymentMethod === "Картка";
     const isCardPaid = isCardPayment && paymentData?.paymentStatus === "paid";
@@ -154,11 +139,13 @@ const Zamovl: React.FC<ZamovlProps> = ({
       code: item.code,
     }));
 
-    try {
-      // docRef.id is the canonical Firestore order identifier.
-      // orderId (timestamp) is kept as-is — it was already submitted to LiqPay
-      // at checkout step 2, before this function runs, so it cannot be changed here.
-      const docRef = await addDoc(collection(db, "orders"), {
+    const orderRef = doc(db, "orders", orderId);
+    const orderSnapshot = orderCreatedRef.current ? null : await getDoc(orderRef);
+    const alreadyExists = orderCreatedRef.current || Boolean(orderSnapshot?.exists());
+
+    await setDoc(
+      orderRef,
+      {
         uid: firebaseUser?.uid || null,
         name,
         phone,
@@ -190,13 +177,18 @@ const Zamovl: React.FC<ZamovlProps> = ({
         liqpayPaymentId:
           typeof paymentData?.liqpayPaymentId === "string" ? paymentData.liqpayPaymentId : null,
         paidAt: isCardPaid ? Timestamp.now() : null,
-        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
         ga4PurchaseTracked: false,
-      });
+        ...(alreadyExists ? {} : { createdAt: Timestamp.now() }),
+      },
+      { merge: true }
+    );
+    orderCreatedRef.current = true;
 
+    if (!orderNotifiedRef.current) {
       void notifyTelegramAdmin({
         type: "order",
-        firestoreId: docRef.id,
+        firestoreId: orderId,
         orderId,
         name,
         phone,
@@ -211,13 +203,19 @@ const Zamovl: React.FC<ZamovlProps> = ({
         totalAmount: payableAmount,
         items: normalizedCartItems,
       });
+      orderNotifiedRef.current = true;
+    }
+
+    if (!options.completeCheckout) {
+      return { orderRef, resolvedPaymentStatus };
+    }
 
       // sessionStorage prevents duplicate purchase events within the same browser
       // session (covers React Strict Mode double-invocations and accidental re-calls).
       // Limitation: cleared when the tab is closed; does not protect across devices.
       // GA4 also deduplicates by transaction_id, providing a second layer of protection.
       // Must fire before onClearCart() so cartItems prop is still populated.
-      const purchaseKey = `partson:purchase:${docRef.id}`;
+      const purchaseKey = `partson:purchase:${orderId}`;
       const alreadyFired = (() => {
         try { return Boolean(sessionStorage.getItem(purchaseKey)); } catch { return false; }
       })();
@@ -226,16 +224,11 @@ const Zamovl: React.FC<ZamovlProps> = ({
 
         // Confirmation source by payment method:
         //   Cash (Готівка)  — order created; cash collected on delivery, not yet received.
-        //   Card (Картка)   — LiqPay JS widget returned paymentStatus: "paid" client-side.
-        //                     This is a client-side signal, not a server-verified guarantee.
-        // TODO: for server-confirmed card accuracy, /api/liqpay/callback should write
-        // paymentStatus → "paid" to Firestore via firebase-admin, and this event should
-        // fire only after an onSnapshot listener detects that status change. This also
-        // requires creating the Firestore document before LiqPay checkout (not after),
-        // so the callback can locate the document by its ID used as the LiqPay order_id.
+        //   Card (Картка)   — LiqPay JS widget returned success; the server callback
+        //                     also updates this same Firestore order by orderId.
         pushEcommerceEvent("purchase", {
           currency: "UAH",
-          transaction_id: docRef.id,
+          transaction_id: orderId,
           value: payableAmount,
           ...(isFirstOrderDiscountApplied
             ? {
@@ -257,7 +250,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
         // Non-critical write: GA4 deduplication by transaction_id is the safety net
         // if this updateDoc fails.
         try {
-          await updateDoc(docRef, {
+          await updateDoc(orderRef, {
             ga4PurchaseTracked: true,
             ga4PurchaseTrackedAt: Timestamp.now(),
           });
@@ -271,6 +264,40 @@ const Zamovl: React.FC<ZamovlProps> = ({
       setConfirmedPaymentStatus(resolvedPaymentStatus);
       onClearCart();
       setCurrentStep(3);
+    return { orderRef, resolvedPaymentStatus };
+  };
+
+  const handleCardPaymentStarted = async (paymentData?: PaymentConfirmationPayload) => {
+    try {
+      await persistOrder(paymentData, { completeCheckout: false });
+    } catch (error) {
+      console.error("Помилка при підготовці замовлення до оплати:", error);
+      throw error;
+    }
+  };
+
+  const handleSubmitOrder = async (paymentData?: PaymentConfirmationPayload) => {
+    pushEcommerceEvent("add_payment_info", {
+      currency: "UAH",
+      value: payableAmount,
+      payment_type: paymentMethod || undefined,
+      ...(isFirstOrderDiscountApplied
+        ? {
+            coupon: discountCode || FIRST_ORDER_DISCOUNT_CODE,
+            discount: discountAmount,
+          }
+        : {}),
+      items: cartItems.map((item) => ({
+        item_id: item.code,
+        item_name: item.name,
+        ...(item.category ? { item_category: item.category } : {}),
+        price: item.price,
+        quantity: item.quantity,
+      })),
+    });
+
+    try {
+      await persistOrder(paymentData, { completeCheckout: true });
     } catch (error) {
       console.error("Помилка при оформленні замовлення:", error);
       alert("Не вдалося зберегти замовлення.");
@@ -346,6 +373,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
             name={name}
             phone={phone}
             deliveryMethod={deliveryMethod}
+            onCardPaymentStarted={handleCardPaymentStarted}
             onPaymentConfirmed={handleSubmitOrder}
             onConfirm={() => {}}
           />
@@ -372,21 +400,28 @@ const Zamovl: React.FC<ZamovlProps> = ({
 
   return (
     <div className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden">
-      <div className="soft-panel-content flex min-h-0 flex-1 flex-col p-3 sm:p-5">
-        <div className="mb-4 h-1 rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400" />
-        <div className="flex flex-col gap-2.5 border-b border-slate-200/70 pb-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <h3 className="soft-panel-title">
-            Оформлення замовлення
-          </h3>
+      <div className="soft-panel-content flex min-h-0 flex-1 flex-col p-3 sm:p-4">
+        <div className="soft-panel-accent mb-3.5 h-[3px] rounded-full" />
+        <div className="soft-panel-header border-b border-slate-200/60 pb-3">
+          <div className="min-w-0">
+            <span className="soft-panel-eyebrow">
+              <ShoppingBag size={14} />
+              Замовлення
+            </span>
+            <h3 className="soft-panel-title">Оформлення замовлення</h3>
+            <p className="soft-panel-subtitle">
+              Дані покупця, доставка, оплата та підтвердження в кілька кроків.
+            </p>
+          </div>
           <button
             onClick={onCloseAll}
-            className="soft-icon-button h-10 w-10 shrink-0 p-1 text-slate-500"
+            className="soft-icon-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
             aria-label="Закрити форму замовлення"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-1.5 sm:mt-3.5 sm:gap-2 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-4 gap-1.5">
         {steps.map((step, index) => {
           const isActive = currentStep === index;
           const isDone = currentStep > index;
@@ -394,18 +429,18 @@ const Zamovl: React.FC<ZamovlProps> = ({
           return (
             <div
               key={step}
-              className={`rounded-[16px] px-2.5 py-2 text-center text-xs font-semibold transition ${
+              className={`relative rounded-[14px] px-1.5 py-2 text-center text-xs font-semibold transition sm:rounded-[16px] sm:px-2.5 ${
                 isActive
                   ? "soft-segment soft-segment--active"
                   : isDone
-                  ? "soft-surface-card text-emerald-700"
-                  : "soft-segment"
+                  ? "soft-surface-card border-emerald-200/70 bg-gradient-to-b from-emerald-50 to-emerald-100/40 text-emerald-700 shadow-[0_12px_24px_rgba(16,185,129,0.12)]"
+                  : "soft-segment opacity-70"
               }`}
             >
-              <span className="block text-[10px] uppercase tracking-[0.14em] opacity-70">
-                Крок {Math.min(index + 1, 4)}
+              <span className="block text-[9px] font-bold uppercase tracking-[0.12em] opacity-60">
+                {isDone ? "✓" : index + 1}
               </span>
-              <span className="mt-1 block text-sm">{step}</span>
+              <span className="mt-0.5 block text-[11px] font-bold sm:text-xs">{step}</span>
             </div>
           );
         })}

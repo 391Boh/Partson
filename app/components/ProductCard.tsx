@@ -2,7 +2,7 @@
 
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle, Copy, Check, Pencil, ImagePlus, X, Save } from "lucide-react";
+import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle, Copy, Check, Pencil, ImagePlus, X, Save, Plus, Minus } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
 import { brands } from "app/components/brandsData";
@@ -95,7 +95,7 @@ interface Props {
     onQtyChange: (code: string, delta: number) => void;
     onFlip: (code: string) => void;
     onImageOpen: (code: string, article?: string) => void;
-    onAdminEdit?: (data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string; producer?: string; group?: string; subGroup?: string; category?: string }) => Promise<{ ok: boolean; error?: string }>;
+    onAdminEdit?: (data: { description?: string; priceEuro?: number; costPriceEuro?: number; imageDataUrl?: string; imageName?: string; name?: string; catalogNumber?: string; producer?: string; group?: string; subGroup?: string; category?: string; receipt?: number; sale?: number }) => Promise<{ ok: boolean; error?: string; quantity?: number }>;
 }
 
 const ProductCard: React.FC<Props> = ({
@@ -312,6 +312,14 @@ const [quickProducerActiveSug, setQuickProducerActiveSug] = useState(-1);
 const producerSuggestAbortRef = useRef<AbortController | null>(null);
 const [displayProducer, setDisplayProducer] = useState(producer);
 
+// Quick quantity edit (receipt / sale)
+const [quickEditQty, setQuickEditQty] = useState(false);
+const [quickQtyVal, setQuickQtyVal] = useState('');
+const [quickQtySaving, setQuickQtySaving] = useState(false);
+const [quickQtyError, setQuickQtyError] = useState<string | null>(null);
+const [localQuantity, setLocalQuantity] = useState(item.quantity ?? 0);
+useEffect(() => { setLocalQuantity(item.quantity ?? 0); }, [item.quantity]);
+
 // Front image upload
 const frontImageInputRef = useRef<HTMLInputElement | null>(null);
 const [frontImageSaving, setFrontImageSaving] = useState(false);
@@ -344,6 +352,25 @@ const enterEditMode = () => {
     fetchMetaSuggestions('subGroup', sub, grp);
 };
 
+const compressImageDataUrl = (dataUrl: string, maxPx = 1600, quality = 0.82): Promise<string> =>
+    new Promise((resolve) => {
+        const img = document.createElement("img");
+        img.onload = () => {
+            const scale = Math.min(1, maxPx / Math.max(img.width, img.height, 1));
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) { resolve(dataUrl); return; }
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+    });
+
 const handleFrontImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !onAdminEdit) return;
@@ -351,14 +378,15 @@ const handleFrontImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFrontImageError(null);
     const reader = new FileReader();
     reader.onload = async (ev) => {
-        const imageDataUrl = ev.target?.result as string;
-        if (imageDataUrl) {
-            const result = await onAdminEdit({ imageDataUrl, imageName: file.name }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
+        const rawDataUrl = ev.target?.result as string;
+        if (rawDataUrl) {
+            const imageDataUrl = await compressImageDataUrl(rawDataUrl);
+            const result = await onAdminEdit({ imageDataUrl, imageName: file.name.replace(/\.[^.]+$/, ".jpg") }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
             if (result && result.ok) {
                 setLocalImageSrc(imageDataUrl);
             } else {
                 setFrontImageError(result?.error ?? 'Помилка завантаження');
-                setTimeout(() => setFrontImageError(null), 4000);
+                setTimeout(() => setFrontImageError(null), 6000);
             }
         }
         setFrontImageSaving(false);
@@ -444,6 +472,28 @@ const handleQuickProducerSave = async () => {
     setDisplayProducer(quickProducerVal.trim());
     setQuickEditProducer(false);
     setQuickProducerSuggestions([]);
+};
+
+const handleQuickQtySave = async (type: 'receipt' | 'sale') => {
+    if (!onAdminEdit) return;
+    const n = Number(quickQtyVal.replace(',', '.'));
+    if (!Number.isFinite(n) || n <= 0) { setQuickQtyError('Введіть число > 0'); return; }
+    setQuickQtySaving(true);
+    setQuickQtyError(null);
+    const result = await onAdminEdit(type === 'receipt' ? { receipt: n } : { sale: n }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
+    setQuickQtySaving(false);
+    if (!result?.ok) {
+        setQuickQtyError(result?.error ?? 'Помилка збереження');
+        setTimeout(() => setQuickQtyError(null), 4000);
+        return;
+    }
+    if (typeof result.quantity === 'number') {
+        setLocalQuantity(result.quantity);
+    } else {
+        setLocalQuantity((prev) => type === 'receipt' ? prev + n : Math.max(0, prev - n));
+    }
+    setQuickQtyVal('');
+    setQuickEditQty(false);
 };
 
 const handleAdminSave = async () => {
@@ -655,7 +705,7 @@ useEffect(() => {
                 {hasPrice ? <meta itemProp="price" content={String(priceUAH)} /> : null}
                 <link
                     itemProp="availability"
-                    href={isAvailable ? "https://schema.org/InStock" : "https://schema.org/BackOrder"}
+                    href={isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"}
                 />
                 <link itemProp="itemCondition" href="https://schema.org/NewCondition" />
                 <meta itemProp="url" content={productHref} />
@@ -670,7 +720,7 @@ useEffect(() => {
                 {/* ---------- FRONT ---------- */}
                 <div
                     className={`
-                        absolute inset-0 w-full h-full backface-hidden
+                        catalog-card-face catalog-card-face-front absolute inset-0 w-full h-full backface-hidden
                         rounded-xl border border-slate-200 hover:border-sky-200/90
                         shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.07),0_12px_24px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)]
                         hover:shadow-[0_2px_4px_rgba(14,165,233,0.05),0_8px_20px_rgba(14,165,233,0.10),0_20px_36px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)]
@@ -689,14 +739,14 @@ useEffect(() => {
                     {/* Р¤РѕС‚Рѕ + РЅР°Р·РІР° */}
                     <div
                         className="
-                            group flex flex-row w-full h-20 mb-2 p-1.5 rounded-xl
+                            catalog-card-hero group flex flex-row w-full h-20 mb-2 p-1.5 rounded-xl
                             bg-gradient-to-r from-slate-100 to-slate-200
                             hover:from-white hover:to-slate-100
                             transition-all duration-200 border border-slate-200/70 hover:border-slate-300
                             shadow-sm hover:shadow-md
                         "
                     >
-                        <div className="relative mr-2 flex h-full w-1/3 items-center justify-center overflow-hidden rounded-lg bg-white sm:w-2/5 group/imgarea">
+                        <div className="catalog-card-image relative mr-2 flex h-full w-1/3 items-center justify-center overflow-hidden rounded-lg bg-white sm:w-2/5 group/imgarea">
                             <ProductCardImage
                                 productCode={code}
                                 articleHint={item.article}
@@ -741,7 +791,7 @@ useEffect(() => {
                             )}
                         </div>
 
-                        <div className="group/nameedit flex h-full w-2/3 flex-col justify-center gap-0.5 sm:w-3/5">
+                        <div className="catalog-card-title group/nameedit flex h-full w-2/3 flex-col justify-center gap-0.5 sm:w-3/5">
                             {quickEditName ? (
                                 <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()} style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>
                                     <input
@@ -794,7 +844,7 @@ useEffect(() => {
                                                 ],
                                             });
                                         }}
-                                        className="font-name-accent text-left text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 leading-[1.02] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
+                                        className="catalog-card-name font-name-accent text-left text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 leading-[1.02] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
                                     >
                                         <span itemProp="name">{name}</span>
                                     </SmartLink>
@@ -814,7 +864,7 @@ useEffect(() => {
                     </div>
 
                     {/* Р†РЅС„Рѕ */}
-                    <div className="flex flex-col gap-1 text-slate-600 mt-2">
+                    <div className="catalog-card-meta flex flex-col gap-1 text-slate-600 mt-2">
                         <div className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
                             <span className="text-slate-500">{"\u041A\u043E\u0434:"}</span>
                             <span className="min-w-0 max-w-[55%] truncate font-medium text-slate-700">{code || "-"}</span>
@@ -864,7 +914,7 @@ useEffect(() => {
                                           {articleCopied ? (
                                               <Check size={13} className="text-emerald-600 flex-shrink-0" aria-hidden="true" />
                                           ) : (
-                                              <Copy size={13} className="text-slate-400 flex-shrink-0 opacity-0 transition-opacity duration-150 group-hover/copy:opacity-100" aria-hidden="true" />
+                                              <Copy size={13} className="text-slate-400 flex-shrink-0 transition-opacity duration-150 sm:opacity-0 sm:group-hover/copy:opacity-100" aria-hidden="true" />
                                           )}
                                           <span className="truncate min-w-0">{article}</span>
                                       </button>
@@ -968,7 +1018,7 @@ useEffect(() => {
                             </button>
                         </div>
                     ) : (
-                        <div className="mt-2 flex w-full items-center gap-1.5 sm:mt-2.5">
+                        <div className="catalog-card-price-row mt-2 flex w-full items-center gap-1.5 sm:mt-2.5">
                             {/* Pill toggle Прод / Закуп */}
                             {hasCostPrice && (
                                 <div className="flex shrink-0 rounded-[10px] border border-slate-200 bg-slate-100/70 p-[3px] shadow-inner gap-[2px]">
@@ -993,7 +1043,7 @@ useEffect(() => {
                                 </div>
                             )}
                             {/* Price display */}
-                            <div className={`ml-auto flex min-h-[32px] w-fit max-w-[72%] items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/90 backdrop-blur-md border whitespace-nowrap transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice && hasCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
+                            <div className={`ml-auto flex min-h-[32px] w-fit max-w-[72%] items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/90 backdrop-blur-md border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice && hasCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
                                 <span className={`text-[10px] font-bold uppercase tracking-[0.06em] ${showCostPrice && hasCostPrice ? 'text-amber-500' : 'text-slate-400'}`}>
                                     {showCostPrice && hasCostPrice ? 'Закуп:' : 'Ціна:'}
                                 </span>
@@ -1042,23 +1092,59 @@ useEffect(() => {
                     )}
 
                     {/* Низ */}
-                    <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-200 gap-1">
+                    <div className="catalog-card-actions flex justify-between items-center mt-auto pt-2 border-t border-slate-200 gap-1">
                         <div className="flex flex-col items-start gap-1">
-                            <span
-                                aria-hidden="true"
-                                data-nosnippet
-                                data-label={
-                                    isAvailable
-                                        ? "\u0412 \u043D\u0430\u044F\u0432\u043D\u043E\u0441\u0442\u0456"
-                                        : "\u041F\u0456\u0434 \u0437\u0430\u043C\u043E\u0432\u043B\u0435\u043D\u043D\u044F"
-                                }
-                                className={`text-[11px] font-medium before:content-[attr(data-label)] ${
-                                    isAvailable ? "text-green-600" : "text-orange-600"
-                                }`}
-                            />
+                            <div className="flex items-center gap-1">
+                                <span
+                                    aria-hidden="true"
+                                    data-nosnippet
+                                    data-label={
+                                        localQuantity > 0
+                                            ? `В наявності · ${localQuantity} шт.`
+                                            : "Під замовлення"
+                                    }
+                                    className={`text-[11px] font-medium before:content-[attr(data-label)] ${
+                                        localQuantity > 0 ? "text-green-600" : "text-orange-600"
+                                    }`}
+                                />
+                                {isAdmin && onAdminEdit && !quickEditQty && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); setQuickEditQty(true); setQuickQtyVal(''); }}
+                                        className="p-0.5 rounded text-slate-300 hover:text-emerald-500 transition-colors"
+                                        title="Поступлення / Продаж"
+                                    >
+                                        <Pencil size={9} />
+                                    </button>
+                                )}
+                            </div>
+                            {quickEditQty && (
+                                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()} style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>
+                                    <input
+                                        type="number" min="1" step="1"
+                                        value={quickQtyVal}
+                                        onChange={(e) => { setQuickQtyVal(e.target.value); setQuickQtyError(null); }}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') void handleQuickQtySave('receipt'); if (e.key === 'Escape') setQuickEditQty(false); }}
+                                        autoFocus
+                                        disabled={quickQtySaving}
+                                        placeholder="к-сть"
+                                        className="w-16 px-2 py-1 rounded-lg border border-slate-200 bg-white text-[10px] text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+                                    />
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); void handleQuickQtySave('receipt'); }} disabled={quickQtySaving || !quickQtyVal.trim()} className="p-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white active:scale-95 transition-all disabled:opacity-40" title="Поступлення (+)">
+                                        {quickQtySaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : <Plus size={10} />}
+                                    </button>
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); void handleQuickQtySave('sale'); }} disabled={quickQtySaving || !quickQtyVal.trim()} className="p-1.5 rounded-lg bg-red-400 hover:bg-red-500 text-white active:scale-95 transition-all disabled:opacity-40" title="Продаж (−)">
+                                        <Minus size={10} />
+                                    </button>
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditQty(false); setQuickQtyError(null); }} className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors">
+                                        <X size={10} />
+                                    </button>
+                                </div>
+                            )}
+                            {quickQtyError && <p className="text-[9px] text-rose-500 font-medium">{quickQtyError}</p>}
 
                             <div
-                                className={`flex items-center bg-white border border-slate-200 rounded-full px-2 py-0.5 shadow-xs hover:shadow-sm transition-all duration-200 ${
+                                className={`flex items-center bg-white border border-slate-200 rounded-full px-1.5 py-0.5 shadow-xs hover:shadow-sm transition-all duration-200 ${
                                     isCounterDisabled ? "opacity-50 pointer-events-none" : ""
                                 }`}
                             >
@@ -1068,12 +1154,12 @@ useEffect(() => {
                                         e.stopPropagation();
                                         onQtyChange(code, -1);
                                     }}
-                                    className="w-7 h-7 min-h-0 min-w-0 text-xs rounded-full border border-slate-200 bg-slate-50 font-bold text-slate-700 shadow-[0_3px_8px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
+                                    className="w-8 h-8 sm:w-7 sm:h-7 min-h-0 min-w-0 text-xs rounded-full border border-slate-200 bg-slate-50 font-bold text-slate-700 shadow-[0_3px_8px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
                                     disabled={isCounterDisabled || qty <= 1}
                                 >
                                     -
                                 </button>
-                                <span className="w-8 text-center font-semibold text-gray-800 text-xs mx-0.5">
+                                <span className="w-8 text-center font-semibold text-gray-800 text-xs mx-1 sm:mx-0.5">
                                     {qty}
                                 </span>
                                 <button
@@ -1082,7 +1168,7 @@ useEffect(() => {
                                         e.stopPropagation();
                                         onQtyChange(code, 1);
                                     }}
-                                    className="w-7 h-7 min-h-0 min-w-0 text-xs rounded-full border border-blue-400/70 bg-[linear-gradient(135deg,#2563eb,#0284c7)] font-bold text-white shadow-[0_6px_12px_rgba(37,99,235,0.22)] hover:brightness-105 transition-all duration-150 disabled:opacity-30"
+                                    className="w-8 h-8 sm:w-7 sm:h-7 min-h-0 min-w-0 text-xs rounded-full border border-blue-400/70 bg-[linear-gradient(135deg,#2563eb,#0284c7)] font-bold text-white shadow-[0_6px_12px_rgba(37,99,235,0.22)] hover:brightness-105 transition-all duration-150 disabled:opacity-30"
                                     disabled={isPlusDisabled}
                                 >
                                     +
@@ -1090,7 +1176,7 @@ useEffect(() => {
                             </div>
                         </div>
 
-                         <div className="flex items-center gap-1">
+                         <div className="flex items-center gap-1.5 sm:gap-1">
                              {cartQty > 0 && (
                                  <button
                                      onClick={(e) => {
@@ -1154,7 +1240,7 @@ useEffect(() => {
                              >
                                  {cartQty > 0 && (
                                      <span
-                                         className={`absolute -top-1.5 -right-1.5 flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-bold text-white shadow-sm transition-transform duration-150 ${
+                                         className={`absolute -top-1.5 -right-1.5 z-10 flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-bold text-white shadow-sm ring-2 ring-white transition-transform duration-150 ${
                                              justAdded && motionEnabled ? "scale-125" : "scale-100"
                                          }`}
                                          onClick={(e) => {
@@ -1176,17 +1262,6 @@ useEffect(() => {
                                  )}
                              </button>
 
-                             {isAdmin && onAdminEdit && (
-                                 <button
-                                     type="button"
-                                     onClick={(e) => { e.stopPropagation(); enterEditMode(); if (!isFlipped) onFlip(code); }}
-                                     className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border border-violet-100 bg-violet-50 text-violet-600 shadow-[0_6px_12px_rgba(109,40,217,0.08)] hover:border-violet-200 hover:bg-violet-100 hover:text-violet-700 transition-all duration-200"
-                                     aria-label="Редагувати товар"
-                                     title="Редагувати товар"
-                                 >
-                                     <Pencil size={16} />
-                                 </button>
-                             )}
                              <button
                                  onClick={(e) => {
                                      e.stopPropagation();
@@ -1203,13 +1278,12 @@ useEffect(() => {
                 </div>
 
       {/* ---------- BACK ---------- */}
-{/* ---------- BACK ---------- */}
 <div
     className={`
-        absolute inset-0 w-full h-full backface-hidden
+        catalog-card-face absolute inset-0 w-full h-full backface-hidden
         rounded-xl border border-slate-200
-        bg-gradient-to-br from-white via-slate-50 to-slate-100
-        shadow-lg
+        bg-[linear-gradient(155deg,rgba(248,250,252,1)_0%,rgba(255,255,255,0.98)_50%,rgba(240,249,255,0.95)_100%)]
+        shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.07),0_12px_24px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)]
         flex flex-col
         transition-opacity duration-200
         ${backVisibilityClass}
@@ -1221,15 +1295,44 @@ useEffect(() => {
     }}
     aria-hidden={isFrontVisible}
 >
-    {/* Header */}
-    <div className="rounded-t-xl px-3 py-2.5 border-b border-slate-200 bg-gradient-to-r from-blue-50/70 via-white/70 to-slate-50/70 backdrop-blur-sm">
-        <h3 className="font-name-accent text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 text-left leading-[1.02] line-clamp-2">
+    {/* Header: name + action buttons */}
+    <div className="flex items-start gap-2 px-3 pt-2.5 pb-2 border-b border-slate-100/80 bg-gradient-to-r from-white to-slate-50/60 rounded-t-xl">
+        <h3 className="flex-1 min-w-0 font-name-accent text-[13px] sm:text-[14px] tracking-[-0.03em] text-slate-900 leading-snug line-clamp-2">
             {name}
         </h3>
+        <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
+            {isAdmin && onAdminEdit && !isEditMode && (
+                <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); enterEditMode(); }}
+                    className="p-1.5 rounded-lg border border-violet-200 bg-violet-50 text-violet-500 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-95 transition-all duration-150"
+                    title="Редагувати"
+                >
+                    <Pencil size={12} />
+                </button>
+            )}
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    if (isEditMode) {
+                        setIsEditMode(false);
+                        setEditError(null);
+                        setGroupSuggestions([]);
+                        setSubGroupSuggestions([]);
+                        setCategorySuggestions([]);
+                    }
+                    onFlip(code);
+                }}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 active:scale-95 transition-all duration-150"
+                aria-label="Назад"
+            >
+                <ChevronDown size={14} className="rotate-180" />
+            </button>
+        </div>
     </div>
 
-    {/* Breadcrumb: positional labels (topmost filled = Категорія, next = Група, leaf = Підгрупа) */}
-    {(item.group || item.subGroup || item.category) && (() => {
+    {/* Breadcrumb pills */}
+    {!isEditMode && (item.group || item.subGroup || item.category) && (() => {
         const cat = (item.category || "").trim();
         const grp = (item.group || "").trim();
         const sub = (item.subGroup || "").trim();
@@ -1241,27 +1344,22 @@ useEffect(() => {
         if (grp) levels.push(grp);
         if (sub && subL !== grpL) levels.push(sub);
         if (levels.length === 0) return null;
-        const styles = [
-            { label: "Категорія", dot: "bg-teal-400",   text: "text-teal-600" },
-            { label: "Група",     dot: "bg-violet-400", text: "text-violet-600" },
-            { label: "Підгрупа",  dot: "bg-sky-400",    text: "text-sky-600" },
+        const pillStyles = [
+            "bg-teal-50 text-teal-700 border-teal-100",
+            "bg-violet-50 text-violet-700 border-violet-100",
+            "bg-sky-50 text-sky-700 border-sky-100",
         ] as const;
         return (
-            <div className="border-b border-slate-100/80 px-3 py-1.5 bg-gradient-to-r from-slate-50/70 to-white/50">
-                <div className="flex flex-col gap-[3px]">
-                    {levels.map((value, i) => {
-                        const s = styles[i] ?? styles[2];
-                        return (
-                            <div key={i} className="flex items-center gap-1.5 min-w-0">
-                                <span className={`h-[5px] w-[5px] flex-shrink-0 rounded-full ${s.dot}`} />
-                                <span className={`w-[50px] flex-shrink-0 text-[8px] font-black uppercase tracking-[0.1em] ${s.text}`}>{s.label}</span>
-                                <span className="flex-1 min-w-0 truncate text-[10px] font-semibold text-slate-700">
-                                    {buildVisibleProductName(value)}
-                                </span>
-                            </div>
-                        );
-                    })}
-                </div>
+            <div className="flex flex-wrap items-center gap-1 px-3 py-1.5 border-b border-slate-100/60 bg-slate-50/30">
+                {levels.map((value, i) => (
+                    <span
+                        key={i}
+                        className={`inline-flex items-center rounded-full border px-2 py-[2px] text-[9px] font-semibold leading-none max-w-[calc(50%-2px)] truncate ${pillStyles[i] ?? pillStyles[2]}`}
+                        title={buildVisibleProductName(value)}
+                    >
+                        {buildVisibleProductName(value)}
+                    </span>
+                ))}
             </div>
         );
     })()}
@@ -1269,13 +1367,13 @@ useEffect(() => {
     {/* Content: edit form or description */}
     {isAdmin && onAdminEdit && isEditMode ? (
         <>
-            <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+            <div className="flex-1 overflow-visible px-2.5 py-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
                 <div>
-                    <label className="block text-[8px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Опис</label>
-                    <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-800 resize-none focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-100 transition-all disabled:opacity-50 hover:border-slate-300" rows={2} disabled={editSaving} />
+                    <label className="block text-[8px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Опис</label>
+                    <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 resize-none focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-100 transition-all disabled:opacity-50 hover:border-slate-300" rows={2} disabled={editSaving} />
                 </div>
                 <div className="relative">
-                    <label className="block text-[8px] font-semibold text-teal-600 uppercase tracking-wide mb-0.5">Категорія</label>
+                    <label className="block text-[8px] font-bold text-teal-600 uppercase tracking-wide mb-0.5">Категорія</label>
                     <input type="text" value={editCategory}
                         onChange={(e) => { setEditCategory(e.target.value); fetchMetaSuggestions('category', e.target.value); setEditGroup(''); setEditSubGroup(''); setGroupSuggestions([]); setSubGroupSuggestions([]); }}
                         onKeyDown={(e) => {
@@ -1287,18 +1385,18 @@ useEffect(() => {
                         onFocus={() => { fetchMetaSuggestions('category', editCategory); }}
                         onBlur={() => { setTimeout(() => setCategorySuggestions([]), 150); }}
                         disabled={editSaving} placeholder="Категорія товару"
-                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] text-slate-800 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-100 disabled:opacity-50 transition-all" />
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-100 disabled:opacity-50 transition-all" />
                     {categorySuggestions.length > 0 && (
-                        <div className="absolute left-0 top-full z-50 mt-0.5 w-full max-h-28 overflow-y-auto rounded-lg border border-teal-200 bg-white shadow-[0_6px_18px_rgba(20,184,166,0.14)]">
+                        <div className="absolute left-0 top-full z-50 mt-0.5 w-full max-h-24 overflow-y-auto rounded-lg border border-teal-200 bg-white shadow-[0_6px_18px_rgba(20,184,166,0.14)]">
                             {categorySuggestions.map((s, i) => (
                                 <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); setEditCategory(s); setCategorySuggestions([]); setCategoryActiveSug(-1); setEditGroup(''); setEditSubGroup(''); fetchMetaSuggestions('group', '', s); setGroupSuggestions([]); setSubGroupSuggestions([]); }}
-                                    className={`block w-full px-2.5 py-2 text-left text-[11px] font-medium transition ${i === categoryActiveSug ? 'bg-teal-50 text-teal-800' : 'text-slate-700 hover:bg-slate-50'}`}>{s}</button>
+                                    className={`block w-full px-2.5 py-1.5 text-left text-[10px] font-medium transition ${i === categoryActiveSug ? 'bg-teal-50 text-teal-800' : 'text-slate-700 hover:bg-slate-50'}`}>{s}</button>
                             ))}
                         </div>
                     )}
                 </div>
                 <div className="relative">
-                    <label className="block text-[8px] font-semibold text-violet-600 uppercase tracking-wide mb-0.5">Група</label>
+                    <label className="block text-[8px] font-bold text-violet-600 uppercase tracking-wide mb-0.5">Група</label>
                     <input type="text" value={editGroup}
                         onChange={(e) => { setEditGroup(e.target.value); fetchMetaSuggestions('group', e.target.value, editCategory); setEditSubGroup(''); setSubGroupSuggestions([]); }}
                         onKeyDown={(e) => {
@@ -1310,18 +1408,18 @@ useEffect(() => {
                         onFocus={() => { fetchMetaSuggestions('group', editGroup, editCategory); }}
                         onBlur={() => { setTimeout(() => setGroupSuggestions([]), 150); }}
                         disabled={editSaving} placeholder="Група товарів"
-                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] text-slate-800 focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-100 disabled:opacity-50 transition-all" />
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-100 disabled:opacity-50 transition-all" />
                     {groupSuggestions.length > 0 && (
-                        <div className="absolute left-0 top-full z-50 mt-0.5 w-full max-h-28 overflow-y-auto rounded-lg border border-violet-200 bg-white shadow-[0_6px_18px_rgba(109,40,217,0.12)]">
+                        <div className="absolute left-0 top-full z-50 mt-0.5 w-full max-h-24 overflow-y-auto rounded-lg border border-violet-200 bg-white shadow-[0_6px_18px_rgba(109,40,217,0.12)]">
                             {groupSuggestions.map((s, i) => (
                                 <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); setEditGroup(s); setGroupSuggestions([]); setGroupActiveSug(-1); setEditSubGroup(''); fetchMetaSuggestions('subGroup', '', s); setSubGroupSuggestions([]); }}
-                                    className={`block w-full px-2.5 py-2 text-left text-[11px] font-medium transition ${i === groupActiveSug ? 'bg-violet-50 text-violet-800' : 'text-slate-700 hover:bg-slate-50'}`}>{s}</button>
+                                    className={`block w-full px-2.5 py-1.5 text-left text-[10px] font-medium transition ${i === groupActiveSug ? 'bg-violet-50 text-violet-800' : 'text-slate-700 hover:bg-slate-50'}`}>{s}</button>
                             ))}
                         </div>
                     )}
                 </div>
                 <div className="relative">
-                    <label className="block text-[8px] font-semibold text-sky-600 uppercase tracking-wide mb-0.5">Підгрупа</label>
+                    <label className="block text-[8px] font-bold text-sky-600 uppercase tracking-wide mb-0.5">Підгрупа</label>
                     <input type="text" value={editSubGroup}
                         onChange={(e) => { setEditSubGroup(e.target.value); fetchMetaSuggestions('subGroup', e.target.value, editGroup); }}
                         onKeyDown={(e) => {
@@ -1333,18 +1431,18 @@ useEffect(() => {
                         onFocus={() => { fetchMetaSuggestions('subGroup', editSubGroup, editGroup); }}
                         onBlur={() => { setTimeout(() => setSubGroupSuggestions([]), 150); }}
                         disabled={editSaving} placeholder="Підгрупа товарів"
-                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] text-slate-800 focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100 disabled:opacity-50 transition-all" />
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-100 disabled:opacity-50 transition-all" />
                     {subGroupSuggestions.length > 0 && (
-                        <div className="absolute left-0 top-full z-50 mt-0.5 w-full max-h-28 overflow-y-auto rounded-lg border border-sky-200 bg-white shadow-[0_6px_18px_rgba(14,165,233,0.12)]">
+                        <div className="absolute left-0 top-full z-50 mt-0.5 w-full max-h-24 overflow-y-auto rounded-lg border border-sky-200 bg-white shadow-[0_6px_18px_rgba(14,165,233,0.12)]">
                             {subGroupSuggestions.map((s, i) => (
                                 <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); setEditSubGroup(s); setSubGroupSuggestions([]); setSubGroupActiveSug(-1); }}
-                                    className={`block w-full px-2.5 py-2 text-left text-[11px] font-medium transition ${i === subGroupActiveSug ? 'bg-sky-50 text-sky-800' : 'text-slate-700 hover:bg-slate-50'}`}>{s}</button>
+                                    className={`block w-full px-2.5 py-1.5 text-left text-[10px] font-medium transition ${i === subGroupActiveSug ? 'bg-sky-50 text-sky-800' : 'text-slate-700 hover:bg-slate-50'}`}>{s}</button>
                             ))}
                         </div>
                     )}
                 </div>
             </div>
-            <div className="px-2.5 pb-2.5 pt-1.5 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="px-2.5 pb-2.5 pt-1.5 border-t border-slate-100 bg-white/40" onClick={(e) => e.stopPropagation()}>
                 {editError && (
                     <div className="flex items-center gap-1 rounded-lg bg-rose-50 border border-rose-200 px-2 py-1 mb-1.5">
                         <X size={10} className="text-rose-500 flex-shrink-0" />
@@ -1358,39 +1456,33 @@ useEffect(() => {
                     </div>
                 )}
                 <div className="flex gap-1.5">
-                    <button type="button" onClick={(e) => { e.stopPropagation(); void handleAdminSave(); }} disabled={editSaving} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-violet-300 bg-gradient-to-b from-violet-100 to-violet-50 text-violet-800 text-[10px] font-bold py-2 hover:from-violet-200 hover:to-violet-100 hover:border-violet-400 hover:shadow-sm active:scale-[0.97] disabled:opacity-50 transition-all duration-150">
-                        {editSaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-violet-300 border-t-violet-700 animate-spin" /> : <><Save size={10} />Зберегти</>}
+                    <button type="button" onClick={(e) => { e.stopPropagation(); void handleAdminSave(); }} disabled={editSaving}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 text-white text-[10px] font-bold py-2 hover:bg-violet-700 active:scale-[0.97] disabled:opacity-50 transition-all shadow-sm">
+                        {editSaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : <><Save size={10} />Зберегти</>}
                     </button>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setIsEditMode(false); setEditError(null); setGroupSuggestions([]); setSubGroupSuggestions([]); setCategorySuggestions([]); onFlip(code); }} disabled={editSaving} className="px-4 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 text-[10px] hover:bg-slate-50 hover:border-slate-300 active:scale-[0.97] disabled:opacity-50 transition-all duration-150">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setIsEditMode(false); setEditError(null); setGroupSuggestions([]); setSubGroupSuggestions([]); setCategorySuggestions([]); }} disabled={editSaving}
+                        className="px-3 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 text-[10px] hover:bg-slate-50 hover:border-slate-300 active:scale-[0.97] disabled:opacity-50 transition-all">
                         <X size={13} />
                     </button>
                 </div>
             </div>
         </>
     ) : (
-        <>
-            <div className="flex-1 overflow-y-auto px-3 py-2 pb-12 text-slate-700">
-                {loadingDesc && (
-                    <div className="space-y-2 animate-pulse">
-                        <div className="h-2 bg-slate-200 rounded w-5/6" />
-                        <div className="h-2 bg-slate-200 rounded w-full" />
-                        <div className="h-2 bg-slate-200 rounded w-4/6" />
-                    </div>
-                )}
-                {!loadingDesc && (
-                    <div className="rounded-xl border border-slate-200 bg-white/70 p-2 text-[11px] sm:text-[12px] leading-relaxed text-slate-700 whitespace-pre-line">
-                        {description || "\u041E\u043F\u0438\u0441 \u0432\u0456\u0434\u0441\u0443\u0442\u043D\u0456\u0439"}
-                    </div>
-                )}
-            </div>
-            <button
-                onClick={(e) => { e.stopPropagation(); onFlip(code); }}
-                className="absolute right-3 bottom-3 p-2 rounded-full border border-slate-200 bg-white/95 backdrop-blur text-slate-600 shadow-sm hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all hover:scale-[1.03] active:scale-[0.96] motion-reduce:hover:scale-100 motion-reduce:active:scale-100"
-                aria-label="\u041D\u0430\u0437\u0430\u0434"
-            >
-                <ChevronDown size={16} className="rotate-180" />
-            </button>
-        </>
+        <div className="flex-1 overflow-y-auto px-3 py-2.5">
+            {loadingDesc && (
+                <div className="space-y-2 animate-pulse">
+                    <div className="h-2 bg-slate-200 rounded w-5/6" />
+                    <div className="h-2 bg-slate-200 rounded w-full" />
+                    <div className="h-2 bg-slate-200 rounded w-4/6" />
+                    <div className="h-2 bg-slate-200 rounded w-3/5" />
+                </div>
+            )}
+            {!loadingDesc && (
+                <p className="text-[11px] sm:text-[12px] leading-relaxed text-slate-600 whitespace-pre-line">
+                    {description || "\u041E\u043F\u0438\u0441 \u0432\u0456\u0434\u0441\u0443\u0442\u043D\u0456\u0439"}
+                </p>
+            )}
+        </div>
     )}
 </div>
 

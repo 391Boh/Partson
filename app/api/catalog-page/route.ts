@@ -15,9 +15,9 @@ type CatalogPageApiPayload = {
   stale?: boolean;
 };
 
-const ROUTE_SUCCESS_CACHE_TTL_MS = 1000 * 60 * 4;
-const ROUTE_SUCCESS_STALE_TTL_MS = 1000 * 60 * 45;
-const ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS = 1000 * 60 * 30;
+const ROUTE_SUCCESS_CACHE_TTL_MS = 1000 * 60 * 10;
+const ROUTE_SUCCESS_STALE_TTL_MS = 1000 * 60 * 240;
+const ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS = 1000 * 60 * 90;
 const CATALOG_ROUTE_RESPONSE_TIMEOUT_MS = 9000;
 
 type RouteSuccessCacheEntry = {
@@ -217,7 +217,9 @@ export async function POST(request: Request) {
 
     const cacheHit = getFreshRouteCacheValue(routeCacheKey);
     if (cacheHit) {
-      return NextResponse.json(cacheHit);
+      return NextResponse.json(cacheHit, {
+        headers: { "cache-control": "private, max-age=60, stale-while-revalidate=600" },
+      });
     }
 
     const staleCacheHit = getStaleRouteCacheValue(routeCacheKey);
@@ -260,7 +262,7 @@ export async function POST(request: Request) {
         : 3600;
     const retries = 0;
     const retryDelayMs = hasTightFilterContext ? 80 : 150;
-    const cacheTtlMs = hasTightFilterContext ? 1000 * 90 : 1000 * 45;
+    const cacheTtlMs = hasTightFilterContext ? 1000 * 60 * 8 : 1000 * 60 * 5;
     const staleTtlMs = hasTightFilterContext
       ? ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS
       : ROUTE_SUCCESS_STALE_TTL_MS;
@@ -492,7 +494,9 @@ export async function POST(request: Request) {
 
     if (staleCacheHit) {
       void inFlight.catch(() => null);
-      return NextResponse.json(buildStaleCatalogPayload(staleCacheHit));
+      return NextResponse.json(buildStaleCatalogPayload(staleCacheHit), {
+        headers: { "cache-control": "private, max-age=30, stale-while-revalidate=300" },
+      });
     }
 
     const payload = await awaitCatalogPayloadWithinBudget(
@@ -506,7 +510,9 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(payload);
+    return NextResponse.json(payload, {
+      headers: { "cache-control": "private, max-age=60, stale-while-revalidate=600" },
+    });
   } catch (error) {
     if (!routeCacheKey) {
       routeCacheKey = buildRouteCacheKey(body);
