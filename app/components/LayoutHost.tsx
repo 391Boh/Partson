@@ -225,12 +225,45 @@ const PRIMARY_WARMUP_ROUTES = [
   "/auto",
   "/katalog?tab=auto",
   "/katalog?tab=category",
-  "/inform/about",
   "/inform/delivery",
   "/inform/payment",
+  "/inform/about",
   "/inform/location",
+  "/inform/warranty",
+  "/inform/returns",
+  "/inform/diagnostics",
   "/inform/privacy",
 ] as const;
+
+const isNavigationClick = (event: Event) => {
+  const target = event.target;
+  const element =
+    target instanceof Element
+      ? target
+      : target instanceof Node
+        ? target.parentElement
+        : null;
+  const anchor = element?.closest("a[href]") as HTMLAnchorElement | null;
+  if (!anchor || anchor.target === "_blank") return false;
+
+  const href = anchor.getAttribute("href") || "";
+  if (
+    !href ||
+    href.startsWith("#") ||
+    href.startsWith("javascript:") ||
+    href.startsWith("mailto:") ||
+    href.startsWith("tel:")
+  ) {
+    return false;
+  }
+
+  try {
+    const url = new URL(anchor.href);
+    return url.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
 
 function RouteViewStateSync({
   pathname,
@@ -359,7 +392,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     let timeoutId: number | null = null;
     const idleId: number | null = null;
-    const triggerDepsLoad = () => {
+    const triggerDepsLoad = (event?: Event) => {
+      if (event?.type === "click" && isNavigationClick(event)) {
+        return;
+      }
       window.removeEventListener("click", triggerDepsLoad);
       window.removeEventListener("keydown", triggerDepsLoad);
       if (timeoutId != null) window.clearTimeout(timeoutId);
@@ -376,7 +412,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     });
     window.addEventListener("keydown", triggerDepsLoad, { once: true });
 
-    timeoutId = window.setTimeout(triggerDepsLoad, 500);
+    timeoutId = window.setTimeout(triggerDepsLoad, enableIdleFirebase ? 3500 : 1800);
 
     return () => {
       cancelled = true;
@@ -407,7 +443,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     };
 
     let timeoutId: number | null = null;
-    const triggerChatButtonLoad = () => {
+    const triggerChatButtonLoad = (event?: Event) => {
+      if (event?.type === "click" && isNavigationClick(event)) {
+        return;
+      }
       window.removeEventListener("click", triggerChatButtonLoad);
       window.removeEventListener("keydown", triggerChatButtonLoad);
       if (timeoutId != null) window.clearTimeout(timeoutId);
@@ -780,7 +819,11 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           const raw = window.localStorage.getItem("partson:selectedCars");
           const parsed = raw ? JSON.parse(raw) : null;
           if (Array.isArray(parsed)) {
-            selectedCars = parsed.filter((c) => typeof c === "string");
+            selectedCars = parsed
+              .filter((c) => typeof c === "string")
+              .map((c: string) => c.trim())
+              .filter(Boolean)
+              .sort();
           }
         } catch {}
 
@@ -810,7 +853,12 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           group: null,
           subcat: null,
           producer: null,
+          hierarchy: false,
           sort: "none",
+          pricedOnly: false,
+          priceFrom: null,
+          priceTo: null,
+          inStock: false,
         });
 
         try {
@@ -828,7 +876,11 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         const items = Array.isArray(result?.items) ? result.items : [];
 
         try {
-          window.sessionStorage.setItem(cacheKey, JSON.stringify(result));
+          const now = Date.now();
+          window.sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify({ ...result, t: now, expiresAt: now + 1000 * 60 * 4 })
+          );
         } catch {}
 
         if (items.length === 0) return;
@@ -864,25 +916,27 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     let preloadAllTimer: number | null = null;
     let loadListener: (() => void) | null = null;
 
-    if (enableAggressiveWarmup) {
+    if (!shouldUseLightWarmup) {
       initialWarmupFrameId = window.requestAnimationFrame(() => {
         prefetchPrimaryRoutes();
-        if (!shouldUseLightWarmup) {
-          preloadCriticalChunks();
+        preloadCriticalChunks();
+        if (enableAggressiveWarmup) {
           warmRoutesTimer = window.setTimeout(() => void warmRoutes(), 1800);
         }
       });
     }
 
     const scheduleWarmup = () => {
-      if (shouldUseLightWarmup || !enableAggressiveWarmup) return;
+      if (shouldUseLightWarmup) return;
 
-      preloadAllTimer = window.setTimeout(preloadAllChunks, 4200);
+      if (enableAggressiveWarmup) {
+        preloadAllTimer = window.setTimeout(preloadAllChunks, 4200);
+      }
 
       if (typeof idle === "function") {
         idleId = idle(() => void runWarmup(), { timeout: 5200 });
       } else {
-        timerId = window.setTimeout(() => void runWarmup(), 1500);
+        timerId = window.setTimeout(() => void runWarmup(), 2500);
       }
     };
 
@@ -1040,6 +1094,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       } else {
         setAuthUserUid(null);
         setIsAdmin(false);
+        try { localStorage.removeItem("user_id"); } catch {}
         window.dispatchEvent(
           new CustomEvent("partson:adminStateChange", {
             detail: { isAdmin: false, uid: null },
@@ -1308,6 +1363,24 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           {isAdmin && !isAdminPanelOpen && (
             <div className="flex flex-col items-end gap-1.5">
               <button
+                onClick={() => setIsCreateModalOpen(true)}
+                aria-label="Новий товар"
+                title="Створити новий товар"
+                className="group relative isolate z-[60] mr-2 flex h-11 w-11 items-center justify-center overflow-visible rounded-[16px] border border-white/18 shadow-[0_14px_32px_rgba(109,40,217,0.32)] transition-[box-shadow,border-color,filter,transform] duration-300 ease-out hover:-translate-y-0.5 hover:scale-[1.018] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-violet-300/45 md:mr-2.5"
+              >
+                <span aria-hidden="true" style={{ backgroundSize: "180% 180%" }} className="pointer-events-none absolute inset-0 rounded-[16px] bg-[image:linear-gradient(145deg,rgba(88,28,135,0.98)_0%,rgba(124,58,237,0.95)_48%,rgba(167,139,250,0.88)_100%)] bg-[position:0%_50%] transition-[background-position] duration-700 ease-out group-hover:bg-[position:100%_50%]" />
+                <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[16px] border border-white/10 bg-[image:radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_82%)]" />
+                <span aria-hidden="true" className="pointer-events-none absolute inset-[1px] rounded-[15px] bg-[image:linear-gradient(165deg,rgba(255,255,255,0.14),rgba(255,255,255,0.04)_38%,rgba(255,255,255,0.06)_100%)]" />
+                <span aria-hidden="true" className="pointer-events-none absolute -inset-3 scale-[0.94] rounded-[22px] bg-violet-400/24 opacity-25 blur-xl transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.04] group-hover:opacity-55" />
+                <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -translate-x-[130%] skew-x-[-18deg] bg-[image:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent)] opacity-0 mix-blend-screen transition-[opacity,transform] duration-700 ease-out group-hover:translate-x-[250%] group-hover:opacity-95" />
+                <span className="pointer-events-none absolute inset-x-3 top-1.5 h-4 rounded-full bg-[image:linear-gradient(180deg,rgba(255,255,255,0.22),transparent)] blur-sm" />
+                <span className="relative z-10 flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.08]">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-white drop-shadow-[0_4px_10px_rgba(109,40,217,0.4)]" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </span>
+              </button>
+              <button
                 onClick={() => setIsAdminPanelOpen((prev) => !prev)}
                 className="relative z-[60] mr-2 inline-flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border border-white/18 bg-sky-800 text-white shadow-[0_18px_38px_rgba(8,47,73,0.26)] transition hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
                 aria-label="Адмін панель"
@@ -1315,14 +1388,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
               >
                 <Shield className="h-[30px] w-[30px]" strokeWidth={2.2} aria-hidden="true" />
                 {renderBadge(totalNotifications)}
-              </button>
-              <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="relative z-[60] mr-2 inline-flex h-10 items-center gap-1.5 rounded-[14px] border border-white/18 bg-violet-700 px-3 text-[11px] font-black text-white shadow-[0_10px_24px_rgba(109,40,217,0.28)] transition hover:bg-violet-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-violet-300/45 md:mr-2.5"
-                aria-label="Новий товар"
-                title="Створити новий товар"
-              >
-                + Товар
               </button>
             </div>
           )}

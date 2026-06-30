@@ -82,14 +82,9 @@ const PRODUCT_SITEMAP_PRICED_SNAPSHOT_PATH =
 const shouldBypassProductSitemapCache = () =>
   process.env.PRODUCT_SITEMAP_DISABLE_CACHE === "1";
 
-const isProductionBuildPhase =
-  process.env.NEXT_PHASE === "phase-production-build" ||
-  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
-  process.env.npm_lifecycle_event === "build";
-
 const shouldUseProductSitemapSnapshot = () =>
   !shouldBypassProductSitemapCache() &&
-  (process.env.PRODUCT_SITEMAP_USE_SNAPSHOT === "1" || isProductionBuildPhase);
+  process.env.PRODUCT_SITEMAP_USE_SNAPSHOT !== "0";
 
 let productSitemapEntryBatchesMemory: ProductSitemapEntry[][] | null = null;
 let productSitemapEntryBatchesPromise: Promise<ProductSitemapEntry[][]> | null = null;

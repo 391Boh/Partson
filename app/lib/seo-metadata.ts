@@ -12,7 +12,7 @@ export const STORE_PHONE_TEL = "+380634211851";
 export const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
 export const STORE_PHONE_SEO_LABEL = `☎️ ${STORE_PHONE_DISPLAY}`;
 export const STORE_ADDRESS_SEO_LABEL = `📍 ${STORE_ADDRESS}`;
-export const SEO_DESCRIPTION_MAX_LENGTH = 178;
+export const SEO_DESCRIPTION_MAX_LENGTH = 160;
 
 const BASE_KEYWORDS = [
   "PartsON",

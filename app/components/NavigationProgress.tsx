@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, Suspense } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 function RouteWatcher({ onComplete }: { onComplete: () => void }) {
   const pathname = usePathname();
@@ -26,12 +26,14 @@ function RouteWatcher({ onComplete }: { onComplete: () => void }) {
 }
 
 export default function NavigationProgress() {
+  const router = useRouter();
   const barRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const timer1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startTimeRef = useRef<number>(0);
   const isRunningRef = useRef(false);
+  const prefetchedRoutesRef = useRef<Set<string>>(new Set());
 
   const clearPending = useCallback(() => {
     if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
@@ -56,15 +58,15 @@ export default function NavigationProgress() {
     if (!bar) return;
 
     bar.style.visibility = 'visible';
-    bar.style.transition = 'transform 0.16s ease-out';
+    bar.style.transition = 'transform 0.12s ease-out';
     bar.style.transform = 'scaleX(1)';
 
     timer1Ref.current = setTimeout(() => {
       if (!barRef.current) return;
-      barRef.current.style.transition = 'opacity 0.22s ease-out';
+      barRef.current.style.transition = 'opacity 0.18s ease-out';
       barRef.current.style.opacity = '0';
-      timer2Ref.current = setTimeout(resetBar, 240);
-    }, 170);
+      timer2Ref.current = setTimeout(resetBar, 200);
+    }, 120);
   }, [clearPending, resetBar]);
 
   const start = useCallback(() => {
@@ -81,8 +83,8 @@ export default function NavigationProgress() {
 
     const animate = (now: number) => {
       if (!isRunningRef.current || !barRef.current) return;
-      const t = Math.min((now - startTimeRef.current) / 2600, 1);
-      const scale = (1 - Math.pow(1 - t, 4)) * 0.82;
+      const t = Math.min((now - startTimeRef.current) / 1400, 1);
+      const scale = (1 - Math.pow(1 - t, 3)) * 0.88;
       barRef.current.style.transform = `scaleX(${scale.toFixed(4)})`;
       rafRef.current = requestAnimationFrame(animate);
     };
@@ -94,20 +96,39 @@ export default function NavigationProgress() {
   }, [clearPending]);
 
   useEffect(() => {
+    const getInternalNavigationHref = (event: Event) => {
+      const anchor = (event.target as Element | null)?.closest?.(
+        'a[href]'
+      ) as HTMLAnchorElement | null;
+      if (!anchor || anchor.target === '_blank') return null;
+      const href = anchor.getAttribute('href') || '';
+      if (!href || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+        return null;
+      }
+
+      try {
+        const url = new URL(anchor.href);
+        if (url.origin !== window.location.origin) return null;
+        if (url.pathname === window.location.pathname && url.search === window.location.search) {
+          return null;
+        }
+        return `${url.pathname}${url.search}`;
+      } catch {
+        return null;
+      }
+    };
+
+    const warmRoute = (event: Event) => {
+      const route = getInternalNavigationHref(event);
+      if (!route || prefetchedRoutesRef.current.has(route)) return;
+      prefetchedRoutesRef.current.add(route);
+      router.prefetch(route);
+    };
+
     const handleClick = (e: MouseEvent) => {
       if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
-      const anchor = (e.target as Element).closest('a[href]') as HTMLAnchorElement | null;
-      if (!anchor || anchor.target === '_blank') return;
-      const { href } = anchor;
-      if (!href || href.startsWith('javascript:')) return;
-      try {
-        const url = new URL(href);
-        if (url.origin !== window.location.origin) return;
-        // Skip pure hash changes on same page
-        if (url.pathname === window.location.pathname && url.search === window.location.search) return;
-      } catch {
-        return;
-      }
+      if (!getInternalNavigationHref(e)) return;
+      warmRoute(e);
       start();
     };
 
@@ -131,15 +152,23 @@ export default function NavigationProgress() {
       }
     };
 
+    document.addEventListener('pointerover', warmRoute, { capture: true, passive: true });
+    document.addEventListener('pointerdown', warmRoute, { capture: true, passive: true });
+    document.addEventListener('focusin', warmRoute, { capture: true, passive: true });
+    document.addEventListener('touchstart', warmRoute, { capture: true, passive: true });
     document.addEventListener('click', handleClick, { capture: true, passive: true });
     window.addEventListener('popstate', handlePopState);
 
     return () => {
       window.history.pushState = origPushState;
+      document.removeEventListener('pointerover', warmRoute, { capture: true });
+      document.removeEventListener('pointerdown', warmRoute, { capture: true });
+      document.removeEventListener('focusin', warmRoute, { capture: true });
+      document.removeEventListener('touchstart', warmRoute, { capture: true });
       document.removeEventListener('click', handleClick, { capture: true });
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [start]);
+  }, [router, start]);
 
   useEffect(() => () => clearPending(), [clearPending]);
 

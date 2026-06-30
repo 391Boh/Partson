@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
@@ -103,19 +103,21 @@ export async function POST(req: NextRequest) {
 
   try {
     const docRef = await getFirebaseAdminDb().collection("messages").add(messageData);
-    const notification = await sendTelegramNotification(
-      buildTelegramMessage({ userId, text, type })
-    );
 
-    if (!notification.ok) {
-      console.error("Telegram chat notification failed:", notification.error);
-    }
+    after(async () => {
+      const notification = await sendTelegramNotification(
+        buildTelegramMessage({ userId, text, type })
+      );
+
+      if (!notification.ok) {
+        console.error("Telegram chat notification failed:", notification.error);
+      }
+    });
 
     const response = NextResponse.json({
       success: true,
       id: docRef.id,
-      notified: notification.ok && notification.skipped !== true,
-      notificationSkipped: notification.skipped === true,
+      notificationQueued: true,
     });
     setRateLimitHeaders(response.headers, rateResult);
     return response;

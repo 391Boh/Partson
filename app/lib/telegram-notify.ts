@@ -6,10 +6,16 @@ type TelegramNotificationResult = {
   error?: string;
 };
 
+const TELEGRAM_NOTIFY_TIMEOUT_MS = 6_000;
+
 const readNotifyChatIds = () => {
   const raw =
+    process.env.TELEGRAM_NOTIFY_CHAT_IDS ||
     process.env.TELEGRAM_NOTIFY_CHAT_ID ||
     process.env.TELEGRAM_ADMIN_CHAT_ID ||
+    process.env.TELEGRAM_ADMIN_CHAT_IDS ||
+    process.env.ADMIN_TELEGRAM_CHAT_ID ||
+    process.env.ADMIN_TELEGRAM_CHAT_IDS ||
     process.env.TELEGRAM_CHAT_ID ||
     "";
 
@@ -20,13 +26,20 @@ const readNotifyChatIds = () => {
 };
 
 export const isTelegramNotifyConfigured = () =>
-  Boolean(process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN) &&
+  Boolean(
+    process.env.TELEGRAM_BOT_TOKEN ||
+      process.env.TELEGRAM_ADMIN_BOT_TOKEN ||
+      process.env.BOT_TOKEN
+  ) &&
   readNotifyChatIds().length > 0;
 
 export const sendTelegramNotification = async (
   text: string
 ): Promise<TelegramNotificationResult> => {
-  const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;
+  const token =
+    process.env.TELEGRAM_BOT_TOKEN ||
+    process.env.TELEGRAM_ADMIN_BOT_TOKEN ||
+    process.env.BOT_TOKEN;
   const chatIds = readNotifyChatIds();
 
   if (!token || chatIds.length === 0) {
@@ -41,6 +54,9 @@ export const sendTelegramNotification = async (
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
   const results = await Promise.allSettled(
     chatIds.map(async (chatId) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), TELEGRAM_NOTIFY_TIMEOUT_MS);
+
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -50,7 +66,8 @@ export const sendTelegramNotification = async (
           disable_web_page_preview: true,
         }),
         cache: "no-store",
-      });
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
@@ -59,8 +76,13 @@ export const sendTelegramNotification = async (
     })
   );
 
+  const deliveredCount = results.filter((result) => result.status === "fulfilled").length;
+  if (deliveredCount > 0) {
+    return { ok: true };
+  }
+
   const failed = results.find((result) => result.status === "rejected");
-  if (failed && failed.status === "rejected") {
+  if (failed?.status === "rejected") {
     return {
       ok: false,
       error:
@@ -70,5 +92,5 @@ export const sendTelegramNotification = async (
     };
   }
 
-  return { ok: true };
+  return { ok: false, error: "Telegram send failed" };
 };

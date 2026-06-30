@@ -54,20 +54,21 @@ import { getProducerSeoCopy } from "app/lib/seo-copy";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
+import { safeJsonLd } from "app/lib/safe-json-ld";
 import ManufacturerGroupSampleImage from "app/manufacturers/[slug]/ManufacturerGroupSampleImage";
 
 export const revalidate = 21600;
 export const dynamicParams = true;
-const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 0;
-const MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS = 1800;
+const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
+const MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS = 1400;
 const MANUFACTURER_BUILD_SEO_LOOKUP_TIMEOUT_MS = 6000;
 const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
-const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 2400;
+const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 1600;
 const MANUFACTURER_FALLBACK_MAX_PAGES_DEFAULT = 40;
 const MANUFACTURER_FALLBACK_MAX_ITEMS_DEFAULT = 4800;
 const MANUFACTURER_TOP_PRODUCTS_LIMIT = 48;
 const MANUFACTURER_VISIBLE_PRODUCTS_LIMIT = 6;
-const MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS = 1500;
+const MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS = 1200;
 const MANUFACTURER_GROUP_SAMPLE_LIMIT = 2;
 const MANUFACTURER_GROUP_SAMPLE_CANDIDATE_LIMIT = 24;
 const MANUFACTURER_GROUP_SAMPLE_FETCH_CONCURRENCY = 4;
@@ -291,7 +292,7 @@ const pushGroupSampleCandidate = (
 };
 
 const buildManufacturerTitle = (label: string) =>
-  `${normalizeValue(label)} - каталог автозапчастин`;
+  `${normalizeValue(label)} — купити запчастини у Львові`;
 
 const buildManufacturerDescription = (
   label: string,
@@ -1137,12 +1138,10 @@ const getManufacturerBySlug = cache(
 
 export async function generateStaticParams() {
   const fromBrands = brands.map((brand) => ({ slug: buildSeoSlug(brand.name) }));
-  const limit = isProductionBuildPhase
-    ? MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT
-    : parsePositiveInt(
-        process.env.SEO_MANUFACTURER_STATIC_PARAMS_LIMIT,
-        MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT
-      );
+  const limit = parsePositiveInt(
+    process.env.SEO_MANUFACTURER_STATIC_PARAMS_LIMIT,
+    MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT
+  );
   const seen = new Set<string>();
   const directoryData = await getFullManufacturersDirectoryData().catch(() => null);
   const fromDirectory =
@@ -1188,14 +1187,9 @@ export async function generateMetadata({
     keywords: buildManufacturerKeywords(producer.label),
     openGraphTitle: `${title} | PartsON`,
     image: {
-      url: producer.logoPath || "/Car-parts-fullwidth.png",
-      alt: `${producer.label} | PartsON`,
+      url: "/Car-parts-fullwidth.png",
+      alt: `${producer.label} — автозапчастини | PartsON`,
     },
-    icons: producer.logoPath
-      ? {
-          icon: [{ url: producer.logoPath, type: "image/png" }],
-        }
-      : undefined,
   });
 }
 
@@ -1862,16 +1856,16 @@ export default async function ManufacturerDetailPage({
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
       {productItemListJsonLd && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(productItemListJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(productItemListJsonLd) }}
         />
       )}
     </main>

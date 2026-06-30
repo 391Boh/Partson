@@ -37,6 +37,7 @@ import {
   resolveProductCodeFromSeoRoute,
 } from "app/lib/product-route-resolver";
 import { getSiteUrl } from "app/lib/site-url";
+import { safeJsonLd } from "app/lib/safe-json-ld";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import {
@@ -45,19 +46,20 @@ import {
   getAllProductSitemapSnapshotEntries,
   type ProductSitemapEntry,
 } from "app/lib/product-sitemap";
-import { getGoogleRating } from "app/lib/google-rating";
 import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
 import { producerDescriptions } from "app/lib/producer-descriptions";
+import { unstable_noStore as noStore } from "next/cache";
+import { clearAllOneCCache } from "app/api/_lib/oneC";
 
-const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 1600;
-const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1500;
+const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 1200;
+const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1100;
 const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 700;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 120;
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_PHONE_TEL = "+380634211851";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
-const PRODUCT_META_DESCRIPTION_MAX_LENGTH = 176;
+const PRODUCT_META_DESCRIPTION_MAX_LENGTH = 160;
 const PRODUCT_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
 const isProductionBuildPhase =
   process.env.NEXT_PHASE === "phase-production-build" ||
@@ -185,6 +187,7 @@ interface ProductPageParams {
 
 interface ProductPageProps {
   params: Promise<ProductPageParams>;
+  searchParams?: Promise<Record<string, string>>;
 }
 
 const pageBackground: CSSProperties = {
@@ -382,38 +385,6 @@ const buildFrontendProductHeading = (
   return cleaned || buildPureProductName(value, hints);
 };
 
-const buildReadableNameFromRoute = (rawCode: string, fallbackCode: string) => {
-  const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
-  const routeSlugs = extractProductRouteSlugsFromParam(decodedParam);
-  const nameSource = routeSlugs?.nameSlug || decodedParam || fallbackCode;
-  const withoutInternalCode = nameSource.includes("~")
-    ? nameSource.slice(nameSource.indexOf("~") + 1).trim()
-    : nameSource;
-  const readable = buildVisibleProductName(withoutInternalCode.replace(/[-_]+/g, " "));
-
-  return readable && readable !== "Товар" ? readable : `Товар ${fallbackCode}`;
-};
-
-const buildFallbackProductFromRoute = (
-  rawCode: string,
-  resolvedCode: string
-): CatalogProduct => {
-  const normalizedCode = (resolvedCode || extractProductCodeFromParam(rawCode || "") || "").trim();
-
-  return {
-    code: normalizedCode,
-    article: "",
-    name: buildReadableNameFromRoute(rawCode, normalizedCode || "PartsON"),
-    producer: "",
-    quantity: 0,
-    priceEuro: null,
-    group: "",
-    subGroup: "",
-    category: "",
-    hasPhoto: false,
-  };
-};
-
 const buildCatalogProductFromSitemapEntry = (
   entry: ProductSitemapEntry
 ): CatalogProduct => ({
@@ -449,7 +420,6 @@ const buildProductJsonLd = (options: {
   priceUah: number | null;
   canonicalUrl: string;
   imageUrls: string[];
-  aggregateRating?: { ratingValue: number; reviewCount: number } | null;
 }) => {
   const {
     name,
@@ -464,7 +434,6 @@ const buildProductJsonLd = (options: {
     priceUah,
     canonicalUrl,
     imageUrls,
-    aggregateRating,
   } = options;
 
   const offers =
@@ -477,7 +446,7 @@ const buildProductJsonLd = (options: {
           availability:
             quantity > 0
               ? "https://schema.org/InStock"
-              : "https://schema.org/BackOrder",
+              : "https://schema.org/OutOfStock",
           itemCondition: "https://schema.org/NewCondition",
           inventoryLevel:
             quantity > 0
@@ -499,7 +468,7 @@ const buildProductJsonLd = (options: {
             },
           },
           priceValidUntil: new Date(
-            Date.now() + 1000 * 60 * 60 * 24 * 14
+            Date.now() + 1000 * 60 * 60 * 24 * 30
           ).toISOString().slice(0, 10),
           url: canonicalUrl,
           shippingDetails: {
@@ -507,6 +476,11 @@ const buildProductJsonLd = (options: {
             shippingDestination: {
               "@type": "DefinedRegion",
               addressCountry: "UA",
+            },
+            shippingRate: {
+              "@type": "MonetaryAmount",
+              value: "0",
+              currency: "UAH",
             },
             deliveryTime: {
               "@type": "ShippingDeliveryTime",
@@ -529,6 +503,8 @@ const buildProductJsonLd = (options: {
             applicableCountry: "UA",
             returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
             merchantReturnDays: 14,
+            returnFees: "https://schema.org/FreeReturn",
+            returnMethod: "https://schema.org/ReturnByMail",
           },
         }
       : undefined;
@@ -543,12 +519,9 @@ const buildProductJsonLd = (options: {
     url: canonicalUrl,
     mainEntityOfPage: canonicalUrl,
     category: [group, subGroup].filter(Boolean).join(" / ") || "Автозапчастини",
-    inProductGroupWithID: group || subGroup || undefined,
     image: imageUrls.map((url) => ({
       "@type": "ImageObject",
       url,
-      width: 1120,
-      height: 1120,
     })),
     sku: article || undefined,
     mpn: code || undefined,
@@ -586,22 +559,7 @@ const buildProductJsonLd = (options: {
           }
         : null,
     ].filter(Boolean),
-    aggregateRating: aggregateRating
-      ? {
-          "@type": "AggregateRating",
-          ratingValue: String(aggregateRating.ratingValue),
-          reviewCount: String(aggregateRating.reviewCount),
-          bestRating: "5",
-          worstRating: "1",
-        }
-      : undefined,
     offers,
-    isRelatedTo: subGroup || group
-      ? {
-          "@type": "CategoryCode",
-          name: subGroup || group,
-        }
-      : undefined,
   };
 };
 
@@ -841,26 +799,29 @@ const getCatalogProductUncached = async (code: string) => {
 const getCatalogProduct = cache(getCatalogProductUncached);
 
 const buildProductMetaDescription = (options: {
+  name?: string;
   article: string;
   code?: string;
   category?: string;
   priceUah?: number | null;
 }) => {
-  const { article, code, category, priceUah } = options;
+  const { name, article, code, category, priceUah } = options;
   const priceLabel = priceUah != null && priceUah > 0
     ? `${priceUah.toLocaleString("uk-UA")} грн`
     : null;
   const articleLabel = article ? `арт. ${article}` : null;
   const codeLabel = code && code !== article ? `код ${code}` : null;
   const lookupLabel = [articleLabel, codeLabel].filter(Boolean).join(", ");
+  const namePrefix = name ? trimSeoPhrase(name, 68) : null;
 
   return trimSeoDescription(
     [
-      [lookupLabel || "Автозапчастина", priceLabel ? `ціна ${priceLabel}` : null]
+      namePrefix ? `${namePrefix}.` : null,
+      [lookupLabel || null, priceLabel ? `ціна ${priceLabel}` : null]
         .filter(Boolean)
-        .join(" — ") + ".",
+        .join(" — ") || null,
       category ? `Категорія: ${category}.` : null,
-      "Перевірка сумісності за VIN, підбір аналогів, самовивіз у Львові та доставка по Україні.",
+      "Самовивіз у Львові та доставка по Україні. Підбір за VIN.",
     ]
       .filter(Boolean)
       .join(" ")
@@ -926,7 +887,8 @@ const buildProductSeoTitle = (options: {
   name: string;
 }) => {
   const { name } = options;
-  return trimSeoPhrase(buildVisibleProductName(name), 62) || "Автозапчастина";
+  const cleanName = trimSeoPhrase(buildVisibleProductName(name), 52);
+  return `${cleanName || "Автозапчастина"} — купити | PartsON`;
 };
 
 const buildProductSeoKeywords = (options: {
@@ -1325,8 +1287,10 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
   // name slug — skip slug-based resolution entirely to avoid burning the resolver
   // budget on a guaranteed-miss global catalog scan.
   const hasCodePrefix = Boolean(directCode) && directCode !== decodedParam;
+  // Pure numeric-dash codes (e.g. "00-00000100") are direct 1C codes, not SEO slugs.
+  const isDirectNumericCode = !hasCodePrefix && /^\d{2,}-\d{4,}$/.test(decodedParam);
   const looksLikeSeoNameSlug =
-    !hasCodePrefix && decodedParam.includes("-") && !decodedParam.includes("~");
+    !hasCodePrefix && !isDirectNumericCode && decodedParam.includes("-") && !decodedParam.includes("~");
   const directProduct = directCode && !looksLikeSeoNameSlug
     ? await findCatalogProductByLookupToken(directCode)
     : null;
@@ -1430,6 +1394,10 @@ const canUseDirectProductCodeFallback = (rawCode: string) => {
   const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
   if (!decodedParam) return false;
   if (extractProductRouteSlugsFromParam(decodedParam)) return false;
+
+  // Pure numeric code with dashes (e.g. "00-00000100") — standard 1C internal code format.
+  // These are not SEO slugs: no letters, so there is no name/article ambiguity.
+  if (/^\d{2,}-\d{4,}$/.test(decodedParam)) return true;
 
   return decodedParam.includes("~") || !decodedParam.includes("-");
 };
@@ -1605,6 +1573,7 @@ export async function generateMetadata({
   });
 
   const description = buildProductMetaDescription({
+    name: seoVisibleProductName,
     article: productArticle,
     code: resolvedCode,
     category: categoryLabel,
@@ -1635,15 +1604,13 @@ export async function generateMetadata({
     },
     category: "auto parts",
     openGraph: {
-      type: "website",
+      type: "article",
       url: canonicalUrl,
       title: seoTitle,
       description,
       images: [{
         url: productImageUrl,
         alt: `${seoVisibleProductName}${productArticle ? ` арт. ${productArticle}` : ""} — автозапчастина PartsON`,
-        width: 1200,
-        height: 1200,
       }],
       siteName: "PartsON",
       locale: "uk_UA",
@@ -1669,13 +1636,24 @@ export async function generateMetadata({
       "product:retailer_item_id": resolvedCode || productArticle,
       "product:brand": productProducer,
       "product:category": categoryLabel,
+      ...(seoPriceForMeta.priceUah != null
+        ? {
+            "product:price:amount": String(seoPriceForMeta.priceUah),
+            "product:price:currency": "UAH",
+          }
+        : {}),
       "geo.region": "UA-46",
       "geo.placename": "Львів",
     },
   };
 }
 
-export default async function ProductPage({ params }: ProductPageProps) {
+export default async function ProductPage({ params, searchParams }: ProductPageProps) {
+  const sp = searchParams ? await searchParams : {} as Record<string, string>;
+  if (sp._refresh) {
+    noStore();
+    clearAllOneCCache();
+  }
   const { code: rawCode } = await params;
   const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
   const fallbackCodeFromRoute = extractProductCodeFromParam(rawCode || "");
@@ -1736,8 +1714,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
   let resolvedCode = (routeData.code || (canUseDirectFallbackCode ? fallbackCodeFromRoute : "") || "").trim();
   let product = routeData.product;
 
-  if (!product && resolvedCode) {
-    product = await resolveWithTimeout(
+  if (resolvedCode) {
+    const freshProduct = await resolveWithTimeout(
       () =>
         directCodeProductPromise && resolvedCode === fallbackCodeFromRoute
           ? directCodeProductPromise
@@ -1745,6 +1723,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       null,
       PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
     );
+    if (freshProduct) product = freshProduct;
   }
 
   if (!resolvedCode && canUseDirectFallbackCode && fallbackCodeFromRoute) {
@@ -1767,7 +1746,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
         null,
         PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
       );
-      if (legacyFallbackProduct) {
+      // Only accept the product if its canonical slug matches the requested URL.
+      // Without this check a numeric token (e.g. "12345") could match an unrelated
+      // product and cause a redirect to the wrong page.
+      if (legacyFallbackProduct && doesProductMatchSeoNameSlug(legacyFallbackProduct, rawCode || "")) {
         product = legacyFallbackProduct;
         resolvedCode = (
           legacyFallbackProduct.code ||
@@ -1820,7 +1802,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   const hasResolvedCatalogProduct = Boolean(product);
   if (!product) {
-    product = buildFallbackProductFromRoute(rawCode || "", resolvedCode);
+    notFound();
   }
 
   const isModalView = false;
@@ -1860,10 +1842,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const visibleProductGroup = buildVisibleProductName(productGroup);
   const visibleProductSubgroup = buildVisibleProductName(productSubgroup);
   const siteUrl = getSiteUrl();
-  const [pagePrice, googleRating] = await Promise.all([
-    resolveProductSeoPrice(inlineInitialPriceEuro),
-    getGoogleRating(),
-  ]);
+  const pagePrice = await resolveProductSeoPrice(inlineInitialPriceEuro);
   const initialPriceUah = pagePrice.priceUah;
   const recommendationEuroRate = pagePrice.euroRate ?? undefined;
   const initialCostPriceUah =
@@ -1878,6 +1857,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     quantity: product.quantity,
   });
   const schemaDescription = buildProductMetaDescription({
+    name: visibleProductName,
     article: product.article,
     code: product.code || resolvedCode,
     category: visibleProductSubgroup || visibleProductGroup,
@@ -1953,7 +1933,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
         priceUah: initialPriceUah,
         canonicalUrl,
         imageUrls: [productSeoImageUrl],
-        aggregateRating: googleRating,
       })
     : null;
   const itemPageJsonLd = buildProductItemPageJsonLd({
@@ -2335,6 +2314,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
             group={product.group || ""}
             subGroup={product.subGroup || ""}
             category={product.category || ""}
+            quantity={product.quantity ?? 0}
+            description={product.description || ""}
           />
 
           {producerDescription && product.producer ? (
@@ -2514,21 +2495,21 @@ export default async function ProductPage({ params }: ProductPageProps) {
       {jsonLd && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
         />
       )}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemPageJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(itemPageJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
       {!isModalView && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(faqJsonLd) }}
         />
       )}
     </div>

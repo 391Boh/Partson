@@ -477,10 +477,16 @@ export default function TelegramChat({
   );
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    const messageText = input.trim();
+    if (!messageText) return;
 
-    await sendMessageText(input);
     setInput('');
+
+    try {
+      await sendMessageText(messageText);
+    } catch {
+      setInput(messageText);
+    }
   };
 
   const sendImageMessage = useCallback(
