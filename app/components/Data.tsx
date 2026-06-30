@@ -1997,13 +1997,15 @@ function useCatalogData(params: {
       const applyMissingImageEntries = (
         missingEntries: Array<{ key: string; status: "ready" | "missing" }>
       ) => {
-        const validEntries = missingEntries.filter((item) => item.status === "missing");
+        // Skip items already resolved (batch or direct load) — don't clobber them.
+        const validEntries = missingEntries.filter(
+          (item) => item.status === "missing" && !pageImagesRef.current[item.key]
+        );
         if (validEntries.length === 0) return;
 
-        // Update refs synchronously for deduplication.
+        // Update refs synchronously for deduplication in fetchCatalogPageImages.
         for (const item of validEntries) {
           pageImageMissingRef.current[item.key] = true;
-          delete pageImageMissingRef.current[item.key];
         }
 
         startTransition(() => {
@@ -2014,20 +2016,6 @@ function useCatalogData(params: {
               if (next[item.key]) continue;
               next[item.key] = true;
               didChange = true;
-            }
-            return didChange ? next : prev;
-          });
-
-          setPageImages((prev) => {
-            let didChange = false;
-            const next = { ...prev };
-            for (const item of validEntries) {
-              if (!next[item.key]) continue;
-              delete next[item.key];
-              didChange = true;
-            }
-            if (didChange) {
-              pageImagesRef.current = { ...next };
             }
             return didChange ? next : prev;
           });

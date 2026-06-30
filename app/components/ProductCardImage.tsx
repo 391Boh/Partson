@@ -185,6 +185,8 @@ const ProductCardImage: React.FC<Props> = ({
 
     if (disableDirectLoad) {
       directFallbackQueuedRef.current = false;
+      // Keep a successfully loaded image visible while batch is pending.
+      if (statusRef.current === "loaded") return () => {};
       setRequestSrc("");
       setStatus("loading");
       setFinalRetryQueued(false);
@@ -193,6 +195,8 @@ const ProductCardImage: React.FC<Props> = ({
 
     if (deferDirectLoad) {
       directFallbackQueuedRef.current = false;
+      // Keep a successfully loaded image visible when deferral props change.
+      if (statusRef.current === "loaded") return () => {};
       setRequestSrc("");
       setStatus("loading");
       setFinalRetryQueued(false);
@@ -208,6 +212,15 @@ const ProductCardImage: React.FC<Props> = ({
         }
       };
     }
+
+    // If the image is already showing from a previous successful load of the
+    // same product, keep it visible instead of triggering a skeleton flash.
+    const alreadyLoaded =
+      statusRef.current === "loaded" &&
+      (requestSrcRef.current === primarySrc ||
+        requestSrcRef.current === recoverySrc ||
+        requestSrcRef.current === finalRetrySrc);
+    if (alreadyLoaded) return () => {};
 
     setRequestSrc(primarySrc);
     setStatus("loading");

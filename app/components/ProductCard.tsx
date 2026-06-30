@@ -751,7 +751,7 @@ useEffect(() => {
                                 productCode={code}
                                 articleHint={item.article}
                                 alt={`Фото товару ${name}`}
-                                hasKnownPhoto={item.hasPhoto !== false && !batchImageMissing}
+                                hasKnownPhoto={item.hasPhoto !== false}
                                 className="w-full h-full transition-transform duration-200 group-hover:scale-[1.02]"
                                 onClick={() => onImageOpen(code, item.article)}
                                 loadingMode={imageLoadingMode}
