@@ -26,7 +26,7 @@ const heroHeadingText =
 const Hero = () => {
   return (
     <section
-      className="home-glow-section home-glow-section-sky hero-section-smooth group/hero font-ui relative isolate flex min-h-0 w-full select-none items-start overflow-hidden py-4 transition-[filter] duration-700 ease-out hover:brightness-[1.04] sm:items-center sm:py-7 lg:py-8"
+      className="home-glow-section home-glow-section-sky hero-section-smooth group/hero font-ui relative isolate flex min-h-0 w-full select-none items-start overflow-hidden py-4 sm:items-center sm:py-7 lg:py-8"
       style={{
         backgroundImage: depthBackground,
       }}
@@ -122,6 +122,7 @@ const Hero = () => {
                   alt="PartsOn Logo"
                   width={98}
                   height={49}
+                  priority
                   className="relative z-[2] h-auto w-[72px] object-contain drop-shadow-[0_10px_20px_rgba(15,23,42,0.18)] transition-transform duration-500 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-safe:transform-gpu md:w-[108px] motion-safe:group-hover/logo:-translate-y-0.5 motion-safe:group-hover/logo:scale-[1.04]"
                   sizes="(min-width: 768px) 108px, 72px"
                 />

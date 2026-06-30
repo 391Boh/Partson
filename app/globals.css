@@ -3,20 +3,18 @@
 
 @font-face {
   font-family: "Exo 2";
-  src: url("/fonts/exo2-variable.woff2") format("woff2-variations"),
-       url("/fonts/exo2-variable.ttf") format("truetype-variations");
+  src: url("/fonts/exo2-variable.woff2") format("woff2-variations");
   font-style: normal;
   font-weight: 400 900;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
   font-family: "Exo 2";
-  src: url("/fonts/exo2-variable-italic.woff2") format("woff2-variations"),
-       url("/fonts/exo2-variable-italic.ttf") format("truetype-variations");
+  src: url("/fonts/exo2-variable-italic.woff2") format("woff2-variations");
   font-style: italic;
   font-weight: 400 900;
-  font-display: swap;
+  font-display: optional;
 }
 
 

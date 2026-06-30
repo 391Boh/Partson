@@ -1,7 +1,8 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import HeroAccountClientDirect from "./HeroAccountClient";
 
 type HeroAccountClientProps = {
   cardGradientBase: string;
@@ -10,82 +11,41 @@ type HeroAccountClientProps = {
   variant?: "actions" | "benefits";
 };
 
-type RequestIdleCallback = (
-  callback: () => void,
-  options?: { timeout: number }
-) => number;
-
-const HeroAccountClient = dynamic(() => import("./HeroAccountClient"), {
+// ssr: false avoids hydration mismatch — client localStorage auth check can differ from server
+const HeroAccountClientLazy = dynamic(() => import("./HeroAccountClient"), {
   ssr: false,
 });
 
-const getFallbackClassName = (variant: HeroAccountClientProps["variant"]) =>
-  variant === "benefits"
-    ? "home-glass-card flex min-h-[180px] h-full min-w-0 rounded-2xl border border-white/10 bg-white/10 md:col-span-2 lg:col-span-1 sm:min-h-0"
-    : "flex min-h-[42px] min-w-[272px] items-center justify-center sm:min-h-[44px] sm:min-w-[292px]";
-
-const HeroAccountFallback = ({
-  onFocus,
-  onPointerEnter,
-  variant,
-}: {
-  onFocus: () => void;
-  onPointerEnter: () => void;
-  variant: HeroAccountClientProps["variant"];
-}) => (
-  <div
-    className={getFallbackClassName(variant)}
-    aria-hidden="true"
-    onFocus={onFocus}
-    onPointerEnter={onPointerEnter}
-  >
-    {variant === "benefits" ? (
-      <div className="h-full w-full rounded-2xl border border-white/10 bg-white/[0.06]" />
-    ) : (
-      <span className="h-10 w-[220px] rounded-[14px] border border-white/15 bg-white/10" />
-    )}
-  </div>
-);
-
-export default function LazyHeroAccountClient(props: HeroAccountClientProps) {
+function LazyActionsClient(props: HeroAccountClientProps) {
   const [shouldLoad, setShouldLoad] = useState(false);
 
   useEffect(() => {
-    if (shouldLoad || typeof window === "undefined") return;
-
-    const win = window as Window & {
-      requestIdleCallback?: RequestIdleCallback;
-      cancelIdleCallback?: (id: number) => void;
-    };
-    let timeoutId: number | null = null;
-    let idleId: number | null = null;
-    const load = () => setShouldLoad(true);
-
-    if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(load, { timeout: 1400 });
-    } else {
-      timeoutId = window.setTimeout(load, 900);
-    }
-
-    return () => {
-      if (idleId != null && typeof win.cancelIdleCallback === "function") {
-        win.cancelIdleCallback(idleId);
-      }
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
-    };
+    if (shouldLoad) return;
+    const id = window.requestAnimationFrame(() => setShouldLoad(true));
+    return () => window.cancelAnimationFrame(id);
   }, [shouldLoad]);
 
   if (!shouldLoad) {
     return (
-      <HeroAccountFallback
-        variant={props.variant}
-        onPointerEnter={() => setShouldLoad(true)}
+      <div
+        className="flex min-h-[42px] min-w-[272px] items-center justify-center sm:min-h-[44px] sm:min-w-[292px]"
+        aria-hidden="true"
         onFocus={() => setShouldLoad(true)}
-      />
+        onPointerEnter={() => setShouldLoad(true)}
+      >
+        <span className="h-10 w-[220px] rounded-[14px] border border-white/15 bg-white/10" />
+      </div>
     );
   }
 
-  return <HeroAccountClient {...props} />;
+  return <HeroAccountClientLazy {...props} />;
+}
+
+export default function LazyHeroAccountClient(props: HeroAccountClientProps) {
+  // Benefits card content (benefit items) is identical server/client on first render
+  // (hasOrders is null on both sides), so SSR is safe and eliminates 1400ms CLS.
+  if (props.variant === "benefits") {
+    return <HeroAccountClientDirect {...props} />;
+  }
+  return <LazyActionsClient {...props} />;
 }
