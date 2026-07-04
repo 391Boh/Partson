@@ -43,26 +43,6 @@ const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const PRODUCT_PRICE_CACHE_PREFIX = "partson:v4:product-page-price:";
 const PRODUCT_IMAGE_BUST_PREFIX = "partson:product-image-bust:";
 
-const META_COLORS = {
-  category: {
-    label: "text-teal-500",
-    border: "border-teal-300 focus:border-teal-400 focus:ring-2 focus:ring-teal-200/60",
-    drop: "border-teal-200 shadow-[0_6px_20px_rgba(20,184,166,0.14)]",
-    active: "bg-teal-50 text-teal-800",
-  },
-  group: {
-    label: "text-violet-500",
-    border: "border-violet-300 focus:border-violet-400 focus:ring-2 focus:ring-violet-200/60",
-    drop: "border-violet-200 shadow-[0_6px_20px_rgba(109,40,217,0.14)]",
-    active: "bg-violet-50 text-violet-800",
-  },
-  subGroup: {
-    label: "text-sky-500",
-    border: "border-sky-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-200/60",
-    drop: "border-sky-200 shadow-[0_6px_20px_rgba(14,165,233,0.14)]",
-    active: "bg-sky-50 text-sky-800",
-  },
-} as const;
 
 const SECTIONS: {
   title: string;
@@ -510,7 +490,6 @@ export default function ProductPageAdminEditPanel({
     const isEditing = editing === key;
     const wasSaved = savedField === key;
     const isMeta = key === "category" || key === "group" || key === "subGroup";
-    const metaColors = isMeta ? META_COLORS[key as keyof typeof META_COLORS] : null;
 
     // Group and subGroup are shown inside the combined category form
     if ((key === "group" || key === "subGroup") && editing === "category") return null;
