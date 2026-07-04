@@ -6,7 +6,7 @@
   src: url("/fonts/exo2-variable.woff2") format("woff2-variations");
   font-style: normal;
   font-weight: 400 900;
-  font-display: optional;
+  font-display: swap;
 }
 
 @font-face {
@@ -14,7 +14,7 @@
   src: url("/fonts/exo2-variable-italic.woff2") format("woff2-variations");
   font-style: italic;
   font-weight: 400 900;
-  font-display: optional;
+  font-display: swap;
 }
 
 
@@ -34,7 +34,7 @@
   }
 
   html {
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
     overflow-x: hidden;
     width: 100%;
     min-height: 100%;
@@ -53,15 +53,16 @@
     height: auto;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    text-rendering: optimizeSpeed;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: auto;
+    -moz-osx-font-smoothing: auto;
     overscroll-behavior-y: auto;
-    font-size: clamp(16px, 0.3vw + 15px, 17px);
-    letter-spacing: 0.012em;
-    line-height: 1.5;
-    font-weight: 620;
-    font-variation-settings: "wght" 620;
+    font-size: clamp(15px, 0.25vw + 14.5px, 16px);
+    letter-spacing: 0.008em;
+    line-height: 1.52;
+    font-weight: 630;
+    font-variation-settings: "wght" 630;
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
@@ -73,8 +74,8 @@
   textarea {
     font: inherit;
     letter-spacing: inherit;
-    font-weight: 620;
-    font-variation-settings: "wght" 620;
+    font-weight: 630;
+    font-variation-settings: "wght" 630;
   }
 
   input,
@@ -96,8 +97,8 @@
   th,
   td,
   figcaption {
-    font-weight: 620;
-    font-variation-settings: "wght" 620;
+    font-weight: 630;
+    font-variation-settings: "wght" 630;
   }
 
   strong,
@@ -106,8 +107,10 @@
   }
 
   ::placeholder {
-    font-weight: 600;
-    color: rgb(100 116 139 / 0.92);
+    font-weight: 560;
+    font-variation-settings: "wght" 560;
+    color: rgb(71 85 105 / 0.82);
+    letter-spacing: 0.006em;
   }
 
   button:not(:disabled),
@@ -308,13 +311,20 @@
 }
 
 .hero-section-smooth {
-  transform: none;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  -webkit-transform: translate3d(0, 0, 0);
 }
 
 .hero-section-smooth::before {
   opacity: 0.44;
   background-size: 132% 132%, 138% 138%, 118% 118%;
   background-position: 0% 0%, 100% 0%, 50% 100%;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  -webkit-transform: translate3d(0, 0, 0);
 }
 
 .hero-section-smooth::after {
@@ -328,9 +338,14 @@
     radial-gradient(circle at 78% 32%, rgba(129, 140, 248, 0.38), transparent 38%);
   background-size: 140% 140%, 120% 120%, 128% 128%;
   background-position: 0% 50%, 12% 20%, 88% 28%;
-  mix-blend-mode: screen;
+  mix-blend-mode: normal;
   opacity: 0;
   transform: none;
+}
+
+.hero-section-smooth:hover::before,
+.hero-section-smooth:focus-within::before {
+  transform: translate3d(0, 0, 0);
 }
 
 .hero-intro-card::before {
@@ -405,6 +420,15 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
+.hero-stable-card::before {
+  display: none;
+}
+
+.hero-stable-card:hover,
+.hero-stable-card:focus-visible {
+  filter: none;
+}
+
 .home-panel-hover,
 .home-card-hover {
   transition:
@@ -451,12 +475,6 @@
 
 .home-sk-block {
   background: rgba(255, 255, 255, 0.10);
-  animation: home-sk-pulse 2.4s ease-in-out infinite;
-}
-
-@keyframes home-sk-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
 }
 
 .skeleton-item {
@@ -465,45 +483,27 @@
 }
 
 .skeleton-item::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.38) 50%,
-    transparent 100%
-  );
-  transform: translateX(-100%);
-  animation: sk-shimmer 2.2s ease-in-out infinite;
+  content: none;
 }
 
-@keyframes sk-shimmer {
-  0% { transform: translateX(-100%); }
-  60%, 100% { transform: translateX(100%); }
+.catalog-image-loading {
+  background-size: 180% 180%;
+  animation: catalogImageLoading 1.4s ease-in-out infinite;
 }
 
-/* View Transitions are disabled for route changes so navigation feels instant. */
-@view-transition {
-  navigation: none;
-}
-
-::view-transition-old(root) {
-  animation: none;
-}
-
-::view-transition-new(root) {
-  animation: none;
-}
-
-/* Прогрес-бар не бере участі у переході */
-.nav-progress-bar {
-  view-transition-name: nav-progress-bar;
-}
-
-::view-transition-old(nav-progress-bar),
-::view-transition-new(nav-progress-bar) {
-  animation: none;
+@keyframes catalogImageLoading {
+  0% {
+    background-position: 0% 50%;
+    opacity: 0.88;
+  }
+  50% {
+    background-position: 100% 50%;
+    opacity: 1;
+  }
+  100% {
+    background-position: 0% 50%;
+    opacity: 0.88;
+  }
 }
 
 @keyframes vt-out {
@@ -529,6 +529,18 @@
 
 .route-transition-shell {
   animation: none;
+}
+
+@keyframes sparkle-icon {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  20%       { transform: scale(1.28) rotate(-14deg); opacity: 0.78; }
+  40%       { transform: scale(1.18) rotate(8deg);  opacity: 1; }
+  60%       { transform: scale(1.32) rotate(-6deg); opacity: 0.85; }
+  80%       { transform: scale(1.14) rotate(12deg); opacity: 1; }
+}
+
+.animate-sparkle {
+  animation: sparkle-icon 2.4s ease-in-out infinite;
 }
 
 .deferred-section-content {
@@ -565,14 +577,18 @@
 }
 
 @keyframes homeSectionEnter {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 14px, 0);
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
+@keyframes homeHeroContentEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .home-hero-content-enter {
+    animation: homeHeroContentEnter 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
 
@@ -655,21 +671,43 @@
 
 /* Глобальні стилі */
 body {
-    @apply bg-gray-100 text-gray-900;
+    @apply bg-gray-100 text-slate-950;
 }
 
 h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display-stack);
-    font-style: italic !important;
-    font-weight: 780 !important;
-    font-variation-settings: "wght" 780;
+  font-family: var(--font-display-stack);
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+  font-optical-sizing: auto;
+  text-wrap: balance;
+  line-height: 1.18;
+}
+
+h1 {
+  font-weight: 840;
+  font-variation-settings: "wght" 840;
+  letter-spacing: -0.022em;
+  line-height: 1.12;
+}
+
+h2 {
+  font-weight: 800;
+  font-variation-settings: "wght" 800;
   letter-spacing: -0.016em;
-  line-height: 1.08;
-    text-wrap: balance;
-    font-synthesis: none;
-    text-rendering: geometricPrecision;
-    font-optical-sizing: auto;
-  }
+  line-height: 1.16;
+}
+
+h3 {
+  font-weight: 740;
+  font-variation-settings: "wght" 740;
+  letter-spacing: -0.012em;
+}
+
+h4, h5, h6 {
+  font-weight: 700;
+  font-variation-settings: "wght" 700;
+  letter-spacing: -0.008em;
+}
 
 /* Власні компоненти */
 
@@ -684,37 +722,37 @@ h1, h2, h3, h4, h5, h6 {
 @layer utilities {
   .font-ui {
     font-family: var(--font-geist-sans);
-    letter-spacing: 0.012em;
-    line-height: 1.5;
-    font-weight: 620;
-    font-variation-settings: "wght" 620;
+    letter-spacing: 0.006em;
+    line-height: 1.52;
+    font-weight: 630;
+    font-variation-settings: "wght" 630;
   }
 
   .font-display {
     font-family: var(--font-display-stack);
-    font-style: italic !important;
-    font-weight: 780 !important;
-    font-variation-settings: "wght" 780;
-    letter-spacing: -0.064em;
-    line-height: 0.9;
+    font-style: italic;
+    font-weight: 840;
+    font-variation-settings: "wght" 840;
+    letter-spacing: -0.018em;
+    line-height: 1.04;
   }
 
   .font-display-italic {
     font-family: var(--font-display-stack);
-    font-style: italic !important;
-    font-weight: 780 !important;
-    font-variation-settings: "wght" 780;
-    letter-spacing: -0.064em;
-    line-height: 0.9;
+    font-style: italic;
+    font-weight: 840;
+    font-variation-settings: "wght" 840;
+    letter-spacing: -0.018em;
+    line-height: 1.04;
   }
 
   .font-name-accent {
     font-family: var(--font-display-stack);
-    font-style: italic !important;
-    font-weight: 760 !important;
-    font-variation-settings: "wght" 760;
-    letter-spacing: -0.056em;
-    line-height: 0.94;
+    font-style: italic;
+    font-weight: 800;
+    font-variation-settings: "wght" 800;
+    letter-spacing: -0.014em;
+    line-height: 1.06;
     text-wrap: balance;
   }
 
@@ -758,8 +796,8 @@ h1, h2, h3, h4, h5, h6 {
     .font-display,
     .font-display-italic,
     .font-name-accent {
-      letter-spacing: -0.035em;
-      line-height: 1.02;
+      letter-spacing: -0.014em;
+      line-height: 1.06;
     }
   }
 
@@ -898,18 +936,12 @@ h1, h2, h3, h4, h5, h6 {
     }
 
     @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; }
+      to   { opacity: 1; }
     }
 
     .animate-fadeIn {
-      animation: fadeIn 0.4s ease-out forwards;
+      animation: fadeIn 0.12s ease-out forwards;
     }
 
 .perspective {
@@ -1179,21 +1211,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .skeleton-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
-  transform: translateX(-100%);
-  animation: skeletonShimmer 1.2s ease-in-out infinite;
-}
-
-@keyframes skeletonShimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
+  content: none;
 }
 
 
@@ -2370,7 +2388,9 @@ body::-webkit-scrollbar-corner,
   .catalog-card-name {
     font-size: 0.92rem;
     line-height: 1.08;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.016em;
+    font-weight: 900;
+    font-variation-settings: "wght" 900;
   }
 
   .catalog-card-meta {
@@ -2390,6 +2410,8 @@ body::-webkit-scrollbar-corner,
   .catalog-card-meta span,
   .catalog-card-meta button {
     font-size: 0.69rem;
+    font-weight: 760;
+    font-variation-settings: "wght" 760;
   }
 
   .catalog-card-price-row {
@@ -2412,7 +2434,11 @@ body::-webkit-scrollbar-corner,
   }
 
   [data-catalog-card="1"] {
-    contain: layout paint;
+    backface-visibility: hidden;
+    contain: layout style;
+    content-visibility: visible;
+    isolation: isolate;
+    -webkit-backface-visibility: hidden;
   }
 
   #catalog-results {

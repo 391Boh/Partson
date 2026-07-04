@@ -5,14 +5,14 @@ import dynamic from 'next/dynamic';
 import {
   ShoppingCart, User, Menu, Info,
   List, Truck, CreditCard, MapPin, Users, Phone, Search, ShieldCheck, RotateCcw, Wrench,
-  CarFront, Factory, Layers3
+  CarFront, Factory, Layers3, BookOpen
 } from 'lucide-react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { useCart } from 'app/context/CartContext';
 import { useFirebaseAuthState } from 'app/lib/firebase-auth-state';
+import SmartLink from 'app/components/SmartLink';
 import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { createPortal } from 'react-dom';
 
@@ -34,6 +34,7 @@ const INFO_PREFETCH_ROUTES = [
   '/inform/warranty',
   '/inform/returns',
   '/inform/diagnostics',
+  '/blog',
 ] as const;
 
 const prefetchRouteList = (
@@ -268,10 +269,11 @@ const Header: React.FC = () => {
 
   const handleBrandClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (pathname !== '/') return;
-
+    event.preventDefault();
     if (window.scrollY > 0) {
-      event.preventDefault();
       window.scrollTo({ top: 0, behavior: 'auto' });
+    } else {
+      window.location.reload();
     }
   };
 
@@ -379,19 +381,19 @@ const Header: React.FC = () => {
     Boolean(activeMenu) || showSearchModal || modals.contact || modals.order || modals.auth;
 
   const buttonBaseClass =
-    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/14 bg-white/[0.09] text-[10px] font-semibold text-slate-100 shadow-[0_2px_6px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-sm transition-all duration-150 whitespace-nowrap hover:border-white/24 hover:bg-white/[0.14] hover:shadow-[0_4px_10px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.16)] hover:text-white active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.20),inset_0_1px_2px_rgba(0,0,0,0.14)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[13px] touch-manipulation';
+    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.20] bg-white/[0.11] text-[10px] font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-sm transition-all duration-200 whitespace-nowrap hover:border-sky-300/50 hover:bg-sky-400/[0.18] hover:text-sky-100 hover:shadow-[0_6px_18px_rgba(14,165,233,0.22),0_2px_8px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(125,211,252,0.22)] active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[13px] touch-manipulation';
 
   const rightActionBaseClass =
-    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/14 bg-white/[0.09] text-[10px] font-semibold text-slate-100 shadow-[0_2px_6px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-sm transition-all duration-150 whitespace-nowrap hover:border-white/24 hover:bg-white/[0.14] hover:shadow-[0_4px_10px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.16)] hover:text-white active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.20),inset_0_1px_2px_rgba(0,0,0,0.14)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-[13px] touch-manipulation';
+    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.20] bg-white/[0.11] text-[10px] font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-sm transition-all duration-200 whitespace-nowrap hover:border-sky-300/50 hover:bg-sky-400/[0.18] hover:text-sky-100 hover:shadow-[0_6px_18px_rgba(14,165,233,0.22),0_2px_8px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(125,211,252,0.22)] active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-[13px] touch-manipulation';
 
   const rightActionActiveClass =
-    '!border-white/30 !bg-white/[0.18] !text-white !shadow-[0_2px_8px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.18),inset_0_1px_3px_rgba(0,0,0,0.10)]';
+    '!border-sky-300/55 !bg-sky-500/[0.22] !text-sky-100 !shadow-[0_4px_14px_rgba(14,165,233,0.24),inset_0_1px_0_rgba(125,211,252,0.24)] !-translate-y-0';
 
   const contactActionClass =
-    'border-rose-100/56 bg-[image:linear-gradient(145deg,rgba(190,18,60,0.96),rgba(225,29,72,0.94)_54%,rgba(244,63,94,0.9))] text-rose-50 shadow-[0_10px_24px_rgba(127,29,29,0.18),0_0_20px_rgba(251,113,133,0.15),inset_0_1px_0_rgba(255,255,255,0.20)] hover:border-rose-50/78 hover:bg-[image:linear-gradient(145deg,rgba(225,29,72,0.98),rgba(244,63,94,0.95)_54%,rgba(251,113,133,0.92))] hover:shadow-[0_12px_26px_rgba(127,29,29,0.20),0_0_24px_rgba(251,113,133,0.19),inset_0_1px_0_rgba(255,255,255,0.24)]';
+    'border-rose-200/50 bg-[image:linear-gradient(145deg,rgba(190,18,60,0.96),rgba(225,29,72,0.94)_54%,rgba(244,63,94,0.90))] text-white shadow-[0_4px_14px_rgba(190,18,60,0.28),0_2px_6px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] hover:border-rose-100/70 hover:bg-[image:linear-gradient(145deg,rgba(225,29,72,0.99),rgba(244,63,94,0.96)_52%,rgba(251,113,133,0.92))] hover:shadow-[0_8px_22px_rgba(225,29,72,0.36),0_2px_8px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.28)]';
 
   const contactActionActiveClass =
-    'border-rose-50/85 bg-[image:linear-gradient(145deg,rgba(225,29,72,0.98),rgba(244,63,94,0.96)_50%,rgba(251,113,133,0.93))] text-white shadow-[0_12px_28px_rgba(190,18,60,0.24),0_0_26px_rgba(251,113,133,0.22),inset_0_1px_0_rgba(255,255,255,0.28)]';
+    '!border-rose-100/80 !bg-[image:linear-gradient(145deg,rgba(225,29,72,0.99),rgba(244,63,94,0.97)_50%,rgba(251,113,133,0.94))] !text-white !shadow-[0_10px_24px_rgba(225,29,72,0.30),inset_0_1px_0_rgba(255,255,255,0.28)] !translate-y-0';
 
 
   const dropdownBaseClass =
@@ -402,13 +404,13 @@ const Header: React.FC = () => {
   const infoDropdownClass = `${dropdownBaseClass} grid grid-cols-2 gap-1 sm:w-[30rem] sm:gap-1.5 md:w-[32rem]`;
 
   const dropdownItemClass =
-    'group flex min-h-10 w-full items-center gap-2.5 rounded-[13px] px-3 py-2 text-left text-[13px] font-semibold tracking-[-0.01em] text-slate-100 transition-[background-color,color,box-shadow,border-color] duration-150 hover:bg-white/10 hover:text-white hover:shadow-[0_10px_22px_rgba(15,23,42,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70 active:scale-[0.98] select-none sm:rounded-xl sm:px-3.5 sm:text-[13.5px]';
+    'group flex min-h-10 w-full items-center gap-2.5 rounded-[13px] px-3 py-2.5 text-left text-[13px] font-semibold tracking-[-0.01em] text-slate-100 transition-all duration-150 hover:-translate-y-px hover:bg-sky-500/[0.14] hover:text-white hover:shadow-[0_4px_12px_rgba(14,165,233,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70 active:scale-[0.98] active:translate-y-0 select-none sm:rounded-xl sm:px-3.5 sm:text-[13.5px]';
 
   const infoDropdownItemClass =
     `${dropdownItemClass} min-h-[2.85rem] gap-2 px-2.5 py-2 text-[12.5px] leading-tight sm:min-h-10 sm:px-3 sm:text-[13px]`;
 
   const dropdownIconClass =
-    'flex h-7 w-7 shrink-0 items-center justify-center rounded-[11px] border border-white/10 bg-white/10 text-sky-100 transition-all duration-150 group-hover:border-sky-200/40 group-hover:bg-sky-300/18 group-hover:text-white sm:h-8 sm:w-8 sm:rounded-xl';
+    'flex h-7 w-7 shrink-0 items-center justify-center rounded-[11px] border border-white/12 bg-white/[0.10] text-sky-200 transition-all duration-150 group-hover:border-sky-300/50 group-hover:bg-sky-400/[0.20] group-hover:text-white group-hover:shadow-[0_2px_8px_rgba(14,165,233,0.18)] sm:h-8 sm:w-8 sm:rounded-xl';
 
   const overlayBackdropClass = activeMenu
     ? 'fixed inset-x-0 bottom-0 top-[var(--header-height,4rem)] z-[40] bg-slate-950/15'
@@ -433,7 +435,7 @@ const Header: React.FC = () => {
         <div className="flex flex-shrink-0 items-center gap-2 sm:gap-4">
 
           {/* LOGO */}
-          <Link
+          <SmartLink
             href="/"
             aria-label="Головна сторінка"
             className="group relative flex select-none items-center"
@@ -457,7 +459,7 @@ const Header: React.FC = () => {
               onContextMenu={preventLogoAssetInteraction}
               draggable={false}
             />
-          </Link>
+          </SmartLink>
 
           {/* NAVIGATION */}
           <nav ref={navRef} className="relative select-none">
@@ -486,44 +488,44 @@ const Header: React.FC = () => {
                       : "opacity-0 scale-95 -translate-y-1 pointer-events-none"
                   }`}>
                   <li>
-                    <Link
+                    <SmartLink
                       href="/katalog"
                       onClick={() => setActiveMenu('')}
                       className={dropdownItemClass}
                     >
                       <span className={dropdownIconClass} aria-hidden="true"><List size={17} aria-hidden="true" /></span>
                       <span>Каталог</span>
-                    </Link>
+                    </SmartLink>
                   </li>
                   <li>
-                    <Link
+                    <SmartLink
                       href="/groups"
                       onClick={() => setActiveMenu('')}
                       className={dropdownItemClass}
                     >
                       <span className={dropdownIconClass} aria-hidden="true"><Layers3 size={17} aria-hidden="true" /></span>
                       <span>Групи товарів</span>
-                    </Link>
+                    </SmartLink>
                   </li>
                   <li>
-                    <Link
+                    <SmartLink
                       href="/auto"
                       onClick={() => setActiveMenu('')}
                       className={dropdownItemClass}
                     >
                       <span className={dropdownIconClass} aria-hidden="true"><CarFront size={17} aria-hidden="true" /></span>
                       <span>Авто</span>
-                    </Link>
+                    </SmartLink>
                   </li>
                   <li>
-                    <Link
+                    <SmartLink
                       href="/manufacturers"
                       onClick={() => setActiveMenu('')}
                       className={dropdownItemClass}
                     >
                       <span className={dropdownIconClass} aria-hidden="true"><Factory size={17} aria-hidden="true" /></span>
                       <span>Виробники</span>
-                    </Link>
+                    </SmartLink>
                   </li>
                 </ul>
               </li>
@@ -550,14 +552,15 @@ const Header: React.FC = () => {
                       ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
                       : "opacity-0 scale-95 -translate-y-1 pointer-events-none"
                   }`}>
-                    <li><Link href="/inform/delivery" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><Truck size={17} aria-hidden="true" /></span><span className="min-w-0">Доставка</span></Link></li>
-                    <li><Link href="/inform/payment" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><CreditCard size={17} aria-hidden="true" /></span><span className="min-w-0">Оплата</span></Link></li>
-                    <li><Link href="/inform/about" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><Users size={17} aria-hidden="true" /></span><span className="min-w-0">Про нас</span></Link></li>
-                    <li><Link href="/inform/location" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><MapPin size={17} aria-hidden="true" /></span><span className="min-w-0">Локація</span></Link></li>
-                    <li><Link href="/inform/warranty" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><ShieldCheck size={17} aria-hidden="true" /></span><span className="min-w-0">Гарантія</span></Link></li>
-                    <li><Link href="/inform/returns" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><RotateCcw size={17} aria-hidden="true" /></span><span className="min-w-0">Повернення</span></Link></li>
-                    <li><Link href="/inform/diagnostics" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><Wrench size={17} aria-hidden="true" /></span><span className="min-w-0">Діагностика</span></Link></li>
-                    <li><Link href="/inform/privacy" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><ShieldCheck size={17} aria-hidden="true" /></span><span className="min-w-0">Конфіденційність</span></Link></li>
+                    <li><SmartLink href="/inform/delivery" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><Truck size={17} aria-hidden="true" /></span><span className="min-w-0">Доставка</span></SmartLink></li>
+                    <li><SmartLink href="/inform/payment" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><CreditCard size={17} aria-hidden="true" /></span><span className="min-w-0">Оплата</span></SmartLink></li>
+                    <li><SmartLink href="/inform/about" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><Users size={17} aria-hidden="true" /></span><span className="min-w-0">Про нас</span></SmartLink></li>
+                    <li><SmartLink href="/inform/location" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><MapPin size={17} aria-hidden="true" /></span><span className="min-w-0">Локація</span></SmartLink></li>
+                    <li><SmartLink href="/inform/warranty" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><ShieldCheck size={17} aria-hidden="true" /></span><span className="min-w-0">Гарантія</span></SmartLink></li>
+                    <li><SmartLink href="/inform/returns" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><RotateCcw size={17} aria-hidden="true" /></span><span className="min-w-0">Повернення</span></SmartLink></li>
+                    <li><SmartLink href="/inform/diagnostics" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><Wrench size={17} aria-hidden="true" /></span><span className="min-w-0">Діагностика</span></SmartLink></li>
+                    <li><SmartLink href="/blog" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><BookOpen size={17} aria-hidden="true" /></span><span className="min-w-0">Блог</span></SmartLink></li>
+                    <li><SmartLink href="/inform/privacy" onClick={() => setActiveMenu('')} className={infoDropdownItemClass}><span className={dropdownIconClass} aria-hidden="true"><ShieldCheck size={17} aria-hidden="true" /></span><span className="min-w-0">Конфіденційність</span></SmartLink></li>
                   </ul>
               </li>
 
@@ -574,15 +577,19 @@ const Header: React.FC = () => {
 
           <button
             aria-label="Пошук"
-            className={`lg:hidden ${buttonBaseClass} ${
+            className={`group lg:hidden !h-12 !w-12 !rounded-[16px] font-ui relative inline-flex shrink-0 cursor-pointer select-none items-center justify-center backdrop-blur-sm transition-all duration-200 touch-manipulation ${
               showSearchModal
-                ? 'border-rose-300/70 bg-rose-500/15 text-rose-100'
-                : 'border-white/10 bg-gray-700/60 text-slate-100'
+                ? 'border border-sky-300/65 bg-sky-500/[0.22] text-sky-100 shadow-[0_4px_16px_rgba(14,165,233,0.26),inset_0_1px_0_rgba(125,211,252,0.26)]'
+                : 'border border-sky-400/[0.30] bg-[image:linear-gradient(145deg,rgba(12,74,110,0.38),rgba(7,89,133,0.32))] text-sky-100 shadow-[0_2px_10px_rgba(14,165,233,0.14),inset_0_1px_0_rgba(125,211,252,0.18)] hover:border-sky-300/55 hover:bg-[image:linear-gradient(145deg,rgba(12,74,110,0.52),rgba(7,89,133,0.46))] hover:shadow-[0_6px_20px_rgba(14,165,233,0.28),inset_0_1px_0_rgba(125,211,252,0.24)] active:scale-[0.96]'
             }`}
             onClick={toggleSearchModal}
             ref={searchButtonRef}
           >
-            <Search size={18} className="text-current" />
+            <Search
+              size={18}
+              className="transition-transform duration-200 ease-out group-hover:scale-[1.12] group-active:scale-90"
+              strokeWidth={2.4}
+            />
           </button>
         </div>
 
@@ -625,7 +632,7 @@ const Header: React.FC = () => {
             <span className="hidden sm:inline cursor-pointer select-none">Замовлення</span>
 
             {hasMounted && cartItems.length > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-orange-500 px-1 text-[10px] font-black leading-none text-white shadow-[0_8px_16px_rgba(249,115,22,0.32)]">
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-[1.5px] border-slate-800 bg-orange-500 px-1 text-[10px] font-black leading-none text-white shadow-[0_4px_10px_rgba(249,115,22,0.45)]">
                 {cartItems.length}
               </span>
             )}
@@ -666,20 +673,50 @@ const Header: React.FC = () => {
         renderPortal(
           <div
             ref={searchModalRef}
-            className="fixed left-2 right-2 top-[calc(var(--header-height,4rem)+0.5rem)] z-[95] w-auto max-w-[420px] rounded-[20px] border border-sky-100/70 bg-[image:radial-gradient(circle_at_12%_0%,rgba(14,165,233,0.14),transparent_34%),linear-gradient(155deg,rgba(255,255,255,0.985),rgba(248,250,252,0.982)_54%,rgba(241,245,249,0.982))] p-3 shadow-[0_24px_64px_rgba(15,23,42,0.18),0_12px_28px_rgba(14,165,233,0.08),inset_0_1px_0_rgba(255,255,255,0.88)] backdrop-blur-xl animate-fadeIn sm:left-auto sm:right-6 sm:w-[80%] sm:rounded-[24px] sm:p-4"
+            className="fixed left-2 right-2 top-[calc(var(--header-height,4rem)+0.55rem)] z-[95] w-auto max-w-[460px] rounded-[22px] border border-white/[0.11] bg-[image:radial-gradient(ellipse_120%_80%_at_10%_0%,rgba(56,189,248,0.16),transparent_52%),radial-gradient(ellipse_80%_60%_at_90%_100%,rgba(37,99,235,0.12),transparent_55%),linear-gradient(155deg,rgba(10,16,36,0.98),rgba(8,20,50,0.97)_54%,rgba(6,16,42,0.98))] p-3.5 shadow-[0_28px_72px_rgba(2,6,23,0.62),0_12px_32px_rgba(2,6,23,0.38),inset_0_1px_0_rgba(255,255,255,0.07)] backdrop-blur-2xl animate-fadeIn sm:left-auto sm:right-4 sm:w-[86%] sm:rounded-[24px] sm:p-4"
           >
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-display flex items-center gap-2 text-lg font-semibold tracking-[-0.03em] text-slate-900">
-                <MagnifyingGlassIcon className="w-5 h-5 text-sky-600" />
-                Пошук
-              </h2>
-              <button onClick={() => setShowSearchModal(false)} aria-label="Закрити пошук" className="inline-flex h-9 w-9 items-center justify-center rounded-[13px] border border-slate-200 bg-white/84 text-slate-500 shadow-[0_8px_18px_rgba(148,163,184,0.12)] transition hover:border-sky-200 hover:text-slate-900">
-                <XMarkIcon className="w-6 h-6" />
+            {/* modal header */}
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-sky-400/25 bg-sky-500/15 text-sky-300">
+                  <MagnifyingGlassIcon className="h-4 w-4" />
+                </span>
+                <h2 className="text-[15px] font-bold tracking-[-0.02em] text-slate-100">
+                  Пошук запчастин
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowSearchModal(false)}
+                aria-label="Закрити пошук"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] border border-white/[0.16] bg-white/[0.09] text-slate-300 transition-all duration-150 hover:-translate-y-px hover:border-rose-300/40 hover:bg-rose-500/[0.14] hover:text-rose-200 active:translate-y-0 active:scale-95"
+              >
+                <XMarkIcon className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="rounded-[18px] border border-sky-100/70 bg-white/70 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] sm:p-3">
-              {renderSearchBar(() => setShowSearchModal(false))}
+            {/* search bar */}
+            {renderSearchBar(() => setShowSearchModal(false))}
+
+            {/* hint chips */}
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {["Фільтр масляний", "Гальмівні колодки", "Амортизатор"].map(hint => (
+                <button
+                  key={hint}
+                  type="button"
+                  className="font-ui rounded-full border border-sky-400/[0.22] bg-sky-500/[0.08] px-2.5 py-1 text-[11px] font-semibold text-sky-300 transition-all duration-150 hover:border-sky-300/40 hover:bg-sky-400/[0.16] hover:text-sky-100 hover:-translate-y-px active:translate-y-0 active:scale-95"
+                  onClick={() => {
+                    const input = searchModalRef.current?.querySelector<HTMLInputElement>('[data-search="true"]');
+                    if (input) {
+                      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+                      nativeInputValueSetter?.call(input, hint);
+                      input.dispatchEvent(new Event('input', { bubbles: true }));
+                      input.focus();
+                    }
+                  }}
+                >
+                  {hint}
+                </button>
+              ))}
             </div>
           </div>
         )}

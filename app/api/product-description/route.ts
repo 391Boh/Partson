@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { fetchProductDescription } from "app/lib/catalog-server";
 
-export const revalidate = 1800;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const DESCRIPTION_LOOKUP_LIMIT = 4;
 
@@ -18,7 +19,10 @@ export async function GET(request: Request) {
   ).slice(0, DESCRIPTION_LOOKUP_LIMIT);
 
   if (lookupKeys.length === 0) {
-    return NextResponse.json({ description: null }, { status: 400 });
+    return NextResponse.json(
+      { description: null },
+      { status: 400, headers: { "Cache-Control": "no-store" } }
+    );
   }
 
   for (const lookupKey of lookupKeys) {
@@ -26,7 +30,7 @@ export async function GET(request: Request) {
       timeoutMs: 1800,
       retries: 0,
       retryDelayMs: 150,
-      cacheTtlMs: 1000 * 60 * 30,
+      cacheTtlMs: 0,
     }).catch(() => null);
 
     if (description) {
@@ -34,7 +38,7 @@ export async function GET(request: Request) {
         { description },
         {
           headers: {
-            "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=43200",
+            "Cache-Control": "no-store",
           },
         }
       );
@@ -45,7 +49,7 @@ export async function GET(request: Request) {
     { description: null },
     {
       headers: {
-        "Cache-Control": "public, s-maxage=600, stale-while-revalidate=3600",
+        "Cache-Control": "no-store",
       },
     }
   );

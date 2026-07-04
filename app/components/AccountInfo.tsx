@@ -22,19 +22,20 @@ import {
   AlertCircle,
   ArrowRight,
   CarFront,
+  Check,
   CheckCircle2,
   Eye,
   EyeOff,
   LogOut,
   Key,
   Mail,
+  Pencil,
   Phone,
+  Plus,
   ShieldCheck,
   Sparkles,
   X,
   Trash2,
-  Edit,
-  Save,
   UserRound,
 } from "lucide-react";
 
@@ -459,32 +460,35 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         <div className="soft-panel-tabs grid grid-cols-3">
           <button
             onClick={() => setActiveTab("profile")}
-            className={`min-w-0 flex-1 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
+            className={`min-w-0 flex flex-1 items-center justify-center gap-1.5 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
               activeTab === "profile"
                 ? "soft-segment soft-segment--active"
                 : "soft-segment"
             }`}
           >
+            <UserRound size={13} strokeWidth={2} />
             Профіль
           </button>
           <button
             onClick={() => setActiveTab("vins")}
-            className={`min-w-0 flex-1 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
+            className={`min-w-0 flex flex-1 items-center justify-center gap-1.5 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
               activeTab === "vins"
                 ? "soft-segment soft-segment--active"
                 : "soft-segment"
             }`}
           >
+            <CarFront size={13} strokeWidth={2} />
             VIN
           </button>
           <button
             onClick={() => setActiveTab("security")}
-            className={`min-w-0 flex-1 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
+            className={`min-w-0 flex flex-1 items-center justify-center gap-1.5 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
               activeTab === "security"
                 ? "soft-segment soft-segment--active"
                 : "soft-segment"
             }`}
           >
+            <ShieldCheck size={13} strokeWidth={2} />
             Безпека
           </button>
         </div>
@@ -618,11 +622,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             {isEditingName ? (
               <button
                 onClick={handleSaveName}
-                className="flex items-center gap-1 rounded-[14px] border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer sm:rounded-[16px] sm:text-xs"
+                className="inline-flex items-center gap-1.5 rounded-[11px] border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[12px] font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
                 aria-label="Зберегти ім'я"
-                title="Зберегти ім'я"
               >
-                <Save size={18} />
+                <Check size={13} strokeWidth={2.5} />
+                Зберегти
               </button>
             ) : (
               <button
@@ -630,11 +634,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setTempName(name);
                   setIsEditingName(true);
                 }}
-                className="flex items-center gap-1 rounded-[14px] border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[11px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer sm:rounded-[16px] sm:text-xs"
+                className="inline-flex items-center gap-1.5 rounded-[11px] border border-sky-200/80 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
                 aria-label="Редагувати ім'я"
-                title="Редагувати ім'я"
               >
-                <Edit size={18} />
+                <Pencil size={13} strokeWidth={2} />
+                Редагувати
               </button>
             )}
           </div>
@@ -697,11 +701,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             {isEditingPhone ? (
               <button
                 onClick={handleSavePhone}
-                className="flex items-center gap-1 rounded-[14px] border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer sm:rounded-[16px] sm:text-xs"
+                className="inline-flex items-center gap-1.5 rounded-[11px] border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[12px] font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
                 aria-label="Зберегти телефон"
-                title="Зберегти телефон"
               >
-                <Save size={18} />
+                <Check size={13} strokeWidth={2.5} />
+                Зберегти
               </button>
             ) : (
               <button
@@ -710,11 +714,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setPhoneError(null);
                   setIsEditingPhone(true);
                 }}
-                className="flex items-center gap-1 rounded-[14px] border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[11px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer sm:rounded-[16px] sm:text-xs"
+                className="inline-flex items-center gap-1.5 rounded-[11px] border border-sky-200/80 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
                 aria-label="Редагувати телефон"
-                title="Редагувати телефон"
               >
-                <Edit size={18} />
+                <Pencil size={13} strokeWidth={2} />
+                Редагувати
               </button>
             )}
           </div>
@@ -740,11 +744,10 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           <div className="flex items-center gap-2 self-end shrink-0 sm:self-auto">
             <button
               onClick={handleSignOut}
-              className="flex shrink-0 items-center gap-1 rounded-[14px] bg-gradient-to-r from-rose-500 to-red-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(239,68,68,0.28)] transition hover:brightness-110 cursor-pointer sm:rounded-[16px] sm:px-3 sm:text-xs"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-rose-500 to-red-500 px-3.5 py-1.5 text-[12px] font-bold text-white shadow-[0_4px_12px_rgba(239,68,68,0.28)] transition hover:brightness-110 cursor-pointer"
               aria-label="Вийти з акаунту"
-              title="Вийти"
             >
-              <LogOut size={16} />
+              <LogOut size={13} strokeWidth={2} />
               Вийти
             </button>
           </div>
@@ -771,10 +774,10 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             </div>
             <button
               onClick={() => setActiveTab("vins")}
-              className="self-end rounded-[14px] border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[11px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer sm:self-auto sm:rounded-[16px] sm:px-3 sm:text-xs"
+              className="inline-flex items-center gap-1.5 self-end rounded-[11px] border border-sky-200 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer sm:self-auto"
             >
               Керувати
-              <ArrowRight size={14} className="ml-1 inline-flex" />
+              <ArrowRight size={12} strokeWidth={2.2} />
             </button>
           </div>
 
@@ -860,11 +863,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
               <div className="flex gap-1.5 sm:gap-2">
                 <button
                   onClick={handleAddVin}
-                  className="flex-1 rounded-[14px] border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100 cursor-pointer sm:flex-none sm:rounded-[16px]"
-                  aria-label="Додати VIN"
-                  title="Додати VIN"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-[11px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
+                  aria-label="Зберегти VIN"
                 >
-                  <Save size={18} className="mx-auto sm:mx-0" />
+                  <Check size={13} strokeWidth={2.5} />
+                  Зберегти
                 </button>
                 <button
                   onClick={() => {
@@ -872,11 +875,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                     setNewVin("");
                     setVinError(null);
                   }}
-                  className="flex-1 rounded-[14px] border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 cursor-pointer sm:flex-none sm:rounded-[16px]"
-                  aria-label="Скасувати додавання VIN"
-                  title="Скасувати"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-[11px] border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 cursor-pointer"
+                  aria-label="Скасувати"
                 >
-                  <X size={20} className="mx-auto sm:mx-0" />
+                  <X size={13} strokeWidth={2} />
+                  Скасувати
                 </button>
               </div>
             </div>
@@ -886,11 +889,11 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                 setActiveTab("vins");
                 setIsVinFieldVisible(true);
               }}
-              className="mt-2 inline-flex rounded-[14px] border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[13px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer sm:mt-2.5 sm:rounded-[16px] sm:px-3 sm:text-sm"
+              className="mt-2 inline-flex items-center gap-1.5 rounded-[11px] border border-sky-200/80 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
               aria-label="Додати VIN"
-              title="Додати VIN"
             >
-              + Додати VIN
+              <Plus size={13} strokeWidth={2.5} />
+              Додати VIN
             </button>
           )}
           {vinError && <p className="text-red-500 text-sm mt-1">{vinError}</p>}
@@ -961,10 +964,10 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
               <div className="flex gap-1.5">
                 <button
                   onClick={handleChangePassword}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[13px] font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer sm:rounded-[16px]"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-[11px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
                 >
-                  <Save size={15} />
-                  Зберегти
+                  <Check size={13} strokeWidth={2.5} />
+                  Зберегти пароль
                 </button>
                 <button
                   onClick={() => {
@@ -973,20 +976,20 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                     setCurrentPassword("");
                     setPasswordError(null);
                   }}
-                  className="rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 cursor-pointer sm:rounded-[16px]"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-[11px] border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 cursor-pointer"
                 >
-                  <X size={18} />
+                  <X size={13} strokeWidth={2} />
+                  Скасувати
                 </button>
               </div>
             </div>
           ) : (
             <button
               onClick={() => setShowPasswordField(true)}
-              className="inline-flex items-center gap-1.5 rounded-[14px] border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[13px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2 sm:text-sm"
+              className="inline-flex items-center gap-1.5 rounded-[11px] border border-sky-200/80 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
               aria-label="Змінити пароль"
-              title="Змінити пароль"
             >
-              <Key size={20} />
+              <Key size={14} strokeWidth={2} />
               Змінити пароль
             </button>
           )}

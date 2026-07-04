@@ -24,7 +24,7 @@ export type CatalogImageBatchResponseItem = {
 };
 
 const CATALOG_IMAGE_BATCH_ROUTE = "/api/catalog-image-batch";
-const MAX_BATCH_ITEMS = 60;
+const MAX_BATCH_ITEMS = 24;
 const BATCH_RESPONSE_CACHE_TTL_MS = 1000 * 60 * 20;
 
 const batchResponseCache = new Map<
@@ -156,12 +156,6 @@ export const fetchCatalogImageBatch = async (
   const missingItems: CatalogImageBatchRequestItem[] = [];
 
   for (const item of normalizedItems) {
-    if (item.hasPhoto === false) {
-      writeProductImageMissing(item.code, item.article);
-      cachedResults.push(buildMissingBatchResult(item));
-      continue;
-    }
-
     const cachedSrc = readProductImageSuccess(item.code, item.article);
     if (cachedSrc) {
       cachedResults.push({

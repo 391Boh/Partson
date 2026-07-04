@@ -14,6 +14,7 @@ type ProductDescriptionClientCardProps = {
   fitmentText?: string;
   contactPhone?: string;
   contactAddress?: string;
+  productName?: string;
   seoDetails?: {
     title: string;
     items: string[];
@@ -35,6 +36,7 @@ export default function ProductDescriptionClientCard({
   fitmentText = "",
   contactPhone = "",
   contactAddress = "",
+  productName,
   seoDetails,
 }: ProductDescriptionClientCardProps) {
   const normalizedInitialText =
@@ -134,13 +136,6 @@ export default function ProductDescriptionClientCard({
       return;
     }
 
-    if (normalizedInitialText) {
-      setDescriptionText(normalizedInitialText);
-      setHasCatalogDescription(true);
-      writeCachedDescription(normalizedInitialText);
-      return;
-    }
-
     let cancelled = false;
     let loadTimerId: number | null = null;
 
@@ -157,6 +152,7 @@ export default function ProductDescriptionClientCard({
           fetch(requestUrl, {
             method: "GET",
             headers: { Accept: "application/json" },
+            cache: "no-store",
           }),
           timeoutPromise,
         ]);
@@ -229,7 +225,9 @@ export default function ProductDescriptionClientCard({
             Опис і підбір
           </p>
           <h2 className="font-display mt-1 text-[1.05rem] font-extrabold italic leading-[1.12] tracking-normal text-slate-950 sm:text-[1.16rem]">
-            Що варто знати про товар
+            {productName
+              ? `Опис: ${productName.length > 52 ? `${productName.slice(0, 52).trimEnd()}…` : productName}`
+              : "Що варто знати про товар"}
           </h2>
         </div>
         <div className="flex items-center gap-2">

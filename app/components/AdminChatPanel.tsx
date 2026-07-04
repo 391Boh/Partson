@@ -8,6 +8,7 @@ import {
   TrashIcon,
   CheckCircleIcon,
   EyeIcon,
+  TruckIcon,
   UsersIcon,
 } from '@heroicons/react/24/outline';
 import {
@@ -92,6 +93,7 @@ interface Order {
   lvivStreet?: string | null;
   createdAt: unknown;
   read?: boolean;
+  shipped?: boolean;
   completed?: boolean;
 }
 
@@ -767,8 +769,12 @@ export default function AdminChatPanel({
     await updateDoc(doc(db, 'orders', orderId), { read: true });
   };
 
+  const markOrderShipped = async (orderId: string) => {
+    await updateDoc(doc(db, 'orders', orderId), { shipped: true, read: true });
+  };
+
   const markOrderCompleted = async (orderId: string) => {
-    await updateDoc(doc(db, 'orders', orderId), { completed: true, read: true });
+    await updateDoc(doc(db, 'orders', orderId), { completed: true, shipped: true, read: true });
   };
 
   const toggleOrderExpand = async (orderId: string, isRead?: boolean) => {
@@ -1567,11 +1573,15 @@ export default function AdminChatPanel({
             {visibleOrders.map((o) => {
               const statusLabel = o.completed
                 ? 'Виконано'
+                : o.shipped
+                ? 'Відправлено'
                 : o.read
-                ? 'Переглянуто'
-                : 'Новий';
+                ? 'Оглянуто'
+                : 'Нове';
               const statusClass = o.completed
                 ? 'bg-emerald-500/20 text-emerald-200'
+                : o.shipped
+                ? 'bg-blue-500/20 text-blue-200'
                 : o.read
                 ? 'bg-amber-500/20 text-amber-200'
                 : 'bg-sky-500/20 text-sky-200';
@@ -1601,17 +1611,27 @@ export default function AdminChatPanel({
                         className={`inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-amber-300 hover:text-amber-200 sm:h-10 sm:w-10 sm:rounded-2xl ${
                           o.read ? 'opacity-40 cursor-not-allowed' : ''
                         }`}
-                        title="Позначити як переглянуте"
+                        title="Оглянуто"
                         disabled={o.read}
                       >
                         <EyeIcon className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => markOrderShipped(o.id)}
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-blue-300 hover:text-blue-200 sm:h-10 sm:w-10 sm:rounded-2xl ${
+                          o.shipped ? 'opacity-40 cursor-not-allowed' : ''
+                        }`}
+                        title="Відправлено"
+                        disabled={o.shipped}
+                      >
+                        <TruckIcon className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => markOrderCompleted(o.id)}
                         className={`inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-emerald-300 hover:text-emerald-200 sm:h-10 sm:w-10 sm:rounded-2xl ${
                           o.completed ? 'opacity-40 cursor-not-allowed' : ''
                         }`}
-                        title="Позначити як виконане"
+                        title="Виконано"
                         disabled={o.completed}
                       >
                         <CheckCircleIcon className="w-5 h-5" />

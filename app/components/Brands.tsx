@@ -197,7 +197,7 @@ export default function BrandCarousel({
   const shouldAnimate = !shouldReduceMotion && playEntranceAnimations;
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const [isSmUp, setIsSmUp] = useState(true);
+  const [isSmUp, setIsSmUp] = useState(false);
   const [syncedBrands, setSyncedBrands] = useState<BrandItem[]>(INITIAL_BRANDS);
 
   useEffect(() => {

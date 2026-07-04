@@ -1,163 +1,77 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, type ComponentType } from "react";
+import { useEffect, useState } from "react";
+import { scheduleCatalogPrefetch } from "app/lib/products-prefetch";
 
-const HomeDeferredStack = dynamic(() => import("./HomeDeferredStack"), {
-  ssr: false,
-});
-const AdvantagesSection = dynamic(() => import("./AdvantagesSection"), {
-  ssr: false,
-});
-const Footer = dynamic(() => import("./footer"), {
-  ssr: false,
-});
-const SectionBoundary = dynamic(() => import("./SectionBoundary"), {
-  ssr: false,
-});
+const HomeDeferredStack = dynamic(() => import("./HomeDeferredStack"));
+const AdvantagesSection = dynamic(() => import("./AdvantagesSection"));
+const SectionBoundary = dynamic(() => import("./SectionBoundary"));
 
-type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
+// Kick off catalog data prefetch and chunk preloads before the below-fold
+// content even mounts — katkomp finds warm data when it renders.
+if (typeof window !== "undefined") {
+  scheduleCatalogPrefetch();
+  queueMicrotask(() => {
+    void import("./HomeDeferredStack");
+    void import("./katkomp");
+  });
+}
+
+const scheduleHomeBelowFoldMount = (callback: () => void) => {
+  if (typeof window === "undefined") return () => {};
+
+  let cancelled = false;
+  let didRun = false;
+  const runOnce = () => {
+    if (cancelled || didRun) return;
+    didRun = true;
+    callback();
+  };
+  const win = window as Window & {
+    requestIdleCallback?: (
+      callback: () => void,
+      options?: { timeout: number }
+    ) => number;
+    cancelIdleCallback?: (id: number) => void;
+  };
+
+  if (typeof win.requestIdleCallback === "function") {
+    const idleId = win.requestIdleCallback(runOnce, { timeout: 80 });
+    const timeoutId = window.setTimeout(runOnce, 130);
+
+    return () => {
+      cancelled = true;
+      win.cancelIdleCallback?.(idleId);
+      window.clearTimeout(timeoutId);
+    };
+  }
+
+  const timeoutId = window.setTimeout(runOnce, 80);
+  return () => {
+    cancelled = true;
+    window.clearTimeout(timeoutId);
+  };
+};
 
 export default function HomeBelowFoldClient() {
-  const [BelowFoldComponent, setBelowFoldComponent] =
-    useState<ComponentType | null>(null);
-  const [shouldLoadBelowFold, setShouldLoadBelowFold] = useState(false);
-  const deferredHomeSentinelRef = useRef<HTMLDivElement | null>(null);
+  const [shouldMountBelowFold, setShouldMountBelowFold] = useState(false);
 
-  useEffect(() => {
-    if (!shouldLoadBelowFold || BelowFoldComponent) return;
+  useEffect(
+    () => scheduleHomeBelowFoldMount(() => setShouldMountBelowFold(true)),
+    []
+  );
 
-    let cancelled = false;
-    const loadBelowFold = async () => {
-      await Promise.resolve();
-      if (cancelled) return;
-
-      const Component = () => (
-        <>
-          <HomeDeferredStack />
-          <div className="home-section-stage">
-            <SectionBoundary title="Інформаційний блок тимчасово недоступний">
-              <AdvantagesSection />
-            </SectionBoundary>
-          </div>
-          <Footer />
-        </>
-      );
-
-      setBelowFoldComponent(() => Component);
-    };
-
-    void loadBelowFold().catch((error) => {
-      if (!cancelled) {
-        console.error("Failed to load home below-fold content:", error);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [BelowFoldComponent, shouldLoadBelowFold]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || shouldLoadBelowFold) return;
-
-    let cancelled = false;
-    let pendingFrameId: number | null = null;
-    let pendingIdleId: number | null = null;
-    let pendingTimeoutId: number | null = null;
-    const markReady = () => {
-      if (!cancelled && !shouldLoadBelowFold) {
-        setShouldLoadBelowFold(true);
-      }
-    };
-
-    const win = window as Window & {
-      requestIdleCallback?: RequestIdleCallback;
-      cancelIdleCallback?: (id: number) => void;
-    };
-    const scheduleReady = (timeout = 700) => {
-      if (pendingFrameId != null || pendingIdleId != null || pendingTimeoutId != null) return;
-
-      const runWhenIdle = () => {
-        if (cancelled) return;
-        if (typeof win.requestIdleCallback === "function") {
-          pendingIdleId = win.requestIdleCallback(() => {
-            pendingIdleId = null;
-            markReady();
-          }, { timeout });
-          return;
-        }
-
-        pendingTimeoutId = window.setTimeout(() => {
-          pendingTimeoutId = null;
-          markReady();
-        }, Math.min(timeout, 220));
-      };
-
-      pendingFrameId = window.requestAnimationFrame(() => {
-        pendingFrameId = null;
-        runWhenIdle();
-      });
-    };
-
-    const observer =
-      typeof IntersectionObserver === "function"
-        ? new IntersectionObserver(
-            (entries) => {
-              if (entries.some((entry) => entry.isIntersecting)) {
-                observer?.disconnect();
-                scheduleReady(200);
-              }
-            },
-            {
-              rootMargin: "760px 0px",
-            }
-          )
-        : null;
-
-    if (observer && deferredHomeSentinelRef.current) {
-      observer.observe(deferredHomeSentinelRef.current);
-    }
-
-    let timeoutId: number | null = null;
-    let idleId: number | null = null;
-
-    if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(markReady, { timeout: 1800 });
-    } else {
-      timeoutId = window.setTimeout(markReady, 1400);
-    }
-    const hardTimeoutId = window.setTimeout(markReady, 3200);
-
-    return () => {
-      cancelled = true;
-      observer?.disconnect();
-      if (idleId != null && typeof win.cancelIdleCallback === "function") {
-        win.cancelIdleCallback(idleId);
-      }
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
-      window.clearTimeout(hardTimeoutId);
-      if (pendingFrameId != null) {
-        window.cancelAnimationFrame(pendingFrameId);
-      }
-      if (pendingIdleId != null && typeof win.cancelIdleCallback === "function") {
-        win.cancelIdleCallback(pendingIdleId);
-      }
-      if (pendingTimeoutId != null) {
-        window.clearTimeout(pendingTimeoutId);
-      }
-    };
-  }, [shouldLoadBelowFold]);
+  if (!shouldMountBelowFold) return null;
 
   return (
     <>
-      <div ref={deferredHomeSentinelRef} aria-hidden="true" className="h-px w-full" />
-
-      {BelowFoldComponent ? (
-        <BelowFoldComponent />
-      ) : null}
+      <HomeDeferredStack />
+      <div className="home-section-stage">
+        <SectionBoundary title="Інформаційний блок тимчасово недоступний">
+          <AdvantagesSection />
+        </SectionBoundary>
+      </div>
     </>
   );
 }

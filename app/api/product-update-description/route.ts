@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
@@ -79,6 +80,12 @@ export async function POST(request: NextRequest) {
       : typeof value.code === "string"
         ? value.code.trim()
         : "";
+  const code =
+    typeof value.code === "string" && value.code.trim()
+      ? value.code.trim()
+      : typeof value["Код"] === "string" && value["Код"].trim()
+        ? value["Код"].trim()
+        : "";
 
   if (!isNonEmptyString(article, { minLength: 1, maxLength: 200 })) {
     return json({ ok: false, error: "article (НомерПоКаталогу) is required" }, 400);
@@ -132,6 +139,13 @@ export async function POST(request: NextRequest) {
   }
 
   clearAllOneCCache();
+  try {
+    revalidateTag("product-page-data", "max");
+    revalidatePath(`/product/${encodeURIComponent(article)}`, "page");
+    if (code && code !== article) revalidatePath(`/product/${encodeURIComponent(code)}`, "page");
+  } catch {
+    // Revalidation can throw in non-request contexts.
+  }
 
   return json({
     ok: true,

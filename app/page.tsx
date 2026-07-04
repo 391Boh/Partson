@@ -10,7 +10,8 @@ const homeDescription = appendSeoContact(
 
 export const revalidate = 86400;
 
-export const metadata: Metadata = buildPageMetadata({
+export const metadata: Metadata = {
+  ...buildPageMetadata({
   title: homeTitle,
   description: homeDescription,
   canonicalPath: "/",
@@ -38,7 +39,9 @@ export const metadata: Metadata = buildPageMetadata({
     url: "/Car-parts-fullwidth.png",
     alt: "Інтернет-магазин автозапчастин у Львові PartsON",
   },
-});
+  }),
+  title: { absolute: `${homeTitle} | PartsON` },
+};
 
 export default function HomePage() {
   return <HomePageContent />;

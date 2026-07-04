@@ -30,8 +30,9 @@ service cloud.firestore {
     // component is migrated to use Firebase Auth. Until then, all messages are
     // publicly readable by anyone who can construct the query.
     //
-    // Deletes are blocked. Updates are restricted to flipping the isRead flag only —
-    // no other field may be changed by the client.
+    // Deletes are blocked. Updates are restricted to read-receipt flags only —
+    // textRead (user marks manager messages read) and readByAdmin (admin marks
+    // user messages read). No other field may be changed by the client.
     //
     // TODO: Migrate TelegramChat to call signInAnonymously and store
     //       request.auth.uid as userId, then tighten read to isOwner(resource.data.userId).
@@ -40,7 +41,18 @@ service cloud.firestore {
       allow read:   if true;
       allow update: if request.resource.data.diff(resource.data)
                          .affectedKeys()
-                         .hasOnly(['isRead']);
+                         .hasOnly(['textRead', 'readByAdmin']);
+      allow delete: if false;
+    }
+
+    // ── chatPresence ──────────────────────────────────────────────────────────
+    // Admin panel writes its sessionId to chatPresence/<userId> to signal that
+    // a manager is viewing that user's chat. TelegramChat reads this document to
+    // show a "manager is online" indicator. Anyone may read and write so that
+    // unauthenticated users and admin can participate. Deletes are blocked.
+    match /chatPresence/{userId} {
+      allow read:   if true;
+      allow create, update: if true;
       allow delete: if false;
     }
 

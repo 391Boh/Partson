@@ -29,6 +29,7 @@ export default function NavigationProgress() {
   const router = useRouter();
   const barRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
+  const startTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timer1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startTimeRef = useRef<number>(0);
@@ -36,6 +37,7 @@ export default function NavigationProgress() {
   const prefetchedRoutesRef = useRef<Set<string>>(new Set());
 
   const clearPending = useCallback(() => {
+    if (startTimerRef.current !== null) { clearTimeout(startTimerRef.current); startTimerRef.current = null; }
     if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     if (timer1Ref.current !== null) { clearTimeout(timer1Ref.current); timer1Ref.current = null; }
     if (timer2Ref.current !== null) { clearTimeout(timer2Ref.current); timer2Ref.current = null; }
@@ -52,6 +54,10 @@ export default function NavigationProgress() {
   }, []);
 
   const complete = useCallback(() => {
+    if (startTimerRef.current !== null) {
+      clearTimeout(startTimerRef.current);
+      startTimerRef.current = null;
+    }
     if (!isRunningRef.current) return;
     clearPending();
     const bar = barRef.current;
@@ -69,7 +75,7 @@ export default function NavigationProgress() {
     }, 120);
   }, [clearPending, resetBar]);
 
-  const start = useCallback(() => {
+  const runStart = useCallback(() => {
     clearPending();
     const bar = barRef.current;
     if (!bar) return;
@@ -94,6 +100,14 @@ export default function NavigationProgress() {
       rafRef.current = requestAnimationFrame(animate);
     });
   }, [clearPending]);
+
+  const start = useCallback(() => {
+    if (startTimerRef.current !== null || isRunningRef.current) return;
+    startTimerRef.current = setTimeout(() => {
+      startTimerRef.current = null;
+      runStart();
+    }, 8);
+  }, [runStart]);
 
   useEffect(() => {
     const getInternalNavigationHref = (event: Event) => {
@@ -125,6 +139,15 @@ export default function NavigationProgress() {
       router.prefetch(route);
     };
 
+    const warmAndStartRoute = (event: Event) => {
+      if (event instanceof MouseEvent) {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
+      }
+      if (!getInternalNavigationHref(event)) return;
+      warmRoute(event);
+      start();
+    };
+
     const handleClick = (e: MouseEvent) => {
       if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
       if (!getInternalNavigationHref(e)) return;
@@ -138,22 +161,34 @@ export default function NavigationProgress() {
     };
 
     const origPushState = window.history.pushState.bind(window.history);
-    window.history.pushState = (state: unknown, unused: string, url?: string | URL | null) => {
-      origPushState(state, unused, url);
+    const origReplaceState = window.history.replaceState.bind(window.history);
+    const startForHistoryUrl = (url?: string | URL | null) => {
       if (!url) return;
       try {
+        const currentPath = window.location.pathname;
+        const currentSearch = window.location.search;
         const next = new URL(String(url), window.location.href);
         const isSamePage =
-          next.pathname === window.location.pathname &&
-          next.search === window.location.search;
+          next.pathname === currentPath &&
+          next.search === currentSearch;
         if (!isSamePage) start();
       } catch {
         // ignore
       }
     };
 
+    window.history.pushState = (state: unknown, unused: string, url?: string | URL | null) => {
+      startForHistoryUrl(url);
+      origPushState(state, unused, url);
+    };
+
+    window.history.replaceState = (state: unknown, unused: string, url?: string | URL | null) => {
+      startForHistoryUrl(url);
+      origReplaceState(state, unused, url);
+    };
+
     document.addEventListener('pointerover', warmRoute, { capture: true, passive: true });
-    document.addEventListener('pointerdown', warmRoute, { capture: true, passive: true });
+    document.addEventListener('pointerdown', warmAndStartRoute, { capture: true, passive: true });
     document.addEventListener('focusin', warmRoute, { capture: true, passive: true });
     document.addEventListener('touchstart', warmRoute, { capture: true, passive: true });
     document.addEventListener('click', handleClick, { capture: true, passive: true });
@@ -161,8 +196,9 @@ export default function NavigationProgress() {
 
     return () => {
       window.history.pushState = origPushState;
+      window.history.replaceState = origReplaceState;
       document.removeEventListener('pointerover', warmRoute, { capture: true });
-      document.removeEventListener('pointerdown', warmRoute, { capture: true });
+      document.removeEventListener('pointerdown', warmAndStartRoute, { capture: true });
       document.removeEventListener('focusin', warmRoute, { capture: true });
       document.removeEventListener('touchstart', warmRoute, { capture: true });
       document.removeEventListener('click', handleClick, { capture: true });

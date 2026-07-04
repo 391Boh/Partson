@@ -60,19 +60,19 @@ import ManufacturerGroupSampleImage from "app/manufacturers/[slug]/ManufacturerG
 export const revalidate = 21600;
 export const dynamicParams = true;
 const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
-const MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS = 1400;
-const MANUFACTURER_BUILD_SEO_LOOKUP_TIMEOUT_MS = 6000;
+const MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS = 500;
+const MANUFACTURER_BUILD_SEO_LOOKUP_TIMEOUT_MS = 2200;
 const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
-const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 1600;
+const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 650;
 const MANUFACTURER_FALLBACK_MAX_PAGES_DEFAULT = 40;
 const MANUFACTURER_FALLBACK_MAX_ITEMS_DEFAULT = 4800;
 const MANUFACTURER_TOP_PRODUCTS_LIMIT = 48;
 const MANUFACTURER_VISIBLE_PRODUCTS_LIMIT = 6;
-const MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS = 1200;
+const MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS = 550;
 const MANUFACTURER_GROUP_SAMPLE_LIMIT = 2;
 const MANUFACTURER_GROUP_SAMPLE_CANDIDATE_LIMIT = 24;
 const MANUFACTURER_GROUP_SAMPLE_FETCH_CONCURRENCY = 4;
-const MANUFACTURER_GROUP_SAMPLE_FETCH_TIMEOUT_MS = 1500;
+const MANUFACTURER_GROUP_SAMPLE_FETCH_TIMEOUT_MS = 650;
 const MANUFACTURER_GROUP_SAMPLE_IMAGE_MAX_KEYS = 800;
 const DEBUG_MANUFACTURER_PAGE =
   process.env.DEBUG_MANUFACTURER_PAGE === "1" ||
@@ -477,12 +477,23 @@ const collectProducerFallbackStats = cache(async (producerLabel: string) => {
       if (!dedupeKey || seenProducts.has(dedupeKey)) continue;
       seenProducts.add(dedupeKey);
 
-      const categoryLabel = normalizeValue(item.category);
-      // Only use the real 1C Группа field — never fall back to Категорія.
-      // Категорія is the top level; mixing it into the Группа level is what caused
-      // categories to appear as groups on the manufacturer page.
-      const groupLabel = normalizeValue(item.group);
-      const subgroupLabel = normalizeValue(item.subGroup);
+      const rawCategoryLabel = normalizeValue(item.category);
+      const rawGroupLabel = normalizeValue(item.group);
+      const rawSubgroupLabel = normalizeValue(item.subGroup);
+
+      // normalizeProduct promotes fields when the 1C Категорія field is absent:
+      //   product.category ← rawGroup  (original 1C Группа)
+      //   product.group    ← rawSubGroup (original 1C Підгруппа)
+      //   product.subGroup ← ""
+      // Detect this and reverse so we register the correct hierarchy:
+      // promotion is recognisable by subGroup being empty while category and group differ.
+      const wasPromoted =
+        !rawSubgroupLabel &&
+        rawCategoryLabel &&
+        rawCategoryLabel.toLowerCase() !== rawGroupLabel.toLowerCase();
+      const categoryLabel = wasPromoted ? "" : rawCategoryLabel;
+      const groupLabel = wasPromoted ? rawCategoryLabel : rawGroupLabel;
+      const subgroupLabel = wasPromoted ? rawGroupLabel : rawSubgroupLabel;
 
       if (!categoryLabel && !groupLabel) continue;
 
@@ -1363,6 +1374,12 @@ export default async function ManufacturerDetailPage({
     const groupSampleNames = groupSamples.map((sample) =>
       buildVisibleProductName(sample.name)
     );
+    // Exclude subgroups that duplicate the parent group label — clicking them
+    // produces the same URL as the group itself (isSameFacetValue drops subcategory).
+    const groupLabelKey = normalizeValue(group.label).toLowerCase();
+    const visibleSubgroups = group.subgroups.filter(
+      (s) => normalizeValue(s.label).toLowerCase() !== groupLabelKey
+    );
 
     return (
       <article
@@ -1382,9 +1399,9 @@ export default async function ManufacturerDetailPage({
                 <span className={directoryCompactMetricClass}>
                   {formatCount(group.productCount)} товарів
                 </span>
-                {group.subgroups.length > 0 ? (
+                {visibleSubgroups.length > 0 ? (
                   <span className={directoryCompactMetricAccentClass}>
-                    {formatCount(group.subgroups.length)} підгруп
+                    {formatCount(visibleSubgroups.length)} підгруп
                   </span>
                 ) : null}
               </div>
@@ -1399,7 +1416,7 @@ export default async function ManufacturerDetailPage({
                 {buildManufacturerGroupLead({
                   producerLabel: producer.label,
                   groupLabel: group.label,
-                  subgroupCount: group.subgroups.length,
+                  subgroupCount: visibleSubgroups.length,
                   productCount: group.productCount,
                   sampleNames: groupSampleNames,
                 })}
@@ -1457,7 +1474,7 @@ export default async function ManufacturerDetailPage({
           </div>
         </div>
 
-        {group.subgroups.length > 0 ? (
+        {visibleSubgroups.length > 0 ? (
           <div className="px-4 py-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <span className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
@@ -1468,7 +1485,7 @@ export default async function ManufacturerDetailPage({
               </span>
             </div>
             <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {group.subgroups.map((subgroup, subgroupIndex) => (
+              {visibleSubgroups.map((subgroup, subgroupIndex) => (
                 <CatalogPrefetchLink
                   key={`${keyPrefix}:${group.slug}:${groupIndex}:${subgroup.slug}:${subgroupIndex}`}
                   href={buildCatalogProducerPath(
@@ -1641,7 +1658,7 @@ export default async function ManufacturerDetailPage({
                 {seoCopy.title}
               </h2>
               <p className={directoryDescriptionClass}>
-                Короткий опис виробника, основні напрямки товарів і сценарії підбору запчастин за брендом, артикулом або VIN.
+                {pageDescription}
               </p>
             </div>
           </div>

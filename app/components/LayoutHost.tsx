@@ -673,7 +673,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (isDevelopment) return;
     if (warmupStartedRef.current) return;
     warmupStartedRef.current = true;
 
@@ -746,7 +745,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         let timer: number | undefined;
         try {
           await Promise.race([
-            fetch(path, { cache: "no-store" }),
+            fetch(path),
             new Promise<void>((resolve) => {
               timer = window.setTimeout(resolve, 30000);
             }),
@@ -775,7 +774,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         void warmRoutes();
         if (!isDevelopment) {
           try {
-            void fetch("/api/preload", { cache: "no-store" }).catch(() => {});
+            void fetch("/api/preload").catch(() => {});
           } catch {}
         }
       }

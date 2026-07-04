@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { buildPageMetadata } from "app/lib/seo-metadata";
+import ReviewSurveyClient from "./ReviewSurveyClient";
 
 export const metadata = buildPageMetadata({
   title: "Оплату отримано",
@@ -36,6 +37,7 @@ export default function PaymentSuccessPage() {
           </Link>
         </div>
       </section>
+      <ReviewSurveyClient />
     </main>
   );
 }

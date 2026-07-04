@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
   const userId = readString(body, "userId", 160);
   const text = readString(body, "text", 1200);
   const type = readMessageType(body);
+  const clientMessageId = readString(body, "clientMessageId", 120);
 
   if (!userId || !type || !text) {
     const invalid = NextResponse.json(
@@ -83,6 +84,10 @@ export async function POST(req: NextRequest) {
     textRead: true,
     type,
   };
+
+  if (clientMessageId) {
+    messageData.clientMessageId = clientMessageId;
+  }
 
   if (type === "image") {
     const imageUrl = readString(body, "imageUrl", 950_000);

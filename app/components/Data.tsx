@@ -15,7 +15,7 @@ import { ChevronsDown, Search } from "lucide-react";
 import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
 import ProductCard from "app/components/ProductCard";
-import { CATALOG_PAGE_CACHE_VERSION } from "app/lib/catalog-client-cache";
+import { CATALOG_PAGE_CACHE_VERSION, invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
 import {
@@ -68,7 +68,7 @@ const PRICE_STALE_POSITIVE_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 60;
 const PRICE_REVALIDATE_AFTER_NULL_MS = 1000 * 30;
 const PRICE_PAGE_BATCH_SIZE = ITEMS_PER_PAGE * 8;
-const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 6;
+const VISIBLE_PRICE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
 const PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS = 1000 * 12;
 const MEMORY_CACHE_TTL_MS_FIRST_PAGE = 1000 * 60 * 4;
 const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60 * 4;
@@ -76,9 +76,11 @@ const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
 const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
-const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 80;
-const IMAGE_PRIORITY_ITEMS_COUNT = 16;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE;
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 420;
+const IMAGE_PRIORITY_ITEMS_COUNT = 12;
+const DIRECT_IMAGE_LOAD_ITEMS_COUNT = ITEMS_PER_PAGE * 3;
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
+const VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE = 4;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 45;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
@@ -135,7 +137,6 @@ const QTY_FIELDS = [
 const GROUP_FIELDS = [
   "\u0413\u0440\u0443\u043f\u043f\u0430", // Р“СЂСѓРїРїР°
   "\u0420\u043e\u0434\u0438\u0442\u0435\u043b\u044c\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435", // Р РѕРґРёС‚РµР»СЊРќР°РёРјРµРЅРѕРІР°РЅРёРµ
-  "Category",
   "group",
 ];
 const SUBGROUP_FIELDS = [
@@ -189,9 +190,16 @@ const PHOTO_FIELDS = [
   "\u0415\u0441\u0442\u044c\u0444\u043e\u0442\u043e",
   "\u0404\u0441\u0442\u044c\u0424\u043e\u0442\u043e",
   "\u0404\u0441\u0442\u044c\u0444\u043e\u0442\u043e",
+  "\u0415\u0441\u0442\u044c\u0418\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435",
+  "\u0404\u0417\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f",
+  "\u0415\u0441\u0442\u044c\u041a\u0430\u0440\u0442\u0438\u043d\u043a\u0430",
+  "\u0404\u041a\u0430\u0440\u0442\u0438\u043d\u043a\u0430",
   "hasPhoto",
   "HasPhoto",
   "has_photo",
+  "hasImage",
+  "HasImage",
+  "has_image",
 ];
 const HAS_PRICE_FIELDS = [
   "\u0415\u0441\u0442\u044c\u0426\u0435\u043d\u0430", // \u0415\u0441\u0442\u044c\u0426\u0435\u043d\u0430
@@ -547,10 +555,18 @@ const normalizeProduct = (raw: unknown): Product => {
   const rawCostPriceEuro = readFirstNumber(record, PURCHASE_PRICE_FIELDS, Number.NaN);
   const description = readFirstString(record, DESCRIPTION_FIELDS);
 
-  const group = readFirstString(record, GROUP_FIELDS);
-  const subGroup = readFirstString(record, SUBGROUP_FIELDS);
-  const category = readFirstString(record, CATEGORY_FIELDS);
-  const hasPhoto = readFirstBoolean(record, PHOTO_FIELDS, true);
+  const rawGroup = readFirstString(record, GROUP_FIELDS);
+  const rawSubGroup = readFirstString(record, SUBGROUP_FIELDS);
+  const rawCategory = readFirstString(record, CATEGORY_FIELDS);
+  const shouldPromoteMissingCategory =
+    !rawCategory &&
+    rawGroup &&
+    rawSubGroup &&
+    rawGroup.toLocaleLowerCase("uk-UA") !== rawSubGroup.toLocaleLowerCase("uk-UA");
+  const category = shouldPromoteMissingCategory ? rawGroup : rawCategory;
+  const group = shouldPromoteMissingCategory ? rawSubGroup : rawGroup;
+  const subGroup = shouldPromoteMissingCategory ? "" : rawSubGroup;
+  const hasPhoto = readFirstBoolean(record, PHOTO_FIELDS, false);
   const hasPriceRaw = readFirstBoolean(record, HAS_PRICE_FIELDS, undefined as unknown as boolean);
   const hasPriceFromValue = Number.isFinite(priceEuro) && priceEuro > 0;
   const hasPrice: boolean | undefined = hasPriceRaw === true ? true : hasPriceRaw === false ? false : hasPriceFromValue ? true : undefined;
@@ -1104,6 +1120,29 @@ const mergePagePricesIntoCache = (
       ...(currentPayload.prices ?? {}),
       ...prices,
     },
+  };
+
+  writePageToMemory(cacheKey, nextPayload, ttlMs);
+  writePageToSession(cacheKey, nextPayload, ttlMs);
+};
+
+const mergePageImagesIntoCache = (
+  cacheKey: string,
+  images: Record<string, string>,
+  ttlMs: number
+) => {
+  if (!cacheKey || Object.keys(images).length === 0) return;
+
+  const currentPayload = readPageFromMemory(cacheKey) ?? readPageFromSession(cacheKey);
+  if (!currentPayload) return;
+
+  const existingImages = currentPayload.images ?? {};
+  const hasNew = Object.keys(images).some((key) => !existingImages[key]);
+  if (!hasNew) return;
+
+  const nextPayload: CatalogPagePayload = {
+    ...currentPayload,
+    images: { ...existingImages, ...images },
   };
 
   writePageToMemory(cacheKey, nextPayload, ttlMs);
@@ -1858,7 +1897,9 @@ function useCatalogData(params: {
     ) => {
       if (typeof window === "undefined") return;
 
-      const warmupItems = items.slice(0, VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE);
+      const warmupItems = items
+        .filter((item) => item.hasPhoto === true)
+        .slice(0, VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE);
       if (warmupItems.length === 0) return;
 
       const prefetchedImageEntries: Record<string, string> = {};
@@ -1871,15 +1912,6 @@ function useCatalogData(params: {
         const prefetchedSrc = options?.prefetchedImages?.[key];
         if (prefetchedSrc) {
           prefetchedImageEntries[key] = prefetchedSrc;
-          continue;
-        }
-
-        if (item.hasPhoto === false) {
-          pageImageMissingRef.current = {
-            ...pageImageMissingRef.current,
-            [key]: true,
-          };
-          setPageImageMissing((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
           continue;
         }
 
@@ -2034,34 +2066,54 @@ function useCatalogData(params: {
           );
           applyReadyImageEntries(readyEntries);
 
+          if (readyEntries.length > 0 && options?.cacheKey && options?.ttlMs) {
+            const resolvedMap: Record<string, string> = {};
+            for (const entry of readyEntries) {
+              if (entry.src) resolvedMap[entry.key] = entry.src;
+            }
+            mergePageImagesIntoCache(options.cacheKey, resolvedMap, options.ttlMs);
+          }
+
           const resultsByKey = new Map(results.map((item) => [item.key, item]));
           const recoveryItems = requestItems
             .filter((item) => {
-              if (item.hasPhoto === false) return false;
+              if (item.hasPhoto !== true) return false;
               const key = buildProductImageBatchKey(item.code, item.article);
               if (!key || pageImagesRef.current[key]) return false;
               const result = resultsByKey.get(key);
               return !result || result.status !== "ready";
             })
-            .slice(0, VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE);
+            .slice(0, VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE);
 
           if (recoveryItems.length > 0) {
-            void primeCatalogImageBatch(recoveryItems, {
-              deep: true,
-              signal: options?.signal,
-            })
-              .then((deepResults) => {
-                if (options?.signal?.aborted) return;
+            window.setTimeout(() => {
+              if (options?.signal?.aborted) return;
 
-                const deepReadyEntries = deepResults.filter(
-                  (item) => item.status === "ready" && item.src
-                );
-                applyReadyImageEntries(deepReadyEntries);
-                applyMissingImageEntries(deepResults);
+              void primeCatalogImageBatch(recoveryItems, {
+                deep: true,
+                signal: options?.signal,
               })
-              .catch((error) => {
-                if (isAbortLikeError(error)) return;
-              });
+                .then((deepResults) => {
+                  if (options?.signal?.aborted) return;
+
+                  const deepReadyEntries = deepResults.filter(
+                    (item) => item.status === "ready" && item.src
+                  );
+                  applyReadyImageEntries(deepReadyEntries);
+                  applyMissingImageEntries(deepResults);
+
+                  if (deepReadyEntries.length > 0 && options?.cacheKey && options?.ttlMs) {
+                    const deepMap: Record<string, string> = {};
+                    for (const entry of deepReadyEntries) {
+                      if (entry.src) deepMap[entry.key] = entry.src;
+                    }
+                    mergePageImagesIntoCache(options.cacheKey, deepMap, options.ttlMs);
+                  }
+                })
+                .catch((error) => {
+                  if (isAbortLikeError(error)) return;
+                });
+            }, 650);
           }
         })
         .catch((error) => {
@@ -2363,8 +2415,17 @@ function useCatalogData(params: {
               return;
             }
 
-            writePageToMemory(options.cacheKey, payload, options.ttlMs);
-            writePageToSession(options.cacheKey, payload, options.ttlMs);
+            // Preserve images fetched client-side — the server always returns images: {}
+            const existingCached =
+              readPageFromMemory(options.cacheKey) ?? readPageFromSession(options.cacheKey);
+            const existingImages = existingCached?.images ?? {};
+            const mergedPayload: CatalogPagePayload =
+              Object.keys(existingImages).length > 0
+                ? { ...payload, images: { ...existingImages, ...(payload.images ?? {}) } }
+                : payload;
+
+            writePageToMemory(options.cacheKey, mergedPayload, options.ttlMs);
+            writePageToSession(options.cacheKey, mergedPayload, options.ttlMs);
             applyResolvedPagePrices(payload.items, payload.prices);
           })
           .catch(swallowAbortError);
@@ -2683,10 +2744,11 @@ function useCatalogData(params: {
         cursorDuplicateStreakRef.current = 0;
       }
 
-      // Without a cursor there is no way to advance past duplicate pages — stop immediately.
+      // Without a cursor 1C may still respect НомерСтраницы/Смещение for some queries
+      // (e.g. car-filtered getdata). Allow a few attempts before giving up.
       // With a cursor tolerate a short streak in case 1C returns occasional overlaps.
       const shouldStopPaginationOnDuplicatePage =
-        (!isCursorlessSortedMode && !payload.nextCursor && duplicatePageStreakRef.current >= 1) ||
+        (!isCursorlessSortedMode && !payload.nextCursor && duplicatePageStreakRef.current >= 3) ||
         cursorDuplicateStreakRef.current >= 3;
 
       setHasMore(
@@ -3696,8 +3758,8 @@ const Data: React.FC<DataProps> = ({
         if (data.group !== undefined) productUpdateBody.group = data.group;
         if (data.subGroup !== undefined) productUpdateBody.subGroup = data.subGroup;
         if (data.category !== undefined) productUpdateBody.category = data.category;
-        if (data.receipt !== undefined) productUpdateBody.receipt = data.receipt;
-        if (data.sale !== undefined) productUpdateBody.sale = data.sale;
+        if (data.receipt !== undefined) productUpdateBody["Поступлення"] = data.receipt;
+        if (data.sale !== undefined) productUpdateBody["Реалізація"] = data.sale;
         tasks.push(
           fetch("/api/product-update", {
             method: "POST",
@@ -3759,6 +3821,7 @@ const Data: React.FC<DataProps> = ({
         // catalog re-fetch (empty cache → full 1C round-trip) and overwrite the
         // optimistic update that is already visible via updateCatalogItemFields above.
         clearBrowserCatalogCache();
+        invalidateCatalogClientCache();
       }
 
       return failed ?? { ok: true, quantity: results.find((r) => r.ok && r.quantity !== undefined)?.quantity };
@@ -3954,9 +4017,7 @@ const Data: React.FC<DataProps> = ({
     }));
   }, [visibleSortedData, sortedData, sortedEntries, prices, euroRate]);
   const visibleCatalogImageCandidates = useMemo(
-    () =>
-      visibleSortedData
-        .filter((item) => item.hasPhoto !== false),
+    () => visibleSortedData.filter((item) => item.hasPhoto === true),
     [visibleSortedData]
   );
   const visibleCatalogPriceCandidates = useMemo(
@@ -4396,10 +4457,10 @@ const Data: React.FC<DataProps> = ({
                       ? "request"
                       : "loading";
                 const shouldPrioritizeImage = absoluteIndex < IMAGE_PRIORITY_ITEMS_COUNT;
+                const shouldDirectLoadImage = absoluteIndex < DIRECT_IMAGE_LOAD_ITEMS_COUNT;
                 const imageBatchKey = buildProductImageBatchKey(item.code, item.article);
                 const prefetchedImageSrc =
                   (imageBatchKey ? pageImages[imageBatchKey] : null) ?? null;
-                const hasPhoto = item.hasPhoto !== false;
                 const normalizedGroup =
                   (item.group || "").trim() ||
                   (item.category || "").trim() ||
@@ -4432,17 +4493,16 @@ const Data: React.FC<DataProps> = ({
                       costPriceUAH={isAdmin && stateCostPriceEuro != null ? Math.round(stateCostPriceEuro * euroRate) : null}
                       costPriceEuro={isAdmin ? stateCostPriceEuro : undefined}
                       isAdmin={isAdmin}
-                      onAdminEdit={isAdmin ? (data) => handleAdminEdit(code, item.article || code, data) : undefined}
+                      onAdminEdit={isAdmin ? (data) => handleAdminEdit(code, item.article || "", data) : undefined}
                       priceStatus={priceStatus}
                       imageLoadingMode={shouldPrioritizeImage ? "eager" : "lazy"}
                       imageFetchPriority={shouldPrioritizeImage ? "high" : "auto"}
                       prefetchedImageSrc={prefetchedImageSrc}
                       batchImagePending={Boolean(imageBatchKey && pageImagePending[imageBatchKey])}
                       batchImageMissing={
-                        !hasPhoto ||
                         Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
                       }
-                      batchImageOnly={Boolean(imageBatchKey && !shouldPrioritizeImage)}
+                      batchImageOnly={Boolean(imageBatchKey && !shouldDirectLoadImage)}
                       isFlipped={flippedCard === code}
                       motionEnabled={shouldAnimateList}
                       prefetchProductRoute={shouldPrefetchProductRoute}

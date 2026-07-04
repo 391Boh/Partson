@@ -4,7 +4,7 @@
  * Приклад: node scripts/test-1c-image.mjs 00-00000079 /Users/me/photo.jpg
  */
 import { readFileSync, existsSync } from "fs";
-import { join, dirname, basename, extname } from "path";
+import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -49,7 +49,6 @@ if (!existsSync(IMAGE_PATH)) {
 const imageBuffer = readFileSync(IMAGE_PATH);
 const imageBase64 = imageBuffer.toString("base64");
 const fileName = basename(IMAGE_PATH);
-const ext = extname(IMAGE_PATH).toLowerCase();
 
 // Той самий endpoint що й product-update (edit) і product-upload-image
 const ENDPOINT = (env.ONEC_PRODUCT_UPDATE_ENDPOINT || "edit").replace(/^\//, "");

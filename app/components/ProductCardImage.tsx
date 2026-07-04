@@ -67,11 +67,23 @@ const ProductCardImage: React.FC<Props> = ({
   disableDirectLoad = false,
   batchImagePending = false,
 }) => {
-  const [requestSrc, setRequestSrc] = useState("");
-  const [status, setStatus] = useState<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
   const normalizedCode = (productCode || "").trim();
   const normalizedArticle = (articleHint || "").trim();
   const normalizedPrefetchedSrc = (prefetchedSrc || "").trim();
+
+  const [requestSrc, setRequestSrc] = useState<string>(() => {
+    if (!hasKnownPhoto || !normalizedCode) return "";
+    if (normalizedPrefetchedSrc) return normalizedPrefetchedSrc;
+    if (typeof window === "undefined") return "";
+    if (readProductImageMissing(normalizedCode, normalizedArticle || undefined)) return "";
+    return readProductImageSuccess(normalizedCode, normalizedArticle || undefined) ?? "";
+  });
+  const [status, setStatus] = useState<ImageStatus>(() => {
+    if (!hasKnownPhoto) return "missing";
+    if (typeof window === "undefined") return "loading";
+    if (readProductImageMissing(normalizedCode, normalizedArticle || undefined)) return "missing";
+    return "loading";
+  });
 
   const primarySrc = useMemo(
     () => buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true }),
@@ -88,7 +100,7 @@ const ProductCardImage: React.FC<Props> = ({
   const [finalRetryQueued, setFinalRetryQueued] = useState(false);
   const lastSuccessfulSrcRef = useRef("");
   const requestSrcRef = useRef("");
-  const statusRef = useRef<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
+  const statusRef = useRef<ImageStatus>(status);
   const directFallbackQueuedRef = useRef(false);
 
   useEffect(() => {
@@ -126,14 +138,6 @@ const ProductCardImage: React.FC<Props> = ({
   useEffect(() => {
     let deferredLoadTimer: number | null = null;
 
-    if (!hasKnownPhoto) {
-      directFallbackQueuedRef.current = false;
-      writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
-      setRequestSrc("");
-      setStatus("missing");
-      setFinalRetryQueued(false);
-      return () => {};
-    }
     if (normalizedPrefetchedSrc) {
       directFallbackQueuedRef.current = false;
       const isAlreadyShowingSameSrc =
@@ -164,6 +168,15 @@ const ProductCardImage: React.FC<Props> = ({
         setStatus("loading");
         setFinalRetryQueued(false);
       }
+      return () => {};
+    }
+
+    if (!hasKnownPhoto) {
+      directFallbackQueuedRef.current = false;
+      writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
+      setRequestSrc("");
+      setStatus("missing");
+      setFinalRetryQueued(false);
       return () => {};
     }
 
@@ -233,6 +246,8 @@ const ProductCardImage: React.FC<Props> = ({
     normalizedCode,
     normalizedPrefetchedSrc,
     primarySrc,
+    recoverySrc,
+    finalRetrySrc,
     batchImagePending,
     deferDirectLoad,
     disableDirectLoad,
@@ -318,11 +333,10 @@ const ProductCardImage: React.FC<Props> = ({
   const imageAlt = (alt || "Фото товару").trim();
   // Show skeleton until image is fully loaded (not just while requestSrc is empty)
   const showLoadingSkeleton =
-    status !== "loaded" && (status === "loading" || batchImagePending);
+    !requestSrc && status !== "loaded" && (status === "loading" || batchImagePending);
   const showPlaceholder = status === "missing";
   const imageDecodingMode = fetchPriority === "high" ? "sync" : "async";
-  const imageFadeClass =
-    fetchPriority === "high" ? "duration-100" : "duration-200";
+  const imageFadeClass = "duration-0";
 
   return (
     <div
@@ -363,7 +377,7 @@ const ProductCardImage: React.FC<Props> = ({
         <>
           {/* Skeleton always present, fades out when image is loaded */}
           <div
-            className={`absolute inset-0 transition-opacity ${imageFadeClass} pointer-events-none bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 ${showLoadingSkeleton ? 'opacity-100' : 'opacity-0'}`}
+            className={`catalog-image-loading absolute inset-0 transition-opacity ${imageFadeClass} pointer-events-none bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 ${showLoadingSkeleton ? 'opacity-100' : 'opacity-0'}`}
             aria-hidden="true"
           />
           {requestSrc && (

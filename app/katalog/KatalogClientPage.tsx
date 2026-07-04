@@ -91,6 +91,42 @@ const loadCatalogFirebaseDeps = (() => {
   };
 })();
 
+const scheduleCatalogIdleTask = (task: () => void, timeout = 900) => {
+  if (typeof window === 'undefined') return () => {};
+
+  let cancelled = false;
+  let didRun = false;
+  const runTask = () => {
+    if (cancelled || didRun) return;
+    didRun = true;
+    task();
+  };
+  const win = window as Window & {
+    requestIdleCallback?: (
+      callback: () => void,
+      options?: { timeout: number }
+    ) => number;
+    cancelIdleCallback?: (id: number) => void;
+  };
+
+  if (typeof win.requestIdleCallback === 'function') {
+    const idleId = win.requestIdleCallback(runTask, { timeout });
+    const timeoutId = window.setTimeout(runTask, timeout + 240);
+
+    return () => {
+      cancelled = true;
+      win.cancelIdleCallback?.(idleId);
+      window.clearTimeout(timeoutId);
+    };
+  }
+
+  const timeoutId = window.setTimeout(runTask, Math.min(timeout, 160));
+  return () => {
+    cancelled = true;
+    window.clearTimeout(timeoutId);
+  };
+};
+
 
 interface KatalogProps {
   initialPagePayload?: InitialCatalogPagePayload | null;
@@ -367,114 +403,117 @@ const Katalog: React.FC<KatalogProps> = ({
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
 
-    void loadCatalogFirebaseDeps().then(({ auth, db, doc, getDoc, onAuthStateChanged }) => {
-      if (cancelled) return;
+    const cancelIdleLoad = scheduleCatalogIdleTask(() => {
+      void loadCatalogFirebaseDeps().then(({ auth, db, doc, getDoc, onAuthStateChanged }) => {
+        if (cancelled) return;
 
-      unsubscribe = onAuthStateChanged(auth, (user) => {
-        setFirebaseUser(user);
-        setAuthReady(true);
+        unsubscribe = onAuthStateChanged(auth, (user) => {
+          setFirebaseUser(user);
+          setAuthReady(true);
 
-        if (!user) {
-          setCarsLoaded(true);
-          return;
-        }
-
-        setCarsLoaded(false);
-
-        if (skipRemoteLoadRef.current) {
-          skipRemoteLoadRef.current = false;
-          setCarsLoaded(true);
-          return;
-        }
-
-        const extractCars = (value: unknown) =>
-          Array.isArray(value)
-            ? (value as unknown[]).filter(
-                (car): car is string => typeof car === 'string' && car.trim() !== ''
-              )
-            : [];
-
-        const extractSelection = (value: unknown): PersistedCarSelection | null => {
-          if (!value || typeof value !== 'object') return null;
-          const record = value as Record<string, unknown>;
-          const brand =
-            typeof record.brand === 'string' && record.brand.trim() ? record.brand : '';
-          const model =
-            typeof record.model === 'string' && record.model.trim() ? record.model : '';
-          const label =
-            typeof record.label === 'string' && record.label.trim() ? record.label : '';
-          const year =
-            typeof record.year === 'number' && Number.isFinite(record.year)
-              ? record.year
-              : null;
-          const volume =
-            typeof record.volume === 'string' && record.volume.trim()
-              ? record.volume
-              : null;
-          const power =
-            typeof record.power === 'string' && record.power.trim() ? record.power : null;
-          const gearbox =
-            typeof record.gearbox === 'string' && record.gearbox.trim()
-              ? record.gearbox
-              : null;
-          const drive =
-            typeof record.drive === 'string' && record.drive.trim() ? record.drive : null;
-
-          if (!brand || !model || !label) return null;
-          return { brand, model, year, volume, power, gearbox, drive, label };
-        };
-
-        const loadCars = async () => {
-          try {
-            const docRef = doc(db, 'users', user.uid);
-            const snap = await getDoc(docRef);
-            if (!snap.exists()) return;
-            const data = snap.data() as {
-              avto?: { cars?: unknown; selection?: unknown };
-              selectedCars?: unknown;
-              selectedCarSelection?: unknown;
-            };
-            const avtoData = data.avto ?? null;
-
-            const avtoCars = extractCars(avtoData?.cars);
-            let storedCars = avtoCars.length
-              ? avtoCars
-              : extractCars(data.selectedCars);
-
-            const avtoSelection = extractSelection(avtoData?.selection);
-            const storedSelection =
-              avtoSelection ?? extractSelection(data.selectedCarSelection);
-
-            let didApplyRemote = false;
-            if (storedSelection) {
-              if (!storedCars.includes(storedSelection.label)) {
-                storedCars = [...storedCars, storedSelection.label];
-              }
-              setSelectedCars(storedCars);
-              setSelectedCarSelection(storedSelection);
-              didApplyRemote = true;
-            } else {
-              setSelectedCars(storedCars);
-              setSelectedCarSelection(null);
-              didApplyRemote = storedCars.length > 0;
-            }
-
-            if (didApplyRemote) {
-              skipNextRemoteSaveRef.current = true;
-            }
-          } catch (error) {
-            console.error('Failed to load saved cars from Firestore:', error);
-          } finally {
+          if (!user) {
             setCarsLoaded(true);
+            return;
           }
-        };
 
-        void loadCars();
+          setCarsLoaded(false);
+
+          if (skipRemoteLoadRef.current) {
+            skipRemoteLoadRef.current = false;
+            setCarsLoaded(true);
+            return;
+          }
+
+          const extractCars = (value: unknown) =>
+            Array.isArray(value)
+              ? (value as unknown[]).filter(
+                  (car): car is string => typeof car === 'string' && car.trim() !== ''
+                )
+              : [];
+
+          const extractSelection = (value: unknown): PersistedCarSelection | null => {
+            if (!value || typeof value !== 'object') return null;
+            const record = value as Record<string, unknown>;
+            const brand =
+              typeof record.brand === 'string' && record.brand.trim() ? record.brand : '';
+            const model =
+              typeof record.model === 'string' && record.model.trim() ? record.model : '';
+            const label =
+              typeof record.label === 'string' && record.label.trim() ? record.label : '';
+            const year =
+              typeof record.year === 'number' && Number.isFinite(record.year)
+                ? record.year
+                : null;
+            const volume =
+              typeof record.volume === 'string' && record.volume.trim()
+                ? record.volume
+                : null;
+            const power =
+              typeof record.power === 'string' && record.power.trim() ? record.power : null;
+            const gearbox =
+              typeof record.gearbox === 'string' && record.gearbox.trim()
+                ? record.gearbox
+                : null;
+            const drive =
+              typeof record.drive === 'string' && record.drive.trim() ? record.drive : null;
+
+            if (!brand || !model || !label) return null;
+            return { brand, model, year, volume, power, gearbox, drive, label };
+          };
+
+          const loadCars = async () => {
+            try {
+              const docRef = doc(db, 'users', user.uid);
+              const snap = await getDoc(docRef);
+              if (!snap.exists()) return;
+              const data = snap.data() as {
+                avto?: { cars?: unknown; selection?: unknown };
+                selectedCars?: unknown;
+                selectedCarSelection?: unknown;
+              };
+              const avtoData = data.avto ?? null;
+
+              const avtoCars = extractCars(avtoData?.cars);
+              let storedCars = avtoCars.length
+                ? avtoCars
+                : extractCars(data.selectedCars);
+
+              const avtoSelection = extractSelection(avtoData?.selection);
+              const storedSelection =
+                avtoSelection ?? extractSelection(data.selectedCarSelection);
+
+              let didApplyRemote = false;
+              if (storedSelection) {
+                if (!storedCars.includes(storedSelection.label)) {
+                  storedCars = [...storedCars, storedSelection.label];
+                }
+                setSelectedCars(storedCars);
+                setSelectedCarSelection(storedSelection);
+                didApplyRemote = true;
+              } else {
+                setSelectedCars(storedCars);
+                setSelectedCarSelection(null);
+                didApplyRemote = storedCars.length > 0;
+              }
+
+              if (didApplyRemote) {
+                skipNextRemoteSaveRef.current = true;
+              }
+            } catch (error) {
+              console.error('Failed to load saved cars from Firestore:', error);
+            } finally {
+              setCarsLoaded(true);
+            }
+          };
+
+          void loadCars();
+        });
       });
     });
 
     return () => {
       cancelled = true;
+      cancelIdleLoad();
       unsubscribe?.();
     };
   }, []);

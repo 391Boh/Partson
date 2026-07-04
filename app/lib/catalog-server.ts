@@ -77,7 +77,6 @@ const QTY_FIELDS = [
 const GROUP_FIELDS = [
   "\u0413\u0440\u0443\u043f\u043f\u0430",
   "\u0420\u043e\u0434\u0438\u0442\u0435\u043b\u044c\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435",
-  "Category",
 ];
 const SUBGROUP_FIELDS = [
   "\u041f\u043e\u0434\u0433\u0440\u0443\u043f\u043f\u0430",
@@ -125,9 +124,16 @@ const PHOTO_FIELDS = [
   "\u0415\u0441\u0442\u044c\u0444\u043e\u0442\u043e",
   "\u0404\u0441\u0442\u044c\u0424\u043e\u0442\u043e",
   "\u0404\u0441\u0442\u044c\u0444\u043e\u0442\u043e",
+  "\u0415\u0441\u0442\u044c\u0418\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435",
+  "\u0404\u0417\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f",
+  "\u0415\u0441\u0442\u044c\u041a\u0430\u0440\u0442\u0438\u043d\u043a\u0430",
+  "\u0404\u041a\u0430\u0440\u0442\u0438\u043d\u043a\u0430",
   "hasPhoto",
   "HasPhoto",
   "has_photo",
+  "hasImage",
+  "HasImage",
+  "has_image",
 ];
 const HAS_PRICE_FIELDS = [
   "\u0415\u0441\u0442\u044c\u0426\u0435\u043d\u0430", // \u0415\u0441\u0442\u044c\u0426\u0435\u043d\u0430
@@ -270,10 +276,18 @@ const normalizeProduct = (raw: unknown): CatalogProduct => {
     ? readFirstNumber(record, PRICE_FIELDS, Number.NaN)
     : Number.NaN;
   const rawCostPriceEuro = readFirstNumber(record, PURCHASE_PRICE_FIELDS, Number.NaN);
-  const group = readFirstString(record, GROUP_FIELDS);
-  const subGroup = readFirstString(record, SUBGROUP_FIELDS);
-  const category = readFirstString(record, CATEGORY_FIELDS);
-  const hasPhoto = readFirstBoolean(record, PHOTO_FIELDS, true);
+  const rawGroup = readFirstString(record, GROUP_FIELDS);
+  const rawSubGroup = readFirstString(record, SUBGROUP_FIELDS);
+  const rawCategory = readFirstString(record, CATEGORY_FIELDS);
+  const shouldPromoteMissingCategory =
+    !rawCategory &&
+    rawGroup &&
+    rawSubGroup &&
+    rawGroup.toLocaleLowerCase("uk-UA") !== rawSubGroup.toLocaleLowerCase("uk-UA");
+  const category = shouldPromoteMissingCategory ? rawGroup : rawCategory;
+  const group = shouldPromoteMissingCategory ? rawSubGroup : rawGroup;
+  const subGroup = shouldPromoteMissingCategory ? "" : rawSubGroup;
+  const hasPhoto = readFirstBoolean(record, PHOTO_FIELDS, false);
   const hasPriceBool = readFirstBoolean(record, HAS_PRICE_FIELDS, undefined as unknown as boolean);
   const inStockBool = readFirstBoolean(record, IN_STOCK_FIELDS, undefined as unknown as boolean);
   const description = readDescriptionFromRecord(record) || undefined;
@@ -420,31 +434,38 @@ const fetchAllgoodsProductsByExactLookup = async (
   ];
 
   const target = normalizeFacetValue(normalized);
-  const seenBodies = new Set<string>();
   const merged: CatalogProduct[] = [];
   const seenProducts = new Set<string>();
 
-  for (const body of requestBodies) {
-    const serializedBody = JSON.stringify(body);
-    if (seenBodies.has(serializedBody)) continue;
-    seenBodies.add(serializedBody);
+  // Deduplicate request bodies before sending, then fire all in parallel
+  const uniqueBodies = requestBodies.filter(
+    (body, i, arr) =>
+      arr.findIndex((b) => JSON.stringify(b) === JSON.stringify(body)) === i
+  );
 
-    const response = await oneCRequest("allgoods", {
-      method: "POST",
-      body,
-      timeoutMs: options?.timeoutMs,
-      retries: options?.retries ?? 0,
-      retryDelayMs: options?.retryDelayMs ?? 100,
-      cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 3,
-      cacheKey: JSON.stringify({
-        endpoint: "allgoods",
+  const responses = await Promise.allSettled(
+    uniqueBodies.map((body) =>
+      oneCRequest("allgoods", {
+        method: "POST",
         body,
-        timeoutMs: options?.timeoutMs ?? null,
+        timeoutMs: options?.timeoutMs,
         retries: options?.retries ?? 0,
         retryDelayMs: options?.retryDelayMs ?? 100,
-      }),
-    }).catch(() => null);
+        cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 3,
+        cacheKey: JSON.stringify({
+          endpoint: "allgoods",
+          body,
+          timeoutMs: options?.timeoutMs ?? null,
+          retries: options?.retries ?? 0,
+          retryDelayMs: options?.retryDelayMs ?? 100,
+        }),
+      })
+    )
+  );
 
+  for (const result of responses) {
+    if (result.status === "rejected") continue;
+    const response = result.value;
     if (!response || response.status < 200 || response.status >= 300) continue;
 
     const parsed = parseAllgoodsPayload(response.text).items;
@@ -703,7 +724,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       };
     }
 
-    if (!parsed.hasMore || !resolvedCursor || parsed.items.length < limit) {
+    if (!parsed.hasMore || !resolvedCursor) {
       return {
         items: [] as CatalogProduct[],
         hasMore: false,
@@ -1670,12 +1691,23 @@ export const fetchCatalogProductsByQuery = async (options: {
     };
   };
 
-  let normalized = await runRequest(primaryKeys);
-  if (normalized.items.length === 0 && fallbackKeys) {
-    normalized = await runRequest(fallbackKeys);
-  }
+  // Run primary and fallback in parallel to eliminate sequential latency
+  const [primaryResult, fallbackResult] = await Promise.allSettled([
+    runRequest(primaryKeys),
+    fallbackKeys ? runRequest(fallbackKeys) : Promise.resolve(null),
+  ]);
 
-  return normalized;
+  const primary =
+    primaryResult.status === "fulfilled" ? primaryResult.value : null;
+  if (primary && primary.items.length > 0) return primary;
+
+  const fallback =
+    fallbackResult.status === "fulfilled" ? fallbackResult.value : null;
+  if (fallback && fallback.items.length > 0) return fallback;
+
+  return (
+    primary ?? fallback ?? { items: [], hasMore: false, nextCursor: "", cursorField: null }
+  );
 };
 
 export const fetchCatalogProductsByFacet = async (options: {

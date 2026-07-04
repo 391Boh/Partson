@@ -55,10 +55,10 @@ const GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
 const GROUP_ITEM_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
 const GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS = 400;
 const GROUP_ITEM_PRODUCER_SPLIT_PAGE_SIZE = 220;
-const GROUP_ITEM_PRODUCER_SPLIT_MAX_PAGES = 3;
-const GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS = 2200;
+const GROUP_ITEM_PRODUCER_SPLIT_MAX_PAGES = 2;
+const GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS = 700;
 const CATEGORY_TOP_PRODUCTS_LIMIT = 10;
-const CATEGORY_TOP_PRODUCTS_TIMEOUT_MS = 1200;
+const CATEGORY_TOP_PRODUCTS_TIMEOUT_MS = 500;
 const isProductionBuildPhase =
   process.env.NEXT_PHASE === "phase-production-build" ||
   process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
@@ -1044,7 +1044,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                   Навігація
                 </p>
                 <h2 className="mt-1 text-lg font-extrabold tracking-normal text-slate-950">
-                  Кінцеві підкатегорії
+                  Підкатегорії та типи
                 </h2>
               </div>
               <span className={directoryCompactMetricAccentClass}>

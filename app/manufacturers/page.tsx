@@ -208,7 +208,7 @@ export default async function ManufacturersPage() {
             ]}
           />
 
-          <h1 className="sr-only">Виробники автозапчастин і бренди PartsON</h1>
+          <p className="sr-only">Виробники автозапчастин і бренди PartsON</p>
         </div>
       </div>
 

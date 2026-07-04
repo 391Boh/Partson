@@ -47,7 +47,6 @@ const SmartLink = forwardRef<HTMLAnchorElement, SmartLinkProps>(function SmartLi
 
   const warmRoute = useCallback(() => {
     if (
-      process.env.NODE_ENV !== "production" ||
       !prefetchOnIntent ||
       warmedRef.current ||
       !prefetchableHref

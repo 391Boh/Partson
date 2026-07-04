@@ -49,6 +49,15 @@ const readItems = (source: Record<string, unknown>) => {
     .filter(Boolean);
 };
 
+const formatPaymentLine = (body: Record<string, unknown>) => {
+  const method = readString(body, "paymentMethod", 80) || "не вказано";
+  const status = readString(body, "paymentStatus", 40);
+  if (status === "paid") return `Оплата: ${method} ✅ Оплачено`;
+  if (status === "cash_on_delivery") return `Оплата: ${method} (при отриманні)`;
+  if (status === "pending") return `Оплата: ${method} ⏳ Очікує підтвердження`;
+  return `Оплата: ${method}`;
+};
+
 const buildOrderMessage = (body: Record<string, unknown>) => {
   const items = readItems(body);
   const orderId = readString(body, "orderId", 80) || readString(body, "firestoreId", 80);
@@ -62,7 +71,7 @@ const buildOrderMessage = (body: Record<string, unknown>) => {
   ].filter(Boolean);
 
   return [
-    "Нове замовлення PartsON",
+    "🛒 Нове замовлення PartsON",
     orderId ? `Номер: ${orderId}` : "",
     `Клієнт: ${readString(body, "name", 120) || "не вказано"}`,
     `Телефон: ${readString(body, "phone", 80) || "не вказано"}`,
@@ -73,9 +82,9 @@ const buildOrderMessage = (body: Record<string, unknown>) => {
       ? `Знижка${discountCode ? ` (${discountCode})` : ""}: -${formatMoney(discountAmount)}`
       : "",
     `Сума: ${formatMoney(readNumber(body, "totalAmount"))}`,
-    `Оплата: ${readString(body, "paymentMethod", 80) || "не вказано"}`,
+    formatPaymentLine(body),
     deliveryParts.length ? `Доставка: ${deliveryParts.join(", ")}` : "",
-    items.length ? `Товари:\n${items.join("\n")}` : "",
+    items.length ? `\nТовари:\n${items.join("\n")}` : "",
   ]
     .filter(Boolean)
     .join("\n");

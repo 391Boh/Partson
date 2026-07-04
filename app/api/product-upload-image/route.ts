@@ -15,7 +15,7 @@ const ONEC_UPLOAD_IMAGE_ENDPOINT =
   (
     process.env.ONEC_PRODUCT_UPDATE_ENDPOINT ||
     process.env.ONEC_UPLOAD_IMAGE_ENDPOINT ||
-    "ОбновитьТовар"
+    "edit"
   ).trim();
 
 const ADMIN_EMAILS = new Set(
@@ -182,7 +182,8 @@ export async function POST(request: NextRequest) {
   if (article) clearProductImageCacheForProduct(article);
   try {
     revalidateTag("product-page-data", "max");
-    revalidatePath("/product/[code]", "page");
+    if (article) revalidatePath(`/product/${encodeURIComponent(article)}`, "page");
+    if (code !== article) revalidatePath(`/product/${encodeURIComponent(code)}`, "page");
     revalidatePath("/katalog", "page");
   } catch {
     // can throw outside of a request context

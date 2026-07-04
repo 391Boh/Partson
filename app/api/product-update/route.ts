@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
+import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
 import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
 import { clearProductImageCacheForProduct } from "app/lib/product-image";
 
@@ -194,6 +195,19 @@ export async function POST(request: NextRequest) {
   const quantity = readQuantity("quantity") ?? readQuantity("Кількість");
   const receipt = readQuantity("receipt") ?? readQuantity("Поступлення");
   const sale = readQuantity("sale") ?? readQuantity("Реалізація");
+  const hasPriceUpdate = priceEuro !== undefined || costPriceEuro !== undefined;
+  const hasNonPriceArticleLookup =
+    catalogNumber !== undefined ||
+    productName !== undefined ||
+    producer !== undefined ||
+    group !== undefined ||
+    subGroup !== undefined ||
+    category !== undefined ||
+    description !== undefined ||
+    quantity !== undefined ||
+    receipt !== undefined ||
+    sale !== undefined ||
+    Boolean(image.fileName || image.imageBase64);
 
   const oneCBody: Record<string, unknown> = { Код: code };
   if (priceEuro !== undefined) oneCBody["ЦінаПрод"] = priceEuro;
@@ -210,14 +224,16 @@ export async function POST(request: NextRequest) {
   // Sending it for price-only updates causes 1C to try writing it to the Ціна
   // catalog object (which has no such field) and the price update fails.
   if (catalogNumber) oneCBody["НомерПоКаталогу"] = catalogNumber;
-  // артикул_ціни lets the 1C BSL find the Ціна record by article without
-  // triggering the НомерПоКаталогу update branch in ОбновитьТовар.
-  // Must be set BEFORE the request is sent.
-  if (article && (priceEuro !== undefined || costPriceEuro !== undefined)) {
+
+  // Price records use the catalog number as their "Наименование" in 1C.
+  // The edit service expects this helper key to locate the price row without
+  // trying to write "НомерПоКаталогу" into the price directory object.
+  if (article && hasPriceUpdate) {
     oneCBody["артикул_ціни"] = article;
   }
-  // Always send article for quantity updates so 1C BSL can find the product by ор_НомерПоКаталогу
-  if (article && (quantity !== undefined || receipt !== undefined || sale !== undefined)) {
+
+  // Product/quantity/article edits still need the current catalog number.
+  if (article && hasNonPriceArticleLookup) {
     oneCBody["article"] = article;
   }
   if (quantity !== undefined) oneCBody["Кількість"] = quantity;
@@ -325,12 +341,16 @@ export async function POST(request: NextRequest) {
   clearProductImageCacheForProduct(code);
   if (article) clearProductImageCacheForProduct(article);
   if (productCode) clearProductImageCacheForProduct(productCode);
+  if (image.imageBase64) {
+    clearCatalogImageResultCacheForProduct(code, article || undefined);
+  }
 
   // Bust ISR page cache so the next render fetches fresh data from 1C.
+  // Use specific paths to avoid busting ALL pre-built product pages at once.
   try {
     revalidateTag("product-page-data", "max");
-    revalidatePath("/product/[code]", "page");
-    revalidatePath("/katalog", "page");
+    if (article) revalidatePath(`/product/${encodeURIComponent(article)}`, "page");
+    if (code !== article) revalidatePath(`/product/${encodeURIComponent(code)}`, "page");
   } catch {
     // can throw outside of a request context (e.g., tests/build)
   }

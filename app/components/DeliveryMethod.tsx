@@ -61,13 +61,13 @@ const DeliveryMethod: React.FC<Props> = ({
   selectedLvivStreet,
   setSelectedLvivStreet,
 }) => {
-  const [cityInput, setCityInput] = useState('');
+  const [cityInput, setCityInput] = useState(() => selectedCity?.Description ?? '');
   const [cities, setCities] = useState<CityOrWarehouse[]>([]);
 
-  const [warehouseInput, setWarehouseInput] = useState('');
+  const [warehouseInput, setWarehouseInput] = useState(() => selectedWarehouse?.Description ?? '');
   const [warehouses, setWarehouses] = useState<CityOrWarehouse[]>([]);
 
-  const [lvivStreet, setLvivStreet] = useState('');
+  const [lvivStreet, setLvivStreet] = useState(() => selectedLvivStreet ?? '');
   const [lvivStreets, setLvivStreets] = useState<string[]>([]);
 
   useEffect(() => {

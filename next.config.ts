@@ -30,11 +30,18 @@ const securityHeaders = [
 ];
 
 const isProduction = process.env.NODE_ENV === "production";
+const nextDistDir = process.env.NEXT_DIST_DIR || ".next";
 
 const nextConfig: NextConfig = {
+  distDir: nextDistDir,
   poweredByHeader: false,
   experimental: {
     optimizeCss: true,
+    viewTransition: true,
+    staleTimes: {
+      dynamic: 1800,
+      static: 7200,
+    },
     optimizePackageImports: [
       "lucide-react",
       "@heroicons/react",
@@ -49,6 +56,18 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  webpack(config, { dev }) {
+    if (dev) {
+      config.watchOptions = {
+        ...(config.watchOptions || {}),
+        aggregateTimeout: 180,
+        ignored: ["**/.git/**", "**/.next/**", "**/.next-dev/**", "**/node_modules/**"],
+        poll: 1000,
+      };
+    }
+
+    return config;
+  },
   allowedDevOrigins: [
     "localhost",
     "127.0.0.1",
@@ -57,11 +76,12 @@ const nextConfig: NextConfig = {
     "192.168.192.80",
     "192.168.0.102",
     "192.168.0.103",
+    "172.20.10.2",
   ],
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 31536000,
-    qualities: [68, 75, 100],
+    qualities: [60, 75, 85],
     deviceSizes: [360, 420, 640, 768, 1024, 1280, 1536, 1920],
     imageSizes: [32, 48, 64, 96, 128, 192, 256, 320],
     localPatterns: [
@@ -123,4 +143,3 @@ async function buildConfig(): Promise<NextConfig> {
 }
 
 export default buildConfig();
-

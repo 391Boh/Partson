@@ -5,7 +5,7 @@ import Image from "next/image";
 import { ImageOff, Maximize2 } from "lucide-react";
 
 import ImageModal from "app/components/ImageModal";
-import { buildProductImagePath } from "app/lib/product-image-path";
+import { buildProductImageBatchKey, buildProductImagePath } from "app/lib/product-image-path";
 import {
   clearProductImageMissing,
   clearProductImageSuccess,
@@ -36,6 +36,7 @@ const BLUR_DATA_URL =
   "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiNmMWY1ZjkiLz48L3N2Zz4=";
 
 const FINAL_RETRY_DELAY_MS = 180;
+const PRODUCT_IMAGE_BUST_PREFIX = "partson:product-image-bust:";
 
 type ImageStatus = "loading" | "loaded" | "missing";
 
@@ -69,15 +70,34 @@ export default function ProductImageWithFallback({
 
   const normalizedProductCode = (productCode || "").trim();
   const normalizedArticleHint = (articleHint || "").trim();
+  const imageBatchKey = useMemo(
+    () => buildProductImageBatchKey(normalizedProductCode, normalizedArticleHint || undefined),
+    [normalizedProductCode, normalizedArticleHint]
+  );
+  const [cacheBustToken, setCacheBustToken] = useState("");
+
+  useEffect(() => {
+    if (!imageBatchKey || typeof window === "undefined") {
+      setCacheBustToken("");
+      return;
+    }
+
+    try {
+      setCacheBustToken(window.localStorage.getItem(`${PRODUCT_IMAGE_BUST_PREFIX}${imageBatchKey}`) || "");
+    } catch {
+      setCacheBustToken("");
+    }
+  }, [imageBatchKey]);
 
   const primarySrc = useMemo(
     () =>
       hasKnownPhoto && normalizedProductCode
         ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
             catalog: variant === "catalog",
+            cacheBust: cacheBustToken || undefined,
           })
         : "",
-    [hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant]
+    [cacheBustToken, hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant]
   );
   const recoverySrc = useMemo(
     () =>
@@ -85,9 +105,10 @@ export default function ProductImageWithFallback({
         ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
             catalog: variant === "catalog",
             retryToken: 1,
+            cacheBust: cacheBustToken || undefined,
           })
         : "",
-    [hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant]
+    [cacheBustToken, hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant]
   );
   const finalRetrySrc = useMemo(
     () =>
@@ -95,9 +116,10 @@ export default function ProductImageWithFallback({
         ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
             catalog: variant === "catalog",
             retryToken: 2,
+            cacheBust: cacheBustToken || undefined,
           })
         : "",
-    [hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant]
+    [cacheBustToken, hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant]
   );
 
   const [requestSrc, setRequestSrc] = useState(primarySrc || "");
@@ -129,7 +151,7 @@ export default function ProductImageWithFallback({
       return;
     }
 
-    if (preferCachedPreview && normalizedProductCode) {
+    if (preferCachedPreview && normalizedProductCode && !cacheBustToken) {
       const isKnownMissing = readProductImageMissing(
         normalizedProductCode,
         normalizedArticleHint || undefined
@@ -163,6 +185,7 @@ export default function ProductImageWithFallback({
     setStatus("loading");
   }, [
     hasKnownPhoto,
+    cacheBustToken,
     normalizedArticleHint,
     normalizedProductCode,
     preferCachedPreview,

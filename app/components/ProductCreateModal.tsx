@@ -199,18 +199,23 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       const navParam = primary ? `${primary}~${secondary}` : "";
 
       // Fire-and-forget price update: 1C create does not write to the Ціна catalog,
-      // so we send a follow-up, but don't block navigation on it.
+      // so we send a delayed follow-up. We delay 2s to let 1C fully commit the create
+      // transaction before the price write. We do NOT send `article` here — if sent,
+      // product-update adds `артикул_ціни` which looks up a Ціна record by article;
+      // for a brand-new product that record does not exist yet and 1C returns 5xx.
+      // Without `article`, 1C falls back to Код-based lookup and can create/update
+      // the price entry directly.
       if (data.code && (price !== undefined || cost !== undefined)) {
-        fetch("/api/product-update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            Код: data.code,
-            article: data.article || data.code,
-            ...(price !== undefined ? { ЦінаПрод: price } : {}),
-            ...(cost !== undefined ? { ЦінаЗакуп: cost } : {}),
-          }),
-        }).catch(() => null);
+        const priceBody: Record<string, unknown> = { Код: data.code };
+        if (price !== undefined) priceBody["ЦінаПрод"] = price;
+        if (cost !== undefined) priceBody["ЦінаЗакуп"] = cost;
+        setTimeout(() => {
+          fetch("/api/product-update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify(priceBody),
+          }).catch(() => null);
+        }, 2000);
       }
 
       if (navParam) {

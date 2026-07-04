@@ -23,6 +23,7 @@ export const buildProductImagePath = (
     retryToken?: number;
     strict?: boolean;
     noFallback?: boolean;
+    cacheBust?: string | number;
   }
 ) => {
   const normalizedCode = normalizeSegment(productCode);
@@ -45,6 +46,10 @@ export const buildProductImagePath = (
 
   if ((options?.retryToken || 0) > 0) {
     params.set("retry", String(options?.retryToken));
+  }
+
+  if (options?.cacheBust !== undefined && String(options.cacheBust).trim()) {
+    params.set("v", String(options.cacheBust).trim());
   }
 
   if (

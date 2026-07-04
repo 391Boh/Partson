@@ -1,6 +1,6 @@
-export const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v45-search-count-images";
+export const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v46-photo-flag-only";
 export const CATALOG_PRODUCTS_CACHE_KEY = "partson:getprod";
-export const CATALOG_PRODUCTS_CACHE_TTL_MS = 1000 * 60 * 5;
+export const CATALOG_PRODUCTS_CACHE_TTL_MS = 1000 * 60 * 30;
 export const CATALOG_PRODUCTS_STALE_TTL_MS = 1000 * 60 * 60 * 24;
 
 type ParsedCatalogCacheRecord = {
@@ -17,7 +17,7 @@ export type CatalogBrowserCacheSnapshot<T> = {
   timestamp: number;
 };
 
-const CATALOG_VERSION_CLIENT_TTL_MS = 1000 * 60;
+const CATALOG_VERSION_CLIENT_TTL_MS = 1000 * 60 * 5;
 
 let catalogVersionPromise: Promise<string | null> | null = null;
 let catalogVersionHash: string | null = null;
@@ -129,6 +129,13 @@ export const clearCatalogBrowserCache = () => {
       storage.removeItem(CATALOG_PRODUCTS_CACHE_KEY);
     } catch {}
   }
+};
+
+export const invalidateCatalogClientCache = () => {
+  clearCatalogBrowserCache();
+  catalogVersionHash = null;
+  catalogVersionFetchedAt = 0;
+  catalogVersionPromise = null;
 };
 
 export const fetchCatalogVersionHash = async (options?: { force?: boolean }) => {

@@ -54,7 +54,7 @@ export default function CatalogHubHero({
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_460px]">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-md border border-teal-200/80 bg-teal-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-teal-800 shadow-[0_8px_18px_rgba(13,148,136,0.06)]">
+              <span className="font-display inline-flex items-center gap-2 rounded-md border border-teal-200/80 bg-teal-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-teal-900 shadow-[0_8px_18px_rgba(13,148,136,0.06)]">
                 <Sparkles size={14} strokeWidth={2.1} />
                 {badge}
               </span>
@@ -66,10 +66,10 @@ export default function CatalogHubHero({
               </div>
 
               <div className="min-w-0">
-                <h1 className="font-display text-[1.55rem] font-[780] leading-tight tracking-normal text-slate-950 sm:text-[1.95rem] lg:text-[2.15rem]">
+                <h1 className="font-display text-[1.7rem] font-black italic leading-[1.02] tracking-[-0.025em] text-slate-950 sm:text-[2.08rem] lg:text-[2.3rem]">
                   {title}
                 </h1>
-                <p className="mt-2.5 max-w-[760px] text-sm leading-5.5 text-slate-600 sm:text-[14px]">
+                <p className="mt-2.5 max-w-[760px] text-[14px] font-bold leading-6 text-slate-700 sm:text-[15px]">
                   {description}
                 </p>
               </div>
@@ -80,7 +80,7 @@ export default function CatalogHubHero({
                 {highlights.map((highlight) => (
                   <span
                     key={highlight}
-                    className="inline-flex rounded-full border border-white/90 bg-white/84 px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-[0_10px_22px_rgba(15,23,42,0.05)]"
+                    className="font-display inline-flex rounded-full border border-white/90 bg-white/84 px-3 py-1.5 text-[11px] font-extrabold text-slate-800 shadow-[0_10px_22px_rgba(15,23,42,0.05)]"
                   >
                     {highlight}
                   </span>
@@ -98,7 +98,7 @@ export default function CatalogHubHero({
                       key={`${link.href}:${link.label}`}
                       href={link.href}
                       prefetchOnViewport={link.prefetchOnViewport}
-                      className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3.5 text-[13px] font-semibold transition ${
+                      className={`font-display inline-flex h-9 items-center gap-2 rounded-lg border px-3.5 text-[13px] font-extrabold italic tracking-[0.01em] transition ${
                         link.accent
                           ? "border-teal-300 bg-teal-50 text-teal-950 shadow-[0_10px_22px_rgba(13,148,136,0.1)] hover:bg-teal-100"
                           : "border-slate-200 bg-white/90 text-slate-700 hover:border-slate-300 hover:bg-white"
@@ -127,11 +127,11 @@ export default function CatalogHubHero({
                         key={`${stat.label}:${stat.value}`}
                         className="rounded-md border border-slate-200 bg-white/90 px-3 py-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.04)]"
                       >
-                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                        <div className="font-display flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-600">
                           <StatIcon size={14} className="text-teal-700" strokeWidth={2.1} />
                           <span>{stat.label}</span>
                         </div>
-                        <p className="mt-1.5 text-[14px] font-extrabold leading-5 text-slate-900 sm:text-[15px]">
+                        <p className="mt-1.5 font-display text-[15px] font-black italic leading-5 text-slate-950 sm:text-[16px]">
                           {stat.value}
                         </p>
                       </div>

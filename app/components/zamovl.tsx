@@ -18,10 +18,30 @@ import DeliveryMethod from "./DeliveryMethod";
 import PaymentMethod from "./PaymentMethod";
 import OrderConfirmation from "./OrderConfirmation";
 import { notifyTelegramAdmin } from "app/lib/telegram-notify-client";
+import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { FIRST_ORDER_DISCOUNT_CODE } from "app/lib/first-order-discount";
 
 type DeliveryMethodType = ComponentProps<typeof DeliveryMethod>["deliveryMethod"];
 type PaymentMethodType = ComponentProps<typeof PaymentMethod>["paymentMethod"];
+
+const deductOrderStock = async (
+  items: { code: string; article: string; quantity: number }[]
+) => {
+  try {
+    const secret = process.env.NEXT_PUBLIC_NOTIFY_SECRET || "";
+    await fetch("/api/orders/deduct-stock", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(secret ? { "x-notify-secret": secret } : {}),
+      },
+      body: JSON.stringify({ items }),
+      keepalive: true,
+    });
+  } catch {
+    // fire-and-forget — don't interrupt order confirmation
+  }
+};
 type PaymentConfirmationPayload = Record<string, unknown>;
 
 interface CityOrWarehouse {
@@ -48,6 +68,7 @@ interface ZamovlProps {
   discountRate: number;
   discountCode: string | null;
   isFirstOrderDiscountApplied: boolean;
+  isPartnerDiscountApplied: boolean;
   onClearCart: () => void;
 }
 
@@ -61,6 +82,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
   discountRate,
   discountCode,
   isFirstOrderDiscountApplied,
+  isPartnerDiscountApplied,
   onClearCart,
 }) => {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
@@ -101,6 +123,10 @@ const Zamovl: React.FC<ZamovlProps> = ({
             const data = userDocSnap.data();
             setName(data.name || "");
             setPhone(data.phone || "+380");
+            if (data.deliveryMethod) setDeliveryMethod(data.deliveryMethod);
+            if (data.deliveryCity) setSelectedCity(data.deliveryCity);
+            if (data.deliveryWarehouse) setSelectedWarehouse(data.deliveryWarehouse);
+            if (data.deliveryLvivStreet) setSelectedLvivStreet(data.deliveryLvivStreet);
           }
         } catch (error) {
           console.error("Помилка при отриманні даних профілю:", error);
@@ -161,7 +187,9 @@ const Zamovl: React.FC<ZamovlProps> = ({
         discountAmount,
         discountRate,
         discountCode,
-        discountLabel: isFirstOrderDiscountApplied
+        discountLabel: isPartnerDiscountApplied
+          ? "Партнерська знижка 8%"
+          : isFirstOrderDiscountApplied
           ? "Знижка 5% на перше замовлення"
           : null,
         totalAmount: payableAmount,
@@ -185,7 +213,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
     );
     orderCreatedRef.current = true;
 
-    if (!orderNotifiedRef.current) {
+    if (!orderNotifiedRef.current && options.completeCheckout) {
       void notifyTelegramAdmin({
         type: "order",
         firestoreId: orderId,
@@ -194,6 +222,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
         phone,
         deliveryMethod,
         paymentMethod,
+        paymentStatus: resolvedPaymentStatus,
         city: selectedCity?.Description || "",
         warehouse: selectedWarehouse?.Description || "",
         lvivStreet: selectedLvivStreet || "",
@@ -264,6 +293,9 @@ const Zamovl: React.FC<ZamovlProps> = ({
       setConfirmedPaymentStatus(resolvedPaymentStatus);
       onClearCart();
       setCurrentStep(3);
+
+      invalidateCatalogClientCache();
+      void deductOrderStock(normalizedCartItems);
     return { orderRef, resolvedPaymentStatus };
   };
 

@@ -7,11 +7,11 @@
     "npm": ">=10"
   },
   "scripts": {
-    "clean:next": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\"",
-    "dev": "next dev --turbopack",
-    "dev:clean": "npm run clean:next && next dev --turbopack",
-    "dev:webpack": "next dev --webpack",
-    "dev:all": "concurrently -k -n web,auth \"next dev --turbopack\" \"node server.js\"",
+    "clean:next": "node -e \"const fs=require('fs'); for (const dir of ['.next','.next-dev']) fs.rmSync(dir, { recursive: true, force: true })\"",
+    "dev": "NEXT_DIST_DIR=.next-dev WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --webpack",
+    "dev:clean": "npm run clean:next && npm run dev",
+    "dev:webpack": "NEXT_DIST_DIR=.next-dev WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --webpack",
+    "dev:all": "concurrently -k -n web,auth \"npm run dev\" \"node server.js\"",
     "dev:turbo": "next dev --turbopack",
     "build": "npm run generate:seo-counts && next build",
     "build:full": "npm run generate:feed && npm run generate:seo-counts && next build",
@@ -65,8 +65,7 @@
     "tailwind-merge": "^3.1.0",
     "tailwind-scrollbar-hide": "^4.0.0",
     "tailwindcss": "^4.1.7",
-    "tsx": "^4.22.4",
-    "uuid": "^11.1.0"
+    "tsx": "^4.22.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

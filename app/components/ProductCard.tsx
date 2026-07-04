@@ -326,9 +326,9 @@ const [frontImageSaving, setFrontImageSaving] = useState(false);
 const [frontImageError, setFrontImageError] = useState<string | null>(null);
 const [localImageSrc, setLocalImageSrc] = useState<string | null>(null);
 
-const [editGroup, setEditGroup] = useState('');
-const [editSubGroup, setEditSubGroup] = useState('');
-const [editCategory, setEditCategory] = useState('');
+const [editGroup, setEditGroup] = useState(item.group ?? '');
+const [editSubGroup, setEditSubGroup] = useState(item.subGroup ?? '');
+const [editCategory, setEditCategory] = useState(item.category ?? '');
 const [groupSuggestions, setGroupSuggestions] = useState<string[]>([]);
 const [subGroupSuggestions, setSubGroupSuggestions] = useState<string[]>([]);
 const [categorySuggestions, setCategorySuggestions] = useState<string[]>([]);
@@ -515,8 +515,10 @@ const handleAdminSave = async () => {
     type EditData = { description?: string; group?: string; subGroup?: string; category?: string };
     const data: EditData = {};
     if (descChanged) data.description = editDesc.trim();
-    if (groupChanged) data.group = editGroup.trim();
-    if (subGroupChanged) data.subGroup = editSubGroup.trim();
+    // Never send empty strings for hierarchy fields — 1C rejects them.
+    // Happens when category onChange clears group/subGroup for suggestion refetch.
+    if (groupChanged && editGroup.trim()) data.group = editGroup.trim();
+    if (subGroupChanged && editSubGroup.trim()) data.subGroup = editSubGroup.trim();
     if (categoryChanged) data.category = editCategory.trim();
 
     const result = await onAdminEdit(data);
@@ -751,7 +753,7 @@ useEffect(() => {
                                 productCode={code}
                                 articleHint={item.article}
                                 alt={`Фото товару ${name}`}
-                                hasKnownPhoto={item.hasPhoto !== false}
+                                hasKnownPhoto={item.hasPhoto === true}
                                 className="w-full h-full transition-transform duration-200 group-hover:scale-[1.02]"
                                 onClick={() => onImageOpen(code, item.article)}
                                 loadingMode={imageLoadingMode}
@@ -844,7 +846,7 @@ useEffect(() => {
                                                 ],
                                             });
                                         }}
-                                        className="catalog-card-name font-name-accent text-left text-[14px] sm:text-[15px] tracking-[-0.032em] text-slate-900 leading-[1.02] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
+                                        className="catalog-card-name font-display text-left text-[14.5px] font-black italic tracking-[-0.028em] text-slate-950 sm:text-[15.5px] leading-[1.03] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
                                     >
                                         <span itemProp="name">{name}</span>
                                     </SmartLink>
@@ -864,10 +866,10 @@ useEffect(() => {
                     </div>
 
                     {/* Р†РЅС„Рѕ */}
-                    <div className="catalog-card-meta flex flex-col gap-1 text-slate-600 mt-2">
+                    <div className="catalog-card-meta flex flex-col gap-1 text-slate-700 mt-2 font-semibold">
                         <div className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
-                            <span className="text-slate-500">{"\u041A\u043E\u0434:"}</span>
-                            <span className="min-w-0 max-w-[55%] truncate font-medium text-slate-700">{code || "-"}</span>
+                            <span className="font-bold text-slate-500">{"\u041A\u043E\u0434:"}</span>
+                            <span className="min-w-0 max-w-[55%] truncate font-extrabold text-slate-800">{code || "-"}</span>
                         </div>
                           {quickEditArticle ? (
                               <div className="flex items-center gap-1 px-1 py-0.5" onClick={(e) => e.stopPropagation()}>
@@ -893,8 +895,8 @@ useEffect(() => {
                               </div>
                           ) : (
                               <div className="group/article flex w-full items-center justify-between px-1 py-0.5 rounded hover:bg-slate-100/70 transition-colors">
-                                  <span className="text-slate-500">Артикул:</span>
-                                  <span className="inline-flex min-w-0 max-w-[55%] items-center gap-1 font-medium text-slate-700">
+                                  <span className="font-bold text-slate-500">Артикул:</span>
+                                  <span className="inline-flex min-w-0 max-w-[55%] items-center gap-1 font-extrabold text-slate-800">
                                       {isAdmin && onAdminEdit && (
                                           <button
                                               type="button"
@@ -961,7 +963,7 @@ useEffect(() => {
                               </div>
                           ) : (
                               <div className="group/producer flex min-h-[30px] items-center justify-between gap-2 hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
-                                  <span className="text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
+                                  <span className="font-bold text-slate-500">{"\u0412\u0438\u0440\u043E\u0431\u043D\u0438\u043A:"}</span>
                                   <span className="flex min-w-0 max-w-[55%] items-center gap-1 justify-end">
                                       {isAdmin && onAdminEdit && (
                                           <button type="button" onClick={(e) => { e.stopPropagation(); setQuickProducerVal(displayProducer !== '-' ? displayProducer : ''); setQuickEditProducer(true); fetchProducerSuggestions(displayProducer !== '-' ? displayProducer : ''); }}
@@ -974,13 +976,13 @@ useEffect(() => {
                                               {showProducerLogo ? (
                                                   <Image src={producerLogoSrc || ""} alt={displayProducer} width={112} height={34} loading="lazy" onError={() => setProducerLogoFailed(true)} className="h-7 w-auto max-w-[112px] object-contain object-right" />
                                               ) : (
-                                                  <span className="min-w-0 truncate font-medium text-blue-700 hover:text-blue-800">{displayProducer}</span>
+                                                  <span className="min-w-0 truncate font-extrabold text-blue-700 hover:text-blue-800">{displayProducer}</span>
                                               )}
                                           </SmartLink>
                                       ) : showProducerLogo ? (
                                           <Image src={producerLogoSrc || ""} alt={displayProducer} width={112} height={34} loading="lazy" onError={() => setProducerLogoFailed(true)} className="h-7 w-auto max-w-[112px] object-contain object-right" />
                                       ) : (
-                                          <span className="min-w-0 truncate font-medium text-slate-700">{displayProducer}</span>
+                                          <span className="min-w-0 truncate font-extrabold text-slate-800">{displayProducer}</span>
                                       )}
                                   </span>
                               </div>
@@ -1297,7 +1299,7 @@ useEffect(() => {
 >
     {/* Header: name + action buttons */}
     <div className="flex items-start gap-2 px-3 pt-2.5 pb-2 border-b border-slate-100/80 bg-gradient-to-r from-white to-slate-50/60 rounded-t-xl">
-        <h3 className="flex-1 min-w-0 font-name-accent text-[13px] sm:text-[14px] tracking-[-0.03em] text-slate-900 leading-snug line-clamp-2">
+        <h3 className="flex-1 min-w-0 font-display text-[13.5px] font-black italic tracking-[-0.025em] text-slate-950 sm:text-[14.5px] leading-snug line-clamp-2">
             {name}
         </h3>
         <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">

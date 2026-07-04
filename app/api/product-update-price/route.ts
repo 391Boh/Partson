@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
@@ -13,7 +14,7 @@ const ONEC_PRICE_ADMIN_ENDPOINT =
   (
     process.env.ONEC_PRODUCT_UPDATE_ENDPOINT ||
     process.env.ONEC_PRICE_ADMIN_ENDPOINT ||
-    "ОбновитьТовар"
+    "edit"
   ).trim();
 
 const ADMIN_EMAILS = new Set(
@@ -86,6 +87,13 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "code/Код is required" }, 400);
   }
 
+  const article =
+    typeof value.article === "string" && value.article.trim()
+      ? value.article.trim()
+      : typeof value["НомерПоКаталогу"] === "string" && value["НомерПоКаталогу"].trim()
+        ? value["НомерПоКаталогу"].trim()
+        : "";
+
   const salePriceValue =
     value.priceEuro !== undefined && value.priceEuro !== null
       ? value.priceEuro
@@ -112,6 +120,9 @@ export async function POST(request: NextRequest) {
   }
 
   const oneCBody: Record<string, unknown> = { Код: code };
+  // In the 1C price directory the catalog number is stored in "Наименование".
+  // The edit service reads this helper key and uses it for the price-row lookup.
+  if (article) oneCBody["артикул_ціни"] = article;
   if (priceEuro !== undefined) oneCBody["ЦінаПрод"] = priceEuro;
   if (costPriceEuro !== undefined) oneCBody["ЦінаЗакуп"] = costPriceEuro;
 
@@ -149,6 +160,13 @@ export async function POST(request: NextRequest) {
   }
 
   clearAllOneCCache();
+  try {
+    revalidateTag("product-page-data", "max");
+    if (article) revalidatePath(`/product/${encodeURIComponent(article)}`, "page");
+    if (code !== article) revalidatePath(`/product/${encodeURIComponent(code)}`, "page");
+  } catch {
+    // Revalidation can throw in non-request contexts.
+  }
 
   const hasUpdatedPrice =
     (typeof priceEuro === "number" && Number.isFinite(priceEuro) && priceEuro > 0) ||
@@ -158,6 +176,7 @@ export async function POST(request: NextRequest) {
     ok: true,
     code,
     Код: code,
+    ...(article ? { article } : {}),
     endpoint: ONEC_PRICE_ADMIN_ENDPOINT,
     updatedBy: adminEmail,
     ...(priceEuro !== undefined ? { priceEuro, "ЦінаПрод": priceEuro } : {}),

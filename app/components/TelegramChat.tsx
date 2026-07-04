@@ -1,7 +1,7 @@
 ﻿// TelegramChat.tsx
 'use client';
 
-import { useState, useEffect, useRef, useCallback, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type ChangeEvent } from 'react';
 import Link from 'next/link';
 import {
   collection,
@@ -14,7 +14,6 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { AnimatePresence, motion } from 'framer-motion';
-import { v4 as uuidv4 } from 'uuid';
 import {
   Send,
   X,
@@ -43,6 +42,8 @@ interface Message {
   product?: ProductCard;
   imageUrl?: string;
   imageName?: string;
+  clientMessageId?: string;
+  deliveryStatus?: 'sending' | 'failed';
 }
 
 interface ProductCard {
@@ -255,6 +256,7 @@ async function createChatMessage(payload: {
   type: 'text' | 'image';
   imageUrl?: string;
   imageName?: string;
+  clientMessageId?: string;
 }) {
   const response = await fetch('/api/chat/message', {
     method: 'POST',
@@ -265,6 +267,14 @@ async function createChatMessage(payload: {
   if (!response.ok) {
     throw new Error(`CHAT_MESSAGE_FAILED_${response.status}`);
   }
+}
+
+function createClientMessageId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `client_${crypto.randomUUID()}`;
+  }
+
+  return `client_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
 /**
@@ -282,6 +292,7 @@ export default function TelegramChat({
   onPrefillSent,
 }: TelegramChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [isManagerInChat, setIsManagerInChat] = useState(false);
@@ -309,7 +320,7 @@ export default function TelegramChat({
 
     let id = localStorage.getItem('chat_user_id');
     if (!id) {
-      id = `user_${uuidv4()}`;
+      id = `user_${crypto.randomUUID()}`;
       localStorage.setItem('chat_user_id', id);
     }
     return id;
@@ -342,10 +353,23 @@ export default function TelegramChat({
           product: data.product ?? undefined,
           imageUrl: data.imageUrl ?? undefined,
           imageName: data.imageName ?? undefined,
+          clientMessageId: data.clientMessageId ?? undefined,
         };
       });
 
       setMessages(list);
+      setOptimisticMessages((prev) => {
+        const confirmedClientIds = new Set(
+          list
+            .map((message) => message.clientMessageId)
+            .filter((id): id is string => typeof id === 'string' && id.length > 0)
+        );
+
+        return prev.filter(
+          (message) =>
+            !message.clientMessageId || !confirmedClientIds.has(message.clientMessageId)
+        );
+      });
 
       const unread = list.filter(
         (m) => m.sender === 'manager' && m.textRead !== true
@@ -456,7 +480,20 @@ export default function TelegramChat({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, optimisticMessages]);
+
+  const visibleMessages = useMemo(() => {
+    const confirmedClientIds = new Set(
+      messages
+        .map((message) => message.clientMessageId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    );
+
+    return [...messages, ...optimisticMessages].filter(
+      (message) =>
+        !message.clientMessageId || !confirmedClientIds.has(message.clientMessageId)
+    );
+  }, [messages, optimisticMessages]);
 
   /**
    * SEND MESSAGE
@@ -466,12 +503,41 @@ export default function TelegramChat({
       if (!text.trim()) return;
 
       const userId = getUserId();
+      const trimmedText = text.trim();
+      const clientMessageId = createClientMessageId();
 
-      await createChatMessage({
-        text: text.trim(),
-        userId,
-        type: 'text',
-      });
+      setOptimisticMessages((prev) => [
+        ...prev,
+        {
+          id: clientMessageId,
+          text: trimmedText,
+          sender: 'user',
+          userId,
+          createdAt: Date.now(),
+          textRead: true,
+          type: 'text',
+          clientMessageId,
+          deliveryStatus: 'sending',
+        },
+      ]);
+
+      try {
+        await createChatMessage({
+          text: trimmedText,
+          userId,
+          type: 'text',
+          clientMessageId,
+        });
+      } catch (error) {
+        setOptimisticMessages((prev) =>
+          prev.map((message) =>
+            message.clientMessageId === clientMessageId
+              ? { ...message, deliveryStatus: 'failed' }
+              : message
+          )
+        );
+        throw error;
+      }
     },
     [getUserId]
   );
@@ -797,7 +863,7 @@ export default function TelegramChat({
             </div>
           </div>
 
-          {messages.map((m) => {
+          {visibleMessages.map((m) => {
             const product = m.type === 'product' ? m.product : undefined;
             const hasImage = m.type === 'image' && Boolean(m.imageUrl);
             const isProduct = Boolean(product);
@@ -833,7 +899,18 @@ export default function TelegramChat({
                       isUser={isUser}
                     />
                   ) : (
-                    m.text
+                    <span className="inline-flex items-end gap-2">
+                      <span>{m.text}</span>
+                      {m.deliveryStatus === 'sending' ? (
+                        <span className="pb-0.5 text-[10px] font-semibold text-slate-400">
+                          ...
+                        </span>
+                      ) : m.deliveryStatus === 'failed' ? (
+                        <span className="pb-0.5 text-[10px] font-semibold text-rose-500">
+                          не надіслано
+                        </span>
+                      ) : null}
+                    </span>
                   )}
                 </div>
               </div>

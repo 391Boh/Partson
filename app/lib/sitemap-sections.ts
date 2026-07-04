@@ -43,6 +43,7 @@ export const PAGE_SITEMAP_SECTION_PATHS = [
   // Dedicated single-topic sitemaps — listed separately for GSC granularity
   "/information-sitemap.xml",
   "/other-pages-sitemap.xml",
+  "/blog-sitemap.xml",
   "/manufacturers-sitemap.xml",
   "/groups-sitemap.xml",
 ] as const;
@@ -394,6 +395,19 @@ export const getOtherPagesSitemapEntries = cache(async (): Promise<SitemapPathEn
           loc: "/Car-parts-fullwidth.png",
           title: "Каталог автозапчастин PartsON",
           caption: "Пошук автозапчастин за кодом, артикулом, назвою, групою та виробником",
+        },
+      ],
+    },
+    {
+      path: "/partnership",
+      lastModified: contentLastModified,
+      changeFrequency: "monthly",
+      priority: 0.72,
+      images: [
+        {
+          loc: "/Car-parts-fullwidth.png",
+          title: "Партнерська програма PartsON — знижки для СТО та автомагазинів",
+          caption: "Умови партнерства PartsON: постійна знижка 8% після 2000 грн замовлень",
         },
       ],
     },

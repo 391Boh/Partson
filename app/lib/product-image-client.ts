@@ -3,7 +3,7 @@ import { buildProductImageBatchKey } from "app/lib/product-image-path";
 export const PRODUCT_IMAGE_CLIENT_CACHE_PREFIX = "partson:v9:img:";
 export const PRODUCT_IMAGE_CLIENT_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_PREFIX = "partson:v3:img-miss:";
-export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_TTL_MS = 1000 * 60 * 5;
+export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_TTL_MS = 1000 * 60 * 60;
 const PRODUCT_IMAGE_MEMORY_CACHE_MAX_ENTRIES = 512;
 const PRODUCT_IMAGE_PERSISTED_SRC_MAX_LENGTH = 4096;
 let persistedImageCachePruned = false;

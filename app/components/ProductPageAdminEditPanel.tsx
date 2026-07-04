@@ -5,6 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { getFirebaseAuthSnapshot } from "app/lib/firebase-auth-state";
+import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
+import { clearProductImageMissing, clearProductImageSuccess } from "app/lib/product-image-client";
+import { buildProductImageBatchKey } from "app/lib/product-image-path";
 
 type FieldKey =
   | "name"
@@ -36,6 +39,9 @@ const fmt = (v: number | null) =>
     : "—";
 
 const MAX_IMAGE_BYTES = 2_500_000;
+const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
+const PRODUCT_PRICE_CACHE_PREFIX = "partson:v4:product-page-price:";
+const PRODUCT_IMAGE_BUST_PREFIX = "partson:product-image-bust:";
 
 const META_COLORS = {
   category: {
@@ -91,6 +97,58 @@ const SECTIONS: {
   },
 ];
 
+const clearDescriptionBrowserCache = () => {
+  if (typeof window === "undefined") return;
+
+  const clearStorage = (storage: Storage) => {
+    for (let i = storage.length - 1; i >= 0; i -= 1) {
+      const key = storage.key(i);
+      if (key?.startsWith(DESCRIPTION_CACHE_PREFIX)) {
+        storage.removeItem(key);
+      }
+    }
+  };
+
+  try {
+    clearStorage(window.sessionStorage);
+  } catch {}
+
+  try {
+    clearStorage(window.localStorage);
+  } catch {}
+};
+
+const clearProductPriceBrowserCache = () => {
+  if (typeof window === "undefined") return;
+
+  const clearStorage = (storage: Storage) => {
+    for (let i = storage.length - 1; i >= 0; i -= 1) {
+      const key = storage.key(i);
+      if (key?.startsWith(PRODUCT_PRICE_CACHE_PREFIX)) {
+        storage.removeItem(key);
+      }
+    }
+  };
+
+  try {
+    clearStorage(window.sessionStorage);
+  } catch {}
+
+  try {
+    clearStorage(window.localStorage);
+  } catch {}
+};
+
+const writeProductImageBustToken = (code: string, article?: string) => {
+  if (typeof window === "undefined") return;
+  const key = buildProductImageBatchKey(code, article);
+  if (!key) return;
+
+  try {
+    window.localStorage.setItem(`${PRODUCT_IMAGE_BUST_PREFIX}${key}`, String(Date.now()));
+  } catch {}
+};
+
 export default function ProductPageAdminEditPanel({
   code,
   article: initialArticle,
@@ -106,7 +164,9 @@ export default function ProductPageAdminEditPanel({
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const refreshPage = () => { router.refresh(); router.push(pathname); };
+  // Use _refresh param to bypass staleTimes.dynamic router cache and trigger
+  // noStore() + clearAllOneCCache() on the server for a guaranteed fresh render.
+  const refreshPage = () => router.push(`${pathname}?_refresh=${Date.now()}`);
   const [isAdmin, setIsAdmin] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState<FieldKey | null>(null);
@@ -133,6 +193,18 @@ export default function ProductPageAdminEditPanel({
   const [metaActive, setMetaActive] = useState(-1);
   const metaAbort = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const [metaGroupEdit, setMetaGroupEdit] = useState("");
+  const [metaGroupSugg, setMetaGroupSugg] = useState<string[]>([]);
+  const [metaGroupActive, setMetaGroupActive] = useState(-1);
+  const metaGroupAbort = useRef<AbortController | null>(null);
+  const metaGroupInputRef = useRef<HTMLInputElement>(null);
+
+  const [metaSubGroupEdit, setMetaSubGroupEdit] = useState("");
+  const [metaSubGroupSugg, setMetaSubGroupSugg] = useState<string[]>([]);
+  const [metaSubGroupActive, setMetaSubGroupActive] = useState(-1);
+  const metaSubGroupAbort = useRef<AbortController | null>(null);
+  const metaSubGroupInputRef = useRef<HTMLInputElement>(null);
 
   const [quantity, setQuantity] = useState(initialQuantity);
   const [qtyInput, setQtyInput] = useState("");
@@ -195,7 +267,47 @@ export default function ProductPageAdminEditPanel({
       .catch(() => {});
   };
 
+  const fetchMetaGroupSugg = (q: string, parent?: string) => {
+    metaGroupAbort.current?.abort();
+    const ctrl = new AbortController();
+    metaGroupAbort.current = ctrl;
+    const params = new URLSearchParams({ type: "group" });
+    if (q.trim()) params.set("q", q);
+    if (parent?.trim()) params.set("parent", parent);
+    fetch(`/api/catalog-meta-suggest?${params.toString()}`, { signal: ctrl.signal })
+      .then((r) => r.json() as Promise<{ suggestions?: string[] }>)
+      .then((d) => { setMetaGroupSugg(d.suggestions ?? []); setMetaGroupActive(-1); })
+      .catch(() => {});
+  };
+
+  const fetchMetaSubGroupSugg = (q: string, parent?: string) => {
+    metaSubGroupAbort.current?.abort();
+    const ctrl = new AbortController();
+    metaSubGroupAbort.current = ctrl;
+    const params = new URLSearchParams({ type: "subGroup" });
+    if (q.trim()) params.set("q", q);
+    if (parent?.trim()) params.set("parent", parent);
+    fetch(`/api/catalog-meta-suggest?${params.toString()}`, { signal: ctrl.signal })
+      .then((r) => r.json() as Promise<{ suggestions?: string[] }>)
+      .then((d) => { setMetaSubGroupSugg(d.suggestions ?? []); setMetaSubGroupActive(-1); })
+      .catch(() => {});
+  };
+
   const openEdit = (field: FieldKey) => {
+    if (field === "category" || field === "group" || field === "subGroup") {
+      setEditVal(values.category);
+      setMetaGroupEdit(values.group);
+      setMetaSubGroupEdit(values.subGroup);
+      setEditing("category");
+      setError(null);
+      setMetaSugg([]); setMetaActive(-1);
+      setMetaGroupSugg([]); setMetaGroupActive(-1);
+      setMetaSubGroupSugg([]); setMetaSubGroupActive(-1);
+      fetchMetaSugg("category", values.category);
+      fetchMetaGroupSugg(values.group, values.category);
+      fetchMetaSubGroupSugg(values.subGroup, values.group);
+      return;
+    }
     const cur = values[field];
     const curStr = cur != null && cur !== "" ? String(cur) : "";
     setEditVal(curStr);
@@ -204,15 +316,14 @@ export default function ProductPageAdminEditPanel({
     setSuggestions([]); setActiveSug(-1);
     setMetaSugg([]); setMetaActive(-1);
     if (field === "producer") fetchSuggestions(curStr);
-    else if (field === "category") fetchMetaSugg("category", curStr);
-    else if (field === "group") fetchMetaSugg("group", curStr, values.category);
-    else if (field === "subGroup") fetchMetaSugg("subGroup", curStr, values.group);
   };
 
   const closeEdit = () => {
     setEditing(null);
     setSuggestions([]); setActiveSug(-1);
     setMetaSugg([]); setMetaActive(-1);
+    setMetaGroupSugg([]); setMetaGroupActive(-1);
+    setMetaSubGroupSugg([]); setMetaSubGroupActive(-1);
     setError(null);
   };
 
@@ -226,7 +337,7 @@ export default function ProductPageAdminEditPanel({
   const save = async (overrideVal?: string) => {
     if (!editing) return;
     const raw = (overrideVal ?? editVal).trim();
-    const isMeta = editing === "category" || editing === "group" || editing === "subGroup";
+    const isMeta = editing === "category";
     if (!raw && !isMeta) return;
 
     const token = await getToken();
@@ -234,12 +345,13 @@ export default function ProductPageAdminEditPanel({
 
     const body: Record<string, unknown> = { Код: code, article: values.article };
     if (editing === "name") body.name = raw;
-    else if (editing === "article") body.catalogNumber = raw;
+    else if (editing === "article") body["НомерПоКаталогу"] = raw;
     else if (editing === "producer") body.producer = raw;
-    else if (editing === "group") body.group = raw;
-    else if (editing === "subGroup") body.subGroup = raw;
-    else if (editing === "category") body.category = raw;
-    else if (editing === "priceEuro") {
+    else if (editing === "category") {
+      body.category = raw;
+      body.group = metaGroupEdit.trim();
+      body.subGroup = metaSubGroupEdit.trim();
+    } else if (editing === "priceEuro") {
       const n = Number(raw.replace(",", "."));
       if (!Number.isFinite(n) || n < 0) { setError("Невірне число"); return; }
       body.priceEuro = n;
@@ -257,31 +369,44 @@ export default function ProductPageAdminEditPanel({
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
       });
-      const data = (await res.json()) as { ok: boolean; error?: string };
-      if (!data.ok) { setError(data.error ?? "Помилка збереження"); return; }
+      const data = (await res.json()) as { ok: boolean; error?: string; details?: string };
+      if (!data.ok) { setError([data.error, data.details].filter(Boolean).join(": ") || "Помилка збереження"); return; }
       const field = editing;
-      setValues((prev) => ({
-        ...prev,
-        [field]: field === "priceEuro" || field === "costPriceEuro"
-          ? Number(raw.replace(",", "."))
-          : raw,
-      }));
+      if (field === "category") {
+        setValues((prev) => ({
+          ...prev,
+          category: raw,
+          group: metaGroupEdit.trim(),
+          subGroup: metaSubGroupEdit.trim(),
+        }));
+      } else {
+        setValues((prev) => ({
+          ...prev,
+          [field]: field === "priceEuro" || field === "costPriceEuro"
+            ? Number(raw.replace(",", "."))
+            : raw,
+        }));
+      }
       setSavedField(field);
       closeEdit();
-      setTimeout(() => refreshPage(), 400);
+      invalidateCatalogClientCache();
+      if (field === "priceEuro" || field === "costPriceEuro") {
+        clearProductPriceBrowserCache();
+      }
+      if (field === "article") {
+        const newNavParam = raw + (code ? `~${code}` : "");
+        router.push(`/product/${encodeURIComponent(newNavParam)}?_refresh=${Date.now()}`);
+      } else {
+        refreshPage();
+      }
     } catch { setError("Помилка мережі"); } finally { setSaving(false); }
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const isMeta = editing === "category" || editing === "group" || editing === "subGroup";
     if (editing === "producer") {
       if (e.key === "ArrowDown") { e.preventDefault(); setActiveSug((p) => Math.min(p + 1, suggestions.length - 1)); return; }
       if (e.key === "ArrowUp") { e.preventDefault(); setActiveSug((p) => Math.max(p - 1, -1)); return; }
       if (e.key === "Enter") { e.preventDefault(); if (activeSug >= 0 && suggestions[activeSug]) { void save(suggestions[activeSug]); } else { void save(); } return; }
-    } else if (isMeta) {
-      if (e.key === "ArrowDown") { e.preventDefault(); setMetaActive((p) => Math.min(p + 1, metaSugg.length - 1)); return; }
-      if (e.key === "ArrowUp") { e.preventDefault(); setMetaActive((p) => Math.max(p - 1, -1)); return; }
-      if (e.key === "Enter") { e.preventDefault(); if (metaActive >= 0 && metaSugg[metaActive]) { void save(metaSugg[metaActive]); } else { void save(); } return; }
     } else if (e.key === "Enter") { e.preventDefault(); void save(); return; }
     if (e.key === "Escape") closeEdit();
   };
@@ -311,11 +436,16 @@ export default function ProductPageAdminEditPanel({
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ code, article: values.article, imageDataUrl: imagePreview, file_name: `${code}_${Date.now()}.${imageFile.name.split(".").pop() || "jpg"}` }),
       });
-      const data = (await res.json()) as { ok: boolean; error?: string };
-      if (!data.ok) { setImageError(data.error ?? "Помилка завантаження"); return; }
+      const data = (await res.json()) as { ok: boolean; error?: string; details?: string };
+      if (!data.ok) { setImageError([data.error, data.details].filter(Boolean).join(": ") || "Помилка завантаження"); return; }
       setImageUploaded(true);
       setImageFile(null);
       setImagePreview(null);
+      clearProductImageSuccess(code, values.article || undefined);
+      clearProductImageMissing(code, values.article || undefined);
+      writeProductImageBustToken(code, values.article || undefined);
+      invalidateCatalogClientCache();
+      refreshPage();
     } catch { setImageError("Помилка мережі"); } finally { setImageUploading(false); }
   };
 
@@ -326,17 +456,19 @@ export default function ProductPageAdminEditPanel({
     setDescError(null);
     setDescSaved(false);
     try {
-      const res = await fetch("/api/product-update", {
+      const res = await fetch("/api/product-update-description", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ Код: code, article: values.article, description: descVal }),
+        body: JSON.stringify({ code, article: values.article, description: descVal }),
       });
-      const data = (await res.json()) as { ok: boolean; error?: string };
-      if (!data.ok) { setDescError(data.error ?? "Помилка збереження"); return; }
+      const data = (await res.json()) as { ok: boolean; error?: string; details?: string };
+      if (!data.ok) { setDescError([data.error, data.details].filter(Boolean).join(": ") || "Помилка збереження"); return; }
       setDescSaved(true);
       setDescEditing(false);
       setTimeout(() => setDescSaved(false), 3000);
-      setTimeout(() => refreshPage(), 400);
+      clearDescriptionBrowserCache();
+      invalidateCatalogClientCache();
+      refreshPage();
     } catch { setDescError("Помилка мережі"); } finally { setDescSaving(false); }
   };
 
@@ -349,15 +481,16 @@ export default function ProductPageAdminEditPanel({
     setQtyError(null);
     setQtySavedType(null);
     try {
-      const body: Record<string, unknown> = { Код: code, article: values.article };
-      body[type] = n;
+      const body: Record<string, unknown> = { Код: code };
+      if (values.article) body.article = values.article;
+      body[type === "receipt" ? "Поступлення" : "Реалізація"] = n;
       const res = await fetch("/api/product-update", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
       });
-      const data = (await res.json()) as { ok: boolean; error?: string; quantity?: number };
-      if (!data.ok) { setQtyError(data.error ?? "Помилка"); return; }
+      const data = (await res.json()) as { ok: boolean; error?: string; details?: string; quantity?: number };
+      if (!data.ok) { setQtyError([data.error, data.details].filter(Boolean).join(": ") || "Помилка"); return; }
       const newQty = typeof data.quantity === "number"
         ? data.quantity
         : type === "receipt" ? quantity + n : Math.max(0, quantity - n);
@@ -365,7 +498,8 @@ export default function ProductPageAdminEditPanel({
       setQtyInput("");
       setQtySavedType(type);
       setTimeout(() => setQtySavedType(null), 3000);
-      setTimeout(() => refreshPage(), 400);
+      invalidateCatalogClientCache();
+      refreshPage();
     } catch { setQtyError("Помилка мережі"); } finally { setQtySaving(false); }
   };
 
@@ -378,12 +512,117 @@ export default function ProductPageAdminEditPanel({
     const isMeta = key === "category" || key === "group" || key === "subGroup";
     const metaColors = isMeta ? META_COLORS[key as keyof typeof META_COLORS] : null;
 
+    // Group and subGroup are shown inside the combined category form
+    if ((key === "group" || key === "subGroup") && editing === "category") return null;
+
+    if (isEditing && key === "category") {
+      // Combined classification form: category + group + subGroup together
+      return (
+        <div key={key} className="relative col-span-2 py-0.5">
+          <div className="space-y-1.5">
+            {/* Category */}
+            <div className="flex items-center gap-1.5">
+              <span className="w-14 shrink-0 text-[9px] font-bold uppercase tracking-wide text-teal-500">Категорія</span>
+              <div className="relative min-w-0 flex-1">
+                <input ref={inputRef} type="text" value={editVal}
+                  onChange={(e) => { setEditVal(e.target.value); fetchMetaSugg("category", e.target.value); setMetaGroupEdit(""); setMetaSubGroupEdit(""); setMetaGroupSugg([]); setMetaSubGroupSugg([]); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") { e.preventDefault(); setMetaActive((p) => Math.min(p + 1, metaSugg.length - 1)); }
+                    else if (e.key === "ArrowUp") { e.preventDefault(); setMetaActive((p) => Math.max(p - 1, -1)); }
+                    else if (e.key === "Enter") { e.preventDefault(); if (metaActive >= 0 && metaSugg[metaActive]) { const v = metaSugg[metaActive]; setEditVal(v); setMetaSugg([]); setMetaActive(-1); setMetaGroupEdit(""); setMetaSubGroupEdit(""); fetchMetaGroupSugg("", v); } else { void save(); } }
+                    else if (e.key === "Escape") closeEdit();
+                  }}
+                  onBlur={() => setTimeout(() => setMetaSugg([]), 150)}
+                  disabled={saving} placeholder="Категорія"
+                  className="w-full rounded-[8px] border border-teal-300 px-2.5 py-1.5 text-[12px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-200/60 disabled:opacity-60"
+                />
+                {metaSugg.length > 0 && (
+                  <div className="absolute left-0 top-full z-50 mt-0.5 max-h-40 w-full overflow-y-auto rounded-[10px] border border-teal-200 bg-white shadow-[0_6px_20px_rgba(20,184,166,0.14)]">
+                    {metaSugg.map((s, i) => (
+                      <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); setEditVal(s); setMetaSugg([]); setMetaActive(-1); setMetaGroupEdit(""); setMetaSubGroupEdit(""); fetchMetaGroupSugg("", s); }}
+                        className={`block w-full px-3 py-1.5 text-left text-[11px] font-medium transition ${i === metaActive ? "bg-teal-50 text-teal-800" : "text-slate-700 hover:bg-slate-50"}`}>{s}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Group */}
+            <div className="flex items-center gap-1.5">
+              <span className="w-14 shrink-0 text-[9px] font-bold uppercase tracking-wide text-violet-500">Група</span>
+              <div className="relative min-w-0 flex-1">
+                <input ref={metaGroupInputRef} type="text" value={metaGroupEdit}
+                  onChange={(e) => { setMetaGroupEdit(e.target.value); fetchMetaGroupSugg(e.target.value, editVal); setMetaSubGroupEdit(""); setMetaSubGroupSugg([]); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") { e.preventDefault(); setMetaGroupActive((p) => Math.min(p + 1, metaGroupSugg.length - 1)); }
+                    else if (e.key === "ArrowUp") { e.preventDefault(); setMetaGroupActive((p) => Math.max(p - 1, -1)); }
+                    else if (e.key === "Enter") { e.preventDefault(); if (metaGroupActive >= 0 && metaGroupSugg[metaGroupActive]) { const v = metaGroupSugg[metaGroupActive]; setMetaGroupEdit(v); setMetaGroupSugg([]); setMetaGroupActive(-1); setMetaSubGroupEdit(""); fetchMetaSubGroupSugg("", v); } else { void save(); } }
+                    else if (e.key === "Escape") closeEdit();
+                  }}
+                  onBlur={() => setTimeout(() => setMetaGroupSugg([]), 150)}
+                  disabled={saving} placeholder="Група"
+                  className="w-full rounded-[8px] border border-violet-300 px-2.5 py-1.5 text-[12px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/60 disabled:opacity-60"
+                />
+                {metaGroupSugg.length > 0 && (
+                  <div className="absolute left-0 top-full z-50 mt-0.5 max-h-40 w-full overflow-y-auto rounded-[10px] border border-violet-200 bg-white shadow-[0_6px_20px_rgba(109,40,217,0.14)]">
+                    {metaGroupSugg.map((s, i) => (
+                      <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); setMetaGroupEdit(s); setMetaGroupSugg([]); setMetaGroupActive(-1); setMetaSubGroupEdit(""); fetchMetaSubGroupSugg("", s); }}
+                        className={`block w-full px-3 py-1.5 text-left text-[11px] font-medium transition ${i === metaGroupActive ? "bg-violet-50 text-violet-800" : "text-slate-700 hover:bg-slate-50"}`}>{s}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* SubGroup */}
+            <div className="flex items-center gap-1.5">
+              <span className="w-14 shrink-0 text-[9px] font-bold uppercase tracking-wide text-sky-500">Підгрупа</span>
+              <div className="relative min-w-0 flex-1">
+                <input ref={metaSubGroupInputRef} type="text" value={metaSubGroupEdit}
+                  onChange={(e) => { setMetaSubGroupEdit(e.target.value); fetchMetaSubGroupSugg(e.target.value, metaGroupEdit); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") { e.preventDefault(); setMetaSubGroupActive((p) => Math.min(p + 1, metaSubGroupSugg.length - 1)); }
+                    else if (e.key === "ArrowUp") { e.preventDefault(); setMetaSubGroupActive((p) => Math.max(p - 1, -1)); }
+                    else if (e.key === "Enter") { e.preventDefault(); if (metaSubGroupActive >= 0 && metaSubGroupSugg[metaSubGroupActive]) { setMetaSubGroupEdit(metaSubGroupSugg[metaSubGroupActive]); setMetaSubGroupSugg([]); setMetaSubGroupActive(-1); } else { void save(); } }
+                    else if (e.key === "Escape") closeEdit();
+                  }}
+                  onBlur={() => setTimeout(() => setMetaSubGroupSugg([]), 150)}
+                  disabled={saving} placeholder="Підгрупа"
+                  className="w-full rounded-[8px] border border-sky-300 px-2.5 py-1.5 text-[12px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-200/60 disabled:opacity-60"
+                />
+                {metaSubGroupSugg.length > 0 && (
+                  <div className="absolute left-0 top-full z-50 mt-0.5 max-h-40 w-full overflow-y-auto rounded-[10px] border border-sky-200 bg-white shadow-[0_6px_20px_rgba(14,165,233,0.14)]">
+                    {metaSubGroupSugg.map((s, i) => (
+                      <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); setMetaSubGroupEdit(s); setMetaSubGroupSugg([]); setMetaSubGroupActive(-1); }}
+                        className={`block w-full px-3 py-1.5 text-left text-[11px] font-medium transition ${i === metaSubGroupActive ? "bg-sky-50 text-sky-800" : "text-slate-700 hover:bg-slate-50"}`}>{s}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="mt-1.5 flex gap-1">
+            <button type="button" onClick={() => void save()} disabled={saving}
+              className="inline-flex h-7 items-center gap-1 rounded-[7px] border border-emerald-200 bg-emerald-50 px-2.5 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100 active:scale-95 disabled:opacity-40">
+              {saving
+                ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
+                : <Check size={11} />}
+              Зберегти
+            </button>
+            <button type="button" onClick={closeEdit} disabled={saving}
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 active:scale-95 disabled:opacity-40">
+              <X size={11} />
+            </button>
+          </div>
+          {error && <p className="mt-0.5 text-[10px] font-semibold text-red-500">{error}</p>}
+        </div>
+      );
+    }
+
     if (isEditing) {
       return (
         <div key={key} className="relative col-span-2 py-0.5">
           <div className="flex items-center gap-1.5">
             <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide ${
-              isMeta ? metaColors!.label : key === "costPriceEuro" ? "text-amber-500" : "text-slate-400"
+              key === "costPriceEuro" ? "text-amber-500" : "text-slate-400"
             }`}>{label}</span>
             <div className="relative min-w-0 flex-1">
               <input
@@ -394,17 +633,12 @@ export default function ProductPageAdminEditPanel({
                 onChange={(e) => {
                   setEditVal(e.target.value);
                   if (key === "producer") fetchSuggestions(e.target.value);
-                  else if (key === "category") fetchMetaSugg("category", e.target.value);
-                  else if (key === "group") fetchMetaSugg("group", e.target.value, values.category);
-                  else if (key === "subGroup") fetchMetaSugg("subGroup", e.target.value, values.group);
                 }}
                 onKeyDown={onKeyDown}
-                onBlur={() => setTimeout(() => { setSuggestions([]); setMetaSugg([]); setActiveSug(-1); setMetaActive(-1); }, 150)}
+                onBlur={() => setTimeout(() => { setSuggestions([]); setActiveSug(-1); }, 150)}
                 disabled={saving}
                 placeholder={label}
-                className={`w-full rounded-[8px] border px-2.5 py-1.5 text-[12px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none disabled:opacity-60 ${
-                  isMeta ? metaColors!.border : "border-violet-300 focus:border-violet-400 focus:ring-2 focus:ring-violet-200/60"
-                }`}
+                className="w-full rounded-[8px] border border-violet-300 px-2.5 py-1.5 text-[12px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/60 disabled:opacity-60"
               />
               {key === "producer" && suggestions.length > 0 && (
                 <div className="absolute left-0 top-full z-50 mt-0.5 max-h-40 w-full overflow-y-auto rounded-[10px] border border-violet-200 bg-white shadow-[0_6px_20px_rgba(109,40,217,0.14)]">
@@ -414,17 +648,9 @@ export default function ProductPageAdminEditPanel({
                   ))}
                 </div>
               )}
-              {isMeta && metaSugg.length > 0 && (
-                <div className={`absolute left-0 top-full z-50 mt-0.5 max-h-40 w-full overflow-y-auto rounded-[10px] border bg-white ${metaColors!.drop}`}>
-                  {metaSugg.map((s, i) => (
-                    <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); void save(s); }}
-                      className={`block w-full px-3 py-1.5 text-left text-[11px] font-medium transition ${i === metaActive ? metaColors!.active : "text-slate-700 hover:bg-slate-50"}`}>{s}</button>
-                  ))}
-                </div>
-              )}
             </div>
             <button type="button" onClick={() => void save()}
-              disabled={saving || (!editVal.trim() && !isMeta)}
+              disabled={saving || !editVal.trim()}
               className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 active:scale-95 disabled:opacity-40">
               {saving
                 ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />

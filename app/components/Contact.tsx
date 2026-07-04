@@ -260,13 +260,13 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                 onClick={() => {
                   setTab("phones");
                 }}
-                className={`flex items-center justify-center gap-1.5 rounded-[14px] px-2.5 py-2 text-sm font-semibold transition sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
+                className={`flex items-center justify-center gap-1.5 rounded-[14px] px-2.5 py-2 text-[13px] font-semibold transition sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
                   tab === "phones"
                     ? "soft-segment soft-segment--active"
                     : "soft-segment"
                 }`}
               >
-                <Phone size={16} />
+                <Phone size={15} strokeWidth={2} />
                 Дзвінок
               </button>
 
@@ -274,13 +274,13 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                 onClick={() => {
                   setTab("address");
                 }}
-                className={`flex items-center justify-center gap-1.5 rounded-[14px] px-2.5 py-2 text-sm font-semibold transition sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
+                className={`flex items-center justify-center gap-1.5 rounded-[14px] px-2.5 py-2 text-[13px] font-semibold transition sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
                   tab === "address"
                     ? "soft-segment soft-segment--active"
                     : "soft-segment"
                 }`}
               >
-                <MapPin size={16} />
+                <MapPin size={15} strokeWidth={2} />
                 Локація
               </button>
             </div>
@@ -318,7 +318,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                                 <button
                                   type="button"
                                   onClick={() => handleCopyPhone(c.phone)}
-                                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[8px] border border-slate-200 bg-white/90 text-slate-400 shadow-[0_4px_10px_rgba(148,163,184,0.16)] transition hover:border-sky-200 hover:text-sky-600"
+                                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[8px] border border-slate-200 bg-white/90 text-slate-400 shadow-[0_4px_10px_rgba(148,163,184,0.16)] transition hover:bg-sky-50 hover:border-sky-200 hover:text-sky-500"
                                   aria-label={`Скопіювати номер ${c.phone}`}
                                   title="Скопіювати номер"
                                 >

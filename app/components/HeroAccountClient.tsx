@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, IdCard, LogIn, UserPlus } from "lucide-react";
+import { IdCard, LogIn, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 
@@ -14,10 +14,13 @@ type HeroAccountClientProps = {
 
 const actionButtonBase = [
   "inline-flex",
+  "relative",
   "items-center",
   "gap-2",
   "justify-center",
+  "overflow-hidden",
   "rounded-[14px]",
+  "border",
   "px-5",
   "py-2.5",
   "font-ui",
@@ -25,7 +28,7 @@ const actionButtonBase = [
   "font-bold",
   "tracking-[0.12em]",
   "uppercase",
-  "transition-[box-shadow,filter,background-color,border-color]",
+  "transition-[box-shadow,filter,background-color,border-color,background-position,transform]",
   "duration-400",
   "ease-out",
   "focus-visible:outline",
@@ -35,12 +38,13 @@ const actionButtonBase = [
   "select-none",
   "disabled:opacity-60",
   "disabled:cursor-not-allowed",
+  "group",
 ].join(" ");
 
-const primaryButton = `${actionButtonBase} border border-sky-100/35 bg-[image:linear-gradient(135deg,rgba(239,246,255,0.98)_0%,rgba(191,219,254,0.94)_34%,rgba(125,211,252,0.92)_68%,rgba(59,130,246,0.9)_100%)] text-slate-900 shadow-[0_10px_22px_rgba(56,189,248,0.24)] motion-safe:hover:border-sky-50/55 motion-safe:hover:brightness-[1.02] motion-safe:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.16),0_14px_30px_rgba(56,189,248,0.28)]`;
-const loginButton = `${primaryButton} bg-no-repeat [background-size:185%_185%] [background-position:0%_50%] transition-[box-shadow,filter,background-color,border-color,background-position] motion-safe:hover:[background-position:100%_50%]`;
-const secondaryButton = `${actionButtonBase} border border-white/24 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.18)_0%,rgba(226,232,240,0.12)_50%,rgba(125,211,252,0.16)_100%)] text-white shadow-[0_10px_20px_rgba(2,6,23,0.24)] motion-safe:hover:border-sky-100/34 motion-safe:hover:bg-[image:linear-gradient(135deg,rgba(255,255,255,0.22)_0%,rgba(226,232,240,0.14)_48%,rgba(125,211,252,0.2)_100%)] motion-safe:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_14px_28px_rgba(56,189,248,0.16)]`;
-const vinButton = `${actionButtonBase} group/vin relative overflow-hidden border border-cyan-100/60 bg-[image:linear-gradient(135deg,#f8fafc_0%,#dff8ff_28%,#67e8f9_62%,#0ea5e9_100%)] px-4 pr-5 text-slate-950 shadow-[0_14px_30px_rgba(8,145,178,0.3),inset_0_1px_0_rgba(255,255,255,0.72)] ring-1 ring-white/35 bg-no-repeat [background-size:180%_180%] [background-position:0%_50%] transition-[box-shadow,filter,border-color,background-position,transform] motion-safe:hover:-translate-y-0.5 motion-safe:hover:border-white/80 motion-safe:hover:[background-position:100%_50%] motion-safe:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.2),0_18px_36px_rgba(14,165,233,0.36)]`;
+const primaryButton = `${actionButtonBase} border-sky-300/45 bg-[image:linear-gradient(135deg,rgba(7,89,133,0.96)_0%,rgba(14,165,233,0.92)_52%,rgba(56,189,248,0.88)_100%)] text-white shadow-[0_1px_0_rgba(255,255,255,0.20)_inset,0_10px_24px_rgba(14,165,233,0.22),0_6px_16px_rgba(2,132,199,0.16)] ring-1 ring-sky-200/14 motion-safe:hover:border-sky-200/65 motion-safe:hover:brightness-[1.07] motion-safe:hover:shadow-[0_1px_0_rgba(255,255,255,0.28)_inset,0_14px_32px_rgba(14,165,233,0.30),0_8px_22px_rgba(2,132,199,0.20)]`;
+const loginButton = `${primaryButton} bg-no-repeat [background-size:180%_180%] [background-position:0%_50%] motion-safe:hover:[background-position:100%_50%] before:pointer-events-none before:absolute before:inset-x-3 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/55 before:to-transparent after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-10 after:bg-[linear-gradient(90deg,rgba(255,255,255,0.14),rgba(255,255,255,0))]`;
+const secondaryButton = `${actionButtonBase} border-sky-200/20 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.08)_0%,rgba(56,189,248,0.09)_50%,rgba(99,102,241,0.07)_100%)] text-sky-100 shadow-[0_1px_0_rgba(255,255,255,0.14)_inset,0_8px_20px_rgba(2,6,23,0.22)] ring-1 ring-sky-200/10 backdrop-blur-md motion-safe:hover:border-sky-200/38 motion-safe:hover:bg-[image:linear-gradient(135deg,rgba(255,255,255,0.12)_0%,rgba(56,189,248,0.14)_50%,rgba(99,102,241,0.10)_100%)] motion-safe:hover:text-white motion-safe:hover:shadow-[0_1px_0_rgba(255,255,255,0.20)_inset,0_12px_28px_rgba(2,6,23,0.26),0_6px_16px_rgba(56,189,248,0.12)] before:pointer-events-none before:absolute before:inset-x-3 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/28 before:to-transparent`;
+const vinButton = `${loginButton}`;
 
 export default function HeroAccountClient({
   cardGradientBase,
@@ -91,9 +95,8 @@ export default function HeroAccountClient({
           ]
         : []),
       {
-        label: "Пріоритетна підтримка",
-        onClick: () =>
-          window.dispatchEvent(new CustomEvent("openChatWithMessage", { detail: "" })),
+        label: "Партнерство PartsON",
+        onClick: () => router.push("/partnership"),
       },
       {
         label: "Професійний підбір",
@@ -108,12 +111,10 @@ export default function HeroAccountClient({
       <div className="flex min-h-[42px] min-w-[272px] flex-wrap items-center justify-center gap-2 sm:min-h-[44px] sm:min-w-[292px]">
         {isAuthReady && user ? (
           <button type="button" onClick={() => window.dispatchEvent(new Event("openAccountVin"))} className={vinButton}>
-            <span className="absolute inset-y-0 left-0 w-12 bg-[linear-gradient(90deg,rgba(255,255,255,0.55),rgba(255,255,255,0))]" aria-hidden="true" />
-            <span className="relative inline-flex h-6 w-7 items-center justify-center rounded-[8px] border border-slate-900/10 bg-white/78 text-sky-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_6px_12px_rgba(14,165,233,0.18)]">
-              <IdCard className="h-4 w-4" strokeWidth={2.2} aria-hidden="true" />
-              <BadgeCheck className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-white text-emerald-600" strokeWidth={2.5} aria-hidden="true" />
+            <span className="relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]">
+              <IdCard className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+              Додати VIN номер
             </span>
-            Додати VIN
           </button>
         ) : isAuthReady ? (
           <>
@@ -128,8 +129,10 @@ export default function HeroAccountClient({
               }
               className={loginButton}
             >
-              <LogIn className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
-              Увійти
+              <span className="relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]">
+                <LogIn className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                Увійти
+              </span>
             </button>
             <button
               type="button"
@@ -142,8 +145,10 @@ export default function HeroAccountClient({
               }
               className={secondaryButton}
             >
-              <UserPlus className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
-              Реєстрація
+              <span className="relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]">
+                <UserPlus className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                Реєстрація
+              </span>
             </button>
           </>
         ) : (
@@ -155,7 +160,7 @@ export default function HeroAccountClient({
 
   return (
     <div
-      className={`home-glass-card flex min-h-[180px] h-full min-w-0 flex-col space-y-2 rounded-2xl border border-white/10 p-3 shadow-[0_10px_24px_rgba(2,6,23,0.26)] ${cardInteractionStatic} md:col-span-2 lg:col-span-1 ${cardGradientBase} ${cardGradientHover} bg-white/10 motion-safe:hover:bg-white/12 sm:min-h-0`}
+      className={`home-glass-card hero-stable-card flex min-h-[180px] h-full min-w-0 flex-col space-y-2 rounded-2xl border border-white/10 p-3 shadow-[0_10px_24px_rgba(2,6,23,0.26)] ${cardInteractionStatic} md:col-span-2 lg:col-span-1 ${cardGradientBase} ${cardGradientHover} bg-white/10 sm:min-h-0`}
     >
       <div className="flex items-center gap-3">
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-sky-200/30 text-sky-200/90 shadow-[0_0_16px_rgba(56,189,248,0.3)]">

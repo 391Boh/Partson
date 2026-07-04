@@ -50,12 +50,13 @@ import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
 import { producerDescriptions } from "app/lib/producer-descriptions";
 import { unstable_noStore as noStore } from "next/cache";
 import { clearAllOneCCache } from "app/api/_lib/oneC";
+import { getProductReviewStats } from "app/lib/reviews-server";
 
-const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 1200;
-const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 1100;
-const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 700;
-const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 120;
-const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 1600;
+const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 420;
+const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 480;
+const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 280;
+const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 80;
+const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 520;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_PHONE_TEL = "+380634211851";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
@@ -160,6 +161,11 @@ const OpenChatButton = dynamic(() => import("app/components/OpenChatButton"), {
 
 const ProductPageAdminEditPanel = dynamic(
   () => import("app/components/ProductPageAdminEditPanel")
+);
+
+const ProductReviewsSection = dynamic(
+  () => import("app/components/ProductReviewsSection"),
+  { loading: () => null }
 );
 
 const ProductDeferredRecommendations = dynamic(
@@ -420,6 +426,7 @@ const buildProductJsonLd = (options: {
   priceUah: number | null;
   canonicalUrl: string;
   imageUrls: string[];
+  aggregateRating?: { ratingCount: number; avgRating: number };
 }) => {
   const {
     name,
@@ -434,6 +441,7 @@ const buildProductJsonLd = (options: {
     priceUah,
     canonicalUrl,
     imageUrls,
+    aggregateRating,
   } = options;
 
   const offers =
@@ -560,6 +568,17 @@ const buildProductJsonLd = (options: {
         : null,
     ].filter(Boolean),
     offers,
+    ...(aggregateRating && aggregateRating.ratingCount >= 3
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: aggregateRating.avgRating.toFixed(1),
+            reviewCount: String(aggregateRating.ratingCount),
+            bestRating: "5",
+            worstRating: "1",
+          },
+        }
+      : {}),
   };
 };
 
@@ -803,25 +822,25 @@ const buildProductMetaDescription = (options: {
   article: string;
   code?: string;
   category?: string;
-  priceUah?: number | null;
+  group?: string;
+  subGroup?: string;
 }) => {
-  const { name, article, code, category, priceUah } = options;
-  const priceLabel = priceUah != null && priceUah > 0
-    ? `${priceUah.toLocaleString("uk-UA")} грн`
-    : null;
+  const { name, article, code, category, group, subGroup } = options;
   const articleLabel = article ? `арт. ${article}` : null;
   const codeLabel = code && code !== article ? `код ${code}` : null;
   const lookupLabel = [articleLabel, codeLabel].filter(Boolean).join(", ");
-  const namePrefix = name ? trimSeoPhrase(name, 68) : null;
+  const nameLabel = trimSeoPhrase(buildVisibleProductName(name || "автозапчастину"), 54);
+  const topLabel = (category || group) ? buildVisibleProductName(category || group || "") : "";
+  const midLabel = (category && group) ? buildVisibleProductName(group) : "";
+  const botLabel = subGroup ? buildVisibleProductName(subGroup) : "";
 
   return trimSeoDescription(
     [
-      namePrefix ? `${namePrefix}.` : null,
-      [lookupLabel || null, priceLabel ? `ціна ${priceLabel}` : null]
-        .filter(Boolean)
-        .join(" — ") || null,
-      category ? `Категорія: ${category}.` : null,
-      "Самовивіз у Львові та доставка по Україні. Підбір за VIN.",
+      `Купити${topLabel ? ` у категорії ${topLabel}` : ` ${nameLabel}`} у Львові.`,
+      midLabel ? `Група: ${midLabel}.` : null,
+      botLabel && botLabel !== midLabel ? `Підгрупа: ${botLabel}.` : null,
+      lookupLabel || null,
+      `Доставка по Україні. ${STORE_PHONE_DISPLAY}, ${STORE_ADDRESS}.`,
     ]
       .filter(Boolean)
       .join(" ")
@@ -887,8 +906,8 @@ const buildProductSeoTitle = (options: {
   name: string;
 }) => {
   const { name } = options;
-  const cleanName = trimSeoPhrase(buildVisibleProductName(name), 52);
-  return `${cleanName || "Автозапчастина"} — купити | PartsON`;
+  const cleanName = trimSeoPhrase(buildVisibleProductName(name), 56);
+  return `${cleanName || "Автозапчастина"} | PartsON`;
 };
 
 const buildProductSeoKeywords = (options: {
@@ -897,8 +916,22 @@ const buildProductSeoKeywords = (options: {
   code: string;
   producer: string;
   category: string;
+  description?: string;
 }) => {
-  const { productName, article, code, producer, category } = options;
+  const { productName, article, code, producer, category, description } = options;
+
+  const descriptionWords: string[] = [];
+  if (description) {
+    const stopWords = new Set(["що", "для", "при", "або", "але", "від", "під", "над", "між", "без", "про", "через", "після", "перед", "його", "яких", "якій", "також", "може", "якщо", "цього", "буде", "були", "щоб", "своє", "коли", "яке", "який", "інші", "всіх", "такі", "деякі", "дана", "даний", "цими"]);
+    const words = description
+      .split(/[\s,\.;\:\!\?\/\(\)\-–—«»"']+/)
+      .map((w) => w.trim())
+      .filter((w) => w.length >= 4 && !stopWords.has(w.toLowerCase()) && !/^\d+$/.test(w));
+    for (const word of words) {
+      if (!descriptionWords.includes(word)) descriptionWords.push(word);
+    }
+  }
+
   const entries = [
     productName,
     article ? `${productName} ${article}` : null,
@@ -908,6 +941,7 @@ const buildProductSeoKeywords = (options: {
     code && code !== article ? `${code} купити` : null,
     producer ? `${producer} запчастини` : null,
     category ? `${category} купити` : null,
+    ...descriptionWords,
     "автозапчастини Львів",
     "підбір запчастин за VIN",
     "PartsON",
@@ -919,7 +953,7 @@ const buildProductSeoKeywords = (options: {
         .map((entry) => (entry || "").replace(/\s+/g, " ").trim())
         .filter(Boolean)
     )
-  ).slice(0, 12);
+  ).slice(0, 15);
 };
 
 const getFirstResolvedNonNull = async <T,>(promises: Array<Promise<T | null>>) => {
@@ -1539,7 +1573,8 @@ export async function generateMetadata({
     routeSlugs?.nameSlug || resolvedCode || decodedParam || "Товар";
   const productProducer = (routeProduct?.producer || "").trim();
   const productArticle = (routeProduct?.article || "").trim();
-  const productGroup = (routeProduct?.group || routeProduct?.category || "").trim();
+  const productCategory = (routeProduct?.category || "").trim();
+  const productGroup = (routeProduct?.group || productCategory || "").trim();
   const productSubGroup = (routeProduct?.subGroup || "").trim();
   const seoVisibleProductName = buildPureProductName(
     routeProduct?.name || buildReadableNameFromSlugSource(fallbackTitleSource),
@@ -1550,7 +1585,7 @@ export async function generateMetadata({
       subGroup: productSubGroup,
     }
   );
-  const categoryLabel = buildVisibleProductName(productSubGroup || productGroup);
+  const categoryLabel = buildVisibleProductName(productSubGroup || productGroup || productCategory);
   const canonicalPath = routeProduct
     ? buildCanonicalProductPath(routeProduct, resolvedCode || fallbackCode)
     : `/product/${encodeURIComponent(decodedParam || resolvedCode || fallbackCode || "")}`;
@@ -1576,8 +1611,9 @@ export async function generateMetadata({
     name: seoVisibleProductName,
     article: productArticle,
     code: resolvedCode,
-    category: categoryLabel,
-    priceUah: seoPriceForMeta.priceUah,
+    category: productCategory || productGroup,
+    group: productCategory ? productGroup : productSubGroup,
+    subGroup: productCategory ? productSubGroup : "",
   });
 
   const keywords = buildProductSeoKeywords({
@@ -1586,6 +1622,7 @@ export async function generateMetadata({
     code: resolvedCode,
     producer: productProducer,
     category: categoryLabel,
+    description: routeProduct?.description,
   });
 
   return {
@@ -1642,6 +1679,8 @@ export async function generateMetadata({
             "product:price:currency": "UAH",
           }
         : {}),
+      "product:availability":
+        routeProduct && routeProduct.quantity > 0 ? "in stock" : "out of stock",
       "geo.region": "UA-46",
       "geo.placename": "Львів",
     },
@@ -1860,8 +1899,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     name: visibleProductName,
     article: product.article,
     code: product.code || resolvedCode,
-    category: visibleProductSubgroup || visibleProductGroup,
-    priceUah: initialPriceUah,
+    category: productCategory || productGroup,
+    group: productCategory ? productGroup : productSubgroup,
+    subGroup: productCategory ? productSubgroup : "",
   });
   const categoryCatalogGroupValue =
     productGroup || productCategory || productSubgroup;
@@ -1919,6 +1959,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     ? buildProductImagePath(product.code || resolvedCode, product.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const productSeoImageUrl = `${siteUrl}${productSeoImagePath}`;
+  const reviewStats = resolvedCode
+    ? await resolveWithTimeout(() => getProductReviewStats(resolvedCode), null, 150)
+    : null;
   const jsonLd = shouldEmitProductStructuredData
     ? buildProductJsonLd({
         name: product.name,
@@ -1933,6 +1976,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         priceUah: initialPriceUah,
         canonicalUrl,
         imageUrls: [productSeoImageUrl],
+        aggregateRating: reviewStats ?? undefined,
       })
     : null;
   const itemPageJsonLd = buildProductItemPageJsonLd({
@@ -2374,6 +2418,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   fitmentText={productFitmentText}
                   contactPhone={STORE_PHONE_DISPLAY}
                   contactAddress={STORE_ADDRESS}
+                  productName={visibleProductName || undefined}
                   seoDetails={productSeoDetails}
                   chatButton={
                     <OpenChatButton
@@ -2460,6 +2505,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             </section>
           </div>
 
+          {!isModalView && resolvedCode && (
+            <ProductReviewsSection productCode={resolvedCode} />
+          )}
+
           {!isModalView && (
             <section className="border-t border-slate-100/80 bg-[linear-gradient(180deg,rgba(226,232,240,0.28),rgba(255,255,255,0.92))] px-3 py-3 sm:px-4 sm:py-3.5">
               <div className="overflow-hidden rounded-[20px] border border-slate-900/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,244,248,0.96))] shadow-[0_16px_36px_rgba(2,6,23,0.09)]">
@@ -2468,7 +2517,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     Сумісність та характеристики
                   </p>
                   <h2 className="font-display mt-0.5 text-[1rem] font-extrabold italic leading-[1.12] tracking-normal text-white sm:text-[1.1rem]">
-                    Що важливо знати про цей товар
+                    {visibleProductName
+                      ? `Характеристики: ${visibleProductName.length > 52 ? `${visibleProductName.slice(0, 52).trimEnd()}…` : visibleProductName}`
+                      : "Що важливо знати про цей товар"}
                   </h2>
                 </div>
                 <div className="grid gap-2.5 px-3 py-3 sm:px-4 sm:py-3.5 lg:grid-cols-3">

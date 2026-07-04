@@ -5,6 +5,7 @@ import ClientWrapper from "./client-wrapper";
 import LayoutHost from "./components/LayoutHost";
 import PageLoadingShell from "./components/PageLoadingShell";
 import { WebVitalsReporter } from "./components/WebVitalsReporter";
+import Footer from "./components/footer";
 import {
   STORE_ADDRESS_SEO_LABEL,
   STORE_PHONE_SEO_LABEL,
@@ -314,6 +315,14 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
+        <link rel="prefetch" href="/Carlogo/Audi.svg" as="image" />
+        <link rel="prefetch" href="/Carlogo/BMW.svg" as="image" />
+        <link rel="prefetch" href="/Carlogo/Chery.svg" as="image" />
+        <link rel="prefetch" href="/Carlogo/Chrysler.svg" as="image" />
+        <link rel="prefetch" href="/Carlogo/Citroen.svg" as="image" />
+        <link rel="prefetch" href="/Carlogo/Cadillac.svg" as="image" />
+        <link rel="prefetch" href="/Carlogo/Dacia.svg" as="image" />
+        <link rel="prefetch" href="/Carlogo/Daewoo.svg" as="image" />
         <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
         <link rel="preconnect" href="https://lh3.googleusercontent.com" crossOrigin="anonymous" />
@@ -385,6 +394,7 @@ export default function RootLayout({
               <LayoutHost>{children}</LayoutHost>
             </Suspense>
           </ClientWrapper>
+          <Footer />
         </div>
         <Suspense>
           <LocalBusinessJsonLdWithRating />

@@ -436,12 +436,29 @@ const ProductFetcher: React.FC<Props> = ({
 }) => {
   const hasExternalProducts = Array.isArray(products);
   const [isHydrated, setIsHydrated] = useState(false);
-  const [isLoading, setIsLoading] = useState(!hasExternalProducts);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(hasExternalProducts);
+  const [isLoading, setIsLoading] = useState(() => {
+    if (hasExternalProducts) return false;
+    const cache = readCachedProducts();
+    return !(cache.usable && cache.nodes.length > 0);
+  });
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(() => {
+    if (hasExternalProducts) return true;
+    const cache = readCachedProducts();
+    return cache.usable && cache.nodes.length > 0;
+  });
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [productNodes, setProductNodes] = useState<ProductNode[]>(() =>
-    hasExternalProducts ? toProductNodes(products) : []
-  );
+  const [productNodes, setProductNodes] = useState<ProductNode[]>(() => {
+    if (hasExternalProducts) return toProductNodes(products);
+    const cache = readCachedProducts();
+    if (cache.usable && cache.nodes.length > 0) {
+      if (!cachedProducts) {
+        cachedProducts = cache.nodes;
+        cachedProductsHash = cache.hash;
+      }
+      return cache.nodes;
+    }
+    return [];
+  });
   const productLoadError = hasExternalProducts ? null : loadError;
 
   const [searchTerm, setSearchTerm] = useState("");

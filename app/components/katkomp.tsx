@@ -340,8 +340,21 @@ const Category: React.FC<CategoryProps> = ({
   const searchTerm = controlledSearchTerm ?? localSearchTerm;
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const setSearchTerm = onSearchTermChange ?? setLocalSearchTerm;
-  const [treeData, setTreeData] = useState<ProductNode[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [treeData, setTreeData] = useState<ProductNode[]>(() => {
+    if (cachedProducts) return cachedProducts;
+    const cache = readCachedProducts();
+    if (cache.usable && cache.nodes.length > 0) {
+      cachedProducts = cache.nodes;
+      cachedProductsHash = cache.hash;
+      return cache.nodes;
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    if (cachedProducts) return false;
+    const cache = readCachedProducts();
+    return !(cache.usable && cache.nodes.length > 0);
+  });
   const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
@@ -897,7 +910,7 @@ const Category: React.FC<CategoryProps> = ({
                           alt={getCompactDisplayLabel(item.name)}
                           width={16}
                           height={16}
-                          sizes="16px"
+                          unoptimized
                           className="h-4 w-4 shrink-0 object-contain"
                         />
                         <div className="text-[11px] font-semibold text-slate-800 line-clamp-2">

@@ -12,6 +12,7 @@ export default defineConfig([
   },
   globalIgnores([
     ".next/**",
+    ".next-dev/**",
     ".dev-archive/**",
     ".scratch/**",
     ".scratch2/**",

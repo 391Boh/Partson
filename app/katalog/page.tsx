@@ -1,6 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
+import {
+  ArrowUpRight,
+  BadgeCheck,
+  Fingerprint,
+  ListTree,
+  MapPin,
+  PackageSearch,
+  Phone,
+  Tags,
+  Truck,
+} from "lucide-react";
 import CatalogSearchTotalCountClient from "app/components/CatalogSearchTotalCountClient";
 import CatalogShownCountClient from "app/components/CatalogShownCountClient";
 import KatalogPageShell from "app/katalog/KatalogPageShell";
@@ -31,21 +42,12 @@ import { safeJsonLd } from "app/lib/safe-json-ld";
 export const revalidate = 900;
 
 const INITIAL_CATALOG_PAGE_LIMIT = 16;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS = 1100;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 1500;
-const CATALOG_SEO_FACETS_TIMEOUT_MS = 320;
-const CATALOG_PRODUCT_TREE_TIMEOUT_MS = 950;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS = 250;
+const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 350;
+const CATALOG_SEO_FACETS_TIMEOUT_MS = 200;
+const CATALOG_PRODUCT_TREE_TIMEOUT_MS = 200;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
-
-const PartsOnLink = ({ className = "" }: { className?: string }) => (
-  <Link
-    href="/"
-    className={`font-extrabold text-sky-800 underline decoration-sky-300/70 underline-offset-4 transition hover:text-sky-600 hover:decoration-sky-500 ${className}`}
-  >
-    PartsON
-  </Link>
-);
 
 type InitialCatalogPagePayload = {
   items: Array<{
@@ -174,7 +176,7 @@ const fetchCatalogSeoSnapshotPayload = async (
 
 const getCatalogSeoSnapshotPayloadCached = unstable_cache(
   fetchCatalogSeoSnapshotPayload,
-  ["catalog-seo-snapshot-v2-allgoods-inline-price"],
+  ["catalog-seo-snapshot-v3-photo-flag-only"],
   {
     revalidate: 60 * 15,
     tags: ["catalog-seo-snapshot"],
@@ -625,9 +627,9 @@ const buildCatalogItemListJsonLd = (
     .map((item, index) => {
       const url = `${siteUrl}${buildSeoProductPath(item)}`;
       const imagePath =
-        item.hasPhoto === false
-          ? PRODUCT_IMAGE_FALLBACK_PATH
-          : buildProductImagePath(item.code, item.article);
+        item.hasPhoto === true
+          ? buildProductImagePath(item.code, item.article)
+          : PRODUCT_IMAGE_FALLBACK_PATH;
 
       return {
         "@type": "ListItem",
@@ -700,54 +702,40 @@ const CatalogSeoSnapshot = ({
   const isSearchState = Boolean(state.searchQuery);
   const hasExactCount = typeof totalCount === "number" && totalCount >= 0;
   const initialFilteredCount = hasExactCount ? totalCount : visibleItemsCount;
-  const primaryCountTitle = hasExactCount
-    ? "Загалом товарів"
-    : isSearchState
-      ? "Знайдено у пошуку"
-      : "Відкрито зараз";
-  const countCaption = hasExactCount
-    ? "точна кількість за поточним фільтром"
-    : isSearchState
-      ? hasMore
-        ? "лічильник оновлюється під час підвантаження результатів"
-        : "усі відкриті результати за поточним пошуком"
-      : visibleItemsCount > 0
-        ? hasMore
-          ? "каталог ще підвантажує наступні товари"
-          : "усі відкриті товари в поточній вибірці"
-        : "товари ще не відкриті в первинній вибірці";
-  const searchFilterLabels: Record<string, string> = {
-    all: "усі поля",
-    article: "артикул",
-    name: "назва",
-    code: "код",
-    producer: "виробник",
-    description: "опис",
-  };
-  const selectedFilters = [
-    state.searchQuery
-      ? `пошук "${state.searchQuery}"${
-          state.searchFilter
-            ? ` у полі ${searchFilterLabels[state.searchFilter] || state.searchFilter}`
-            : ""
-        }`
-      : null,
-    state.producer ? `виробник ${state.producer}` : null,
-    state.group ? `група ${state.group}` : null,
-    state.subcategory ? `категорія ${state.subcategory}` : null,
-  ].filter((item): item is string => Boolean(item));
-  const selectedFiltersLabel =
-    selectedFilters.length > 0 ? selectedFilters.join(", ") : "без додаткових фільтрів";
-  const catalogTips = [
-    "пошук за артикулом",
-    "фільтр за виробником",
-    "категорії запчастин",
-    "підбір за VIN",
-  ];
   const showDiscovery = topGroups.length > 0 || topProducers.length > 0;
-  const renderShownCount = (className = "text-slate-950") => (
-    <CatalogShownCountClient initialCount={visibleItemsCount} className={className} />
-  );
+
+  const seoHeading = state.searchQuery
+    ? `Пошук у каталозі PartsON`
+    : state.producer && state.subcategory
+      ? `${state.producer}: ${state.subcategory} — запчастини у Львові`
+      : state.producer && state.group
+        ? `${state.producer}: ${state.group} — автозапчастини`
+        : state.producer
+          ? `Автозапчастини ${state.producer} у Львові`
+          : state.group && state.subcategory
+            ? `${state.subcategory} (${state.group}) — каталог запчастин`
+            : state.group
+              ? `${state.group} — автозапчастини у Львові`
+              : `Автозапчастини у Львові — каталог PartsON`;
+
+  const seoText = state.searchQuery
+    ? `Пошук «${state.searchQuery}» у каталозі PartsON: перевірте результати за артикулом, кодом, назвою або виробником. Підбір аналогів та VIN-сумісність.`
+    : state.producer && state.group
+      ? `${state.producer} у категорії ${state.group}: наявність у Львові, підбір за артикулом і кодом, оригінали та аналоги, доставка Новою Поштою по Україні.`
+      : state.producer
+        ? `Автозапчастини ${state.producer} у PartsON: актуальна наявність, пошук за артикулом, підбір аналогів і доставка по Україні.`
+        : state.group && state.subcategory
+          ? `${state.subcategory} — запчастини у групі ${state.group}: наявність у Львові, ціни онлайн, підбір за VIN і доставка по Україні.`
+          : state.group
+            ? `${state.group}: підбір за артикулом і кодом, фільтр за виробником, VIN-сумісність, самовивіз і доставка по Україні.`
+            : `Каталог автозапчастин PartsON: пошук за артикулом, кодом, назвою та виробником. Підбір деталей за VIN. Самовивіз у Львові, доставка по Україні.`;
+
+  const countLabel = hasExactCount
+    ? "Позицій у фільтрі"
+    : isSearchState
+      ? "Знайдено"
+      : "У вибірці";
+
   const renderFilteredCount = (className = "text-slate-950") => (
     <CatalogShownCountClient
       initialCount={initialFilteredCount}
@@ -761,185 +749,253 @@ const CatalogSeoSnapshot = ({
       className={className}
     />
   );
+  const renderShownCount = (className = "text-slate-700") => (
+    <CatalogShownCountClient initialCount={visibleItemsCount} className={className} />
+  );
+
+  const breadcrumbParts = [
+    state.producer,
+    state.group,
+    state.subcategory,
+  ].filter(Boolean) as string[];
 
   return (
     <section
-      aria-labelledby="catalog-seo-products-title"
-      className="mx-auto mt-4 w-full max-w-7xl px-3 pb-10 sm:mt-5 sm:px-4 lg:px-6"
+      aria-labelledby="catalog-seo-block-title"
+      className="mx-auto mt-5 w-full max-w-7xl px-3 pb-10 sm:mt-6 sm:px-4 lg:px-6"
     >
-      <div className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-[0_20px_56px_rgba(15,23,42,0.08)] ring-1 ring-white">
-        <div className="grid gap-4 bg-[linear-gradient(135deg,#f8fbff_0%,#eef8ff_48%,#ffffff_100%)] p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(250px,330px)] lg:gap-5">
-          <div className="min-w-0 self-center">
-            <span className="inline-flex min-h-7 items-center rounded-[10px] border border-sky-100 bg-white/88 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.06)]">
-              Каталог PartsON
-            </span>
-            <h2
-              id="catalog-seo-products-title"
-              className="mt-2 font-display-italic text-[1.25rem] font-black leading-tight text-slate-950 sm:text-[1.55rem]"
-            >
-              Автозапчастини, які легко звузити до потрібної позиції
-            </h2>
-
-            <p className="mt-2.5 max-w-4xl text-sm font-semibold leading-6 text-slate-600">
-              У <PartsOnLink /> можна шукати за артикулом, кодом, назвою,
-              виробником або категорією. Якщо потрібна точна сумісність, менеджер
-              звірить деталь за VIN і підкаже доступні аналоги з доставкою по Україні.
-            </p>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="inline-flex min-h-8 items-center rounded-[12px] border border-slate-200 bg-white/92 px-3 py-1 text-[12px] font-bold text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
-                Фільтри: {selectedFiltersLabel}
-              </span>
-              <a
-                href="tel:+380634211851"
-                aria-label={`Подзвонити в магазин PartsON ${STORE_PHONE_DISPLAY}`}
-                className="inline-flex min-h-8 items-center rounded-[12px] border border-sky-200 bg-white/94 px-3 py-1 text-[12px] font-black text-sky-800 shadow-[0_8px_18px_rgba(14,165,233,0.08)] transition hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60"
-              >
-                {STORE_PHONE_DISPLAY}
-              </a>
-              <Link
-                href="/inform/location"
-                aria-label={`Адреса магазину PartsON: ${STORE_ADDRESS}`}
-                className="inline-flex min-h-8 items-center rounded-[12px] border border-slate-200 bg-white/92 px-3 py-1 text-[12px] font-bold text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition hover:border-sky-200 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60"
-              >
-                {STORE_ADDRESS}
-              </Link>
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {catalogTips.map((tip) => (
-                <span
-                  key={tip}
-                  className="rounded-[11px] border border-sky-100 bg-white/86 px-2.5 py-1 text-[11px] font-bold text-slate-600 shadow-[0_7px_16px_rgba(15,23,42,0.035)]"
-                >
-                  {tip}
+      <div className="overflow-hidden rounded-[24px] border border-slate-200/75 bg-white shadow-[0_18px_52px_rgba(15,23,42,0.08)] ring-1 ring-white">
+        <div className="border-b border-slate-100 bg-[linear-gradient(135deg,#f8fbff_0%,#eef7ff_46%,#ffffff_100%)] px-4 py-5 sm:px-6 sm:py-6">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-100 bg-white/92 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-700 shadow-sm">
+                  <PackageSearch size={12} aria-hidden />
+                  Каталог PartsON
                 </span>
-              ))}
+                {breadcrumbParts.length > 0 ? (
+                  <span className="inline-flex min-w-0 flex-wrap items-center gap-1 text-[11px] font-semibold text-slate-500">
+                    {breadcrumbParts.map((part, i) => (
+                      <span key={part} className="inline-flex min-w-0 items-center gap-1">
+                        {i > 0 ? <span className="text-slate-300">/</span> : null}
+                        <span className="max-w-[180px] truncate sm:max-w-[240px]">
+                          {part}
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+                ) : null}
+              </div>
+
+              <h2
+                id="catalog-seo-block-title"
+                className="mt-3 max-w-3xl font-display text-[1.45rem] font-black leading-[1.08] text-slate-950 sm:text-[1.9rem]"
+              >
+                {seoHeading}
+              </h2>
+
+              <p className="mt-3 max-w-3xl text-[14px] font-medium leading-7 text-slate-600">
+                {seoText}
+              </p>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <a
+                  href="tel:+380634211851"
+                  aria-label={`Подзвонити в магазин PartsON: ${STORE_PHONE_DISPLAY}`}
+                  className="group inline-flex min-h-12 items-center gap-2 rounded-[14px] border border-sky-100 bg-white/92 px-3 text-[12px] font-bold text-slate-700 shadow-[0_8px_20px_rgba(14,165,233,0.08)] transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-sky-200 hover:bg-sky-50/80 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                >
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px] bg-sky-100 text-sky-700">
+                    <Phone size={15} aria-hidden />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+                      Консультація
+                    </span>
+                    <span className="block truncate">{STORE_PHONE_DISPLAY}</span>
+                  </span>
+                </a>
+                <Link
+                  href="/inform/location"
+                  aria-label={`Адреса магазину PartsON: ${STORE_ADDRESS}`}
+                  className="inline-flex min-h-12 items-center gap-2 rounded-[14px] border border-slate-200 bg-white/92 px-3 text-[12px] font-bold text-slate-700 shadow-[0_8px_20px_rgba(15,23,42,0.05)] transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-sky-200 hover:bg-white hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                >
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px] bg-slate-100 text-slate-500">
+                    <MapPin size={15} aria-hidden />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+                      Магазин
+                    </span>
+                    <span className="block truncate">{STORE_ADDRESS}</span>
+                  </span>
+                </Link>
+                <span className="inline-flex min-h-12 items-center gap-2 rounded-[14px] border border-slate-200 bg-white/86 px-3 text-[12px] font-bold text-slate-700 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px] bg-emerald-50 text-emerald-600">
+                    <Truck size={15} aria-hidden />
+                  </span>
+                  <span>
+                    <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+                      Доставка
+                    </span>
+                    Нова Пошта
+                  </span>
+                </span>
+                <span className="inline-flex min-h-12 items-center gap-2 rounded-[14px] border border-slate-200 bg-white/86 px-3 text-[12px] font-bold text-slate-700 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px] bg-indigo-50 text-indigo-600">
+                    <Fingerprint size={15} aria-hidden />
+                  </span>
+                  <span>
+                    <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+                      Підбір
+                    </span>
+                    За VIN і кодом
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-[20px] border border-sky-900/40 bg-[linear-gradient(155deg,#0e1c3c_0%,#112044_55%,#0b1a38_100%)] p-4 text-white shadow-[0_18px_36px_rgba(10,26,66,0.28)]" data-nosnippet>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-200">
+                    {countLabel}
+                  </p>
+                  <p className="mt-1 font-display text-[2.25rem] font-black leading-none">
+                    {isSearchState ? renderSearchTotalCount("text-white") : renderFilteredCount("text-white")}
+                  </p>
+                </div>
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-white/10 text-sky-100 ring-1 ring-white/15">
+                  <Tags size={18} aria-hidden />
+                </span>
+              </div>
+              <div className="mt-4 rounded-[15px] border border-white/10 bg-white/8 px-3 py-2.5">
+                <p className="text-[12px] font-semibold leading-5 text-slate-200">
+                  Відкрито зараз:{" "}
+                  <span className="font-black text-white">{renderShownCount("text-white")}</span>
+                </p>
+                {hasMore && !hasExactCount ? (
+                  <p className="mt-1 text-[11px] font-medium text-slate-400">
+                    список оновлюється під час перегляду
+                  </p>
+                ) : (
+                  <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-200">
+                    <BadgeCheck size={12} aria-hidden />
+                    дані готові до перегляду
+                  </p>
+                )}
+              </div>
             </div>
           </div>
+        </div>
 
-          <div
-            className="rounded-[20px] border border-sky-100 bg-white/92 p-4 shadow-[0_16px_34px_rgba(14,165,233,0.12)] ring-1 ring-white"
-            data-nosnippet
-          >
-            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-sky-700">
-              {primaryCountTitle}
-            </p>
-            <p className="mt-1 text-[1.65rem] font-black leading-none text-slate-950">
-              {isSearchState ? renderSearchTotalCount() : renderFilteredCount()}
-            </p>
-            <p className="mt-2 text-[11px] font-semibold leading-4 text-slate-500">
-              {countCaption}
-            </p>
-            <p className="mt-3 rounded-[13px] border border-slate-200 bg-slate-50/90 px-3 py-2 text-[11px] font-bold leading-4 text-slate-600">
-              Відкрито зараз: {renderShownCount("text-slate-950")}
-            </p>
-          </div>
-
-          {visibleItems.length > 0 && (
-            <div
-              className="min-w-0 rounded-[20px] border border-slate-200 bg-white/88 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.06)] lg:col-span-2"
-              data-nosnippet
-            >
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
-                  Приклади відкритих товарів
+        {visibleItems.length > 0 && (
+          <div className="px-4 py-5 sm:px-6" data-nosnippet>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  <PackageSearch size={13} aria-hidden />
+                  Товари в каталозі
+                </p>
+                <p className="mt-1 text-[13px] font-medium text-slate-500">
+                  Швидкий перегляд позицій, які відповідають поточному фільтру.
                 </p>
               </div>
-              <ul className="grid gap-1.5 sm:grid-cols-2 md:grid-cols-3">
-                {visibleItems.map((item) => {
-                  const visibleName = buildVisibleProductName(item.name);
-
-                  return (
-                    <li key={item.code}>
-                      <a
-                        href={buildSeoProductPath(item)}
-                        className="block min-h-[52px] rounded-[15px] border border-transparent bg-slate-50/82 px-3 py-2 text-[13px] font-bold leading-5 text-slate-700 transition hover:border-sky-200 hover:bg-white hover:text-sky-700 hover:shadow-[0_10px_22px_rgba(14,165,233,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
-                      >
-                        <span className="min-w-0">
-                          <span className="line-clamp-1">{visibleName}</span>
-                          {item.producer ? (
-                            <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">
-                              {item.producer}
-                            </span>
-                          ) : null}
-                        </span>
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
+              <Link
+                href="/katalog"
+                className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-slate-200 bg-white px-3 text-[12px] font-black text-slate-700 shadow-sm transition-[border-color,color,background-color] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+              >
+                Увесь каталог
+                <ArrowUpRight size={13} aria-hidden />
+              </Link>
             </div>
-          )}
-        </div>
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {visibleItems.slice(0, 16).map((item) => {
+                const visibleName = buildVisibleProductName(item.name);
+                return (
+                  <li key={item.code} className="flex flex-col">
+                    <a
+                      href={buildSeoProductPath(item)}
+                      className="group flex h-full min-h-[62px] flex-col justify-center rounded-[14px] border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-sky-200 hover:bg-white hover:shadow-[0_12px_24px_rgba(14,165,233,0.09)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                    >
+                      <span className="line-clamp-2 text-[13px] font-bold leading-5 text-slate-800 group-hover:text-sky-700">
+                        {visibleName}
+                      </span>
+                      <span className="mt-1 line-clamp-1 text-[11px] font-semibold text-slate-400">
+                        {[item.producer, item.article].filter(Boolean).join(" · ")}
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         {showDiscovery && (
           <nav
             aria-label="Розділи каталогу"
-            className="grid gap-3 border-t border-slate-200/80 bg-white/64 px-4 py-4 sm:px-5 lg:grid-cols-2 lg:gap-0"
+            className="border-t border-slate-100 bg-slate-50/70 px-4 py-5 sm:px-6"
           >
-            {topGroups.length > 0 && (
-              <div className="min-w-0 rounded-[18px] bg-white/62 p-3 ring-1 ring-slate-200/70 lg:rounded-l-[18px] lg:rounded-r-none lg:pr-5">
-                <div className="mb-2.5 flex items-center justify-between gap-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
-                    Групи товарів
-                  </p>
-                  <Link
-                    href="/groups"
-                    className="inline-flex min-h-8 shrink-0 items-center rounded-[12px] bg-[linear-gradient(135deg,#0f172a,#0369a1)] px-3.5 py-1 text-[11px] font-black text-white shadow-[0_10px_22px_rgba(14,165,233,0.18)] ring-1 ring-white/70 transition hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,#0369a1,#0284c7)] hover:shadow-[0_14px_28px_rgba(14,165,233,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
-                  >
-                    Усі групи
-                  </Link>
-                </div>
-                <div className="max-w-full text-[12px] font-bold leading-7 text-slate-600">
-                  {topGroups.map((group, index) => (
-                    <span key={`group-${group.slug}`}>
+            <div className="grid gap-4 lg:grid-cols-2 lg:gap-5">
+              {topGroups.length > 0 && (
+                <div className="rounded-[16px] border border-slate-200/70 bg-white/75 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                      <ListTree size={13} aria-hidden />
+                      Групи запчастин
+                    </span>
+                    <Link
+                      href="/groups"
+                      className="inline-flex items-center gap-1 text-[12px] font-black text-sky-700 transition hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                    >
+                      Усі групи
+                      <ArrowUpRight size={13} aria-hidden />
+                    </Link>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {topGroups.map((group) => (
                       <a
+                        key={`group-${group.slug}`}
                         href={group.href}
-                        aria-label={`Категорія запчастин ${group.label}`}
-                        className="rounded-[7px] px-1 py-0.5 text-slate-700 transition hover:bg-sky-50 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                        aria-label={`Категорія запчастин: ${group.label}`}
+                        className="inline-flex min-h-8 items-center rounded-[11px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-700 shadow-sm transition-[border-color,background-color,color,box-shadow] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 hover:shadow-[0_8px_18px_rgba(14,165,233,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                       >
                         {group.label}
                       </a>
-                      {index < topGroups.length - 1 ? (
-                        <span className="text-slate-300">, </span>
-                      ) : null}
+                    ))}
+                  </div>
+                </div>
+              )}
+              {topProducers.length > 0 && (
+                <div className="rounded-[16px] border border-slate-200/70 bg-white/75 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                      <Tags size={13} aria-hidden />
+                      Виробники
                     </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {topProducers.length > 0 && (
-              <div className="min-w-0 rounded-[18px] bg-white/62 p-3 ring-1 ring-slate-200/70 lg:rounded-l-none lg:rounded-r-[18px] lg:border-l lg:border-slate-300/80 lg:pl-5">
-                <div className="mb-2.5 flex items-center justify-between gap-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
-                    Виробники
-                  </p>
-                  <Link
-                    href="/manufacturers"
-                    className="inline-flex min-h-8 shrink-0 items-center rounded-[12px] bg-[linear-gradient(135deg,#0f172a,#0369a1)] px-3.5 py-1 text-[11px] font-black text-white shadow-[0_10px_22px_rgba(14,165,233,0.18)] ring-1 ring-white/70 transition hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,#0369a1,#0284c7)] hover:shadow-[0_14px_28px_rgba(14,165,233,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
-                  >
-                    Усі виробники
-                  </Link>
-                </div>
-                <div className="max-w-full text-[12px] font-bold leading-7 text-slate-600">
-                  {topProducers.map((producer, index) => (
-                    <span key={`producer-${producer.slug}`}>
+                    <Link
+                      href="/manufacturers"
+                      className="inline-flex items-center gap-1 text-[12px] font-black text-sky-700 transition hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                    >
+                      Усі виробники
+                      <ArrowUpRight size={13} aria-hidden />
+                    </Link>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {topProducers.map((producer) => (
                       <a
+                        key={`producer-${producer.slug}`}
                         href={buildManufacturerPath(producer.slug)}
-                        aria-label={`Виробник автозапчастин ${producer.label}`}
-                        className="rounded-[7px] px-1 py-0.5 text-slate-700 transition hover:bg-sky-50 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                        aria-label={`Виробник автозапчастин: ${producer.label}`}
+                        className="inline-flex min-h-8 items-center rounded-[11px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-700 shadow-sm transition-[border-color,background-color,color,box-shadow] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 hover:shadow-[0_8px_18px_rgba(14,165,233,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                       >
                         {producer.label}
                       </a>
-                      {index < topProducers.length - 1 ? (
-                        <span className="text-slate-300">, </span>
-                      ) : null}
-                    </span>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </nav>
         )}
       </div>

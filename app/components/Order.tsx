@@ -13,6 +13,7 @@ import {
   PackageCheck,
   Gift,
   Percent,
+  Handshake,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCart } from 'app/context/CartContext';
@@ -22,6 +23,12 @@ import {
   FIRST_ORDER_DISCOUNT_CODE,
   FIRST_ORDER_DISCOUNT_PERCENT,
 } from 'app/lib/first-order-discount';
+import {
+  calculatePartnerDiscount,
+  PARTNER_DISCOUNT_PERCENT,
+  PARTNER_THRESHOLD_UAH,
+  type PartnerDiscountStatus,
+} from 'app/lib/partnership-discount';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import Zamovl from './zamovl';
 import ProductCardImage from './ProductCardImage';
@@ -62,6 +69,9 @@ interface PastOrder {
   paymentMethod?: string;
   discountAmount?: number;
   subtotalAmount?: number;
+  read?: boolean;
+  shipped?: boolean;
+  completed?: boolean;
 }
 
 type FirstOrderDiscountStatus = 'loading' | 'guest' | 'eligible' | 'used' | 'error';
@@ -77,6 +87,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [firstOrderDiscountStatus, setFirstOrderDiscountStatus] =
     useState<FirstOrderDiscountStatus>('loading');
+  const [partnerDiscountStatus, setPartnerDiscountStatus] =
+    useState<PartnerDiscountStatus>('loading');
+  const [totalSpentOnOrders, setTotalSpentOnOrders] = useState(0);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const orderRef = useRef<HTMLDivElement>(null);
   const openAuthModal = () => {
@@ -110,12 +123,23 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   );
   const isFirstOrderDiscountEligible =
     Boolean(user) && firstOrderDiscountStatus === 'eligible';
-  const isDiscountCheckPending = !isAuthReady || (Boolean(user) && firstOrderDiscountStatus === 'loading');
+  const isPartnerEligible =
+    Boolean(user) && partnerDiscountStatus === 'active';
+  const isDiscountCheckPending =
+    !isAuthReady ||
+    (Boolean(user) &&
+      (firstOrderDiscountStatus === 'loading' || partnerDiscountStatus === 'loading'));
   const discountTotals = useMemo(
     () => calculateFirstOrderDiscount(totalAmount, isFirstOrderDiscountEligible),
     [isFirstOrderDiscountEligible, totalAmount]
   );
-  const payableAmount = discountTotals.totalAmount;
+  const partnerDiscountTotals = useMemo(
+    () => calculatePartnerDiscount(totalAmount, isPartnerEligible),
+    [isPartnerEligible, totalAmount]
+  );
+  // Partner discount takes priority; first-order applies only when not yet a partner
+  const effectiveDiscountTotals = isPartnerEligible ? partnerDiscountTotals : discountTotals;
+  const payableAmount = effectiveDiscountTotals.totalAmount;
   const totalUnits = cartItems.reduce(
     (total, item) => total + (item.quantity || 0),
     0
@@ -146,10 +170,10 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     pushEcommerceEvent("begin_checkout", {
       currency: "UAH",
       value: payableAmount,
-      ...(discountTotals.isApplied
+      ...(effectiveDiscountTotals.isApplied
         ? {
-            coupon: FIRST_ORDER_DISCOUNT_CODE,
-            discount: discountTotals.discountAmount,
+            coupon: effectiveDiscountTotals.discountCode ?? FIRST_ORDER_DISCOUNT_CODE,
+            discount: effectiveDiscountTotals.discountAmount,
           }
         : {}),
       items: cartEcommerceItems,
@@ -210,6 +234,43 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     return () => {
       cancelled = true;
     };
+  }, [isAuthReady, user]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkPartnership = async () => {
+      if (!isAuthReady) {
+        setPartnerDiscountStatus('loading');
+        return;
+      }
+      if (!user) {
+        setPartnerDiscountStatus('guest');
+        return;
+      }
+      setPartnerDiscountStatus('loading');
+      try {
+        const q = query(
+          collection(db, 'orders'),
+          where('uid', '==', user.uid),
+          orderBy('createdAt', 'desc')
+        );
+        const snap = await getDocs(q);
+        if (cancelled) return;
+        const total = snap.docs.reduce((sum, doc) => {
+          const data = doc.data() as { totalAmount?: number; total?: number };
+          const amount = Number(data.totalAmount || data.total || 0);
+          return sum + (Number.isFinite(amount) ? amount : 0);
+        }, 0);
+        setTotalSpentOnOrders(total);
+        setPartnerDiscountStatus(total >= PARTNER_THRESHOLD_UAH ? 'active' : 'pending');
+      } catch {
+        if (!cancelled) setPartnerDiscountStatus('error');
+      }
+    };
+
+    void checkPartnership();
+    return () => { cancelled = true; };
   }, [isAuthReady, user]);
 
   useEffect(() => {
@@ -282,9 +343,20 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               tone: 'guest',
             };
   const shouldShowFirstOrderDiscountPanel =
-    firstOrderDiscountStatus === 'eligible' ||
-    firstOrderDiscountStatus === 'guest' ||
-    firstOrderDiscountStatus === 'error';
+    !isPartnerEligible &&
+    (firstOrderDiscountStatus === 'eligible' ||
+      firstOrderDiscountStatus === 'guest' ||
+      firstOrderDiscountStatus === 'error');
+
+  const partnerProgressPercent = Math.min(
+    100,
+    Math.round((totalSpentOnOrders / PARTNER_THRESHOLD_UAH) * 100)
+  );
+  const partnerAmountLeft = Math.max(0, PARTNER_THRESHOLD_UAH - totalSpentOnOrders);
+  const shouldShowPartnerPanel =
+    Boolean(user) &&
+    (partnerDiscountStatus === 'active' ||
+      partnerDiscountStatus === 'pending');
   const firstOrderDiscountPanelClass =
     firstOrderDiscountCopy.tone === 'active'
       ? 'border-emerald-200/80 bg-gradient-to-r from-white via-emerald-50/80 to-white text-slate-800 shadow-[0_10px_22px_rgba(16,185,129,0.08)]'
@@ -298,10 +370,11 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
         cartItems={cartItems}
         totalAmount={totalAmount}
         payableAmount={payableAmount}
-        discountAmount={discountTotals.discountAmount}
-        discountRate={discountTotals.discountRate}
-        discountCode={discountTotals.discountCode}
-        isFirstOrderDiscountApplied={discountTotals.isApplied}
+        discountAmount={effectiveDiscountTotals.discountAmount}
+        discountRate={effectiveDiscountTotals.discountRate}
+        discountCode={effectiveDiscountTotals.discountCode}
+        isFirstOrderDiscountApplied={discountTotals.isApplied && !isPartnerEligible}
+        isPartnerDiscountApplied={partnerDiscountTotals.isApplied}
         onBack={() => setIsOrdering(false)}
         onCloseAll={() => {
           setIsOrdering(false);
@@ -441,9 +514,27 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                               <CalendarClock size={13} />
                               {orderDateLabel}
                             </span>
-                            <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white/85 px-2.5 py-1 text-[11px] font-bold text-slate-600">
-                              {isExpanded ? 'Деталі відкрито' : 'Деталі замовлення'}
-                            </span>
+                            {order.completed ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200/70 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                Виконано
+                              </span>
+                            ) : order.shipped ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-blue-200/70 bg-blue-50/80 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+                                <Truck size={11} />
+                                Відправлено
+                              </span>
+                            ) : order.read ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/70 bg-amber-50/80 px-2.5 py-1 text-[11px] font-bold text-amber-700">
+                                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                Опрацьовується
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/85 px-2.5 py-1 text-[11px] font-bold text-slate-500">
+                                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                Нове замовлення
+                              </span>
+                            )}
                             {hasOrderDiscount && (
                               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
                                 <Percent size={13} />
@@ -617,9 +708,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
 
             <button
               onClick={handleBeginCheckout}
-              className={`flex items-center justify-center gap-1.5 rounded-[14px] border px-2.5 py-2 text-sm font-semibold transition-[transform,box-shadow,filter,background-color,border-color] duration-200 sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
+              className={`flex items-center justify-center gap-1.5 rounded-[14px] border px-2.5 py-2 text-[13px] font-semibold transition-[transform,box-shadow,filter,background-color,border-color] duration-200 sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
                 hasItems && !isDiscountCheckPending
-                  ? 'border-sky-200/50 bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-500 text-white shadow-[0_16px_30px_rgba(14,165,233,0.28)] hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_20px_38px_rgba(37,99,235,0.3)]'
+                  ? 'border-sky-300/50 bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-[0_8px_20px_rgba(14,165,233,0.30)] hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_14px_28px_rgba(37,99,235,0.34)]'
                   : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-70'
               }`}
               disabled={!hasItems || isDiscountCheckPending}
@@ -660,6 +751,75 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
           <div className="mt-2 space-y-2 pb-1">
         {hasItems ? (
           <>
+            {shouldShowPartnerPanel && (
+              <div
+                className={`rounded-[16px] border px-3 py-2.5 transition-[border-color,box-shadow,background-color] sm:rounded-[18px] sm:px-3.5 ${
+                  partnerDiscountStatus === 'active'
+                    ? 'border-sky-300/60 bg-gradient-to-r from-sky-50/90 via-white to-indigo-50/80 text-slate-800 shadow-[0_10px_22px_rgba(14,165,233,0.10)]'
+                    : 'border-slate-200/80 bg-gradient-to-r from-white via-slate-50/80 to-white text-slate-800 shadow-[0_10px_22px_rgba(15,23,42,0.05)]'
+                }`}
+              >
+                <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] border border-white/80 bg-white/90 shadow-[0_8px_16px_rgba(15,23,42,0.05)] ${partnerDiscountStatus === 'active' ? 'text-sky-600' : 'text-slate-500'}`}>
+                      <Handshake size={17} strokeWidth={2} aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold leading-4 text-slate-900 sm:text-sm">
+                        {partnerDiscountStatus === 'active'
+                          ? `Партнер PartsON — знижка ${PARTNER_DISCOUNT_PERCENT}% активна`
+                          : 'Партнерська програма PartsON'}
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium leading-4 text-slate-600 sm:text-xs">
+                        {partnerDiscountStatus === 'active'
+                          ? 'Знижку враховано автоматично для цього замовлення.'
+                          : `До активації залишилось ${currencyFormatter.format(Math.ceil(partnerAmountLeft))} грн замовлень`}
+                      </p>
+                    </div>
+                  </div>
+                  {partnerDiscountStatus === 'active' ? (
+                    <span className="inline-flex shrink-0 items-center justify-center rounded-full border border-sky-200/80 bg-white/90 px-2.5 py-1 text-xs font-bold text-sky-700 shadow-[0_6px_12px_rgba(14,165,233,0.08)]">
+                      -{PARTNER_DISCOUNT_PERCENT}%
+                    </span>
+                  ) : (
+                    <a
+                      href="/partnership"
+                      className="shrink-0 inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-[0_6px_12px_rgba(15,23,42,0.06)] transition hover:border-sky-200 hover:text-sky-700"
+                    >
+                      Деталі
+                    </a>
+                  )}
+                </div>
+                {partnerDiscountStatus === 'pending' && (
+                  <div className="mt-2.5 border-t border-slate-100 pt-2.5">
+                    <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                      <span>{currencyFormatter.format(Math.round(totalSpentOnOrders))} грн</span>
+                      <span>{currencyFormatter.format(PARTNER_THRESHOLD_UAH)} грн</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500 transition-all duration-500"
+                        style={{ width: `${partnerProgressPercent}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-[10.5px] font-medium text-slate-400">
+                      {partnerProgressPercent}% до партнерства — ще {currencyFormatter.format(Math.ceil(partnerAmountLeft))} грн замовлень
+                    </p>
+                  </div>
+                )}
+                {partnerDiscountStatus === 'active' && partnerDiscountTotals.isApplied && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-sky-100/80 pt-2 text-xs">
+                    <span className="inline-flex rounded-full bg-sky-50 px-2.5 py-1 font-semibold text-sky-700">
+                      Знижка -{currencyFormatter.format(partnerDiscountTotals.discountAmount)} грн
+                    </span>
+                    <span className="inline-flex rounded-full bg-white/85 px-2.5 py-1 font-bold text-slate-900">
+                      До оплати {currencyFormatter.format(payableAmount)} грн
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {shouldShowFirstOrderDiscountPanel && (
               <div
                 className={`rounded-[16px] border px-3 py-2.5 transition-[border-color,box-shadow,background-color] sm:rounded-[18px] sm:px-3.5 ${firstOrderDiscountPanelClass}`}
@@ -776,11 +936,11 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                       <button
                         type="button"
                         onClick={() => removeFromCart(item.code)}
-                        className="absolute right-2 top-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white/95 text-rose-500 shadow-[0_10px_18px_rgba(244,63,94,0.12)] transition-[transform,box-shadow,border-color,background-color,color] duration-200 hover:-translate-y-0.5 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 hover:shadow-[0_14px_24px_rgba(244,63,94,0.18)] sm:right-2.5 sm:top-2.5 sm:h-9 sm:w-9"
-                      aria-label={`Видалити ${itemName}`}
-                    >
-                      <X size={18} />
-                    </button>
+                        className="absolute right-2 top-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-rose-200/70 bg-rose-50/80 text-rose-500 transition hover:bg-rose-100 hover:text-rose-600 hover:border-rose-300/70 sm:right-2.5 sm:top-2.5 sm:h-8 sm:w-8"
+                        aria-label={`Видалити ${itemName}`}
+                      >
+                        <X size={14} strokeWidth={2} />
+                      </button>
                   </div>
                 );
               })}

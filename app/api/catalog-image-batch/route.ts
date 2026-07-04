@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { findCatalogProductByCode } from "app/lib/catalog-server";
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import {
+  fetchProductImageBase64,
   fetchProductImageBase64Batch,
 } from "app/lib/product-image";
 import {
@@ -21,13 +22,13 @@ import {
 
 export const runtime = "nodejs";
 
-const MAX_BATCH_ITEMS = 60;
-const BATCH_CONCURRENCY = 20;
+const MAX_BATCH_ITEMS = 24;
+const BATCH_CONCURRENCY = 6;
 const CATALOG_IMAGE_READY_CACHE_TTL_MS = 1000 * 60 * 60;
-const CATALOG_IMAGE_MISSING_CACHE_TTL_MS = 1000 * 60 * 5;
+const CATALOG_IMAGE_MISSING_CACHE_TTL_MS = 1000 * 60 * 30;
 
 const PRIMARY_LOOKUP_OPTIONS = {
-  timeoutMs: 1000,
+  timeoutMs: 750,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 60 * 2,
@@ -36,8 +37,18 @@ const PRIMARY_LOOKUP_OPTIONS = {
   batchOnly: true,
   maxKeys: MAX_BATCH_ITEMS * 2,
 };
+
+// Fallback per-key options used when the 1C batch endpoint is unavailable.
+const INDIVIDUAL_LOOKUP_OPTIONS = {
+  timeoutMs: 700,
+  retries: 0,
+  retryDelayMs: 0,
+  cacheTtlMs: 1000 * 60 * 60 * 2,
+  missCacheTtlMs: 1000 * 60 * 5,
+  allowUrlDownload: false,
+};
 const DEEP_RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 1200,
+  timeoutMs: 800,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 20,
@@ -48,10 +59,10 @@ const DEEP_RECOVERY_LOOKUP_OPTIONS = {
   maxKeys: MAX_BATCH_ITEMS * 4,
 };
 const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
-  lookupLimit: 16,
+  lookupLimit: 10,
   fallbackPages: 1,
-  pageSize: 24,
-  timeoutMs: 380,
+  pageSize: 16,
+  timeoutMs: 300,
   retries: 0,
   retryDelayMs: 80,
   cacheTtlMs: 1000 * 60 * 5,
@@ -157,6 +168,7 @@ const normalizeBatchItems = (payload: unknown) => {
     const key = buildProductImageBatchKey(code, article);
 
     if (!code || !key || seen.has(key)) continue;
+    if (hasPhoto !== true) continue;
     seen.add(key);
     items.push({
       code,
@@ -275,20 +287,6 @@ export async function POST(request: Request) {
 
   for (const [index, item] of items.entries()) {
     const key = buildProductImageBatchKey(item.code, item.article);
-    if (item.hasPhoto === false) {
-      const result: CatalogImageBatchResult = {
-        key,
-        code: item.code,
-        article: item.article,
-        status: "missing",
-      };
-      writeCatalogImageResultCache(result, deep, {
-        ready: CATALOG_IMAGE_READY_CACHE_TTL_MS,
-        missing: CATALOG_IMAGE_MISSING_CACHE_TTL_MS,
-      });
-      results[index] = result;
-      continue;
-    }
 
     const cached = getCachedCatalogImageResult(key, deep);
     if (cached) {
@@ -368,6 +366,19 @@ export async function POST(request: Request) {
       const directLookupKeys = primaryLookupKeysByItemKey.get(key) ?? [];
 
       let imageBase64 = pickResolvedBase64(directLookupKeys, primaryResolvedMap);
+
+      // When the 1C batch endpoint is unavailable, fall back to individual lookups
+      // using the same BATCH_CONCURRENCY worker pool so all items run in parallel.
+      if (!imageBase64 && !deep) {
+        for (const lookupKey of directLookupKeys) {
+          const individual = await fetchProductImageBase64(lookupKey, INDIVIDUAL_LOOKUP_OPTIONS).catch(() => null);
+          if (individual) {
+            imageBase64 = individual;
+            break;
+          }
+        }
+      }
+
       if (!imageBase64) {
         const product = recoveryProducts.get(key);
         if (product) {
