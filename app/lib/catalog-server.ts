@@ -655,10 +655,34 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     return parseAllgoodsPayload(response.text);
   };
 
-  // When a cursor is provided (page 2+), use it directly — even with price sort.
-  // This handles both the standard cursor path and the price-sorted continuation
-  // past the 100-item window. 1C may or may not sort within the cursor window;
-  // the client-side sort in Data.tsx re-sorts accumulated items anyway.
+  if (isPriceSorted) {
+    // Price-sort pagination: 1C ignores ПосляКода when СортировкаПоЦене is active,
+    // so cursor-based continuation is unreliable. Instead, always fetch a fixed
+    // PRICE_SORT_BATCH items from 1C and slice by page. All pages share the same
+    // 1C cache entry (same request body), so only the first page pays the fetch cost.
+    const PRICE_SORT_BATCH = 240; // up to 20 pages × 12 items
+    const start = (page - 1) * limit;
+    const parsed = await requestAllgoodsPage({
+      ...requestBodyBase,
+      [ALLGOODS_LIMIT_FIELD]: PRICE_SORT_BATCH,
+    });
+    const sourceItems = sortPricedWindow(filterPricedItems(parsed.items));
+    const pageSlice = sourceItems.slice(start, start + limit);
+    // hasMore is true only when the current page is full AND there are more items
+    const hasMore =
+      pageSlice.length === limit &&
+      (sourceItems.length > start + limit ||
+        (parsed.hasMore && parsed.items.length >= PRICE_SORT_BATCH));
+    return {
+      items: pageSlice,
+      hasMore,
+      // No cursor — next page uses the same fixed-batch approach with page+1
+      nextCursor: "",
+      cursorField: null,
+      totalCount: parsed.totalCount,
+    };
+  }
+
   if (requestedCursor) {
     const parsed = await requestAllgoodsPage({
       ...requestBodyBase,
@@ -668,43 +692,11 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     const items = filterPricedItems(parsed.items);
     const pageItems = items.slice(0, limit);
     const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(pageItems);
-    const hasMore =
-      parsed.hasMore ||
-      items.length > limit ||
-      (isPriceSorted && !parsed.nextCursor && parsed.items.length >= limit);
+    const hasMore = parsed.hasMore || items.length > limit;
     return {
       items: pageItems,
       hasMore: pageItems.length === limit ? hasMore : false,
       nextCursor: pageItems.length === limit && hasMore ? resolvedCursor : "",
-      cursorField: null,
-      totalCount: parsed.totalCount,
-    };
-  }
-
-  if (isPriceSorted) {
-    const start = (page - 1) * limit;
-    const targetCount = start + limit + 1;
-    // Cap at 96 to guarantee a cursor is always returned (< 100 check below).
-    // Deeper pages use cursor-based continuation (requestedCursor branch above).
-    const requestLimit = Math.min(96, Math.max(limit + 1, targetCount));
-    const parsed = await requestAllgoodsPage({
-      ...requestBodyBase,
-      [ALLGOODS_LIMIT_FIELD]: requestLimit,
-    });
-    const sourceItems = sortPricedWindow(filterPricedItems(parsed.items));
-    const pageSlice = sourceItems.slice(start, start + limit);
-    const resolvedCursor = deriveAllgoodsFallbackCursor(pageSlice);
-    const rawHasMore =
-      sourceItems.length > start + limit ||
-      parsed.hasMore ||
-      parsed.items.length >= requestLimit;
-    // Return hasMore=false when the page slice is incomplete to avoid
-    // an infinite-empty-load loop when offset exceeds requestLimit.
-    const hasMore = pageSlice.length === limit ? rawHasMore : false;
-    return {
-      items: pageSlice,
-      hasMore,
-      nextCursor: hasMore ? resolvedCursor : "",
       cursorField: null,
       totalCount: parsed.totalCount,
     };
