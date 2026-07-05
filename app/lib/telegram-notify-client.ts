@@ -19,7 +19,8 @@ export const notifyTelegramAdmin = async (payload: TelegramNotifyPayload) => {
     });
 
     if (!response.ok) {
-      console.warn("Telegram notification failed:", response.status);
+      const body = await response.text().catch(() => "");
+      console.warn(`[telegram] notify failed: HTTP ${response.status}`, body || "(empty body)");
     }
   } catch (error) {
     console.warn("Telegram notification request failed:", error);

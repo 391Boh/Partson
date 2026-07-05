@@ -1,4 +1,18 @@
-import { CheckCircle, CreditCard, PackageCheck, Percent, Phone, ReceiptText } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import {
+  CheckCircle,
+  CreditCard,
+  PackageCheck,
+  Percent,
+  Phone,
+  ReceiptText,
+  Star,
+  MessageSquare,
+  ThumbsUp,
+} from "lucide-react";
+import { getFirestore, doc, updateDoc, Timestamp } from "firebase/firestore";
 
 interface OrderConfirmationProps {
   name: string;
@@ -13,6 +27,22 @@ interface OrderConfirmationProps {
   onClose: () => void;
 }
 
+const STAR_LABELS = ["", "Погано", "Нижче середнього", "Нормально", "Добре", "Відмінно"];
+
+const saveRating = async (orderId: string, rating: number, comment: string) => {
+  try {
+    const db = getFirestore();
+    await updateDoc(doc(db, "orders", orderId), {
+      feedbackRating: rating,
+      feedbackComment: comment.trim() || null,
+      feedbackAt: Timestamp.now(),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
   name,
   phone,
@@ -25,6 +55,12 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
   paymentStatus,
   onClose,
 }) => {
+  const [hovered, setHovered] = useState(0);
+  const [selected, setSelected] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const formattedAmount = new Intl.NumberFormat("uk-UA", {
     style: "currency",
     currency: "UAH",
@@ -42,6 +78,16 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
     minimumFractionDigits: 0,
   }).format(discountAmount);
   const isPaid = paymentStatus === "paid";
+
+  const displayStar = hovered || selected;
+
+  const handleSubmitRating = async () => {
+    if (!selected) return;
+    setSaving(true);
+    await saveRating(orderId, selected, comment);
+    setSaving(false);
+    setSubmitted(true);
+  };
 
   return (
     <div className="mx-auto mt-4 max-w-xl space-y-3 text-sky-50 sm:mt-5">
@@ -126,6 +172,97 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
           </div>
         </div>
       )}
+
+      {/* Rating survey */}
+      <div className="soft-surface-card rounded-[20px] px-4 py-4">
+        {submitted ? (
+          <div className="flex flex-col items-center gap-2 py-2 text-center">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] bg-emerald-50 text-emerald-500">
+              <ThumbsUp size={20} aria-hidden="true" />
+            </span>
+            <p className="text-sm font-bold text-slate-900">Дякуємо за відгук!</p>
+            <p className="text-xs text-slate-500">Ваша оцінка допомагає нам ставати кращими.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-amber-50 text-amber-500">
+                <Star size={14} fill="currentColor" aria-hidden="true" />
+              </span>
+              <p className="text-sm font-bold text-slate-900">Оцініть ваш досвід</p>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Це займе 10 секунд і допоможе нам стати кращими
+            </p>
+
+            <div
+              className="mt-3 flex items-center justify-center gap-1.5"
+              role="group"
+              aria-label="Оцінка від 1 до 5"
+            >
+              {[1, 2, 3, 4, 5].map((star) => {
+                const active = star <= displayStar;
+                return (
+                  <button
+                    key={star}
+                    type="button"
+                    aria-label={`${star} зірка — ${STAR_LABELS[star]}`}
+                    aria-pressed={selected === star}
+                    onMouseEnter={() => setHovered(star)}
+                    onMouseLeave={() => setHovered(0)}
+                    onClick={() => setSelected(star)}
+                    className={`flex h-10 w-10 items-center justify-center rounded-[12px] border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 ${
+                      active
+                        ? "border-amber-300 bg-amber-50 text-amber-500 shadow-[0_4px_12px_rgba(245,158,11,0.18)]"
+                        : "border-slate-200 bg-white text-slate-300 hover:border-amber-200 hover:text-amber-300"
+                    }`}
+                  >
+                    <Star
+                      size={20}
+                      fill={active ? "currentColor" : "none"}
+                      aria-hidden="true"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+
+            {displayStar > 0 && (
+              <p className="mt-1.5 text-center text-[11px] font-semibold text-amber-600">
+                {STAR_LABELS[displayStar]}
+              </p>
+            )}
+
+            {selected > 0 && (
+              <div className="mt-3">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                  <MessageSquare size={12} aria-hidden="true" />
+                  Коментар (необов&apos;язково)
+                </div>
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  maxLength={400}
+                  rows={2}
+                  placeholder="Що сподобалось або що варто покращити?"
+                  className="mt-1.5 w-full resize-none rounded-[12px] border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-700 placeholder-slate-400 outline-none transition focus:border-sky-300 focus:bg-white focus:ring-2 focus:ring-sky-200/60"
+                />
+              </div>
+            )}
+
+            {selected > 0 && (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleSubmitRating}
+                className="soft-primary-button mt-3 w-full py-2 text-xs font-semibold disabled:opacity-60"
+              >
+                {saving ? "Відправляємо…" : "Надіслати оцінку"}
+              </button>
+            )}
+          </>
+        )}
+      </div>
 
       <div className="flex justify-center">
         <button

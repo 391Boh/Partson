@@ -335,7 +335,8 @@ const parseAllgoodsPayload = (payload: string) => {
   try {
     const parsed = JSON.parse(payload) as Record<string, unknown>;
     const records = Array.isArray(parsed?.items) ? parsed.items : [];
-    const rawCount = Number(parsed?.count ?? parsed?.totalCount ?? parsed?.total_count);
+    // total_count = всі записи за фільтром; count = кількість на поточній сторінці
+    const rawCount = Number(parsed?.total_count ?? parsed?.totalCount);
     const totalCount = Number.isFinite(rawCount) && rawCount >= 0 ? Math.floor(rawCount) : null;
     const nextCursor = [
       parsed?.next_cursor,

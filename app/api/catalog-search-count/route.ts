@@ -123,6 +123,17 @@ const fetchSearchCount = async (
       forceAllgoodsSource: true,
     });
 
+    // 1C повертає total_count одразу — немає сенсу пагінувати далі
+    if (
+      page === 1 &&
+      !cursor &&
+      typeof pageResult.totalCount === "number" &&
+      Number.isFinite(pageResult.totalCount) &&
+      pageResult.totalCount >= 0
+    ) {
+      return { totalCount: Math.floor(pageResult.totalCount), exact: true };
+    }
+
     let newItems = 0;
     for (const item of pageResult.items) {
       const key = getProductCountKey(item);
