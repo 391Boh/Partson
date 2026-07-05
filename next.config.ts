@@ -35,6 +35,7 @@ const nextDistDir = process.env.NEXT_DIST_DIR || ".next";
 const nextConfig: NextConfig = {
   distDir: nextDistDir,
   poweredByHeader: false,
+  compress: true,
   experimental: {
     optimizeCss: true,
     viewTransition: true,
@@ -44,7 +45,6 @@ const nextConfig: NextConfig = {
     },
     optimizePackageImports: [
       "lucide-react",
-      "@heroicons/react",
       "react-icons",
       "framer-motion",
       "firebase/app",
@@ -52,9 +52,6 @@ const nextConfig: NextConfig = {
       "firebase/firestore",
       "firebase/storage",
     ],
-  },
-  turbopack: {
-    root: process.cwd(),
   },
   webpack(config, { dev }) {
     if (dev) {
