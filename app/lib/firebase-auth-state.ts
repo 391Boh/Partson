@@ -121,7 +121,12 @@ export const subscribeToFirebaseAuthState = (
 ) => {
   listeners.add(listener);
   listener(snapshot);
-  scheduleFirebaseAuthSubscription();
+
+  // Don't pre-load Firebase for guests (no user_id in localStorage → snapshot is ready+null).
+  // Only schedule when user might be logged in (snapshot not yet resolved, or user is set).
+  if (!snapshot.ready || snapshot.user !== null) {
+    scheduleFirebaseAuthSubscription();
+  }
 
   return () => {
     listeners.delete(listener);

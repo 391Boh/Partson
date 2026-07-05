@@ -166,6 +166,7 @@ export default function AdvantagesPhotoSlider() {
           sizes="(min-width: 1024px) 30vw, (min-width: 640px) 332px, 100vw"
           quality={68}
           className="object-cover"
+          priority={displayedPhotoIndex === 0}
         />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950/42 to-transparent" />
         <button

@@ -328,6 +328,8 @@ export default function RootLayout({
         {googleTagManagerId ? (
           <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         ) : null}
+        <link rel="preconnect" href="https://apis.google.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://apis.google.com" />
         {firebaseProjectId ? (
           <link rel="preconnect" href={`https://${firebaseProjectId}.firebaseapp.com`} crossOrigin="anonymous" />
         ) : null}
