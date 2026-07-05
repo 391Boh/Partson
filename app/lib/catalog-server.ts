@@ -655,10 +655,38 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     return parseAllgoodsPayload(response.text);
   };
 
+  // When a cursor is provided (page 2+), use it directly — even with price sort.
+  // This handles both the standard cursor path and the price-sorted continuation
+  // past the 100-item window. 1C may or may not sort within the cursor window;
+  // the client-side sort in Data.tsx re-sorts accumulated items anyway.
+  if (requestedCursor) {
+    const parsed = await requestAllgoodsPage({
+      ...requestBodyBase,
+      [ALLGOODS_LIMIT_FIELD]: limit + 1,
+      [ALLGOODS_CURSOR_FIELD]: requestedCursor,
+    });
+    const items = filterPricedItems(parsed.items);
+    const pageItems = items.slice(0, limit);
+    const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(pageItems);
+    const hasMore =
+      parsed.hasMore ||
+      items.length > limit ||
+      (isPriceSorted && !parsed.nextCursor && parsed.items.length >= limit);
+    return {
+      items: pageItems,
+      hasMore: pageItems.length === limit ? hasMore : false,
+      nextCursor: pageItems.length === limit && hasMore ? resolvedCursor : "",
+      cursorField: null,
+      totalCount: parsed.totalCount,
+    };
+  }
+
   if (isPriceSorted) {
     const start = (page - 1) * limit;
     const targetCount = start + limit + 1;
-    const requestLimit = Math.min(100, Math.max(limit + 1, targetCount));
+    // Cap at 96 to guarantee a cursor is always returned (< 100 check below).
+    // Deeper pages use cursor-based continuation (requestedCursor branch above).
+    const requestLimit = Math.min(96, Math.max(limit + 1, targetCount));
     const parsed = await requestAllgoodsPage({
       ...requestBodyBase,
       [ALLGOODS_LIMIT_FIELD]: requestLimit,
@@ -666,33 +694,18 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     const sourceItems = sortPricedWindow(filterPricedItems(parsed.items));
     const pageSlice = sourceItems.slice(start, start + limit);
     const resolvedCursor = deriveAllgoodsFallbackCursor(pageSlice);
-    const hasMore =
+    const rawHasMore =
       sourceItems.length > start + limit ||
       parsed.hasMore ||
       parsed.items.length >= requestLimit;
+    // Return hasMore=false when the page slice is incomplete to avoid
+    // an infinite-empty-load loop when offset exceeds requestLimit.
+    const hasMore = pageSlice.length === limit ? rawHasMore : false;
     return {
       items: pageSlice,
       hasMore,
-      nextCursor: hasMore && requestLimit < 100 ? resolvedCursor : "",
+      nextCursor: hasMore ? resolvedCursor : "",
       cursorField: null,
-      totalCount: parsed.totalCount,
-    };
-  }
-
-  if (requestedCursor) {
-    const parsed = await requestAllgoodsPage({
-      ...requestBodyBase,
-      [ALLGOODS_LIMIT_FIELD]: limit,
-      [ALLGOODS_CURSOR_FIELD]: requestedCursor,
-    });
-    const items = filterPricedItems(parsed.items);
-    const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
-    const hasMoreFromWindow =
-      isPriceSorted && !parsed.nextCursor && parsed.items.length >= limit;
-    return {
-      items: items.slice(0, limit),
-      hasMore: parsed.hasMore || hasMoreFromWindow || Boolean(resolvedCursor),
-      nextCursor: resolvedCursor,
       totalCount: parsed.totalCount,
     };
   }
