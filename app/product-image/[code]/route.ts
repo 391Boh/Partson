@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { NextResponse } from "next/server";
@@ -118,11 +118,20 @@ const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
   retryDelayMs: 80,
   cacheTtlMs: 1000 * 60 * 10,
 };
-const OPTIMIZED_IMAGE_CACHE_TTL_MS = 1000 * 60 * 60;
-const ROUTE_IMAGE_HIT_CACHE_TTL_MS = 1000 * 60 * 45;
-const ROUTE_IMAGE_HIT_CACHE_TTL_MS_FULL = 1000 * 60 * 30;
+const OPTIMIZED_IMAGE_CACHE_TTL_MS = 1000 * 60 * 60 * 4;
+const ROUTE_IMAGE_HIT_CACHE_TTL_MS = 1000 * 60 * 60 * 4;
+const ROUTE_IMAGE_HIT_CACHE_TTL_MS_FULL = 1000 * 60 * 60 * 2;
 const FULL_ROUTE_MISS_CACHE_TTL_MS = 1000 * 60;
 const FULL_ROUTE_LOOKUP_BUDGET_MS = 2400;
+const DISK_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const DISK_CACHE_DIR = path.join(process.cwd(), ".cache", "product-images");
+let diskCacheDirReady: Promise<void> | null = null;
+const ensureDiskCacheDir = () => {
+  if (!diskCacheDirReady) {
+    diskCacheDirReady = mkdir(DISK_CACHE_DIR, { recursive: true }).then(() => undefined);
+  }
+  return diskCacheDirReady;
+};
 const CATALOG_IMAGE_MAX_WIDTH = 320;
 const CATALOG_IMAGE_MAX_HEIGHT = 320;
 const CATALOG_IMAGE_QUALITY = 64;
@@ -189,6 +198,54 @@ const pruneRouteImageHitCache = () => {
   }
 };
 
+const getDiskCachePath = (key: string, ext: string) => {
+  const hash = createHash("sha1").update(key).digest("hex");
+  return path.join(DISK_CACHE_DIR, `${hash}.${ext}`);
+};
+
+const readDiskCache = async (
+  cacheKey: string,
+  format: "webp" | "avif"
+): Promise<{ buffer: Buffer; contentType: string } | null> => {
+  try {
+    await ensureDiskCacheDir();
+    const filePath = getDiskCachePath(cacheKey, format);
+    const metaPath = `${filePath}.meta`;
+    const [fileStat, metaRaw] = await Promise.all([
+      stat(filePath).catch(() => null),
+      readFile(metaPath, "utf8").catch(() => null),
+    ]);
+    if (!fileStat || !metaRaw) return null;
+    const meta = JSON.parse(metaRaw) as { expiresAt: number; contentType: string };
+    if (meta.expiresAt < Date.now()) return null;
+    const buffer = await readFile(filePath);
+    return { buffer, contentType: meta.contentType };
+  } catch {
+    return null;
+  }
+};
+
+const writeDiskCache = async (
+  cacheKey: string,
+  format: "webp" | "avif",
+  value: { buffer: Buffer; contentType: string }
+): Promise<void> => {
+  try {
+    await ensureDiskCacheDir();
+    const filePath = getDiskCachePath(cacheKey, format);
+    const metaPath = `${filePath}.meta`;
+    await Promise.all([
+      writeFile(filePath, value.buffer),
+      writeFile(
+        metaPath,
+        JSON.stringify({ expiresAt: Date.now() + DISK_CACHE_TTL_MS, contentType: value.contentType })
+      ),
+    ]);
+  } catch {
+    // Disk write failure is non-fatal
+  }
+};
+
 const detectContentType = (buffer: Buffer) => {
   if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
     return "image/png";
@@ -235,6 +292,16 @@ const optimizeImageBuffer = async (
   const cached = optimizedImageCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.value;
+  }
+
+  // Check persistent disk cache before re-processing
+  const diskCached = await readDiskCache(cacheKey, targetFormat);
+  if (diskCached) {
+    optimizedImageCache.set(cacheKey, {
+      expiresAt: Date.now() + OPTIMIZED_IMAGE_CACHE_TTL_MS,
+      value: diskCached,
+    });
+    return diskCached;
   }
 
   const inFlight = optimizedImageInFlight.get(cacheKey);
@@ -316,6 +383,7 @@ const optimizeImageBuffer = async (
         expiresAt: Date.now() + OPTIMIZED_IMAGE_CACHE_TTL_MS,
         value: optimized,
       });
+      void writeDiskCache(cacheKey, targetFormat, optimized);
       return optimized;
     } catch {
       optimizedImageCache.set(cacheKey, {
@@ -551,7 +619,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       status: 200,
       headers: {
         "content-type": cachedHit.value.contentType,
-        "cache-control": "public, max-age=21600, s-maxage=21600, stale-while-revalidate=604800",
+        "cache-control": "public, max-age=604800, s-maxage=604800, stale-while-revalidate=2592000",
         "vary": "Accept",
       },
     });
@@ -684,7 +752,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
         "content-type": optimizedImage.contentType,
         "cache-control": hasCacheBust
           ? "no-store"
-          : "public, max-age=21600, s-maxage=21600, stale-while-revalidate=604800",
+          : "public, max-age=604800, s-maxage=604800, stale-while-revalidate=2592000",
         "vary": "Accept",
       },
     });
