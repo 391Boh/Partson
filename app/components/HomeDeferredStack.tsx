@@ -7,7 +7,14 @@ import SectionBoundary from "./SectionBoundary";
 function ProductFetcherSkeleton() {
   return (
     <div className="page-shell-inline relative z-10 grid grid-cols-1 items-start gap-6 py-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-      <div className="hidden h-64 rounded-xl border border-sky-200/60 bg-sky-50/40 lg:block skeleton-item" />
+      <div className="hidden lg:block">
+        <div className="rounded-2xl border border-sky-200/60 bg-sky-50/20 p-5">
+          <h2 className="font-display text-[22px] font-black tracking-[-0.045em] text-slate-700 sm:text-[25px]">
+            Швидкий пошук товарів!
+          </h2>
+          <div className="skeleton-item mt-3 h-10 w-full rounded-xl border border-sky-200/60 bg-sky-50/40" />
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div

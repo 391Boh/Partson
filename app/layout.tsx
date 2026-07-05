@@ -323,25 +323,18 @@ export default function RootLayout({
         <link rel="prefetch" href="/Carlogo/Cadillac.svg" as="image" />
         <link rel="prefetch" href="/Carlogo/Dacia.svg" as="image" />
         <link rel="prefetch" href="/Carlogo/Daewoo.svg" as="image" />
-        <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
-        <link rel="preconnect" href="https://lh3.googleusercontent.com" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://lh3.googleusercontent.com" />
         {googleTagManagerId ? (
           <link rel="preconnect" href="https://www.googletagmanager.com" crossOrigin="anonymous" />
         ) : null}
         {googleTagManagerId ? (
           <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         ) : null}
-        <link rel="dns-prefetch" href="https://www.google-analytics.com" />
         {firebaseProjectId ? (
           <link rel="preconnect" href={`https://${firebaseProjectId}.firebaseapp.com`} crossOrigin="anonymous" />
         ) : null}
         {firebaseProjectId ? (
           <link rel="dns-prefetch" href={`https://${firebaseProjectId}.firebaseapp.com`} />
         ) : null}
-        <link rel="preconnect" href="https://apis.google.com" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://apis.google.com" />
         {googleTagManagerId ? (
           <Script
             id="google-tag-manager"

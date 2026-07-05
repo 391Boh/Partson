@@ -1,10 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80">
-  <defs>
-    <linearGradient id="dg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#1a4fa0"/>
-      <stop offset="100%" stop-color="#0d2d6b"/>
-    </linearGradient>
-  </defs>
-  <rect width="200" height="80" rx="6" fill="url(#dg)"/>
-  <text x="100" y="52" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="700" letter-spacing="4" fill="white" text-anchor="middle">DAEWOO</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80"><defs><linearGradient id="a" x1="0%" x2="0%" y1="0%" y2="100%"><stop offset="0%" stop-color="#1a4fa0"/><stop offset="100%" stop-color="#0d2d6b"/></linearGradient></defs><rect width="200" height="80" fill="url(#a)" rx="6"/><text x="100" y="52" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="700" letter-spacing="4" text-anchor="middle">DAEWOO</text></svg>
