@@ -105,13 +105,11 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
       { url: "/favicon-48x48.png", type: "image/png", sizes: "48x48" },
       { url: "/favicon-192x192.png", type: "image/png", sizes: "192x192" },
       { url: "/favicon-512x512.png", type: "image/png", sizes: "512x512" },
     ],
     apple: [{ url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
-    shortcut: ["/favicon.ico"],
   },
   openGraph: {
     type: "website",
