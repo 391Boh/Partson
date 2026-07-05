@@ -56,8 +56,9 @@ const IMAGE_BATCH_ENDPOINT_CANDIDATES = Array.from(
     [
       (process.env.ONEC_IMAGE_BATCH_ENDPOINT || "").trim(),
       (process.env.ONEC_GETIMAGES_BATCH_ENDPOINT || "").trim(),
-      "getimages",
+      // Primary endpoint: try ПолучитьФотоПакетом first before generic names
       "ПолучитьФотоПакетом",
+      "getimages",
       "getimagesbatch",
       "getimages_batch",
       "getimagebatch",
@@ -546,6 +547,12 @@ const fetchProductImageBase64BatchFromEndpoint = async (
       const parsed = parseImageBatchResponse(payload, requestedKeys);
       if (!parsed) continue;
 
+      // Only lock in this endpoint when it actively handled at least one requested
+      // code. An empty items array ({"items":[]}) passes hasImageBatchEnvelope but
+      // could come from a wrong endpoint that knows nothing about our codes — we
+      // must not permanently cache it and skip the real ПолучитьФотоПакетом.
+      if (parsed.handledKeys.size === 0) continue;
+
       resolvedImageBatchEndpoint = endpoint;
       lastImageBatchEndpointProbeAt = 0;
 
@@ -648,7 +655,13 @@ export const fetchProductImageBase64 = async (
   ];
 
   const loadFromBody = async (body: Record<string, unknown>) => {
-    const response = await oneCRequest("getimages", {
+    // Use the already-discovered batch endpoint if available; otherwise fall
+    // back to the primary 1C function name rather than the generic "getimages".
+    const ep =
+      typeof resolvedImageBatchEndpoint === "string" && resolvedImageBatchEndpoint
+        ? resolvedImageBatchEndpoint
+        : "ПолучитьФотоПакетом";
+    const response = await oneCRequest(ep, {
       method: "POST",
       body,
       timeoutMs,
@@ -656,7 +669,7 @@ export const fetchProductImageBase64 = async (
       retryDelayMs,
       cacheTtlMs,
       cacheKey: JSON.stringify({
-        endpoint: "getimages",
+        endpoint: ep,
         body,
         timeoutMs,
         retries,

@@ -39,6 +39,9 @@ const PRIMARY_LOOKUP_OPTIONS = {
 };
 
 // Fallback per-key options used when the 1C batch endpoint is unavailable.
+// skipMissCache: true avoids poisoning the "code::700::0" imageMissCache key for 5 min —
+// the same key that /product-image/[code]?catalog=1 uses (timeoutMs 700, allowUrlDownload false),
+// which would silently block direct image loads for 5 min when this fallback fails.
 const INDIVIDUAL_LOOKUP_OPTIONS = {
   timeoutMs: 700,
   retries: 0,
@@ -46,6 +49,7 @@ const INDIVIDUAL_LOOKUP_OPTIONS = {
   cacheTtlMs: 1000 * 60 * 60 * 2,
   missCacheTtlMs: 1000 * 60 * 5,
   allowUrlDownload: false,
+  skipMissCache: true,
 };
 const DEEP_RECOVERY_LOOKUP_OPTIONS = {
   timeoutMs: 800,
