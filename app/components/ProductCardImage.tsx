@@ -254,7 +254,7 @@ const ProductCardImage: React.FC<Props> = ({
   ]);
   useEffect(() => {
     if (!hasKnownPhoto) return;
-    if (disableDirectLoad || deferDirectLoad) return;
+    if (disableDirectLoad) return;
     if (status !== "missing") return;
     if (!finalRetrySrc) return;
     if (finalRetryQueued) return;
@@ -266,7 +266,7 @@ const ProductCardImage: React.FC<Props> = ({
     }, FINAL_RETRY_DELAY_MS);
 
     return () => window.clearTimeout(timeoutId);
-  }, [deferDirectLoad, disableDirectLoad, finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
+  }, [disableDirectLoad, finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
 
 
   const handleError = useCallback(() => {
@@ -279,7 +279,8 @@ const ProductCardImage: React.FC<Props> = ({
       return;
     }
 
-    if (disableDirectLoad || deferDirectLoad) {
+    // disableDirectLoad: batch still in-flight, no src yet — queue a direct load once cleared.
+    if (disableDirectLoad) {
       if (!directFallbackQueuedRef.current && primarySrc) {
         directFallbackQueuedRef.current = true;
         setRequestSrc(primarySrc);
@@ -293,7 +294,11 @@ const ProductCardImage: React.FC<Props> = ({
       return;
     }
 
-    // Якщо вже був фінальний ретрай, не пробуємо ще раз
+    // deferDirectLoad items fall through to the same retry chain as normal items.
+    // Previously they retried with the same primarySrc URL (identical key → Image not
+    // remounted → no new browser request → stuck in "retrying" showing a blank card).
+    // Now they use recoverySrc (retry=1) and finalRetrySrc (retry=2), which are distinct
+    // URLs that bypass the server-side miss cache (skipMissCache: true).
     if (finalRetryQueued) {
       setStatus("missing");
       return;
@@ -318,7 +323,6 @@ const ProductCardImage: React.FC<Props> = ({
   }, [
     finalRetryQueued,
     finalRetrySrc,
-    deferDirectLoad,
     disableDirectLoad,
     hasKnownPhoto,
     normalizedArticle,
@@ -331,9 +335,8 @@ const ProductCardImage: React.FC<Props> = ({
 
   const canOpen = Boolean(onClick) && status === "loaded";
   const imageAlt = (alt || "Фото товару").trim();
-  // Show skeleton until image is fully loaded (not just while requestSrc is empty)
   const showLoadingSkeleton =
-    !requestSrc && status !== "loaded" && (status === "loading" || batchImagePending);
+    status !== "loaded" && status !== "missing" && (status === "loading" || batchImagePending || !requestSrc);
   const showPlaceholder = status === "missing";
   const imageDecodingMode = fetchPriority === "high" ? "sync" : "async";
   const imageFadeClass = "duration-0";
