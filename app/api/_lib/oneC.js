@@ -39,6 +39,7 @@ function getEndpointConcurrencyLimit(endpoint) {
   switch (endpoint) {
     case "allgoods":
       return Math.min(4, ONEC_DEFAULT_CONCURRENCY);
+    case "images":
     case "getimages":
     case "getimagesbatch":
     case "getimages_batch":
@@ -208,6 +209,7 @@ export function getOneCTimeoutMs(endpoint) {
     case "getdata":
       return 25000;
     case "prices":
+    case "images":
     case "getimages":
     case "getimagesbatch":
     case "getimages_batch":

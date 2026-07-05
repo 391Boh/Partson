@@ -56,7 +56,7 @@ const IMAGE_BATCH_ENDPOINT_CANDIDATES = Array.from(
     [
       (process.env.ONEC_IMAGE_BATCH_ENDPOINT || "").trim(),
       (process.env.ONEC_GETIMAGES_BATCH_ENDPOINT || "").trim(),
-      // Primary endpoint: try ПолучитьФотоПакетом first before generic names
+      "images",
       "ПолучитьФотоПакетом",
       "getimages",
       "getimagesbatch",
@@ -655,12 +655,12 @@ export const fetchProductImageBase64 = async (
   ];
 
   const loadFromBody = async (body: Record<string, unknown>) => {
-    // Use the already-discovered batch endpoint if available; otherwise fall
-    // back to the primary 1C function name rather than the generic "getimages".
+    // Use the already-discovered batch endpoint if available; otherwise try the
+    // first configured candidate so single lookups use the same endpoint as batch.
     const ep =
       typeof resolvedImageBatchEndpoint === "string" && resolvedImageBatchEndpoint
         ? resolvedImageBatchEndpoint
-        : "ПолучитьФотоПакетом";
+        : IMAGE_BATCH_ENDPOINT_CANDIDATES[0];
     const response = await oneCRequest(ep, {
       method: "POST",
       body,
