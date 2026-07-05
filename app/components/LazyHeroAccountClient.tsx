@@ -10,9 +10,16 @@ type HeroAccountClientProps = {
   variant?: "actions" | "benefits";
 };
 
-// ssr: false avoids hydration mismatch — client localStorage auth check can differ from server
+// ssr: false avoids hydration mismatch — client localStorage auth check can differ from server.
+// Loading skeleton matches the inner "not ready" state of HeroAccountClient to prevent
+// the hero section from being 0px tall before JS loads, which causes CLS when buttons appear.
 const HeroAccountClientLazy = dynamic(() => import("./HeroAccountClient"), {
   ssr: false,
+  loading: () => (
+    <div className="flex min-h-[42px] min-w-[272px] flex-wrap items-center justify-center gap-2 sm:min-h-[44px] sm:min-w-[292px]">
+      <span className="inline-block h-10 w-[220px] rounded-[14px] border border-white/15 bg-white/10" />
+    </div>
+  ),
 });
 
 export default function LazyHeroAccountClient(props: HeroAccountClientProps) {

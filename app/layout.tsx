@@ -17,7 +17,6 @@ import { safeJsonLd } from "./lib/safe-json-ld";
 import "./globals.css";
 
 const siteUrl = getSiteUrl();
-const firebaseProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "";
 const siteUrlObject = (() => {
   try {
     return new URL(siteUrl);
@@ -300,6 +299,15 @@ export default function RootLayout({
   return (
     <html lang="uk">
       <head>
+        {/* Explicit fetchpriority on logo preload — Next.js client-component boundary
+            prevents the Image priority prop from writing fetchpriority into the SSR
+            <link> tag reliably. This manual link guarantees LCP hint arrives early. */}
+        <link
+          rel="preload"
+          as="image"
+          href="/Car-parts.png"
+          fetchPriority="high"
+        />
         <link
           rel="preload"
           href="/fonts/exo2-variable.woff2"
@@ -327,14 +335,6 @@ export default function RootLayout({
         ) : null}
         {googleTagManagerId ? (
           <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
-        ) : null}
-        <link rel="preconnect" href="https://apis.google.com" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://apis.google.com" />
-        {firebaseProjectId ? (
-          <link rel="preconnect" href={`https://${firebaseProjectId}.firebaseapp.com`} crossOrigin="anonymous" />
-        ) : null}
-        {firebaseProjectId ? (
-          <link rel="dns-prefetch" href={`https://${firebaseProjectId}.firebaseapp.com`} />
         ) : null}
         {googleTagManagerId ? (
           <Script

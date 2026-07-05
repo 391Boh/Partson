@@ -44,7 +44,7 @@ export default function HomeDeferredStack() {
     <>
       <DeferredSection
         className="section-reveal home-section-stage relative w-full"
-        minHeight="clamp(360px, 74svh, 520px)"
+        minHeight="clamp(620px, 84svh, 760px)"
         rootMargin="420px"
         fallbackDelayMs={1400}
       >
