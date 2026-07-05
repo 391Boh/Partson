@@ -412,7 +412,17 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     });
     window.addEventListener("keydown", triggerDepsLoad, { once: true });
 
-    timeoutId = window.setTimeout(triggerDepsLoad, enableIdleFirebase ? 3500 : 1800);
+    // Guests (no user_id in localStorage) get no proactive timer — Firebase loads
+    // only on first interaction. This removes auth/iframe.js from the LCP critical
+    // path for anonymous visitors. Logged-in users keep the original short delay.
+    const isLikelyLoggedIn = (() => {
+      try { return Boolean(localStorage.getItem("user_id")); } catch { return false; }
+    })();
+    const delayMs = isLikelyLoggedIn
+      ? (enableIdleFirebase ? 3500 : 1800)
+      : 30000;
+
+    timeoutId = window.setTimeout(triggerDepsLoad, delayMs);
 
     return () => {
       cancelled = true;
