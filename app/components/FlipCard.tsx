@@ -62,11 +62,13 @@ function FlipCardComponent({
   id,
   isFlipped,
   setFlippedId,
+  priority = false,
 }: {
   product: ProductNode;
   id: number;
   isFlipped: boolean;
   setFlippedId: (id: number | null) => void;
+  priority?: boolean;
 }) {
   const router = useRouter();
   const reduceMotion = useReducedMotion();
@@ -140,8 +142,7 @@ function FlipCardComponent({
         reduceMotion
           ? undefined
           : {
-              boxShadow: "0 24px 52px rgba(6,182,212,0.30), 0 8px_20px rgba(8,145,178,0.20)",
-              filter: "saturate(1.06) brightness(1.01)",
+              filter: "saturate(1.1) brightness(1.03)",
               transition: { type: "spring", stiffness: 220, damping: 20, mass: 0.9 },
             }
       }
@@ -159,41 +160,41 @@ function FlipCardComponent({
         <div
           className="
             group/card absolute inset-0 rounded-xl overflow-hidden
-            border border-sky-200/70
+            border-2 border-sky-200/80
             bg-[image:linear-gradient(148deg,rgba(255,255,255,0.99)_0%,rgba(240,249,255,0.95)_50%,rgba(219,234,254,0.90)_100%)]
-            shadow-[0_8px_24px_rgba(8,145,178,0.18),0_2px_8px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(8,145,178,0.06)]
             flex flex-col items-center justify-center text-center px-4
             transition-all duration-500
-            hover:border-sky-300/90
-            hover:bg-[image:linear-gradient(148deg,rgba(255,255,255,1)_0%,rgba(224,242,254,0.97)_50%,rgba(186,230,253,0.93)_100%)]
-            hover:shadow-[0_20px_44px_rgba(6,182,212,0.30),0_6px_16px_rgba(8,145,178,0.20),inset_0_1px_0_rgba(255,255,255,0.98),inset_0_-1px_0_rgba(8,145,178,0.10)]
+            hover:border-sky-500
+            hover:bg-[image:linear-gradient(148deg,rgba(255,255,255,1)_0%,rgba(224,242,254,0.97)_50%,rgba(165,216,251,0.95)_100%)]
           "
           style={{
             ...safBackface,
             transform: "rotateY(0deg) translateZ(1px)" as string,
           }}
         >
-          {/* inner glow overlay */}
-          <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover/card:opacity-100 bg-[image:radial-gradient(circle_at_22%_18%,rgba(56,189,248,0.16),transparent_52%),radial-gradient(circle_at_80%_82%,rgba(8,145,178,0.12),transparent_48%)]" />
+          {/* depth glow — persistent, intensifies on hover */}
+          <div className="pointer-events-none absolute inset-0 opacity-40 transition-opacity duration-500 group-hover/card:opacity-100 bg-[image:radial-gradient(circle_at_22%_18%,rgba(56,189,248,0.22),transparent_52%),radial-gradient(circle_at_80%_82%,rgba(8,145,178,0.16),transparent_48%)]" />
           <Image
             src={getCategoryIconPath(displayProductName)}
             alt={displayProductName}
             width={60}
             height={60}
-            unoptimized
+            sizes="60px"
+            quality={75}
+            priority={priority}
             onError={(event) => {
               const target = event.currentTarget;
               if (target.src.includes("/Katlogo/rul.png")) return;
               target.src = "/Katlogo/rul.png";
             }}
-            className="relative mb-4 drop-shadow-[0_4px_10px_rgba(8,145,178,0.22)] transition-transform duration-500 group-hover/card:scale-[1.18] group-hover/card:drop-shadow-[0_8px_18px_rgba(6,182,212,0.36)]"
+            className="relative mb-4 transition-transform duration-500 group-hover/card:scale-[1.18]"
           />
 
-          <h3 className="relative text-[13px] font-bold text-slate-800 line-clamp-2 mb-2.5">
+          <h3 className="relative text-[13px] font-bold text-slate-800 line-clamp-2 mb-2.5 transition-all duration-200 group-hover/card:text-[13.5px] group-hover/card:text-sky-900">
             {displayProductName}
           </h3>
 
-          <span className="relative px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/95 text-sky-700 border border-sky-100/90 shadow-[0_2px_8px_rgba(8,145,178,0.14),inset_0_1px_0_rgba(255,255,255,0.9)]">
+          <span className="relative px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/80 transition-colors duration-300 group-hover/card:border-sky-400 group-hover/card:bg-sky-100">
             {children.length} груп
           </span>
         </div>
@@ -203,12 +204,10 @@ function FlipCardComponent({
           className="
             absolute inset-0 rounded-xl overflow-hidden
             bg-[image:linear-gradient(148deg,rgba(255,255,255,0.99)_0%,rgba(240,249,255,0.95)_52%,rgba(219,234,254,0.90)_100%)]
-            border border-sky-200/70
-            shadow-[0_8px_24px_rgba(8,145,178,0.16),0_2px_8px_rgba(8,145,178,0.09),inset_0_1px_0_rgba(255,255,255,0.95)]
+            border-2 border-sky-200/80
             flex flex-col px-2 py-2 select-none
             transition-all duration-300
-            hover:border-sky-300/80
-            hover:shadow-[0_12px_30px_rgba(8,145,178,0.22),0_4px_12px_rgba(8,145,178,0.12),inset_0_1px_0_rgba(255,255,255,0.98)]
+            hover:border-sky-500
           "
           style={{
             ...safBackface,
@@ -224,16 +223,23 @@ function FlipCardComponent({
               h-9 flex items-center justify-between px-2 rounded-lg mb-2
               bg-gradient-to-r from-sky-100/70 via-white/90 to-sky-50/60
               border border-sky-200/50
-              shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)]
               transition-all duration-300
               hover:from-sky-200/60 hover:to-sky-100/50
             "
           >
-            <span className="text-[11px] font-semibold text-slate-700 mx-1 truncate">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                flip();
+              }}
+              title="Повернутись"
+              className="min-w-0 flex-1 mx-1 truncate text-left text-[11px] font-semibold text-slate-700 transition-colors duration-200 hover:text-sky-700"
+            >
               {buildVisibleProductName(activeGroup?.name || product.name)}
-            </span>
+            </button>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
                 aria-label="Попередня сторінка"
@@ -253,14 +259,14 @@ function FlipCardComponent({
                   }
                 }}
                 className="
-                  p-1 min-h-0 min-w-0 text-slate-400 hover:text-blue-600 hover:bg-white/70
-                  rounded-md transition-all
+                  p-1 min-h-0 min-w-0 text-slate-400
+                  transition-all duration-200 hover:text-sky-600 hover:scale-110
                 "
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
 
-              <span className="text-[10px] font-semibold text-slate-600 px-1">
+              <span className="text-[10px] font-semibold text-sky-600/80 px-1 tabular-nums">
                 {(activeGroup ? sub : page) + 1}/{activeGroup ? subPageCount : mainPageCount}
               </span>
 
@@ -274,8 +280,9 @@ function FlipCardComponent({
                   if (current < max - 1) setter(current + 1);
                 }}
                 className="
-                  p-1 min-h-0 min-w-0 text-slate-400 hover:text-blue-600 hover:bg-white/70
-                  rounded-md transition-all disabled:opacity-40 disabled:hover:bg-transparent
+                  p-1 min-h-0 min-w-0 text-slate-400
+                  transition-all duration-200 hover:text-sky-600 hover:scale-110
+                  disabled:opacity-40 disabled:hover:scale-100 disabled:hover:text-slate-400
                 "
                 disabled={
                   (activeGroup ? sub : page) >=
@@ -305,22 +312,19 @@ function FlipCardComponent({
                   }
                 }}
                 className="
-                  w-full px-2 py-[7px] rounded-lg text-[12px] text-slate-700 font-medium
+                  group/item w-full px-2.5 py-2 rounded-lg text-slate-800 font-medium
                   bg-white/95 border border-sky-100/90
-                  shadow-[0_1px_4px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]
-                  hover:bg-[image:linear-gradient(120deg,rgba(240,249,255,0.99)_0%,rgba(255,255,255,0.98)_50%,rgba(219,234,254,0.96)_100%)]
-                  hover:border-sky-300/80
-                  hover:shadow-[0_8px_20px_rgba(8,145,178,0.20),0_2px_8px_rgba(8,145,178,0.12),inset_0_1px_0_rgba(255,255,255,0.98)]
-                  hover:-translate-y-[1px]
-                  text-left truncate transition-all duration-300
+                  hover:bg-[image:linear-gradient(120deg,rgba(224,242,254,0.99)_0%,rgba(255,255,255,0.98)_50%,rgba(191,224,251,0.98)_100%)]
+                  hover:border-sky-500 hover:text-sky-800
+                  text-left truncate transition-colors duration-200
                 "
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate" title={item.name}>
+                  <span className="truncate text-[13px] transition-all duration-200 group-hover/item:text-[13.5px] group-hover/item:text-sky-800" title={item.name}>
                     {buildVisibleProductName(item.name)}
                   </span>
                   {hasSubgroups(item) && (
-                    <ArrowRight className="w-4 h-4 text-blue-400" />
+                    <ArrowRight className="w-4 h-4 shrink-0 text-sky-400 transition-colors duration-200 group-hover/item:text-sky-600" />
                   )}
                 </div>
               </button>

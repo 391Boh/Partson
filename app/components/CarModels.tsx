@@ -10,7 +10,6 @@ interface Props {
   selectedYear?: number | null;
   onModelSelect: (model: string) => void;
   onYearSelect: (year: number | null) => void;
-  onBack?: () => void;
   onCountChange?: (count: number) => void;
   compact?: boolean;
 }
@@ -68,7 +67,6 @@ const AUTO_ENDPOINT = "/api/proxy?endpoint=getauto";
 const LABEL_SEARCH_MODEL = "\u041f\u043e\u0448\u0443\u043a \u043c\u043e\u0434\u0435\u043b\u0456...";
 const LABEL_NO_MODELS = "\u041c\u043e\u0434\u0435\u043b\u0456 \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e.";
 const LABEL_YEAR_EMPTY = "\u0420\u043e\u043a\u0438 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0456.";
-const LABEL_BACK = "\u041d\u0430\u0437\u0430\u0434";
 const LABEL_PREV_PAGE = "\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430";
 const LABEL_NEXT_PAGE = "\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0430 \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430";
 const LABEL_SELECT_FROM = "\u0412\u0438\u0431\u0456\u0440 \u0456\u0437";
@@ -233,46 +231,24 @@ const normalizeAutoRows = (payload: unknown): unknown[] => {
   return [];
 };
 
+// 1C's getauto only accepts the Cyrillic field name (verified live: "brand"/"Brand"
+// always fail with "\u041f\u043e\u0442\u0440\u0456\u0431\u043d\u0430 '\u041c\u0430\u0440\u043a\u0430'") \u2014 a single request is enough, no fallback needed.
 const fetchAutoRowsByBrand = async (selectedBrand: string) => {
-  const candidateBodies: Array<Record<string, string>> = [
-    { [AUTO_FIELDS.brand]: selectedBrand, brand: selectedBrand },
-    { brand: selectedBrand },
-    { Brand: selectedBrand },
-    { "\u041c\u0430\u0440\u043a\u0430": selectedBrand },
-  ];
+  const res = await fetch(AUTO_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ [AUTO_FIELDS.brand]: selectedBrand }),
+  });
 
-  let lastError: Error | null = null;
-
-  for (const body of candidateBodies) {
-    try {
-      const res = await fetch(AUTO_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const jsonText = await res.text();
-      if (!res.ok) {
-        lastError = new Error(
-          extractErrorMessage(jsonText) ||
-            "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0435\u043b\u0456"
-        );
-        continue;
-      }
-
-      const parsed = JSON.parse(jsonText);
-      const rows = normalizeAutoRows(parsed);
-      if (rows.length > 0) return rows;
-    } catch (error) {
-      lastError =
-        error instanceof Error
-          ? error
-          : new Error("\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0435\u043b\u0456");
-    }
+  const jsonText = await res.text();
+  if (!res.ok) {
+    throw new Error(
+      extractErrorMessage(jsonText) || "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0437\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u043c\u043e\u0434\u0435\u043b\u0456"
+    );
   }
 
-  if (lastError) throw lastError;
-  return [];
+  const parsed = JSON.parse(jsonText);
+  return normalizeAutoRows(parsed);
 };
 
 const extractErrorMessage = (text: string) => {
@@ -301,7 +277,6 @@ const extractErrorMessage = (text: string) => {
   selectedYear = null,
   onModelSelect,
   onYearSelect,
-  onBack,
   onCountChange,
   compact = false,
   }) => {
@@ -323,9 +298,6 @@ const extractErrorMessage = (text: string) => {
   const [modelPage, setModelPage] = useState(0);
   const [hasYearData, setHasYearData] = useState(false);
   const [yearInput, setYearInput] = useState("");
-  const touchStartX = useRef<number | null>(null);
-  const touchDeltaX = useRef(0);
-  const isSwiping = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -544,10 +516,6 @@ const extractErrorMessage = (text: string) => {
     Math.ceil(filteredModels.length / modelsPerPage)
   );
   const safeModelPage = Math.min(modelPage, totalModelPages - 1);
-  const pagedModels = filteredModels.slice(
-    safeModelPage * modelsPerPage,
-    safeModelPage * modelsPerPage + modelsPerPage
-  );
   const modelPages = useMemo(() => {
     const pages: string[][] = [];
     for (let index = 0; index < filteredModels.length; index += modelsPerPage) {
@@ -629,36 +597,6 @@ const extractErrorMessage = (text: string) => {
     const nextPage = Math.min(totalModelPages - 1, safeModelPage + 1);
     setModelPage(nextPage);
     scrollToModelPage(nextPage);
-  };
-
-  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    touchStartX.current = event.touches[0]?.clientX ?? null;
-    touchDeltaX.current = 0;
-    isSwiping.current = false;
-  };
-
-  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (touchStartX.current == null) return;
-    touchDeltaX.current = event.touches[0]?.clientX - touchStartX.current;
-  };
-
-  const handleTouchEnd = () => {
-    if (touchStartX.current == null) return;
-    const delta = touchDeltaX.current;
-    const threshold = 40;
-    if (Math.abs(delta) > threshold) {
-      isSwiping.current = true;
-      if (delta < 0) {
-        handleNextPage();
-      } else {
-        handlePrevPage();
-      }
-      window.setTimeout(() => {
-        isSwiping.current = false;
-      }, 200);
-    }
-    touchStartX.current = null;
-    touchDeltaX.current = 0;
   };
 
   const handleYearInputChange = useCallback(
@@ -831,7 +769,7 @@ const extractErrorMessage = (text: string) => {
         <div
           ref={modelPagesRef}
           onScroll={handleModelPagesScroll}
-          className="overflow-hidden rounded-2xl border border-sky-100/80 bg-gradient-to-br from-white/92 via-sky-50/68 to-blue-50/60 shadow-[0_14px_32px_rgba(59,130,246,0.12)]"
+          className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-2xl border border-sky-100/80 bg-gradient-to-br from-white/92 via-sky-50/68 to-blue-50/60 shadow-[0_14px_32px_rgba(59,130,246,0.12)] [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
         >
           {isBusy ? (
             <div className="flex min-h-[90px] items-center justify-center">
@@ -847,7 +785,7 @@ const extractErrorMessage = (text: string) => {
                 <div
                   key={pageIndex}
                   data-model-page
-                  className="min-w-full shrink-0 snap-start p-1 sm:p-1.5"
+                  className="w-full min-w-0 shrink-0 snap-start p-1 sm:p-1.5"
                 >
                   {!hasPagedModels ? (
                     <div className="flex min-h-[90px] items-center justify-center text-xs font-semibold text-slate-400">
@@ -890,57 +828,28 @@ const extractErrorMessage = (text: string) => {
     >
       <div className="flex flex-col gap-2 sm:gap-2.5">
         <div className="flex items-center gap-2 w-full">
-          {onBack && (
-            <button
-              type="button"
-              onClick={onBack}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-500 shadow-sm transition-all duration-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-600 hover:shadow-[0_4px_12px_rgba(14,165,233,0.18)] active:scale-[0.94]"
-              aria-label={LABEL_BACK}
+          <div className="relative flex-1 min-w-0">
+            <svg
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sky-500/70"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
             >
-              <ChevronLeft size={15} className="pointer-events-none" />
-            </button>
-          )}
-
-          <div className="flex flex-col min-w-0 flex-1">
-            <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 leading-none">{LABEL_SELECT_FROM}</span>
-            <span className="text-[14px] font-bold text-slate-800 leading-tight truncate">
-              {filteredModels.length} {LABEL_MODELS_OF_CARS}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5 shrink-0">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-5-5" />
+            </svg>
             <input
               type="text"
               placeholder={LABEL_SEARCH_MODEL}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-9 w-[100px] sm:w-[140px] rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 text-xs text-slate-700 shadow-sm outline-none placeholder:text-slate-400 transition-all focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-200/80 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.10)]"
+              className="w-full rounded-xl border border-slate-200/80 bg-white px-10 py-2.5 text-sm font-semibold text-slate-700 placeholder:text-slate-400 shadow-[0_2px_8px_rgba(15,23,42,0.06)] outline-none transition-all duration-200 focus:border-sky-400 focus:ring-4 focus:ring-sky-200/60 hover:border-sky-300/70 hover:shadow-[0_4px_14px_rgba(14,165,233,0.14)]"
               data-search="true"
             />
-
-            <div className="inline-flex items-center gap-0.5 rounded-xl border border-slate-200/70 bg-white px-1 py-0.5 shadow-sm">
-              <button
-                type="button"
-                onClick={handlePrevPage}
-                disabled={!canGoPrev}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-all duration-150 hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
-                aria-label={LABEL_PREV_PAGE}
-              >
-                <ChevronLeft size={13} />
-              </button>
-              <span className="min-w-[30px] text-center text-[10px] font-semibold text-slate-500">
-                {safeModelPage + 1}/{totalModelPages}
-              </span>
-              <button
-                type="button"
-                onClick={handleNextPage}
-                disabled={!canGoNext}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-all duration-150 hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
-                aria-label={LABEL_NEXT_PAGE}
-              >
-                <ChevronRight size={13} />
-              </button>
-            </div>
           </div>
         </div>
 
@@ -985,10 +894,36 @@ const extractErrorMessage = (text: string) => {
             {LABEL_CLEAR_YEAR}
           </button>
           {yearBounds && (
-            <span className="ml-auto text-[10px] font-semibold text-sky-600/60 hidden sm:inline">
+            <span className="text-[10px] font-semibold text-sky-600/60 hidden sm:inline">
               {yearBounds.min}–{yearBounds.max}
             </span>
           )}
+
+          <div className="ml-auto inline-flex items-center gap-1.5 rounded-xl border border-sky-200/70 bg-gradient-to-r from-white via-sky-50/70 to-white px-1.5 py-1.5 shadow-[0_6px_16px_rgba(8,145,178,0.12),0_2px_6px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.95)]">
+            <button
+              type="button"
+              onClick={handlePrevPage}
+              disabled={!canGoPrev}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
+              aria-label={LABEL_PREV_PAGE}
+            >
+              <ChevronLeft size={15} />
+            </button>
+            <div className="flex min-w-[42px] items-center justify-center gap-0.5 rounded-lg border border-sky-100/80 bg-white/90 px-2 py-1 shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)]">
+              <span className="text-[12px] font-extrabold text-sky-600">{safeModelPage + 1}</span>
+              <span className="text-[10px] font-semibold text-slate-300">/</span>
+              <span className="text-[12px] font-bold text-slate-400">{totalModelPages}</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleNextPage}
+              disabled={!canGoNext}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
+              aria-label={LABEL_NEXT_PAGE}
+            >
+              <ChevronRight size={15} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1019,7 +954,7 @@ const extractErrorMessage = (text: string) => {
         {error && <p className="text-red-600 font-semibold">{error}</p>}
 
         {!loading && !(yearLoading && selectedYear != null) && !error && (
-          <div>
+          <>
             {filteredModels.length === 0 && (
               <p className="text-slate-500 text-center w-full">
                 {LABEL_NO_MODELS}
@@ -1027,13 +962,15 @@ const extractErrorMessage = (text: string) => {
             )}
 
             <div
-              className="group/logogrid mt-2 sm:mt-3"
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
+              ref={modelPagesRef}
+              onScroll={handleModelPagesScroll}
+              className="no-scrollbar group/logogrid mt-2 overflow-x-auto overflow-y-hidden overscroll-x-contain sm:mt-3 [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
             >
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 place-items-stretch">
-              {pagedModels.map((model) => {
+              <div className="flex">
+              {modelPages.map((page, pageIndex) => (
+                <div key={pageIndex} data-model-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 place-items-stretch">
+              {page.map((model) => {
                 const isActive = selectedModel === model;
                 const yr = modelYearRanges[model];
                 const yearLabel = yr
@@ -1045,20 +982,17 @@ const extractErrorMessage = (text: string) => {
                   <button
                     key={model}
                     type="button"
-                    onClick={() => {
-                      if (isSwiping.current) return;
-                      onModelSelect(model);
-                    }}
+                    onClick={() => onModelSelect(model)}
                     title={yearLabel ? `${model} (${yearLabel})` : model}
                     className={`group relative flex min-h-[56px] flex-col justify-center overflow-hidden rounded-xl border px-3 py-2 text-left transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:min-h-[64px] ${
                       isActive
                         ? "border-sky-400/60 bg-sky-500 text-white shadow-[0_6px_22px_rgba(14,165,233,0.38)] ring-1 ring-sky-300/60"
-                        : "border-slate-200/60 bg-white text-slate-700 shadow-[0_2px_6px_rgba(15,23,42,0.07)] hover:-translate-y-[3px] hover:border-sky-400/70 hover:shadow-[0_12px_32px_rgba(14,165,233,0.28)]"
+                        : "border-slate-200/60 bg-white text-slate-700 shadow-[0_2px_6px_rgba(15,23,42,0.07)] hover:border-sky-400/70 hover:shadow-[0_12px_32px_rgba(14,165,233,0.28)]"
                     }`}
                   >
                     <span className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-sky-50/0 to-blue-100/0 transition-all duration-300 group-hover:from-sky-50 group-hover:to-blue-100/70" />
                     <span className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-inset ring-transparent transition-all duration-300 group-hover:ring-sky-400/40" />
-                    <span className={`relative truncate text-[14px] font-extrabold leading-tight tracking-[0.02em] sm:text-[15px] ${isActive ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.18)]" : "text-slate-800 group-hover:text-sky-800"}`}>{model}</span>
+                    <span className={`relative truncate text-[14px] font-semibold leading-tight tracking-[0.02em] sm:text-[15px] ${isActive ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.18)]" : "text-slate-800 group-hover:text-sky-800"}`}>{model}</span>
                     {yearLabel && (
                       <span className={`relative mt-1 text-[11px] font-semibold leading-none tracking-[0.03em] ${isActive ? "text-sky-100" : "text-slate-400 group-hover:text-sky-600/80"}`}>
                         {yearLabel}
@@ -1070,10 +1004,12 @@ const extractErrorMessage = (text: string) => {
                   </button>
                 );
               })}
+                </div>
+                </div>
+              ))}
               </div>
             </div>
-            {/* Pagination moved to top row */}
-          </div>
+          </>
         )}
       </div>
     </div>

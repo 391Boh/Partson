@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
 
@@ -45,7 +45,6 @@ interface Filters {
 }
 
 const AUTO_ENDPOINT = "/api/proxy?endpoint=getauto";
-const LABEL_SELECT_YEAR = "Оберіть рік";
 const LABEL_YEAR = "Рік";
 const LABEL_EMPTY_MODS = "Модифікацій не знайдено.";
 const LABEL_SELECT_MODEL_FIRST = "Оберіть модель, щоб завантажити модифікації.";
@@ -125,29 +124,20 @@ const normalizeAutoRows = (payload: unknown): unknown[] => {
   return [];
 };
 
-const fetchAutoRows = async (candidateBodies: Array<Record<string, unknown>>) => {
-  let lastError: Error | null = null;
-  for (const body of candidateBodies) {
-    try {
-      const res = await fetch(AUTO_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const jsonText = await res.text();
-      if (!res.ok) {
-        lastError = new Error(extractErrorMessage(jsonText));
-        continue;
-      }
-      const parsed = JSON.parse(jsonText);
-      const rows = normalizeAutoRows(parsed);
-      if (rows.length > 0) return rows;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error("Не вдалося завантажити дані авто");
-    }
+// 1C's getauto only accepts the Cyrillic field names (verified live: "brand"/"Brand"
+// always fail with "Потрібна 'Марка'") — a single request is enough, no fallback needed.
+const fetchAutoRows = async (body: Record<string, unknown>) => {
+  const res = await fetch(AUTO_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const jsonText = await res.text();
+  if (!res.ok) {
+    throw new Error(extractErrorMessage(jsonText));
   }
-  if (lastError) throw lastError;
-  return [];
+  const parsed = JSON.parse(jsonText);
+  return normalizeAutoRows(parsed);
 };
 
 const toStringValue = (value: unknown) => {
@@ -232,12 +222,10 @@ const CarModifications: React.FC<Props> = ({
     setModifications([]);
     setFilters({ volume: "", power: "", gearbox: "", drive: "" });
 
-    fetchAutoRows([
-      { [AUTO_FIELDS.brand]: selectedBrand, [AUTO_FIELDS.model]: selectedModel },
-      { brand: selectedBrand, model: selectedModel },
-      { Brand: selectedBrand, Model: selectedModel },
-      { "Марка": selectedBrand, "Модель": selectedModel },
-    ])
+    fetchAutoRows({
+      [AUTO_FIELDS.brand]: selectedBrand,
+      [AUTO_FIELDS.model]: selectedModel,
+    })
       .then((data) => {
         if (!Array.isArray(data) || data.length === 0) {
           throw new Error("Не вдалося отримати роки для вибраної моделі");
@@ -286,16 +274,11 @@ const CarModifications: React.FC<Props> = ({
     setError(null);
     setModifications([]);
 
-    fetchAutoRows([
-      {
-        [AUTO_FIELDS.brand]: selectedBrand,
-        [AUTO_FIELDS.model]: selectedModel,
-        [AUTO_FIELDS.year]: selectedYear,
-      },
-      { brand: selectedBrand, model: selectedModel, year: selectedYear },
-      { Brand: selectedBrand, Model: selectedModel, Year: selectedYear },
-      { "Марка": selectedBrand, "Модель": selectedModel, "Рік": selectedYear },
-    ])
+    fetchAutoRows({
+      [AUTO_FIELDS.brand]: selectedBrand,
+      [AUTO_FIELDS.model]: selectedModel,
+      [AUTO_FIELDS.year]: selectedYear,
+    })
       .then((data) => {
         if (!Array.isArray(data) || data.length === 0) {
           throw new Error("Не вдалося отримати модифікації для вибраного авто");
@@ -419,36 +402,73 @@ const CarModifications: React.FC<Props> = ({
     Boolean(filters.gearbox) &&
     Boolean(filters.drive);
 
-  const currentStepValues: string[] = isSelectingYear
-    ? yearOptions.map(String)
-    : isSelectingVolume
-      ? volumeOptions
-      : isSelectingPower
-        ? powerOptions
-        : isSelectingGearbox
-          ? gearboxOptions
-          : isSelectingDrive
-            ? driveOptions
-            : [];
+  const currentStepValues: string[] = useMemo(() => (
+    isSelectingYear
+      ? yearOptions.map(String)
+      : isSelectingVolume
+        ? volumeOptions
+        : isSelectingPower
+          ? powerOptions
+          : isSelectingGearbox
+            ? gearboxOptions
+            : isSelectingDrive
+              ? driveOptions
+              : []
+  ), [isSelectingYear, yearOptions, isSelectingVolume, volumeOptions, isSelectingPower, powerOptions, isSelectingGearbox, gearboxOptions, isSelectingDrive, driveOptions]);
 
   const yearPerPage = isCompact ? 15 : 24;
   const filterPerPage = isCompact ? 8 : 12;
   const optionsPerPage = isSelectingYear ? yearPerPage : filterPerPage;
   const totalOptionPages = Math.max(1, Math.ceil(currentStepValues.length / optionsPerPage));
   const safeOptionPage = Math.min(optionPage, totalOptionPages - 1);
-  const pagedStepValues = currentStepValues.slice(
-    safeOptionPage * optionsPerPage,
-    safeOptionPage * optionsPerPage + optionsPerPage
-  );
+  const stepPages = useMemo(() => {
+    const pages: string[][] = [];
+    for (let index = 0; index < currentStepValues.length; index += optionsPerPage) {
+      pages.push(currentStepValues.slice(index, index + optionsPerPage));
+    }
+    return pages.length > 0 ? pages : [[]];
+  }, [currentStepValues, optionsPerPage]);
   const canGoPrev = safeOptionPage > 0;
   const canGoNext = safeOptionPage < totalOptionPages - 1;
 
+  const optionPagesRef = useRef<HTMLDivElement | null>(null);
+  const getOptionPageWidth = useCallback(() => {
+    const container = optionPagesRef.current;
+    if (!container) return 0;
+    const page = container.querySelector<HTMLElement>("[data-option-page]");
+    return page?.offsetWidth ?? container.clientWidth;
+  }, []);
+  const scrollToOptionPage = useCallback(
+    (page: number, behavior: ScrollBehavior = "smooth") => {
+      const container = optionPagesRef.current;
+      if (!container) return;
+      const pageWidth = getOptionPageWidth();
+      if (!pageWidth) return;
+      container.scrollTo({ left: page * pageWidth, behavior });
+    },
+    [getOptionPageWidth]
+  );
+  const handleOptionPagesScroll = useCallback(() => {
+    const container = optionPagesRef.current;
+    if (!container) return;
+    const pageWidth = getOptionPageWidth();
+    if (!pageWidth) return;
+    const nextPage = Math.max(
+      0,
+      Math.min(totalOptionPages - 1, Math.round(container.scrollLeft / pageWidth))
+    );
+    setOptionPage((prev) => (prev === nextPage ? prev : nextPage));
+  }, [totalOptionPages, getOptionPageWidth]);
+
   useEffect(() => {
     setOptionPage(0);
+    const container = optionPagesRef.current;
+    if (!container) return;
+    container.scrollTo({ left: 0, behavior: "auto" });
   }, [selectedYear, isSelectingVolume, isSelectingPower, isSelectingGearbox, isSelectingDrive, currentStepValues.length]);
 
   const currentStepLabel = isSelectingYear
-    ? LABEL_SELECT_YEAR
+    ? ""
     : isSelectingVolume
       ? LABEL_SELECT_VOLUME
       : isSelectingPower
@@ -535,27 +555,29 @@ const CarModifications: React.FC<Props> = ({
           </span>
         </div>
         {!isSelectingYear && totalOptionPages > 1 && (
-          <div className="flex items-center gap-0.5 rounded-lg border border-slate-200/70 bg-white px-1 py-0.5 shadow-sm">
+          <div className="flex items-center gap-1.5 rounded-xl border border-sky-200/70 bg-gradient-to-r from-white via-sky-50/70 to-white px-1.5 py-1.5 shadow-[0_6px_16px_rgba(8,145,178,0.12),0_2px_6px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.95)]">
             <button
               type="button"
-              onClick={() => { if (canGoPrev) setOptionPage((p) => p - 1); }}
+              onClick={() => { if (canGoPrev) { const next = safeOptionPage - 1; setOptionPage(next); scrollToOptionPage(next); } }}
               disabled={!canGoPrev}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
               aria-label={LABEL_PREV_PAGE}
             >
-              <ChevronLeft size={12} />
+              <ChevronLeft size={15} />
             </button>
-            <span className="min-w-[28px] text-center text-[10px] font-semibold text-slate-500">
-              {safeOptionPage + 1}/{totalOptionPages}
-            </span>
+            <div className="flex min-w-[42px] items-center justify-center gap-0.5 rounded-lg border border-sky-100/80 bg-white/90 px-2 py-1 shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)]">
+              <span className="text-[12px] font-extrabold text-sky-600">{safeOptionPage + 1}</span>
+              <span className="text-[10px] font-semibold text-slate-300">/</span>
+              <span className="text-[12px] font-bold text-slate-400">{totalOptionPages}</span>
+            </div>
             <button
               type="button"
-              onClick={() => { if (canGoNext) setOptionPage((p) => p + 1); }}
+              onClick={() => { if (canGoNext) { const next = safeOptionPage + 1; setOptionPage(next); scrollToOptionPage(next); } }}
               disabled={!canGoNext}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
               aria-label={LABEL_NEXT_PAGE}
             >
-              <ChevronRight size={12} />
+              <ChevronRight size={15} />
             </button>
           </div>
         )}
@@ -637,43 +659,56 @@ const CarModifications: React.FC<Props> = ({
             )}
 
             {/* Year chip grid */}
-            {isSelectingYear && yearOptions.length === 0 && (
-              <p className="py-6 text-center text-xs text-slate-400">{LABEL_SELECT_YEAR}</p>
-            )}
             {isSelectingYear && yearOptions.length > 0 && (
               <>
-                <div className={`grid gap-1.5 ${isCompact ? "grid-cols-5 sm:grid-cols-6" : "grid-cols-5 sm:grid-cols-6 lg:grid-cols-8"}`}>
-                  {pagedStepValues.map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => handleStepSelect(value)}
-                      className="rounded-lg border border-slate-200/70 bg-white px-1 py-2 text-center text-[11px] font-bold text-slate-700 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-[2px] hover:border-sky-300/70 hover:bg-sky-50 hover:shadow-[0_6px_18px_rgba(14,165,233,0.20)] active:scale-[0.95] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
-                    >
-                      {value}
-                    </button>
-                  ))}
+                <div
+                  ref={optionPagesRef}
+                  onScroll={handleOptionPagesScroll}
+                  className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
+                >
+                  <div className="flex">
+                    {stepPages.map((page, pageIndex) => (
+                      <div key={pageIndex} data-option-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
+                        <div className={`grid gap-1.5 ${isCompact ? "grid-cols-5 sm:grid-cols-6" : "grid-cols-5 sm:grid-cols-6 lg:grid-cols-8"}`}>
+                          {page.map((value) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => handleStepSelect(value)}
+                              className="rounded-lg border border-slate-200/70 bg-white px-1 py-2 text-center text-[11px] font-medium text-slate-700 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-[2px] hover:border-sky-300/70 hover:bg-sky-50 hover:shadow-[0_6px_18px_rgba(14,165,233,0.20)] active:scale-[0.95] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
+                            >
+                              {value}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 {totalOptionPages > 1 && (
-                  <div className="mt-2.5 flex items-center justify-center gap-1.5">
+                  <div className="mt-3 flex w-fit items-center justify-center gap-1.5 rounded-xl border border-sky-200/70 bg-gradient-to-r from-white via-sky-50/70 to-white px-1.5 py-1.5 shadow-[0_6px_16px_rgba(8,145,178,0.12),0_2px_6px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] mx-auto">
                     <button
                       type="button"
-                      onClick={() => { if (canGoPrev) setOptionPage((p) => p - 1); }}
+                      onClick={() => { if (canGoPrev) { const next = safeOptionPage - 1; setOptionPage(next); scrollToOptionPage(next); } }}
                       disabled={!canGoPrev}
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
                       aria-label={LABEL_PREV_PAGE}
                     >
-                      <ChevronLeft size={12} />
+                      <ChevronLeft size={15} />
                     </button>
-                    <span className="text-[10px] font-semibold text-slate-500">{safeOptionPage + 1}/{totalOptionPages}</span>
+                    <div className="flex min-w-[42px] items-center justify-center gap-0.5 rounded-lg border border-sky-100/80 bg-white/90 px-2 py-1 shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)]">
+                      <span className="text-[12px] font-extrabold text-sky-600">{safeOptionPage + 1}</span>
+                      <span className="text-[10px] font-semibold text-slate-300">/</span>
+                      <span className="text-[12px] font-bold text-slate-400">{totalOptionPages}</span>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => { if (canGoNext) setOptionPage((p) => p + 1); }}
+                      onClick={() => { if (canGoNext) { const next = safeOptionPage + 1; setOptionPage(next); scrollToOptionPage(next); } }}
                       disabled={!canGoNext}
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
                       aria-label={LABEL_NEXT_PAGE}
                     >
-                      <ChevronRight size={12} />
+                      <ChevronRight size={15} />
                     </button>
                   </div>
                 )}
@@ -682,25 +717,39 @@ const CarModifications: React.FC<Props> = ({
 
             {/* Filter step chips */}
             {!isSelectingYear && !showResults && (
-              <div className={`grid gap-1.5 sm:gap-2 ${isCompact ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"}`}>
-                {pagedStepValues.length > 0 ? pagedStepValues.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => handleStepSelect(value)}
-                    className="rounded-xl border border-slate-200/60 bg-white px-3 py-2.5 text-center text-[12px] font-semibold text-slate-700 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-[2px] hover:border-sky-300/60 hover:bg-sky-50 hover:shadow-[0_6px_20px_rgba(14,165,233,0.20)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
-                  >
-                    <span className="block truncate uppercase tracking-[0.04em]">{formatStepValue(value)}</span>
-                  </button>
-                )) : (
-                  <div className="col-span-full py-4 text-center text-xs text-slate-400">{LABEL_EMPTY_MODS}</div>
-                )}
-              </div>
+              currentStepValues.length === 0 ? (
+                <div className="py-4 text-center text-xs text-slate-400">{LABEL_EMPTY_MODS}</div>
+              ) : (
+                <div
+                  ref={optionPagesRef}
+                  onScroll={handleOptionPagesScroll}
+                  className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
+                >
+                  <div className="flex">
+                    {stepPages.map((page, pageIndex) => (
+                      <div key={pageIndex} data-option-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
+                        <div className={`grid gap-1.5 sm:gap-2 ${isCompact ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"}`}>
+                          {page.map((value) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => handleStepSelect(value)}
+                              className="rounded-xl border border-slate-200/60 bg-white px-3 py-2.5 text-center text-[12px] font-medium text-slate-700 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-[2px] hover:border-sky-300/60 hover:bg-sky-50 hover:shadow-[0_6px_20px_rgba(14,165,233,0.20)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
+                            >
+                              <span className="block truncate uppercase tracking-[0.04em]">{formatStepValue(value)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
             )}
 
             {/* Confirm button */}
             {showResults && (
-              <div>
+              <>
                 <button
                   type="button"
                   onClick={handleConfirm}
@@ -712,7 +761,7 @@ const CarModifications: React.FC<Props> = ({
                 {uniqueMods.length === 0 && (
                   <p className="mt-2 text-center text-xs text-slate-400">{LABEL_EMPTY_MODS}</p>
                 )}
-              </div>
+              </>
             )}
           </div>
         </div>

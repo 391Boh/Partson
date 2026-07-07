@@ -22,7 +22,9 @@ import {
 import {
   buildCatalogCategoryPath,
   buildGroupItemPath,
+  buildManufacturerPath,
 } from "app/lib/catalog-links";
+import { getBrandLogoMap, getProducerInitials, resolveProducerLogo } from "app/lib/brand-logo";
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
@@ -68,6 +70,7 @@ type GroupPageData = {
       productCount: number;
     }>;
   }>;
+  topProducers: Array<{ label: string; slug: string }>;
 };
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
@@ -91,6 +94,22 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
   const group = dataset?.groups.find(
     (item) => item.slug === slug || item.legacySlug === slug
   );
+  const resolveTopProducers = (resolvedSlug: string, legacySlug?: string) =>
+    seoFacets.producers
+      .flatMap((producer) => {
+        const matchingGroup = producer.topGroups?.find(
+          (pg) =>
+            pg.slug === resolvedSlug ||
+            (legacySlug && pg.slug === legacySlug) ||
+            buildPlainSeoSlug(pg.label) === resolvedSlug
+        );
+        if (!matchingGroup) return [];
+        return [{ label: producer.label, slug: producer.slug, _count: matchingGroup.productCount }];
+      })
+      .sort((a, b) => b._count - a._count)
+      .slice(0, 28)
+      .map(({ label, slug: producerSlug }) => ({ label, slug: producerSlug }));
+
   if (!group) {
     const seoGroup = seoFacets.groups.find(
       (item) => item.slug === slug || buildPlainSeoSlug(item.label) === slug
@@ -109,6 +128,7 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
         productCount: subgroup.productCount,
         children: [],
       })),
+      topProducers: resolveTopProducers(seoGroup.slug),
     };
   }
 
@@ -130,6 +150,7 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
         productCount: counts.childProductCounts.get(child.slug) ?? 0,
       })),
     })),
+    topProducers: resolveTopProducers(group.slug, group.legacySlug),
   };
 });
 
@@ -334,6 +355,15 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   const catalogLink = buildCatalogCategoryPath(group.label, null, {
     expandHierarchy: true,
   });
+
+  const logoMap = group.topProducers.length > 0
+    ? await getBrandLogoMap().catch(() => new Map<string, string>())
+    : new Map<string, string>();
+  const producersWithLogos = group.topProducers.map((producer) => ({
+    ...producer,
+    logoPath: resolveProducerLogo(producer.label, logoMap) ?? null,
+    initials: getProducerInitials(producer.label),
+  }));
   const canonicalPageUrl = `${siteUrl}${pagePath}`;
   const categoryIconPath = getCategoryIconPath(group.label);
   const categoryIconUrl = `${siteUrl}${categoryIconPath}`;
@@ -520,6 +550,56 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
           </div>
         </div>
       </section>
+
+      {producersWithLogos.length > 0 && (
+        <section className="mt-6 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white/96 shadow-[0_8px_28px_rgba(15,23,42,0.06)]">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100/80 px-4 py-3 sm:px-5">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-teal-700">
+                Виробники цієї групи
+              </p>
+              <h2 className="mt-0.5 text-[15px] font-extrabold tracking-tight text-slate-900">
+                Бренди {visibleGroupLabel}
+              </h2>
+            </div>
+            <span className={directoryCompactMetricAccentClass}>
+              {producersWithLogos.length} виробників
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2 p-4 sm:p-5">
+            {producersWithLogos.map((producer) => (
+              <Link
+                key={producer.slug}
+                href={buildManufacturerPath(producer.slug)}
+                className="group/brand inline-flex items-center gap-2 rounded-[14px] border border-slate-200/80 bg-white px-3 py-2 shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-[2px] hover:border-teal-300/80 hover:bg-gradient-to-b hover:from-teal-50/60 hover:to-white hover:shadow-[0_6px_18px_rgba(13,148,136,0.14)]"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-slate-100 bg-gradient-to-br from-slate-50 to-white shadow-sm">
+                  {producer.logoPath ? (
+                    <Image
+                      src={producer.logoPath}
+                      alt=""
+                      aria-hidden
+                      width={32}
+                      height={32}
+                      sizes="32px"
+                      className="h-5 w-auto max-w-[26px] object-contain"
+                      style={{ imageRendering: "auto" }}
+                      unoptimized={producer.logoPath.endsWith(".svg")}
+                    />
+                  ) : (
+                    <span className="text-[9px] font-black leading-none text-slate-500">
+                      {producer.initials}
+                    </span>
+                  )}
+                </span>
+                <span className="text-[12px] font-semibold text-slate-700 transition-colors duration-200 group-hover/brand:text-teal-700">
+                  {producer.label}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className={`${directoryPanelClass} mt-6`}>
         <div className={directoryHeaderClass}>

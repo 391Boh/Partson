@@ -56,7 +56,7 @@ function getEndpointConcurrencyLimit(endpoint) {
     case "getprod":
       return Math.min(2, ONEC_DEFAULT_CONCURRENCY);
     case "getauto":
-      return Math.min(3, ONEC_DEFAULT_CONCURRENCY);
+      return Math.min(8, ONEC_DEFAULT_CONCURRENCY);
     case "getdata":
       return Math.min(8, ONEC_DEFAULT_CONCURRENCY);
     default:

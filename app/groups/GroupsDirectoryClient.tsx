@@ -255,7 +255,7 @@ function GroupCategoryCard({
 
               {subgroup.children.length > 0 ? (
                 <div className="mt-2 grid grid-cols-1 gap-1.5 pl-0">
-                  {subgroup.children.slice(0, 6).map((child) => (
+                  {subgroup.children.slice(0, 5).map((child) => (
                     <CatalogPrefetchLink
                       key={child.slug}
                       href={buildGroupItemPath(group.slug, child.slug)}
@@ -280,12 +280,12 @@ function GroupCategoryCard({
                       </span>
                     </CatalogPrefetchLink>
                   ))}
-                  {subgroup.children.length > 6 ? (
+                  {subgroup.children.length > 5 ? (
                     <CatalogPrefetchLink
                       href={buildGroupItemPath(group.slug, subgroup.slug)}
                       className="rounded-[12px] border border-dashed border-sky-200 bg-sky-50/60 px-2.5 py-2 text-[12px] font-bold text-sky-800 transition hover:bg-sky-100"
                     >
-                      Ще {subgroup.children.length - 6} категорій
+                      Ще {subgroup.children.length - 5} категорій
                     </CatalogPrefetchLink>
                   ) : null}
                 </div>

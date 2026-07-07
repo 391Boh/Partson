@@ -17,6 +17,30 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Montserrat";
+  src: url("/fonts/montserrat-500.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("/fonts/montserrat-700.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 600 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("/fonts/montserrat-800.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 800 900;
+  font-display: swap;
+}
+
 
 @layer base {
   :root {
@@ -24,7 +48,7 @@
     --soft-radius-surface: 16px;
     --soft-radius-control: 16px;
     --desktop-page-zoom: 1;
-    --font-ui-stack: "Exo 2", "Montserrat", "Segoe UI Variable", "Segoe UI", sans-serif;
+    --font-ui-stack: "Montserrat", "Exo 2", "Segoe UI Variable", "Segoe UI", sans-serif;
     --font-display-stack: "Exo 2", "Montserrat", "Segoe UI Variable", "Segoe UI", sans-serif;
     --font-geist-sans: var(--font-ui-stack);
     --font-geist-mono: "Geist Mono", "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
@@ -58,10 +82,10 @@
     -moz-osx-font-smoothing: auto;
     overscroll-behavior-y: auto;
     font-size: clamp(15px, 0.25vw + 14.5px, 16px);
-    letter-spacing: 0.008em;
-    line-height: 1.52;
-    font-weight: 630;
-    font-variation-settings: "wght" 630;
+    letter-spacing: 0.006em;
+    line-height: 1.55;
+    font-weight: 600;
+    font-variation-settings: "wght" 600;
     font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
     -webkit-user-select: none;
     user-select: none;
@@ -544,8 +568,8 @@
 }
 
 .deferred-section-content {
-  animation: none;
-  will-change: auto;
+  animation: deferredSectionFadeIn 0.4s ease-out both;
+  will-change: opacity;
 }
 
 .deferred-section-fallback {

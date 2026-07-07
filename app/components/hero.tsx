@@ -38,7 +38,7 @@ const Hero = () => {
       <span className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-28 bg-[image:linear-gradient(to_bottom,rgba(2,6,23,0.52)_0%,rgba(2,6,23,0.22)_55%,transparent_100%)]" />
       <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-28 bg-[image:linear-gradient(to_bottom,transparent_0%,rgba(2,6,23,0.08)_50%,rgba(2,6,23,0.18)_100%)]" />
       <div className="page-shell-inline home-hero-content-enter">
-        <div className="relative grid gap-4 text-slate-100 md:grid-cols-2 lg:grid-cols-3 lg:items-stretch">
+        <div className="relative grid gap-4 text-slate-100 md:grid-cols-2 lg:grid-cols-[minmax(0,420px)_1fr_1fr] lg:items-stretch">
           <HeroIntroCard />
 
           <div className="h-full min-w-0">

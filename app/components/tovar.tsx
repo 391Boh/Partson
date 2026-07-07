@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { FlipCard, type ProductNode } from "./FlipCard";
 import { useRouter } from "next/navigation";
@@ -40,6 +40,15 @@ const MAX_CATEGORY_ROWS = 1800;
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const getDisplayLabel = (value: string) => buildVisibleProductName(value || "Без назви");
 const MOTION_EASE_OUT = [0.16, 1, 0.3, 1] as const;
+
+const pluralWord = (n: number, one: string, few: string, many: string) => {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m100 >= 11 && m100 <= 19) return many;
+  if (m10 === 1) return one;
+  if (m10 >= 2 && m10 <= 4) return few;
+  return many;
+};
 
 type ProductArrayResult = {
   nodes: unknown[];
@@ -100,26 +109,6 @@ const normalizeProductNodes = (nodes: unknown[]): ProductNode[] => {
   if (nodes.length === 0) return [];
   return nodes.slice(0, MAX_GROUPS_FOR_RENDER).map((node) => transformNode(node, 0));
 };
-
-const gridVariants = {
-  hidden: {},
-  show: {
-    transition: {
-      staggerChildren: 0.05,
-      delayChildren: 0.02,
-    },
-  },
-} as const;
-
-const cardVariants = {
-  hidden: { opacity: 0, y: 10, scale: 0.98 },
-  show: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { duration: 0.25, ease: MOTION_EASE_OUT },
-  },
-} as const;
 
 type CachedProducts = {
   nodes: ProductNode[];
@@ -276,19 +265,26 @@ const readFirstArray = (
   return [];
 };
 
+const treeKey = (value: string) => normalizeLabel(value).toLocaleLowerCase("uk-UA");
+
 const transformNode = (node: unknown, depth = 0): ProductNode => {
   const record =
     node && typeof node === "object"
       ? (node as Record<string, unknown>)
       : {};
-  const children =
+  const name = readFirstString(record, NAME_KEYS);
+  const rawChildren =
     depth < MAX_TREE_DEPTH
       ? readFirstArray(record, CHILD_KEYS).slice(0, MAX_CHILDREN_PER_NODE)
       : [];
-  return {
-    name: readFirstString(record, NAME_KEYS),
-    children: children.map((child) => transformNode(child, depth + 1)),
-  };
+  const children = rawChildren
+    .map((child) => transformNode(child, depth + 1))
+    // 1C source data sometimes nests a single child that repeats the
+    // parent's own name (e.g. "Ремені клинові" -> "Ремені клинові"); drop
+    // that redundant wrapper so it doesn't render as a duplicate step.
+    .filter((child) => treeKey(child.name) !== treeKey(name));
+
+  return { name, children };
 };
 
 const transformData = (raw: unknown): ProductNode[] => {
@@ -302,7 +298,7 @@ const toProductNodes = (value: unknown): ProductNode[] => {
 };
 
 const ITEMS_PER_PAGE = 6;
-const QUICK_SEARCH_MAX_ROWS = 6;
+const QUICK_SEARCH_MAX_ROWS = 5;
 
 const collectLeafPaths = (
   nodes?: ProductNode[],
@@ -465,7 +461,6 @@ const ProductFetcher: React.FC<Props> = ({
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [flippedId, setFlippedId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const lastFocusVersionCheckRef = useRef<number>(0);
   const [canHover, setCanHover] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -567,17 +562,20 @@ const ProductFetcher: React.FC<Props> = ({
   };
 
   const goToPage = (value: number) => {
-    setPage((prev) => {
-      const next = safePage(value);
-      return prev === next ? prev : next;
-    });
+    const next = safePage(value);
+    setPage((prev) => (prev === next ? prev : next));
+    scrollToGroupPage(next);
   };
 
   const nextPage = () => {
-    setPage((prev) => safePage(prev + 1));
+    const next = safePage(page + 1);
+    setPage(next);
+    scrollToGroupPage(next);
   };
   const prevPage = () => {
-    setPage((prev) => safePage(prev - 1));
+    const next = safePage(page - 1);
+    setPage(next);
+    scrollToGroupPage(next);
   };
 
   useEffect(() => {
@@ -724,10 +722,42 @@ const ProductFetcher: React.FC<Props> = ({
     };
   }, [hasExternalProducts, isHydrated]);
 
-  const pagedGroups = useMemo(() => {
-    const start = (page - 1) * ITEMS_PER_PAGE;
-    return filteredGroups.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredGroups, page]);
+  const groupPages = useMemo(() => {
+    const pages: ProductNode[][] = [];
+    for (let index = 0; index < filteredGroups.length; index += ITEMS_PER_PAGE) {
+      pages.push(filteredGroups.slice(index, index + ITEMS_PER_PAGE));
+    }
+    return pages.length > 0 ? pages : [[]];
+  }, [filteredGroups]);
+
+  const groupPagesRef = useRef<HTMLDivElement | null>(null);
+  const getGroupPageWidth = useCallback(() => {
+    const container = groupPagesRef.current;
+    if (!container) return 0;
+    const el = container.querySelector<HTMLElement>("[data-group-page]");
+    return el?.offsetWidth ?? container.clientWidth;
+  }, []);
+  const scrollToGroupPage = useCallback(
+    (targetPage: number, behavior: ScrollBehavior = "smooth") => {
+      const container = groupPagesRef.current;
+      if (!container) return;
+      const pageWidth = getGroupPageWidth();
+      if (!pageWidth) return;
+      container.scrollTo({ left: (targetPage - 1) * pageWidth, behavior });
+    },
+    [getGroupPageWidth]
+  );
+  const handleGroupPagesScroll = useCallback(() => {
+    const container = groupPagesRef.current;
+    if (!container) return;
+    const pageWidth = getGroupPageWidth();
+    if (!pageWidth) return;
+    const nextPage = Math.max(
+      1,
+      Math.min(totalPages, Math.round(container.scrollLeft / pageWidth) + 1)
+    );
+    setPage((prev) => (prev === nextPage ? prev : nextPage));
+  }, [totalPages, getGroupPageWidth]);
 
   const handleRowSelect = (row: CategoryRow) => {
     const path = Array.isArray(row.path) ? row.path : [];
@@ -789,12 +819,23 @@ const ProductFetcher: React.FC<Props> = ({
                 <div className="h-9 w-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shadow-inner">
                   <Search size={16} />
                 </div>
-                <h2 className="font-display relative min-w-0 flex-1 text-[22px] tracking-[-0.045em] text-slate-700 sm:text-[25px]">
+                <div className="min-w-0 flex-1">
+                <h2 className="font-display relative min-w-0 text-[22px] tracking-[-0.045em] text-slate-700 sm:text-[25px]">
                   <span className="relative inline-block max-w-full break-words">
                     {"\u0428\u0432\u0438\u0434\u043a\u0438\u0439 \u043f\u043e\u0448\u0443\u043a \u0442\u043e\u0432\u0430\u0440\u0456\u0432!"}
                     <span className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400 transform origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 hover:scale-x-100 shadow-[0_4px_12px_rgba(37,99,235,0.3)]" />
                   </span>
                 </h2>
+                  <span className="mt-2.5 block text-[12px] font-semibold leading-tight text-slate-400">
+                    {"Знайдено "}
+                    <span className="font-bold tabular-nums text-sky-600">
+                      {showSkeleton ? "—" : filteredRows.length}
+                    </span>
+                    {!showSkeleton && (
+                      <>{" "}{pluralWord(filteredRows.length, "групу", "групи", "груп")}</>
+                    )}
+                  </span>
+                </div>
               </div>
 
               <ProductSearchInput
@@ -802,13 +843,7 @@ const ProductFetcher: React.FC<Props> = ({
                 onSearchChange={setSearchTerm}
               />
 
-              <div className="flex items-center justify-between text-xs text-gray-800 mb-2">
-                <span>
-                  {"\u0417\u043d\u0430\u0439\u0434\u0435\u043d\u043e:"} {showSkeleton ? "—" : filteredRows.length}
-                </span>
-              </div>
-
-              <div className="pr-1 pb-3 mt-2">
+              <div className="pr-1 pb-3 mt-4">
                 {showSkeleton ? (
                   <motion.div
                     key="loading"
@@ -831,7 +866,7 @@ const ProductFetcher: React.FC<Props> = ({
                     </div>
                   </motion.div>
                 ) : displayedRows.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-2.5">
+                  <div className="grid grid-cols-1 gap-3.5">
                     {displayedRows.map((row) => {
                       const isActive = selectedCategories.includes(row.id);
                       const displayLeaf = getDisplayLabel(row.leaf);
@@ -946,58 +981,36 @@ const ProductFetcher: React.FC<Props> = ({
         </motion.aside>
 
         <motion.div {...entryMotion} className="relative z-10 min-w-0">
-        <motion.div
-          className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5"
-          onTouchStart={(e) => {
-            const touch = e.touches[0];
-            if (!touch) return;
-            touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-          }}
-          onTouchEnd={(e) => {
-            const start = touchStartRef.current;
-            const end = e.changedTouches[0];
-            if (!start || !end) return;
-
-            const diffX = end.clientX - start.x;
-            const diffY = end.clientY - start.y;
-            const threshold = 30;
-            const horizontalSwipe = Math.abs(diffX) > threshold && Math.abs(diffX) > Math.abs(diffY) * 1.25;
-
-            if (horizontalSwipe) {
-              if (diffX > 0) {
-                prevPage();
-              } else {
-                nextPage();
-              }
-            }
-            touchStartRef.current = null;
-          }}
-          onTouchCancel={() => {
-            touchStartRef.current = null;
-          }}
-          variants={shouldAnimate ? gridVariants : undefined}
-          initial={shouldAnimate ? "hidden" : false}
-          animate={shouldAnimate ? "show" : undefined}
-        >
-              {pagedGroups.length > 0 ? (
-                pagedGroups.map((group, index) => {
-                  const id = (page - 1) * ITEMS_PER_PAGE + index;
-                  return (
-                    <motion.div
-                      key={`${group.name}-${id}`}
-                      variants={shouldAnimate ? cardVariants : undefined}
-                    >
-                      <FlipCard
-                        product={group}
-                        id={id}
-                        isFlipped={flippedId === id}
-                        setFlippedId={setFlippedId}
-                      />
-                    </motion.div>
-                  );
-                })
-              ) : showSkeleton ? (
-                <>
+        {filteredGroups.length > 0 ? (
+          <div
+            ref={groupPagesRef}
+            onScroll={handleGroupPagesScroll}
+            className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
+          >
+            <div className="flex">
+              {groupPages.map((pageGroups, pageIndex) => (
+                <div key={pageIndex} data-group-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 min-h-[572px] sm:min-h-[685px] lg:min-h-[450px]">
+                    {pageGroups.map((group, index) => {
+                      const id = pageIndex * ITEMS_PER_PAGE + index;
+                      return (
+                        <FlipCard
+                          key={`${group.name}-${id}`}
+                          product={group}
+                          id={id}
+                          isFlipped={flippedId === id}
+                          setFlippedId={setFlippedId}
+                          priority={pageIndex === 0 && index < 3}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : showSkeleton ? (
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 min-h-[572px] sm:min-h-[685px] lg:min-h-[450px]">
                   <div className="col-span-full">
                     <LoadingNotice
                       shouldAnimate={shouldAnimate}
@@ -1018,12 +1031,15 @@ const ProductFetcher: React.FC<Props> = ({
                       <div className="relative mt-4 h-6 w-24 rounded-full bg-cyan-100/80" />
                     </div>
                   ))}
-                </>
-              ) : productLoadError ? (
+          </div>
+        ) : productLoadError ? (
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 min-h-[572px] sm:min-h-[685px] lg:min-h-[450px]">
                 <div className="col-span-full rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-700">
                   Помилка завантаження категорій: {productLoadError}
                 </div>
-              ) : (
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 min-h-[572px] sm:min-h-[685px] lg:min-h-[450px]">
                 <motion.div
                   key="empty"
                   initial={shouldAnimate ? { opacity: 0 } : false}
@@ -1037,10 +1053,10 @@ const ProductFetcher: React.FC<Props> = ({
                     {"\u0421\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0456\u043d\u0448\u0438\u0439 \u0437\u0430\u043f\u0438\u0442"}
                   </div>
                 </motion.div>
-              )}
-        </motion.div>
+          </div>
+        )}
 
-        <div className="mt-5 flex items-center justify-center pb-3 sm:pb-4">
+        <div className="mt-5 flex items-center justify-center pb-6 sm:pb-8">
           <div className="flex items-center gap-2 rounded-2xl border border-sky-200/70 bg-gradient-to-r from-white via-sky-50/70 to-white px-3 py-2 shadow-[0_10px_24px_rgba(8,145,178,0.12),0_2px_8px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm">
 
             {/* Prev */}

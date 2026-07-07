@@ -15,7 +15,7 @@ type ModelYearsResponse = {
 
 const MODEL_YEARS_CACHE_TTL_MS = 1000 * 60 * 10;
 const MODEL_YEARS_MAX_MODELS = 60;
-const MODEL_YEARS_CONCURRENCY = 4;
+const MODEL_YEARS_CONCURRENCY = 8;
 
 const routeCache = new Map<string, { expiresAt: number; value: ModelYearsResponse }>();
 const routeInFlight = new Map<string, Promise<ModelYearsResponse>>();
@@ -229,61 +229,46 @@ const pruneRouteCache = () => {
   }
 };
 
+// 1C's getauto only accepts the Cyrillic field names (verified live: "brand"/"Brand"
+// always fail with "Потрібна 'Марка'") — a single request is enough, no fallback needed.
 const fetchAutoRowsForModel = async (brand: string, model: string) => {
-  const candidateBodies: Array<Record<string, unknown>> = [
-    {
-      [AUTO_FIELDS.brand]: brand,
-      [AUTO_FIELDS.model]: model,
-    },
-    { brand, model },
-    { Brand: brand, Model: model },
-    { "Марка": brand, "Модель": model },
-  ];
+  const body = {
+    [AUTO_FIELDS.brand]: brand,
+    [AUTO_FIELDS.model]: model,
+  };
 
-  let lastError: Error | null = null;
+  const response = await oneCRequest("getauto", {
+    method: "POST",
+    body,
+    timeoutMs: 9000,
+    retries: 0,
+    retryDelayMs: 120,
+    cacheTtlMs: 1000 * 60 * 5,
+    cacheKey: JSON.stringify({ endpoint: "getauto", body }),
+  }).catch(
+    (error) =>
+      ({
+        status: 500,
+        text: JSON.stringify({
+          error: "1C Service unreachable",
+          details: error instanceof Error ? error.message : String(error),
+        }),
+        contentType: "application/json",
+      })
+  );
 
-  for (const body of candidateBodies) {
-    const response = await oneCRequest("getauto", {
-      method: "POST",
-      body,
-      timeoutMs: 9000,
-      retries: 0,
-      retryDelayMs: 120,
-      cacheTtlMs: 1000 * 60 * 5,
-      cacheKey: JSON.stringify({ endpoint: "getauto", body }),
-    }).catch(
-      (error) =>
-        ({
-          status: 500,
-          text: JSON.stringify({
-            error: "1C Service unreachable",
-            details: error instanceof Error ? error.message : String(error),
-          }),
-          contentType: "application/json",
-        })
-    );
-
-    if (response.status < 200 || response.status >= 300) {
-      lastError = new Error(extractErrorMessage(response.text));
-      continue;
-    }
-
-    let parsed: unknown = null;
-    try {
-      parsed = JSON.parse(response.text);
-    } catch {
-      parsed = response.text;
-    }
-
-    const rows = normalizeAutoRows(parsed);
-    if (rows.length > 0) return rows;
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(extractErrorMessage(response.text));
   }
 
-  if (lastError) {
-    throw lastError;
+  let parsed: unknown = null;
+  try {
+    parsed = JSON.parse(response.text);
+  } catch {
+    parsed = response.text;
   }
 
-  return [] as unknown[];
+  return normalizeAutoRows(parsed);
 };
 
 const collectModelYears = async (brand: string, models: string[]) => {

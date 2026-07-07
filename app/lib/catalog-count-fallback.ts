@@ -6,9 +6,11 @@ import type {
   CatalogSeoFacets,
   SeoFacetItem,
   SeoGroupFacet,
+  SeoProducerCategoryFacet,
   SeoProducerFacet,
   SeoProducerGroupFacet,
 } from "app/lib/catalog-seo";
+import { resolveProductCategoryHierarchy } from "app/lib/catalog-hierarchy";
 import type { ProductSitemapEntry } from "app/lib/product-sitemap";
 import { buildSeoSlug } from "app/lib/seo-slug";
 
@@ -118,24 +120,21 @@ export const buildCatalogSeoFacetsFromSitemapEntries = (
   const groupSubgroupCounts: NestedCounterMap = new Map();
   const producerGroupCounts: NestedCounterMap = new Map();
   const producerGroupSubgroupCounts = new Map<string, NestedCounterMap>();
+  // producerSlug → categorySlug → Map<groupSlug, CounterEntry>
+  const producerCategoryGroupCounts = new Map<string, NestedCounterMap>();
+  const producerCategoryLabels = new Map<string, Map<string, string>>();
 
   for (const entry of entries) {
     const productKey = resolveProductKey(entry);
     if (!productKey) continue;
     productKeys.add(productKey);
 
-    // Use only the real 1C "Группа" field for group facets.
-    // Falling back to "Категорія" creates links like ?group=<category>,
-    // which do not match catalog filtering and can lead to empty results.
-    const group = normalizeValue(entry.group);
-    const category = normalizeValue(entry.category);
-    const subgroup =
-      normalizeValue(entry.subGroup) ||
-      (category &&
-      group &&
-      category.toLocaleLowerCase("uk-UA") !== group.toLocaleLowerCase("uk-UA")
-        ? category
-        : "");
+    // Single source of truth for Категорія/Группа/Підгруппа — see
+    // app/lib/catalog-hierarchy.ts. group/subgroup are always the literal 1C
+    // values (required for the ?group=/?subcategory= filter to match);
+    // category is a display-only outer wrapper.
+    const resolved = resolveProductCategoryHierarchy(entry);
+    const { group, subgroup, category } = resolved;
     const producer = normalizeValue(entry.producer);
 
     if (group) {
@@ -158,6 +157,26 @@ export const buildCatalogSeoFacetsFromSitemapEntries = (
       registerNestedProduct(nested, group, subgroup, productKey);
       producerGroupSubgroupCounts.set(producerSlug, nested);
     }
+
+    if (producerSlug && group && category) {
+      const categorySlug = buildSeoSlug(category);
+      if (categorySlug) {
+        let catLabels = producerCategoryLabels.get(producerSlug);
+        if (!catLabels) {
+          catLabels = new Map<string, string>();
+          producerCategoryLabels.set(producerSlug, catLabels);
+        }
+        if (!catLabels.has(categorySlug)) {
+          catLabels.set(categorySlug, category);
+        }
+
+        const catGroupMap = producerCategoryGroupCounts.get(producerSlug) || new Map();
+        const groupMap = catGroupMap.get(categorySlug) || new Map<string, CounterEntry>();
+        registerProduct(groupMap, group, productKey);
+        catGroupMap.set(categorySlug, groupMap);
+        producerCategoryGroupCounts.set(producerSlug, catGroupMap);
+      }
+    }
   }
 
   const groups: SeoGroupFacet[] = toFacetList(groupCounts).map((group) => ({
@@ -166,15 +185,39 @@ export const buildCatalogSeoFacetsFromSitemapEntries = (
   }));
 
   const producers: SeoProducerFacet[] = toFacetList(producerCounts).map((producer) => {
+    const producerSubgroupMap = producerGroupSubgroupCounts.get(producer.slug) || new Map();
     const producerGroups = toFacetList(
       producerGroupCounts.get(producer.slug) || new Map()
     ).map<SeoProducerGroupFacet>((group) => ({
       ...group,
       filterValue: group.label,
-      subgroups: toFacetList(
-        producerGroupSubgroupCounts.get(producer.slug)?.get(group.slug) || new Map()
-      ),
+      subgroups: toFacetList(producerSubgroupMap.get(group.slug) || new Map()),
     }));
+
+    const catGroupMap = producerCategoryGroupCounts.get(producer.slug) || new Map();
+    const catLabels = producerCategoryLabels.get(producer.slug) || new Map<string, string>();
+    const topCategories: SeoProducerCategoryFacet[] = Array.from(catGroupMap.entries())
+      .map(([catSlug, groupsInCat]) => {
+        const catLabel = catLabels.get(catSlug) || catSlug;
+        const catGroups = toFacetList(groupsInCat).map<SeoProducerGroupFacet>((gf) => ({
+          ...gf,
+          filterValue: gf.label,
+          subgroups: toFacetList(producerSubgroupMap.get(gf.slug) || new Map()),
+        }));
+        const catProductCount = catGroups.reduce((sum, g) => sum + g.productCount, 0);
+        return {
+          label: catLabel,
+          slug: catSlug,
+          productCount: catProductCount,
+          groups: catGroups,
+        };
+      })
+      .filter((cat) => cat.productCount > 0 && cat.groups.length > 0)
+      .sort((a, b) =>
+        b.productCount !== a.productCount
+          ? b.productCount - a.productCount
+          : a.label.localeCompare(b.label, "uk")
+      );
 
     return {
       ...producer,
@@ -184,6 +227,7 @@ export const buildCatalogSeoFacetsFromSitemapEntries = (
         0
       ),
       topGroups: producerGroups,
+      topCategories: topCategories.length > 0 ? topCategories : undefined,
     };
   });
 

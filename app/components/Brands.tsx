@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { memo, useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ChevronLeft, ChevronRight, Factory, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -228,22 +228,59 @@ export default function BrandCarousel({
 
   const totalPages = Math.max(1, Math.ceil(filteredBrands.length / itemsPerPage));
   const safePage = Math.min(page, totalPages - 1);
-  const pagedBrands = filteredBrands.slice(
-    safePage * itemsPerPage,
-    safePage * itemsPerPage + itemsPerPage
-  );
+  const brandPages = useMemo(() => {
+    const pages: BrandItem[][] = [];
+    for (let index = 0; index < filteredBrands.length; index += itemsPerPage) {
+      pages.push(filteredBrands.slice(index, index + itemsPerPage));
+    }
+    return pages.length > 0 ? pages : [[]];
+  }, [filteredBrands, itemsPerPage]);
   const canGoPrev = safePage > 0;
   const canGoNext = safePage < totalPages - 1;
 
+  const brandPagesRef = useRef<HTMLDivElement | null>(null);
+  const getBrandPageWidth = useCallback(() => {
+    const container = brandPagesRef.current;
+    if (!container) return 0;
+    const el = container.querySelector<HTMLElement>("[data-brand-page]");
+    return el?.offsetWidth ?? container.clientWidth;
+  }, []);
+  const scrollToBrandPage = useCallback(
+    (targetPage: number, behavior: ScrollBehavior = "smooth") => {
+      const container = brandPagesRef.current;
+      if (!container) return;
+      const pageWidth = getBrandPageWidth();
+      if (!pageWidth) return;
+      container.scrollTo({ left: targetPage * pageWidth, behavior });
+    },
+    [getBrandPageWidth]
+  );
+  const handleBrandPagesScroll = useCallback(() => {
+    const container = brandPagesRef.current;
+    if (!container) return;
+    const pageWidth = getBrandPageWidth();
+    if (!pageWidth) return;
+    const nextPage = Math.max(
+      0,
+      Math.min(totalPages - 1, Math.round(container.scrollLeft / pageWidth))
+    );
+    setPage((prev) => (prev === nextPage ? prev : nextPage));
+  }, [totalPages, getBrandPageWidth]);
+
   useEffect(() => {
     setPage(0);
+    const container = brandPagesRef.current;
+    if (!container) return;
+    container.scrollTo({ left: 0, behavior: "auto" });
   }, [search, itemsPerPage]);
 
   useEffect(() => {
     if (page > totalPages - 1) {
-      setPage(Math.max(0, totalPages - 1));
+      const clamped = Math.max(0, totalPages - 1);
+      setPage(clamped);
+      scrollToBrandPage(clamped, "auto");
     }
-  }, [page, totalPages]);
+  }, [page, totalPages, scrollToBrandPage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -267,13 +304,17 @@ export default function BrandCarousel({
 
   const handlePrevPage = useCallback(() => {
     if (!canGoPrev) return;
-    setPage((prev) => Math.max(0, prev - 1));
-  }, [canGoPrev]);
+    const nextPage = Math.max(0, safePage - 1);
+    setPage(nextPage);
+    scrollToBrandPage(nextPage);
+  }, [canGoPrev, safePage, scrollToBrandPage]);
 
   const handleNextPage = useCallback(() => {
     if (!canGoNext) return;
-    setPage((prev) => Math.min(totalPages - 1, prev + 1));
-  }, [canGoNext, totalPages]);
+    const nextPage = Math.min(totalPages - 1, safePage + 1);
+    setPage(nextPage);
+    scrollToBrandPage(nextPage);
+  }, [canGoNext, totalPages, safePage, scrollToBrandPage]);
 
   const openCatalog = useCallback(
     (brandName: string) => {
@@ -367,22 +408,28 @@ export default function BrandCarousel({
             {"За цим запитом виробників не знайдено."}
           </div>
         ) : (
-          <motion.div
-            key={`${safePage}-${filteredBrands.length}`}
-            initial={shouldAnimate ? { opacity: 0, y: 8 } : false}
-            animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
-            transition={shouldAnimate ? { duration: 0.22, ease: "easeOut" } : undefined}
-            className="group/logogrid mt-4 grid grid-cols-1 gap-3.5 place-items-stretch min-[420px]:grid-cols-2 sm:grid-cols-4 sm:gap-4 lg:gap-5"
+          <div
+            ref={brandPagesRef}
+            onScroll={handleBrandPagesScroll}
+            className="no-scrollbar mt-6 overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
           >
-            {pagedBrands.map((brand, idx) => (
-              <BrandCard
-                key={`${brand.name}-${safePage}-${idx}`}
-                brand={brand}
-                onOpen={openCatalog}
-                priority={safePage === 0 && idx < 4}
-              />
-            ))}
-          </motion.div>
+            <div className="flex">
+              {brandPages.map((pageBrands, pageIndex) => (
+                <div key={pageIndex} data-brand-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
+                  <div className="group/logogrid grid grid-cols-1 gap-3.5 place-items-stretch min-[420px]:grid-cols-2 sm:grid-cols-4 sm:gap-4 lg:gap-5">
+                    {pageBrands.map((brand, idx) => (
+                      <BrandCard
+                        key={`${brand.name}-${pageIndex}-${idx}`}
+                        brand={brand}
+                        onOpen={openCatalog}
+                        priority={pageIndex === 0 && idx < 4}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </motion.div>
     </section>

@@ -1170,7 +1170,7 @@ export const fetchCatalogProductsPage = async (options: {
   });
 };
 
-export const fetchCatalogProductsByQuery = async (options: {
+const fetchCatalogProductsByQueryInner = async (options: {
   page?: number;
   limit?: number;
   selectedCars?: string[];
@@ -1256,7 +1256,7 @@ export const fetchCatalogProductsByQuery = async (options: {
       const branchLimit = Math.min(Math.max(targetCount, limit), 240);
       const branchResults = await Promise.all(
         branches.slice(0, 48).map((branch) =>
-          fetchCatalogProductsByQuery({
+          fetchCatalogProductsByQueryInner({
             ...options,
             page: 1,
             limit: branchLimit,
@@ -1714,6 +1714,37 @@ export const fetchCatalogProductsByQuery = async (options: {
   return (
     primary ?? fallback ?? { items: [], hasMore: false, nextCursor: "", cursorField: null }
   );
+};
+
+export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInner = async (
+  options
+) => {
+  const result = await fetchCatalogProductsByQueryInner(options);
+
+  // A subcategory leaf from the navigation tree can have zero products in
+  // stock even though the (group, subcategory) pair is tagged correctly.
+  // Soften that dead end by widening to the whole parent group instead of
+  // showing an empty catalog page.
+  const group = (options.group || "").trim();
+  const subcategory = (options.subcategory || "").trim();
+  const isFirstPage = !options.page || options.page <= 1;
+  if (
+    result.items.length === 0 &&
+    group &&
+    subcategory &&
+    isFirstPage &&
+    (options.selectedCars?.length ?? 0) === 0 &&
+    (options.selectedCategories?.length ?? 0) === 0
+  ) {
+    const widened = await fetchCatalogProductsByQueryInner({
+      ...options,
+      subcategory: null,
+      expandHierarchy: false,
+    });
+    if (widened.items.length > 0) return widened;
+  }
+
+  return result;
 };
 
 export const fetchCatalogProductsByFacet = async (options: {

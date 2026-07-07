@@ -825,10 +825,8 @@ const buildProductMetaDescription = (options: {
   group?: string;
   subGroup?: string;
 }) => {
-  const { name, article, code, category, group, subGroup } = options;
-  const articleLabel = article ? `арт. ${article}` : null;
-  const codeLabel = code && code !== article ? `код ${code}` : null;
-  const lookupLabel = [articleLabel, codeLabel].filter(Boolean).join(", ");
+  const { name, article, category, group, subGroup } = options;
+  const lookupLabel = article ? `арт. ${article}` : null;
   const nameLabel = trimSeoPhrase(buildVisibleProductName(name || "автозапчастину"), 54);
   const topLabel = (category || group) ? buildVisibleProductName(category || group || "") : "";
   const midLabel = (category && group) ? buildVisibleProductName(group) : "";

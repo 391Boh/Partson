@@ -173,26 +173,26 @@ export default function HeroAccountClient({
           </svg>
         </span>
         <div className="flex min-w-0 flex-col">
-          <p className="font-display break-words text-xs font-semibold italic uppercase tracking-[0.14em] text-slate-100/90 sm:text-sm sm:tracking-[0.2em]">
+          <p className="font-display break-words text-xs font-semibold italic uppercase tracking-[0.14em] text-white sm:text-sm sm:tracking-[0.2em]">
             Вигода від реєстрації
           </p>
           <span className="h-0.5 w-28 bg-gradient-to-r from-sky-300/70 via-white/25 to-transparent" />
         </div>
       </div>
-      <ul className="space-y-2 text-[13px] font-semibold tracking-[-0.01em] text-slate-100 sm:text-[15px]">
+      <ul className="space-y-2 text-[13px] font-semibold tracking-[-0.01em] text-white sm:text-[15px]">
         {benefitItems.map(({ label, onClick }) => (
           <li key={label}>
             <button
               type="button"
               onClick={onClick}
-              className="home-chip-hover w-full flex cursor-pointer items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-white/30 motion-safe:hover:bg-white/15"
+              className="group home-chip-hover w-full flex cursor-pointer items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-sky-300/50 motion-safe:hover:bg-[image:linear-gradient(120deg,rgba(56,189,248,0.16)_0%,rgba(255,255,255,0.10)_100%)]"
             >
-              <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-emerald-400/70 text-emerald-300/90">
+              <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-emerald-400/70 text-emerald-300/90 transition-colors duration-200 group-hover:border-emerald-300 group-hover:text-emerald-200">
                 <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M5 12l4 4 10-10" />
                 </svg>
               </span>
-              <span>{label}</span>
+              <span className="text-[13px] transition-all duration-200 group-hover:text-[13.5px] group-hover:text-sky-100 sm:text-[15px] sm:group-hover:text-[15.5px]">{label}</span>
             </button>
           </li>
         ))}

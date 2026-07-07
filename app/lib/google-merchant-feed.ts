@@ -132,7 +132,6 @@ const buildProductDescription = (entry: ProductSitemapEntry) => {
     `${visibleName}${entry.producer ? ` від виробника ${entry.producer}` : ""}.`,
     `Категорія: ${categoryLabel}.`,
     entry.article ? `Артикул: ${entry.article}.` : null,
-    entry.code ? `Код: ${entry.code}.` : null,
     availabilityLabel,
     "Купити автозапчастини на PartsON з доставкою по Україні.",
   ]
