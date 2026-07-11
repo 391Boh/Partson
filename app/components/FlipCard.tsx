@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
-import { useState, memo, useRef } from "react";
+import { useState, memo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { buildCatalogCategoryPath } from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
@@ -77,7 +77,18 @@ function FlipCardComponent({
   const [page, setPage] = useState(0);
   const [sub, setSub] = useState(0);
 
-  const perPage = 4;
+  // Card height is fixed (h-[180px] sm:h-[215px]); 4 items only fit comfortably
+  // once the taller sm: card is available, so mobile shows 3 per page instead
+  // of clipping the 4th item.
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsCompactViewport(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  const perPage = isCompactViewport ? 3 : 4;
   const children = product.children ?? [];
 
   const mainPages = Math.ceil(children.length / perPage);

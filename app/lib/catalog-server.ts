@@ -2359,50 +2359,11 @@ export const fetchProductDescription = async (
   const retries = options?.retries ?? 1;
   const retryDelayMs = options?.retryDelayMs ?? 200;
   const cacheTtlMs = options?.cacheTtlMs ?? 1000 * 60 * 30;
-
-  const allgoodsBodies: Array<Record<string, unknown>> = [
-    {
-      [ALLGOODS_LIMIT_FIELD]: 1,
-      [ALLGOODS_CODE_FIELD]: normalized,
-      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: true,
-    },
-    {
-      [ALLGOODS_LIMIT_FIELD]: 1,
-      [ALLGOODS_ARTICLE_FIELD]: normalized,
-      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: true,
-    },
-  ];
-
   const normalizedLookup = normalizeFacetValue(normalized);
-  const seenBodies = new Set<string>();
 
-  for (const body of allgoodsBodies) {
-    const serializedBody = JSON.stringify(body);
-    if (seenBodies.has(serializedBody)) continue;
-    seenBodies.add(serializedBody);
-
-    const response = await oneCRequest("allgoods", {
-      method: "POST",
-      body,
-      timeoutMs,
-      retries,
-      retryDelayMs,
-      cacheTtlMs,
-      cacheKey: JSON.stringify({
-        endpoint: "allgoods",
-        body,
-        timeoutMs: timeoutMs ?? null,
-        retries,
-        retryDelayMs,
-      }),
-    }).catch(() => null);
-
-    if (!response || response.status < 200 || response.status >= 300) {
-      continue;
-    }
-
+  const extractAllgoodsDescription = (responseText: string): string | null => {
     try {
-      const parsed = JSON.parse(response.text) as { items?: unknown[] } | unknown[];
+      const parsed = JSON.parse(responseText) as { items?: unknown[] } | unknown[];
       const records = Array.isArray(parsed)
         ? parsed
         : Array.isArray(parsed?.items)
@@ -2419,39 +2380,79 @@ export const fetchProductDescription = async (
           return recordCode === normalizedLookup || recordArticle === normalizedLookup;
         }) ?? normalizedRecords[0] ?? null;
 
-      if (!matchedRecord) continue;
-
-      const description = readDescriptionFromRecord(matchedRecord);
-      if (description) return description;
+      return matchedRecord ? readDescriptionFromRecord(matchedRecord) : null;
     } catch {
-      // Fall through to getinfo below.
+      return null;
     }
-  }
+  };
 
-  const response = await oneCRequest("getinfo", {
-    method: "POST",
-    body: { [INFO_ARTICLE_FIELD]: normalized },
-    timeoutMs,
-    retries,
-    retryDelayMs,
-    cacheTtlMs,
-  });
+  const runAllgoodsLookup = async (body: Record<string, unknown>) => {
+    const response = await oneCRequest("allgoods", {
+      method: "POST",
+      body,
+      timeoutMs,
+      retries,
+      retryDelayMs,
+      cacheTtlMs,
+      cacheKey: JSON.stringify({
+        endpoint: "allgoods",
+        body,
+        timeoutMs: timeoutMs ?? null,
+        retries,
+        retryDelayMs,
+      }),
+    }).catch(() => null);
 
-  if (response.status < 200 || response.status >= 300) return null;
+    if (!response || response.status < 200 || response.status >= 300) return null;
+    return extractAllgoodsDescription(response.text);
+  };
 
-  try {
-    const payload = JSON.parse(response.text) as Record<string, unknown>;
-    for (const key of INFO_DESC_FIELDS) {
-      const value = payload?.[key];
-      if (typeof value !== "string") continue;
-      const normalizedDescription = normalizeDescriptionText(value);
-      if (normalizedDescription) return normalizedDescription;
+  const runGetInfoLookup = async () => {
+    const response = await oneCRequest("getinfo", {
+      method: "POST",
+      body: { [INFO_ARTICLE_FIELD]: normalized },
+      timeoutMs,
+      retries,
+      retryDelayMs,
+      cacheTtlMs,
+    }).catch(() => null);
+
+    if (!response || response.status < 200 || response.status >= 300) return null;
+
+    try {
+      const payload = JSON.parse(response.text) as Record<string, unknown>;
+      for (const key of INFO_DESC_FIELDS) {
+        const value = payload?.[key];
+        if (typeof value !== "string") continue;
+        const normalizedDescription = normalizeDescriptionText(value);
+        if (normalizedDescription) return normalizedDescription;
+      }
+    } catch {
+      return null;
     }
-  } catch {
     return null;
-  }
+  };
 
-  return null;
+  // Run all three candidate lookups concurrently instead of sequentially.
+  // The client races this whole call against a single fixed timeout, so
+  // waiting on each candidate one-at-a-time (up to 3 round-trips) routinely
+  // blew past that timeout even when a later candidate would have answered
+  // quickly on its own.
+  const [byCode, byArticle, byInfo] = await Promise.all([
+    runAllgoodsLookup({
+      [ALLGOODS_LIMIT_FIELD]: 1,
+      [ALLGOODS_CODE_FIELD]: normalized,
+      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: true,
+    }),
+    runAllgoodsLookup({
+      [ALLGOODS_LIMIT_FIELD]: 1,
+      [ALLGOODS_ARTICLE_FIELD]: normalized,
+      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: true,
+    }),
+    runGetInfoLookup(),
+  ]);
+
+  return byCode || byArticle || byInfo || null;
 };
 
 export const collectCatalogProductCodes = async (options?: {

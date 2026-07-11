@@ -1461,6 +1461,20 @@ function useCatalogData(params: {
     []
   );
 
+  const replacePageImages = useCallback((images?: Record<string, string>) => {
+    const nextImages = images ?? {};
+    pageImagesRef.current = nextImages;
+    setPageImages(nextImages);
+  }, []);
+
+  const clearTransientPageImageState = useCallback(() => {
+    pageImagePendingRef.current = {};
+    pageImageMissingRef.current = {};
+    imageBatchAttemptKeysRef.current.clear();
+    setPageImagePending({});
+    setPageImageMissing({});
+  }, []);
+
   const fetchCatalogPagePrices = useCallback(
     async (
       items: Product[],
@@ -2462,6 +2476,7 @@ function useCatalogData(params: {
     setFlippedCard(null);
     setSelectedImage(null);
     setError(null);
+    clearTransientPageImageState();
     hideNextPageLoader(true);
 
     const trimmed = normalizedSearch;
@@ -2487,7 +2502,7 @@ function useCatalogData(params: {
         const nextItems = mergeUniqueProducts([], memoryHit.items);
         applyResolvedPagePrices(memoryHit.items, memoryHit.prices);
         // Миттєво оновлюємо pageImages з images API
-        setPageImages(memoryHit.images ?? {});
+        replacePageImages(memoryHit.images);
         const cancelWarmup = scheduleCatalogBackgroundTask(() => {
           void fetchCatalogPagePrices(memoryHit.items, {
             prefetchedPrices: memoryHit.prices,
@@ -2534,7 +2549,7 @@ function useCatalogData(params: {
         writePageToMemory(cacheKey, sessionHit, MEMORY_CACHE_TTL_MS_FIRST_PAGE);
         applyResolvedPagePrices(sessionHit.items, sessionHit.prices);
         // Миттєво оновлюємо pageImages з images API
-        setPageImages(sessionHit.images ?? {});
+        replacePageImages(sessionHit.images);
         const cancelWarmup = scheduleCatalogBackgroundTask(() => {
           void fetchCatalogPagePrices(sessionHit.items, {
             prefetchedPrices: sessionHit.prices,
@@ -2578,6 +2593,7 @@ function useCatalogData(params: {
       // No immediate cache hit for this filter/query, so clear stale products first.
       dataRef.current = [];
       setData([]);
+      replacePageImages({});
       setCatalogTotalCount(initialTotalCount ?? null);
       setLoading(true);
       setFilterLoading(true);
@@ -2586,6 +2602,7 @@ function useCatalogData(params: {
 
     dataRef.current = [];
     setData([]);
+    replacePageImages({});
     setCatalogTotalCount(initialTotalCount ?? null);
     setLoading(true);
     setFilterLoading(true);
@@ -2595,6 +2612,7 @@ function useCatalogData(params: {
     applyResolvedPagePrices,
     fetchCatalogPagePrices,
     fetchCatalogPageImages,
+    clearTransientPageImageState,
     shouldAllowCatalogDirectPriceLookup,
     querySignature,
     initialPagePayload,
@@ -2603,6 +2621,7 @@ function useCatalogData(params: {
     buildCacheKey,
     hideNextPageLoader,
     revalidateCachedPagePayload,
+    replacePageImages,
     scheduleCatalogBackgroundTask,
   ]);
 
@@ -2683,12 +2702,13 @@ function useCatalogData(params: {
       setPageImages((prev) => {
         const incomingImages = payload.images ?? {};
         if (page === 1) {
-          return Object.keys(incomingImages).length > 0
-            ? { ...prev, ...incomingImages }
-            : prev;
+          pageImagesRef.current = { ...incomingImages };
+          return Object.keys(incomingImages).length > 0 ? { ...incomingImages } : {};
         }
 
-        return { ...prev, ...incomingImages };
+        const next = { ...prev, ...incomingImages };
+        pageImagesRef.current = next;
+        return next;
       });
       dataRef.current = nextData;
       setData(nextData);

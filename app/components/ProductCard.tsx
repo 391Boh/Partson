@@ -12,7 +12,7 @@ import { pushEcommerceEvent } from "app/lib/gtm";
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
-const DESCRIPTION_REQUEST_TIMEOUT_MS = 1800;
+const DESCRIPTION_REQUEST_TIMEOUT_MS = 2600;
 const ARTICLE_COPY_FEEDBACK_MS = 1200;
 const safBackface = {
     backfaceVisibility: "hidden" as const,
@@ -632,11 +632,9 @@ useEffect(() => {
 
     let cancelled = false;
 
-    const loadDescription = async () => {
+    const attemptFetch = async () => {
         let timeoutId: number | undefined;
         try {
-            setLoadingDesc(true);
-
             const timeoutPromise = new Promise<Response>((_, reject) => {
                 timeoutId = window.setTimeout(
                     () => reject(new Error("product-card-description-timeout")),
@@ -651,12 +649,29 @@ useEffect(() => {
                 timeoutPromise,
             ]);
             const data = (await res.json()) as { description?: string | null };
-            if (cancelled) return;
+            return typeof data.description === "string" && data.description.trim()
+                ? data.description.trim()
+                : null;
+        } finally {
+            if (timeoutId != null) window.clearTimeout(timeoutId);
+        }
+    };
 
-            const rawDesc =
-                typeof data.description === "string" && data.description.trim()
-                    ? data.description.trim()
-                    : null;
+    const loadDescription = async () => {
+        try {
+            setLoadingDesc(true);
+
+            // A single slow/failed attempt shouldn't permanently show the error
+            // string \u2014 retry once before giving up, since the vast majority of
+            // failures here are transient 1C latency, not a real missing description.
+            let rawDesc: string | null = null;
+            try {
+                rawDesc = await attemptFetch();
+            } catch {
+                if (cancelled) return;
+                rawDesc = await attemptFetch();
+            }
+            if (cancelled) return;
 
             setDescription(
                 rawDesc
@@ -673,7 +688,6 @@ useEffect(() => {
                 setDescription("\u041D\u0435 \u0432\u0434\u0430\u043B\u043E\u0441\u044F \u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0438\u0442\u0438 \u043E\u043F\u0438\u0441");
             }
         } finally {
-            if (timeoutId != null) window.clearTimeout(timeoutId);
             if (!cancelled) {
                 setLoadingDesc(false);
             }
@@ -762,6 +776,7 @@ useEffect(() => {
                                 deferDirectLoad={batchImageOnly && !prefetchedImageSrc && !batchImageMissing}
                                 disableDirectLoad={batchImageOnly && batchImagePending && !prefetchedImageSrc && !batchImageMissing}
                                 batchImagePending={batchImagePending}
+                                batchImageMissing={batchImageMissing}
                             />
                             {isAdmin && onAdminEdit && (
                                 <>

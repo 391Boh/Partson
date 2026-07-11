@@ -23,7 +23,7 @@ type ProductDescriptionClientCardProps = {
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
-const DESCRIPTION_REQUEST_TIMEOUT_MS = 1400;
+const DESCRIPTION_REQUEST_TIMEOUT_MS = 2600;
 
 export default function ProductDescriptionClientCard({
   fallbackText,
@@ -139,7 +139,7 @@ export default function ProductDescriptionClientCard({
     let cancelled = false;
     let loadTimerId: number | null = null;
 
-    const loadDescription = async () => {
+    const attemptFetch = async () => {
       let timeoutId: number | undefined;
       try {
         const timeoutPromise = new Promise<Response>((_, reject) => {
@@ -157,12 +157,27 @@ export default function ProductDescriptionClientCard({
           timeoutPromise,
         ]);
         const payload = (await response.json()) as { description?: string | null };
-        if (cancelled) return;
+        return typeof payload.description === "string" && payload.description.trim()
+          ? payload.description.trim()
+          : null;
+      } finally {
+        if (timeoutId != null) window.clearTimeout(timeoutId);
+      }
+    };
 
-        const nextDescription =
-          typeof payload.description === "string" && payload.description.trim()
-            ? payload.description.trim()
-            : null;
+    const loadDescription = async () => {
+      try {
+        // A single slow/failed attempt shouldn't leave the fallback text
+        // permanently shown — retry once, since most failures here are
+        // transient 1C latency rather than a genuinely missing description.
+        let nextDescription: string | null = null;
+        try {
+          nextDescription = await attemptFetch();
+        } catch {
+          if (cancelled) return;
+          nextDescription = await attemptFetch();
+        }
+        if (cancelled) return;
 
         if (nextDescription) {
           writeCachedDescription(nextDescription);
@@ -171,8 +186,6 @@ export default function ProductDescriptionClientCard({
         }
       } catch {
         // Keep fallback description on network issues.
-      } finally {
-        if (timeoutId != null) window.clearTimeout(timeoutId);
       }
     };
 

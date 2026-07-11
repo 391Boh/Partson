@@ -46,6 +46,7 @@ interface Props {
   deferDirectLoad?: boolean;
   disableDirectLoad?: boolean;
   batchImagePending?: boolean;
+  batchImageMissing?: boolean;
 }
 
 type ImageStatus = "loading" | "retrying" | "loaded" | "missing";
@@ -66,6 +67,7 @@ const ProductCardImage: React.FC<Props> = ({
   deferDirectLoad = false,
   disableDirectLoad = false,
   batchImagePending = false,
+  batchImageMissing = false,
 }) => {
   const normalizedCode = (productCode || "").trim();
   const normalizedArticle = (articleHint || "").trim();
@@ -152,6 +154,15 @@ const ProductCardImage: React.FC<Props> = ({
         setStatus("loading");
         setFinalRetryQueued(false);
       }
+      return () => {};
+    }
+
+    if (batchImageMissing) {
+      directFallbackQueuedRef.current = false;
+      writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
+      setRequestSrc("");
+      setStatus("missing");
+      setFinalRetryQueued(true);
       return () => {};
     }
 
@@ -249,12 +260,14 @@ const ProductCardImage: React.FC<Props> = ({
     recoverySrc,
     finalRetrySrc,
     batchImagePending,
+    batchImageMissing,
     deferDirectLoad,
     disableDirectLoad,
   ]);
   useEffect(() => {
     if (!hasKnownPhoto) return;
     if (disableDirectLoad) return;
+    if (batchImageMissing) return;
     if (status !== "missing") return;
     if (!finalRetrySrc) return;
     if (finalRetryQueued) return;
@@ -266,7 +279,7 @@ const ProductCardImage: React.FC<Props> = ({
     }, FINAL_RETRY_DELAY_MS);
 
     return () => window.clearTimeout(timeoutId);
-  }, [disableDirectLoad, finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
+  }, [batchImageMissing, disableDirectLoad, finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
 
 
   const handleError = useCallback(() => {

@@ -25,24 +25,31 @@ export async function GET(request: Request) {
     );
   }
 
-  for (const lookupKey of lookupKeys) {
-    const description = await fetchProductDescription(lookupKey, {
-      timeoutMs: 1800,
-      retries: 0,
-      retryDelayMs: 150,
-      cacheTtlMs: 0,
-    }).catch(() => null);
+  // Look up every candidate key (article, code, ...) concurrently rather than
+  // one at a time — sequential lookups compounded with the internal per-key
+  // parallel lookup in fetchProductDescription, routinely pushing total
+  // latency past what the client is willing to wait for.
+  const results = await Promise.all(
+    lookupKeys.map((lookupKey) =>
+      fetchProductDescription(lookupKey, {
+        timeoutMs: 1800,
+        retries: 0,
+        retryDelayMs: 150,
+        cacheTtlMs: 0,
+      }).catch(() => null)
+    )
+  );
+  const description = results.find((value) => Boolean(value)) ?? null;
 
-    if (description) {
-      return NextResponse.json(
-        { description },
-        {
-          headers: {
-            "Cache-Control": "no-store",
-          },
-        }
-      );
-    }
+  if (description) {
+    return NextResponse.json(
+      { description },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   }
 
   return NextResponse.json(

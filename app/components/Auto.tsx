@@ -89,12 +89,12 @@ const CarBrandButton = React.memo(function CarBrandButton({
         onSelect(brand);
       }}
       onMouseLeave={(event) => event.currentTarget.blur()}
-      className="group relative flex w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-[12px] border border-slate-200/70 bg-[image:linear-gradient(160deg,#ffffff_0%,#fbfeff_60%,#f0f9ff_100%)] px-1.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_2px_6px_rgba(15,23,42,0.07)] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:border-sky-400/80 hover:bg-[image:linear-gradient(160deg,#f0f9ff_0%,#e0f2fe_55%,#dbeafe_100%)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_22px_rgba(14,165,233,0.24)] active:scale-[0.96] active:shadow-[inset_0_1px_2px_rgba(15,23,42,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 touch-pan-y min-h-[80px] sm:min-h-[96px] sm:gap-1.5 sm:py-3"
+      className="group relative flex w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-[12px] border border-slate-200/70 bg-[image:linear-gradient(160deg,#ffffff_0%,#fbfeff_60%,#f0f9ff_100%)] px-1.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_2px_6px_rgba(15,23,42,0.07)] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:border-sky-400/80 hover:bg-[image:linear-gradient(160deg,#f0f9ff_0%,#e0f2fe_55%,#dbeafe_100%)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_22px_rgba(14,165,233,0.24)] active:scale-[0.96] active:shadow-[inset_0_1px_2px_rgba(15,23,42,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 min-h-[92px] sm:min-h-[104px] sm:gap-1.5 sm:py-3"
     >
       <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-sky-50/0 to-sky-100/0 transition-all duration-300 group-hover:from-sky-100/80 group-hover:to-sky-200/50" />
       <span className="pointer-events-none absolute inset-0 rounded-[12px] ring-1 ring-inset ring-transparent transition-all duration-300 group-hover:ring-sky-400/50" />
 
-      <span className="relative flex h-10 w-10 items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover:scale-[1.16] sm:h-13 sm:w-13">
+      <span className="relative flex h-12 w-12 items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover:scale-[1.16] sm:h-14 sm:w-14">
         <Image
           src={brand.logo}
           alt={`${brand.name} logo`}
@@ -104,9 +104,9 @@ const CarBrandButton = React.memo(function CarBrandButton({
           draggable={false}
           priority={priority}
           loading={priority ? "eager" : "lazy"}
-          className="h-[36px] w-auto max-w-[40px] object-contain sm:h-[48px] sm:max-w-[54px]"
+          className="h-[44px] w-auto max-w-[48px] object-contain sm:h-[52px] sm:max-w-[58px]"
           style={{ imageRendering: "auto" }}
-          sizes="(max-width: 640px) 40px, 54px"
+          sizes="(max-width: 640px) 48px, 58px"
           onError={handleBrandLogoLoadError}
           unoptimized={brand.logo.endsWith('.svg')}
         />
@@ -555,11 +555,25 @@ const AutoSection: React.FC<AutoProps> = ({
     );
   }, [searchTerm]);
 
+  // Grid is 4 cols on mobile, 6 cols from sm: up — keep the page size a
+  // multiple of the active column count so it always fills exactly 2 rows
+  // instead of leaving a ragged half-empty row on desktop.
+  const [isWideBrandGrid, setIsWideBrandGrid] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const update = () => setIsWideBrandGrid(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
   const brandsPerPage = showAllBrands
     ? Math.max(filteredBrands.length, 1)
     : isCompact
     ? 6
-    : 12;
+    : isWideBrandGrid
+    ? 12
+    : 8;
   const [brandPage, setBrandPage] = useState(0);
   const totalBrandPages = Math.max(
     1,

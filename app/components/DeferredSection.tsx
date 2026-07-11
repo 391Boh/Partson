@@ -107,7 +107,11 @@ const DeferredSection = ({
     <div
       ref={containerRef}
       className={className}
-      style={{ minHeight }}
+      // minHeight only reserves space while the real content is still
+      // loading (prevents layout shift once it mounts). Once visible, drop
+      // it — otherwise a section that legitimately renders nothing (e.g.
+      // "recently viewed" with no history) leaves permanent empty space.
+      style={isVisible ? undefined : { minHeight }}
     >
       {isVisible ? (
         <div className="deferred-section-content">{children}</div>

@@ -719,7 +719,7 @@ export default function ProductRelatedItemsClientSection({
       {hasAnalogs ? (
         <RecommendationBlock
           eyebrow="Аналоги"
-          title="Аналоги за артикулом у назві товару"
+          title="Аналоги"
           badgeLabel={`${visibleRelatedItems.length} позицій`}
           items={visibleRelatedItems}
           articleLabel={articleLabel}

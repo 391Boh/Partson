@@ -123,7 +123,7 @@ function BrandCard({
         onOpen(brand.name);
       }}
       onMouseLeave={(event) => event.currentTarget.blur()}
-      className="group relative isolate flex h-[250px] w-full flex-col overflow-hidden rounded-[18px] border border-slate-200/90 bg-white/96 px-3.5 py-3.5 text-left shadow-[0_14px_30px_rgba(15,23,42,0.06)] ring-1 ring-white/80 transition-[border-color,box-shadow,transform,background-color] duration-300 ease-out hover:-translate-y-0.5 hover:border-sky-300 hover:bg-white hover:shadow-[0_20px_38px_rgba(14,165,233,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 touch-pan-y sm:h-[264px] sm:px-4"
+      className="group relative isolate flex h-[250px] w-full flex-col overflow-hidden rounded-[18px] border border-slate-200/90 bg-white/96 px-3.5 py-3.5 text-left shadow-[0_14px_30px_rgba(15,23,42,0.06)] ring-1 ring-white/80 transition-[border-color,box-shadow,transform,background-color] duration-300 ease-out hover:-translate-y-0.5 hover:border-sky-300 hover:bg-white hover:shadow-[0_20px_38px_rgba(14,165,233,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 sm:h-[264px] sm:px-4"
     >
       <span className="pointer-events-none absolute inset-x-0 top-0 z-0 h-1 bg-[linear-gradient(90deg,#38bdf8,#0ea5e9,#3b82f6)] opacity-80" />
       <span className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(180deg,rgba(248,250,252,0.66),rgba(255,255,255,0.94)_42%,rgba(255,255,255,0.98))]" />
@@ -364,7 +364,7 @@ export default function BrandCarousel({
               </div>
             </div>
 
-            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-[430px]">
+            <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-center lg:w-[430px]">
               <BrandSearchInput
                 className="relative min-w-0 flex-1"
                 value={search}
