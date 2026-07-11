@@ -654,14 +654,8 @@ export const fetchProductImageBase64 = async (
     { "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443": normalized },
   ];
 
-  const loadFromBody = async (body: Record<string, unknown>) => {
-    // Use the already-discovered batch endpoint if available; otherwise try the
-    // first configured candidate so single lookups use the same endpoint as batch.
-    const ep =
-      typeof resolvedImageBatchEndpoint === "string" && resolvedImageBatchEndpoint
-        ? resolvedImageBatchEndpoint
-        : IMAGE_BATCH_ENDPOINT_CANDIDATES[0];
-    const response = await oneCRequest(ep, {
+  const loadFromBody = async (endpoint: string, body: Record<string, unknown>) => {
+    const response = await oneCRequest(endpoint, {
       method: "POST",
       body,
       timeoutMs,
@@ -669,7 +663,7 @@ export const fetchProductImageBase64 = async (
       retryDelayMs,
       cacheTtlMs,
       cacheKey: JSON.stringify({
-        endpoint: ep,
+        endpoint,
         body,
         timeoutMs,
         retries,
@@ -712,14 +706,30 @@ export const fetchProductImageBase64 = async (
   };
 
   const requestPromise = (async () => {
-    for (const body of queryBodies) {
-      const resolved = await loadFromBody(body).catch(() => null);
-      if (typeof resolved === "string" && resolved) {
-        imageBase64Cache.set(positiveCacheKey, {
-          value: resolved,
-          expiresAt: Date.now() + cacheTtlMs,
-        });
-        return resolved;
+    // Mirror the batch lookup's endpoint fallback: try the already-discovered
+    // endpoint first, but fall through to the remaining candidates instead of
+    // giving up after the first (possibly wrong/404ing) one.
+    const endpoints =
+      typeof resolvedImageBatchEndpoint === "string" && resolvedImageBatchEndpoint
+        ? [
+            resolvedImageBatchEndpoint,
+            ...IMAGE_BATCH_ENDPOINT_CANDIDATES.filter(
+              (candidate) => candidate !== resolvedImageBatchEndpoint
+            ),
+          ]
+        : IMAGE_BATCH_ENDPOINT_CANDIDATES;
+
+    for (const endpoint of endpoints) {
+      for (const body of queryBodies) {
+        const resolved = await loadFromBody(endpoint, body).catch(() => null);
+        if (typeof resolved === "string" && resolved) {
+          resolvedImageBatchEndpoint = endpoint;
+          imageBase64Cache.set(positiveCacheKey, {
+            value: resolved,
+            expiresAt: Date.now() + cacheTtlMs,
+          });
+          return resolved;
+        }
       }
     }
 
