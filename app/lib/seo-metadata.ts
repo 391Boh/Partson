@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 const DEFAULT_IMAGE = {
-  url: "/Car-parts-fullwidth.png",
+  url: "/og-image.png",
   width: 1200,
   height: 630,
   alt: "PartsON - автозапчастини",

@@ -38,13 +38,13 @@ export const metadata: Metadata = {
     url: "/katalog",
     title: "Каталог автозапчастин | PartsON",
     description: katalogDescription,
-    images: [{ url: "/Car-parts-fullwidth.png", alt: "Каталог автозапчастин PartsON" }],
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Каталог автозапчастин PartsON" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Каталог автозапчастин | PartsON",
     description: katalogDescription,
-    images: ["/Car-parts-fullwidth.png"],
+    images: ["/og-image.png"],
   },
   robots: {
     index: true,

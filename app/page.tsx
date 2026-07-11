@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 
-import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
+import { STORE_PHONE_SEO_LABEL, buildPageMetadata } from "app/lib/seo-metadata";
 import HomePageContent from "./components/HomePageContent";
 
 const homeTitle = "Інтернет-магазин автозапчастин у Львові";
-const homeDescription = appendSeoContact(
-  "PartsON - автозапчастини у Львові з онлайн-каталогом, цінами й наявністю. Підбір за VIN, кодом, артикулом і виробником, самовивіз та доставка по Україні."
-);
+const homeDescription = `PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні. ${STORE_PHONE_SEO_LABEL}.`;
 
 export const revalidate = 86400;
 
@@ -36,7 +34,7 @@ export const metadata: Metadata = {
   ],
   openGraphTitle: `${homeTitle} | PartsON`,
   image: {
-    url: "/Car-parts-fullwidth.png",
+    url: "/og-image.png",
     alt: "Інтернет-магазин автозапчастин у Львові PartsON",
   },
   }),

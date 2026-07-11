@@ -1060,7 +1060,7 @@ export async function generateMetadata({ searchParams }: KatalogPageProps): Prom
     ],
     openGraphTitle: `${title} | PartsON`,
     image: {
-      url: "/Car-parts-fullwidth.png",
+      url: "/og-image.png",
       alt: `${title} | PartsON`,
     },
     index: indexable,

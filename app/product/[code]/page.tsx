@@ -241,6 +241,7 @@ const buildPureProductName = (
   hints?: {
     producer?: string;
     article?: string;
+    name?: string;
     group?: string;
     subGroup?: string;
   }
@@ -819,29 +820,29 @@ const getCatalogProduct = cache(getCatalogProductUncached);
 
 const buildProductMetaDescription = (options: {
   name?: string;
-  article: string;
+  article?: string;
   code?: string;
   category?: string;
   group?: string;
   subGroup?: string;
 }) => {
-  const { name, article, category, group, subGroup } = options;
-  const lookupLabel = article ? `арт. ${article}` : null;
-  const nameLabel = trimSeoPhrase(buildVisibleProductName(name || "автозапчастину"), 54);
-  const topLabel = (category || group) ? buildVisibleProductName(category || group || "") : "";
-  const midLabel = (category && group) ? buildVisibleProductName(group) : "";
-  const botLabel = subGroup ? buildVisibleProductName(subGroup) : "";
+  const { category, group, subGroup } = options;
+  const categoryLabel = buildVisibleProductName(category || "автозапчастин");
+  const groupLabel =
+    group && buildVisibleProductName(group).toLowerCase() !== categoryLabel.toLowerCase()
+      ? buildVisibleProductName(group)
+      : "";
+  const subGroupLabel =
+    subGroup && buildVisibleProductName(subGroup).toLowerCase() !== groupLabel.toLowerCase()
+      ? buildVisibleProductName(subGroup)
+      : "";
 
   return trimSeoDescription(
     [
-      `Купити${topLabel ? ` у категорії ${topLabel}` : ` ${nameLabel}`} у Львові.`,
-      midLabel ? `Група: ${midLabel}.` : null,
-      botLabel && botLabel !== midLabel ? `Підгрупа: ${botLabel}.` : null,
-      lookupLabel || null,
-      `Доставка по Україні. ${STORE_PHONE_DISPLAY}, ${STORE_ADDRESS}.`,
-    ]
-      .filter(Boolean)
-      .join(" ")
+      `Купити автозапчастини з категорії ${categoryLabel}${groupLabel ? `, група ${groupLabel}` : ""}${subGroupLabel ? `, ${subGroupLabel}` : ""}.`,
+      "Онлайн замовлення на сайті.",
+      `${STORE_PHONE_DISPLAY}, ${STORE_ADDRESS}.`,
+    ].join(" ")
   );
 };
 
@@ -902,10 +903,37 @@ const trimSeoDescription = (
 
 const buildProductSeoTitle = (options: {
   name: string;
+  producer?: string;
 }) => {
-  const { name } = options;
-  const cleanName = trimSeoPhrase(buildVisibleProductName(name), 56);
-  return `${cleanName || "Автозапчастина"} | PartsON`;
+  const { name, producer } = options;
+  const baseName = buildVisibleProductName(name);
+  const normalizedProducer = (producer || "").trim();
+  const nameAlreadyHasProducer =
+    normalizedProducer.length > 0 &&
+    baseName.toLowerCase().includes(normalizedProducer.toLowerCase());
+  const withProducer =
+    normalizedProducer && !nameAlreadyHasProducer
+      ? `${baseName} ${normalizedProducer}`
+      : baseName;
+
+  return trimSeoPhrase(withProducer, 65) || "Автозапчастина";
+};
+
+// Cross-reference/OEM codes live in parentheses in the raw 1C name (e.g. "(LIN030104/AD030213)")
+// and get stripped everywhere else — pull them out so they're still searchable as keywords.
+const extractParentheticalKeywordTokens = (rawName: string) => {
+  const matches = (rawName || "").match(/\(([^)]*)\)/g) || [];
+  const tokens: string[] = [];
+
+  for (const match of matches) {
+    const inner = match.slice(1, -1);
+    for (const part of inner.split(/[/,;|]+/)) {
+      const trimmed = part.trim();
+      if (trimmed.length >= 3 && !tokens.includes(trimmed)) tokens.push(trimmed);
+    }
+  }
+
+  return tokens;
 };
 
 const buildProductSeoKeywords = (options: {
@@ -915,8 +943,9 @@ const buildProductSeoKeywords = (options: {
   producer: string;
   category: string;
   description?: string;
+  rawName?: string;
 }) => {
-  const { productName, article, code, producer, category, description } = options;
+  const { productName, article, code, producer, category, description, rawName } = options;
 
   const descriptionWords: string[] = [];
   if (description) {
@@ -930,6 +959,8 @@ const buildProductSeoKeywords = (options: {
     }
   }
 
+  const crossReferenceTokens = extractParentheticalKeywordTokens(rawName || "");
+
   const entries = [
     productName,
     article ? `${productName} ${article}` : null,
@@ -939,6 +970,7 @@ const buildProductSeoKeywords = (options: {
     code && code !== article ? `${code} купити` : null,
     producer ? `${producer} запчастини` : null,
     category ? `${category} купити` : null,
+    ...crossReferenceTokens,
     ...descriptionWords,
     "автозапчастини Львів",
     "підбір запчастин за VIN",
@@ -951,7 +983,7 @@ const buildProductSeoKeywords = (options: {
         .map((entry) => (entry || "").replace(/\s+/g, " ").trim())
         .filter(Boolean)
     )
-  ).slice(0, 15);
+  ).slice(0, 20);
 };
 
 const getFirstResolvedNonNull = async <T,>(promises: Array<Promise<T | null>>) => {
@@ -1603,12 +1635,10 @@ export async function generateMetadata({
 
   const seoTitle = buildProductSeoTitle({
     name: seoVisibleProductName,
+    producer: productProducer,
   });
 
   const description = buildProductMetaDescription({
-    name: seoVisibleProductName,
-    article: productArticle,
-    code: resolvedCode,
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubGroup,
     subGroup: productCategory ? productSubGroup : "",
@@ -1621,6 +1651,7 @@ export async function generateMetadata({
     producer: productProducer,
     category: categoryLabel,
     description: routeProduct?.description,
+    rawName: routeProduct?.name,
   });
 
   return {
@@ -1894,9 +1925,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     quantity: product.quantity,
   });
   const schemaDescription = buildProductMetaDescription({
-    name: visibleProductName,
-    article: product.article,
-    code: product.code || resolvedCode,
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubgroup,
     subGroup: productCategory ? productSubgroup : "",
@@ -2239,7 +2267,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     ) : null}
                   </div>
 
-                  <h1 className="font-display mt-2.5 max-w-none break-words text-[clamp(1.22rem,1.9vw,1.72rem)] font-extrabold italic leading-[1.12] tracking-normal text-slate-950 [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[42ch]">
+                  <h1
+                    style={{ fontStyle: "normal" }}
+                    className="font-display mt-2.5 max-w-none break-words text-[clamp(1.22rem,1.9vw,1.72rem)] font-extrabold leading-[1.2] tracking-[-0.01em] text-slate-950 [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[42ch]"
+                  >
                     {productHeadingText}
                   </h1>
                   <div className={productHeaderMetaGridClass}>
@@ -2514,7 +2545,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">
                     Сумісність та характеристики
                   </p>
-                  <h2 className="font-display mt-0.5 text-[1rem] font-extrabold italic leading-[1.12] tracking-normal text-white sm:text-[1.1rem]">
+                  <h2
+                    style={{ fontStyle: "normal" }}
+                    className="font-display mt-0.5 text-[1rem] font-extrabold leading-[1.2] tracking-[-0.01em] text-white sm:text-[1.1rem]"
+                  >
                     {visibleProductName
                       ? `Характеристики: ${visibleProductName.length > 52 ? `${visibleProductName.slice(0, 52).trimEnd()}…` : visibleProductName}`
                       : "Що важливо знати про цей товар"}

@@ -7,7 +7,6 @@ import PageLoadingShell from "./components/PageLoadingShell";
 import { WebVitalsReporter } from "./components/WebVitalsReporter";
 import Footer from "./components/footer";
 import {
-  STORE_ADDRESS_SEO_LABEL,
   STORE_PHONE_SEO_LABEL,
   trimSeoDescription,
 } from "./lib/seo-metadata";
@@ -58,10 +57,10 @@ const googleTagManagerId = (() => {
 })();
 
 const rootDescription = trimSeoDescription(
-  `PartsON - магазин автозапчастин у Львові з каталогом, цінами, наявністю та підбором за VIN, кодом і артикулом. ${STORE_PHONE_SEO_LABEL}. ${STORE_ADDRESS_SEO_LABEL}.`
+  `PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні. ${STORE_PHONE_SEO_LABEL}.`
 );
 const rootSocialDescription = trimSeoDescription(
-  `Автозапчастини у Львові: каталог PartsON, підбір деталей за VIN і артикулом, самовивіз та доставка по Україні. ${STORE_PHONE_SEO_LABEL}. ${STORE_ADDRESS_SEO_LABEL}.`
+  `Автозапчастини у Львові — каталог PartsON з підбором за VIN, кодом та артикулом, великим асортиментом і доставкою по Україні. ${STORE_PHONE_SEO_LABEL}.`
 );
 
 export const metadata: Metadata = {
@@ -119,7 +118,7 @@ export const metadata: Metadata = {
     description: rootSocialDescription,
     images: [
       {
-        url: "/Car-parts-fullwidth.png",
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "PartsON - автозапчастини",
@@ -130,7 +129,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PartsON - Магазин автозапчастин",
     description: rootSocialDescription,
-    images: [{ url: "/Car-parts-fullwidth.png", width: 1200, height: 630, alt: "PartsON - автозапчастини" }],
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "PartsON - автозапчастини" }],
   },
 };
 
