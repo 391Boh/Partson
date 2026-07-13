@@ -19,6 +19,7 @@ import {
   directoryTitleClass,
 } from "app/components/catalog-directory-styles";
 import SmartLink from "app/components/SmartLink";
+import { buildAutoBrandPath } from "app/lib/catalog-links";
 
 interface AutoBrandsDirectoryClientProps {
   items: CarBrand[];
@@ -27,8 +28,16 @@ interface AutoBrandsDirectoryClientProps {
 const normalize = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
 
-const buildBrandHref = (name: string) =>
-  `/katalog?tab=auto&brand=${encodeURIComponent(name)}`;
+const pluralizeBrands = (value: number) => {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 19) return "марок";
+  if (mod10 === 1) return "марка";
+  if (mod10 >= 2 && mod10 <= 4) return "марки";
+  return "марок";
+};
+
+const buildBrandHref = (name: string) => buildAutoBrandPath(name);
 
 function AutoBrandCard({
   brand,
@@ -66,14 +75,14 @@ function AutoBrandCard({
             </div>
 
             <div className="min-w-0 [overflow-wrap:anywhere]">
-              <span className="inline-flex rounded-[10px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.11em] text-sky-800">
+              <span className="directory-kicker inline-flex rounded-[10px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] uppercase text-sky-800">
                 Марка
               </span>
-              <p itemProp="name" className="mt-1.5 truncate text-[16px] font-extrabold leading-tight text-slate-950">
+              <p itemProp="name" className="directory-card-title mt-1.5 truncate text-[16px] leading-tight text-slate-900">
                 {brand.name}
               </p>
               <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-600">
-                Готовий авто-фільтр у каталозі.
+                Перейдіть до моделей і підбору сумісних запчастин.
               </p>
             </div>
           </div>
@@ -85,10 +94,10 @@ function AutoBrandCard({
 
         <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-2.5">
           <span className="text-xs font-semibold text-slate-500">
-            Auto / каталог
+            Марка → моделі
           </span>
-          <span className="rounded-[10px] border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-sky-800">
-            Підібрати
+          <span className="directory-kicker rounded-[10px] border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] uppercase text-sky-800">
+            Відкрити
           </span>
         </div>
       </div>
@@ -176,10 +185,10 @@ export default function AutoBrandsDirectoryClient({
                 </label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <span className={directoryMetricClass}>
-                    Знайдено: {filteredItems.length.toLocaleString("uk-UA")} марок
+                    Знайдено: {filteredItems.length.toLocaleString("uk-UA")} {pluralizeBrands(filteredItems.length)}
                   </span>
                   <span className={directoryMetricAccentClass}>
-                    {deduplicatedItems.length.toLocaleString("uk-UA")} у списку
+                    Усього: {deduplicatedItems.length.toLocaleString("uk-UA")} {pluralizeBrands(deduplicatedItems.length)}
                   </span>
                 </div>
               </div>

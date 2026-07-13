@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { User } from "firebase/auth";
+import { GOOGLE_REDIRECT_PENDING_KEY } from "app/lib/auth-storage";
 
 type FirebaseAuthSnapshot = {
   ready: boolean;
@@ -10,6 +11,7 @@ type FirebaseAuthSnapshot = {
 
 type FirebaseAuthDeps = {
   auth: typeof import("../../firebase").auth;
+  getRedirectResult: typeof import("firebase/auth").getRedirectResult;
   onAuthStateChanged: typeof import("firebase/auth").onAuthStateChanged;
 };
 
@@ -21,7 +23,9 @@ const getInitialClientSnapshot = (): FirebaseAuthSnapshot => {
   if (typeof window === "undefined") return { ready: false, user: null };
   try {
     const uid = localStorage.getItem("user_id");
-    if (!uid) return { ready: true, user: null };
+    const hasPendingGoogleRedirect =
+      sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === "1";
+    if (!uid && !hasPendingGoogleRedirect) return { ready: true, user: null };
   } catch {}
   return { ready: false, user: null };
 };
@@ -45,6 +49,7 @@ const loadFirebaseAuthDeps = () => {
     import("firebase/auth"),
   ]).then(([firebaseModule, authModule]) => ({
     auth: firebaseModule.auth,
+    getRedirectResult: authModule.getRedirectResult,
     onAuthStateChanged: authModule.onAuthStateChanged,
   }));
 
@@ -55,10 +60,29 @@ const ensureFirebaseAuthSubscription = () => {
   if (unsubscribeAuth) return;
 
   void loadFirebaseAuthDeps()
-    .then(({ auth, onAuthStateChanged }) => {
+    .then(async ({ auth, getRedirectResult, onAuthStateChanged }) => {
+      let redirectUser: User | null = null;
+      let hasPendingGoogleRedirect = false;
+      try {
+        hasPendingGoogleRedirect =
+          sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === "1";
+      } catch {}
+
+      if (hasPendingGoogleRedirect) {
+        try {
+          redirectUser = (await getRedirectResult(auth))?.user ?? null;
+        } catch (error) {
+          console.error("Failed to complete Google redirect sign-in:", error);
+        } finally {
+          try {
+            sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+          } catch {}
+        }
+      }
+
       emitSnapshot({
         ready: true,
-        user: auth.currentUser ?? null,
+        user: redirectUser ?? auth.currentUser ?? null,
       });
 
       unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -115,6 +139,14 @@ const scheduleFirebaseAuthSubscription = () => {
 };
 
 export const getFirebaseAuthSnapshot = () => snapshot;
+
+export const publishFirebaseAuthUser = (user: User | null) => {
+  try {
+    sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
+  } catch {}
+  emitSnapshot({ ready: true, user });
+  ensureFirebaseAuthSubscription();
+};
 
 export const subscribeToFirebaseAuthState = (
   listener: (nextSnapshot: FirebaseAuthSnapshot) => void

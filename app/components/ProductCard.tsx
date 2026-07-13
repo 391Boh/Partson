@@ -9,6 +9,7 @@ import { brands } from "app/components/brandsData";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { pushEcommerceEvent } from "app/lib/gtm";
+import { prepareProductImage, PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
@@ -352,47 +353,30 @@ const enterEditMode = () => {
     fetchMetaSuggestions('subGroup', sub, grp);
 };
 
-const compressImageDataUrl = (dataUrl: string, maxPx = 1600, quality = 0.82): Promise<string> =>
-    new Promise((resolve) => {
-        const img = document.createElement("img");
-        img.onload = () => {
-            const scale = Math.min(1, maxPx / Math.max(img.width, img.height, 1));
-            const w = Math.round(img.width * scale);
-            const h = Math.round(img.height * scale);
-            const canvas = document.createElement("canvas");
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) { resolve(dataUrl); return; }
-            ctx.drawImage(img, 0, 0, w, h);
-            resolve(canvas.toDataURL("image/jpeg", quality));
-        };
-        img.onerror = () => resolve(dataUrl);
-        img.src = dataUrl;
-    });
-
-const handleFrontImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+const handleFrontImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file || !onAdminEdit) return;
     setFrontImageSaving(true);
     setFrontImageError(null);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-        const rawDataUrl = ev.target?.result as string;
-        if (rawDataUrl) {
-            const imageDataUrl = await compressImageDataUrl(rawDataUrl);
-            const result = await onAdminEdit({ imageDataUrl, imageName: file.name.replace(/\.[^.]+$/, ".jpg") }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
-            if (result && result.ok) {
-                setLocalImageSrc(imageDataUrl);
-            } else {
-                setFrontImageError(result?.error ?? 'Помилка завантаження');
-                setTimeout(() => setFrontImageError(null), 6000);
-            }
+    try {
+        const prepared = await prepareProductImage(file);
+        const result = await onAdminEdit({
+            imageDataUrl: prepared.dataUrl,
+            imageName: prepared.fileName,
+        }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
+        if (result?.ok) {
+            setLocalImageSrc(prepared.dataUrl);
+        } else {
+            setFrontImageError(result?.error ?? 'Помилка завантаження');
+            setTimeout(() => setFrontImageError(null), 6000);
         }
+    } catch (error) {
+        setFrontImageError(error instanceof Error ? error.message : 'Не вдалося обробити зображення');
+        setTimeout(() => setFrontImageError(null), 6000);
+    } finally {
         setFrontImageSaving(false);
-        if (frontImageInputRef.current) frontImageInputRef.current.value = '';
-    };
-    reader.readAsDataURL(file);
+    }
 };
 
 const handleQuickPriceSave = async () => {
@@ -701,10 +685,14 @@ useEffect(() => {
     };
 }, [descriptionRequestUrl, isFlipped]);
 
+    const isAdminEditing = isAdmin && (
+        isEditMode || quickEditName || quickEditArticle || quickEditProducer || quickEditPrice || quickEditQty
+    );
+
     return (
         <>
         <article
-            className={`catalog-product-card relative w-full h-[360px] sm:h-[340px] [perspective:1200px] select-none ${cardMotionClass}`}
+            className={`catalog-product-card relative w-full ${isAdminEditing ? "catalog-product-card--admin h-[640px] sm:h-[580px]" : "h-[360px] sm:h-[340px]"} [perspective:1200px] select-none transition-[height] duration-150 ease-out ${cardMotionClass}`}
             itemScope
             itemType="https://schema.org/Product"
         >
@@ -741,7 +729,7 @@ useEffect(() => {
                         shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.07),0_12px_24px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)]
                         hover:shadow-[0_2px_4px_rgba(14,165,233,0.05),0_8px_20px_rgba(14,165,233,0.10),0_20px_36px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)]
                         bg-[linear-gradient(155deg,rgba(255,255,255,1)_0%,rgba(248,250,252,0.98)_50%,rgba(238,246,255,0.95)_100%)]
-                        p-2.5 flex flex-col text-[11px] sm:text-[12px] relative overflow-hidden
+                        p-2.5 flex flex-col text-[11px] sm:text-[12px] relative ${isAdminEditing ? "overflow-visible" : "overflow-hidden"}
                         transition-[box-shadow,border-color,opacity] duration-200
                         ${frontVisibilityClass}
                     `}
@@ -754,13 +742,13 @@ useEffect(() => {
                 >
                     {/* Р¤РѕС‚Рѕ + РЅР°Р·РІР° */}
                     <div
-                        className="
-                            catalog-card-hero group flex flex-row w-full h-20 mb-2 p-1.5 rounded-xl
+                        className={`
+                            catalog-card-hero group flex flex-row w-full ${quickEditName ? "h-auto min-h-20" : "h-20"} mb-2 p-1.5 rounded-xl
                             bg-gradient-to-r from-slate-100 to-slate-200
                             hover:from-white hover:to-slate-100
                             transition-all duration-200 border border-slate-200/70 hover:border-slate-300
                             shadow-sm hover:shadow-md
-                        "
+                        `}
                     >
                         <div className="catalog-card-image relative mr-2 flex h-full w-1/3 items-center justify-center overflow-hidden rounded-lg bg-white sm:w-2/5 group/imgarea">
                             <ProductCardImage
@@ -783,7 +771,7 @@ useEffect(() => {
                                     <input
                                         ref={frontImageInputRef}
                                         type="file"
-                                        accept="image/jpeg,image/png,image/webp"
+                                        accept={PRODUCT_IMAGE_ACCEPT}
                                         className="hidden"
                                         onChange={handleFrontImageChange}
                                     />
@@ -791,7 +779,7 @@ useEffect(() => {
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); frontImageInputRef.current?.click(); }}
                                         disabled={frontImageSaving}
-                                        className="absolute top-1 left-1 p-1 rounded-md bg-white/90 border border-violet-200 text-violet-600 shadow-sm opacity-0 group-hover/imgarea:opacity-100 hover:bg-violet-50 hover:border-violet-300 transition-all duration-150 disabled:opacity-50"
+                                        className="absolute top-1 left-1 inline-flex items-center justify-center p-1 rounded-md bg-white/90 border border-violet-200 text-violet-600 shadow-sm opacity-0 group-hover/imgarea:opacity-100 hover:bg-violet-50 hover:border-violet-300 transition-all duration-150 disabled:opacity-50"
                                         title="Замінити фото"
                                     >
                                         {frontImageSaving
@@ -830,7 +818,7 @@ useEffect(() => {
                                             {quickNameSaving ? <span className="inline-block h-2.5 w-2.5 rounded-full border-2 border-violet-300 border-t-white animate-spin" /> : <Check size={10} />}
                                             Зберегти
                                         </button>
-                                        <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditName(false); setQuickNameError(null); }} className="rounded-md border border-slate-200 text-slate-500 text-[9px] px-2 py-0.5 hover:bg-slate-50 transition-colors">
+                                        <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditName(false); setQuickNameError(null); }} className="inline-flex items-center justify-center rounded-md border border-slate-200 text-slate-500 text-[9px] px-2 py-0.5 hover:bg-slate-50 transition-colors">
                                             <X size={10} />
                                         </button>
                                     </div>
@@ -869,7 +857,7 @@ useEffect(() => {
                                         <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); setQuickNameVal(item.name || ''); setQuickEditName(true); }}
-                                            className="absolute -top-0.5 -right-0.5 p-0.5 rounded-md bg-white/90 border border-violet-200 text-violet-500 shadow-sm opacity-0 group-hover/nameedit:opacity-100 hover:bg-violet-50 hover:border-violet-300 transition-all duration-150"
+                                            className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center p-0.5 rounded-md bg-white/90 border border-violet-200 text-violet-500 shadow-sm opacity-0 group-hover/nameedit:opacity-100 hover:bg-violet-50 hover:border-violet-300 transition-all duration-150"
                                             title="Редагувати назву"
                                         >
                                             <Pencil size={10} />
@@ -902,11 +890,11 @@ useEffect(() => {
                                       type="button"
                                       onClick={(e) => { e.stopPropagation(); void handleQuickArticleSave(); }}
                                       disabled={quickArticleSaving}
-                                      className="flex-shrink-0 p-0.5 text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+                                      className="inline-flex flex-shrink-0 items-center justify-center p-0.5 text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
                                   >
                                       {quickArticleSaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-emerald-300 border-t-emerald-600 animate-spin" /> : <Check size={12} />}
                                   </button>
-                                  <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditArticle(false); setQuickArticleError(null); }} className="flex-shrink-0 p-0.5 text-slate-400 hover:text-slate-600"><X size={12} /></button>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditArticle(false); setQuickArticleError(null); }} className="inline-flex flex-shrink-0 items-center justify-center p-0.5 text-slate-400 hover:text-slate-600"><X size={12} /></button>
                               </div>
                           ) : (
                               <div className="group/article flex w-full items-center justify-between px-1 py-0.5 rounded hover:bg-slate-100/70 transition-colors">
@@ -916,7 +904,7 @@ useEffect(() => {
                                           <button
                                               type="button"
                                               onClick={(e) => { e.stopPropagation(); setQuickArticleVal(article !== '-' ? article : ''); setQuickEditArticle(true); }}
-                                              className="flex-shrink-0 p-0.5 rounded text-violet-400 opacity-0 group-hover/article:opacity-100 hover:text-violet-600 hover:bg-violet-50 transition-all duration-150"
+                                              className="inline-flex flex-shrink-0 items-center justify-center p-0.5 rounded text-violet-400 opacity-0 group-hover/article:opacity-100 hover:text-violet-600 hover:bg-violet-50 transition-all duration-150"
                                               title="Редагувати артикул"
                                           >
                                               <Pencil size={10} />
@@ -959,10 +947,10 @@ useEffect(() => {
                                           className="flex-1 min-w-0 rounded-md border border-violet-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-200 disabled:opacity-50"
                                           disabled={quickProducerSaving}
                                       />
-                                      <button type="button" onClick={(e) => { e.stopPropagation(); void handleQuickProducerSave(); }} disabled={quickProducerSaving} className="flex-shrink-0 p-0.5 text-emerald-600 hover:text-emerald-700 disabled:opacity-50">
+                                      <button type="button" onClick={(e) => { e.stopPropagation(); void handleQuickProducerSave(); }} disabled={quickProducerSaving} className="inline-flex flex-shrink-0 items-center justify-center p-0.5 text-emerald-600 hover:text-emerald-700 disabled:opacity-50">
                                           {quickProducerSaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-emerald-300 border-t-emerald-600 animate-spin" /> : <Check size={12} />}
                                       </button>
-                                      <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditProducer(false); setQuickProducerSuggestions([]); }} className="flex-shrink-0 p-0.5 text-slate-400 hover:text-slate-600"><X size={12} /></button>
+                                      <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditProducer(false); setQuickProducerSuggestions([]); }} className="inline-flex flex-shrink-0 items-center justify-center p-0.5 text-slate-400 hover:text-slate-600"><X size={12} /></button>
                                   </div>
                                   {quickProducerSuggestions.length > 0 && (
                                       <div className="absolute left-0 top-full z-50 mt-0.5 w-full max-h-40 overflow-y-auto rounded-lg border border-sky-200 bg-white shadow-[0_6px_18px_rgba(14,165,233,0.14)]">
@@ -982,7 +970,7 @@ useEffect(() => {
                                   <span className="flex min-w-0 max-w-[55%] items-center gap-1 justify-end">
                                       {isAdmin && onAdminEdit && (
                                           <button type="button" onClick={(e) => { e.stopPropagation(); setQuickProducerVal(displayProducer !== '-' ? displayProducer : ''); setQuickEditProducer(true); fetchProducerSuggestions(displayProducer !== '-' ? displayProducer : ''); }}
-                                              className="flex-shrink-0 p-0.5 rounded text-violet-400 opacity-0 group-hover/producer:opacity-100 hover:text-violet-600 hover:bg-violet-50 transition-all duration-150" title={"\u0420\u0435\u0434\u0430\u0433\u0443\u0432\u0430\u0442\u0438 \u0432\u0438\u0440\u043E\u0431\u043D\u0438\u043A\u0430"}>
+                                              className="inline-flex flex-shrink-0 items-center justify-center p-0.5 rounded text-violet-400 opacity-0 group-hover/producer:opacity-100 hover:text-violet-600 hover:bg-violet-50 transition-all duration-150" title={"\u0420\u0435\u0434\u0430\u0433\u0443\u0432\u0430\u0442\u0438 \u0432\u0438\u0440\u043E\u0431\u043D\u0438\u043A\u0430"}>
                                               <Pencil size={10} />
                                           </button>
                                       )}
@@ -1026,11 +1014,11 @@ useEffect(() => {
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); void handleQuickPriceSave(); }}
                                 disabled={quickPriceSaving}
-                                className={`flex-shrink-0 p-1.5 rounded-lg text-white active:scale-[0.95] transition-all disabled:opacity-50 ${showCostPrice ? 'bg-amber-500 hover:bg-amber-600' : 'bg-violet-600 hover:bg-violet-700'}`}
+                                className={`inline-flex flex-shrink-0 items-center justify-center p-1.5 rounded-lg text-white active:scale-[0.95] transition-all disabled:opacity-50 ${showCostPrice ? 'bg-amber-500 hover:bg-amber-600' : 'bg-violet-600 hover:bg-violet-700'}`}
                             >
                                 {quickPriceSaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : <Check size={12} />}
                             </button>
-                            <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditPrice(false); setQuickPriceError(null); }} className="flex-shrink-0 p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors">
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditPrice(false); setQuickPriceError(null); }} className="inline-flex flex-shrink-0 items-center justify-center p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors">
                                 <X size={12} />
                             </button>
                         </div>
@@ -1096,7 +1084,7 @@ useEffect(() => {
                                         }
                                         setQuickEditPrice(true);
                                     }}
-                                    className="flex-shrink-0 p-1 rounded-md border border-violet-200 bg-violet-50 text-violet-500 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-[0.95] transition-all duration-150"
+                                    className="inline-flex flex-shrink-0 items-center justify-center p-1 rounded-md border border-violet-200 bg-violet-50 text-violet-500 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-[0.95] transition-all duration-150"
                                     title="Редагувати ціну"
                                 >
                                     <Pencil size={11} />
@@ -1128,7 +1116,7 @@ useEffect(() => {
                                     <button
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); setQuickEditQty(true); setQuickQtyVal(''); }}
-                                        className="p-0.5 rounded text-slate-300 hover:text-emerald-500 transition-colors"
+                                        className="inline-flex items-center justify-center p-0.5 rounded text-slate-300 hover:text-emerald-500 transition-colors"
                                         title="Поступлення / Продаж"
                                     >
                                         <Pencil size={9} />
@@ -1147,13 +1135,13 @@ useEffect(() => {
                                         placeholder="к-сть"
                                         className="w-16 px-2 py-1 rounded-lg border border-slate-200 bg-white text-[10px] text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
                                     />
-                                    <button type="button" onClick={(e) => { e.stopPropagation(); void handleQuickQtySave('receipt'); }} disabled={quickQtySaving || !quickQtyVal.trim()} className="p-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white active:scale-95 transition-all disabled:opacity-40" title="Поступлення (+)">
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); void handleQuickQtySave('receipt'); }} disabled={quickQtySaving || !quickQtyVal.trim()} className="inline-flex items-center justify-center p-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white active:scale-95 transition-all disabled:opacity-40" title="Поступлення (+)">
                                         {quickQtySaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : <Plus size={10} />}
                                     </button>
-                                    <button type="button" onClick={(e) => { e.stopPropagation(); void handleQuickQtySave('sale'); }} disabled={quickQtySaving || !quickQtyVal.trim()} className="p-1.5 rounded-lg bg-red-400 hover:bg-red-500 text-white active:scale-95 transition-all disabled:opacity-40" title="Продаж (−)">
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); void handleQuickQtySave('sale'); }} disabled={quickQtySaving || !quickQtyVal.trim()} className="inline-flex items-center justify-center p-1.5 rounded-lg bg-red-400 hover:bg-red-500 text-white active:scale-95 transition-all disabled:opacity-40" title="Продаж (−)">
                                         <Minus size={10} />
                                     </button>
-                                    <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditQty(false); setQuickQtyError(null); }} className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors">
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditQty(false); setQuickQtyError(null); }} className="inline-flex items-center justify-center p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors">
                                         <X size={10} />
                                     </button>
                                 </div>
@@ -1171,10 +1159,10 @@ useEffect(() => {
                                         e.stopPropagation();
                                         onQtyChange(code, -1);
                                     }}
-                                    className="w-8 h-8 sm:w-7 sm:h-7 min-h-0 min-w-0 text-xs rounded-full border border-slate-200 bg-slate-50 font-bold text-slate-700 shadow-[0_3px_8px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
+                                    className="flex w-8 h-8 sm:w-7 sm:h-7 min-h-0 min-w-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 shadow-[0_3px_8px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
                                     disabled={isCounterDisabled || qty <= 1}
                                 >
-                                    -
+                                    <Minus size={14} strokeWidth={2.5} />
                                 </button>
                                 <span className="w-8 text-center font-semibold text-gray-800 text-xs mx-1 sm:mx-0.5">
                                     {qty}
@@ -1185,10 +1173,10 @@ useEffect(() => {
                                         e.stopPropagation();
                                         onQtyChange(code, 1);
                                     }}
-                                    className="w-8 h-8 sm:w-7 sm:h-7 min-h-0 min-w-0 text-xs rounded-full border border-blue-400/70 bg-[linear-gradient(135deg,#2563eb,#0284c7)] font-bold text-white shadow-[0_6px_12px_rgba(37,99,235,0.22)] hover:brightness-105 transition-all duration-150 disabled:opacity-30"
+                                    className="flex w-8 h-8 sm:w-7 sm:h-7 min-h-0 min-w-0 items-center justify-center rounded-full border border-blue-400/70 bg-[linear-gradient(135deg,#2563eb,#0284c7)] text-white shadow-[0_6px_12px_rgba(37,99,235,0.22)] hover:brightness-105 transition-all duration-150 disabled:opacity-30"
                                     disabled={isPlusDisabled}
                                 >
-                                    +
+                                    <Plus size={14} strokeWidth={2.5} />
                                 </button>
                             </div>
                         </div>
@@ -1322,7 +1310,7 @@ useEffect(() => {
                 <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); enterEditMode(); }}
-                    className="p-1.5 rounded-lg border border-violet-200 bg-violet-50 text-violet-500 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-95 transition-all duration-150"
+                    className="inline-flex items-center justify-center p-1.5 rounded-lg border border-violet-200 bg-violet-50 text-violet-500 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-95 transition-all duration-150"
                     title="Редагувати"
                 >
                     <Pencil size={12} />
@@ -1340,7 +1328,7 @@ useEffect(() => {
                     }
                     onFlip(code);
                 }}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 active:scale-95 transition-all duration-150"
+                className="inline-flex items-center justify-center p-1.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 active:scale-95 transition-all duration-150"
                 aria-label="Назад"
             >
                 <ChevronDown size={14} className="rotate-180" />

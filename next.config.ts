@@ -1,4 +1,17 @@
+import { networkInterfaces } from "node:os";
 import type { NextConfig } from "next";
+
+// Static IPs go stale the moment the dev machine joins a different Wi-Fi/
+// hotspot — every past network's address was hardcoded here and each new
+// one silently broke LAN testing (Next.js's allowedDevOrigins check rejects
+// unknown origins as an anti DNS-rebinding measure). Reading the machine's
+// current interfaces means this list is always correct for whatever network
+// you're actually on, with no manual upkeep.
+const localNetworkAddresses = Object.values(networkInterfaces())
+  .flat()
+  .filter((iface): iface is NonNullable<typeof iface> => Boolean(iface))
+  .filter((iface) => iface.family === "IPv4" && !iface.internal)
+  .map((iface) => iface.address);
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -34,6 +47,9 @@ const nextDistDir = process.env.NEXT_DIST_DIR || ".next";
 
 const nextConfig: NextConfig = {
   distDir: nextDistDir,
+  turbopack: {
+    root: process.cwd(),
+  },
   poweredByHeader: false,
   compress: true,
   experimental: {
@@ -65,20 +81,11 @@ const nextConfig: NextConfig = {
 
     return config;
   },
-  allowedDevOrigins: [
-    "localhost",
-    "127.0.0.1",
-    "192.168.0.100",
-    "192.168.0.101",
-    "192.168.192.80",
-    "192.168.0.102",
-    "192.168.0.103",
-    "172.20.10.2",
-  ],
+  allowedDevOrigins: ["localhost", "127.0.0.1", ...localNetworkAddresses],
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 31536000,
-    qualities: [60, 75, 85],
+    qualities: [60, 70, 75, 85],
     deviceSizes: [360, 420, 640, 768, 1024, 1280, 1536, 1920],
     imageSizes: [32, 48, 64, 96, 128, 192, 256, 320],
     localPatterns: [

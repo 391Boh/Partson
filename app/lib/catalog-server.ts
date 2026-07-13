@@ -158,11 +158,13 @@ const ALLGOODS_CODE_FIELD = "\u041a\u043e\u0434";
 const ALLGOODS_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443";
 const ALLGOODS_ARTICLE_ALT_FIELD = "\u0410\u0440\u0442\u0438\u043a\u0443\u043b"; // \u0410\u0440\u0442\u0438\u043a\u0443\u043b
 const ALLGOODS_PRODUCER_FIELD = "\u041f\u0440\u043e\u0438\u0437\u0432\u043e\u0434\u0438\u0442\u0435\u043b\u044c\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435";
+const ALLGOODS_PRODUCER_PREFIX_SEARCH_FIELD = "\u041f\u043e\u0438\u0441\u043a\u041f\u0440\u043e\u0438\u0437\u0432\u043e\u0434\u0438\u0442\u0435\u043b\u044f";
 const ALLGOODS_GROUP_FIELD = "\u0413\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SUBGROUP_FIELD = "\u041f\u043e\u0434\u0433\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SORT_PRICE_FIELD = "\u0421\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u043a\u0430\u041f\u043e\u0426\u0435\u043d\u0435";
 const ALLGOODS_INCLUDE_DESCRIPTION_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435";
 const ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u0424\u043e\u0442\u043eBase64";
+const ALLGOODS_INCLUDE_TOTAL_COUNT_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u041e\u0431\u0449\u0435\u0435\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e";
 const ALLGOODS_ONLY_WITH_PRICE_FIELD = "\u0422\u043e\u043b\u044c\u043a\u043e\u0421\u0426\u0435\u043d\u043e\u0439";
 
 const INFO_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443";
@@ -635,9 +637,19 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   };
 
   const requestAllgoodsPage = async (body: Record<string, unknown>) => {
+    const cursorValue =
+      typeof body[ALLGOODS_CURSOR_FIELD] === "string"
+        ? body[ALLGOODS_CURSOR_FIELD].trim()
+        : "";
+    const requestBody = {
+      ...body,
+      // Backward-compatible: the current 1C function ignores this field;
+      // the optimized function avoids a full COUNT on continuation pages.
+      [ALLGOODS_INCLUDE_TOTAL_COUNT_FIELD]: !cursorValue,
+    };
     const response = await oneCRequest("allgoods", {
       method: "POST",
-      body,
+      body: requestBody,
       timeoutMs: options.timeoutMs,
       retries: options.retries ?? 1,
       retryDelayMs: options.retryDelayMs ?? 250,
@@ -687,7 +699,10 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   if (requestedCursor) {
     const parsed = await requestAllgoodsPage({
       ...requestBodyBase,
-      [ALLGOODS_LIMIT_FIELD]: limit + 1,
+      // 1C already performs its own one-row look-ahead (`Лимит + 1`) and
+      // returns only `Лимит` items. Sending `limit + 1` here caused the API
+      // cursor to advance past an item that was never returned to the client.
+      [ALLGOODS_LIMIT_FIELD]: limit,
       [ALLGOODS_CURSOR_FIELD]: requestedCursor,
     });
     const items = filterPricedItems(parsed.items);
@@ -1378,6 +1393,12 @@ const fetchCatalogProductsByQueryInner = async (options: {
 
     if (producerName) {
       allgoodsBaseBody[ALLGOODS_PRODUCER_FIELD] = producerName;
+      // A selected producer is an exact facet; free-text producer search is
+      // prefix-based. Old 1C versions ignore this marker and retain their
+      // previous prefix behavior, so the rollout stays backward-compatible.
+      if (!producer && searchFilter === "producer") {
+        allgoodsBaseBody[ALLGOODS_PRODUCER_PREFIX_SEARCH_FIELD] = true;
+      }
     }
 
     if (sortOrder === "asc") {
@@ -1481,9 +1502,15 @@ const fetchCatalogProductsByQueryInner = async (options: {
       const descriptionQuery = normalizeFacetValue(searchQuery);
       const descriptionTokens = buildDescriptionSearchTokens(searchQuery);
       const targetCount = limit;
-      // Smaller pages because each page triggers parallel getinfo enrichment calls
-      const scanLimit = Math.min(20, Math.max(limit, 10));
-      const maxScannedItems = Math.min(40, Math.max(targetCount * 2, scanLimit * 2));
+      // Smaller pages because each page triggers parallel getinfo enrichment calls.
+      // maxScannedItems was 40 — fine when 1C's own "Описание" filter actually
+      // narrows the source, but this path only runs when it doesn't (see
+      // resultLooksFiltered above), so 40 items out of a 10k+ catalog rarely
+      // contained a real match: a live catalog view could show nothing for a
+      // query the model/producer group-breakdown pages (which scan far more
+      // pages, cached for hours) had already confirmed has real hits.
+      const scanLimit = Math.min(40, Math.max(limit, 20));
+      const maxScannedItems = Math.min(400, Math.max(targetCount * 20, scanLimit * 10));
       const matches: CatalogProduct[] = [];
       const seen = new Set<string>();
       let scanCursor = cursor;
@@ -1564,18 +1591,34 @@ const fetchCatalogProductsByQueryInner = async (options: {
 
     try {
       if (searchFilter === "description" && searchQuery) {
+        const descriptionQuery = normalizeFacetValue(searchQuery);
+        const descriptionTokens = buildDescriptionSearchTokens(searchQuery);
+
+        // 1C sometimes silently ignores an unsupported/wrong field key and just
+        // returns its unfiltered default page — `items.length > 0` alone can't
+        // tell a real filtered hit from that. Check that a real share of the
+        // sampled items actually mention the query before trusting the result.
+        const resultLooksFiltered = (result: { items: CatalogProduct[] }) => {
+          if (result.items.length === 0) return false;
+          const sample = result.items.slice(0, Math.min(10, result.items.length));
+          const matchedCount = sample.filter(
+            (item) => scoreDescriptionSearchItem(item, descriptionQuery, descriptionTokens) > 0
+          ).length;
+          return matchedCount / sample.length >= 0.5;
+        };
+
         // Send "Описание": query directly to allgoods — 1C filters server-side.
         // ВключатьОписание=true is already set in allgoodsBaseBody so the
         // description text is included in the response.
         const descResult = await runAllgoods(ALLGOODS_DESC_FIELDS[0]);
-        if (descResult.items.length > 0 || cursor) {
+        if (resultLooksFiltered(descResult)) {
           return { ...descResult, cursorField: ALLGOODS_DESC_FIELDS[0] };
         }
 
         // Try alternate field names in case 1C uses a different key.
         for (const searchKey of ALLGOODS_DESC_FIELDS.slice(1, 4)) {
           const altResult = await runAllgoods(searchKey);
-          if (altResult.items.length > 0) {
+          if (resultLooksFiltered(altResult)) {
             return { ...altResult, cursorField: searchKey };
           }
         }

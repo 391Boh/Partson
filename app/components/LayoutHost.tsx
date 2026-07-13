@@ -2,11 +2,11 @@
 
 import type { ComponentType, ReactNode } from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type { Auth } from "firebase/auth";
 import type { Firestore } from "firebase/firestore";
 import Header from "./Header";
 import NavigationProgress from "./NavigationProgress";
-import ProductCreateModal from "./ProductCreateModal";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronUp, MessageCircle, Shield } from "lucide-react";
 import {
@@ -14,10 +14,15 @@ import {
   CATALOG_PRODUCTS_CACHE_KEY,
   CATALOG_PRODUCTS_CACHE_TTL_MS,
 } from "app/lib/catalog-client-cache";
+import { GOOGLE_REDIRECT_PENDING_KEY } from "app/lib/auth-storage";
 
 interface LayoutHostProps {
   children: ReactNode;
 }
+
+const ProductCreateModal = dynamic(() => import("./ProductCreateModal"), {
+  ssr: false,
+});
 
 type AdminChatPanelComponentProps = {
   isOpen: boolean;
@@ -330,9 +335,27 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const onScroll = () => setShowScrollTop(window.scrollY > 300);
+
+    // Raw scroll events can fire many times per frame during a fast wheel/
+    // trackpad scroll — batch to one check per animation frame instead of
+    // running setState on every single one.
+    let rafId = 0;
+    const applyScrollState = () => {
+      rafId = 0;
+      setShowScrollTop((prev) => {
+        const next = window.scrollY > 300;
+        return prev === next ? prev : next;
+      });
+    };
+    const onScroll = () => {
+      if (rafId) return;
+      rafId = window.requestAnimationFrame(applyScrollState);
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      if (rafId) window.cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   useEffect(() => {
@@ -416,7 +439,14 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     // only on first interaction. This removes auth/iframe.js from the LCP critical
     // path for anonymous visitors. Logged-in users keep the original short delay.
     const isLikelyLoggedIn = (() => {
-      try { return Boolean(localStorage.getItem("user_id")); } catch { return false; }
+      try {
+        return Boolean(
+          localStorage.getItem("user_id") ||
+            sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === "1"
+        );
+      } catch {
+        return false;
+      }
     })();
     const delayMs = isLikelyLoggedIn
       ? (enableIdleFirebase ? 3500 : 1800)
@@ -469,7 +499,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     });
     window.addEventListener("keydown", triggerChatButtonLoad, { once: true });
 
-    timeoutId = window.setTimeout(triggerChatButtonLoad, 5000);
+    // The lightweight fallback button is already interactive. On the home
+    // page keep the decorative chat-button chunk out of the initial loading
+    // window unless the visitor interacts first.
+    timeoutId = window.setTimeout(
+      triggerChatButtonLoad,
+      pathname === "/" ? 15000 : 5000
+    );
 
     return () => {
       cancelled = true;
@@ -477,7 +513,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       window.removeEventListener("keydown", triggerChatButtonLoad);
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
-  }, [ChatButtonComponent]);
+  }, [ChatButtonComponent, pathname]);
 
   useEffect(() => {
     syncRouteViewState({
@@ -686,6 +722,11 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     if (warmupStartedRef.current) return;
     warmupStartedRef.current = true;
 
+    // The homepage already loads its interactive sections as they approach
+    // the viewport. Global route/chunk warmup here used to compete with the
+    // hero, fonts and category data during the first load.
+    if (pathname === "/") return;
+
     const connection = (navigator as Navigator & {
       connection?: { saveData?: boolean; effectiveType?: string };
     }).connection;
@@ -725,6 +766,18 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       } catch {}
       try {
         void import("./filtrtion");
+      } catch {}
+      // AuthModal/Contact only start downloading once their button is tapped
+      // (see the `modals.auth`/`modals.contact` effects below) — on mobile
+      // that cold import is the visible lag between tap and modal appearing.
+      // These buttons are always visible in the header, so warm them
+      // unconditionally rather than behind the aggressive-warmup flag, which
+      // defaults off and never fires for real visitors.
+      try {
+        void import("./AuthModal");
+      } catch {}
+      try {
+        void import("./Contact");
       } catch {}
     };
 
@@ -971,7 +1024,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         ).cancelIdleCallback?.(idleId);
       }
     };
-  }, [enableAggressiveWarmup, isDevelopment, router]);
+  }, [enableAggressiveWarmup, isDevelopment, pathname, router]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

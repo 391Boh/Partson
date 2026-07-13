@@ -391,11 +391,16 @@ const ProductCardImage: React.FC<Props> = ({
         </div>
       ) : (
         <>
-          {/* Skeleton always present, fades out when image is loaded */}
-          <div
-            className={`catalog-image-loading absolute inset-0 transition-opacity ${imageFadeClass} pointer-events-none bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 ${showLoadingSkeleton ? 'opacity-100' : 'opacity-0'}`}
-            aria-hidden="true"
-          />
+          {/* The shimmer's own @keyframes animates opacity forever, which beats
+              a plain opacity-0 utility class (a running CSS animation wins over
+              the base value for the property it targets) — so the skeleton must
+              be unmounted once loading is done, not just faded via class. */}
+          {showLoadingSkeleton && (
+            <div
+              className="catalog-image-loading absolute inset-0 pointer-events-none bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200"
+              aria-hidden="true"
+            />
+          )}
           {requestSrc && (
             <Image
               key={requestSrc}

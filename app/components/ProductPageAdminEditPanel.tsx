@@ -8,6 +8,11 @@ import { getFirebaseAuthSnapshot } from "app/lib/firebase-auth-state";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { clearProductImageMissing, clearProductImageSuccess } from "app/lib/product-image-client";
 import { buildProductImageBatchKey } from "app/lib/product-image-path";
+import {
+  formatProductImageSize,
+  prepareProductImage,
+  PRODUCT_IMAGE_ACCEPT,
+} from "app/lib/product-image-upload-client";
 
 type FieldKey =
   | "name"
@@ -38,7 +43,6 @@ const fmt = (v: number | null) =>
     ? v.toLocaleString("uk-UA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : "—";
 
-const MAX_IMAGE_BYTES = 2_500_000;
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const PRODUCT_PRICE_CACHE_PREFIX = "partson:v4:product-page-price:";
 const PRODUCT_IMAGE_BUST_PREFIX = "partson:product-image-bust:";
@@ -202,6 +206,9 @@ export default function ProductPageAdminEditPanel({
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageUploadName, setImageUploadName] = useState("");
+  const [imageUploadSize, setImageUploadSize] = useState(0);
+  const [imageProcessing, setImageProcessing] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageUploaded, setImageUploaded] = useState(false);
@@ -391,17 +398,28 @@ export default function ProductPageAdminEditPanel({
     if (e.key === "Escape") closeEdit();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
-    if (file.size > MAX_IMAGE_BYTES) { setImageError(`Файл занадто великий (макс ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)} MB)`); return; }
     setImageError(null);
     setImageUploaded(false);
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
-    e.target.value = "";
+    setImageProcessing(true);
+    try {
+      const prepared = await prepareProductImage(file);
+      setImageFile(file);
+      setImagePreview(prepared.dataUrl);
+      setImageUploadName(prepared.fileName);
+      setImageUploadSize(prepared.outputBytes);
+    } catch (error) {
+      setImageFile(null);
+      setImagePreview(null);
+      setImageUploadName("");
+      setImageUploadSize(0);
+      setImageError(error instanceof Error ? error.message : "Не вдалося обробити зображення");
+    } finally {
+      setImageProcessing(false);
+    }
   };
 
   const uploadImage = async () => {
@@ -414,13 +432,15 @@ export default function ProductPageAdminEditPanel({
       const res = await fetch("/api/product-upload-image", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ code, article: values.article, imageDataUrl: imagePreview, file_name: `${code}_${Date.now()}.${imageFile.name.split(".").pop() || "jpg"}` }),
+        body: JSON.stringify({ code, article: values.article, imageDataUrl: imagePreview, file_name: `${code}_${Date.now()}_${imageUploadName || "product.jpg"}` }),
       });
       const data = (await res.json()) as { ok: boolean; error?: string; details?: string };
       if (!data.ok) { setImageError([data.error, data.details].filter(Boolean).join(": ") || "Помилка завантаження"); return; }
       setImageUploaded(true);
       setImageFile(null);
       setImagePreview(null);
+      setImageUploadName("");
+      setImageUploadSize(0);
       clearProductImageSuccess(code, values.article || undefined);
       clearProductImageMissing(code, values.article || undefined);
       writeProductImageBustToken(code, values.article || undefined);
@@ -769,7 +789,7 @@ export default function ProductPageAdminEditPanel({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept={PRODUCT_IMAGE_ACCEPT}
               className="hidden"
               onChange={handleFileChange}
             />
@@ -777,10 +797,13 @@ export default function ProductPageAdminEditPanel({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
+                disabled={imageProcessing}
                 className="flex w-full items-center gap-2 rounded-[10px] border border-dashed border-violet-200 bg-violet-50/30 px-3 py-2 text-[11px] font-semibold text-violet-500 transition hover:border-violet-300 hover:bg-violet-50/60"
               >
-                <ImagePlus size={13} className="shrink-0" />
-                <span>Замінити фото товару</span>
+                {imageProcessing
+                  ? <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
+                  : <ImagePlus size={13} className="shrink-0" />}
+                <span>{imageProcessing ? "Обробка фото..." : "Замінити фото товару"}</span>
                 {imageUploaded && (
                   <span className="ml-auto inline-flex items-center gap-0.5 rounded-[5px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600">
                     <Check size={8} /> Завантажено
@@ -797,7 +820,9 @@ export default function ProductPageAdminEditPanel({
                     className="h-12 w-12 shrink-0 rounded-[8px] border border-slate-200 bg-white object-contain"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="mb-1.5 truncate text-[10px] font-medium text-slate-500">{imageFile?.name}</p>
+                    <p className="mb-1.5 truncate text-[10px] font-medium text-slate-500">
+                      {imageFile?.name}{imageUploadSize ? ` · ${formatProductImageSize(imageUploadSize)}` : ""}
+                    </p>
                     <div className="flex gap-1.5">
                       <button
                         type="button"
@@ -812,7 +837,7 @@ export default function ProductPageAdminEditPanel({
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setImageFile(null); setImagePreview(null); setImageError(null); }}
+                        onClick={() => { setImageFile(null); setImagePreview(null); setImageUploadName(""); setImageUploadSize(0); setImageError(null); }}
                         disabled={imageUploading}
                         className="inline-flex items-center gap-1 rounded-[8px] border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
                       >

@@ -12,7 +12,7 @@ import { safeJsonLd } from "app/lib/safe-json-ld";
 
 export const revalidate = 21600;
 
-const title = "Підбір автозапчастин по авто за маркою, моделлю і модифікацією";
+const title = "Підбір автозапчастин за маркою і моделлю авто";
 const description = appendSeoContact(
   "Підбір автозапчастин по марці, моделі та модифікації авто в PartsON. Оберіть автомобіль і відкрийте каталог з готовим авто-фільтром, VIN-підбором і доставкою по Україні."
 );
@@ -119,7 +119,7 @@ export default function AutoPage() {
           badge="Підбір по авто"
           icon={CarFront}
           title={title}
-          description="Оберіть марку авто й переходьте в каталог уже з готовим сценарієм підбору автозапчастин."
+          description="Оберіть марку, перейдіть до моделей і відкрийте каталог із підготовленим авто-фільтром."
           highlights={[
             `${carBrands.length.toLocaleString("uk-UA")} марок`,
             "Швидкий перехід у каталог",
@@ -132,13 +132,13 @@ export default function AutoPage() {
               icon: CarFront,
             },
             {
-              label: "Сценарій",
-              value: "Авто → каталог",
+              label: "Наступний крок",
+              value: "Марка → моделі",
               icon: ArrowRight,
             },
             {
-              label: "Суміжні розділи",
-              value: "Групи та бренди",
+              label: "Результат",
+              value: "Каталог запчастин",
               icon: Layers3,
             },
           ]}

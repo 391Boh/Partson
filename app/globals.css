@@ -668,6 +668,14 @@
   }
 }
 
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Глобальні стилі */
 body {
 
@@ -709,6 +717,63 @@ h4, h5, h6 {
   font-weight: 700;
   font-variation-settings: "wght" 700;
   letter-spacing: -0.008em;
+}
+
+.directory-heading {
+  font-family: var(--font-display-stack);
+  font-style: normal;
+  font-weight: 690;
+  font-variation-settings: "wght" 690;
+  letter-spacing: -0.022em;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.directory-heading-hero {
+  font-family: var(--font-display-stack);
+  font-style: normal;
+  font-weight: 740;
+  font-variation-settings: "wght" 740;
+  letter-spacing: -0.028em;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.directory-card-title {
+  font-family: var(--font-display-stack);
+  font-style: normal;
+  font-weight: 670;
+  font-variation-settings: "wght" 670;
+  letter-spacing: -0.012em;
+}
+
+.directory-kicker {
+  font-weight: 680;
+  font-variation-settings: "wght" 680;
+  letter-spacing: 0.1em;
+}
+
+.directory-counter {
+  font-family: var(--font-display-stack);
+  font-weight: 700;
+  font-variation-settings: "wght" 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.012em;
+}
+
+.directory-counter-label {
+  font-weight: 610;
+  font-variation-settings: "wght" 610;
+  letter-spacing: 0.07em;
+}
+
+.catalog-directory-page {
+  font-weight: 500;
+  font-variation-settings: normal;
+}
+
+.catalog-directory-page :where(button, input, select, textarea) {
+  font-variation-settings: normal;
 }
 
 /* Власні компоненти */
@@ -1439,6 +1504,12 @@ body::-webkit-scrollbar-corner,
 
 .app-overlay-panel--wide {
   max-width: min(100vw - 1.5rem, 720px);
+}
+
+.auth-form-panel.app-overlay-panel {
+  width: min(390px, calc(100vw - 1.5rem));
+  max-width: 390px;
+  max-height: calc(100dvh - var(--header-height, 4rem) - 1.5rem);
 }
 
 @media (min-width: 640px) {
@@ -2350,6 +2421,10 @@ body::-webkit-scrollbar-corner,
     height: 23.75rem !important;
   }
 
+  .catalog-product-card.catalog-product-card--admin {
+    height: 40rem !important;
+  }
+
   .catalog-product-card:hover {
     transform: none !important;
   }
@@ -2476,6 +2551,16 @@ body::-webkit-scrollbar-corner,
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior-y: contain;
+  }
+
+  .auth-form-panel.app-overlay-panel {
+    top: calc(var(--header-height, 3.5rem) + 0.5rem);
+    right: max(0.55rem, env(safe-area-inset-right));
+    bottom: auto;
+    left: max(0.55rem, env(safe-area-inset-left));
+    width: auto;
+    max-width: none;
+    max-height: calc(100dvh - var(--header-height, 3.5rem) - 1rem);
   }
 
   .app-overlay-panel > .soft-panel-content,

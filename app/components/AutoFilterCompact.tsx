@@ -372,10 +372,9 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
       setIsPickerOpen(false);
       onAutoPicked?.();
 
-      if (!selectedCars.includes(payload.label)) {
-        handleCarChange(payload.label);
-      }
-
+      // Car matching now happens via description search on the model name
+      // (see KatalogClientPage's handleCarSelectionChange), not via an exact
+      // selectedCars fitment lookup — so the label is no longer pushed there.
       if (!onSelectionChange || !selectedBrand || !selectedModel) return;
       onSelectionChange({
         brand: selectedBrand.name,
@@ -388,7 +387,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
         label: payload.label,
       });
     },
-    [handleCarChange, onAutoPicked, onSelectionChange, onVinSelect, selectedBrand, selectedCars, selectedModel]
+    [onAutoPicked, onSelectionChange, onVinSelect, selectedBrand, selectedModel]
   );
 
   const canConfirmSelection = Boolean(

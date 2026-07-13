@@ -17,36 +17,10 @@ const parseRootMarginBuffer = (value: string) => {
   const match = value.trim().match(/-?\d+/);
   const numeric = match ? Number(match[0]) : 200;
   if (!Number.isFinite(numeric)) return 200;
-  return Math.min(1600, Math.max(160, Math.abs(numeric)));
-};
-
-type RequestIdleCallback = (callback: () => void, options?: { timeout: number }) => number;
-
-const scheduleIdleRender = (callback: () => void, timeout = 900) => {
-  const win = window as Window & {
-    requestIdleCallback?: RequestIdleCallback;
-    cancelIdleCallback?: (id: number) => void;
-  };
-  let didRun = false;
-  const runOnce = () => {
-    if (didRun) return;
-    didRun = true;
-    callback();
-  };
-
-  if (typeof win.requestIdleCallback === "function") {
-    const idleId = win.requestIdleCallback(runOnce, { timeout });
-    const timeoutId = window.setTimeout(runOnce, timeout + 180);
-    return () => {
-      if (typeof win.cancelIdleCallback === "function") {
-        win.cancelIdleCallback(idleId);
-      }
-      window.clearTimeout(timeoutId);
-    };
-  }
-
-  const timeoutId = window.setTimeout(runOnce, Math.min(timeout, 80));
-  return () => window.clearTimeout(timeoutId);
+  // Mirror the actual IntersectionObserver margin. The previous 160px floor
+  // made even `rootMargin="0px"` eager and caused consecutive home sections
+  // to mount together during the initial render.
+  return Math.min(1600, Math.max(0, Math.abs(numeric)));
 };
 
 const DeferredSection = ({
@@ -71,25 +45,31 @@ const DeferredSection = ({
     const viewportHeight = window.innerHeight;
     const eagerBufferPx = parseRootMarginBuffer(rootMargin);
     if (rect.top <= viewportHeight + eagerBufferPx && rect.bottom >= -eagerBufferPx) {
-      return scheduleIdleRender(() => setIsVisible(true), 160);
+      // Already within the reveal buffer on mount — no reason to wait for an
+      // idle slot, that only adds visible pop-in lag once the user scrolls here.
+      setIsVisible(true);
+      return;
     }
 
     if (typeof IntersectionObserver === "undefined") {
-      return scheduleIdleRender(() => setIsVisible(true), 160);
+      setIsVisible(true);
+      return;
     }
 
     const timeoutId = window.setTimeout(() => {
       setIsVisible(true);
     }, fallbackDelayMs);
 
-    let cancelIdleRender: null | (() => void) = null;
+    // rootMargin already gives us hundreds of pixels of advance notice before
+    // the section is actually on screen, so once it fires we mount right away
+    // instead of layering a requestIdleCallback wait on top of that head start.
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
         if (!entry?.isIntersecting) return;
         observer.disconnect();
         clearTimeout(timeoutId);
-        cancelIdleRender = scheduleIdleRender(() => setIsVisible(true), 160);
+        setIsVisible(true);
       },
       { rootMargin, threshold: 0.01 }
     );
@@ -99,7 +79,6 @@ const DeferredSection = ({
     return () => {
       observer.disconnect();
       clearTimeout(timeoutId);
-      cancelIdleRender?.();
     };
   }, [fallbackDelayMs, initiallyVisible, isVisible, rootMargin]);
 

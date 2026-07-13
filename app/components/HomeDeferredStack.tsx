@@ -1,88 +1,46 @@
 "use client";
 
 import dynamic from "next/dynamic";
+
 import DeferredSection from "./DeferredSection";
 import SectionBoundary from "./SectionBoundary";
 
-function ProductFetcherSkeleton() {
-  return (
-    <div className="page-shell-inline relative z-10 grid grid-cols-1 items-start gap-6 py-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-      <div className="hidden lg:block">
-        <div className="rounded-2xl border border-sky-200/60 bg-sky-50/20 p-5">
-          <h2 className="font-display text-[22px] font-black tracking-[-0.045em] text-slate-700 sm:text-[25px]">
-            Швидкий пошук товарів!
-          </h2>
-          <div className="skeleton-item mt-3 h-10 w-full rounded-xl border border-sky-200/60 bg-sky-50/40" />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="skeleton-item h-[180px] rounded-xl border border-sky-200/50 bg-[image:linear-gradient(148deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.94)_52%,rgba(219,234,254,0.90)_100%)] sm:h-[215px]"
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 const ProductFetcher = dynamic(() => import("./tovar"), {
-  ssr: false,
-  loading: ProductFetcherSkeleton,
+  loading: () => <div className="h-[320px] animate-pulse bg-sky-50/60" aria-hidden="true" />,
 });
 const Auto = dynamic(() => import("./Auto"), {
-  ssr: false,
-  loading: () => null,
+  loading: () => <div className="h-[420px] animate-pulse bg-slate-50/70" aria-hidden="true" />,
 });
 const BrandCarousel = dynamic(() => import("./Brands"), {
-  loading: () => null,
+  loading: () => <div className="h-[300px] animate-pulse bg-sky-50/70" aria-hidden="true" />,
 });
 
 export default function HomeDeferredStack() {
   return (
     <>
-      <DeferredSection
-        className="section-reveal home-section-stage relative w-full"
-        minHeight="clamp(420px, 50svh, 520px)"
-        rootMargin="420px"
-        fallbackDelayMs={1400}
-      >
-        <section className="relative w-full">
+      <section className="section-reveal home-section-stage relative w-full">
+        <DeferredSection rootMargin="60px" minHeight="320px" fallback={<div className="h-[320px] bg-sky-50/40" />}>
           <SectionBoundary title="Модуль товарів тимчасово недоступний">
             <ProductFetcher playEntranceAnimations={false} />
           </SectionBoundary>
-        </section>
-      </DeferredSection>
+        </DeferredSection>
+      </section>
 
-      <DeferredSection
-        className="section-reveal home-section-stage relative w-full"
-        minHeight="clamp(260px, 46svh, 380px)"
-        rootMargin="360px"
-        fallbackDelayMs={1800}
-      >
-        <section className="relative w-full">
+      <section className="section-reveal home-section-stage relative w-full">
+        <DeferredSection rootMargin="0px" minHeight="420px" fallback={<div className="h-[420px] bg-slate-50/40" />}>
           <SectionBoundary title="Модуль підбору авто тимчасово недоступний">
-            <Auto
-              playEntranceAnimations={false}
-              showSummary
-            />
+            <Auto playEntranceAnimations={false} showSummary />
           </SectionBoundary>
-        </section>
-      </DeferredSection>
+        </DeferredSection>
+      </section>
 
-      <DeferredSection
-        className="section-reveal home-section-stage relative w-full"
-        minHeight="clamp(220px, 36svh, 300px)"
-        rootMargin="320px"
-        fallbackDelayMs={2200}
-      >
-        <section className="relative w-full">
+      <section className="section-reveal home-section-stage relative w-full">
+        <DeferredSection rootMargin="80px" minHeight="300px" fallback={<div className="h-[300px] bg-sky-50/40" />}>
           <SectionBoundary title="Модуль брендів тимчасово недоступний">
             <BrandCarousel playEntranceAnimations={false} />
           </SectionBoundary>
-        </section>
-      </DeferredSection>
+        </DeferredSection>
+      </section>
     </>
   );
 }

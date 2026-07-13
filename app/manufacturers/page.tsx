@@ -217,10 +217,10 @@ export default async function ManufacturersPage() {
           <div className="rounded-[28px] border border-white/80 bg-white/88 p-5 shadow-[0_22px_48px_rgba(14,165,233,0.12)] backdrop-blur-xl sm:p-6">
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.95fr)]">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-sky-800">
+                <p className="directory-kicker text-[11px] uppercase text-sky-800">
                   Опис сторінок брендів
                 </p>
-                <h2 className="mt-2 text-xl font-[780] tracking-normal text-slate-950 sm:text-2xl">
+                <h2 className="directory-heading mt-2 text-xl text-slate-900 sm:text-2xl">
                   Для чого потрібні сторінки виробників
                 </h2>
                 <div className="mt-3 space-y-3 text-sm leading-6 text-slate-600 sm:text-[15px]">
@@ -231,7 +231,7 @@ export default async function ManufacturersPage() {
               </div>
 
               <aside className="rounded-[22px] border border-sky-100/80 bg-[linear-gradient(165deg,rgba(240,249,255,0.96),rgba(236,254,255,0.92),rgba(255,255,255,0.98))] p-4 shadow-[0_16px_34px_rgba(14,165,233,0.08)]">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-sky-800">
+                <p className="directory-kicker text-[11px] uppercase text-sky-800">
                   Що бачить користувач
                 </p>
                 <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">

@@ -77,9 +77,8 @@ function FlipCardComponent({
   const [page, setPage] = useState(0);
   const [sub, setSub] = useState(0);
 
-  // Card height is fixed (h-[180px] sm:h-[215px]); 4 items only fit comfortably
-  // once the taller sm: card is available, so mobile shows 3 per page instead
-  // of clipping the 4th item.
+  // Mobile cards are slightly taller so three two-line group names, navigation
+  // and pagination fit without clipping on narrow two-column layouts.
   const [isCompactViewport, setIsCompactViewport] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 639px)");
@@ -108,15 +107,37 @@ function FlipCardComponent({
   //
   const tStart = useRef(0);
   const tEnd = useRef(0);
+  const tStartY = useRef(0);
 
   const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation();
     tStart.current = e.touches[0]?.clientX ?? 0;
+    tStartY.current = e.touches[0]?.clientY ?? 0;
+    tEnd.current = tStart.current;
   };
-  const onTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
-    tEnd.current = e.changedTouches[0].clientX;
-    const diff = tStart.current - tEnd.current;
 
-    if (Math.abs(diff) > 40) {
+  const onTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    tEnd.current = touch.clientX;
+    const deltaX = Math.abs(touch.clientX - tStart.current);
+    const deltaY = Math.abs(touch.clientY - tStartY.current);
+    if (deltaX > 8 && deltaX > deltaY) {
+      e.stopPropagation();
+    }
+  };
+
+  const onTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+
+    tEnd.current = touch.clientX;
+    const diff = tStart.current - tEnd.current;
+    const verticalDiff = Math.abs(tStartY.current - touch.clientY);
+
+    if (Math.abs(diff) > 32 && Math.abs(diff) > verticalDiff) {
       if (activeGroup) {
         if (sub + 1 < subPages && diff > 0) setSub(sub + 1);
         if (sub > 0 && diff < 0) setSub(sub - 1);
@@ -147,7 +168,7 @@ function FlipCardComponent({
       variants={entrance}
       initial={reduceMotion ? "visible" : "hidden"}
       animate="visible"
-      className="relative w-full h-[180px] sm:h-[215px]"
+      className="relative h-[200px] w-full sm:h-[215px]"
       style={{ perspective: 1200 }} // fixed
       whileHover={
         reduceMotion
@@ -212,26 +233,21 @@ function FlipCardComponent({
 
         {/* BACK */}
         <div
-          className="
-            absolute inset-0 rounded-xl overflow-hidden
-            bg-[image:linear-gradient(148deg,rgba(255,255,255,0.99)_0%,rgba(240,249,255,0.95)_52%,rgba(219,234,254,0.90)_100%)]
-            border-2 border-sky-200/80
-            flex flex-col px-2 py-2 select-none
-            transition-all duration-300
-            hover:border-sky-500
-          "
           style={{
             ...safBackface,
             transform: "rotateY(180deg) translateZ(1px)" as string,
           }}
           onClick={(e) => e.stopPropagation()}
           onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
+          onTouchCancel={(e) => e.stopPropagation()}
+          className="absolute inset-0 flex touch-pan-y select-none flex-col overflow-hidden rounded-xl border-2 border-sky-200/80 bg-[image:linear-gradient(148deg,rgba(255,255,255,0.99)_0%,rgba(240,249,255,0.95)_52%,rgba(219,234,254,0.90)_100%)] px-1.5 py-1.5 transition-all duration-300 hover:border-sky-500 sm:px-2 sm:py-2"
         >
           {/* HEADER */}
           <div
             className="
-              h-9 flex items-center justify-between px-2 rounded-lg mb-2
+              mb-1.5 flex h-8 items-center justify-between rounded-lg px-1 sm:mb-2 sm:h-9 sm:px-2
               bg-gradient-to-r from-sky-100/70 via-white/90 to-sky-50/60
               border border-sky-200/50
               transition-all duration-300
@@ -245,12 +261,12 @@ function FlipCardComponent({
                 flip();
               }}
               title="Повернутись"
-              className="min-w-0 flex-1 mx-1 truncate text-left text-[11px] font-semibold text-slate-700 transition-colors duration-200 hover:text-sky-700"
+              className="mx-0.5 min-w-0 flex-1 truncate text-left text-[10px] font-semibold text-slate-700 transition-colors duration-200 hover:text-sky-700 sm:mx-1 sm:text-[11px]"
             >
               {buildVisibleProductName(activeGroup?.name || product.name)}
             </button>
 
-            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-0.5 sm:gap-1.5" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
                 aria-label="Попередня сторінка"
@@ -274,10 +290,10 @@ function FlipCardComponent({
                   transition-all duration-200 hover:text-sky-600 hover:scale-110
                 "
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </button>
 
-              <span className="text-[10px] font-semibold text-sky-600/80 px-1 tabular-nums">
+              <span className="px-0.5 text-[9px] font-semibold tabular-nums text-sky-600/80 sm:px-1 sm:text-[10px]">
                 {(activeGroup ? sub : page) + 1}/{activeGroup ? subPageCount : mainPageCount}
               </span>
 
@@ -300,13 +316,13 @@ function FlipCardComponent({
                   (activeGroup ? subPageCount : mainPageCount) - 1
                 }
               >
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </button>
             </div>
           </div>
 
           {/* LIST */}
-          <div className="flex-1 flex flex-col gap-1 overflow-hidden">
+          <div className="flex flex-1 flex-col gap-0.5 overflow-hidden sm:gap-1">
             {(activeGroup ? subVisible : mainVisible).map((item, i) => (
               <button
                 key={i}
@@ -323,19 +339,19 @@ function FlipCardComponent({
                   }
                 }}
                 className="
-                  group/item w-full px-2.5 py-2 rounded-lg text-slate-800 font-medium
+                  group/item flex min-h-[40px] w-full items-center rounded-lg px-2 py-1 font-medium text-slate-800 sm:min-h-0 sm:px-2.5 sm:py-2
                   bg-white/95 border border-sky-100/90
                   hover:bg-[image:linear-gradient(120deg,rgba(224,242,254,0.99)_0%,rgba(255,255,255,0.98)_50%,rgba(191,224,251,0.98)_100%)]
                   hover:border-sky-500 hover:text-sky-800
-                  text-left truncate transition-colors duration-200
+                  text-left transition-colors duration-200
                 "
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-[13px] transition-all duration-200 group-hover/item:text-[13.5px] group-hover/item:text-sky-800" title={item.name}>
+                  <span className="line-clamp-2 min-w-0 text-[11px] leading-[1.15] transition-colors duration-200 group-hover/item:text-sky-800 sm:block sm:truncate sm:text-[13px] sm:leading-normal sm:group-hover/item:text-[13.5px]" title={item.name}>
                     {buildVisibleProductName(item.name)}
                   </span>
                   {hasSubgroups(item) && (
-                    <ArrowRight className="w-4 h-4 shrink-0 text-sky-400 transition-colors duration-200 group-hover/item:text-sky-600" />
+                    <ArrowRight className="h-3.5 w-3.5 shrink-0 text-sky-400 transition-colors duration-200 group-hover/item:text-sky-600 sm:h-4 sm:w-4" />
                   )}
                 </div>
               </button>

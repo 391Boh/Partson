@@ -61,9 +61,8 @@ import { getCategoryIconPath } from "app/lib/category-icons";
 
 export const revalidate = 21600;
 export const dynamicParams = true;
-const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
+const MANUFACTURER_STATIC_PARAMS_LIMIT_DEFAULT = 0;
 const MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS = 500;
-const MANUFACTURER_BUILD_SEO_LOOKUP_TIMEOUT_MS = 2200;
 const MANUFACTURER_FALLBACK_COUNT_LIMIT = 120;
 const MANUFACTURER_FALLBACK_STATS_TIMEOUT_MS = 4000;
 const MANUFACTURER_FALLBACK_MAX_PAGES_DEFAULT = 40;
@@ -139,7 +138,7 @@ type ManufacturerGroupProductSample = CatalogProduct & {
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackValue;
+  if (!Number.isFinite(numeric) || numeric < 0) return fallbackValue;
   return Math.floor(numeric);
 };
 
@@ -963,13 +962,16 @@ const getManufacturerBySlug = cache(
   async (slug: string): Promise<ManufacturerPageData | null> => {
     const fallbackBrand =
       brands.find((brand) => buildSeoSlug(brand.name) === slug) || null;
-    const producer = await resolveWithTimeout<SeoProducerFacet | null>(
-      () => findSeoProducerBySlug(slug),
-      null,
-      isProductionBuildPhase
-        ? MANUFACTURER_BUILD_SEO_LOOKUP_TIMEOUT_MS
-        : MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS
-    ).catch(() => null) || await findFallbackProducerBySlug(slug);
+    // The build already generated a complete local SEO snapshot. Avoid starting
+    // a live 1C lookup for every static manufacturer page: timed-out promises
+    // continue running in the background and previously exhausted build workers.
+    const producer = isProductionBuildPhase
+      ? await findFallbackProducerBySlug(slug)
+      : await resolveWithTimeout<SeoProducerFacet | null>(
+          () => findSeoProducerBySlug(slug),
+          null,
+          MANUFACTURER_SEO_LOOKUP_TIMEOUT_MS
+        ).catch(() => null) || await findFallbackProducerBySlug(slug);
     if (!producer && !fallbackBrand) return null;
 
     const label = producer?.label || fallbackBrand?.name || "";
@@ -1214,11 +1216,23 @@ export default async function ManufacturerDetailPage({
     producer.topGroups,
     manufacturerProducts
   );
-  const visibleProductImages = await buildVerifiedProductImageMap(visibleProducts, {
-    maxKeys: MANUFACTURER_VISIBLE_PRODUCTS_LIMIT * 2,
-    timeoutMs: 650,
-    allowUrlDownload: true,
-  });
+  const visibleProductImages = isProductionBuildPhase
+    ? new Map(
+        visibleProducts
+          .filter((product) => product.hasPhoto === true)
+          .map((product) => [
+            buildProductDedupeKey(product),
+            buildProductImagePath(product.code, product.article, {
+              catalog: true,
+              noFallback: true,
+            }),
+          ])
+      )
+    : await buildVerifiedProductImageMap(visibleProducts, {
+        maxKeys: MANUFACTURER_VISIBLE_PRODUCTS_LIMIT * 2,
+        timeoutMs: 650,
+        allowUrlDownload: true,
+      });
   const visibleProductImagePayload = Object.fromEntries(
     visibleProducts.flatMap((product) => {
       const imageKey = buildProductImageBatchKey(product.code, product.article);
@@ -1386,7 +1400,7 @@ export default async function ManufacturerDetailPage({
             <CatalogPrefetchLink
               href={buildCatalogProducerPath(producer.label, group.filterValue)}
               prefetchCatalogOnViewport
-              className="font-display inline-flex text-[15px] font-[700] leading-tight tracking-normal text-slate-900 transition-colors duration-200 group-hover/card:text-sky-700"
+              className="directory-card-title inline-flex text-[15px] leading-tight text-slate-900 transition-colors duration-200 group-hover/card:text-sky-700"
             >
               {normalizeValue(group.label)}
             </CatalogPrefetchLink>
@@ -1515,7 +1529,7 @@ export default async function ManufacturerDetailPage({
                     priority
                   />
                 ) : (
-                  <span className="text-3xl font-[800] text-slate-700">
+                  <span className="directory-card-title text-3xl text-slate-700">
                     {producer.initials}
                   </span>
                 )}
@@ -1532,7 +1546,7 @@ export default async function ManufacturerDetailPage({
                   </span>
                 </div>
 
-                <h1 className="mt-3 font-display text-[2rem] font-[800] leading-tight tracking-normal text-slate-950 sm:text-[2.55rem]">
+                <h1 className="directory-heading-hero mt-3 text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
                   {h1Title}
                 </h1>
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
@@ -1578,10 +1592,10 @@ export default async function ManufacturerDetailPage({
                   key={metric.label}
                   className="rounded-[18px] border border-slate-200/85 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.96))] px-3.5 py-3"
                 >
-                  <span className="block text-2xl font-black leading-none text-slate-950">
+                  <span className="directory-counter block text-2xl leading-none text-slate-900">
                     {metric.value}
                   </span>
-                  <span className="mt-1.5 block text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+                  <span className="mt-1.5 block text-[10px] font-medium uppercase tracking-[0.08em] text-slate-500">
                     {metric.label}
                   </span>
                 </div>
@@ -1624,7 +1638,7 @@ export default async function ManufacturerDetailPage({
             </article>
 
             <aside className="rounded-[22px] border border-slate-200/85 bg-[linear-gradient(165deg,rgba(248,250,252,0.98),rgba(240,249,255,0.9),rgba(255,255,255,0.98))] p-4 shadow-[0_16px_34px_rgba(15,23,42,0.055)]">
-              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-sky-800">
+              <p className="directory-kicker text-[11px] uppercase text-sky-800">
                 Основні напрямки бренду
               </p>
               <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-600">
@@ -1708,10 +1722,10 @@ export default async function ManufacturerDetailPage({
                     key={level.label}
                     className="rounded-[16px] border border-slate-200 bg-white/82 px-3 py-2 shadow-[0_8px_18px_rgba(15,23,42,0.04)]"
                   >
-                    <span className="block text-xs font-black text-slate-950">
+                    <span className="block text-xs font-semibold text-slate-900">
                       {level.label}
                     </span>
-                    <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                    <span className="directory-counter-label mt-1 block text-[10px] uppercase text-slate-500">
                       {level.text}
                     </span>
                   </div>
@@ -1742,10 +1756,10 @@ export default async function ManufacturerDetailPage({
                           />
                         </span>
                         <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-sky-800">
+                          <p className="directory-kicker text-[10px] uppercase text-sky-800">
                             Категорія
                           </p>
-                          <h3 className="mt-0.5 font-display text-xl font-[800] tracking-normal text-slate-950 sm:text-2xl">
+                          <h3 className="directory-heading mt-0.5 text-xl text-slate-900 sm:text-2xl">
                             {normalizeValue(category.label)}
                           </h3>
                           <p className="mt-1 text-[13px] leading-5 text-slate-500">

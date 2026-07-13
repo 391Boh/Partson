@@ -26,8 +26,10 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import { Bell, BookOpen, Eye, EyeOff, LogIn, ShieldCheck, ShoppingBag, User, UserPlus, X } from "lucide-react";
+import { Eye, EyeOff, LogIn, UserPlus, X } from "lucide-react";
 import LoginTelegram from "./LoginTelegram";
+import { GOOGLE_REDIRECT_PENDING_KEY } from "app/lib/auth-storage";
+import { publishFirebaseAuthUser } from "app/lib/firebase-auth-state";
 
 type AuthMode = "login" | "register";
 
@@ -36,11 +38,6 @@ interface AuthFormProps {
   onModeChange: (mode: AuthMode) => void;
   onClose: () => void;
   onRegisterSuccess: () => void;
-}
-
-interface SavedUser {
-  email: string;
-  password: string;
 }
 
 const getFirebaseErrorCode = (error: unknown) =>
@@ -127,7 +124,6 @@ const AuthForm: React.FC<AuthFormProps> = ({
   const [isClosing, setIsClosing] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
-  const emailInputRef = useRef<HTMLInputElement>(null);
 
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -142,16 +138,6 @@ const AuthForm: React.FC<AuthFormProps> = ({
   const [isEmailValid, setIsEmailValid] = useState<boolean | null>(null);
   const [isPasswordValid, setIsPasswordValid] = useState<boolean | null>(null);
   const [rememberMe, setRememberMe] = useState(false);
-  const [savedUsers, setSavedUsers] = useState<SavedUser[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const saved = localStorage.getItem("savedUsers");
-      return saved ? (JSON.parse(saved) as SavedUser[]) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [showSavedUsersDropdown, setShowSavedUsersDropdown] = useState(false);
 
   const [registerData, setRegisterData] = useState({
     name: "",
@@ -178,12 +164,6 @@ const AuthForm: React.FC<AuthFormProps> = ({
       if (target?.closest('[data-overlay-toggle]')) return;
       if (modalRef.current && !modalRef.current.contains(target as Node)) {
         closeModal();
-      }
-      if (
-        emailInputRef.current &&
-        !emailInputRef.current.contains(target as Node)
-      ) {
-        setShowSavedUsersDropdown(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -216,6 +196,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
         } catch (profileError) {
           console.warn("Google redirect sign-in: profile sync failed:", profileError);
         }
+        publishFirebaseAuthUser(credential.user);
         closeModal();
       })
       .catch((error: unknown) => {
@@ -307,6 +288,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
         );
       }
 
+      publishFirebaseAuthUser(user);
       closeModal();
     } catch (error: unknown) {
       const code = getFirebaseErrorCode(error);
@@ -318,9 +300,11 @@ const AuthForm: React.FC<AuthFormProps> = ({
           await setPersistence(auth, browserLocalPersistence);
           const provider = new GoogleAuthProvider();
           provider.setCustomParameters({ prompt: "select_account" });
+          sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, "1");
           await signInWithRedirect(auth, provider);
           return;
         } catch {
+          sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
           setSocialAuthError("Браузер заблокував Google-вікно. Дозвольте popup і спробуйте ще раз.");
         }
       } else if (code === "auth/account-exists-with-different-credential") {
@@ -335,6 +319,12 @@ const AuthForm: React.FC<AuthFormProps> = ({
         setSocialAuthError(
           "Щоб прив'язати Google до старого акаунта, введіть правильний старий пароль."
         );
+      } else if (code === "auth/unauthorized-domain") {
+        setSocialAuthError("Домен сайту не дозволений у налаштуваннях Firebase Authentication.");
+      } else if (code === "auth/operation-not-allowed") {
+        setSocialAuthError("Вхід через Google не увімкнений у Firebase Authentication.");
+      } else if (code === "auth/network-request-failed") {
+        setSocialAuthError("Не вдалося з’єднатися з Google. Перевірте інтернет і спробуйте ще раз.");
       } else {
         setSocialAuthError("Не вдалося увійти через Google. Спробуйте ще раз.");
       }
@@ -409,20 +399,13 @@ const AuthForm: React.FC<AuthFormProps> = ({
         auth,
         rememberMe ? browserLocalPersistence : browserSessionPersistence
       );
-      await signInWithEmailAndPassword(auth, email, loginData.password);
+      const credential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        loginData.password
+      );
 
-      if (rememberMe) {
-        setSavedUsers((prev) => {
-          const savedLogin = { email, password: loginData.password };
-          const existingIndex = prev.findIndex((u) => u.email === email);
-          const next = [...prev];
-          if (existingIndex !== -1) next[existingIndex] = savedLogin;
-          else next.push(savedLogin);
-          localStorage.setItem("savedUsers", JSON.stringify(next));
-          return next;
-        });
-      }
-
+      publishFirebaseAuthUser(credential.user);
       closeModal();
     } catch (error: unknown) {
       const code = getFirebaseErrorCode(error);
@@ -522,6 +505,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
           phone: registerData.phone,
           createdAt: new Date().toISOString(),
         });
+        publishFirebaseAuthUser(user);
         onRegisterSuccess();
         closeModal();
       }
@@ -556,7 +540,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
     >
       <div
         ref={modalRef}
-        className={`soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto text-slate-700 transform-gpu transition-all duration-500 ease-in-out pointer-events-auto ${
+        className={`auth-form-panel soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto text-slate-700 transform-gpu transition-all duration-300 ease-out pointer-events-auto ${
           isClosing
             ? "translate-x-4 scale-[0.98] opacity-0"
             : isVisible
@@ -564,27 +548,19 @@ const AuthForm: React.FC<AuthFormProps> = ({
             : "translate-x-4 scale-[0.98] opacity-0"
         }`}
       >
-        <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
-          <div className="soft-panel-accent h-1 w-full shrink-0 rounded-full" />
-
-          <div className="soft-panel-header">
-            <div className="min-w-0">
-              <span className="soft-panel-eyebrow">
-                {mode === "login" ? <LogIn size={14} /> : <UserPlus size={14} />}
-                {mode === "login" ? "Вхід" : "Реєстрація"}
+        <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-3 p-3.5 sm:p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-300/20 bg-sky-400/10 text-sky-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
+                {mode === "login" ? <LogIn size={17} /> : <UserPlus size={17} />}
               </span>
-              <h2 className="soft-panel-title">
-                {mode === "login" ? "Авторизація" : "Новий акаунт"}
+              <h2 className="text-base font-extrabold tracking-tight text-white">
+                {mode === "login" ? "Вхід до акаунта" : "Створити акаунт"}
               </h2>
-              <p className="soft-panel-subtitle">
-                {mode === "login"
-                  ? "Доступ до замовлень, VIN та персональних знижок"
-                  : "Один акаунт — усі переваги швидкого замовлення"}
-              </p>
             </div>
             <button
               onClick={closeModal}
-              className="soft-icon-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
+              className="soft-icon-button h-9 w-9 shrink-0 p-1"
               aria-label="Закрити"
             >
               <X size={18} />
@@ -595,58 +571,38 @@ const AuthForm: React.FC<AuthFormProps> = ({
             <button
               type="button"
               onClick={() => onModeChange("login")}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-[14px] px-3 py-2 text-sm font-semibold transition ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition ${
                 mode === "login"
                   ? "soft-segment soft-segment--active"
                   : "soft-segment"
               }`}
             >
-              <LogIn size={16} />
+              <LogIn size={14} />
               Вхід
             </button>
             <button
               type="button"
               onClick={() => onModeChange("register")}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-[14px] px-3 py-2 text-sm font-semibold transition ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition ${
                 mode === "register"
                   ? "soft-segment soft-segment--active"
                   : "soft-segment"
               }`}
             >
-              <UserPlus size={16} />
+              <UserPlus size={14} />
               Реєстрація
             </button>
           </div>
 
           {mode === "login" ? (
-            <form onSubmit={handleLoginSubmit} className="flex flex-col gap-3">
-              <div className="flex flex-wrap gap-1.5">
-                {(
-                  [
-                    { Icon: BookOpen, text: "VIN автомобіля" },
-                    { Icon: ShoppingBag, text: "Швидке замовлення" },
-                    { Icon: Bell, text: "Статус доставки" },
-                  ] as const
-                ).map(({ Icon, text }) => (
-                  <span
-                    key={text}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-sky-200/80 bg-sky-50/70 px-2.5 py-1 text-[11px] font-semibold text-sky-700"
-                  >
-                    <Icon size={11} />
-                    {text}
-                  </span>
-                ))}
-              </div>
+            <form onSubmit={handleLoginSubmit} className="flex flex-col gap-2.5">
               <input
-                ref={emailInputRef}
                 type="email"
                 placeholder="Email"
                 value={loginData.email}
                 onChange={handleLoginEmailChange}
-                onFocus={() =>
-                  savedUsers.length > 0 && setShowSavedUsersDropdown(true)
-                }
-                className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-base ${
+                autoComplete="email"
+                className={`soft-field w-full px-3.5 py-2.5 text-sm text-slate-800 transition ${
                   isEmailValid === null
                     ? ""
                     : isEmailValid
@@ -656,31 +612,14 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 required
               />
 
-              {showSavedUsersDropdown && savedUsers.length > 0 && (
-                <div className="soft-surface-card rounded-2xl p-1.5">
-                  {savedUsers.map((saved) => (
-                    <button
-                      key={saved.email}
-                      type="button"
-                      onClick={() => {
-                        setLoginData(saved);
-                        setShowSavedUsersDropdown(false);
-                      }}
-                      className="block w-full text-left px-2 py-2 text-xs text-slate-700 hover:bg-sky-50 rounded-md"
-                    >
-                      {saved.email}
-                    </button>
-                  ))}
-                </div>
-              )}
-
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="Пароль"
                   value={loginData.password}
                   onChange={handleLoginPasswordChange}
-                  className={`soft-field w-full px-4 py-3 pr-11 text-sm text-slate-800 transition sm:text-base ${
+                  autoComplete="current-password"
+                  className={`soft-field w-full px-3.5 py-2.5 pr-11 text-sm text-slate-800 transition ${
                     isPasswordValid === null
                       ? ""
                       : isPasswordValid
@@ -699,8 +638,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 </button>
               </div>
 
-              <div className="soft-surface-card flex items-center justify-between gap-3 rounded-[16px] px-3 py-2.5 text-xs text-slate-700">
-                <label className="flex min-w-0 items-center gap-2">
+              <div className="flex items-center justify-between gap-3 px-0.5 text-xs text-slate-300">
+                <label className="flex min-w-0 cursor-pointer items-center gap-2">
                   <input
                     type="checkbox"
                     checked={rememberMe}
@@ -714,46 +653,40 @@ const AuthForm: React.FC<AuthFormProps> = ({
                   type="button"
                   onClick={handleForgotPassword}
                   disabled={isResetPasswordLoading}
-                  className="shrink-0 rounded-full bg-white/80 px-2.5 py-1 font-extrabold text-sky-700 shadow-[0_6px_14px_rgba(14,165,233,0.12)] transition-colors hover:text-sky-950 disabled:cursor-wait disabled:opacity-60"
+                  className="shrink-0 font-bold text-sky-300 transition-colors hover:text-white disabled:cursor-wait disabled:opacity-60"
                 >
                   {isResetPasswordLoading ? "Надсилаємо..." : "Забули пароль?"}
                 </button>
               </div>
 
               {loginError && (
-                <p className="text-red-400 text-sm text-center">{loginError}</p>
+                <p className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-2.5 py-2 text-center text-xs text-rose-200">{loginError}</p>
               )}
               {resetPasswordMessage && (
-                <p className="text-emerald-600 text-sm text-center">
+                <p className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-2 text-center text-xs text-emerald-200">
                   {resetPasswordMessage}
                 </p>
               )}
 
-              <div className="flex flex-col gap-2 mt-1">
-                <button
-                  type="submit"
-                  className="soft-primary-button w-full px-4 py-3 text-sm font-semibold"
-                >
-                  <LogIn size={20} />
-                  Увійти
-                </button>
-
-                <div className="soft-note flex items-start gap-2 rounded-[16px] px-3 py-2 text-xs">
-                  <ShieldCheck size={16} className="mt-0.5 shrink-0 text-sky-700" />
-                  <span>Дані захищені та використовуються виключно для доступу до акаунту і замовлень.</span>
-                </div>
-              </div>
+              <button
+                type="submit"
+                className="soft-primary-button mt-0.5 w-full px-4 py-2.5 text-sm font-bold"
+              >
+                <LogIn size={18} />
+                Увійти
+              </button>
             </form>
           ) : (
             <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-2.5">
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div className="min-w-0">
                   <input
                     type="text"
                     placeholder="Ваше ім'я"
                     value={registerData.name}
                     onChange={(e) => handleRegisterChange("name", e.target.value)}
-                    className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-sm ${getBorderColor(
+                    autoComplete="name"
+                    className={`soft-field w-full px-3.5 py-2.5 text-sm text-slate-800 transition ${getBorderColor(
                       "name"
                     )}`}
                   />
@@ -768,7 +701,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
                     placeholder="Email"
                     value={registerData.email}
                     onChange={(e) => handleRegisterChange("email", e.target.value)}
-                    className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-sm ${getBorderColor(
+                    autoComplete="email"
+                    className={`soft-field w-full px-3.5 py-2.5 text-sm text-slate-800 transition ${getBorderColor(
                       "email"
                     )}`}
                   />
@@ -786,7 +720,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
                       onChange={(e) =>
                         handleRegisterChange("password", e.target.value)
                       }
-                      className={`soft-field w-full px-4 py-3 pr-11 text-sm text-slate-800 transition sm:text-sm ${getBorderColor(
+                      autoComplete="new-password"
+                      className={`soft-field w-full px-3.5 py-2.5 pr-11 text-sm text-slate-800 transition ${getBorderColor(
                         "password"
                       )}`}
                     />
@@ -816,7 +751,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
                     placeholder="+380XXXXXXXXX"
                     value={registerData.phone}
                     onChange={(e) => handleRegisterChange("phone", e.target.value)}
-                    className={`soft-field w-full px-4 py-3 text-sm text-slate-800 transition sm:text-sm ${getBorderColor(
+                    autoComplete="tel"
+                    className={`soft-field w-full px-3.5 py-2.5 text-sm text-slate-800 transition ${getBorderColor(
                       "phone"
                     )}`}
                   />
@@ -826,23 +762,17 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 </div>
               </div>
 
-              <div className="mt-0.5 flex flex-col gap-2">
-                <button
-                  type="submit"
-                  className="soft-primary-button w-full px-4 py-3 text-sm font-semibold"
-                >
-                  <UserPlus size={20} />
-                  Створити акаунт
-                </button>
-                <div className="soft-note flex items-start gap-2 rounded-[16px] px-3 py-2 text-xs">
-                  <User className="mt-0.5 h-4 w-4 shrink-0 text-sky-700" />
-                  <span>Профіль готовий з першої хвилини — збережіть VIN і оформлюйте замовлення швидше.</span>
-                </div>
-              </div>
+              <button
+                type="submit"
+                className="soft-primary-button mt-0.5 w-full px-4 py-2.5 text-sm font-bold"
+              >
+                <UserPlus size={18} />
+                Створити акаунт
+              </button>
             </form>
           )}
 
-          <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
               <span className="h-px flex-1 bg-slate-200/80" />
               або
@@ -867,12 +797,12 @@ const AuthForm: React.FC<AuthFormProps> = ({
           </div>
 
           {registerError && mode === "register" && (
-            <p className="text-red-400 text-sm mt-1 text-center">
+            <p className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-2.5 py-2 text-center text-xs text-rose-200">
               {registerError}
             </p>
           )}
           {socialAuthError && (
-            <p className="text-red-400 text-sm mt-1 text-center">
+            <p className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-2.5 py-2 text-center text-xs text-rose-200">
               {socialAuthError}
             </p>
           )}

@@ -59,6 +59,18 @@ type GroupCountsApiPayload = {
 const normalize = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
 
+const pluralize = (value: number, one: string, few: string, many: string) => {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 19) return many;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+};
+
+const formatCount = (value: number, one: string, few: string, many: string) =>
+  `${value.toLocaleString("uk-UA")} ${pluralize(value, one, few, many)}`;
+
 const filterGroups = (groups: GroupsDirectoryItem[], query: string) => {
   if (!query) return groups;
 
@@ -86,25 +98,32 @@ const filterGroups = (groups: GroupsDirectoryItem[], query: string) => {
         return [];
       }
 
-      return [
-        {
-          ...subgroup,
-          children:
-            groupMatches || subgroupMatches ? subgroup.children : matchedChildren,
-        },
-      ];
+      const visibleChildren =
+        groupMatches || subgroupMatches ? subgroup.children : matchedChildren;
+      const visibleProductCount =
+        groupMatches || subgroupMatches
+          ? subgroup.productCount
+          : visibleChildren.reduce(
+              (sum, child) => sum + Number(child.productCount ?? 0),
+              0
+            );
+
+      return [{ ...subgroup, productCount: visibleProductCount, children: visibleChildren }];
     });
 
     if (!groupMatches && matchedSubgroups.length === 0) {
       return [];
     }
 
-    return [
-      {
-        ...group,
-        subgroups: groupMatches ? group.subgroups : matchedSubgroups,
-      },
-    ];
+    const visibleSubgroups = groupMatches ? group.subgroups : matchedSubgroups;
+    return [{
+      ...group,
+      productCount: groupMatches
+        ? group.productCount
+        : visibleSubgroups.reduce((sum, subgroup) => sum + subgroup.productCount, 0),
+      subgroupsCount: visibleSubgroups.length,
+      subgroups: visibleSubgroups,
+    }];
   });
 };
 
@@ -181,14 +200,14 @@ function GroupCategoryCard({
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
               <div className="min-w-0">
-                <span className="inline-flex rounded-[10px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.11em] text-sky-800">
+                <span className="directory-kicker inline-flex rounded-[10px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] uppercase text-sky-800">
                   Група
                 </span>
                 <SmartLink
                   href={buildGroupPath(group.slug)}
                   itemProp="url"
                   prefetchOnViewport={prefetchOnViewport}
-                  className="mt-1.5 block text-[16px] font-extrabold leading-tight tracking-normal text-slate-950 transition hover:text-sky-700"
+                  className="directory-card-title mt-1.5 block text-[16px] leading-tight text-slate-900 transition hover:text-sky-700"
                 >
                   <span itemProp="name">{visibleGroupLabel}</span>
                 </SmartLink>
@@ -202,12 +221,14 @@ function GroupCategoryCard({
                 {group.productCount > 0 ? (
                   <span className={directoryCompactMetricClass}>
                     <span>{group.productCount.toLocaleString("uk-UA")}</span>
-                    <span className="font-semibold text-slate-500">товарів</span>
+                    <span className="font-medium text-slate-500">
+                      {pluralize(group.productCount, "товар", "товари", "товарів")}
+                    </span>
                   </span>
                 ) : null}
                 <span className={directoryCompactMetricAccentClass}>
                   {hasSubgroups
-                    ? `${group.subgroupsCount.toLocaleString("uk-UA")} підгруп`
+                    ? formatCount(group.subgroupsCount, "підгрупа", "підгрупи", "підгруп")
                     : "окрема сторінка"}
                 </span>
               </div>
@@ -226,7 +247,7 @@ function GroupCategoryCard({
               <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                 <CatalogPrefetchLink
                   href={buildGroupItemPath(group.slug, subgroup.slug)}
-                  className="inline-flex min-w-0 items-center gap-2 text-[13px] font-bold leading-5 text-slate-800 transition hover:text-sky-700"
+                  className="directory-card-title inline-flex min-w-0 items-center gap-2 text-[13px] leading-5 text-slate-800 transition hover:text-sky-700"
                 >
                   <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-sky-200 bg-sky-50 text-sky-700">
                     <ChevronRight size={14} strokeWidth={2.3} />
@@ -238,12 +259,14 @@ function GroupCategoryCard({
                   {subgroup.productCount > 0 ? (
                     <span className={directoryCompactMetricClass}>
                       <span>{subgroup.productCount.toLocaleString("uk-UA")}</span>
-                      <span className="font-semibold text-slate-500">товарів</span>
+                      <span className="font-medium text-slate-500">
+                        {pluralize(subgroup.productCount, "товар", "товари", "товарів")}
+                      </span>
                     </span>
                   ) : null}
                   {subgroup.children.length > 0 ? (
                     <span className={directoryCompactMetricAccentClass}>
-                      {subgroup.children.length.toLocaleString("uk-UA")} категорій
+                      {formatCount(subgroup.children.length, "категорія", "категорії", "категорій")}
                     </span>
                   ) : null}
                 </div>
@@ -262,7 +285,7 @@ function GroupCategoryCard({
                       className="flex min-w-0 items-start justify-between gap-3 rounded-[12px] border border-slate-200 bg-white px-2.5 py-2 text-[12px] text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800"
                     >
                       <span className="min-w-0">
-                        <span className="block font-semibold text-slate-800">
+                        <span className="directory-card-title block text-slate-800">
                           {buildVisibleProductName(child.label)}
                         </span>
                         <span className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-slate-500">
@@ -273,7 +296,9 @@ function GroupCategoryCard({
                         {(child.productCount ?? 0) > 0 ? (
                           <span className={directoryCompactMetricClass}>
                             <span>{Number(child.productCount).toLocaleString("uk-UA")}</span>
-                            <span className="font-semibold text-slate-500">товарів</span>
+                            <span className="font-medium text-slate-500">
+                              {pluralize(Number(child.productCount), "товар", "товари", "товарів")}
+                            </span>
                           </span>
                         ) : null}
                         <ChevronRight size={14} strokeWidth={2.1} className="mt-0.5 shrink-0" />
@@ -285,7 +310,7 @@ function GroupCategoryCard({
                       href={buildGroupItemPath(group.slug, subgroup.slug)}
                       className="rounded-[12px] border border-dashed border-sky-200 bg-sky-50/60 px-2.5 py-2 text-[12px] font-bold text-sky-800 transition hover:bg-sky-100"
                     >
-                      Ще {subgroup.children.length - 5} категорій
+                      Ще {formatCount(subgroup.children.length - 5, "категорія", "категорії", "категорій")}
                     </CatalogPrefetchLink>
                   ) : null}
                 </div>
@@ -376,7 +401,7 @@ export default function GroupsDirectoryClient({
 
   const visibleSubgroups = useMemo(
     () =>
-      filteredGroups.reduce((sum, group) => sum + group.subgroupsCount, 0),
+      filteredGroups.reduce((sum, group) => sum + group.subgroups.length, 0),
     [filteredGroups]
   );
   const visibleProductCount = useMemo(
@@ -438,14 +463,29 @@ export default function GroupsDirectoryClient({
 
                 <div className="mt-2 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
                   <span className={directoryMetricClass}>
-                    Знайдено: {(normalizedQuery ? filteredGroups.length : directoryItems.length).toLocaleString("uk-UA")} груп
+                    Знайдено: {formatCount(
+                      normalizedQuery ? filteredGroups.length : directoryItems.length,
+                      "група",
+                      "групи",
+                      "груп"
+                    )}
                   </span>
                   <span className={directoryMetricAccentClass}>
-                    {(normalizedQuery ? visibleSubgroups : directoryData.totalSubgroups).toLocaleString("uk-UA")} підгруп
+                    {formatCount(
+                      normalizedQuery ? visibleSubgroups : directoryData.totalSubgroups,
+                      "підгрупа",
+                      "підгрупи",
+                      "підгруп"
+                    )}
                   </span>
                   {directoryData.hasProductCounts ? (
                     <span className={directoryMetricClass}>
-                      {(normalizedQuery ? visibleProductCount : directoryData.totalProductCount).toLocaleString("uk-UA")} товарів
+                      {formatCount(
+                        normalizedQuery ? visibleProductCount : directoryData.totalProductCount,
+                        "товар",
+                        "товари",
+                        "товарів"
+                      )}
                     </span>
                   ) : (
                     <span className="inline-flex rounded-md border border-amber-200/70 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 shadow-[0_8px_18px_rgba(245,158,11,0.06)]">

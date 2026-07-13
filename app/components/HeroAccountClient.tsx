@@ -109,14 +109,14 @@ export default function HeroAccountClient({
   if (variant === "actions") {
     return (
       <div className="flex min-h-[42px] min-w-[272px] flex-wrap items-center justify-center gap-2 sm:min-h-[44px] sm:min-w-[292px]">
-        {isAuthReady && user ? (
+        {user ? (
           <button type="button" onClick={() => window.dispatchEvent(new Event("openAccountVin"))} className={vinButton}>
             <span className="relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]">
               <IdCard className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
               Додати VIN номер
             </span>
           </button>
-        ) : isAuthReady ? (
+        ) : (
           <>
             <button
               type="button"
@@ -151,8 +151,6 @@ export default function HeroAccountClient({
               </span>
             </button>
           </>
-        ) : (
-          <span className="h-10 w-[220px] rounded-[14px] border border-white/15 bg-white/10" />
         )}
       </div>
     );

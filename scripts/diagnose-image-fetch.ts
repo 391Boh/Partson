@@ -71,7 +71,7 @@ async function main() {
           retries: 0,
           allowUrlDownload: true,
           skipMissCache: true,
-        } as any);
+        });
         const elapsedMs = Date.now() - startedAt;
         console.log(
           `[${test.label}] key="${key}" -> ${

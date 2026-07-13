@@ -5,7 +5,7 @@ import ClientWrapper from "./client-wrapper";
 import LayoutHost from "./components/LayoutHost";
 import PageLoadingShell from "./components/PageLoadingShell";
 import { WebVitalsReporter } from "./components/WebVitalsReporter";
-import Footer from "./components/footer";
+import DeferredFooter from "./components/DeferredFooter";
 import {
   STORE_PHONE_SEO_LABEL,
   trimSeoDescription,
@@ -321,14 +321,6 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
-        <link rel="prefetch" href="/Carlogo/Audi.svg" as="image" />
-        <link rel="prefetch" href="/Carlogo/BMW.svg" as="image" />
-        <link rel="prefetch" href="/Carlogo/Chery.svg" as="image" />
-        <link rel="prefetch" href="/Carlogo/Chrysler.svg" as="image" />
-        <link rel="prefetch" href="/Carlogo/Citroen.svg" as="image" />
-        <link rel="prefetch" href="/Carlogo/Cadillac.svg" as="image" />
-        <link rel="prefetch" href="/Carlogo/Dacia.svg" as="image" />
-        <link rel="prefetch" href="/Carlogo/Daewoo.svg" as="image" />
         {googleTagManagerId ? (
           <link rel="preconnect" href="https://www.googletagmanager.com" crossOrigin="anonymous" />
         ) : null}
@@ -387,7 +379,7 @@ export default function RootLayout({
               <LayoutHost>{children}</LayoutHost>
             </Suspense>
           </ClientWrapper>
-          <Footer />
+          <DeferredFooter />
         </div>
         <Suspense>
           <LocalBusinessJsonLdWithRating />

@@ -39,13 +39,9 @@ import { safeJsonLd } from "app/lib/safe-json-ld";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
-const GROUP_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
+const GROUP_STATIC_PARAMS_LIMIT_DEFAULT = 0;
 const GROUP_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
 const GROUP_PAGE_SEO_FACETS_TIMEOUT_MS = 500;
-const isProductionBuildPhase =
-  process.env.NEXT_PHASE === "phase-production-build" ||
-  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
-  process.env.npm_lifecycle_event === "build";
 interface GroupPageParams {
   slug: string;
 }
@@ -75,7 +71,7 @@ type GroupPageData = {
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackValue;
+  if (!Number.isFinite(numeric) || numeric < 0) return fallbackValue;
   return Math.floor(numeric);
 };
 
@@ -259,12 +255,10 @@ const buildStaticSlugCandidates = (
   );
 
 export async function generateStaticParams() {
-  const limit = isProductionBuildPhase
-    ? GROUP_STATIC_PARAMS_LIMIT_DEFAULT
-    : parsePositiveInt(
-        process.env.SEO_GROUP_STATIC_PARAMS_LIMIT,
-        GROUP_STATIC_PARAMS_LIMIT_DEFAULT
-      );
+  const limit = parsePositiveInt(
+    process.env.SEO_GROUP_STATIC_PARAMS_LIMIT,
+    GROUP_STATIC_PARAMS_LIMIT_DEFAULT
+  );
   if (limit <= 0) return [];
 
   const dataset = await getProductTreeDataset().catch(() => null);
@@ -476,7 +470,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   };
 
   return (
-    <main className="page-shell-inline py-6 sm:py-8">
+    <main className="catalog-directory-page page-shell-inline py-6 sm:py-8">
       <nav aria-label="Навігаційні хлібні крихти">
         <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
           <li className="inline-flex items-center gap-2">
@@ -511,7 +505,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+              <span className="directory-kicker inline-flex rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] uppercase text-teal-800">
                 {pageBadge}
               </span>
               <span className={directoryCompactMetricClass}>
@@ -522,7 +516,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
               </span>
             </div>
 
-            <h1 className="font-display-italic mt-4 text-3xl tracking-[-0.048em] text-slate-900 sm:text-[2.2rem]">
+            <h1 className="directory-heading-hero mt-4 text-3xl leading-[1.1] text-slate-900 sm:text-[2.2rem]">
               {pageTitle}
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
@@ -555,10 +549,10 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
         <section className="mt-6 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white/96 shadow-[0_8px_28px_rgba(15,23,42,0.06)]">
           <div className="flex items-center justify-between gap-3 border-b border-slate-100/80 px-4 py-3 sm:px-5">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-teal-700">
+              <p className="directory-kicker text-[10px] uppercase text-teal-700">
                 Виробники цієї групи
               </p>
-              <h2 className="mt-0.5 text-[15px] font-extrabold tracking-tight text-slate-900">
+              <h2 className="mt-0.5 text-[15px] font-semibold tracking-[-0.01em] text-slate-900">
                 Бренди {visibleGroupLabel}
               </h2>
             </div>
@@ -587,7 +581,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                       unoptimized={producer.logoPath.endsWith(".svg")}
                     />
                   ) : (
-                    <span className="text-[9px] font-black leading-none text-slate-500">
+                    <span className="text-[9px] font-semibold leading-none text-slate-500">
                       {producer.initials}
                     </span>
                   )}
@@ -605,10 +599,10 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
         <div className={directoryHeaderClass}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+              <p className="directory-kicker text-[11px] uppercase text-teal-800">
                 Опис групи
               </p>
-              <h2 className="font-display mt-1 text-xl font-[780] tracking-normal text-slate-950 sm:text-2xl">
+              <h2 className="directory-heading mt-1 text-xl text-slate-900 sm:text-2xl">
                 {visibleGroupLabel} в каталозі автозапчастин PartsON
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
@@ -634,7 +628,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
           </div>
 
           <aside className="rounded-lg border border-teal-100/80 bg-[linear-gradient(165deg,rgba(240,253,250,0.94),rgba(239,246,255,0.92),rgba(255,255,255,0.98))] p-4 shadow-[0_16px_34px_rgba(13,148,136,0.08)]">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+            <p className="directory-kicker text-[11px] uppercase text-teal-800">
               Що входить у групу
             </p>
             <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">
@@ -659,10 +653,10 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
               <div key={subgroup.slug} className={directoryPanelClass}>
                 <div className={`${directoryHeaderClass} flex items-center justify-between gap-3`}>
                   <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-teal-800">
+                    <p className="directory-kicker text-[10px] uppercase text-teal-800">
                       Підгрупа
                     </p>
-                    <h3 className="mt-1 text-base font-extrabold leading-snug tracking-normal text-slate-950">
+                    <h3 className="mt-1 text-base font-semibold leading-snug tracking-[-0.01em] text-slate-900">
                       {buildVisibleProductName(subgroup.label)}
                     </h3>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">

@@ -107,6 +107,11 @@ const imageBase64Cache = new Map<string, { expiresAt: number; value: string }>()
 const imageInFlightCache = new Map<string, Promise<string | null>>();
 const IMAGE_URL_DOWNLOAD_TIMEOUT_MS = 1200;
 const IMAGE_BATCH_ENDPOINT_RETRY_TTL_MS = 1000 * 60 * 5;
+// Bounded fan-out for probing unresolved 1C batch-image endpoint candidates.
+// Only used during discovery (cold process / previously-working endpoint just
+// failed) — the steady-state fast path below always hits a single known
+// endpoint sequentially, so this never adds extra load once resolved.
+const IMAGE_BATCH_ENDPOINT_PROBE_CONCURRENCY = 3;
 let resolvedImageBatchEndpoint: string | null | undefined;
 let lastImageBatchEndpointProbeAt = 0;
 
@@ -499,82 +504,127 @@ const fetchProductImageBase64BatchFromEndpoint = async (
     article: lookupKey,
   }));
 
-  const endpoints =
-    typeof resolvedImageBatchEndpoint === "string" && resolvedImageBatchEndpoint
-      ? [
-          resolvedImageBatchEndpoint,
-          ...IMAGE_BATCH_ENDPOINT_CANDIDATES.filter(
-            (endpoint) => endpoint !== resolvedImageBatchEndpoint
-          ),
-        ]
-      : resolvedImageBatchEndpoint === null &&
-          Date.now() - lastImageBatchEndpointProbeAt < IMAGE_BATCH_ENDPOINT_RETRY_TTL_MS
-        ? []
-        : IMAGE_BATCH_ENDPOINT_CANDIDATES;
+  const bodiesForEndpoint = (endpoint: string): Array<Record<string, unknown>> =>
+    endpoint === "ПолучитьФотоПакетом"
+      ? [{ codes: lookupKeys }, { Коды: lookupKeys }]
+      : [{ items: requestItems }, { codes: lookupKeys }, { Коды: lookupKeys }];
 
-  for (const endpoint of endpoints) {
-    const requestBodies: Array<Record<string, unknown>> =
-      endpoint === "ПолучитьФотоПакетом"
-        ? [{ codes: lookupKeys }, { Коды: lookupKeys }]
-        : [{ items: requestItems }, { codes: lookupKeys }, { Коды: lookupKeys }];
+  const tryEndpointBody = async (
+    endpoint: string,
+    body: Record<string, unknown>
+  ): Promise<{ endpoint: string; parsed: ProductImageBatchResponseMatch } | null> => {
+    const response = await oneCRequest(endpoint, {
+      method: "POST",
+      body,
+      timeoutMs,
+      retries,
+      retryDelayMs,
+      cacheTtlMs,
+      cacheKey: JSON.stringify({ endpoint, timeoutMs, retries, retryDelayMs, body }),
+    }).catch(() => null);
 
-    for (const body of requestBodies) {
-      const response = await oneCRequest(endpoint, {
-        method: "POST",
-        body,
-        timeoutMs,
-        retries,
-        retryDelayMs,
-        cacheTtlMs,
-        cacheKey: JSON.stringify({
-          endpoint,
-          timeoutMs,
-          retries,
-          retryDelayMs,
-          body,
-        }),
-      }).catch(() => null);
+    if (!response || response.status < 200 || response.status >= 300) return null;
 
-      if (!response || response.status < 200 || response.status >= 300) continue;
-
-      let payload: unknown;
-      try {
-        payload = JSON.parse(safeTrim(response.text || "")) as unknown;
-      } catch {
-        continue;
-      }
-
-      const parsed = parseImageBatchResponse(payload, requestedKeys);
-      if (!parsed) continue;
-
-      // Only lock in this endpoint when it actively handled at least one requested
-      // code. An empty items array ({"items":[]}) passes hasImageBatchEnvelope but
-      // could come from a wrong endpoint that knows nothing about our codes — we
-      // must not permanently cache it and skip the real ПолучитьФотоПакетом.
-      if (parsed.handledKeys.size === 0) continue;
-
-      resolvedImageBatchEndpoint = endpoint;
-      lastImageBatchEndpointProbeAt = 0;
-
-      for (const [lookupKey, imageBase64] of Object.entries(parsed.resolved)) {
-        imageBase64Cache.set(lookupKey.toLowerCase(), {
-          value: imageBase64,
-          expiresAt: Date.now() + cacheTtlMs,
-        });
-      }
-
-      if (!skipMissCache) {
-        for (const handledKey of parsed.handledKeys) {
-          if (parsed.resolved[handledKey]) continue;
-          imageMissCache.set(
-            buildImageMissCacheKey(handledKey, timeoutMs, allowUrlDownload),
-            Date.now() + missCacheTtlMs
-          );
-        }
-      }
-
-      return parsed;
+    let payload: unknown;
+    try {
+      payload = JSON.parse(safeTrim(response.text || "")) as unknown;
+    } catch {
+      return null;
     }
+
+    const parsed = parseImageBatchResponse(payload, requestedKeys);
+    if (!parsed) return null;
+
+    // Only lock in this endpoint when it actively handled at least one requested
+    // code. An empty items array ({"items":[]}) passes hasImageBatchEnvelope but
+    // could come from a wrong endpoint that knows nothing about our codes — we
+    // must not permanently cache it and skip the real ПолучитьФотоПакетом.
+    if (parsed.handledKeys.size === 0) return null;
+
+    return { endpoint, parsed };
+  };
+
+  const commit = (endpoint: string, parsed: ProductImageBatchResponseMatch) => {
+    resolvedImageBatchEndpoint = endpoint;
+    lastImageBatchEndpointProbeAt = 0;
+
+    for (const [lookupKey, imageBase64] of Object.entries(parsed.resolved)) {
+      imageBase64Cache.set(lookupKey.toLowerCase(), {
+        value: imageBase64,
+        expiresAt: Date.now() + cacheTtlMs,
+      });
+    }
+
+    if (!skipMissCache) {
+      for (const handledKey of parsed.handledKeys) {
+        if (parsed.resolved[handledKey]) continue;
+        imageMissCache.set(
+          buildImageMissCacheKey(handledKey, timeoutMs, allowUrlDownload),
+          Date.now() + missCacheTtlMs
+        );
+      }
+    }
+  };
+
+  // Fast path: an endpoint has already been confirmed working in this process.
+  // Try it sequentially through its (small) set of body shapes — same cost as
+  // steady-state always had, no extra fan-out to other candidates.
+  const knownEndpoint =
+    typeof resolvedImageBatchEndpoint === "string" && resolvedImageBatchEndpoint
+      ? resolvedImageBatchEndpoint
+      : null;
+
+  if (knownEndpoint) {
+    for (const body of bodiesForEndpoint(knownEndpoint)) {
+      const result = await tryEndpointBody(knownEndpoint, body);
+      if (result) {
+        commit(result.endpoint, result.parsed);
+        return result.parsed;
+      }
+    }
+    // The previously-working endpoint stopped responding usefully — fall through
+    // to full discovery below instead of giving up immediately.
+  } else if (
+    resolvedImageBatchEndpoint === null &&
+    Date.now() - lastImageBatchEndpointProbeAt < IMAGE_BATCH_ENDPOINT_RETRY_TTL_MS
+  ) {
+    return null;
+  }
+
+  // Discovery path: endpoint is unknown (cold process, or the known one just
+  // failed). Probing each candidate one request at a time here used to mean up
+  // to ~9 endpoints x ~3 body shapes of sequential round-trips to 1C before
+  // landing on the right one. Probe with bounded concurrency instead so the
+  // first catalog page after a deploy isn't stuck behind a long serial chain.
+  const remainingCandidates = IMAGE_BATCH_ENDPOINT_CANDIDATES.filter(
+    (endpoint) => endpoint !== knownEndpoint
+  );
+  const attempts: Array<{ endpoint: string; body: Record<string, unknown> }> = [];
+  for (const endpoint of remainingCandidates) {
+    for (const body of bodiesForEndpoint(endpoint)) {
+      attempts.push({ endpoint, body });
+    }
+  }
+
+  let winner: { endpoint: string; parsed: ProductImageBatchResponseMatch } | null = null;
+  let cursor = 0;
+  const workerCount = Math.min(IMAGE_BATCH_ENDPOINT_PROBE_CONCURRENCY, attempts.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (!winner && cursor < attempts.length) {
+      const attempt = attempts[cursor];
+      cursor += 1;
+      const result = await tryEndpointBody(attempt.endpoint, attempt.body);
+      if (result && !winner) {
+        winner = result;
+      }
+    }
+  });
+  await Promise.allSettled(workers);
+
+  if (winner) {
+    const { endpoint, parsed } = winner as { endpoint: string; parsed: ProductImageBatchResponseMatch };
+    commit(endpoint, parsed);
+    return parsed;
   }
 
   if (typeof resolvedImageBatchEndpoint !== "string") {

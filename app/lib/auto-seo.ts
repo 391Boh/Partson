@@ -7,9 +7,18 @@ import { oneCRequest } from "app/api/_lib/oneC";
 import { AUTO_FIELDS } from "app/components/autoFields";
 import { carBrands } from "app/components/carBrands";
 
+export interface AutoSeoModelEntry {
+  name: string;
+  // Aggregated across every modification row 1C returned for this model —
+  // min(yearStart) / max(yearEnd) — so the models list can show a plausible
+  // "2005–2011"-style range without a second round-trip per model.
+  yearFrom: number | null;
+  yearTo: number | null;
+}
+
 export interface AutoSeoBrandGroup {
   brand: string;
-  models: string[];
+  models: AutoSeoModelEntry[];
   resultCount: number;
 }
 
@@ -42,6 +51,44 @@ const readModelLabel = (value: unknown) => {
   const raw =
     record[AUTO_FIELDS.model] ?? record.model ?? record.Model ?? record.MODEL ?? "";
   return typeof raw === "string" ? normalizeValue(raw) : "";
+};
+
+const isPlausibleYear = (value: number | null) =>
+  value != null && Number.isFinite(value) && value >= 1900 && value <= 2100;
+
+const toNumber = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+// Same field-name fallbacks as CarModels.tsx's extractYearRange, trimmed down
+// since here we only need the two boundary fields (no free-form key scanning).
+const readYearField = (record: Record<string, unknown>, keys: readonly string[]) => {
+  for (const key of keys) {
+    if (key in record) {
+      const parsed = toNumber(record[key]);
+      if (isPlausibleYear(parsed)) return parsed;
+    }
+  }
+  return null;
+};
+
+const YEAR_START_KEYS = [AUTO_FIELDS.yearStart, "yearStart", "YearStart"] as const;
+const YEAR_END_KEYS = [AUTO_FIELDS.yearEnd, "yearEnd", "YearEnd"] as const;
+const YEAR_SINGLE_KEYS = [AUTO_FIELDS.year, "year", "Year"] as const;
+
+const extractRowYearRange = (row: unknown): { start: number | null; end: number | null } => {
+  if (!row || typeof row !== "object") return { start: null, end: null };
+  const record = row as Record<string, unknown>;
+
+  const start = readYearField(record, YEAR_START_KEYS);
+  const end = readYearField(record, YEAR_END_KEYS);
+  if (start != null || end != null) return { start, end: end ?? start };
+
+  const single = readYearField(record, YEAR_SINGLE_KEYS);
+  return { start: single, end: single };
 };
 
 const tryFix1CJson = (raw: string) => {
@@ -112,7 +159,7 @@ const parseAutoResponse = (text: string) => {
   }
 };
 
-const fetchBrandModels = async (brand: string): Promise<AutoSeoBrandGroup | null> => {
+export const fetchBrandModels = async (brand: string): Promise<AutoSeoBrandGroup | null> => {
   const response = await oneCRequest("getauto", {
     method: "POST",
     body: { [AUTO_FIELDS.brand]: brand },
@@ -122,16 +169,28 @@ const fetchBrandModels = async (brand: string): Promise<AutoSeoBrandGroup | null
   const rows = parseAutoResponse(response.text);
   if (rows.length === 0) return null;
 
-  const seenModels = new Set<string>();
+  const modelYears = new Map<string, { yearFrom: number | null; yearTo: number | null }>();
   for (const row of rows) {
     const model = readModelLabel(row);
     if (!model) continue;
-    seenModels.add(model);
+
+    const { start, end } = extractRowYearRange(row);
+    const existing = modelYears.get(model);
+    if (!existing) {
+      modelYears.set(model, { yearFrom: start, yearTo: end });
+      continue;
+    }
+    if (start != null && (existing.yearFrom == null || start < existing.yearFrom)) {
+      existing.yearFrom = start;
+    }
+    if (end != null && (existing.yearTo == null || end > existing.yearTo)) {
+      existing.yearTo = end;
+    }
   }
 
-  const models = Array.from(seenModels).sort((a, b) =>
-    a.localeCompare(b, "uk", { numeric: true, sensitivity: "base" })
-  );
+  const models = Array.from(modelYears.entries())
+    .map(([name, range]) => ({ name, yearFrom: range.yearFrom, yearTo: range.yearTo }))
+    .sort((a, b) => a.name.localeCompare(b.name, "uk", { numeric: true, sensitivity: "base" }));
 
   if (models.length === 0) return null;
 
@@ -140,6 +199,41 @@ const fetchBrandModels = async (brand: string): Promise<AutoSeoBrandGroup | null
     models,
     resultCount: rows.length,
   };
+};
+
+// Only {Марка, Модель} together return year fields — {Марка} alone (used by
+// fetchBrandModels above) gives just model names, one row each, no years.
+// Cached for a week since generation year ranges never change.
+const MODEL_YEAR_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+
+export interface AutoModelYearRange {
+  yearFrom: number | null;
+  yearTo: number | null;
+}
+
+export const fetchModelYearRange = async (
+  brand: string,
+  model: string
+): Promise<AutoModelYearRange> => {
+  const response = await oneCRequest("getauto", {
+    method: "POST",
+    body: { [AUTO_FIELDS.brand]: brand, [AUTO_FIELDS.model]: model },
+    cacheTtlMs: MODEL_YEAR_CACHE_TTL_MS,
+  }).catch(() => null);
+
+  if (!response) return { yearFrom: null, yearTo: null };
+
+  const rows = parseAutoResponse(response.text);
+  let yearFrom: number | null = null;
+  let yearTo: number | null = null;
+
+  for (const row of rows) {
+    const { start, end } = extractRowYearRange(row);
+    if (start != null && (yearFrom == null || start < yearFrom)) yearFrom = start;
+    if (end != null && (yearTo == null || end > yearTo)) yearTo = end;
+  }
+
+  return { yearFrom, yearTo };
 };
 
 const mapWithConcurrency = async <T, R>(

@@ -61,11 +61,6 @@ const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_PHONE_TEL = "+380634211851";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
 const PRODUCT_META_DESCRIPTION_MAX_LENGTH = 160;
-const PRODUCT_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
-const isProductionBuildPhase =
-  process.env.NEXT_PHASE === "phase-production-build" ||
-  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
-  process.env.npm_lifecycle_event === "build";
 const shouldPreferSitemapProductLookup = true;
 
 const parseProductStaticParamsLimit = (value: string | undefined) => {
@@ -78,9 +73,10 @@ export const revalidate = 3600;
 export const dynamicParams = true;
 
 export async function generateStaticParams() {
-  const limit = isProductionBuildPhase
-    ? PRODUCT_STATIC_PARAMS_LIMIT_DEFAULT
-    : parseProductStaticParamsLimit(process.env.SEO_PRODUCT_STATIC_PARAMS_LIMIT);
+  // Respect the documented build limit in production too. dynamicParams + ISR
+  // keep every other product route available without pre-rendering thousands
+  // of 1C-backed pages during a single build.
+  const limit = parseProductStaticParamsLimit(process.env.SEO_PRODUCT_STATIC_PARAMS_LIMIT);
   if (limit <= 0) return [];
 
   try {

@@ -6,30 +6,16 @@ import { useEffect, useRef, useState } from "react";
 
 import { clearBrowserCatalogCache } from "app/components/Data";
 import { getFirebaseAuthSnapshot } from "app/lib/firebase-auth-state";
+import {
+  formatProductImageSize,
+  prepareProductImage,
+  PRODUCT_IMAGE_ACCEPT,
+} from "app/lib/product-image-upload-client";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const MAX_IMAGE_BYTES = 2_500_000;
-
-const compressImageDataUrl = (dataUrl: string, maxPx = 1600, quality = 0.82): Promise<string> =>
-  new Promise((resolve) => {
-    const img = document.createElement("img");
-    img.onload = () => {
-      const scale = Math.min(1, maxPx / Math.max(img.width, img.height, 1));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      const ctx = canvas.getContext("2d");
-      if (!ctx) { resolve(dataUrl); return; }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL("image/jpeg", quality));
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
 
 const EMPTY = {
   name: "",
@@ -49,6 +35,9 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   const [fields, setFields] = useState(EMPTY);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageUploadName, setImageUploadName] = useState("");
+  const [imageUploadSize, setImageUploadSize] = useState(0);
+  const [imageProcessing, setImageProcessing] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +66,9 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       setFields(EMPTY);
       setImageFile(null);
       setImagePreview(null);
+      setImageUploadName("");
+      setImageUploadSize(0);
+      setImageProcessing(false);
       setImageError(null);
       setError(null);
       setCreatedCode(null);
@@ -125,22 +117,27 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       .catch(() => {});
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > MAX_IMAGE_BYTES) {
-      setImageError(`Файл занадто великий (макс ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)} MB)`);
-      return;
-    }
-    setImageError(null);
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const raw = ev.target?.result as string;
-      if (raw) setImagePreview(await compressImageDataUrl(raw));
-    };
-    reader.readAsDataURL(file);
     e.target.value = "";
+    if (!file) return;
+    setImageError(null);
+    setImageProcessing(true);
+    try {
+      const prepared = await prepareProductImage(file);
+      setImageFile(file);
+      setImagePreview(prepared.dataUrl);
+      setImageUploadName(prepared.fileName);
+      setImageUploadSize(prepared.outputBytes);
+    } catch (error) {
+      setImageFile(null);
+      setImagePreview(null);
+      setImageUploadName("");
+      setImageUploadSize(0);
+      setImageError(error instanceof Error ? error.message : "Не вдалося обробити зображення");
+    } finally {
+      setImageProcessing(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -171,8 +168,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     if (cost !== undefined) body["ЦінаЗакуп"] = cost;
     if (imagePreview) {
       body.imageDataUrl = imagePreview;
-      const ext = imageFile?.name.split(".").pop() || "jpg";
-      body.file_name = `${fields.article.trim() || fields.name.trim().slice(0, 20).replace(/\s+/g, "_")}_new.${ext}`;
+      body.file_name = `${fields.article.trim() || fields.name.trim().slice(0, 20).replace(/\s+/g, "_")}_new_${imageUploadName || "product.jpg"}`;
     }
 
     setSaving(true);
@@ -500,13 +496,15 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
 
               {/* Фото */}
               <Field label="Фото (необов'язково)">
-                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif"
+                <input ref={fileInputRef} type="file" accept={PRODUCT_IMAGE_ACCEPT}
                   className="hidden" onChange={handleFileChange} />
                 {!imagePreview ? (
-                  <button type="button" onClick={() => fileInputRef.current?.click()}
+                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={imageProcessing}
                     className="flex w-full items-center gap-2 rounded-[8px] border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-600">
-                    <ImagePlus size={13} />
-                    Додати фото
+                    {imageProcessing
+                      ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
+                      : <ImagePlus size={13} />}
+                    {imageProcessing ? "Обробка фото..." : "Додати фото"}
                   </button>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -514,9 +512,11 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                     <img src={imagePreview} alt="Попередній перегляд"
                       className="h-12 w-12 shrink-0 rounded-[6px] border border-slate-200 object-contain" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[10px] font-semibold text-slate-500">{imageFile?.name}</p>
+                      <p className="truncate text-[10px] font-semibold text-slate-500">
+                        {imageFile?.name}{imageUploadSize ? ` · ${formatProductImageSize(imageUploadSize)}` : ""}
+                      </p>
                       <button type="button"
-                        onClick={() => { setImageFile(null); setImagePreview(null); setImageError(null); }}
+                        onClick={() => { setImageFile(null); setImagePreview(null); setImageUploadName(""); setImageUploadSize(0); setImageError(null); }}
                         className="mt-0.5 text-[10px] font-semibold text-red-500 hover:text-red-700">
                         Видалити
                       </button>
@@ -538,7 +538,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-4 py-2 text-[12px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
                 Скасувати
               </button>
-              <button type="button" onClick={() => void handleSubmit()} disabled={saving || !fields.name.trim()}
+              <button type="button" onClick={() => void handleSubmit()} disabled={saving || imageProcessing || !fields.name.trim()}
                 className="inline-flex items-center gap-2 rounded-[10px] bg-violet-600 px-5 py-2 text-[12px] font-black text-white shadow-[0_4px_12px_rgba(109,40,217,0.28)] transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60">
                 {saving ? (
                   <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-violet-300 border-t-white" />

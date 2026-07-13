@@ -80,23 +80,41 @@ export const resolveGroupSeoCounts = (
   group: ProductTreeGroup,
   groupLookup: Map<string, LookupItem<SeoGroupFacet>>
 ) => {
-  const groupFacet = findFacetMatch(groupLookup, group);
-  const subgroupLookup = buildFacetLookup<SeoFacetItem>(groupFacet?.subgroups ?? []);
+  const directGroupFacet = findFacetMatch(groupLookup, group);
+  const directSubgroupLookup = buildFacetLookup<SeoFacetItem>(
+    directGroupFacet?.subgroups ?? []
+  );
   const subgroupProductCounts = new Map<string, number>();
   const childProductCounts = new Map<string, number>();
 
   let subgroupProductsTotal = 0;
 
   for (const subgroup of group.subgroups) {
-    const subgroupFacet = findFacetMatch(subgroupLookup, subgroup);
-    let productCount = toPositiveInt(subgroupFacet?.productCount);
+    // The product tree may contain an outer display category (for example
+    // "Гальмівна система"), while SEO facets use the actual 1C group
+    // ("Гальмівні колодки") as their top level. Match both layouts.
+    const rootSubgroupFacet = findFacetMatch(groupLookup, subgroup);
+    const nestedSubgroupFacet = findFacetMatch(directSubgroupLookup, subgroup);
+    const subgroupFacet = rootSubgroupFacet ?? nestedSubgroupFacet;
+    const childLookup = buildFacetLookup<SeoFacetItem>(
+      rootSubgroupFacet?.subgroups ?? []
+    );
+    let childrenProductsTotal = 0;
 
     for (const child of subgroup.children ?? []) {
-      const childFacet = findFacetMatch(subgroupLookup, child);
+      const childFacet = findFacetMatch(childLookup, child);
       const childProductCount = toPositiveInt(childFacet?.productCount);
       childProductCounts.set(child.slug, childProductCount);
-      productCount += childProductCount;
+      childrenProductsTotal += childProductCount;
     }
+
+    // A facet group's productCount already includes its nested subgroups.
+    // Math.max keeps a useful fallback for legacy snapshots without a parent
+    // total while avoiding double-counting current snapshots.
+    const productCount = Math.max(
+      toPositiveInt(subgroupFacet?.productCount),
+      childrenProductsTotal
+    );
 
     subgroupProductCounts.set(subgroup.slug, productCount);
     subgroupProductsTotal += productCount;
@@ -104,11 +122,13 @@ export const resolveGroupSeoCounts = (
 
   return {
     productCount: Math.max(
-      toPositiveInt(groupFacet?.productCount),
+      toPositiveInt(directGroupFacet?.productCount),
       subgroupProductsTotal
     ),
     subgroupsCount: Math.max(
-      Array.isArray(groupFacet?.subgroups) ? groupFacet.subgroups.length : 0,
+      Array.isArray(directGroupFacet?.subgroups)
+        ? directGroupFacet.subgroups.length
+        : 0,
       group.subgroups.length
     ),
     subgroupProductCounts,

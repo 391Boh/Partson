@@ -13,10 +13,11 @@
     "dev:webpack": "NEXT_DIST_DIR=.next-dev WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --webpack",
     "dev:all": "concurrently -k -n web,auth \"npm run dev\" \"node server.js\"",
     "dev:turbo": "next dev --turbopack",
-    "build": "npm run generate:seo-counts && next build",
-    "build:full": "npm run generate:feed && npm run generate:seo-counts && next build",
+    "build": "npm run generate:seo-counts && npm run generate:auto-model-sitemap && next build",
+    "build:full": "npm run generate:feed && npm run generate:seo-counts && npm run generate:auto-model-sitemap && next build",
     "generate:seo-counts": "tsx --require ./scripts/preload.cjs --env-file=.env.local scripts/generate-seo-counts.ts",
     "generate:feed": "tsx --require ./scripts/preload.cjs --env-file=.env.local scripts/generate-merchant-feed.ts",
+    "generate:auto-model-sitemap": "tsx --require ./scripts/preload.cjs --env-file=.env.local scripts/generate-auto-model-sitemap.ts",
     "merchant:feed:update": "bash scripts/update-merchant-feed.sh",
     "merchant:cron:install": "bash scripts/install-merchant-feed-cron.sh",
     "merchant:cron:list": "crontab -l | grep -A2 -B2 'partson merchant feed' || true",
@@ -79,6 +80,7 @@
     "critters": "^0.0.23",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "sharp": "^0.34.5",
     "typescript": "^5"
   },
   "overrides": {

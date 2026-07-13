@@ -101,6 +101,58 @@ export const buildCatalogProducerPath = (
   return `/katalog?${params.toString()}`;
 };
 
+export const buildAutoBrandPath = (brand: string | null | undefined) => {
+  const normalizedBrand = normalizeFacetValue(brand);
+  if (!normalizedBrand) return "/auto";
+
+  const slug =
+    normalizedBrand === buildPlainSeoSlug(normalizedBrand)
+      ? normalizedBrand
+      : buildPlainSeoSlug(normalizedBrand);
+
+  return `/auto/${encodeURIComponent(slug)}`;
+};
+
+export const buildAutoModelPath = (
+  brand: string | null | undefined,
+  model: string | null | undefined
+) => {
+  const brandPath = buildAutoBrandPath(brand);
+  const normalizedModel = normalizeFacetValue(model);
+  if (!normalizedModel) return brandPath;
+
+  const modelSlug =
+    normalizedModel === buildPlainSeoSlug(normalizedModel)
+      ? normalizedModel
+      : buildPlainSeoSlug(normalizedModel);
+
+  return `${brandPath}/${encodeURIComponent(modelSlug)}`;
+};
+
+// Deep-links into the katalog's car-driven description search (see
+// KatalogClientPage.tsx's handleCarSelectionChange) — carSearch=1 keeps the
+// filter header from showing the raw model text as if it were user-typed.
+export const buildCatalogCarSearchPath = (
+  model: string | null | undefined,
+  group?: string | null,
+  subcategory?: string | null
+) => {
+  const normalizedModel = normalizeFacetValue(model);
+  const normalizedGroup = normalizeFacetValue(group);
+  const normalizedSubcategory = normalizeFacetValue(subcategory);
+
+  const params = new URLSearchParams({ tab: "auto" });
+  if (normalizedModel) {
+    params.set("search", normalizedModel);
+    params.set("filter", "description");
+    params.set("carSearch", "1");
+  }
+  if (normalizedGroup) params.set("group", normalizedGroup);
+  if (normalizedSubcategory) params.set("subcategory", normalizedSubcategory);
+
+  return `/katalog?${params.toString()}`;
+};
+
 export const toAbsoluteSitePath = (siteUrl: string, path: string) => {
   const normalizedSiteUrl = siteUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;

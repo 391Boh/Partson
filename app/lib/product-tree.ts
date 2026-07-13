@@ -318,6 +318,13 @@ const fetchDataset = async (): Promise<ProductTreeDataset> => {
     cacheTtlMs: 1000 * 60 * 60 * 6,
   });
 
+  // A failed 1C call still resolves (not throws) with an error-shaped body —
+  // without this check that body silently parses to "no rows" and
+  // unstable_cache would happily cache an empty dataset for 6 hours.
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`getprod request failed with status ${response.status}`);
+  }
+
   const rows = parseTreeResponse(response.text);
   const nodes = rows.map((row) => toTreeNode(row));
   return buildDataset(nodes);
@@ -329,3 +336,34 @@ const fetchDatasetCached = unstable_cache(fetchDataset, ["product-tree-v5-fast-s
 });
 
 export const getProductTreeDataset = cache(async () => fetchDatasetCached());
+
+// Raw {name, children} nodes (no SEO slugs, unlimited depth) for consumers
+// that just need the plain category tree — e.g. seeding the homepage quick
+// search widget's initial render so it doesn't start empty on the client.
+const fetchRawTreeNodes = async (): Promise<ProductTreeNode[]> => {
+  const response = await oneCRequest("getprod", {
+    method: "POST",
+    body: {},
+    timeoutMs: PRODUCT_TREE_SOURCE_TIMEOUT_MS,
+    retries: 0,
+    retryDelayMs: 100,
+    cacheTtlMs: 1000 * 60 * 60 * 6,
+  });
+
+  // Same guard as fetchDataset: a failed call resolves rather than throws,
+  // so without this check an outage gets cached as "zero products" for 6h.
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`getprod request failed with status ${response.status}`);
+  }
+
+  const rows = parseTreeResponse(response.text);
+  return rows.map((row) => toTreeNode(row));
+};
+
+const fetchRawTreeNodesCached = unstable_cache(
+  fetchRawTreeNodes,
+  ["product-tree-raw-nodes-v1"],
+  { revalidate: 60 * 60 * 6, tags: ["product-tree"] }
+);
+
+export const getProductTreeNodes = cache(async () => fetchRawTreeNodesCached());

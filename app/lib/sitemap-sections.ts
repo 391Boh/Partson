@@ -4,9 +4,12 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 
 import { brands } from "app/components/brandsData";
+import { carBrands } from "app/components/carBrands";
 import { getInformationPath, informationSections } from "app/inform/section-config";
+import { getAutoSeoData } from "app/lib/auto-seo";
+import { buildAutoModelKey, getVerifiedAutoModelKeys } from "app/lib/auto-directory-data";
 import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
-import { buildGroupItemPath, buildManufacturerPath } from "app/lib/catalog-links";
+import { buildAutoBrandPath, buildAutoModelPath, buildGroupItemPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
@@ -37,15 +40,16 @@ export interface SitemapPathEntry {
 }
 
 export const PAGE_SITEMAP_SECTION_PATHS = [
-  "/sitemap-pages.xml",
-  "/sitemap-categories.xml",
-  "/sitemap-brands.xml",
-  // Dedicated single-topic sitemaps — listed separately for GSC granularity
+  // Dedicated single-topic sitemaps — listed separately for GSC granularity.
+  // (sitemap-pages.xml/sitemap-categories.xml/sitemap-brands.xml used to
+  // duplicate these exact same entries under different filenames — removed
+  // so every URL is only submitted to Google once.)
   "/information-sitemap.xml",
   "/other-pages-sitemap.xml",
   "/blog-sitemap.xml",
   "/manufacturers-sitemap.xml",
   "/groups-sitemap.xml",
+  "/auto-sitemap.xml",
 ] as const;
 
 const SITEMAP_REVALIDATE_SECONDS = 60 * 60;
@@ -66,6 +70,13 @@ const parseOptionalPositiveInt = (value: string | undefined) => {
 const SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS = parsePositiveInt(
   process.env.SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS,
   4000
+);
+
+// getAutoSeoData() fetches models for every brand from 1C — generous timeout
+// since it's cached for hours afterward (see getAutoSitemapEntriesCached).
+const SITEMAP_AUTO_SOURCE_TIMEOUT_MS = parsePositiveInt(
+  process.env.SITEMAP_AUTO_SOURCE_TIMEOUT_MS,
+  8000
 );
 
 const buildCategorySitemapImage = (label: string, fallbackLabel?: string) => {
@@ -338,11 +349,101 @@ const getManufacturersSitemapEntriesCached = unstable_cache(
   }
 );
 
+// Brand pages are cheap (static list, no live fetch). Model pages need
+// getAutoSeoData()'s per-brand 1C lookups — reuse it rather than duplicating
+// that fetch/parse logic here (see app/lib/auto-seo.ts).
+const buildAutoSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
+  const contentLastModified = getConfiguredSitemapLastModified();
+  const entries: SitemapPathEntry[] = [];
+  const seenPaths = new Set<string>();
+
+  const pushUniqueEntry = (
+    path: string,
+    priority: number,
+    changeFrequency: SitemapChangeFrequency,
+    image?: { loc: string; title?: string; caption?: string } | null
+  ) => {
+    if (!path || seenPaths.has(path)) return;
+    seenPaths.add(path);
+    entries.push({
+      path,
+      lastModified: contentLastModified,
+      changeFrequency,
+      priority,
+      images: image ? [image] : undefined,
+    });
+  };
+
+  const getBrandLogo = (name: string) =>
+    carBrands.find((brand) => brand.name.localeCompare(name, "uk", { sensitivity: "base" }) === 0)
+      ?.logo ?? null;
+
+  for (const brand of carBrands) {
+    const logo = getBrandLogo(brand.name);
+    pushUniqueEntry(
+      buildAutoBrandPath(brand.name),
+      0.8,
+      "weekly",
+      logo
+        ? {
+            loc: logo,
+            title: `${brand.name} - моделі авто`,
+            caption: `Моделі ${brand.name} для підбору автозапчастин у PartsON`,
+          }
+        : null
+    );
+  }
+
+  const seoData = await resolveWithTimeout(
+    () => getAutoSeoData(),
+    null,
+    SITEMAP_AUTO_SOURCE_TIMEOUT_MS
+  ).catch(() => null);
+
+  const verifiedModelKeys = await getVerifiedAutoModelKeys();
+
+  if (seoData?.brandGroups?.length) {
+    for (const group of seoData.brandGroups) {
+      const logo = getBrandLogo(group.brand);
+      for (const model of group.models) {
+        if (verifiedModelKeys && !verifiedModelKeys.has(buildAutoModelKey(group.brand, model.name))) {
+          continue;
+        }
+        pushUniqueEntry(
+          buildAutoModelPath(group.brand, model.name),
+          0.7,
+          "monthly",
+          logo
+            ? {
+                loc: logo,
+                title: `${group.brand} ${model.name} - запчастини`,
+                caption: `Групи запчастин для ${group.brand} ${model.name} у каталозі PartsON`,
+              }
+            : null
+        );
+      }
+    }
+  }
+
+  return entries;
+};
+
+const getAutoSitemapEntriesCached = unstable_cache(
+  buildAutoSitemapEntries,
+  ["auto-sitemap-v1"],
+  {
+    revalidate: SITEMAP_REVALIDATE_SECONDS,
+    tags: ["auto-sitemap"],
+  }
+);
+
 export const getGroupsSitemapEntries = cache(async () => getGroupsSitemapEntriesCached());
 
 export const getManufacturersSitemapEntries = cache(
   async () => getManufacturersSitemapEntriesCached()
 );
+
+export const getAutoSitemapEntries = cache(async () => getAutoSitemapEntriesCached());
 
 export const getInformationSitemapEntries = cache(async (): Promise<SitemapPathEntry[]> => {
   const contentLastModified = getConfiguredSitemapLastModified();

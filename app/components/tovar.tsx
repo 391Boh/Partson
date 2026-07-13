@@ -297,7 +297,8 @@ const toProductNodes = (value: unknown): ProductNode[] => {
   return transformData(value);
 };
 
-const ITEMS_PER_PAGE = 6;
+const MOBILE_ITEMS_PER_PAGE = 4;
+const DESKTOP_ITEMS_PER_PAGE = 6;
 const QUICK_SEARCH_MAX_ROWS = 5;
 
 const collectLeafPaths = (
@@ -461,6 +462,7 @@ const ProductFetcher: React.FC<Props> = ({
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [flippedId, setFlippedId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(MOBILE_ITEMS_PER_PAGE);
   const lastFocusVersionCheckRef = useRef<number>(0);
   const [canHover, setCanHover] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -554,7 +556,7 @@ const ProductFetcher: React.FC<Props> = ({
     [normalizedProducts]
   );
 
-  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / itemsPerPage));
 
   const safePage = (value: number) => {
     if (!Number.isFinite(value)) return 1;
@@ -584,6 +586,19 @@ const ProductFetcher: React.FC<Props> = ({
 
   useEffect(() => {
     setIsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 640px)");
+    const updateItemsPerPage = () => {
+      setItemsPerPage(
+        media.matches ? DESKTOP_ITEMS_PER_PAGE : MOBILE_ITEMS_PER_PAGE
+      );
+    };
+
+    updateItemsPerPage();
+    media.addEventListener("change", updateItemsPerPage);
+    return () => media.removeEventListener("change", updateItemsPerPage);
   }, []);
 
   useEffect(() => {
@@ -724,11 +739,11 @@ const ProductFetcher: React.FC<Props> = ({
 
   const groupPages = useMemo(() => {
     const pages: ProductNode[][] = [];
-    for (let index = 0; index < filteredGroups.length; index += ITEMS_PER_PAGE) {
-      pages.push(filteredGroups.slice(index, index + ITEMS_PER_PAGE));
+    for (let index = 0; index < filteredGroups.length; index += itemsPerPage) {
+      pages.push(filteredGroups.slice(index, index + itemsPerPage));
     }
     return pages.length > 0 ? pages : [[]];
-  }, [filteredGroups]);
+  }, [filteredGroups, itemsPerPage]);
 
   const groupPagesRef = useRef<HTMLDivElement | null>(null);
   const getGroupPageWidth = useCallback(() => {
@@ -990,9 +1005,9 @@ const ProductFetcher: React.FC<Props> = ({
             <div className="flex">
               {groupPages.map((pageGroups, pageIndex) => (
                 <div key={pageIndex} data-group-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 min-h-[572px] sm:min-h-[685px] lg:min-h-[450px]">
+                  <div className="grid min-h-[416px] grid-cols-2 grid-rows-2 gap-4 sm:min-h-[685px] sm:grid-rows-3 sm:gap-5 lg:min-h-[450px] lg:grid-cols-3 lg:grid-rows-2">
                     {pageGroups.map((group, index) => {
-                      const id = pageIndex * ITEMS_PER_PAGE + index;
+                      const id = pageIndex * itemsPerPage + index;
                       return (
                         <FlipCard
                           key={`${group.name}-${id}`}
@@ -1010,7 +1025,7 @@ const ProductFetcher: React.FC<Props> = ({
             </div>
           </div>
         ) : showSkeleton ? (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 min-h-[572px] sm:min-h-[685px] lg:min-h-[450px]">
+          <div className="grid min-h-[416px] grid-cols-2 grid-rows-2 gap-4 sm:min-h-[685px] sm:grid-rows-3 sm:gap-5 lg:min-h-[450px] lg:grid-cols-3 lg:grid-rows-2">
                   <div className="col-span-full">
                     <LoadingNotice
                       shouldAnimate={shouldAnimate}
@@ -1018,7 +1033,7 @@ const ProductFetcher: React.FC<Props> = ({
                       subtitle={"\u0413\u043e\u0442\u0443\u0454\u043c\u043e \u0432\u0456\u0437\u0443\u0430\u043b\u044c\u043d\u0438\u0439 \u0441\u043f\u0438\u0441\u043e\u043a \u0434\u043b\u044f \u043f\u0435\u0440\u0435\u0433\u043b\u044f\u0434\u0443..."}
                     />
                   </div>
-                  {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
+                  {Array.from({ length: itemsPerPage }).map((_, index) => (
                     <div
                       key={`card-skeleton-${index}`}
                       className="skeleton-card relative overflow-hidden rounded-xl border border-sky-200/70 bg-[image:linear-gradient(148deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.94)_52%,rgba(219,234,254,0.90)_100%)] px-4 py-5 shadow-[0_8px_22px_rgba(8,145,178,0.16),0_2px_8px_rgba(8,145,178,0.09),inset_0_1px_0_rgba(255,255,255,0.95)]"
@@ -1033,13 +1048,13 @@ const ProductFetcher: React.FC<Props> = ({
                   ))}
           </div>
         ) : productLoadError ? (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 min-h-[572px] sm:min-h-[685px] lg:min-h-[450px]">
+          <div className="grid min-h-[416px] grid-cols-2 grid-rows-2 gap-4 sm:min-h-[685px] sm:grid-rows-3 sm:gap-5 lg:min-h-[450px] lg:grid-cols-3 lg:grid-rows-2">
                 <div className="col-span-full rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-700">
                   Помилка завантаження категорій: {productLoadError}
                 </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 min-h-[572px] sm:min-h-[685px] lg:min-h-[450px]">
+          <div className="grid min-h-[416px] grid-cols-2 grid-rows-2 gap-4 sm:min-h-[685px] sm:grid-rows-3 sm:gap-5 lg:min-h-[450px] lg:grid-cols-3 lg:grid-rows-2">
                 <motion.div
                   key="empty"
                   initial={shouldAnimate ? { opacity: 0 } : false}

@@ -267,6 +267,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const carCount = selectedCars.length;
   const searchQuery = (currentSearchParams.get('search') || '').trim();
   const searchFilter = currentSearchParams.get('filter') || 'all';
+  const isCarDrivenSearch = currentSearchParams.get('carSearch') === '1';
   const hasCategorySelection =
     Boolean(subcategoryParam || groupParam) || selectedCategories.length > 0;
   const hasPartSelection =
@@ -275,7 +276,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const hasStrictPartSelection = hasCategorySelection;
   const isCategorySelected = hasCategorySelection;
   const isProducerSelected = Boolean(producerParam);
-  const isAutoSelected = carCount > 0 || Boolean(selectedVin) || Boolean(selectedCarSelection?.label);
+  const isAutoSelected =
+    carCount > 0 || Boolean(selectedVin) || Boolean(selectedCarSelection?.label) || isCarDrivenSearch;
   const isAutoTabActive = activeComponent === 'auto';
   const isCategoryTabActive = activeComponent === 'category';
   const isProducerTabActive = activeComponent === 'producer';
@@ -295,7 +297,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const displayProducerLabel = getFilterDisplayLabel(producerParam);
   const producerLabel = displayProducerLabel ? `Виробник: ${displayProducerLabel}` : '';
   const partLabel = [displayCategoryLabel, producerLabel, searchLabel].filter(Boolean).join(' / ');
-  const showSearchInfo = Boolean(searchQuery) && !hasCategorySelection;
+  const showSearchInfo = Boolean(searchQuery) && !hasCategorySelection && !isCarDrivenSearch;
   const hasActiveFilters =
     carCount > 0 ||
     categoryCount > 0 ||
@@ -316,8 +318,13 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     const fallback = [brand, model].filter(Boolean).join(' ');
     if (fallback) return fallback;
     if (selectedCars.length > 0) return selectedCars.join(', ');
+    // Car chosen via /auto/[brand]/[model] → katalog deep link never sets
+    // selectedCarSelection/selectedCars (it only carries a description
+    // search in the URL) — fall back to the search query so "Авто" still
+    // shows something instead of looking unselected.
+    if (isCarDrivenSearch && searchQuery) return searchQuery;
     return '';
-  }, [selectedCarSelection, selectedCars, selectedVin]);
+  }, [isCarDrivenSearch, searchQuery, selectedCarSelection, selectedCars, selectedVin]);
   const showRequestBanner =
     Boolean(requestMessage) && isAutoSelected && hasStrictPartSelection;
   const canSubmitRequest = Boolean(onConfirmRequest);
@@ -633,7 +640,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             </div>
             <div className="catalog-filter-scroll overflow-x-auto overflow-y-hidden rounded-lg border border-white/72 bg-white/62 px-3 py-2 pb-3 pr-2 backdrop-blur-xl">
               <div className="grid min-w-max grid-flow-col grid-rows-2 gap-3">
-                {visibleProducerBrands.map((b) => (
+                {visibleProducerBrands.map((b, index) => (
                     <button
                       key={b.name}
                       type="button"
@@ -671,8 +678,13 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                           width={96}
                           height={48}
                           sizes="96px"
+                          // These source files are raw, un-optimized uploads (some
+                          // 50-270KB) — unlike the tiny 16x16 category icons in
+                          // katkomp.tsx, they genuinely need Next's resize/compress
+                          // pass, so keep it (not unoptimized). First row loads
+                          // eagerly since it's already visible the moment this tab opens.
+                          loading={index < 8 ? 'eager' : 'lazy'}
                           className="max-h-12 max-w-full object-contain"
-                          loading="lazy"
                           onError={(event) => {
                             const image = event.currentTarget;
                             if (image.dataset.fallbackApplied === '1') return;

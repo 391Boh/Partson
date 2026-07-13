@@ -51,7 +51,7 @@ import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
-const GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT = Number.MAX_SAFE_INTEGER;
+const GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT = 0;
 const GROUP_ITEM_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
 const GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS = 400;
 const GROUP_ITEM_PRODUCER_SPLIT_PAGE_SIZE = 220;
@@ -105,7 +105,7 @@ type GroupItemProducerEntry = GroupItemPageData["producerSplit"][number];
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return fallbackValue;
+  if (!Number.isFinite(numeric) || numeric < 0) return fallbackValue;
   return Math.floor(numeric);
 };
 
@@ -594,12 +594,10 @@ const buildChildCategoryLead = (options: {
 };
 
 export async function generateStaticParams() {
-  const limit = isProductionBuildPhase
-    ? GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT
-    : parsePositiveInt(
-        process.env.SEO_GROUP_ITEM_STATIC_PARAMS_LIMIT,
-        GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT
-      );
+  const limit = parsePositiveInt(
+    process.env.SEO_GROUP_ITEM_STATIC_PARAMS_LIMIT,
+    GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT
+  );
   if (limit <= 0) return [];
 
   const dataset = await getProductTreeDataset().catch(() => null);
@@ -867,7 +865,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   }
 
   return (
-    <main className="page-shell-inline py-6 sm:py-8">
+    <main className="catalog-directory-page page-shell-inline py-6 sm:py-8">
       <nav aria-label="Навігаційні хлібні крихти">
         <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
           <li className="inline-flex items-center gap-2">
@@ -909,7 +907,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+              <span className="directory-kicker inline-flex rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] uppercase text-teal-800">
                 {item.parentSubgroupLabel ? "Кінцева категорія" : "Підгрупа"}
               </span>
               <span className={directoryCompactMetricClass}>
@@ -922,7 +920,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               </span>
             </div>
 
-            <h1 className="font-display-italic mt-4 text-3xl tracking-[-0.048em] text-slate-900 sm:text-[2.2rem]">
+            <h1 className="directory-heading-hero mt-4 text-3xl leading-[1.1] text-slate-900 sm:text-[2.2rem]">
               {visibleLabel}
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
@@ -952,10 +950,10 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         <div className={directoryHeaderClass}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+              <p className="directory-kicker text-[11px] uppercase text-teal-800">
                 Опис категорії
               </p>
-              <h2 className="font-display mt-1 text-xl font-[780] tracking-normal text-slate-950 sm:text-2xl">
+              <h2 className="directory-heading mt-1 text-xl text-slate-900 sm:text-2xl">
                 {visibleLabel} в каталозі PartsON
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
@@ -981,7 +979,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
           </div>
 
           <aside className="rounded-lg border border-teal-100/80 bg-[linear-gradient(165deg,rgba(240,253,250,0.94),rgba(239,246,255,0.92),rgba(255,255,255,0.98))] p-4 shadow-[0_16px_34px_rgba(13,148,136,0.08)]">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+            <p className="directory-kicker text-[11px] uppercase text-teal-800">
               {seoCopy.highlightsTitle}
             </p>
             <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">
@@ -1003,10 +1001,10 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         <div className={directoryHeaderClass}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+              <p className="directory-kicker text-[11px] uppercase text-teal-800">
                 Розподіл за виробниками
               </p>
-              <h2 className="font-display mt-1 text-xl font-[780] tracking-normal text-slate-950 sm:text-2xl">
+              <h2 className="directory-heading mt-1 text-xl text-slate-900 sm:text-2xl">
                 Виробники у категорії {visibleLabel}
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
@@ -1040,10 +1038,10 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
           <div className={directoryHeaderClass}>
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-teal-800">
+                <p className="directory-kicker text-[10px] uppercase text-teal-800">
                   Навігація
                 </p>
-                <h2 className="mt-1 text-lg font-extrabold tracking-normal text-slate-950">
+                <h2 className="mt-1 text-lg font-semibold tracking-[-0.01em] text-slate-900">
                   Підкатегорії та типи
                 </h2>
               </div>
@@ -1091,10 +1089,10 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
       {visibleProducts.length > 0 && (
         <section className={`${directoryPanelClass} mt-6`}>
           <div className={directoryHeaderClass}>
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-800">
+            <p className="directory-kicker text-[11px] uppercase text-teal-800">
               Товари категорії
             </p>
-            <h2 className="font-display mt-1 text-xl font-[780] tracking-normal text-slate-950 sm:text-2xl">
+            <h2 className="directory-heading mt-1 text-xl text-slate-900 sm:text-2xl">
               Популярні товари: {visibleLabel}
             </h2>
           </div>

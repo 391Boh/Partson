@@ -53,6 +53,23 @@ const STORAGE_KEYS = {
   selection: 'partson:selectedCarSelection',
 };
 
+// \p{L}/\p{N} (not \w, which is ASCII-only) so the boundary check also works
+// around Cyrillic text — otherwise "\bрестайлинг\b" would fail to match at all.
+const RESTYLING_WORD_REGEX = /(?<![\p{L}\p{N}_])(рестайлінг|рестайлинг)(?![\p{L}\p{N}_])/giu;
+
+// The car-modification flow hands us a model like "A6 C4 рестайлинг" — this
+// drops the exact word (either spelling) so the catalog description search
+// isn't skewed by wording that rarely appears verbatim in product text.
+// Roman generation numerals ("Golf IV") are kept in the first attempt — Data.tsx
+// retries without them only if the exact search comes back empty.
+const cleanCarModelForSearch = (value: string) =>
+  value
+    .replace(RESTYLING_WORD_REGEX, ' ')
+    .replace(/\(\s*\)/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s,;:/-]+|[\s,;:/-]+$/g, '')
+    .trim();
+
 const SESSION_KEYS = {
   skipRemoteLoad: 'partson:catalogSkipRemoteLoad',
 };
@@ -281,6 +298,7 @@ const Katalog: React.FC<KatalogProps> = ({
     nextParams.delete('subcategory');
     nextParams.delete('search');
     nextParams.delete('filter');
+    nextParams.delete('carSearch');
     const query = nextParams.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);
   }, [pathname, resetParam, router, searchParamsKey]);
@@ -628,6 +646,7 @@ const Katalog: React.FC<KatalogProps> = ({
     nextParams.delete('search');
     nextParams.delete('filter');
     nextParams.delete('reset');
+    nextParams.delete('carSearch');
     const nextQuery = nextParams.toString();
     if (nextQuery !== currentSearchParams.toString()) {
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
@@ -644,6 +663,30 @@ const Katalog: React.FC<KatalogProps> = ({
     setSelectedCars((prev) =>
       prev.includes(car) ? prev.filter((c) => c !== car) : [...prev, car]
     );
+  };
+
+  // Confirming a car modification no longer binds to an exact 1C fitment
+  // lookup — instead it drives a catalog "search by description" using the
+  // chosen model (e.g. "A6 C4"), with the word "рестайлинг"/"рестайлінг"
+  // stripped out since product descriptions rarely include it verbatim.
+  const handleCarSelectionChange = (selection: PersistedCarSelection | null) => {
+    setSelectedCarSelection(selection);
+    if (!selection) return;
+
+    const cleanedModel = cleanCarModelForSearch(selection.model || '');
+    if (!cleanedModel) return;
+
+    const nextParams = new URLSearchParams(currentSearchParams.toString());
+    nextParams.set('search', cleanedModel);
+    nextParams.set('filter', 'description');
+    // Marks this search as car-driven so the filter header shows the "Авто"
+    // chip (already fed by selectedCarSelection) instead of also rendering
+    // the raw model/description text as if the user typed a manual search.
+    nextParams.set('carSearch', '1');
+    const nextQuery = nextParams.toString();
+    if (nextQuery !== currentSearchParams.toString()) {
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
+    }
   };
 
   const handleCategoryToggle = (category: string) => {
@@ -667,7 +710,7 @@ const Katalog: React.FC<KatalogProps> = ({
       onResetSort={() => setSortOrder('none')}
       onSortOrderChange={setSortOrder}
       selectedCarSelection={selectedCarSelection}
-      onSelectedCarSelectionChange={setSelectedCarSelection}
+      onSelectedCarSelectionChange={handleCarSelectionChange}
       onVinSelect={setSelectedVin}
       selectedVin={selectedVin}
       requestMessage={pendingRequestMessage}

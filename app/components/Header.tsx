@@ -17,6 +17,13 @@ import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { createPortal } from 'react-dom';
 
 type AppRouterInstance = ReturnType<typeof useRouter>;
+type AuthModalModule = typeof import('./AuthModal');
+
+let authModalModulePromise: Promise<AuthModalModule> | null = null;
+const loadAuthModalModule = () => {
+  authModalModulePromise ??= import('./AuthModal');
+  return authModalModulePromise;
+};
 
 const CATALOG_PREFETCH_ROUTES = [
   '/katalog',
@@ -122,6 +129,13 @@ const Header: React.FC = () => {
   const prefetchInfoRoutes = () => {
     if (skipManualPrefetchRef.current) return;
     prefetchRouteList(router, prefetchedRoutesRef.current, INFO_PREFETCH_ROUTES);
+  };
+
+  const preloadAuthModal = () => {
+    if (AuthModalComponent) return;
+    void loadAuthModalModule().then((module) => {
+      setAuthModalComponent(() => module.default);
+    });
   };
 
   // CLOSE MENUS ON CLICK OUTSIDE
@@ -361,7 +375,7 @@ const Header: React.FC = () => {
     if (!modals.auth || AuthModalComponent) return;
 
     let cancelled = false;
-    void import('./AuthModal').then((module) => {
+    void loadAuthModalModule().then((module) => {
       if (!cancelled) {
         setAuthModalComponent(() => module.default);
       }
@@ -600,6 +614,9 @@ const Header: React.FC = () => {
           <button
             data-overlay-toggle="auth"
             aria-label="Профіль"
+            onPointerEnter={preloadAuthModal}
+            onFocus={preloadAuthModal}
+            onTouchStart={preloadAuthModal}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();

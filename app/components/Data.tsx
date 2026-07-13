@@ -77,8 +77,8 @@ const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 420;
-const IMAGE_PRIORITY_ITEMS_COUNT = 12;
-const DIRECT_IMAGE_LOAD_ITEMS_COUNT = ITEMS_PER_PAGE * 3;
+const IMAGE_PRIORITY_ITEMS_COUNT = 16;
+const DIRECT_IMAGE_LOAD_ITEMS_COUNT = ITEMS_PER_PAGE * 8;
 const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
 const VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE = 4;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
@@ -774,6 +774,10 @@ const normalizeArticleToken = (value: string) =>
   value
     .replace(/[\u0400-\u04FF]/g, (ch) => ARTICLE_CYRILLIC_TO_LATIN[ch] ?? "")
     .replace(/[^a-z0-9\/]/g, "");
+
+// Car generation suffixes like "Golf IV" or "Rio III" \u2014 matched as a whole
+// token so real alnum model codes ("X5", "IX35") are never touched.
+const ROMAN_NUMERAL_WORD_REGEX = /(?<![\p{L}\p{N}_])(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)(?![\p{L}\p{N}_])/gu;
 
 const normalizeCacheList = (values: string[]) =>
   Array.from(
@@ -3225,7 +3229,6 @@ function useCatalogData(params: {
     return searchableUniqueData
       .filter(({ item, codeLower, articleLower, nameLower, nameNormalized, producerLower, descriptionLower }) => {
         const producerMatch = !producerQuery || producerLower.includes(producerQuery);
-        const isDescriptionSearch = searchFilter === "description" && q.length > 0;
 
         const match =
           searchFilter === "article"
@@ -3237,7 +3240,7 @@ function useCatalogData(params: {
                 : searchFilter === "producer"
                   ? producerLower.includes(q)
                   : searchFilter === "description"
-                    ? true
+                    ? (q.length === 0 || descriptionLower.includes(q))
                   : codeLower.includes(q) ||
                     articleLower.includes(q) ||
                     nameLower.includes(q) ||
@@ -3250,7 +3253,7 @@ function useCatalogData(params: {
           selectedCategorySet.has(normalizeFilterToken(item.group)) ||
           selectedCategorySet.has(normalizeFilterToken(item.category));
 
-        if (!(isDescriptionSearch || match) || !catMatch || !producerMatch) return false;
+        if (!match || !catMatch || !producerMatch) return false;
 
         return true;
       })
@@ -3891,6 +3894,71 @@ const Data: React.FC<DataProps> = ({
     firstPageResolvedItemCount,
     catalogTotalCount,
     searchFilter,
+    rawSearchQuery,
+    currentSearchParams,
+    router,
+  ]);
+
+  // Зберігає запит, для якого вже пробували прибрати римські цифри / шасі-код
+  // (щоб не зациклюватись — кожен рівень пробується лише раз на кожен raw-запит).
+  const romanNumeralFallbackAttemptedRef = useRef<string>("");
+  const chassisCodeFallbackAttemptedRef = useRef<string>("");
+
+  // Пошук за описом з моделлю авто, що містить генераційну римську цифру
+  // (напр. "Golf IV") або код кузова в кінці (напр. "100 IV C4"), рідко
+  // збігається дослівно з текстом опису товару — якщо точний запит не дав
+  // нічого, пробуємо ще раз без римської цифри, а якщо і це не допомогло —
+  // ще раз без кінцевого коду кузова. Той самий трирівневий підхід, що й у
+  // getModelGroupBreakdown (app/lib/auto-directory-data.ts).
+  useEffect(() => {
+    if (!hasLoadedOnce || loading || error) return;
+    if (searchFilter !== "description") return;
+
+    if (
+      filteredData.length > 0 ||
+      firstPageResolvedItemCount > 0 ||
+      (typeof catalogTotalCount === "number" && catalogTotalCount > 0)
+    ) {
+      return;
+    }
+
+    const raw = rawSearchQuery.trim();
+    if (!raw) return;
+
+    const redirectTo = (nextQuery: string) => {
+      const params = new URLSearchParams(currentSearchParams.toString());
+      params.set("search", nextQuery);
+      router.replace(`/katalog?${params.toString()}`);
+    };
+
+    if (romanNumeralFallbackAttemptedRef.current !== raw) {
+      romanNumeralFallbackAttemptedRef.current = raw;
+      const stripped = raw.replace(ROMAN_NUMERAL_WORD_REGEX, " ").replace(/\s{2,}/g, " ").trim();
+      if (stripped && stripped !== raw) {
+        redirectTo(stripped);
+        return;
+      }
+    }
+
+    if (chassisCodeFallbackAttemptedRef.current !== raw) {
+      chassisCodeFallbackAttemptedRef.current = raw;
+      const tokens = raw.split(/\s+/).filter(Boolean);
+      const lastToken = tokens[tokens.length - 1];
+      if (tokens.length >= 2 && lastToken && /^\p{L}\d{1,3}$/u.test(lastToken)) {
+        const stripped = tokens.slice(0, -1).join(" ").trim();
+        if (stripped && stripped !== raw) {
+          redirectTo(stripped);
+        }
+      }
+    }
+  }, [
+    hasLoadedOnce,
+    loading,
+    error,
+    searchFilter,
+    filteredData.length,
+    firstPageResolvedItemCount,
+    catalogTotalCount,
     rawSearchQuery,
     currentSearchParams,
     router,
