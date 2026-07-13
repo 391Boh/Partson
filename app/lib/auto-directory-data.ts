@@ -312,6 +312,14 @@ export const getModelGroupBreakdown = cache(
 // paging through up to 4800 items, since all we need is "does at least one
 // product exist", not the full group breakdown. Used by
 // scripts/generate-auto-model-sitemap.ts, never called on a real page render.
+// Most of the ~5400 brand+model pairs turn out to have zero matches (only
+// ~1100 verified so far) — that "genuinely empty" case is the one that pays
+// the full per-tier timeout up to 3x, so it dominates total script runtime.
+// 1500ms (vs. the page's own more patient 2500ms) still gives a normal 1C
+// response plenty of room, while capping the empty-model tail at 4.5s worst
+// case instead of 7.5s.
+const HAS_ANY_PRODUCT_TIMEOUT_MS = 1500;
+
 const queryHasAnyProduct = async (searchQuery: string): Promise<boolean> => {
   const result = await fetchCatalogProductsByQuery({
     page: 1,
@@ -320,7 +328,7 @@ const queryHasAnyProduct = async (searchQuery: string): Promise<boolean> => {
     searchFilter: "description",
     sortOrder: "none",
     forceAllgoodsSource: true,
-    timeoutMs: 2500,
+    timeoutMs: HAS_ANY_PRODUCT_TIMEOUT_MS,
     retries: 0,
     retryDelayMs: 100,
     cacheTtlMs: 1000 * 60 * 60 * 12,

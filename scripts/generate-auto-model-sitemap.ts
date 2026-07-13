@@ -19,6 +19,15 @@ const MODEL_CHECK_CONCURRENCY = parsePositiveInt(
   12
 );
 
+// oneC.js caps the "allgoods" endpoint at 4 concurrent requests by default —
+// a deliberate limit protecting 1C during normal site traffic. This script
+// runs as its own separate process (not the live site), so it's safe to ask
+// for more here specifically; don't override if the caller already set one
+// explicitly (e.g. a manual one-off run tuning it differently).
+if (!process.env.ONEC_ALLGOODS_CONCURRENCY) {
+  process.env.ONEC_ALLGOODS_CONCURRENCY = "10";
+}
+
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
