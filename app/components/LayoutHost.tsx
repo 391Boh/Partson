@@ -521,30 +521,24 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     });
   }, [pathname, syncRouteViewState]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (pathname === "/") {
-      const frameId = window.requestAnimationFrame(() => {
-        window.scrollTo({ top: 0, behavior: "auto" });
-      });
-
-      return () => window.cancelAnimationFrame(frameId);
-    }
-  }, [pathname]);
-
+  // Always land at the top on a real page-to-page navigation, regardless of
+  // which route it's to/from. Previously this only fired for "/" and for
+  // product-to-product navigation, so every other transition (e.g. groups ->
+  // group, auto -> brand, manufacturers -> producer, anything -> katalog)
+  // relied on the browser's/Next's own scroll restoration, which doesn't
+  // reliably reset to top with experimental.viewTransition enabled — that's
+  // what the "always start at the top" complaint was about. Same-page
+  // updates (router.replace with only searchParams changing, e.g. filter
+  // selection) correctly leave scroll position alone since pathname itself
+  // doesn't change for those. The double rAF guards against a layout shift
+  // (e.g. an image finishing layout) undoing the first scroll.
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const previousPathname = previousPathnameRef.current;
     previousPathnameRef.current = pathname;
 
-    if (
-      previousPathname === pathname ||
-      !previousPathname.startsWith("/product/") ||
-      !pathname.startsWith("/product/")
-    ) {
-      return;
-    }
+    if (previousPathname === pathname) return;
 
     let secondFrameId: number | null = null;
     const firstFrameId = window.requestAnimationFrame(() => {
