@@ -17,6 +17,7 @@ import CatalogShownCountClient from "app/components/CatalogShownCountClient";
 import KatalogPageShell from "app/katalog/KatalogPageShell";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import {
+  buildAutoBrandPath,
   buildCatalogCategoryPath,
   buildCatalogProducerPath,
   buildGroupPath,
@@ -313,7 +314,11 @@ const resolveCatalogSeoState = (
       "Виробники автозапчастин у PartsON: сторінки брендів, фільтрований каталог, пошук деталей за артикулом, групою товару і підбір за VIN."
     );
   } else if (tab === "auto" && brand) {
-    canonicalPath = `/katalog?tab=auto&brand=${encodeURIComponent(brand)}`;
+    // Canonicalize to the clean /auto/[brand] route rather than
+    // self-referencing this query-string facet — both render the same
+    // brand-picker content, and pointing here would split the SEO signal
+    // between two URLs for the same page instead of consolidating it.
+    canonicalPath = buildAutoBrandPath(brand);
     title = `${brand} - підбір автозапчастин по авто`;
     description = appendSeoContact(
       `${brand}: підбір автозапчастин у PartsON за моделлю, модифікацією та VIN, швидкий перехід до сумісних товарів і доставка по Україні.`

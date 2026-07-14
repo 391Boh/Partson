@@ -199,10 +199,12 @@ function BrandCard({
 
 type BrandCarouselProps = {
   playEntranceAnimations?: boolean;
+  initialSyncedBrands?: BrandItem[];
 };
 
 export default function BrandCarousel({
   playEntranceAnimations = true,
+  initialSyncedBrands,
 }: BrandCarouselProps) {
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion() ?? false;
@@ -210,7 +212,10 @@ export default function BrandCarousel({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [isSmUp, setIsSmUp] = useState(false);
-  const [syncedBrands, setSyncedBrands] = useState<BrandItem[]>(INITIAL_BRANDS);
+  const [syncedBrands, setSyncedBrands] = useState<BrandItem[]>(
+    initialSyncedBrands && initialSyncedBrands.length > 0 ? initialSyncedBrands : INITIAL_BRANDS
+  );
+  const hasFetchedSyncedBrandsRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -291,6 +296,18 @@ export default function BrandCarousel({
   }, [page, totalPages, scrollToBrandPage]);
 
   useEffect(() => {
+    // Server already provided the real, synced list (see app/page.tsx) —
+    // fetching again would just replace it with an equivalent copy a moment
+    // later, causing a visible reorder/flicker for no benefit. Only hit the
+    // API as a fallback when SSR data is missing, and only once.
+    if (
+      (initialSyncedBrands && initialSyncedBrands.length > 0) ||
+      hasFetchedSyncedBrandsRef.current
+    ) {
+      return;
+    }
+    hasFetchedSyncedBrandsRef.current = true;
+
     let cancelled = false;
 
     fetch("/api/manufacturer-counts", {
@@ -308,7 +325,7 @@ export default function BrandCarousel({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialSyncedBrands]);
 
   const handlePrevPage = useCallback(() => {
     if (!canGoPrev) return;

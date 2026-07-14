@@ -15,7 +15,19 @@ const BrandCarousel = dynamic(() => import("./Brands"), {
   loading: () => <div className="h-[300px] animate-pulse bg-sky-50/70" aria-hidden="true" />,
 });
 
-export default function HomeDeferredStack() {
+type InitialSyncedBrand = {
+  name: string;
+  logo: string | null;
+  description: string;
+  productCount?: number;
+  groupsCount?: number;
+};
+
+export default function HomeDeferredStack({
+  initialSyncedBrands,
+}: {
+  initialSyncedBrands?: InitialSyncedBrand[];
+}) {
   return (
     <>
       <section className="section-reveal home-section-stage relative w-full">
@@ -37,7 +49,7 @@ export default function HomeDeferredStack() {
       <section className="section-reveal home-section-stage relative w-full">
         <DeferredSection rootMargin="80px" minHeight="300px" fallback={<div className="h-[300px] bg-sky-50/40" />}>
           <SectionBoundary title="Модуль брендів тимчасово недоступний">
-            <BrandCarousel playEntranceAnimations={false} />
+            <BrandCarousel playEntranceAnimations={false} initialSyncedBrands={initialSyncedBrands} />
           </SectionBoundary>
         </DeferredSection>
       </section>
