@@ -652,9 +652,11 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                         } else {
                           nextParams.set('producer', b.name);
                         }
-                        // Keep producer filtering deterministic and avoid stale mixed contexts.
-                        nextParams.delete('group');
-                        nextParams.delete('subcategory');
+                        // group/subcategory are intentionally kept — a producer
+                        // filter should combine with an already-selected
+                        // category, the same way selecting a category (see
+                        // katkomp.tsx's buildSelectionHref) already preserves
+                        // an existing producer.
                         nextParams.delete('search');
                         nextParams.delete('filter');
                         nextParams.delete('reset');

@@ -153,6 +153,13 @@ const buildProductDedupeKey = (item: CatalogProduct) => {
 
 const buildGroupItemProducerSplit = (options: {
   producers: SeoProducerFacet[];
+  // True 1C "Категорія" — needed separately from groupLabel (Група tier,
+  // used for facet matching) because a direct-group match still has to link
+  // into the catalog as (group=Категорія, subcategory=Група): 1C's exact-
+  // match filters expect that pairing for a "promoted" 2-tier item, not
+  // (group=Група) alone — see the analogous comment in
+  // resolveGroupFilterParams (app/lib/auto-directory-data.ts).
+  categoryLabel: string;
   groupLabel: string;
   itemLabels: string[];
 }): GroupItemProducerEntry[] => {
@@ -183,8 +190,8 @@ const buildGroupItemProducerSplit = (options: {
           productCount,
           catalogPath: buildCatalogProducerPath(
             producer.label,
-            directGroup.label,
-            options.itemLabels[0]
+            options.categoryLabel,
+            directGroup.label
           ),
           manufacturerPath: buildManufacturerPath(producer.slug || producer.label),
         };
@@ -352,6 +359,12 @@ const getCategoryTopProducts = cache(getCategoryTopProductsCached);
 
 const resolveGroupItemProducerSplit = async (options: {
   seoProducers: SeoProducerFacet[];
+  // True 1C "Категорія" — see the comment on buildGroupItemProducerSplit's
+  // categoryLabel field. Usually equal to catalogGroupLabel below, except
+  // when catalogGroupLabel is itself a Група (the "child under a subgroup"
+  // call site, where the live-query pairing needs Група+Підгруппа but a
+  // producer-side promoted match still needs the real Категорія).
+  categoryLabel: string;
   seoGroupLabel: string;
   seoItemLabels: string[];
   catalogGroupLabel: string;
@@ -359,6 +372,7 @@ const resolveGroupItemProducerSplit = async (options: {
 }) => {
   const seoSplit = buildGroupItemProducerSplit({
     producers: options.seoProducers,
+    categoryLabel: options.categoryLabel,
     groupLabel: options.seoGroupLabel,
     itemLabels: options.seoItemLabels,
   });
@@ -401,6 +415,7 @@ const getGroupItemBySlugs = cache(
 
       const producerSplit = await resolveGroupItemProducerSplit({
         seoProducers: seoFacets.producers,
+        categoryLabel: seoGroup.label,
         // producer.topGroups is keyed by the Група tier (seoSubgroup here),
         // not the Категорія tier (seoGroup) — matching seoGroup.label above
         // meant this never found a producer (see the analogous fix on
@@ -444,6 +459,7 @@ const getGroupItemBySlugs = cache(
       }));
       const producerSplit = await resolveGroupItemProducerSplit({
         seoProducers: seoFacets.producers,
+        categoryLabel: group.label,
         // producer.topGroups is keyed by the Група tier (subgroup here), not
         // the Категорія tier (group) — see the analogous fix on
         // /groups/[slug]/page.tsx's resolveTopProducers.
@@ -485,6 +501,12 @@ const getGroupItemBySlugs = cache(
       if (!child) continue;
       const producerSplit = await resolveGroupItemProducerSplit({
         seoProducers: seoFacets.producers,
+        // group (the true Категорія) here, NOT entry — entry is the Група
+        // and is correct as catalogGroupLabel below (paired with child.label
+        // for the live Група+Підгруппа query), but a direct-group match on
+        // the producer side still needs the real Категорія to link into the
+        // catalog correctly (see buildGroupItemProducerSplit's comment).
+        categoryLabel: group.label,
         // Same Група-tier fix as above — entry is the Група containing this
         // Підгруппа-level child, group is still the Категорія.
         seoGroupLabel: entry.label,
@@ -534,6 +556,7 @@ const getGroupItemBySlugs = cache(
 
     const producerSplit = await resolveGroupItemProducerSplit({
       seoProducers: seoFacets.producers,
+      categoryLabel: seoGroup.label,
       // Same Група-tier fix as above.
       seoGroupLabel: seoSubgroup.label,
       seoItemLabels: [seoSubgroup.label],
