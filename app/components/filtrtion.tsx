@@ -160,6 +160,52 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     const parsed = Number(normalized);
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
   };
+  // Price inputs update local state on every keystroke (so typing feels
+  // instant) but only commit to the parent — which feeds straight into the
+  // catalog fetch's cache key — after a pause, instead of firing a full
+  // /api/catalog-page request per digit typed.
+  const PRICE_RANGE_DEBOUNCE_MS = 400;
+  const [localPriceFrom, setLocalPriceFrom] = useState(priceFrom);
+  const [localPriceTo, setLocalPriceTo] = useState(priceTo);
+  const priceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastCommittedPriceRef = useRef({ from: priceFrom, to: priceTo });
+
+  useEffect(() => {
+    // Re-sync from the outside (e.g. "clear filters", browser back/forward)
+    // — but not when this is just the echo of our own debounced commit.
+    if (lastCommittedPriceRef.current.from === priceFrom && lastCommittedPriceRef.current.to === priceTo) {
+      return;
+    }
+    lastCommittedPriceRef.current = { from: priceFrom, to: priceTo };
+    setLocalPriceFrom(priceFrom);
+    setLocalPriceTo(priceTo);
+  }, [priceFrom, priceTo]);
+
+  useEffect(
+    () => () => {
+      if (priceDebounceRef.current) clearTimeout(priceDebounceRef.current);
+    },
+    []
+  );
+
+  const cancelPendingPriceCommit = useCallback(() => {
+    if (priceDebounceRef.current) {
+      clearTimeout(priceDebounceRef.current);
+      priceDebounceRef.current = null;
+    }
+  }, []);
+
+  const commitPriceRange = useCallback(
+    (from: number | null, to: number | null) => {
+      cancelPendingPriceCommit();
+      priceDebounceRef.current = setTimeout(() => {
+        priceDebounceRef.current = null;
+        lastCommittedPriceRef.current = { from, to };
+        onPriceRangeChange?.(from, to);
+      }, PRICE_RANGE_DEBOUNCE_MS);
+    },
+    [cancelPendingPriceCommit, onPriceRangeChange]
+  );
   const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>(selectedCars);
   const [localSortOrder, setLocalSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
   const [collapsed, setCollapsed] = useState(true);
@@ -318,8 +364,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     Boolean(subcategoryParam || groupParam) ||
     Boolean(producerParam) ||
     pricedOnly ||
-    priceFrom != null ||
-    priceTo != null ||
+    localPriceFrom != null ||
+    localPriceTo != null ||
     inStock ||
     !isSortNone;
   const carLabel = useMemo(() => {
@@ -475,6 +521,10 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     onResetSort?.();
     setLocalSortOrder('none');
     onPricedOnlyChange?.(false);
+    cancelPendingPriceCommit();
+    lastCommittedPriceRef.current = { from: null, to: null };
+    setLocalPriceFrom(null);
+    setLocalPriceTo(null);
     onPriceRangeChange?.(null, null);
     onInStockChange?.(false);
     onSelectedCarSelectionChange?.(null);
@@ -507,6 +557,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     selectedVin,
     selectedCategories,
     onResetSort,
+    cancelPendingPriceCommit,
   ]);
 
   const handleOpenCategoryTab = useCallback(() => {
@@ -772,8 +823,12 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                     type="number"
                     min="0"
                     inputMode="decimal"
-                    value={formatPriceInput(priceFrom)}
-                    onChange={(event) => onPriceRangeChange(parsePriceInput(event.target.value), priceTo ?? null)}
+                    value={formatPriceInput(localPriceFrom)}
+                    onChange={(event) => {
+                      const next = parsePriceInput(event.target.value);
+                      setLocalPriceFrom(next);
+                      commitPriceRange(next, localPriceTo ?? null);
+                    }}
                     placeholder="від"
                     className="h-8 w-full rounded-[8px] border border-sky-200/60 bg-white/90 pl-6 pr-1.5 text-[11px] font-bold text-slate-700 outline-none transition placeholder:text-slate-300 focus:border-sky-300 focus:ring-2 focus:ring-sky-100/70"
                     aria-label="Ціна від (грн)"
@@ -786,8 +841,12 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                     type="number"
                     min="0"
                     inputMode="decimal"
-                    value={formatPriceInput(priceTo)}
-                    onChange={(event) => onPriceRangeChange(priceFrom ?? null, parsePriceInput(event.target.value))}
+                    value={formatPriceInput(localPriceTo)}
+                    onChange={(event) => {
+                      const next = parsePriceInput(event.target.value);
+                      setLocalPriceTo(next);
+                      commitPriceRange(localPriceFrom ?? null, next);
+                    }}
                     placeholder="до"
                     className="h-8 w-full rounded-[8px] border border-sky-200/60 bg-white/90 pl-6 pr-1.5 text-[11px] font-bold text-slate-700 outline-none transition placeholder:text-slate-300 focus:border-sky-300 focus:ring-2 focus:ring-sky-100/70"
                     aria-label="Ціна до (грн)"
