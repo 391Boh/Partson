@@ -173,6 +173,10 @@ function BrandCard({
           )}
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-[8px] font-black uppercase tracking-[0.05em] text-sky-700 transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[9.5px]">
+            До виробника
+            <ArrowRight size={9} strokeWidth={3} aria-hidden="true" />
+          </span>
           <span className="line-clamp-2 block max-w-full break-words text-left text-[12px] font-black leading-tight text-slate-950 transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[16px] lg:text-[17px]">
             {brand.name}
           </span>
@@ -181,10 +185,6 @@ function BrandCard({
               {brand.productCount.toLocaleString("uk-UA")} {pluralizeProductCount(brand.productCount)} у каталозі
             </span>
           ) : null}
-          <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-[8px] font-black uppercase tracking-[0.05em] text-sky-700 transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[9.5px]">
-            До виробника
-            <ArrowRight size={9} strokeWidth={3} aria-hidden="true" />
-          </span>
         </span>
       </span>
 
