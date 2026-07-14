@@ -73,24 +73,23 @@ const ProductCardImage: React.FC<Props> = ({
   const normalizedArticle = (articleHint || "").trim();
   const normalizedPrefetchedSrc = (prefetchedSrc || "").trim();
 
-  const [requestSrc, setRequestSrc] = useState<string>(() => {
-    if (!hasKnownPhoto || !normalizedCode) return "";
-    if (normalizedPrefetchedSrc) return normalizedPrefetchedSrc;
-    if (typeof window === "undefined") return "";
-    if (readProductImageMissing(normalizedCode, normalizedArticle || undefined)) return "";
-    return readProductImageSuccess(normalizedCode, normalizedArticle || undefined) ?? "";
-  });
-  const [status, setStatus] = useState<ImageStatus>(() => {
-    if (!hasKnownPhoto) return "missing";
-    if (typeof window === "undefined") return "loading";
-    if (readProductImageMissing(normalizedCode, normalizedArticle || undefined)) return "missing";
-    return "loading";
-  });
-
   const primarySrc = useMemo(
     () => buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true }),
     [normalizedArticle, normalizedCode]
   );
+  const [requestSrc, setRequestSrc] = useState<string>(() => {
+    if (!hasKnownPhoto || !normalizedCode) return "";
+    if (normalizedPrefetchedSrc) return normalizedPrefetchedSrc;
+    if (disableDirectLoad || deferDirectLoad) return "";
+    // Keep the first render deterministic on the server and in the browser so
+    // the LCP image request can start before hydration/effects have completed.
+    return primarySrc;
+  });
+  const [status, setStatus] = useState<ImageStatus>(() => {
+    if (!hasKnownPhoto || batchImageMissing) return "missing";
+    return "loading";
+  });
+
   const recoverySrc = useMemo(
     () => buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true, retryToken: 1 }),
     [normalizedArticle, normalizedCode]

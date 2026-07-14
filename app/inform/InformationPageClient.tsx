@@ -36,6 +36,14 @@ import {
   type InformationSectionKey,
 } from './section-config';
 import DiagnosticsConsultationForm from './DiagnosticsConsultationForm';
+import AnalyticsConsentSettingsButton from 'app/components/AnalyticsConsentSettingsButton';
+import {
+  catalogPageBackgroundClass,
+  directoryBadgeClass,
+  directoryCompactMetricAccentClass,
+  directoryCompactMetricClass,
+  directoryPanelClass,
+} from 'app/components/catalog-directory-styles';
 
 // ─── Константи контактів ───────────────────────────────────────────────────
 const PHONE_RAW = '+380634211851';
@@ -109,28 +117,34 @@ const PartsOnLink = ({ className = '' }: { className?: string }) => (
 );
 
 // ─── Стилі акцентів ────────────────────────────────────────────────────────
+// Card chrome stays neutral (matches the site-wide directory card language);
+// only the icon tile picks up a touch of color so sections stay scannable
+// without turning the page into a seven-color rainbow.
 const ACCENT = {
-  sky:     { wrap: 'border-sky-200     bg-sky-50      text-sky-700',     glow: 'group-hover:from-sky-50/80     group-hover:to-cyan-50/60',   border: 'border-sky-200/60',   shadow: 'shadow-[0_4px_18px_rgba(14,165,233,0.14)]',   ring: 'ring-sky-200/40'     },
-  emerald: { wrap: 'border-emerald-200 bg-emerald-50  text-emerald-700', glow: 'group-hover:from-emerald-50/80 group-hover:to-teal-50/60',   border: 'border-emerald-200/60', shadow: 'shadow-[0_4px_18px_rgba(16,185,129,0.14)]',   ring: 'ring-emerald-200/40' },
-  amber:   { wrap: 'border-amber-200   bg-amber-50    text-amber-700',   glow: 'group-hover:from-amber-50/80   group-hover:to-orange-50/60', border: 'border-amber-200/60',   shadow: 'shadow-[0_4px_18px_rgba(245,158,11,0.14)]',   ring: 'ring-amber-200/40'   },
-  violet:  { wrap: 'border-violet-200  bg-violet-50   text-violet-700',  glow: 'group-hover:from-violet-50/80  group-hover:to-purple-50/60', border: 'border-violet-200/60',  shadow: 'shadow-[0_4px_18px_rgba(139,92,246,0.14)]',   ring: 'ring-violet-200/40'  },
-  cyan:    { wrap: 'border-cyan-200    bg-cyan-50     text-cyan-700',    glow: 'group-hover:from-cyan-50/80    group-hover:to-sky-50/60',    border: 'border-cyan-200/60',    shadow: 'shadow-[0_4px_18px_rgba(6,182,212,0.14)]',    ring: 'ring-cyan-200/40'    },
-  rose:    { wrap: 'border-rose-200    bg-rose-50     text-rose-700',    glow: 'group-hover:from-rose-50/80    group-hover:to-pink-50/60',   border: 'border-rose-200/60',    shadow: 'shadow-[0_4px_18px_rgba(244,63,94,0.14)]',    ring: 'ring-rose-200/40'    },
-  slate:   { wrap: 'border-slate-300   bg-slate-100   text-slate-600',   glow: 'group-hover:from-slate-100/80  group-hover:to-slate-50/60',  border: 'border-slate-200/80',   shadow: 'shadow-[0_4px_18px_rgba(15,23,42,0.08)]',    ring: 'ring-slate-200/40'   },
+  sky:     { wrap: 'border-sky-200     bg-sky-50      text-sky-700' },
+  emerald: { wrap: 'border-teal-200    bg-teal-50     text-teal-700' },
+  amber:   { wrap: 'border-amber-200   bg-amber-50    text-amber-700' },
+  violet:  { wrap: 'border-slate-300   bg-slate-100   text-slate-600' },
+  cyan:    { wrap: 'border-cyan-200    bg-cyan-50     text-cyan-700' },
+  rose:    { wrap: 'border-rose-200    bg-rose-50     text-rose-700' },
+  slate:   { wrap: 'border-slate-300   bg-slate-100   text-slate-600' },
 } as const;
 
 // ─── Компонент картки ──────────────────────────────────────────────────────
 const InfoCard = memo(function InfoCard({ title, icon: Icon, accent = 'sky', featured = false, children }: InfoCardProps) {
   const a = ACCENT[accent];
   return (
-    <article className={`group relative overflow-hidden rounded-2xl border-2 bg-white p-5 transition-all duration-300 hover:-translate-y-0.5 ${a.border} ${a.shadow} hover:shadow-[0_14px_38px_rgba(15,23,42,0.16)] ${featured ? `ring-2 ${a.ring}` : ''}`}>
-      <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br from-transparent to-transparent transition-all duration-300 ${a.glow}`} />
+    <article
+      className={`group relative isolate flex h-full flex-col overflow-hidden rounded-[16px] border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96))] p-5 shadow-[0_12px_28px_rgba(15,23,42,0.055)] ring-1 ring-white/80 transition-[border-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-[0_18px_36px_rgba(14,165,233,0.12)] ${
+        featured ? 'border-sky-200 ring-2 ring-sky-100' : ''
+      }`}
+    >
       <div className="relative">
         <div className="mb-4 flex items-start gap-3 sm:items-center">
-          <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 shadow-md ${a.wrap}`}>
+          <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border shadow-sm ${a.wrap}`}>
             <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
           </span>
-          <h3 className="min-w-0 flex-1 text-[15px] font-bold leading-tight text-slate-800">{title}</h3>
+          <h3 className="directory-card-title min-w-0 flex-1 text-[15px] leading-tight text-slate-900">{title}</h3>
         </div>
         <div className="text-[13.5px] leading-relaxed text-slate-600">{children}</div>
       </div>
@@ -788,10 +802,15 @@ const PrivacyTab = () => (
 
     <InfoCard title="Cookies, аналітика та зміни політики" icon={Clock} accent="slate">
       <ul className="space-y-3">
-        <Li icon={Info} cls="text-slate-500">Сайт може використовувати cookies, технічні журнали, кеш браузера та аналітичні інструменти для стабільної роботи, безпеки й покращення сервісу.</Li>
+        <Li icon={Info} cls="text-slate-500">Сайт використовує необхідні технології для роботи сервісу та, за вашою згодою, Google Analytics для оцінки відвідуваності, пошуку й етапів оформлення замовлення.</Li>
+        <Li icon={ShieldCheck} cls="text-slate-500">Рекламне зберігання та персоналізацію вимкнено. Без згоди аналітичні cookies не встановлюються; можливі лише обмежені сигнали без cookies відповідно до Google Consent Mode.</Li>
         <Li icon={ShieldCheck} cls="text-slate-500">Ми не продаємо персональні дані клієнтів третім особам.</Li>
         <Li icon={Clock} cls="text-slate-500">Політика може оновлюватися при зміні сервісів або законодавства. Актуальна версія завжди доступна на цій сторінці.</Li>
       </ul>
+      <AnalyticsConsentSettingsButton
+        label="Змінити налаштування аналітики"
+        className="mt-4 inline-flex min-h-10 items-center justify-center rounded-[12px] border border-sky-200 bg-sky-50 px-4 text-[12.5px] font-bold text-sky-800 transition hover:border-sky-300 hover:bg-sky-100"
+      />
     </InfoCard>
   </div>
 );
@@ -924,81 +943,97 @@ export default function InformationPageClient({ initialSectionKey }: Information
       ? 'Локальний магазин у Львові, точний підбір деталей і підтримка замовлення від консультації до отримання.'
       : activeTab.seoDescription;
 
+  const ActiveIcon = activeTab.icon;
+
   return (
-    <div
-      className="font-ui relative min-h-[calc(100vh-4rem)] overflow-hidden select-none"
-      style={{ background: 'linear-gradient(160deg,#f0f9ff 0%,#e8f4fd 40%,#eef2ff 100%)' }}
-    >
-      {/* Декоративний фон */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-sky-200/30 blur-[80px]" />
-        <div className="absolute top-1/2 -left-32 h-[400px] w-[400px] rounded-full bg-indigo-200/20 blur-[70px]" />
-        <div className="absolute -bottom-20 right-1/3 h-[300px] w-[300px] rounded-full bg-cyan-200/25 blur-[60px]" />
-      </div>
+    <main className={`${catalogPageBackgroundClass} min-h-screen py-5 sm:py-7`}>
+      <div className="page-shell-inline">
+        <div className="space-y-4 sm:space-y-5">
+          {/* Хлібні крихти */}
+          <nav aria-label="Навігаційні хлібні крихти">
+            <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+              <li className="inline-flex items-center gap-2">
+                <Link href="/" className="transition hover:text-slate-800">Головна</Link>
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <span aria-hidden="true">/</span>
+                <span className="text-slate-500">Інформація</span>
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <span aria-hidden="true">/</span>
+                <span className="text-slate-700">{activeTab.title}</span>
+              </li>
+            </ol>
+          </nav>
 
-      <section className="page-shell-inline relative grid gap-5 py-5 sm:py-7">
+          {/* Заголовок сторінки */}
+          <section className="relative overflow-hidden rounded-[30px] border border-white/85 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(240,249,255,0.94),rgba(236,254,255,0.9))] p-4 shadow-[0_28px_70px_rgba(14,165,233,0.15)] ring-1 ring-sky-100/70 sm:p-5 lg:p-6">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-sky-200/35 via-cyan-100/25 to-emerald-100/25" />
 
-        {/* Хлібні крихти */}
-        <nav className="flex flex-wrap items-center gap-1.5 text-[12px] font-semibold tracking-wide text-slate-400">
-          <Link href="/" className="transition hover:text-slate-600">Головна</Link>
-          <span className="text-slate-300">/</span>
-          <span className="text-slate-500">Інформація</span>
-          <span className="text-slate-300">/</span>
-          <span className="text-sky-600">{activeTab.title}</span>
-        </nav>
+            <div className="relative grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] border border-white/90 bg-white/86 text-sky-600 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-sky-100/80 sm:h-20 sm:w-20">
+                <ActiveIcon size={28} strokeWidth={1.7} aria-hidden="true" />
+              </span>
 
-        {/* Заголовок сторінки */}
-        <div className="relative overflow-hidden rounded-3xl border border-white/80 bg-white/70 px-4 py-4 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:px-8 sm:py-6">
-          <div className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_0%_0%,rgba(56,189,248,0.12),transparent_52%),radial-gradient(circle_at_100%_100%,rgba(99,102,241,0.08),transparent_52%)]" />
-          <div className="relative flex items-start gap-3 sm:items-center sm:gap-4">
-            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-sky-100 bg-sky-50 text-sky-600 shadow-sm sm:h-12 sm:w-12">
-              {(() => { const I = activeTab.icon; return <I size={22} strokeWidth={1.7} />; })()}
-            </span>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-[1.2rem] font-extrabold leading-tight text-slate-900 min-[380px]:text-[1.32rem] sm:text-[1.7rem]">
-                {activeTab.seoTitle}
-              </h1>
-              <p className="mt-1 max-w-2xl text-[13.5px] leading-relaxed text-slate-500 sm:text-[14px]">
-                {activeDescription}
-              </p>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={directoryBadgeClass}>Інформація для клієнтів</span>
+                  <span className={directoryCompactMetricClass}>Магазин у Львові</span>
+                  <span className={directoryCompactMetricAccentClass}>{PHONE_DISPLAY}</span>
+                </div>
+
+                <h1 className="directory-heading-hero mt-3 text-[1.55rem] leading-[1.12] text-slate-950 sm:text-[2.15rem]">
+                  {activeTab.seoTitle}
+                </h1>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
+                  {activeDescription}
+                </p>
+              </div>
             </div>
-          </div>
+          </section>
+
+          {/* Навігаційні вкладки */}
+          <nav aria-label="Розділи інформації" className={`${directoryPanelClass} p-2`}>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
+              {tabs.map((tab) => {
+                const isActive = tab.key === activeTab.key;
+                const Icon = tab.icon;
+                return (
+                  <Link
+                    key={tab.key}
+                    href={getInformationPath(tab.key)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`group relative rounded-[14px] border px-3 py-3 text-left transition-all duration-200 active:scale-[0.98] ${
+                      isActive
+                        ? 'border-cyan-300/90 bg-[linear-gradient(135deg,rgba(236,254,255,0.96),rgba(224,242,254,0.92))] text-cyan-950 shadow-[0_12px_24px_rgba(8,145,178,0.12)]'
+                        : 'border-slate-200/90 bg-white/88 text-slate-700 hover:border-slate-300 hover:bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
+                          isActive
+                            ? 'border-cyan-200 bg-white text-cyan-700'
+                            : 'border-slate-200 bg-slate-50 text-slate-500 group-hover:text-slate-700'
+                        }`}
+                      >
+                        <Icon size={13} strokeWidth={isActive ? 2.2 : 1.8} aria-hidden="true" />
+                      </span>
+                      <span className="directory-card-title text-[13px] leading-none text-inherit">{tab.title}</span>
+                    </div>
+                    <p className={`mt-1 pl-8 text-[11px] font-medium leading-snug ${isActive ? 'text-cyan-800/80' : 'text-slate-400'}`}>
+                      {tab.subtitle}
+                    </p>
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+
+          {/* Вміст вкладки */}
+          <div>{renderTabContent(activeTab.key)}</div>
         </div>
-
-        {/* Навігаційні вкладки */}
-        <nav className="relative overflow-hidden rounded-2xl border border-white/80 bg-white/70 p-2 shadow-[0_4px_18px_rgba(15,23,42,0.07)] backdrop-blur-xl">
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
-            {tabs.map((tab) => {
-              const isActive = tab.key === activeTab.key;
-              const Icon = tab.icon;
-              return (
-                <Link
-                  key={tab.key}
-                  href={getInformationPath(tab.key)}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={`relative rounded-xl px-3 py-3 text-left transition-all duration-200 active:scale-[0.98] ${
-                    isActive
-                      ? 'bg-gradient-to-br from-sky-500 to-cyan-500 text-white shadow-[0_6px_18px_rgba(14,165,233,0.35)]'
-                      : 'text-slate-600 hover:bg-slate-100/80'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Icon size={15} strokeWidth={isActive ? 2.2 : 1.8} className={isActive ? 'text-white' : 'text-sky-500'} />
-                    <span className="text-[13px] font-bold">{tab.title}</span>
-                  </div>
-                  <p className={`mt-0.5 text-[11px] font-medium ${isActive ? 'text-sky-100' : 'text-slate-400'}`}>
-                    {tab.subtitle}
-                  </p>
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
-
-        {/* Вміст вкладки */}
-        <main>{renderTabContent(activeTab.key)}</main>
-
-      </section>
-    </div>
+      </div>
+    </main>
   );
 }

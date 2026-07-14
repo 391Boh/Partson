@@ -148,9 +148,26 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   const cartEcommerceItems = cartItems.map((item) => ({
     item_id: item.code,
     item_name: item.name,
+    ...(item.producer ? { item_brand: item.producer } : {}),
     ...(item.category ? { item_category: item.category } : {}),
+    ...(item.group ? { item_category2: item.group } : {}),
+    ...(item.subGroup ? { item_category3: item.subGroup } : {}),
+    ...(item.article ? { item_variant: item.article } : {}),
     price: item.price,
     quantity: item.quantity,
+  }));
+  const checkoutEcommerceItems = cartEcommerceItems.map((item) => ({
+    ...item,
+    ...(effectiveDiscountTotals.isApplied
+      ? {
+          coupon:
+            effectiveDiscountTotals.discountCode ?? FIRST_ORDER_DISCOUNT_CODE,
+          discount:
+            Math.round(
+              item.price * effectiveDiscountTotals.discountRate * 100
+            ) / 100,
+        }
+      : {}),
   }));
 
   useEffect(() => {
@@ -173,10 +190,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
       ...(effectiveDiscountTotals.isApplied
         ? {
             coupon: effectiveDiscountTotals.discountCode ?? FIRST_ORDER_DISCOUNT_CODE,
-            discount: effectiveDiscountTotals.discountAmount,
           }
         : {}),
-      items: cartEcommerceItems,
+      items: checkoutEcommerceItems,
     });
     setIsOrdering(true);
   };

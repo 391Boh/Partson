@@ -18,13 +18,17 @@ import ProductCard from "app/components/ProductCard";
 import { CATALOG_PAGE_CACHE_VERSION, invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
-import { PRODUCT_IMAGE_BATCH_MAX_ITEMS } from "app/lib/product-image-constants";
 import {
   buildProductImageBatchKey,
   buildProductImagePath,
 } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
 import { getFirebaseAuthSnapshot } from "app/lib/firebase-auth-state";
+import {
+  pushAnalyticsEvent,
+  pushEcommerceEvent,
+  sanitizeAnalyticsSearchTerm,
+} from "app/lib/gtm";
 
 // --- Types ---
 interface DataProps {
@@ -78,13 +82,15 @@ const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 420;
-const IMAGE_PRIORITY_ITEMS_COUNT = 16;
-const DIRECT_IMAGE_LOAD_ITEMS_COUNT = ITEMS_PER_PAGE * 8;
-// Matches PRODUCT_IMAGE_BATCH_MAX_ITEMS (the batch client/API's own cap) so
-// each client-side chunk maps to exactly one /api/catalog-image-batch
-// request instead of silently getting sub-sliced again downstream.
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = PRODUCT_IMAGE_BATCH_MAX_ITEMS;
+// Start only the actual LCP candidate at high priority. A small first row may
+// still load eagerly, while the rest of the page is resolved by one batch.
+const IMAGE_HIGH_PRIORITY_ITEMS_COUNT = 1;
+const IMAGE_EAGER_ITEMS_COUNT = 4;
+// Reveal the first row quickly, then let the existing effect advance through
+// subsequent chunks without making the initial response wait for every card.
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE;
 const VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE = 4;
+const VISIBLE_IMAGE_DEEP_RECOVERY_DELAY_MS = 180;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 45;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
@@ -1239,6 +1245,7 @@ function useCatalogData(params: {
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [filterLoading, setFilterLoading] = useState(false);
+  const [catalogReadyQuerySignature, setCatalogReadyQuerySignature] = useState("");
   const [isLoadingNextPage, setIsLoadingNextPage] = useState(false);
   const [firstPageResolvedItemCount, setFirstPageResolvedItemCount] = useState(0);
   const [catalogTotalCount, setCatalogTotalCount] = useState<number | null>(
@@ -1310,6 +1317,8 @@ function useCatalogData(params: {
   const pageImagesRef = useRef<Record<string, string>>({});
   const pageImagePendingRef = useRef<Record<string, true>>({});
   const pageImageMissingRef = useRef<Record<string, true>>({});
+  const pageImagePendingOwnerRef = useRef<Record<string, number>>({});
+  const imageBatchRequestSequenceRef = useRef(0);
   const imageBatchAttemptKeysRef = useRef<Set<string>>(new Set());
   const priceLoadingKeysRef = useRef<Set<string>>(new Set());
   const priceRetryCooldownUntilRef = useRef<Record<string, number>>({});
@@ -1480,6 +1489,7 @@ function useCatalogData(params: {
   const clearTransientPageImageState = useCallback(() => {
     pageImagePendingRef.current = {};
     pageImageMissingRef.current = {};
+    pageImagePendingOwnerRef.current = {};
     imageBatchAttemptKeysRef.current.clear();
     setPageImagePending({});
     setPageImageMissing({});
@@ -1925,13 +1935,15 @@ function useCatalogData(params: {
         ttlMs?: number;
         querySignatureSnapshot?: string;
         signal?: AbortSignal;
+        skipFirstPhoto?: boolean;
       }
     ) => {
       if (typeof window === "undefined") return;
 
-      const warmupItems = items
-        .filter((item) => item.hasPhoto === true)
-        .slice(0, VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE);
+      const photoItems = items.filter((item) => item.hasPhoto === true);
+      const warmupItems = options?.skipFirstPhoto
+        ? photoItems.slice(1)
+        : photoItems;
       if (warmupItems.length === 0) return;
 
       const prefetchedImageEntries: Record<string, string> = {};
@@ -1953,6 +1965,7 @@ function useCatalogData(params: {
         if (imageBatchAttemptKeysRef.current.has(key)) continue;
 
         requestItems.push(item);
+        if (requestItems.length >= VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE) break;
       }
 
       if (Object.keys(prefetchedImageEntries).length > 0) {
@@ -1977,9 +1990,11 @@ function useCatalogData(params: {
       const pendingKeys = requestItems
         .map((item) => buildProductImageBatchKey(item.code, item.article))
         .filter(Boolean);
+      const pendingOwner = ++imageBatchRequestSequenceRef.current;
       if (pendingKeys.length > 0) {
         for (const key of pendingKeys) {
           imageBatchAttemptKeysRef.current.add(key);
+          pageImagePendingOwnerRef.current[key] = pendingOwner;
         }
 
         pageImagePendingRef.current = {
@@ -1998,19 +2013,25 @@ function useCatalogData(params: {
         });
       }
 
-      const clearPendingKeys = () => {
-        if (pendingKeys.length === 0) return;
+      const clearPendingKeys = (keysToClear = pendingKeys) => {
+        if (keysToClear.length === 0) return;
+
+        const ownedKeys = keysToClear.filter(
+          (key) => pageImagePendingOwnerRef.current[key] === pendingOwner
+        );
+        if (ownedKeys.length === 0) return;
 
         pageImagePendingRef.current = { ...pageImagePendingRef.current };
-        for (const key of pendingKeys) {
+        for (const key of ownedKeys) {
           delete pageImagePendingRef.current[key];
+          delete pageImagePendingOwnerRef.current[key];
         }
 
         startTransition(() => {
           setPageImagePending((prev) => {
             let didChange = false;
             const next = { ...prev };
-            for (const key of pendingKeys) {
+            for (const key of ownedKeys) {
               if (!next[key]) continue;
               delete next[key];
               didChange = true;
@@ -2059,11 +2080,18 @@ function useCatalogData(params: {
       };
 
       const applyMissingImageEntries = (
-        missingEntries: Array<{ key: string; status: "ready" | "missing" }>
+        missingEntries: Array<{
+          key: string;
+          status: "ready" | "missing";
+          transient?: boolean;
+        }>
       ) => {
         // Skip items already resolved (batch or direct load) — don't clobber them.
         const validEntries = missingEntries.filter(
-          (item) => item.status === "missing" && !pageImagesRef.current[item.key]
+          (item) =>
+            item.status === "missing" &&
+            item.transient !== true &&
+            !pageImagesRef.current[item.key]
         );
         if (validEntries.length === 0) return;
 
@@ -2092,6 +2120,12 @@ function useCatalogData(params: {
       })
         .then((results) => {
           if (options?.signal?.aborted) return;
+          if (
+            options?.querySignatureSnapshot &&
+            activeQuerySignatureRef.current !== options.querySignatureSnapshot
+          ) {
+            return;
+          }
 
           const readyEntries = results.filter(
             (item) => item.status === "ready" && item.src
@@ -2118,40 +2152,82 @@ function useCatalogData(params: {
             .slice(0, VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE);
 
           if (recoveryItems.length > 0) {
-            window.setTimeout(() => {
-              if (options?.signal?.aborted) return;
+            const recoveryKeys = new Set(
+              recoveryItems
+                .map((item) => buildProductImageBatchKey(item.code, item.article))
+                .filter(Boolean)
+            );
+            clearPendingKeys(
+              pendingKeys.filter((key) => !recoveryKeys.has(key))
+            );
 
-              void primeCatalogImageBatch(recoveryItems, {
-                deep: true,
-                signal: options?.signal,
-              })
-                .then((deepResults) => {
-                  if (options?.signal?.aborted) return;
+            // Keep the batch pending flag until deep recovery settles. Otherwise
+            // each card starts its own direct fallback while this request is
+            // still running, multiplying 1C traffic for the same products.
+            return new Promise<void>((resolve) => {
+              window.setTimeout(() => {
+                if (options?.signal?.aborted) {
+                  resolve();
+                  return;
+                }
+                if (
+                  options?.querySignatureSnapshot &&
+                  activeQuerySignatureRef.current !== options.querySignatureSnapshot
+                ) {
+                  resolve();
+                  return;
+                }
 
-                  const deepReadyEntries = deepResults.filter(
-                    (item) => item.status === "ready" && item.src
-                  );
-                  applyReadyImageEntries(deepReadyEntries);
-                  applyMissingImageEntries(deepResults);
-
-                  if (deepReadyEntries.length > 0 && options?.cacheKey && options?.ttlMs) {
-                    const deepMap: Record<string, string> = {};
-                    for (const entry of deepReadyEntries) {
-                      if (entry.src) deepMap[entry.key] = entry.src;
-                    }
-                    mergePageImagesIntoCache(options.cacheKey, deepMap, options.ttlMs);
-                  }
+                void primeCatalogImageBatch(recoveryItems, {
+                  deep: true,
+                  signal: options?.signal,
                 })
-                .catch((error) => {
-                  if (isAbortLikeError(error)) return;
-                });
-            }, 650);
+                  .then((deepResults) => {
+                    if (options?.signal?.aborted) return;
+                    if (
+                      options?.querySignatureSnapshot &&
+                      activeQuerySignatureRef.current !== options.querySignatureSnapshot
+                    ) {
+                      return;
+                    }
+
+                    const deepReadyEntries = deepResults.filter(
+                      (item) => item.status === "ready" && item.src
+                    );
+                    applyReadyImageEntries(deepReadyEntries);
+                    applyMissingImageEntries(deepResults);
+
+                    if (deepReadyEntries.length > 0 && options?.cacheKey && options?.ttlMs) {
+                      const deepMap: Record<string, string> = {};
+                      for (const entry of deepReadyEntries) {
+                        if (entry.src) deepMap[entry.key] = entry.src;
+                      }
+                      mergePageImagesIntoCache(options.cacheKey, deepMap, options.ttlMs);
+                    }
+                  })
+                  .catch((error) => {
+                    if (isAbortLikeError(error)) return;
+                  })
+                  .finally(resolve);
+              }, VISIBLE_IMAGE_DEEP_RECOVERY_DELAY_MS);
+            });
           }
         })
         .catch((error) => {
           if (isAbortLikeError(error)) return;
         })
         .finally(() => {
+          const requestBecameStale = Boolean(
+            options?.querySignatureSnapshot &&
+              activeQuerySignatureRef.current !== options.querySignatureSnapshot
+          );
+          if (options?.signal?.aborted || requestBecameStale) {
+            for (const key of pendingKeys) {
+              if (pageImagePendingOwnerRef.current[key] === pendingOwner) {
+                imageBatchAttemptKeysRef.current.delete(key);
+              }
+            }
+          }
           clearPendingKeys();
         });
     },
@@ -2479,6 +2555,7 @@ function useCatalogData(params: {
   useEffect(() => {
     activeQuerySignatureRef.current = querySignature;
     firstPageReadySignatureRef.current = null;
+    setCatalogReadyQuerySignature("");
     pagingRequestedRef.current = false;
     duplicatePageStreakRef.current = 0;
     cursorDuplicateStreakRef.current = 0;
@@ -2529,8 +2606,6 @@ function useCatalogData(params: {
             querySignatureSnapshot: querySignature,
             allowFullLookup: shouldAllowCatalogDirectPriceLookup,
           }).catch(swallowAbortError);
-          // Не обмежуємо prefetch для першої сторінки, images вже є
-          // fetchCatalogPageImages(memoryHit.items, { ... });
         });
         dataRef.current = nextItems;
         setData(nextItems);
@@ -2548,6 +2623,7 @@ function useCatalogData(params: {
         setHasLoadedOnce(true);
         setFilterLoading(false);
         firstPageReadySignatureRef.current = querySignature;
+        setCatalogReadyQuerySignature(querySignature);
         hideNextPageLoader(true);
         const cancelRevalidate = revalidateCachedPagePayload({
           pageNum: 1,
@@ -2576,8 +2652,6 @@ function useCatalogData(params: {
             querySignatureSnapshot: querySignature,
             allowFullLookup: shouldAllowCatalogDirectPriceLookup,
           }).catch(swallowAbortError);
-          // Не обмежуємо prefetch для першої сторінки, images вже є
-          // fetchCatalogPageImages(sessionHit.items, { ... });
         });
         dataRef.current = nextItems;
         setData(nextItems);
@@ -2595,6 +2669,7 @@ function useCatalogData(params: {
         setHasLoadedOnce(true);
         setFilterLoading(false);
         firstPageReadySignatureRef.current = querySignature;
+        setCatalogReadyQuerySignature(querySignature);
         hideNextPageLoader(true);
         const cancelRevalidate = revalidateCachedPagePayload({
           pageNum: 1,
@@ -2629,7 +2704,6 @@ function useCatalogData(params: {
   }, [
     applyResolvedPagePrices,
     fetchCatalogPagePrices,
-    fetchCatalogPageImages,
     clearTransientPageImageState,
     shouldAllowCatalogDirectPriceLookup,
     querySignature,
@@ -2743,6 +2817,7 @@ function useCatalogData(params: {
       }
       if (page === 1) {
         firstPageReadySignatureRef.current = currentQuerySignature;
+        setCatalogReadyQuerySignature(currentQuerySignature);
       }
       const requestedPageItemCount =
         sortOrder !== "none" && page > 1 ? ITEMS_PER_PAGE * page : ITEMS_PER_PAGE;
@@ -2803,7 +2878,17 @@ function useCatalogData(params: {
       hideNextPageLoader();
 
       cancelPageWarmup();
-      // Одразу паралельно з оновленням даних запускаємо fetchCatalogPagePrices та fetchCatalogPageImages
+      // Start the image batch before React flushes the new product list. Cards
+      // therefore render with batchImagePending already set and cannot race the
+      // 150 ms direct fallback while the shared 1C request is starting.
+      fetchCatalogPageImages(itemsForIncrementalWarmup, {
+        prefetchedImages: payload.images,
+        cacheKey,
+        ttlMs: ttl,
+        querySignatureSnapshot: currentQuerySignature,
+        signal: controller.signal,
+        skipFirstPhoto: page === 1,
+      });
       applyResolvedPagePrices(itemsForIncrementalWarmup, payload.prices);
       void fetchCatalogPagePrices(itemsForIncrementalWarmup, {
         prefetchedPrices: payload.prices,
@@ -2813,14 +2898,6 @@ function useCatalogData(params: {
         signal: controller.signal,
         allowFullLookup: shouldAllowCatalogDirectPriceLookup,
       }).catch(swallowAbortError);
-      fetchCatalogPageImages(itemsForIncrementalWarmup, {
-        prefetchedImages: payload.images,
-        cacheKey,
-        ttlMs: ttl,
-        querySignatureSnapshot: currentQuerySignature,
-        signal: controller.signal,
-      });
-
       pagingRequestedRef.current = false;
       return true;
     };
@@ -2987,6 +3064,73 @@ function useCatalogData(params: {
     revalidateCachedPagePayload,
     shouldAllowCatalogDirectPriceLookup,
     sortOrder,
+  ]);
+
+  // The legacy 1C source used for car-filtered browsing (getdata) never
+  // returns a total_count the way allgoods does, so catalogTotalCount stays
+  // null even when there are far more matches than the loaded page — the
+  // catalog counter would then silently fall back to the merely-loaded-so-far
+  // count. Backfill an authoritative total via the dedicated counting
+  // endpoint (which paginates/dedupes server-side) whenever a car filter is
+  // active and the primary fetch couldn't establish a real total on its own.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (selectedCars.length === 0) return;
+    if (catalogTotalCount !== null) return;
+    if (!hasLoadedOnce) return;
+    if (loading || filterLoading) return;
+
+    const signatureAtStart = querySignature;
+    const controller = new AbortController();
+
+    const params = new URLSearchParams();
+    for (const car of selectedCars) params.append("car", car);
+    for (const category of effectiveSelectedCategories) params.append("category", category);
+    if (normalizedSearch) {
+      params.set("search", normalizedSearch);
+      params.set("filter", searchFilter);
+    }
+    if (groupFromURL) params.set("group", groupFromURL);
+    if (subcategoryFromURL) params.set("subcategory", subcategoryFromURL);
+    if (producerFromURL) params.set("producer", producerFromURL);
+    if (expandHierarchyFromURL) params.set("scope", "hierarchy");
+    if (pricedOnly) params.set("pricedOnly", "1");
+    if (typeof priceFrom === "number") params.set("priceFrom", String(priceFrom));
+    if (typeof priceTo === "number") params.set("priceTo", String(priceTo));
+    if (inStock) params.set("inStock", "1");
+
+    fetch(`/api/catalog-search-count?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { totalCount?: number } | null) => {
+        if (controller.signal.aborted) return;
+        if (activeQuerySignatureRef.current !== signatureAtStart) return;
+        if (typeof payload?.totalCount !== "number" || !Number.isFinite(payload.totalCount)) return;
+        setCatalogTotalCount(Math.max(0, payload.totalCount));
+      })
+      .catch(() => {});
+
+    return () => controller.abort();
+  }, [
+    selectedCars,
+    effectiveSelectedCategories,
+    querySignature,
+    catalogTotalCount,
+    hasLoadedOnce,
+    loading,
+    filterLoading,
+    normalizedSearch,
+    searchFilter,
+    groupFromURL,
+    subcategoryFromURL,
+    producerFromURL,
+    expandHierarchyFromURL,
+    pricedOnly,
+    priceFrom,
+    priceTo,
+    inStock,
   ]);
 
   useEffect(() => {
@@ -3321,8 +3465,12 @@ function useCatalogData(params: {
         code,
         name: item.name || "Товар",
         article: item.article || "",
+        producer: item.producer || undefined,
         quantity: qtyToAdd,
         price: priceUAH,
+        category: item.category || undefined,
+        group: item.group || undefined,
+        subGroup: item.subGroup || undefined,
       });
     },
     [cartMap, quantities, prices, euroRate, addToCart]
@@ -3569,6 +3717,8 @@ function useCatalogData(params: {
     updateCatalogItemPrice,
     updateCatalogItemFields,
     catalogTotalCount,
+    catalogQuerySignature: querySignature,
+    catalogReadyQuerySignature,
   };
 }
 
@@ -3678,6 +3828,8 @@ const Data: React.FC<DataProps> = ({
     updateCatalogItemPrice,
     updateCatalogItemFields,
     catalogTotalCount,
+    catalogQuerySignature,
+    catalogReadyQuerySignature,
   } = useCatalogData({
     selectedCars,
     selectedCategories,
@@ -4119,19 +4271,172 @@ const Data: React.FC<DataProps> = ({
       priceUAH: getResolvedProductPriceUAH(item, prices, euroRate),
     }));
   }, [visibleSortedData, sortedData, sortedEntries, prices, euroRate]);
-  // Excludes the first DIRECT_IMAGE_LOAD_ITEMS_COUNT items — those cards
-  // already fire their own direct </product-image/[code]> request
-  // (shouldDirectLoadImage in the render loop below), so including them here
-  // too meant every first-paint product in that range hit 1C twice at once:
-  // once via this batch prefetch, once via the card's own direct <Image>.
-  // Relies on shouldUseVirtualWindow being false (array index === absoluteIndex);
-  // revisit this filter if virtualization is ever turned back on.
+  const analyticsList = useMemo(() => {
+    const safeSearch = sanitizeAnalyticsSearchTerm(rawSearchQuery);
+
+    if (safeSearch) {
+      return {
+        id: "catalog_search",
+        name: `Пошук: ${safeSearch}`,
+      };
+    }
+    if (producerFromURL) {
+      return {
+        id: "catalog_manufacturer",
+        name: `Виробник: ${producerFromURL}`,
+      };
+    }
+    if (subcategoryFromURL || groupFromURL || selectedCategories.length > 0) {
+      const label =
+        subcategoryFromURL ||
+        groupFromURL ||
+        selectedCategories.join(", ");
+      return {
+        id: "catalog_category",
+        name: label ? `Категорія: ${label}` : "Категорія",
+      };
+    }
+    if (selectedCars.length > 0) {
+      return {
+        id: "catalog_vehicle",
+        name: "Підбір за авто",
+      };
+    }
+    return { id: "catalog_all", name: "Каталог товарів" };
+  }, [
+    groupFromURL,
+    producerFromURL,
+    rawSearchQuery,
+    selectedCars.length,
+    selectedCategories,
+    subcategoryFromURL,
+  ]);
+  const catalogAnalyticsRef = useRef<{
+    signature: string;
+    viewedKeys: Set<string>;
+  }>({ signature: "", viewedKeys: new Set() });
+  const searchResultsAnalyticsSignatureRef = useRef("");
+
+  useEffect(() => {
+    if (catalogReadyQuerySignature !== catalogQuerySignature) return;
+    if (loading || filterLoading || visibleSortedEntries.length === 0) return;
+
+    if (catalogAnalyticsRef.current.signature !== catalogQuerySignature) {
+      catalogAnalyticsRef.current = {
+        signature: catalogQuerySignature,
+        viewedKeys: new Set(),
+      };
+    }
+
+    const newEntries = visibleSortedEntries
+      .map((entry, displayIndex) => ({ entry, displayIndex }))
+      .filter(({ entry }) => {
+        const key = getProductStableListKey(entry.item);
+        return key && !catalogAnalyticsRef.current.viewedKeys.has(key);
+      });
+    if (newEntries.length === 0) return;
+
+    for (const { entry } of newEntries) {
+      catalogAnalyticsRef.current.viewedKeys.add(
+        getProductStableListKey(entry.item)
+      );
+    }
+
+    pushEcommerceEvent("view_item_list", {
+      currency: "UAH",
+      item_list_id: analyticsList.id,
+      item_list_name: analyticsList.name,
+      items: newEntries.map(({ entry, displayIndex }) => ({
+        item_id: entry.item.code || entry.item.article,
+        item_name: entry.item.name || "Товар",
+        ...(entry.item.producer
+          ? { item_brand: entry.item.producer }
+          : {}),
+        ...(entry.item.category
+          ? { item_category: entry.item.category }
+          : {}),
+        ...(entry.item.group
+          ? { item_category2: entry.item.group }
+          : {}),
+        ...(entry.item.subGroup
+          ? { item_category3: entry.item.subGroup }
+          : {}),
+        ...(entry.item.article
+          ? { item_variant: entry.item.article }
+          : {}),
+        item_list_id: analyticsList.id,
+        item_list_name: analyticsList.name,
+        index: displayIndex,
+        ...(entry.priceUAH != null ? { price: entry.priceUAH } : {}),
+        quantity: 1,
+      })),
+    });
+  }, [
+    analyticsList.id,
+    analyticsList.name,
+    catalogQuerySignature,
+    catalogReadyQuerySignature,
+    filterLoading,
+    loading,
+    visibleSortedEntries,
+  ]);
+
+  useEffect(() => {
+    const searchTerm = sanitizeAnalyticsSearchTerm(rawSearchQuery);
+    if (!searchTerm) return;
+    if (catalogReadyQuerySignature !== catalogQuerySignature) return;
+    if (loading || filterLoading) return;
+    if (
+      searchResultsAnalyticsSignatureRef.current === catalogQuerySignature
+    ) {
+      return;
+    }
+
+    searchResultsAnalyticsSignatureRef.current = catalogQuerySignature;
+    pushAnalyticsEvent("view_search_results", {
+      search_term: searchTerm,
+      search_filter: searchFilter,
+      results_count:
+        typeof catalogTotalCount === "number" &&
+        Number.isFinite(catalogTotalCount)
+          ? catalogTotalCount
+          : visibleSortedData.length,
+    });
+  }, [
+    catalogQuerySignature,
+    catalogReadyQuerySignature,
+    catalogTotalCount,
+    filterLoading,
+    loading,
+    rawSearchQuery,
+    searchFilter,
+    visibleSortedData.length,
+  ]);
+  // Start one stable LCP candidate directly. It is selected from the unsorted
+  // filtered list so later price updates cannot switch a card between direct
+  // and batch loading while a request is in flight.
+  const directCatalogImageKey = useMemo(() => {
+    if (catalogReadyQuerySignature !== catalogQuerySignature) return "";
+    const firstPhoto = filteredData.find((item) => item.hasPhoto === true);
+    return firstPhoto
+      ? buildProductImageBatchKey(firstPhoto.code, firstPhoto.article)
+      : "";
+  }, [catalogQuerySignature, catalogReadyQuerySignature, filteredData]);
   const visibleCatalogImageCandidates = useMemo(
     () =>
-      visibleSortedData.filter(
-        (item, index) => item.hasPhoto === true && index >= DIRECT_IMAGE_LOAD_ITEMS_COUNT
-      ),
-    [visibleSortedData]
+      catalogReadyQuerySignature === catalogQuerySignature
+        ? visibleSortedData.filter((item) => {
+            if (item.hasPhoto !== true) return false;
+            const key = buildProductImageBatchKey(item.code, item.article);
+            return Boolean(key && key !== directCatalogImageKey);
+          })
+        : [],
+    [
+      catalogQuerySignature,
+      catalogReadyQuerySignature,
+      directCatalogImageKey,
+      visibleSortedData,
+    ]
   );
   const visibleCatalogPriceCandidates = useMemo(
     () =>
@@ -4250,16 +4555,14 @@ const Data: React.FC<DataProps> = ({
   useEffect(() => {
     if (visibleCatalogImageCandidates.length === 0) return;
 
-    const nextChunk = visibleCatalogImageCandidates
-      .filter((item) => {
-        const key = buildProductImageBatchKey(item.code, item.article);
-        if (!key) return false;
-        if (pageImages[key]) return false;
-        if (pageImagePending[key]) return false;
-        if (pageImageMissing[key]) return false;
-        return true;
-      })
-      .slice(0, VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE);
+    const nextChunk = visibleCatalogImageCandidates.filter((item) => {
+      const key = buildProductImageBatchKey(item.code, item.article);
+      if (!key) return false;
+      if (pageImages[key]) return false;
+      if (pageImagePending[key]) return false;
+      if (pageImageMissing[key]) return false;
+      return true;
+    });
 
     if (nextChunk.length === 0) return;
 
@@ -4439,6 +4742,10 @@ const Data: React.FC<DataProps> = ({
         : "Не знайшов товар у каталозі. Потрібна допомога з підбором.";
 
     if (typeof window !== "undefined") {
+      pushAnalyticsEvent("generate_lead", {
+        lead_source: "catalog_empty_state",
+        lead_type: "parts_selection",
+      });
       window.dispatchEvent(
         new CustomEvent("openChatWithMessage", { detail: message })
       );
@@ -4476,6 +4783,11 @@ const Data: React.FC<DataProps> = ({
       if (carLabel) lines.push(`Авто: ${carLabel}`);
 
       if (typeof window !== "undefined") {
+        pushAnalyticsEvent("generate_lead", {
+          lead_source: "catalog_card",
+          lead_type: "price_request",
+          product_id: item.code,
+        });
         window.dispatchEvent(
           new CustomEvent("openChatWithMessage", { detail: lines.join("\n") })
         );
@@ -4569,9 +4881,13 @@ const Data: React.FC<DataProps> = ({
                     : isKnownNoPrice
                       ? "request"
                       : "loading";
-                const shouldPrioritizeImage = absoluteIndex < IMAGE_PRIORITY_ITEMS_COUNT;
-                const shouldDirectLoadImage = absoluteIndex < DIRECT_IMAGE_LOAD_ITEMS_COUNT;
+                const shouldPrioritizeImage =
+                  absoluteIndex < IMAGE_HIGH_PRIORITY_ITEMS_COUNT;
+                const shouldEagerLoadImage = absoluteIndex < IMAGE_EAGER_ITEMS_COUNT;
                 const imageBatchKey = buildProductImageBatchKey(item.code, item.article);
+                const shouldDirectLoadImage = Boolean(
+                  imageBatchKey && imageBatchKey === directCatalogImageKey
+                );
                 const prefetchedImageSrc =
                   (imageBatchKey ? pageImages[imageBatchKey] : null) ?? null;
                 const normalizedGroup =
@@ -4608,7 +4924,10 @@ const Data: React.FC<DataProps> = ({
                       isAdmin={isAdmin}
                       onAdminEdit={isAdmin ? (data) => handleAdminEdit(code, item.article || "", data) : undefined}
                       priceStatus={priceStatus}
-                      imageLoadingMode={shouldPrioritizeImage ? "eager" : "lazy"}
+                      analyticsListId={analyticsList.id}
+                      analyticsListName={analyticsList.name}
+                      analyticsIndex={absoluteIndex}
+                      imageLoadingMode={shouldEagerLoadImage ? "eager" : "lazy"}
                       imageFetchPriority={shouldPrioritizeImage ? "high" : "auto"}
                       prefetchedImageSrc={prefetchedImageSrc}
                       batchImagePending={Boolean(imageBatchKey && pageImagePending[imageBatchKey])}

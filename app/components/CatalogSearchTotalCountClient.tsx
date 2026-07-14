@@ -153,13 +153,17 @@ export default function CatalogSearchTotalCountClient({
       // Price filter applied locally — server total is irrelevant, use local count
       return filterTotal ?? openCount;
     }
-    // Prefer authoritative API total; fall back to locally loaded count
-    return totalCount ?? openCount;
+    // Prefer the dedicated search-count endpoint's total once it resolves — it's
+    // the most authoritative for text search. While it's still loading (it can
+    // take a few seconds) or unavailable (no active search), fall back to the
+    // live filter total already pushed by the main catalog fetch instead of the
+    // merely-loaded-so-far count, so the counter never drops to an undercount.
+    return totalCount ?? filterTotal ?? openCount;
   }, [openCount, totalCount, filterTotal, priceFilterActive]);
 
   return (
     <span className={className}>
-      {isLoading && totalCount == null
+      {isLoading && totalCount == null && filterTotal == null
         ? "рахую..."
         : formatCount(resolvedCount, isExact)}
     </span>

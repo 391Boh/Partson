@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { signInWithCustomToken } from "firebase/auth";
+import { pushAnalyticsEvent } from "app/lib/gtm";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
 import { auth, db } from "../../firebase";
@@ -154,10 +155,12 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
 
           const credential = await signInWithCustomToken(auth, data.firebaseToken);
           let shouldAskForProfileContacts = true;
+          let isNewUser = false;
           try {
             const telegramUser = data.user || payload.user || payload;
             const userRef = doc(db, "users", credential.user.uid);
             const userSnapshot = await getDoc(userRef);
+            isNewUser = !userSnapshot.exists();
             const existingProfile = userSnapshot.exists() ? userSnapshot.data() : {};
             const timestamp = new Date().toISOString();
             const displayName = [telegramUser.first_name, telegramUser.last_name]
@@ -204,6 +207,9 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
           }
 
           setStatus("idle");
+          pushAnalyticsEvent(isNewUser ? "sign_up" : "login", {
+            method: "telegram",
+          });
           if (data.link) {
             window.location.href = data.link;
             return;

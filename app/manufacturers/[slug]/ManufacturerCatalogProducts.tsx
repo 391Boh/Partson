@@ -8,6 +8,7 @@ import { useCart } from "app/context/CartContext";
 import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
 import { buildProductImageBatchKey, buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
+import { pushAnalyticsEvent, pushEcommerceEvent } from "app/lib/gtm";
 
 type ManufacturerCatalogProduct = {
   code: string;
@@ -29,6 +30,7 @@ type ManufacturerCatalogProductsProps = {
 };
 
 const DEFAULT_EURO_RATE = 50;
+const DIRECT_IMAGE_LOAD_ITEMS_COUNT = 2;
 
 const toPriceUAH = (priceEuro: number | null | undefined, euroRate: number) => {
   if (
@@ -69,14 +71,50 @@ export default function ManufacturerCatalogProducts({
   const [batchPending, setBatchPending] = useState<Record<string, boolean>>({});
   const [batchMissing, setBatchMissing] = useState<Record<string, boolean>>({});
   const batchFiredRef = useRef(false);
+  const analyticsListSignatureRef = useRef("");
+
+  useEffect(() => {
+    if (products.length === 0) return;
+    const signature = products
+      .map((item) => `${item.code}::${item.article}`)
+      .join("|");
+    if (!signature || analyticsListSignatureRef.current === signature) return;
+    analyticsListSignatureRef.current = signature;
+
+    const manufacturerName = products.find((item) => item.producer)?.producer;
+    const listName = manufacturerName
+      ? `Товари виробника ${manufacturerName}`
+      : "Товари виробника";
+    pushEcommerceEvent("view_item_list", {
+      currency: "UAH",
+      item_list_id: "manufacturer_products",
+      item_list_name: listName,
+      items: products.map((item, index) => ({
+        item_id: item.code || item.article,
+        item_name: item.name || "Товар",
+        ...(item.producer ? { item_brand: item.producer } : {}),
+        ...(item.category ? { item_category: item.category } : {}),
+        ...(item.group ? { item_category2: item.group } : {}),
+        ...(item.subGroup ? { item_category3: item.subGroup } : {}),
+        ...(item.article ? { item_variant: item.article } : {}),
+        item_list_id: "manufacturer_products",
+        item_list_name: listName,
+        index,
+        ...(toPriceUAH(item.priceEuro, euroRate) != null
+          ? { price: toPriceUAH(item.priceEuro, euroRate) as number }
+          : {}),
+        quantity: 1,
+      })),
+    });
+  }, [euroRate, products]);
 
   // Fire one batch request on mount for all products that lack a server image
   useEffect(() => {
     if (batchFiredRef.current) return;
     batchFiredRef.current = true;
 
-    const needsBatch = products.filter((item) => {
-      if (item.hasPhoto === false) return false;
+    const needsBatch = products.slice(DIRECT_IMAGE_LOAD_ITEMS_COUNT).filter((item) => {
+      if (item.hasPhoto !== true) return false;
       const key = buildProductImageBatchKey(item.code, item.article);
       return key && !serverImages[key];
     });
@@ -188,15 +226,23 @@ export default function ManufacturerCatalogProducts({
         code: item.code,
         article: item.article || "",
         name: item.name || "Товар",
+        producer: item.producer || undefined,
         price: priceUAH,
         quantity: qtyToAdd,
-        category: item.subGroup || item.group || item.category,
+        category: item.category || undefined,
+        group: item.group || undefined,
+        subGroup: item.subGroup || undefined,
       });
     },
     [addToCart, cartMap, euroRate, quantities]
   );
 
   const handleRequestPrice = useCallback((item: ManufacturerCatalogProduct) => {
+    pushAnalyticsEvent("generate_lead", {
+      lead_source: "manufacturer_page",
+      lead_type: "price_request",
+      product_id: item.code,
+    });
     const lines = ["Потрібна ціна на товар (за запитом)."];
     if (item.name?.trim()) lines.push(`Товар: ${item.name.trim()}`);
     if (item.article?.trim()) lines.push(`Артикул: ${item.article.trim()}`);
@@ -252,14 +298,24 @@ export default function ManufacturerCatalogProducts({
                 cartQty={cartMap[item.code] ?? 0}
                 priceUAH={priceUAH}
                 priceStatus={priceUAH != null ? "ready" : "request"}
+                analyticsListId="manufacturer_products"
+                analyticsListName={
+                  item.producer
+                    ? `Товари виробника ${item.producer}`
+                    : "Товари виробника"
+                }
+                analyticsIndex={index}
                 imageLoadingMode={index < 2 ? "eager" : "lazy"}
-                imageFetchPriority={index < 2 ? "high" : "auto"}
+                imageFetchPriority={index === 0 ? "high" : "auto"}
                 prefetchedImageSrc={imageKey ? (batchImages[imageKey] ?? null) : null}
                 batchImagePending={Boolean(imageKey && batchPending[imageKey])}
                 batchImageMissing={
                   item.hasPhoto === false ||
                   Boolean(imageKey && batchMissing[imageKey])
                 }
+                batchImageOnly={Boolean(
+                  imageKey && index >= DIRECT_IMAGE_LOAD_ITEMS_COUNT
+                )}
                 isFlipped={flippedCard === item.code}
                 motionEnabled={false}
                 prefetchProductRoute={index < 3}

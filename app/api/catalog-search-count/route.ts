@@ -60,6 +60,12 @@ const buildCountCacheKey = (params: URLSearchParams) =>
     subcategory: normalizeString(params.get("subcategory")),
     producer: normalizeString(params.get("producer")),
     hierarchy: normalizeString(params.get("scope")) === "hierarchy",
+    cars: params.getAll("car").map(normalizeString).filter(Boolean).sort(),
+    categories: params.getAll("category").map(normalizeString).filter(Boolean).sort(),
+    pricedOnly: params.get("pricedOnly") === "1",
+    priceFrom: normalizeString(params.get("priceFrom")),
+    priceTo: normalizeString(params.get("priceTo")),
+    inStock: params.get("inStock") === "1",
   });
 
 const getFreshCache = (key: string) => {
@@ -82,10 +88,30 @@ const fetchSearchCount = async (
   const subcategory = normalizeString(params.get("subcategory")) || null;
   const producer = normalizeString(params.get("producer")) || null;
   const expandHierarchy = normalizeString(params.get("scope")) === "hierarchy";
+  const selectedCars = params.getAll("car").map(normalizeString).filter(Boolean);
+  const selectedCategories = params.getAll("category").map(normalizeString).filter(Boolean);
+  const pricedOnly = params.get("pricedOnly") === "1";
+  const priceFromRaw = Number(params.get("priceFrom"));
+  const priceFrom = Number.isFinite(priceFromRaw) && priceFromRaw > 0 ? priceFromRaw : null;
+  const priceToRaw = Number(params.get("priceTo"));
+  const priceTo = Number.isFinite(priceToRaw) && priceToRaw > 0 ? priceToRaw : null;
+  const inStock = params.get("inStock") === "1";
   const seenProducts = new Set<string>();
   const seenCursors = new Set<string>();
 
-  if (!searchQuery) {
+  const hasAnyFilter =
+    Boolean(searchQuery) ||
+    selectedCars.length > 0 ||
+    selectedCategories.length > 0 ||
+    Boolean(group) ||
+    Boolean(subcategory) ||
+    Boolean(producer) ||
+    pricedOnly ||
+    priceFrom !== null ||
+    priceTo !== null ||
+    inStock;
+
+  if (!hasAnyFilter) {
     return { totalCount: 0, exact: true };
   }
 
@@ -105,8 +131,8 @@ const fetchSearchCount = async (
       limit: COUNT_PAGE_LIMIT,
       cursor,
       cursorField,
-      selectedCars: [],
-      selectedCategories: [],
+      selectedCars,
+      selectedCategories,
       searchQuery,
       searchFilter,
       group,
@@ -121,9 +147,15 @@ const fetchSearchCount = async (
       includePriceEnrichment: false,
       preferLegacySource: false,
       forceAllgoodsSource: true,
+      pricedItemsOnly: pricedOnly,
+      priceFrom,
+      priceTo,
+      onlyInStock: inStock,
     });
 
-    // 1C повертає total_count одразу — немає сенсу пагінувати далі
+    // 1C повертає total_count одразу на allgoods-джерелі — немає сенсу пагінувати далі.
+    // Car-filtered queries never go through allgoods (see canUseAllgoods in
+    // catalog-server.ts), so this branch simply won't trigger for them.
     if (
       page === 1 &&
       !cursor &&
@@ -148,21 +180,30 @@ const fetchSearchCount = async (
       break;
     }
 
-    const nextCursor = normalizeString(pageResult.nextCursor);
-    const nextCursorField = normalizeString(pageResult.cursorField || cursorField);
-    if (!nextCursor || seenCursors.has(`${nextCursorField}:${nextCursor}`)) {
-      exact = false;
-      break;
-    }
-
     if (duplicatePageStreak >= 2) {
       exact = false;
       break;
     }
 
-    seenCursors.add(`${nextCursorField}:${nextCursor}`);
-    cursor = nextCursor;
-    cursorField = nextCursorField;
+    // The legacy car-filtered 1C source (getdata) paginates by page number/
+    // offset instead of a cursor, so an empty nextCursor here is expected —
+    // just advance to the next page; the for-loop's `page` increment drives
+    // the next offset internally. Only cursor-based sources (allgoods) need
+    // the cursor threaded through explicitly.
+    const nextCursor = normalizeString(pageResult.nextCursor);
+    if (nextCursor) {
+      const nextCursorField = normalizeString(pageResult.cursorField || cursorField);
+      if (seenCursors.has(`${nextCursorField}:${nextCursor}`)) {
+        exact = false;
+        break;
+      }
+      seenCursors.add(`${nextCursorField}:${nextCursor}`);
+      cursor = nextCursor;
+      cursorField = nextCursorField;
+    } else {
+      cursor = "";
+      cursorField = "";
+    }
 
     if (page === COUNT_MAX_PAGES) {
       exact = false;

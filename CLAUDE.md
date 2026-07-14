@@ -5,10 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev          # Next.js dev with Turbopack (port 3000)
-npm run dev:all      # Next.js + Express auth server concurrently
-npm run build        # Production build
-npm run build:full   # Generate Google Merchant feed, then build
+npm run dev          # Next.js dev + standalone Tailwind CSS watcher concurrently (port 3000)
+npm run dev:all      # Next.js + Express auth server + CSS watcher concurrently
+npm run build        # Build standalone CSS, then production build
+npm run build:full   # Build standalone CSS, generate Google Merchant feed, then build
+npm run build:css    # Rebuild the standalone stylesheet only (public/styles/site.<hash>.css)
 npm run lint         # ESLint
 npm run dev:clean    # Delete .next cache, then dev
 ```
@@ -54,6 +55,10 @@ Product images are served via a dynamic route and batch-loaded. Key files: `app/
 ### SEO
 
 Extensive: JSON-LD structured data in `app/layout.tsx`, dynamic sitemaps (`/groups-sitemap.xml`, `/manufacturers-sitemap.xml`, etc.), OG image generation, and `app/lib/seo-copy.ts` with copywriting templates. Sitemap chunk sizes and static params limits are controlled by environment variables.
+
+### Global Stylesheet
+
+`app/globals.css` (Tailwind v4 entry point) is deliberately **not** `import`-ed anywhere. Next.js App Router (React 19) turns a plain CSS import into an auto-injected, render-blocking stylesheet `<link>`, and there is no supported App Router equivalent of the Pages Router's `experimental.optimizeCss`/critters critical-CSS inlining. Instead `scripts/build-static-css.mjs` compiles it standalone via `@tailwindcss/cli` into `public/styles/` (content-hashed `site.<hash>.css` in production via `npm run build:css`, a fixed `dev.css` in dev via the watcher started by `npm run dev`). `app/layout.tsx` reads the hashed path from `public/styles/manifest.json` (production) or stats `dev.css`'s mtime for cache-busting (dev), then loads it via `<link rel="preload">` + a small inline script that creates the actual `<link rel="stylesheet">` — so first paint isn't gated on the full bundle. `public/styles/` is gitignored — always generated at build time, never committed.
 
 ## Environment Variables
 

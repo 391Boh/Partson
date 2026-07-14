@@ -10,6 +10,10 @@ import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { pushEcommerceEvent } from "app/lib/gtm";
 import { prepareProductImage, PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
+import {
+    clearProductImageMissing,
+    clearProductImageSuccess,
+} from "app/lib/product-image-client";
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
@@ -80,6 +84,9 @@ interface Props {
     costPriceEuro?: number | null;
     isAdmin?: boolean;
     priceStatus: "loading" | "ready" | "request";
+    analyticsListId?: string;
+    analyticsListName?: string;
+    analyticsIndex?: number;
     imageLoadingMode?: "lazy" | "eager";
     imageFetchPriority?: "high" | "low" | "auto";
     prefetchedImageSrc?: string | null;
@@ -109,6 +116,9 @@ const ProductCard: React.FC<Props> = ({
     costPriceEuro,
     isAdmin = false,
     priceStatus,
+    analyticsListId,
+    analyticsListName,
+    analyticsIndex,
     imageLoadingMode,
     imageFetchPriority,
     prefetchedImageSrc,
@@ -366,6 +376,11 @@ const handleFrontImageChange = async (e: React.ChangeEvent<HTMLInputElement>) =>
             imageName: prepared.fileName,
         }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
         if (result?.ok) {
+            // The card displays the prepared image immediately, while clearing
+            // both browser-side outcomes ensures a later remount revalidates
+            // the freshly uploaded image instead of restoring an old hit/miss.
+            clearProductImageSuccess(item.code, item.article || undefined);
+            clearProductImageMissing(item.code, item.article || undefined);
             setLocalImageSrc(prepared.dataUrl);
         } else {
             setFrontImageError(result?.error ?? 'Помилка завантаження');
@@ -837,13 +852,20 @@ useEffect(() => {
                                             event.stopPropagation();
                                             pushEcommerceEvent("select_item", {
                                                 currency: "UAH",
+                                                ...(analyticsListId ? { item_list_id: analyticsListId } : {}),
+                                                ...(analyticsListName ? { item_list_name: analyticsListName } : {}),
                                                 items: [
                                                     {
                                                         item_id: item.code,
                                                         item_name: item.name,
-                                                        ...(item.subGroup || item.group || item.category
-                                                            ? { item_category: item.subGroup || item.group || item.category }
-                                                            : {}),
+                                                        ...(item.producer ? { item_brand: item.producer } : {}),
+                                                        ...(item.category ? { item_category: item.category } : {}),
+                                                        ...(item.group ? { item_category2: item.group } : {}),
+                                                        ...(item.subGroup ? { item_category3: item.subGroup } : {}),
+                                                        ...(item.article ? { item_variant: item.article } : {}),
+                                                        ...(analyticsListId ? { item_list_id: analyticsListId } : {}),
+                                                        ...(analyticsListName ? { item_list_name: analyticsListName } : {}),
+                                                        ...(typeof analyticsIndex === "number" ? { index: analyticsIndex } : {}),
                                                         ...(priceUAH != null ? { price: priceUAH } : {}),
                                                     },
                                                 ],
@@ -1213,9 +1235,14 @@ useEffect(() => {
                                                  {
                                                      item_id: item.code,
                                                      item_name: item.name,
-                                                     ...(item.subGroup || item.group || item.category
-                                                         ? { item_category: item.subGroup || item.group || item.category }
-                                                         : {}),
+                                                     ...(item.producer ? { item_brand: item.producer } : {}),
+                                                     ...(item.category ? { item_category: item.category } : {}),
+                                                     ...(item.group ? { item_category2: item.group } : {}),
+                                                     ...(item.subGroup ? { item_category3: item.subGroup } : {}),
+                                                     ...(item.article ? { item_variant: item.article } : {}),
+                                                     ...(analyticsListId ? { item_list_id: analyticsListId } : {}),
+                                                     ...(analyticsListName ? { item_list_name: analyticsListName } : {}),
+                                                     ...(typeof analyticsIndex === "number" ? { index: analyticsIndex } : {}),
                                                      price: priceUAH,
                                                      quantity: qty || 1,
                                                  },

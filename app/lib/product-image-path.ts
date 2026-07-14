@@ -1,4 +1,5 @@
 const normalizeSegment = (value?: string) => (value || "").trim();
+const PRODUCT_IMAGE_ROUTE_VERSION = "2";
 
 export const buildProductImageBatchKey = (
   productCode: string,
@@ -31,6 +32,10 @@ export const buildProductImagePath = (
 
   const normalizedArticle = normalizeSegment(articleHint);
   const params = new URLSearchParams();
+  // Version the public URL independently from the one-shot `v` cache bust.
+  // This retires legacy responses that browsers/CDNs may still hold under the
+  // previous long-lived cache policy while keeping normal route caching active.
+  params.set("iv", PRODUCT_IMAGE_ROUTE_VERSION);
 
   if (options?.catalog === true) {
     params.set("catalog", "1");

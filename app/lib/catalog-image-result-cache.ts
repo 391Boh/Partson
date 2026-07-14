@@ -4,6 +4,7 @@ export type CatalogImageBatchResult = {
   article?: string;
   status: "ready" | "missing";
   src?: string;
+  transient?: boolean;
 };
 
 const catalogImageResultCache = new Map<
@@ -63,7 +64,7 @@ export const writeCatalogImageResultCache = (
   deep: boolean,
   ttlMs: { ready: number; missing: number }
 ) => {
-  if (!result.key) return;
+  if (!result.key || result.transient === true) return;
 
   const isReady = result.status === "ready" && Boolean(result.src);
   const cacheKey = isReady

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, MessageCircle, Minus, Plus, ShoppingCart } from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
-import { pushEcommerceEvent } from "app/lib/gtm";
+import { pushAnalyticsEvent, pushEcommerceEvent } from "app/lib/gtm";
 
 type ProductPageActionsProps = {
   code: string;
@@ -12,6 +12,8 @@ type ProductPageActionsProps = {
   name: string;
   producer: string;
   category?: string;
+  group?: string;
+  subGroup?: string;
   priceUah: number | null;
   quantity: number;
   compact?: boolean;
@@ -23,6 +25,8 @@ const ProductPageActions = ({
   name,
   producer,
   category,
+  group,
+  subGroup,
   priceUah,
   quantity,
   compact = false,
@@ -70,9 +74,12 @@ const ProductPageActions = ({
       code,
       article,
       name,
+      producer,
       price: priceUah,
       quantity: quantityToAdd,
       category,
+      group,
+      subGroup,
     });
 
     pushEcommerceEvent("add_to_cart", {
@@ -82,7 +89,11 @@ const ProductPageActions = ({
         {
           item_id: code,
           item_name: name,
+          ...(producer ? { item_brand: producer } : {}),
           ...(category ? { item_category: category } : {}),
+          ...(group ? { item_category2: group } : {}),
+          ...(subGroup ? { item_category3: subGroup } : {}),
+          ...(article ? { item_variant: article } : {}),
           price: priceUah,
           quantity: quantityToAdd,
         },
@@ -94,6 +105,12 @@ const ProductPageActions = ({
   };
 
   const handleRequestManager = () => {
+    pushAnalyticsEvent("generate_lead", {
+      lead_source: "product_page",
+      lead_type: "price_request",
+      product_id: code,
+    });
+
     const lines: string[] = ["Потрібна ціна на товар (за запитом)."];
     if (name.trim()) lines.push(`Товар: ${name.trim()}`);
     if (article.trim()) lines.push(`Артикул: ${article.trim()}`);

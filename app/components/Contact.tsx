@@ -21,6 +21,7 @@ import Zvyaz from "app/components/zvyaz";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase";
+import { pushAnalyticsEvent } from "app/lib/gtm";
 
 const STORE_MAPS_URL =
   "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu&g_ep=EgoyMDI2MDUxNy4wIKXMDSoASAFQAw%3D%3D";
@@ -167,8 +168,17 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
     });
   }, []);
 
-  const handleContactAction = (phone: string, action: ContactAction) => {
+  const handleContactAction = (
+    phone: string,
+    action: ContactAction,
+    role: string
+  ) => {
     const cleanPhone = phone.replace(/\D/g, "");
+    pushAnalyticsEvent("contact_click", {
+      contact_method: action,
+      placement: "contacts_modal",
+      contact_role: role,
+    });
 
     if (action === "viber") {
       window.location.href = `viber://chat?number=%2B${cleanPhone}`;
@@ -340,7 +350,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                               <button
                                 key={action}
                                 type="button"
-                                onClick={() => handleContactAction(c.phone, action)}
+                                onClick={() => handleContactAction(c.phone, action, c.role)}
                                 className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-[12px] border px-2 py-1.5 text-[11px] font-bold shadow-[0_8px_18px_rgba(2,6,23,0.12)] transition-[border-color,background-color,box-shadow] ${
                                   c.actions.length === 1 ? "col-span-2" : ""
                                 } ${
@@ -404,6 +414,13 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                           href={STORE_MAPS_URL}
                           target="_blank"
                           rel="noreferrer"
+                          onClick={() =>
+                            pushAnalyticsEvent("contact_click", {
+                              contact_method: "map",
+                              placement: "contacts_modal",
+                              contact_role: "store",
+                            })
+                          }
                           className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-[13px] border border-sky-200 bg-white/85 px-2.5 py-1.5 text-[13px] font-semibold leading-relaxed text-sky-700 shadow-[0_8px_16px_rgba(14,165,233,0.10)] transition hover:border-sky-300 hover:bg-white sm:mt-2.5 sm:text-sm"
                         >
                           <MapPin size={14} className="shrink-0 text-sky-500" />

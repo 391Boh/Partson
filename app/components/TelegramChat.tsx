@@ -30,6 +30,7 @@ import {
 import { db } from '../../firebase';
 import { useCart } from 'app/context/CartContext';
 import ProductCardImage from 'app/components/ProductCardImage';
+import { pushAnalyticsEvent } from 'app/lib/gtm';
 
 interface Message {
   id: string;
@@ -307,6 +308,7 @@ export default function TelegramChat({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prefillSendingRef = useRef(false);
   const lastPrefillRef = useRef<string | null>(null);
+  const chatLeadTrackedRef = useRef(false);
   const managerPresenceHideTimeoutRef = useRef<number | null>(null);
 
   /**
@@ -528,6 +530,25 @@ export default function TelegramChat({
           type: 'text',
           clientMessageId,
         });
+
+        if (!chatLeadTrackedRef.current) {
+          const storageKey = `partson:analytics:chat-lead:${userId}`;
+          let alreadyTracked = false;
+          try {
+            alreadyTracked = window.sessionStorage.getItem(storageKey) === '1';
+          } catch {}
+
+          if (!alreadyTracked) {
+            pushAnalyticsEvent('generate_lead', {
+              lead_source: 'site_chat',
+              lead_type: 'chat_message',
+            });
+            try {
+              window.sessionStorage.setItem(storageKey, '1');
+            } catch {}
+          }
+          chatLeadTrackedRef.current = true;
+        }
       } catch (error) {
         setOptimisticMessages((prev) =>
           prev.map((message) =>

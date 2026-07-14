@@ -19,7 +19,6 @@ import PaymentMethod from "./PaymentMethod";
 import OrderConfirmation from "./OrderConfirmation";
 import { notifyTelegramAdmin } from "app/lib/telegram-notify-client";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
-import { FIRST_ORDER_DISCOUNT_CODE } from "app/lib/first-order-discount";
 
 type DeliveryMethodType = ComponentProps<typeof DeliveryMethod>["deliveryMethod"];
 type PaymentMethodType = ComponentProps<typeof PaymentMethod>["paymentMethod"];
@@ -52,10 +51,13 @@ interface CityOrWarehouse {
 interface CartItem {
   name: string;
   article: string;
+  producer?: string;
   price: number;
   quantity: number;
   code: string;
   category?: string;
+  group?: string;
+  subGroup?: string;
 }
 
 interface ZamovlProps {
@@ -106,6 +108,30 @@ const Zamovl: React.FC<ZamovlProps> = ({
   const [confirmedPaymentMethod, setConfirmedPaymentMethod] =
     useState<PaymentMethodType>("");
   const [confirmedPaymentStatus, setConfirmedPaymentStatus] = useState("");
+  const itemDiscountRate =
+    totalAmount > 0 && discountAmount > 0
+      ? Math.min(1, discountAmount / totalAmount)
+      : 0;
+  const ecommerceItems = cartItems.map((item) => ({
+    item_id: item.code,
+    item_name: item.name,
+    ...(item.producer ? { item_brand: item.producer } : {}),
+    ...(item.category ? { item_category: item.category } : {}),
+    ...(item.group ? { item_category2: item.group } : {}),
+    ...(item.subGroup ? { item_category3: item.subGroup } : {}),
+    ...(item.article ? { item_variant: item.article } : {}),
+    price: Number(item.price),
+    quantity: Number(item.quantity),
+    ...(itemDiscountRate > 0
+      ? {
+          discount:
+            Math.round(Number(item.price) * itemDiscountRate * 100) / 100,
+        }
+      : {}),
+    ...(discountCode ? { coupon: discountCode } : {}),
+  }));
+  const ecommerceCoupon =
+    discountAmount > 0 && discountCode ? { coupon: discountCode } : {};
 
   useEffect(() => {
     const auth = getAuth();
@@ -160,14 +186,23 @@ const Zamovl: React.FC<ZamovlProps> = ({
     const normalizedCartItems = cartItems.map((item) => ({
       name: item.name,
       article: item.article || "",
+      producer: item.producer || "",
       price: item.price,
       quantity: item.quantity,
       code: item.code,
+      category: item.category || "",
+      group: item.group || "",
+      subGroup: item.subGroup || "",
     }));
 
     const orderRef = doc(db, "orders", orderId);
-    const orderSnapshot = orderCreatedRef.current ? null : await getDoc(orderRef);
+    const orderSnapshot =
+      options.completeCheckout || !orderCreatedRef.current
+        ? await getDoc(orderRef)
+        : null;
     const alreadyExists = orderCreatedRef.current || Boolean(orderSnapshot?.exists());
+    const purchaseAlreadyTracked =
+      orderSnapshot?.exists() && orderSnapshot.data().ga4PurchaseTracked === true;
 
     await setDoc(
       orderRef,
@@ -206,8 +241,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
           typeof paymentData?.liqpayPaymentId === "string" ? paymentData.liqpayPaymentId : null,
         paidAt: isCardPaid ? Timestamp.now() : null,
         updatedAt: Timestamp.now(),
-        ga4PurchaseTracked: false,
-        ...(alreadyExists ? {} : { createdAt: Timestamp.now() }),
+        ...(alreadyExists ? {} : { createdAt: Timestamp.now(), ga4PurchaseTracked: false }),
       },
       { merge: true }
     );
@@ -248,7 +282,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
       const alreadyFired = (() => {
         try { return Boolean(sessionStorage.getItem(purchaseKey)); } catch { return false; }
       })();
-      if (!alreadyFired) {
+      if (!alreadyFired && !purchaseAlreadyTracked) {
         try { sessionStorage.setItem(purchaseKey, "1"); } catch {}
 
         // Confirmation source by payment method:
@@ -259,19 +293,9 @@ const Zamovl: React.FC<ZamovlProps> = ({
           currency: "UAH",
           transaction_id: orderId,
           value: payableAmount,
-          ...(isFirstOrderDiscountApplied
-            ? {
-                coupon: discountCode || FIRST_ORDER_DISCOUNT_CODE,
-                discount: discountAmount,
-              }
-            : {}),
-          items: cartItems.map((item) => ({
-            item_id: item.code,
-            item_name: item.name,
-            ...(item.category ? { item_category: item.category } : {}),
-            price: Number(item.price),
-            quantity: Number(item.quantity),
-          })),
+          affiliation: "PartsON",
+          ...ecommerceCoupon,
+          items: ecommerceItems,
         });
 
         // Persist the tracking flag so the purchase cannot re-fire even if
@@ -313,19 +337,8 @@ const Zamovl: React.FC<ZamovlProps> = ({
       currency: "UAH",
       value: payableAmount,
       payment_type: paymentMethod || undefined,
-      ...(isFirstOrderDiscountApplied
-        ? {
-            coupon: discountCode || FIRST_ORDER_DISCOUNT_CODE,
-            discount: discountAmount,
-          }
-        : {}),
-      items: cartItems.map((item) => ({
-        item_id: item.code,
-        item_name: item.name,
-        ...(item.category ? { item_category: item.category } : {}),
-        price: item.price,
-        quantity: item.quantity,
-      })),
+      ...ecommerceCoupon,
+      items: ecommerceItems,
     });
 
     try {
@@ -372,20 +385,9 @@ const Zamovl: React.FC<ZamovlProps> = ({
               pushEcommerceEvent("add_shipping_info", {
                 currency: "UAH",
                 value: payableAmount,
-                ...(isFirstOrderDiscountApplied
-                  ? {
-                      coupon: discountCode || FIRST_ORDER_DISCOUNT_CODE,
-                      discount: discountAmount,
-                    }
-                  : {}),
+                ...ecommerceCoupon,
                 shipping_tier: deliveryMethod || undefined,
-                items: cartItems.map((item) => ({
-                  item_id: item.code,
-                  item_name: item.name,
-                  ...(item.category ? { item_category: item.category } : {}),
-                  price: item.price,
-                  quantity: item.quantity,
-                })),
+                items: ecommerceItems,
               });
               setCurrentStep(2);
             }}

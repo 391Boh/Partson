@@ -53,7 +53,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
   experimental: {
-    optimizeCss: true,
+    // Note: optimizeCss (critters-based critical CSS inlining) is intentionally
+    // NOT enabled — it's only wired into Next's legacy Pages Router rendering
+    // path, not the App Router this whole app uses, so it would be a no-op.
+    // The global stylesheet is instead built standalone and loaded via
+    // preload+async-apply — see scripts/build-static-css.mjs and app/layout.tsx.
     viewTransition: true,
     staleTimes: {
       dynamic: 1800,
@@ -112,6 +116,18 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/fonts/:path*",
+        headers: [
+          ...securityHeaders,
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        // Content-hashed by scripts/build-static-css.mjs — safe to cache
+        // forever since a new build always produces a new filename.
+        source: "/styles/site.:hash([0-9a-f]{10}).css",
         headers: [
           ...securityHeaders,
           {

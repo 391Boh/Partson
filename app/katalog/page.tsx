@@ -15,6 +15,7 @@ import CatalogSearchTotalCountClient from "app/components/CatalogSearchTotalCoun
 import VinOpenButton from "app/katalog/VinOpenButton";
 import CatalogShownCountClient from "app/components/CatalogShownCountClient";
 import KatalogPageShell from "app/katalog/KatalogPageShell";
+import { resolvePersistentCatalogImageMap } from "app/lib/catalog-persistent-images";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import {
   buildAutoBrandPath,
@@ -1104,7 +1105,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     producer: state.producer || null,
     expandHierarchy: state.expandHierarchy,
   });
-  const [initialPagePayload, rawSeoFacets, productTreeDataset] = await Promise.all([
+  const [rawInitialPagePayload, rawSeoFacets, productTreeDataset] = await Promise.all([
     resolveWithTimeout(
       () => getCatalogSeoSnapshotPayloadCached(snapshotCacheKey),
       null,
@@ -1119,6 +1120,14 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       CATALOG_PRODUCT_TREE_TIMEOUT_MS
     ).catch(() => null),
   ]);
+  const initialPagePayload = rawInitialPagePayload
+    ? {
+      ...rawInitialPagePayload,
+        images: await resolvePersistentCatalogImageMap(
+          rawInitialPagePayload.items
+        ),
+      }
+    : null;
   const seoFacets = await resolveCatalogSeoFacetsWithFallback(rawSeoFacets);
   const seoTotalCount = resolveCatalogSeoTotalCount(state, seoFacets);
   const collectionJsonLd = buildCatalogCollectionJsonLd(siteUrl, state);

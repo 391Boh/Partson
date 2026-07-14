@@ -13,6 +13,7 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  getAdditionalUserInfo,
   updatePassword,
 } from "firebase/auth";
 import type { User as FirebaseUser } from "firebase/auth";
@@ -30,6 +31,7 @@ import { Eye, EyeOff, LogIn, UserPlus, X } from "lucide-react";
 import LoginTelegram from "./LoginTelegram";
 import { GOOGLE_REDIRECT_PENDING_KEY } from "app/lib/auth-storage";
 import { publishFirebaseAuthUser } from "app/lib/firebase-auth-state";
+import { pushAnalyticsEvent } from "app/lib/gtm";
 
 type AuthMode = "login" | "register";
 
@@ -197,6 +199,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
           console.warn("Google redirect sign-in: profile sync failed:", profileError);
         }
         publishFirebaseAuthUser(credential.user);
+        pushAnalyticsEvent(
+          getAdditionalUserInfo(credential)?.isNewUser ? "sign_up" : "login",
+          { method: "google" }
+        );
         closeModal();
       })
       .catch((error: unknown) => {
@@ -289,6 +295,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
       }
 
       publishFirebaseAuthUser(user);
+      pushAnalyticsEvent(
+        getAdditionalUserInfo(credential)?.isNewUser ? "sign_up" : "login",
+        { method: "google" }
+      );
       closeModal();
     } catch (error: unknown) {
       const code = getFirebaseErrorCode(error);
@@ -406,6 +416,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
       );
 
       publishFirebaseAuthUser(credential.user);
+      pushAnalyticsEvent("login", { method: "password" });
       closeModal();
     } catch (error: unknown) {
       const code = getFirebaseErrorCode(error);
@@ -506,6 +517,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
           createdAt: new Date().toISOString(),
         });
         publishFirebaseAuthUser(user);
+        pushAnalyticsEvent("sign_up", { method: "password" });
         onRegisterSuccess();
         closeModal();
       }

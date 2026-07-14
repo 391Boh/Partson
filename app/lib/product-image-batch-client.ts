@@ -22,11 +22,13 @@ export type CatalogImageBatchResponseItem = {
   article?: string;
   status: "ready" | "missing";
   src?: string;
+  transient?: boolean;
 };
 
 const CATALOG_IMAGE_BATCH_ROUTE = "/api/catalog-image-batch";
 const MAX_BATCH_ITEMS = PRODUCT_IMAGE_BATCH_MAX_ITEMS;
 const BATCH_RESPONSE_CACHE_TTL_MS = 1000 * 60 * 20;
+const BATCH_REQUEST_TIMEOUT_MS = 12000;
 
 const batchResponseCache = new Map<
   string,
@@ -48,6 +50,10 @@ const createDeferredBatchItem = (): DeferredBatchItem => {
     resolve = res;
     reject = rej;
   });
+  // A freshly registered item might never gain a second subscriber. Attach a
+  // noop rejection handler now, while keeping the original promise rejected
+  // for real subscribers and Promise.allSettled below.
+  void promise.catch(() => undefined);
 
   return { promise, resolve, reject };
 };
@@ -64,6 +70,7 @@ const buildMissingBatchResult = (
   code: item.code,
   article: item.article,
   status: "missing",
+  transient: true,
 });
 
 const persistBatchResults = (
@@ -77,7 +84,11 @@ const persistBatchResults = (
       continue;
     }
 
-    if (item.status === "missing" && options?.persistMissing === true) {
+    if (
+      item.status === "missing" &&
+      item.transient !== true &&
+      options?.persistMissing === true
+    ) {
       writeProductImageMissing(item.code, item.article);
     }
   }
@@ -98,27 +109,41 @@ const requestCatalogImageBatch = async (
 ) => {
   if (options?.signal?.aborted) return [];
 
-  const response = await fetch(CATALOG_IMAGE_BATCH_ROUTE, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      items: missingItems,
-      deep: options?.deep === true,
-    }),
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    BATCH_REQUEST_TIMEOUT_MS
+  );
+  const abortFromCaller = () => controller.abort(options?.signal?.reason);
+  options?.signal?.addEventListener("abort", abortFromCaller, { once: true });
 
-  if (!response.ok) {
-    throw new Error(`Catalog image batch failed with status ${response.status}`);
+  try {
+    const response = await fetch(CATALOG_IMAGE_BATCH_ROUTE, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        items: missingItems,
+        deep: options?.deep === true,
+      }),
+      signal: controller.signal,
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Catalog image batch failed with status ${response.status}`);
+    }
+
+    const payload = (await response.json()) as {
+      items?: CatalogImageBatchResponseItem[];
+    };
+
+    return Array.isArray(payload.items) ? payload.items : [];
+  } finally {
+    window.clearTimeout(timeoutId);
+    options?.signal?.removeEventListener("abort", abortFromCaller);
   }
-
-  const payload = (await response.json()) as {
-    items?: CatalogImageBatchResponseItem[];
-  };
-
-  return Array.isArray(payload.items) ? payload.items : [];
 };
 
 const normalizeBatchItems = (items: CatalogImageBatchRequestItem[]) => {
@@ -247,8 +272,9 @@ export const fetchCatalogImageBatch = async (
               return normalizedResults;
             })
             .catch((error) => {
-              for (const deferred of deferredByItemKey.values()) {
-                deferred.reject(error);
+              for (const item of newItems) {
+                const key = buildProductImageBatchKey(item.code, item.article);
+                deferredByItemKey.get(key)?.reject(error);
               }
               throw error;
             })
@@ -292,10 +318,25 @@ export const fetchCatalogImageBatch = async (
     batchInFlight.delete(requestCacheKey);
   });
 
-  batchResponseCache.set(requestCacheKey, {
-    t: Date.now(),
-    value: fetchedResults,
-  });
+  const expectedResultKeys = new Set(
+    missingItems.map((item) => buildProductImageBatchKey(item.code, item.article))
+  );
+  const fetchedResultKeys = new Set(fetchedResults.map((item) => item.key));
+  const hasCompleteResponse =
+    expectedResultKeys.size === fetchedResultKeys.size &&
+    Array.from(expectedResultKeys).every((key) => fetchedResultKeys.has(key));
+  const hasTransientResult = fetchedResults.some(
+    (item) => item.transient === true
+  );
+
+  // Do not memoize a partial response: a transport failure for one overlapping
+  // request must remain retryable instead of looking like an authoritative miss.
+  if (hasCompleteResponse && !hasTransientResult) {
+    batchResponseCache.set(requestCacheKey, {
+      t: Date.now(),
+      value: fetchedResults,
+    });
+  }
 
   persistBatchResults(fetchedResults, { persistMissing: options?.deep === true });
 

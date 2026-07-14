@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
   clearCatalogImageResultCacheForProduct(code, article || undefined);
   // See product-update/route.ts for why this is needed separately from
   // clearCatalogImageResultCacheForProduct above.
-  clearRouteImageCacheForProduct(code, article || undefined);
+  await clearRouteImageCacheForProduct(code, article || undefined);
   if (article) clearProductImageCacheForProduct(article);
   try {
     revalidateTag("product-page-data", "max");

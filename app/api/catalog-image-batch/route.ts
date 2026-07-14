@@ -1,18 +1,9 @@
-import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-
 import { NextResponse } from "next/server";
 
+import { materializeCatalogImageBase64 } from "app/lib/catalog-image-materializer";
 import { findCatalogProductByCode } from "app/lib/catalog-server";
-import {
-  PRODUCT_IMAGE_BATCH_MAX_ITEMS,
-  PRODUCT_IMAGE_FALLBACK_PATH,
-} from "app/lib/product-image-constants";
-import {
-  fetchProductImageBase64,
-  fetchProductImageBase64Batch,
-} from "app/lib/product-image";
+import { PRODUCT_IMAGE_BATCH_MAX_ITEMS } from "app/lib/product-image-constants";
+import { fetchProductImageBase64BatchDetailed } from "app/lib/product-image";
 import {
   buildProductImageBatchKey,
   buildProductImagePath,
@@ -22,6 +13,12 @@ import {
   getCachedCatalogImageResult,
   writeCatalogImageResultCache,
 } from "app/lib/catalog-image-result-cache";
+import {
+  buildPersistentCatalogRouteImageKey,
+  getProductRouteImageCacheRevision,
+  hasPersistentRouteImage,
+  isRouteImageCacheInvalidating,
+} from "app/lib/product-image-route-cache";
 
 export const runtime = "nodejs";
 
@@ -31,31 +28,17 @@ const CATALOG_IMAGE_READY_CACHE_TTL_MS = 1000 * 60 * 60;
 const CATALOG_IMAGE_MISSING_CACHE_TTL_MS = 1000 * 60 * 30;
 
 const PRIMARY_LOOKUP_OPTIONS = {
-  timeoutMs: 750,
+  timeoutMs: 2800,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 60 * 2,
   missCacheTtlMs: 1000 * 60 * 5,
   allowUrlDownload: false,
   batchOnly: true,
-  maxKeys: MAX_BATCH_ITEMS * 2,
-};
-
-// Fallback per-key options used when the 1C batch endpoint is unavailable.
-// skipMissCache: true avoids poisoning the "code::700::0" imageMissCache key for 5 min —
-// the same key that /product-image/[code]?catalog=1 uses (timeoutMs 700, allowUrlDownload false),
-// which would silently block direct image loads for 5 min when this fallback fails.
-const INDIVIDUAL_LOOKUP_OPTIONS = {
-  timeoutMs: 700,
-  retries: 0,
-  retryDelayMs: 0,
-  cacheTtlMs: 1000 * 60 * 60 * 2,
-  missCacheTtlMs: 1000 * 60 * 5,
-  allowUrlDownload: false,
-  skipMissCache: true,
+  maxKeys: MAX_BATCH_ITEMS,
 };
 const DEEP_RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 800,
+  timeoutMs: 2500,
   retries: 0,
   retryDelayMs: 100,
   cacheTtlMs: 1000 * 60 * 20,
@@ -79,65 +62,6 @@ type CatalogImageBatchItem = {
   code: string;
   article?: string;
   hasPhoto?: boolean;
-};
-
-let fallbackImageHashPromise: Promise<string | null> | null = null;
-
-const getFallbackImageHash = async () => {
-  if (fallbackImageHashPromise) return fallbackImageHashPromise;
-
-  fallbackImageHashPromise = readFile(
-    path.join(process.cwd(), "public", PRODUCT_IMAGE_FALLBACK_PATH.replace(/^\//, ""))
-  )
-    .then((buffer) => buildBufferHash(buffer))
-    .catch(() => null);
-
-  return fallbackImageHashPromise;
-};
-
-const buildBufferHash = (buffer: Buffer) =>
-  createHash("sha1").update(buffer).digest("hex");
-
-const detectImageContentType = (buffer: Buffer) => {
-  if (
-    buffer.length >= 8 &&
-    buffer[0] === 0x89 &&
-    buffer[1] === 0x50 &&
-    buffer[2] === 0x4e &&
-    buffer[3] === 0x47
-  ) {
-    return "image/png";
-  }
-
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
-    return "image/jpeg";
-  }
-
-  if (
-    buffer.length >= 12 &&
-    buffer[0] === 0x52 &&
-    buffer[1] === 0x49 &&
-    buffer[2] === 0x46 &&
-    buffer[3] === 0x46 &&
-    buffer[8] === 0x57 &&
-    buffer[9] === 0x45 &&
-    buffer[10] === 0x42 &&
-    buffer[11] === 0x50
-  ) {
-    return "image/webp";
-  }
-
-  if (
-    buffer.length >= 4 &&
-    buffer[0] === 0x47 &&
-    buffer[1] === 0x49 &&
-    buffer[2] === 0x46 &&
-    buffer[3] === 0x38
-  ) {
-    return "image/gif";
-  }
-
-  return "";
 };
 
 const readKnownBoolean = (value: unknown) => {
@@ -189,40 +113,14 @@ const normalizeBatchItems = (payload: unknown) => {
   return items;
 };
 
-const resolveCatalogImageSrc = async (
-  item: CatalogImageBatchItem,
-  imageBase64: string
-) => {
-  if (!imageBase64) return null;
-
-  try {
-    const imageBuffer = Buffer.from(imageBase64, "base64");
-    if (!imageBuffer.length) return null;
-
-    const fallbackHash = await getFallbackImageHash();
-    const imageHash = buildBufferHash(imageBuffer);
-    if (fallbackHash && imageHash === fallbackHash) {
-      return null;
-    }
-
-    const originalContentType = detectImageContentType(imageBuffer);
-    if (!originalContentType.startsWith("image/")) return null;
-
-    return buildProductImagePath(item.code, item.article, { catalog: true });
-  } catch {
-    return null;
-  }
-};
-
 const buildLookupKeys = (item: CatalogImageBatchItem) =>
   Array.from(
     new Set([(item.code || "").trim(), (item.article || "").trim()].filter(Boolean))
   );
 
 const buildPrimaryLookupKeys = (item: CatalogImageBatchItem) => {
-  const article = (item.article || "").trim();
   const code = (item.code || "").trim();
-  return Array.from(new Set([code, article].filter(Boolean)));
+  return code ? [code] : [];
 };
 
 const pickResolvedBase64 = (
@@ -284,9 +182,15 @@ export async function POST(request: Request) {
       typeof payload === "object" &&
       (payload as { deep?: unknown }).deep === true
   );
+  const routeCacheRevisionsAtStart = new Map(
+    items.map((item) => [
+      buildProductImageBatchKey(item.code, item.article),
+      getProductRouteImageCacheRevision(item.code, item.article),
+    ])
+  );
 
   const results = new Array<CatalogImageBatchResult | null>(items.length).fill(null);
-  const workEntries: Array<{
+  let workEntries: Array<{
     item: CatalogImageBatchItem;
     index: number;
     key: string;
@@ -302,6 +206,45 @@ export async function POST(request: Request) {
     }
 
     workEntries.push({ item, index, key });
+  }
+
+  if (workEntries.length > 0) {
+    const persistentHits = await Promise.all(
+      workEntries.map(async (entry) => ({
+        entry,
+        hasImage: await hasPersistentRouteImage(
+          buildPersistentCatalogRouteImageKey(
+            entry.item.code,
+            entry.item.article
+          )
+        ),
+      }))
+    );
+    const unresolvedEntries: typeof workEntries = [];
+
+    for (const { entry, hasImage } of persistentHits) {
+      if (!hasImage) {
+        unresolvedEntries.push(entry);
+        continue;
+      }
+
+      const result: CatalogImageBatchResult = {
+        key: entry.key,
+        code: entry.item.code,
+        article: entry.item.article,
+        status: "ready",
+        src: buildProductImagePath(entry.item.code, entry.item.article, {
+          catalog: true,
+        }),
+      };
+      writeCatalogImageResultCache(result, deep, {
+        ready: CATALOG_IMAGE_READY_CACHE_TTL_MS,
+        missing: CATALOG_IMAGE_MISSING_CACHE_TTL_MS,
+      });
+      results[entry.index] = result;
+    }
+
+    workEntries = unresolvedEntries;
   }
 
   if (workEntries.length === 0) {
@@ -325,10 +268,15 @@ export async function POST(request: Request) {
     }
   }
 
-  const primaryResolvedMap = await fetchProductImageBase64Batch(
+  const primaryOutcome = await fetchProductImageBase64BatchDetailed(
     Array.from(allLookupKeys),
     PRIMARY_LOOKUP_OPTIONS
-  ).catch(() => ({} as Record<string, string>));
+  ).catch(() => ({
+    resolved: {} as Record<string, string>,
+    handledKeys: new Set<string>(),
+    endpointAvailable: false,
+  }));
+  const primaryResolvedMap = primaryOutcome.resolved;
 
   const unresolvedEntries = workEntries.filter(({ key }) => {
     const lookupKeys = primaryLookupKeysByItemKey.get(key) ?? [];
@@ -348,19 +296,26 @@ export async function POST(request: Request) {
     const product = recoveryProducts.get(key);
     if (!product) continue;
 
-    for (const lookupKey of [(product.article || "").trim(), (product.code || "").trim()]) {
-      if (!lookupKey) continue;
-      recoveryLookupKeys.add(lookupKey);
-    }
+    const lookupKey = (product.code || "").trim();
+    if (lookupKey) recoveryLookupKeys.add(lookupKey);
   }
 
-  const recoveryResolvedMap =
+  const recoveryOutcome =
     recoveryLookupKeys.size > 0
-      ? await fetchProductImageBase64Batch(
+      ? await fetchProductImageBase64BatchDetailed(
           Array.from(recoveryLookupKeys),
           DEEP_RECOVERY_LOOKUP_OPTIONS
-        ).catch(() => ({} as Record<string, string>))
-      : ({} as Record<string, string>);
+        ).catch(() => ({
+          resolved: {} as Record<string, string>,
+          handledKeys: new Set<string>(),
+          endpointAvailable: false,
+        }))
+      : {
+          resolved: {} as Record<string, string>,
+          handledKeys: new Set<string>(),
+          endpointAvailable: true,
+        };
+  const recoveryResolvedMap = recoveryOutcome.resolved;
 
   let cursor = 0;
   const workerCount = Math.min(BATCH_CONCURRENCY, workEntries.length);
@@ -374,57 +329,66 @@ export async function POST(request: Request) {
 
       let imageBase64 = pickResolvedBase64(directLookupKeys, primaryResolvedMap);
 
-      // When the 1C batch endpoint is unavailable, fall back to individual lookups
-      // using the same BATCH_CONCURRENCY worker pool so all items run in parallel.
-      if (!imageBase64 && !deep) {
-        for (const lookupKey of directLookupKeys) {
-          const individual = await fetchProductImageBase64(lookupKey, INDIVIDUAL_LOOKUP_OPTIONS).catch(() => null);
-          if (individual) {
-            imageBase64 = individual;
-            break;
-          }
+      if (!imageBase64) {
+        const product = recoveryProducts.get(key);
+        if (product) {
+          const lookupKey = (product.code || "").trim();
+          imageBase64 = lookupKey
+            ? pickResolvedBase64([lookupKey], recoveryResolvedMap)
+            : null;
         }
       }
 
       if (!imageBase64) {
         const product = recoveryProducts.get(key);
-        if (product) {
-          imageBase64 = pickResolvedBase64(
-            Array.from(
-              new Set([(product.article || "").trim(), (product.code || "").trim()].filter(Boolean))
-            ),
-            recoveryResolvedMap
+        const recoveryLookupKey = (product?.code || "").trim().toLowerCase();
+        const lookupWasHandled =
+          directLookupKeys.some((lookupKey) =>
+            primaryOutcome.handledKeys.has(lookupKey.toLowerCase())
+          ) ||
+          Boolean(
+            recoveryLookupKey &&
+              recoveryOutcome.handledKeys.has(recoveryLookupKey)
           );
-        }
-      }
-
-      if (!imageBase64) {
         const result: CatalogImageBatchResult = {
           key,
           code: item.code,
           article: item.article,
           status: "missing",
+          transient: !lookupWasHandled,
         };
-        writeCatalogImageResultCache(result, deep, {
-          ready: CATALOG_IMAGE_READY_CACHE_TTL_MS,
-          missing: CATALOG_IMAGE_MISSING_CACHE_TTL_MS,
-        });
+        if (!result.transient) {
+          writeCatalogImageResultCache(result, deep, {
+            ready: CATALOG_IMAGE_READY_CACHE_TTL_MS,
+            missing: CATALOG_IMAGE_MISSING_CACHE_TTL_MS,
+          });
+        }
         results[index] = result;
         continue;
       }
 
-      const src = await resolveCatalogImageSrc(item, imageBase64);
+      const cacheRevision = routeCacheRevisionsAtStart.get(key) ?? "";
+      const src = await materializeCatalogImageBase64(item, imageBase64, {
+        cacheRevision,
+      });
       if (!src) {
+        const invalidatedWhileLoading =
+          cacheRevision !==
+            getProductRouteImageCacheRevision(item.code, item.article) ||
+          isRouteImageCacheInvalidating(item.code, item.article);
         const result: CatalogImageBatchResult = {
           key,
           code: item.code,
           article: item.article,
           status: "missing",
+          transient: invalidatedWhileLoading,
         };
-        writeCatalogImageResultCache(result, deep, {
-          ready: CATALOG_IMAGE_READY_CACHE_TTL_MS,
-          missing: CATALOG_IMAGE_MISSING_CACHE_TTL_MS,
-        });
+        if (!result.transient) {
+          writeCatalogImageResultCache(result, deep, {
+            ready: CATALOG_IMAGE_READY_CACHE_TTL_MS,
+            missing: CATALOG_IMAGE_MISSING_CACHE_TTL_MS,
+          });
+        }
         results[index] = result;
         continue;
       }

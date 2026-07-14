@@ -6,14 +6,22 @@ import { NextResponse } from "next/server";
 import sharp from "sharp";
 
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
-import { fetchProductImageBase64 } from "app/lib/product-image";
+import {
+  fetchProductImageBase64,
+  fetchProductImageBase64BatchDetailed,
+} from "app/lib/product-image";
 import { findCatalogProductByCode } from "app/lib/catalog-server";
 import {
+  getProductRouteImageCacheRevision,
+  isRouteImageCacheInvalidating,
   pruneRouteImageHitCache,
   pruneRouteMissCache,
+  readPersistentRouteImage,
+  removePersistentRouteImage,
   routeImageHitCache,
   routeImageInFlight,
   routeMissCache,
+  writePersistentRouteImage,
 } from "app/lib/product-image-route-cache";
 
 export const runtime = "nodejs";
@@ -57,7 +65,7 @@ const FULL_IMAGE_LOOKUP_OPTIONS = {
   skipMissCache: true,
 };
 const CATALOG_IMAGE_LOOKUP_OPTIONS = {
-  timeoutMs: 700,
+  timeoutMs: 2800,
   retries: 0,
   retryDelayMs: 60,
   cacheTtlMs: 1000 * 60 * 60 * 2,
@@ -65,7 +73,7 @@ const CATALOG_IMAGE_LOOKUP_OPTIONS = {
   allowUrlDownload: false,
 };
 const CATALOG_IMAGE_RETRY_LOOKUP_OPTIONS = {
-  timeoutMs: 600,
+  timeoutMs: 2800,
   retries: 0,
   retryDelayMs: 70,
   cacheTtlMs: 1000 * 60 * 20,
@@ -74,36 +82,10 @@ const CATALOG_IMAGE_RETRY_LOOKUP_OPTIONS = {
   skipMissCache: true,
 };
 const CATALOG_IMAGE_FINAL_LOOKUP_OPTIONS = {
-  timeoutMs: 700,
+  timeoutMs: 3000,
   retries: 0,
   retryDelayMs: 80,
   cacheTtlMs: 1000 * 60 * 20,
-  missCacheTtlMs: 1000 * 18,
-  allowUrlDownload: true,
-  skipMissCache: true,
-};
-const CATALOG_IMAGE_RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 600,
-  retries: 0,
-  retryDelayMs: 80,
-  cacheTtlMs: 1000 * 60 * 60,
-  missCacheTtlMs: 1000 * 45,
-  allowUrlDownload: false,
-};
-const CATALOG_IMAGE_RETRY_RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 700,
-  retries: 0,
-  retryDelayMs: 90,
-  cacheTtlMs: 1000 * 60 * 10,
-  missCacheTtlMs: 1000 * 60,
-  allowUrlDownload: true,
-  skipMissCache: true,
-};
-const CATALOG_IMAGE_FINAL_RECOVERY_LOOKUP_OPTIONS = {
-  timeoutMs: 800,
-  retries: 0,
-  retryDelayMs: 100,
-  cacheTtlMs: 1000 * 60 * 12,
   missCacheTtlMs: 1000 * 18,
   allowUrlDownload: true,
   skipMissCache: true,
@@ -404,42 +386,40 @@ const getFirstResolvedImageBase64 = async (
   return null;
 };
 
-const getFirstResolvedImageBase64Parallel = async (
+const getFirstResolvedImageBase64Batch = async (
   lookupKeys: string[],
-  lookupOptions: Parameters<typeof fetchProductImageBase64>[1]
+  lookupOptions: Parameters<typeof fetchProductImageBase64BatchDetailed>[1]
 ) => {
   const normalizedKeys = Array.from(
     new Set(lookupKeys.map((value) => value.trim()).filter(Boolean))
   );
-  if (normalizedKeys.length === 0) return null;
+  if (normalizedKeys.length === 0) {
+    return { imageBase64: null, handled: false };
+  }
 
-  return await new Promise<string | null>((resolve) => {
-    let settledCount = 0;
-    let resolved = false;
+  const outcome = await fetchProductImageBase64BatchDetailed(normalizedKeys, {
+    ...lookupOptions,
+    batchOnly: true,
+    maxKeys: normalizedKeys.length,
+  }).catch(() => ({
+    resolved: {} as Record<string, string>,
+    handledKeys: new Set<string>(),
+    endpointAvailable: false,
+  }));
 
-    const finishEmpty = () => {
-      settledCount += 1;
-      if (!resolved && settledCount >= normalizedKeys.length) {
-        resolved = true;
-        resolve(null);
-      }
-    };
-
-    for (const key of normalizedKeys) {
-      fetchProductImageBase64(key, lookupOptions)
-        .then((value) => {
-          if (resolved) return;
-          if (typeof value === "string" && value) {
-            resolved = true;
-            resolve(value);
-            return;
-          }
-
-          finishEmpty();
-        })
-        .catch(finishEmpty);
+  for (const key of normalizedKeys) {
+    const value = outcome.resolved[key.toLowerCase()];
+    if (typeof value === "string" && value) {
+      return { imageBase64: value, handled: true };
     }
-  });
+  }
+
+  return {
+    imageBase64: null,
+    handled: normalizedKeys.every((key) =>
+      outcome.handledKeys.has(key.toLowerCase())
+    ),
+  };
 };
 
 const getFirstResolvedCatalogProduct = async (
@@ -475,18 +455,6 @@ const getCatalogLookupOptions = (retryAttempt: number) => {
   return CATALOG_IMAGE_LOOKUP_OPTIONS;
 };
 
-const getCatalogRecoveryLookupOptions = (retryAttempt: number) => {
-  if (retryAttempt > 1) {
-    return CATALOG_IMAGE_FINAL_RECOVERY_LOOKUP_OPTIONS;
-  }
-
-  if (retryAttempt > 0) {
-    return CATALOG_IMAGE_RETRY_RECOVERY_LOOKUP_OPTIONS;
-  }
-
-  return CATALOG_IMAGE_RECOVERY_LOOKUP_OPTIONS;
-};
-
 const withTimeoutFallback = async <T,>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -517,7 +485,7 @@ const respondWithImage = (
       "content-type": value.contentType,
       "cache-control": options.cacheBust
         ? "no-store"
-        : "public, max-age=604800, s-maxage=604800, stale-while-revalidate=2592000",
+        : "public, max-age=300, s-maxage=300, stale-while-revalidate=60",
       "vary": "Accept",
     },
   });
@@ -535,7 +503,6 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   const catalogMissCacheControl =
     "public, max-age=300, s-maxage=300, stale-while-revalidate=7200";
   const articleHint = safeDecode(requestUrl.searchParams.get("article") || "").trim();
-  const allowDeepCatalogRecovery = catalogMode && (retryAttempt > 0 || !articleHint);
   const acceptsAvif =
     !catalogMode && (request.headers.get("accept") || "").includes("image/avif");
   const lookupOptions = strictMode
@@ -566,7 +533,9 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   };
 
   addLookupKey(normalizedCode);
-  addLookupKey(articleHint);
+  if (!catalogMode) {
+    addLookupKey(articleHint);
+  }
 
   // Miss status is format-independent: if the image doesn't exist, it's gone regardless of format.
   const routeMissCacheKey = [
@@ -587,6 +556,20 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     articleHint.toLowerCase(),
     acceptsAvif ? "avif" : "webp",
   ].join("::");
+  const canUsePersistentCatalogCache =
+    !hasCacheBust &&
+    catalogMode &&
+    !strictMode &&
+    !noRedirectFallback &&
+    retryAttempt === 0;
+  const routeCacheRevisionAtStart = getProductRouteImageCacheRevision(
+    normalizedCode,
+    articleHint
+  );
+  const canWriteRouteCache = () =>
+    routeCacheRevisionAtStart ===
+      getProductRouteImageCacheRevision(normalizedCode, articleHint) &&
+    !isRouteImageCacheInvalidating(normalizedCode, articleHint);
   const routeMissTtlMs = catalogMode
     ? retryAttempt > 0
       ? CATALOG_ROUTE_RETRY_MISS_CACHE_TTL_MS
@@ -607,10 +590,6 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     return await withTimeoutFallback(promiseFactory(), remainingMs, fallback);
   };
 
-  if (!hasCacheBust && routeMissTtlMs > 0 && (routeMissCache.get(routeMissCacheKey) || 0) > Date.now()) {
-    return fallbackNotFound(catalogMissCacheControl);
-  }
-
   const cachedHit = routeImageHitCache.get(routeHitCacheKey);
   if (!hasCacheBust && cachedHit && cachedHit.expiresAt > Date.now()) {
     return respondWithImage(cachedHit.value, { cacheBust: false });
@@ -628,35 +607,69 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     }
   }
 
-  const resolveOptimizedImage = async () => {
-    let imageBase64 = await runLookupWithinBudget(
-      () =>
-        (catalogMode
-          ? getFirstResolvedImageBase64Parallel(lookupKeys, lookupOptions)
-          : getFirstResolvedImageBase64(lookupKeys, lookupOptions)
-        ).catch(() => null),
-      null
+  if (!hasCacheBust && routeMissTtlMs > 0 && (routeMissCache.get(routeMissCacheKey) || 0) > Date.now()) {
+    return fallbackNotFound(catalogMissCacheControl);
+  }
+
+  if (
+    canUsePersistentCatalogCache &&
+    !isRouteImageCacheInvalidating(normalizedCode, articleHint)
+  ) {
+    const revisionBeforeRead = getProductRouteImageCacheRevision(
+      normalizedCode,
+      articleHint
     );
+    const persistentHit = await readPersistentRouteImage(routeHitCacheKey);
+    if (
+      persistentHit &&
+      revisionBeforeRead ===
+        getProductRouteImageCacheRevision(normalizedCode, articleHint) &&
+      canWriteRouteCache()
+    ) {
+      routeMissCache.delete(routeMissCacheKey);
+      routeImageHitCache.set(routeHitCacheKey, {
+        expiresAt: Date.now() + ROUTE_IMAGE_HIT_CACHE_TTL_MS,
+        value: persistentHit,
+      });
+      return respondWithImage(persistentHit, { cacheBust: false });
+    }
+  }
+
+  const writeRouteMissCache = () => {
+    if (!hasCacheBust && routeMissTtlMs > 0 && canWriteRouteCache()) {
+      routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
+    }
+  };
+
+  const resolveOptimizedImage = async () => {
+    let imageBase64: string | null = null;
+    let catalogLookupHandled = false;
+
+    if (catalogMode) {
+      const outcome = await runLookupWithinBudget(
+        () =>
+          getFirstResolvedImageBase64Batch(lookupKeys, lookupOptions).catch(
+            () => ({ imageBase64: null, handled: false })
+          ),
+        { imageBase64: null, handled: false }
+      );
+      imageBase64 = outcome.imageBase64;
+      catalogLookupHandled = outcome.handled;
+    } else {
+      imageBase64 = await runLookupWithinBudget(
+        () =>
+          getFirstResolvedImageBase64(lookupKeys, lookupOptions).catch(
+            () => null
+          ),
+        null
+      );
+    }
 
     // Для strict-запиту не робимо глибоких fallback: віддаємо 404,
     // щоб клієнт швидко переключився на власну заглушку без логотипа.
     if (!imageBase64 && strictMode) {
-      if (routeMissTtlMs > 0) {
-        routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
-      }
+      if (!catalogMode || catalogLookupHandled) writeRouteMissCache();
       return null;
-    }
-
-    // Для каталожних запитів робимо один короткий recovery, щоб не втрачати реальні фото.
-    if (!imageBase64 && catalogMode && allowDeepCatalogRecovery) {
-      imageBase64 = await runLookupWithinBudget(
-        () =>
-          getFirstResolvedImageBase64Parallel(
-            lookupKeys,
-            getCatalogRecoveryLookupOptions(retryAttempt)
-          ).catch(() => null),
-        null
-      );
     }
 
     // Для повноформатної сторінки товару робимо надійний fallback по знайденому товару,
@@ -696,27 +709,21 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     }
 
     if (!imageBase64) {
-      if (routeMissTtlMs > 0) {
-        routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
-      }
+      if (!catalogMode || catalogLookupHandled) writeRouteMissCache();
       return null;
     }
 
     try {
       const imageBuffer = Buffer.from(imageBase64, "base64");
       if (!imageBuffer.length) {
-        if (routeMissTtlMs > 0) {
-          routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
-        }
+        writeRouteMissCache();
         return null;
       }
 
       const fallbackHash = await getFallbackImageHash();
       const imageHash = buildBufferHash(imageBuffer);
       if (fallbackHash && imageHash === fallbackHash) {
-        if (routeMissTtlMs > 0) {
-          routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
-        }
+        writeRouteMissCache();
         return null;
       }
 
@@ -730,7 +737,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
         acceptsAvif,
       });
 
-      if (!hasCacheBust) {
+      if (!hasCacheBust && canWriteRouteCache()) {
         routeImageHitCache.set(routeHitCacheKey, {
           expiresAt:
             Date.now() +
@@ -739,13 +746,20 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
               : ROUTE_IMAGE_HIT_CACHE_TTL_MS_FULL),
           value: optimizedImage,
         });
+        if (canUsePersistentCatalogCache) {
+          void writePersistentRouteImage(routeHitCacheKey, optimizedImage).then(
+            async () => {
+              if (!canWriteRouteCache()) {
+                await removePersistentRouteImage(routeHitCacheKey);
+              }
+            }
+          );
+        }
       }
 
       return optimizedImage;
     } catch {
-      if (routeMissTtlMs > 0) {
-        routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
-      }
+      writeRouteMissCache();
       return null;
     }
   };
@@ -756,7 +770,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   }
 
   const optimizedImage = await imagePromise.finally(() => {
-    if (!hasCacheBust) {
+    if (!hasCacheBust && routeImageInFlight.get(routeHitCacheKey) === imagePromise) {
       routeImageInFlight.delete(routeHitCacheKey);
     }
   });
@@ -766,7 +780,11 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   }
 
   if (strictMode || catalogMode || noRedirectFallback) {
-    return fallbackNotFound(catalogMissCacheControl);
+    const hasAuthoritativeMiss =
+      (routeMissCache.get(routeMissCacheKey) || 0) > Date.now();
+    return fallbackNotFound(
+      hasAuthoritativeMiss ? catalogMissCacheControl : "no-store"
+    );
   }
 
   return fallbackRedirect(request);

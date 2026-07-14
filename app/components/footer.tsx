@@ -21,6 +21,7 @@ import {
 } from "react-icons/fa";
 import { SiFacebook, SiInstagram, SiTelegram } from "react-icons/si";
 import React from "react";
+import AnalyticsConsentSettingsButton from "app/components/AnalyticsConsentSettingsButton";
 
 const infoLinks = [
   { href: "/inform/about",       icon: FaInfoCircle, label: "Про нас" },
@@ -321,7 +322,10 @@ export default function Footer() {
             <SmartLink href="/inform/privacy" className="font-semibold text-sky-600 hover:text-sky-900">
               Політикою конфіденційності
             </SmartLink>
-            .
+            .{" "}
+            <AnalyticsConsentSettingsButton
+              className="font-semibold text-sky-600 underline decoration-sky-200 underline-offset-2 hover:text-sky-900"
+            />
           </p>
         </div>
       </div>

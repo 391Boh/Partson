@@ -54,14 +54,20 @@ const IMAGE_URL_FIELDS = [
   "image_path",
 ];
 
+const CONFIGURED_IMAGE_BATCH_ENDPOINT = (
+  process.env.ONEC_IMAGE_BATCH_ENDPOINT || ""
+).trim();
+const PREFERRED_IMAGE_BATCH_ENDPOINT =
+  CONFIGURED_IMAGE_BATCH_ENDPOINT || "getimages";
+
 const IMAGE_BATCH_ENDPOINT_CANDIDATES = Array.from(
   new Set(
     [
-      (process.env.ONEC_IMAGE_BATCH_ENDPOINT || "").trim(),
+      PREFERRED_IMAGE_BATCH_ENDPOINT,
       (process.env.ONEC_GETIMAGES_BATCH_ENDPOINT || "").trim(),
-      "images",
-      "ПолучитьФотоПакетом",
       "getimages",
+      "ПолучитьФотоПакетом",
+      "images",
       "getimagesbatch",
       "getimages_batch",
       "getimagebatch",
@@ -107,6 +113,7 @@ const FILE_NAME_LIKE_REGEX =
   /^[A-Za-z0-9._~!$&'()*+,;=:@%/-]+\.(?:png|jpe?g|webp|gif|bmp|svg)(?:\?.*)?$/i;
 const imageMissCache = new Map<string, number>();
 const imageBase64Cache = new Map<string, { expiresAt: number; value: string }>();
+const IMAGE_BASE64_CACHE_MAX_ENTRIES = 96;
 const imageInFlightCache = new Map<string, Promise<string | null>>();
 const IMAGE_URL_DOWNLOAD_TIMEOUT_MS = 1200;
 const IMAGE_BATCH_ENDPOINT_RETRY_TTL_MS = 1000 * 60 * 5;
@@ -115,7 +122,8 @@ const IMAGE_BATCH_ENDPOINT_RETRY_TTL_MS = 1000 * 60 * 5;
 // failed) — the steady-state fast path below always hits a single known
 // endpoint sequentially, so this never adds extra load once resolved.
 const IMAGE_BATCH_ENDPOINT_PROBE_CONCURRENCY = 3;
-let resolvedImageBatchEndpoint: string | null | undefined;
+let resolvedImageBatchEndpoint: string | null | undefined =
+  PREFERRED_IMAGE_BATCH_ENDPOINT;
 let lastImageBatchEndpointProbeAt = 0;
 
 const safeDecode = (value: string) => {
@@ -127,6 +135,19 @@ const safeDecode = (value: string) => {
 };
 
 const safeTrim = (value: string) => value.replace(/[\u0000-\u001f]+/g, "").trim();
+
+const setImageBase64Cache = (
+  key: string,
+  entry: { expiresAt: number; value: string }
+) => {
+  imageBase64Cache.delete(key);
+  imageBase64Cache.set(key, entry);
+  while (imageBase64Cache.size > IMAGE_BASE64_CACHE_MAX_ENTRIES) {
+    const oldestKey = imageBase64Cache.keys().next().value;
+    if (!oldestKey) break;
+    imageBase64Cache.delete(oldestKey);
+  }
+};
 
 const pruneImageMissCache = () => {
   const now = Date.now();
@@ -392,6 +413,25 @@ const hasImageBatchEnvelope = (payload: unknown) => {
   );
 };
 
+const isSuccessfulImageBatchEnvelope = (payload: unknown) => {
+  if (!hasImageBatchEnvelope(payload)) return false;
+  if (Array.isArray(payload)) return true;
+
+  const record = asRecord(payload);
+  if (!record) return false;
+  const success = readFirstBooleanField(record, IMAGE_BATCH_SUCCESS_FIELDS);
+  if (success === false) return false;
+
+  const errorMessage = readFirstStringField(record, [
+    "error",
+    "Error",
+    "error_message",
+    "errorMessage",
+    "details",
+  ]);
+  return !errorMessage || success === true;
+};
+
 const getImageBatchResultRecords = (payload: unknown) => {
   if (Array.isArray(payload)) {
     return payload
@@ -507,10 +547,18 @@ const fetchProductImageBase64BatchFromEndpoint = async (
     article: lookupKey,
   }));
 
-  const bodiesForEndpoint = (endpoint: string): Array<Record<string, unknown>> =>
-    endpoint === "ПолучитьФотоПакетом"
+  const bodiesForEndpoint = (endpoint: string): Array<Record<string, unknown>> => {
+    // The production endpoint has one supported body shape. On a network
+    // failure, trying three equivalent bodies would turn one timeout into
+    // three sequential timeouts before the catalog can render a placeholder.
+    if (endpoint.toLowerCase() === "getimages") {
+      return [{ codes: lookupKeys }];
+    }
+
+    return endpoint === "ПолучитьФотоПакетом"
       ? [{ codes: lookupKeys }, { Коды: lookupKeys }]
-      : [{ items: requestItems }, { codes: lookupKeys }, { Коды: lookupKeys }];
+      : [{ codes: lookupKeys }, { Коды: lookupKeys }, { items: requestItems }];
+  };
 
   const tryEndpointBody = async (
     endpoint: string,
@@ -522,7 +570,10 @@ const fetchProductImageBase64BatchFromEndpoint = async (
       timeoutMs,
       retries,
       retryDelayMs,
-      cacheTtlMs,
+      // Cache only semantically validated per-image results below. Caching the
+      // raw 1C response here could retain an HTTP-200 application error (and a
+      // large duplicated Base64 payload) for hours.
+      cacheTtlMs: 0,
       cacheKey: JSON.stringify({ endpoint, timeoutMs, retries, retryDelayMs, body }),
     }).catch(() => null);
 
@@ -535,8 +586,25 @@ const fetchProductImageBase64BatchFromEndpoint = async (
       return null;
     }
 
+    if (!isSuccessfulImageBatchEnvelope(payload)) return null;
+
     const parsed = parseImageBatchResponse(payload, requestedKeys);
     if (!parsed) return null;
+
+    // This project's getimages endpoint accepts {codes:[...]} and an empty
+    // successful list authoritatively means that none of those codes has a
+    // photo. Treat it as handled so we do not probe dozens of endpoint/body
+    // combinations for every legitimate miss.
+    if (
+      parsed.handledKeys.size === 0 &&
+      endpoint === PREFERRED_IMAGE_BATCH_ENDPOINT &&
+      Array.isArray(body.codes) &&
+      hasImageBatchEnvelope(payload)
+    ) {
+      for (const requestedKey of requestedKeys) {
+        parsed.handledKeys.add(requestedKey);
+      }
+    }
 
     // Only lock in this endpoint when it actively handled at least one requested
     // code. An empty items array ({"items":[]}) passes hasImageBatchEnvelope but
@@ -552,7 +620,7 @@ const fetchProductImageBase64BatchFromEndpoint = async (
     lastImageBatchEndpointProbeAt = 0;
 
     for (const [lookupKey, imageBase64] of Object.entries(parsed.resolved)) {
-      imageBase64Cache.set(lookupKey.toLowerCase(), {
+      setImageBase64Cache(lookupKey.toLowerCase(), {
         value: imageBase64,
         expiresAt: Date.now() + cacheTtlMs,
       });
@@ -584,6 +652,11 @@ const fetchProductImageBase64BatchFromEndpoint = async (
         commit(result.endpoint, result.parsed);
         return result.parsed;
       }
+    }
+    if (knownEndpoint === PREFERRED_IMAGE_BATCH_ENDPOINT) {
+      resolvedImageBatchEndpoint = knownEndpoint;
+      lastImageBatchEndpointProbeAt = Date.now();
+      return null;
     }
     // The previously-working endpoint stopped responding usefully — fall through
     // to full discovery below instead of giving up immediately.
@@ -777,7 +850,7 @@ export const fetchProductImageBase64 = async (
         const resolved = await loadFromBody(endpoint, body).catch(() => null);
         if (typeof resolved === "string" && resolved) {
           resolvedImageBatchEndpoint = endpoint;
-          imageBase64Cache.set(positiveCacheKey, {
+          setImageBase64Cache(positiveCacheKey, {
             value: resolved,
             expiresAt: Date.now() + cacheTtlMs,
           });
@@ -798,13 +871,53 @@ export const fetchProductImageBase64 = async (
   return requestPromise;
 };
 
+type ProductImageBatchLookupOptions = ProductImageLookupOptions & {
+  batchConcurrency?: number;
+  maxKeys?: number;
+  batchOnly?: boolean;
+};
+
+export type ProductImageBatchLookupOutcome = {
+  resolved: Record<string, string>;
+  handledKeys: Set<string>;
+  endpointAvailable: boolean;
+};
+
+export const fetchProductImageBase64BatchDetailed = async (
+  lookupKeys: string[],
+  options?: ProductImageBatchLookupOptions
+): Promise<ProductImageBatchLookupOutcome> => {
+  const maxKeys =
+    Number.isFinite(options?.maxKeys) && (options?.maxKeys || 0) > 0
+      ? Math.floor(options?.maxKeys as number)
+      : PRODUCT_IMAGE_BATCH_MAX_ITEMS;
+  const normalizedKeys = Array.from(
+    new Set(lookupKeys.map((key) => safeDecode(key || "").trim()).filter(Boolean))
+  ).slice(0, maxKeys);
+
+  if (normalizedKeys.length === 0) {
+    return {
+      resolved: {},
+      handledKeys: new Set<string>(),
+      endpointAvailable: true,
+    };
+  }
+
+  const batchResponse = await fetchProductImageBase64BatchFromEndpoint(
+    normalizedKeys,
+    options
+  ).catch(() => null);
+
+  return {
+    resolved: batchResponse?.resolved ?? {},
+    handledKeys: batchResponse?.handledKeys ?? new Set<string>(),
+    endpointAvailable: Boolean(batchResponse),
+  };
+};
+
 export const fetchProductImageBase64Batch = async (
   lookupKeys: string[],
-  options?: ProductImageLookupOptions & {
-    batchConcurrency?: number;
-    maxKeys?: number;
-    batchOnly?: boolean;
-  }
+  options?: ProductImageBatchLookupOptions
 ) => {
   const maxKeys =
     Number.isFinite(options?.maxKeys) && (options?.maxKeys || 0) > 0
@@ -819,16 +932,14 @@ export const fetchProductImageBase64Batch = async (
   }
 
   const resolved = new Map<string, string>();
-  const batchResponse = await fetchProductImageBase64BatchFromEndpoint(
+  const batchOutcome = await fetchProductImageBase64BatchDetailed(
     normalizedKeys,
     options
-  ).catch(() => null);
+  );
 
-  if (batchResponse) {
-    for (const [lookupKey, imageBase64] of Object.entries(batchResponse.resolved)) {
-      if (!imageBase64) continue;
-      resolved.set(lookupKey.toLowerCase(), imageBase64);
-    }
+  for (const [lookupKey, imageBase64] of Object.entries(batchOutcome.resolved)) {
+    if (!imageBase64) continue;
+    resolved.set(lookupKey.toLowerCase(), imageBase64);
   }
 
   if (options?.batchOnly) {
@@ -836,7 +947,7 @@ export const fetchProductImageBase64Batch = async (
   }
 
   const remainingKeys = normalizedKeys.filter(
-    (lookupKey) => !batchResponse?.handledKeys.has(lookupKey.toLowerCase())
+    (lookupKey) => !batchOutcome.handledKeys.has(lookupKey.toLowerCase())
   );
 
   if (remainingKeys.length === 0) {

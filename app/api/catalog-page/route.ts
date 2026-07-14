@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { resolvePersistentCatalogImageMap } from "app/lib/catalog-persistent-images";
 import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
 import type { CatalogProduct } from "app/lib/catalog-server";
 
@@ -10,6 +11,7 @@ type CatalogPageApiPayload = {
   hasMore: boolean;
   nextCursor: string;
   cursorField?: string;
+  totalCount?: number | null;
   serviceUnavailable?: boolean;
   message?: string;
   stale?: boolean;
@@ -134,6 +136,19 @@ const buildStaleCatalogPayload = (payload: CatalogPageApiPayload): CatalogPageAp
   message: "",
 });
 
+const withPersistentCatalogImages = async (
+  payload: CatalogPageApiPayload
+): Promise<CatalogPageApiPayload> => {
+  const images = await resolvePersistentCatalogImageMap(payload.items);
+  return {
+    ...payload,
+    // `images` is derived from the current persistent cache. Replacing it
+    // prevents a URL stored in the route response cache from surviving image
+    // invalidation merely because it existed in an older payload.
+    images,
+  };
+};
+
 const CATALOG_ROUTE_TIMEOUT_RESULT = Symbol("catalog-route-timeout");
 
 const awaitCatalogPayloadWithinBudget = async (
@@ -217,7 +232,7 @@ export async function POST(request: Request) {
 
     const cacheHit = getFreshRouteCacheValue(routeCacheKey);
     if (cacheHit) {
-      return NextResponse.json(cacheHit, {
+      return NextResponse.json(await withPersistentCatalogImages(cacheHit), {
         headers: { "cache-control": "private, max-age=60, stale-while-revalidate=600" },
       });
     }
@@ -494,7 +509,10 @@ export async function POST(request: Request) {
 
     if (staleCacheHit) {
       void inFlight.catch(() => null);
-      return NextResponse.json(buildStaleCatalogPayload(staleCacheHit), {
+      const stalePayload = await withPersistentCatalogImages(
+        buildStaleCatalogPayload(staleCacheHit)
+      );
+      return NextResponse.json(stalePayload, {
         headers: { "cache-control": "private, max-age=30, stale-while-revalidate=300" },
       });
     }
@@ -510,7 +528,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(payload, {
+    return NextResponse.json(await withPersistentCatalogImages(payload), {
       headers: { "cache-control": "private, max-age=60, stale-while-revalidate=600" },
     });
   } catch (error) {
@@ -520,7 +538,9 @@ export async function POST(request: Request) {
     pruneRouteSuccessCache();
     const staleHit = getStaleRouteCacheValue(routeCacheKey);
     if (staleHit) {
-      return NextResponse.json(buildStaleCatalogPayload(staleHit));
+      return NextResponse.json(
+        await withPersistentCatalogImages(buildStaleCatalogPayload(staleHit))
+      );
     }
 
     const normalizedMessage = sanitizeCatalogErrorMessage(

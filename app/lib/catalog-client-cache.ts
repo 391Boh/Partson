@@ -1,4 +1,4 @@
-export const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v46-photo-flag-only";
+export const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v47-image-route-v2";
 export const CATALOG_PRODUCTS_CACHE_KEY = "partson:getprod";
 export const CATALOG_PRODUCTS_CACHE_TTL_MS = 1000 * 60 * 30;
 export const CATALOG_PRODUCTS_STALE_TTL_MS = 1000 * 60 * 60 * 24;

@@ -1,3 +1,5 @@
+import { readFileSync, statSync } from "node:fs";
+import path from "node:path";
 import type { Metadata } from "next";
 import { Suspense, type ReactNode } from "react";
 import Script from "next/script";
@@ -5,6 +7,7 @@ import ClientWrapper from "./client-wrapper";
 import LayoutHost from "./components/LayoutHost";
 import PageLoadingShell from "./components/PageLoadingShell";
 import { WebVitalsReporter } from "./components/WebVitalsReporter";
+import AnalyticsRuntime from "./components/AnalyticsRuntime";
 import DeferredFooter from "./components/DeferredFooter";
 import {
   STORE_PHONE_SEO_LABEL,
@@ -13,7 +16,40 @@ import {
 import { getSiteUrl } from "./lib/site-url";
 import { getGoogleRating } from "./lib/google-rating";
 import { safeJsonLd } from "./lib/safe-json-ld";
-import "./globals.css";
+
+// The global stylesheet is intentionally NOT `import`-ed here. A plain
+// `import "./globals.css"` gets turned by Next.js/React 19 into an
+// auto-injected, render-blocking `<link rel="stylesheet" data-precedence>`
+// tag — and App Router has no supported way to defer or critical-inline
+// that (experimental.optimizeCss only ever wired into the legacy Pages
+// Router). Instead scripts/build-static-css.mjs compiles it standalone into
+// a plain static file, loaded below via preload + async-apply so first
+// paint isn't gated on the whole ~550KB bundle.
+const resolveGlobalStylesheetHref = (): string => {
+  if (process.env.NODE_ENV === "production") {
+    try {
+      const manifestPath = path.join(process.cwd(), "public", "styles", "manifest.json");
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { href?: string };
+      if (manifest.href) return manifest.href;
+    } catch (error) {
+      console.error(
+        "[layout] public/styles/manifest.json missing or invalid — did `npm run build:css` run before `next build`?",
+        error
+      );
+    }
+    return "/styles/site.css";
+  }
+
+  // Dev: cache-bust on every request using the watcher's last rebuild time,
+  // so a Tailwind rebuild is never masked by a stale browser cache.
+  try {
+    const devCssPath = path.join(process.cwd(), "public", "styles", "dev.css");
+    const mtimeMs = statSync(devCssPath).mtimeMs;
+    return `/styles/dev.css?t=${Math.floor(mtimeMs)}`;
+  } catch {
+    return "/styles/dev.css";
+  }
+};
 
 const siteUrl = getSiteUrl();
 const siteUrlObject = (() => {
@@ -55,6 +91,51 @@ const googleTagManagerId = (() => {
 
   return /^GTM-[A-Z0-9]+$/.test(rawId) ? rawId : "";
 })();
+const googleAnalyticsId = (() => {
+  const rawId = (
+    process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID ||
+    process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ||
+    process.env.GOOGLE_ANALYTICS_ID ||
+    ""
+  )
+    .trim()
+    .toUpperCase();
+
+  return /^G-[A-Z0-9]+$/.test(rawId) ? rawId : "";
+})();
+const analyticsEnabledInCurrentEnvironment =
+  process.env.NODE_ENV === "production" ||
+  process.env.NEXT_PUBLIC_ANALYTICS_ENABLE_IN_DEVELOPMENT === "1";
+// GTM is the preferred single loader. The direct Google tag is a working
+// fallback for installations that only provide a GA4 Measurement ID.
+const analyticsMode = !analyticsEnabledInCurrentEnvironment
+  ? "disabled"
+  : googleTagManagerId
+    ? "gtm"
+    : googleAnalyticsId
+      ? "gtag"
+      : "disabled";
+const analyticsEnabled = analyticsMode !== "disabled";
+const analyticsConsentBootstrap = `
+  (function(w,d){
+    w.dataLayer=w.dataLayer||[];
+    w.gtag=w.gtag||function(){w.dataLayer.push(arguments);};
+    w.__PARTSON_ANALYTICS_MODE__=${JSON.stringify(analyticsMode)};
+    var match=d.cookie.match(/(?:^|;\\s*)partson_analytics_consent=([^;]*)/);
+    var choice=match?decodeURIComponent(match[1]):'';
+    var analyticsGranted=choice==='granted';
+    w.gtag('consent','default',{
+      analytics_storage:analyticsGranted?'granted':'denied',
+      ad_storage:'denied',
+      ad_user_data:'denied',
+      ad_personalization:'denied',
+      functionality_storage:'granted',
+      security_storage:'granted',
+      wait_for_update:500
+    });
+    w.gtag('set','ads_data_redaction',true);
+  })(window,document);
+`;
 
 const rootDescription = trimSeoDescription(
   `PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні. ${STORE_PHONE_SEO_LABEL}.`
@@ -295,9 +376,20 @@ export default function RootLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
+  const globalStylesheetHref = resolveGlobalStylesheetHref();
+
   return (
     <html lang="uk">
       <head>
+        {/* Plain, synchronous, render-blocking stylesheet — deliberately NOT
+            preload+async-apply. That was tried and reverted: a <link> created
+            via script during initial parsing still gets treated as render
+            blocking by the browser in practice (it exists before first
+            paint), so it bought no real non-blocking benefit while adding a
+            real risk of a flash-of-unstyled-content race on cold loads/
+            refreshes. See resolveGlobalStylesheetHref above for why this is
+            a plain static file instead of a Next.js-managed import. */}
+        <link rel="stylesheet" href={globalStylesheetHref} />
         {/* Explicit fetchpriority on logo preload — Next.js client-component boundary
             prevents the Image priority prop from writing fetchpriority into the SSR
             <link> tag reliably. This manual link guarantees LCP hint arrives early. */}
@@ -321,16 +413,26 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
-        {googleTagManagerId ? (
+        {analyticsEnabled ? (
           <link rel="preconnect" href="https://www.googletagmanager.com" crossOrigin="anonymous" />
         ) : null}
-        {googleTagManagerId ? (
+        {analyticsEnabled ? (
           <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         ) : null}
-        {googleTagManagerId ? (
+        {analyticsEnabled ? (
+          <link rel="preconnect" href="https://www.google-analytics.com" crossOrigin="anonymous" />
+        ) : null}
+        {analyticsEnabled ? (
+          <Script
+            id="partson-analytics-consent-default"
+            strategy="beforeInteractive"
+            dangerouslySetInnerHTML={{ __html: analyticsConsentBootstrap }}
+          />
+        ) : null}
+        {analyticsMode === "gtm" ? (
           <Script
             id="google-tag-manager"
-            strategy="lazyOnload"
+            strategy="afterInteractive"
             dangerouslySetInnerHTML={{
               __html: `
                 (function(w,d,s,l,i){
@@ -343,6 +445,25 @@ export default function RootLayout({
                   j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
                   f.parentNode.insertBefore(j,f);
                 })(window,document,'script','dataLayer','${googleTagManagerId}');
+              `,
+            }}
+          />
+        ) : null}
+        {analyticsMode === "gtag" ? (
+          <Script
+            id="google-tag-script"
+            src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`}
+            strategy="afterInteractive"
+          />
+        ) : null}
+        {analyticsMode === "gtag" ? (
+          <Script
+            id="google-tag-config"
+            strategy="afterInteractive"
+            dangerouslySetInnerHTML={{
+              __html: `
+                window.gtag('js', new Date());
+                window.gtag('config', '${googleAnalyticsId}', { send_page_view: false });
               `,
             }}
           />
@@ -361,18 +482,10 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <Suspense fallback={null}>
+          <AnalyticsRuntime enabled={analyticsEnabled} />
+        </Suspense>
         <WebVitalsReporter />
-        {googleTagManagerId ? (
-          <noscript>
-            <iframe
-              src={`https://www.googletagmanager.com/ns.html?id=${googleTagManagerId}`}
-              height="0"
-              width="0"
-              style={{ display: "none", visibility: "hidden" }}
-              title="Google Tag Manager"
-            />
-          </noscript>
-        ) : null}
         <div className="page-scale-root">
           <ClientWrapper>
             <Suspense fallback={layoutFallback}>

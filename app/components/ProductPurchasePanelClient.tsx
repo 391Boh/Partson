@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import ProductPageActions from "app/components/ProductPageActions";
+import ProductViewTracking from "app/components/ProductViewTracking";
 
 type ProductPurchasePanelClientProps = {
   lookupKeys: string[];
@@ -309,6 +310,16 @@ export default function ProductPurchasePanelClient(
 
   return (
     <div className="flex h-full flex-col rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] p-3 text-slate-900 shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
+      <ProductViewTracking
+        item_id={product.code || resolvedCode}
+        item_name={product.name}
+        item_brand={product.producer || undefined}
+        item_category={product.category || undefined}
+        item_category2={product.group || undefined}
+        item_category3={product.subGroup || undefined}
+        item_variant={product.article || undefined}
+        price={priceUah}
+      />
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.11em] text-sky-800">
@@ -372,7 +383,9 @@ export default function ProductPurchasePanelClient(
           article={product.article}
           name={product.name}
           producer={product.producer}
-          category={product.subGroup || product.group || product.category || undefined}
+          category={product.category || undefined}
+          group={product.group || undefined}
+          subGroup={product.subGroup || undefined}
           priceUah={priceUah ?? null}
           quantity={product.quantity}
           compact

@@ -5,7 +5,7 @@ import { oneCRequest } from "app/api/_lib/oneC";
 export const runtime = "nodejs";
 
 const ONEC_PHOTO_BATCH_ENDPOINT =
-  (process.env.ONEC_IMAGE_BATCH_ENDPOINT || "ПолучитьФотоПакетом").trim();
+  (process.env.ONEC_IMAGE_BATCH_ENDPOINT || "getimages").trim();
 const MAX_PHOTO_BATCH_LIMIT = 30;
 
 const json = (payload: unknown, status = 200) =>

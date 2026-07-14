@@ -625,16 +625,20 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     if (sortDirection !== "ASC" && sortDirection !== "DESC") return items;
 
     return [...items].sort((left, right) => {
-      const leftPrice =
-        typeof left.priceEuro === "number" && Number.isFinite(left.priceEuro)
-          ? left.priceEuro
-          : Number.POSITIVE_INFINITY;
-      const rightPrice =
-        typeof right.priceEuro === "number" && Number.isFinite(right.priceEuro)
-          ? right.priceEuro
-          : Number.POSITIVE_INFINITY;
-      if (leftPrice !== rightPrice) {
-        return sortDirection === "DESC" ? rightPrice - leftPrice : leftPrice - rightPrice;
+      const leftHasPrice =
+        typeof left.priceEuro === "number" && Number.isFinite(left.priceEuro);
+      const rightHasPrice =
+        typeof right.priceEuro === "number" && Number.isFinite(right.priceEuro);
+      // Items with no price aren't "the most expensive" — treating a missing
+      // price as +Infinity sorted them first under DESC (rightPrice - Infinity
+      // is very negative). They must sort last regardless of direction.
+      if (leftHasPrice !== rightHasPrice) {
+        return leftHasPrice ? -1 : 1;
+      }
+      if (leftHasPrice && rightHasPrice && left.priceEuro !== right.priceEuro) {
+        return sortDirection === "DESC"
+          ? (right.priceEuro as number) - (left.priceEuro as number)
+          : (left.priceEuro as number) - (right.priceEuro as number);
       }
       return (left.code || left.article || "").localeCompare(right.code || right.article || "");
     });
@@ -1312,15 +1316,18 @@ const fetchCatalogProductsByQueryInner = async (options: {
       if (sortOrder === "asc" || sortOrder === "desc") {
         const direction = sortOrder === "asc" ? 1 : -1;
         merged.sort((left, right) => {
-          const leftPrice =
-            typeof left.priceEuro === "number" && Number.isFinite(left.priceEuro)
-              ? left.priceEuro
-              : Number.POSITIVE_INFINITY;
-          const rightPrice =
-            typeof right.priceEuro === "number" && Number.isFinite(right.priceEuro)
-              ? right.priceEuro
-              : Number.POSITIVE_INFINITY;
-          return (leftPrice - rightPrice) * direction;
+          const leftHasPrice =
+            typeof left.priceEuro === "number" && Number.isFinite(left.priceEuro);
+          const rightHasPrice =
+            typeof right.priceEuro === "number" && Number.isFinite(right.priceEuro);
+          // Items with no price must sort last regardless of direction — see
+          // the matching fix in sortPricedWindow above for why +Infinity broke
+          // this for DESC sorts.
+          if (leftHasPrice !== rightHasPrice) {
+            return leftHasPrice ? -1 : 1;
+          }
+          if (!leftHasPrice || !rightHasPrice) return 0;
+          return ((left.priceEuro as number) - (right.priceEuro as number)) * direction;
         });
       }
 
@@ -1696,10 +1703,55 @@ const fetchCatalogProductsByQueryInner = async (options: {
     return body;
   };
 
+  // getdata (legacy car-filtered / no-search browse source) does not support
+  // real pagination: neither НомерСтраницы (page) nor Смещение (offset)
+  // affect its response — confirmed empirically that requesting offset=8 or
+  // offset=16 returns byte-identical results to offset=0. Лимит (limit) IS
+  // respected, though. Work around the missing offset support the same way
+  // price-sorted allgoods pagination already does: always fetch one large,
+  // page-independent batch (dropping the page/offset fields so every page's
+  // request body — and therefore its oneCRequest cache key — is identical)
+  // and slice the requested page's window out of it locally. Page 2+ then
+  // comes from cache instead of a wasted repeat round-trip to 1C.
+  // getdata has no price support at all — neither ЦенаОт/ЦенаДо nor
+  // ТолькоСЦеной do anything (unlike allgoods), so a car-filtered query
+  // with a price constraint silently returned unfiltered results. Apply the
+  // same constraints locally against the batch instead.
+  const matchesPriceOptions = (item: CatalogProduct) => {
+    const hasUsablePrice =
+      (typeof item.priceEuro === "number" && Number.isFinite(item.priceEuro) && item.priceEuro > 0) ||
+      item.hasPrice === true;
+    if (options.pricedItemsOnly && !hasUsablePrice) return false;
+
+    const hasPriceBound =
+      (typeof options.priceFrom === "number" && Number.isFinite(options.priceFrom)) ||
+      (typeof options.priceTo === "number" && Number.isFinite(options.priceTo));
+    if (!hasPriceBound) return true;
+
+    const price =
+      typeof item.priceEuro === "number" && Number.isFinite(item.priceEuro) ? item.priceEuro : null;
+    if (price === null) return false;
+    if (typeof options.priceFrom === "number" && Number.isFinite(options.priceFrom) && price < options.priceFrom) {
+      return false;
+    }
+    if (typeof options.priceTo === "number" && Number.isFinite(options.priceTo) && price > options.priceTo) {
+      return false;
+    }
+    return true;
+  };
+
+  const GETDATA_BATCH_LIMIT = 240; // up to 20 pages of ITEMS_PER_PAGE=12
   const runRequest = async (keys: string[] | null, queryOverride?: string) => {
+    const windowStart = (page - 1) * limit;
+    const batchLimit = Math.max(GETDATA_BATCH_LIMIT, windowStart + limit);
+    const body = makeBody(keys, queryOverride);
+    delete body[PAGE_FIELD];
+    delete body[OFFSET_FIELD];
+    body[LIMIT_FIELD] = batchLimit;
+
     const response = await oneCRequest("getdata", {
       method: "POST",
-      body: makeBody(keys, queryOverride),
+      body,
       timeoutMs: options.timeoutMs,
       retries: options.retries ?? 1,
       retryDelayMs: options.retryDelayMs ?? 250,
@@ -1726,19 +1778,24 @@ const fetchCatalogProductsByQueryInner = async (options: {
           : `Catalog getdata failed: ${response.status}`
       );
     }
-    const parsedItems = parseItemsFromText(response.text);
+    const batchItems = parseItemsFromText(response.text);
+    const matchedItems =
+      options.pricedItemsOnly || options.priceFrom != null || options.priceTo != null
+        ? batchItems.filter(matchesPriceOptions)
+        : batchItems;
+    const pageItems = matchedItems.slice(windowStart, windowStart + limit);
     const items = shouldEnrichInlinePrices
-      ? await enrichProductsWithAllgoodsPrices(parsedItems, {
+      ? await enrichProductsWithAllgoodsPrices(pageItems, {
           timeoutMs: options.timeoutMs,
           cacheTtlMs:
             options.cacheTtlMs ??
             (page === 1 ? 1000 * 20 : 1000 * 15),
           maxKeys: limit,
         })
-      : parsedItems;
+      : pageItems;
     return {
       items,
-      hasMore: items.length >= limit,
+      hasMore: matchedItems.length > windowStart + limit,
       nextCursor: "",
       cursorField: null,
     };

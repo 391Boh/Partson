@@ -14,6 +14,11 @@ import {
 } from "app/lib/safe-storage";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
+import {
+  pushAnalyticsEvent,
+  pushEcommerceEvent,
+  sanitizeAnalyticsSearchTerm,
+} from "app/lib/gtm";
 
 interface SearchBarProps {
   onSearch: (
@@ -265,6 +270,14 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     if (!sanitized) return;
     prefetch();
     const ef: SearchFilter = filter === "article" ? "name" : filter;
+    const analyticsSearchTerm = sanitizeAnalyticsSearchTerm(sanitized);
+    if (analyticsSearchTerm) {
+      pushAnalyticsEvent("search", {
+        search_term: analyticsSearchTerm,
+        search_filter: ef,
+        search_source: "header",
+      });
+    }
     router.push(`/katalog?search=${encodeURIComponent(sanitized)}&filter=${ef}`);
     onSearch(sanitized, ef);
     saveHistory(raw.trim() || sanitized);
@@ -447,6 +460,30 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
                   i < suggestions.length - 1 ? "border-b border-white/[0.05]" : ""
                 }`}
                 onClick={() => {
+                  const price =
+                    typeof p.priceEuro === "number" &&
+                    Number.isFinite(p.priceEuro) &&
+                    p.priceEuro > 0
+                      ? Math.round(p.priceEuro * euroRate)
+                      : null;
+                  pushEcommerceEvent("select_item", {
+                    currency: "UAH",
+                    item_list_id: "search_suggestions",
+                    item_list_name: "Пошукові підказки",
+                    items: [
+                      {
+                        item_id: p.code || p.article,
+                        item_name: p.name || "Товар",
+                        ...(p.producer ? { item_brand: p.producer } : {}),
+                        ...(p.article ? { item_variant: p.article } : {}),
+                        item_list_id: "search_suggestions",
+                        item_list_name: "Пошукові підказки",
+                        index: i,
+                        ...(price != null ? { price } : {}),
+                        quantity: 1,
+                      },
+                    ],
+                  });
                   router.push(buildProductPath({ code: p.code, article: p.article, name: p.name, producer: p.producer }));
                   setDropdown(false); setQuery(""); onSearch(p.name, "name");
                 }}

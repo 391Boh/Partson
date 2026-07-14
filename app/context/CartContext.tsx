@@ -8,9 +8,12 @@ interface CartItem {
   code: string;
   article: string;
   name: string;
+  producer?: string;
   price: number;
   quantity: number;
   category?: string;
+  group?: string;
+  subGroup?: string;
 }
 
 interface CartContextType {
@@ -43,12 +46,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           code: typeof item.code === 'string' ? item.code : '',
           article: typeof item.article === 'string' ? item.article : '',
           name: typeof item.name === 'string' ? item.name : 'Товар',
+          producer: typeof item.producer === 'string' ? item.producer : undefined,
           price: typeof item.price === 'number' && Number.isFinite(item.price) ? item.price : 0,
           quantity:
             typeof item.quantity === 'number' && Number.isFinite(item.quantity)
               ? Math.max(1, Math.trunc(item.quantity))
               : 1,
           category: typeof item.category === 'string' ? item.category : undefined,
+          group: typeof item.group === 'string' ? item.group : undefined,
+          subGroup: typeof item.subGroup === 'string' ? item.subGroup : undefined,
         }))
         .filter((item) => item.code);
 
@@ -85,7 +91,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           {
             item_id: removed.code,
             item_name: removed.name,
+            ...(removed.producer ? { item_brand: removed.producer } : {}),
             ...(removed.category ? { item_category: removed.category } : {}),
+            ...(removed.group ? { item_category2: removed.group } : {}),
+            ...(removed.subGroup ? { item_category3: removed.subGroup } : {}),
+            ...(removed.article ? { item_variant: removed.article } : {}),
             price: removed.price,
             quantity: removed.quantity,
           },
