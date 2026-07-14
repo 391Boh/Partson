@@ -12,6 +12,15 @@ import { brands } from "./brandsData";
 const MOBILE_ITEMS_PER_PAGE = 4;
 const DESKTOP_ITEMS_PER_PAGE = 8;
 
+const pluralizeBrandCount = (value: number) => {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 19) return "виробників";
+  if (mod10 === 1) return "виробник";
+  if (mod10 >= 2 && mod10 <= 4) return "виробники";
+  return "виробників";
+};
+
 type BrandItem = {
   name: string;
   logo: string | null;
@@ -77,22 +86,24 @@ const BrandSearchInput = memo(
   ({ value, onChange, className }: BrandSearchInputProps) => {
 
     return (
-      <label className={`relative block ${className ?? ""}`}>
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-500" />
+      <label
+        className={`group/search relative block rounded-xl transition-shadow duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] focus-within:shadow-[0_10px_26px_rgba(14,165,233,0.14)] ${className ?? ""}`}
+      >
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-focus-within/search:text-sky-600" />
         <input
           type="text"
           placeholder="Виробник"
           aria-label="Пошук виробника"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="font-ui w-full rounded-xl border border-slate-200 bg-white/95 px-10 py-2.5 text-sm font-semibold tracking-normal text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(15,23,42,0.04)] transition select-text placeholder:text-slate-400 focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-100"
+          className="font-ui w-full rounded-xl border border-slate-200 bg-white px-10 py-2.5 text-sm font-semibold tracking-normal text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_2px_6px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] select-text placeholder:text-slate-400 focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-100"
         />
         {value && (
           <button
             type="button"
             onClick={() => onChange("")}
             aria-label="Очистити пошук"
-            className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+            className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
           >
             <X className="h-3.5 w-3.5 mx-auto" />
           </button>
@@ -347,11 +358,12 @@ export default function BrandCarousel({
               </span>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-display min-w-0 text-[17px] leading-tight tracking-normal text-slate-950 sm:text-[24px]">
+                  <h2 className="font-display min-w-0 text-[22px] tracking-[-0.045em] text-slate-950 sm:text-[25px]">
                     Виробники запчастин
-                  </h3>
-                  <span className="inline-flex rounded-[10px] border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-sky-800">
-                    {filteredBrands.length.toLocaleString("uk-UA")}
+                  </h2>
+                  <span className="inline-flex items-center gap-1 rounded-[10px] border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-sky-800">
+                    <span className="tabular-nums">{filteredBrands.length.toLocaleString("uk-UA")}</span>
+                    {pluralizeBrandCount(filteredBrands.length)}
                   </span>
                 </div>
                 <p className="mt-0.5 hidden text-xs font-semibold leading-5 text-slate-500 sm:block">
@@ -372,15 +384,15 @@ export default function BrandCarousel({
                     type="button"
                     onClick={handlePrevPage}
                     disabled={!canGoPrev}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-sky-700 shadow-[0_4px_10px_rgba(15,23,42,0.05)] transition hover:border-sky-200 hover:bg-sky-50 disabled:pointer-events-none disabled:opacity-35"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-sky-700 shadow-[0_4px_10px_rgba(15,23,42,0.05)] transition-[border-color,box-shadow,color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-sky-300 hover:text-sky-800 hover:shadow-[0_6px_16px_rgba(14,165,233,0.18)] active:scale-95 disabled:pointer-events-none disabled:opacity-35"
                     aria-label="Попередня сторінка"
                   >
                     <ChevronLeft size={13} />
                   </button>
 
-                  <div className="flex min-w-[42px] items-center justify-center gap-0.5 rounded-[9px] border border-slate-200 bg-white px-1.5 py-1.5 text-[10px] font-bold text-slate-600 shadow-sm sm:min-w-0 sm:gap-1 sm:rounded-full sm:px-2.5">
-                    <span>{safePage + 1}</span>
-                    <span className="text-slate-400">/</span>
+                  <div className="flex min-w-[42px] items-center justify-center gap-0.5 rounded-[9px] border border-slate-200 bg-white px-1.5 py-1.5 text-[10px] font-bold tabular-nums text-slate-600 shadow-sm sm:min-w-0 sm:gap-1 sm:rounded-full sm:px-2.5">
+                    <span className="text-sky-700">{safePage + 1}</span>
+                    <span className="text-slate-300">/</span>
                     <span>{totalPages}</span>
                   </div>
 
@@ -388,7 +400,7 @@ export default function BrandCarousel({
                     type="button"
                     onClick={handleNextPage}
                     disabled={!canGoNext}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-sky-700 shadow-[0_4px_10px_rgba(15,23,42,0.05)] transition hover:border-sky-200 hover:bg-sky-50 disabled:pointer-events-none disabled:opacity-35"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-sky-700 shadow-[0_4px_10px_rgba(15,23,42,0.05)] transition-[border-color,box-shadow,color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-sky-300 hover:text-sky-800 hover:shadow-[0_6px_16px_rgba(14,165,233,0.18)] active:scale-95 disabled:pointer-events-none disabled:opacity-35"
                     aria-label="Наступна сторінка"
                   >
                     <ChevronRight size={13} />
