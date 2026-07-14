@@ -1179,6 +1179,7 @@ function useCatalogData(params: {
   priceTo?: number | null;
   inStock?: boolean;
   includeCostPrices?: boolean;
+  getAdminAuthToken?: () => Promise<string | null>;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
   initialTotalCount?: number | null;
@@ -1198,6 +1199,7 @@ function useCatalogData(params: {
     priceTo = null,
     inStock = false,
     includeCostPrices = false,
+    getAdminAuthToken,
     initialPagePayload,
     initialQuerySignature,
     initialTotalCount = null,
@@ -1741,9 +1743,17 @@ function useCatalogData(params: {
         }
 
         const requestPromise = (async () => {
+          const headers: Record<string, string> = { "Content-Type": "application/json" };
+          if (mode === "full") {
+            // Server only computes/returns costPrices for a verified admin
+            // token — without it, "full" mode silently behaves like "fast".
+            const adminToken = await getAdminAuthToken?.().catch(() => null);
+            if (adminToken) headers.Authorization = `Bearer ${adminToken}`;
+          }
+
           const response = await fetch(`${CATALOG_PRICE_BATCH_ROUTE}?mode=${mode}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify({ items: batch }),
             cache: "no-store",
           });
@@ -1899,7 +1909,7 @@ function useCatalogData(params: {
         releaseRequestItems();
       }
     },
-    [includeCostPrices]
+    [includeCostPrices, getAdminAuthToken]
   );
 
   const fetchCatalogPageImages = useCallback(
@@ -3679,6 +3689,7 @@ const Data: React.FC<DataProps> = ({
     priceTo,
     inStock,
     includeCostPrices: isAdmin,
+    getAdminAuthToken: getAdminToken,
     initialPagePayload,
     initialQuerySignature,
   });

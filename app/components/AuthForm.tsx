@@ -86,10 +86,10 @@ const GoogleLogo = ({ className = "" }: { className?: string }) => (
 );
 
 const socialButtonClass =
-  "group inline-flex min-h-[44px] w-full min-w-0 items-center justify-center gap-1.5 rounded-[16px] border border-white/80 bg-white/92 px-2 py-2 text-sm font-extrabold text-slate-800 shadow-[0_14px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70 transition-[transform,border-color,box-shadow,background-color,filter] hover:-translate-y-0.5 hover:border-sky-200 hover:bg-sky-50/80 hover:shadow-[0_18px_36px_rgba(14,165,233,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-wait disabled:opacity-70";
+  "auth-social-button group inline-flex min-h-[44px] w-full min-w-0 items-center justify-center gap-1.5 rounded-[16px] border border-white/80 bg-white/92 px-2 py-2 text-sm font-extrabold text-slate-800 shadow-[0_14px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70 hover:border-sky-200 hover:bg-sky-50/80 hover:shadow-[0_20px_40px_rgba(14,165,233,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-wait disabled:opacity-70";
 
 const socialIconShellClass =
-  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-white shadow-[0_8px_16px_rgba(15,23,42,0.08)] transition group-hover:border-sky-200 group-hover:shadow-[0_10px_18px_rgba(14,165,233,0.12)]";
+  "relative z-[2] inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-white shadow-[0_8px_16px_rgba(15,23,42,0.08)] transition-[transform,border-color,box-shadow] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110 group-hover:border-sky-200 group-hover:shadow-[0_10px_18px_rgba(14,165,233,0.16)]";
 
 const syncAuthUserProfile = async (
   user: FirebaseUser,
@@ -549,21 +549,29 @@ const AuthForm: React.FC<AuthFormProps> = ({
         }`}
       >
         <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-3 p-3.5 sm:p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-300/20 bg-sky-400/10 text-sky-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
-                {mode === "login" ? <LogIn size={17} /> : <UserPlus size={17} />}
+          <div className="soft-panel-accent h-1 rounded-full" />
+
+          <div className="soft-panel-header">
+            <div className="min-w-0">
+              <span className="soft-panel-eyebrow">
+                {mode === "login" ? <LogIn size={14} /> : <UserPlus size={14} />}
+                {mode === "login" ? "Вхід" : "Реєстрація"}
               </span>
-              <h2 className="text-base font-extrabold tracking-tight text-white">
+              <h2 className="soft-panel-title">
                 {mode === "login" ? "Вхід до акаунта" : "Створити акаунт"}
               </h2>
+              <p className="soft-panel-subtitle">
+                {mode === "login"
+                  ? "Історія замовлень, збережені дані та швидше оформлення."
+                  : "Хвилина — і оформлення замовлень стане набагато швидшим."}
+              </p>
             </div>
             <button
               onClick={closeModal}
-              className="soft-icon-button h-9 w-9 shrink-0 p-1"
+              className="app-panel-close-button h-9 w-9 shrink-0"
               aria-label="Закрити"
             >
-              <X size={18} />
+              <X size={22} strokeWidth={2.5} />
             </button>
           </div>
 
@@ -670,15 +678,15 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
               <button
                 type="submit"
-                className="soft-primary-button mt-0.5 w-full px-4 py-2.5 text-sm font-bold"
+                className="auth-primary-button mt-0.5 w-full px-4 py-2.5 text-sm font-bold"
               >
-                <LogIn size={18} />
-                Увійти
+                <LogIn size={18} className="relative z-[2]" />
+                <span className="relative z-[2]">Увійти</span>
               </button>
             </form>
           ) : (
             <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-2.5">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2">
                 <div className="min-w-0">
                   <input
                     type="text"
@@ -764,10 +772,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
               <button
                 type="submit"
-                className="soft-primary-button mt-0.5 w-full px-4 py-2.5 text-sm font-bold"
+                className="auth-primary-button mt-0.5 w-full px-4 py-2.5 text-sm font-bold"
               >
-                <UserPlus size={18} />
-                Створити акаунт
+                <UserPlus size={18} className="relative z-[2]" />
+                <span className="relative z-[2]">Створити акаунт</span>
               </button>
             </form>
           )}
@@ -788,7 +796,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 <span className={socialIconShellClass}>
                   <GoogleLogo className="h-5 w-5" />
                 </span>
-                <span className="min-w-0 truncate tracking-normal">
+                <span className="relative z-[2] min-w-0 truncate tracking-normal">
                   {isGoogleLoading || isGoogleRedirectPending ? "Підключення..." : "Google"}
                 </span>
               </button>

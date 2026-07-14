@@ -33,7 +33,6 @@ import {
   Phone,
   Plus,
   ShieldCheck,
-  Sparkles,
   X,
   Trash2,
   UserRound,
@@ -437,23 +436,31 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         )}
 
         <div className="soft-panel-header">
-          <div className="min-w-0">
-            <span className="soft-panel-eyebrow">
-              <UserRound size={14} />
-              Профіль
-            </span>
-            <h2 className="soft-panel-title">Особистий кабінет</h2>
-            <p className="soft-panel-subtitle">
-              Ім&#39;я, телефон, VIN-коди та безпека — все в одному місці.
-            </p>
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="relative shrink-0">
+              <div className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 text-[1.05rem] font-black uppercase tracking-[-0.04em] text-white shadow-[0_16px_32px_rgba(14,165,233,0.38),0_4px_10px_rgba(14,165,233,0.24)] sm:h-12 sm:w-12 sm:rounded-[18px] sm:text-[1.2rem]">
+                {profileInitial}
+              </div>
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-slate-900/90 bg-emerald-400 shadow-[0_2px_6px_rgba(16,185,129,0.4)]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h2 className="soft-panel-title truncate">{displayName}</h2>
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-300">
+                  <ShieldCheck size={10} />
+                  Активний
+                </span>
+              </div>
+              <p className="soft-panel-subtitle truncate">{emailValue}</p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="soft-icon-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
+            className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10"
             aria-label="Закрити"
             title="Закрити"
           >
-            <X size={22} />
+            <X size={22} strokeWidth={2.5} />
           </button>
         </div>
 
@@ -495,60 +502,21 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
 
         <div className="app-panel-scroll min-h-0 flex-1 overflow-y-auto pr-0 sm:pr-1">
           <section className="soft-panel-hero px-3 py-3 sm:px-4 sm:py-3.5">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="relative shrink-0">
-                <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 text-[1.2rem] font-black uppercase tracking-[-0.04em] text-white shadow-[0_16px_32px_rgba(14,165,233,0.38),0_4px_10px_rgba(14,165,233,0.24)] sm:h-14 sm:w-14 sm:rounded-[20px] sm:text-[1.4rem]">
-                  {profileInitial}
-                </div>
-                <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-emerald-400 shadow-[0_2px_6px_rgba(16,185,129,0.4)]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <h3 className="truncate text-[1rem] font-[800] tracking-[-0.04em] text-slate-900 sm:text-[1.06rem]">
-                    {displayName}
-                  </h3>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200/80 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-700">
-                    <ShieldCheck size={10} />
-                    Активний
-                  </span>
-                </div>
-                <p className="mt-0.5 truncate text-[11px] text-slate-500">{emailValue}</p>
-                <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-sky-200/60 bg-white/72 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">
-                  <Sparkles size={10} />
-                  Особистий кабінет
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-2.5 grid grid-cols-4 gap-1.5">
-              <div className="soft-panel-stat-card">
-                <span className="soft-panel-stat-label">Тел.</span>
-                <span className={`soft-panel-stat-value text-[0.82rem] ${hasPhoneValue ? "text-emerald-600" : "text-slate-400"}`}>{hasPhoneValue ? "✓" : "—"}</span>
-              </div>
-              <div className="soft-panel-stat-card">
-                <span className="soft-panel-stat-label">VIN</span>
-                <span className={`soft-panel-stat-value ${vins.length > 0 ? "text-emerald-600" : ""}`}>{vins.length}</span>
-              </div>
-              <div className="soft-panel-stat-card">
-                <span className="soft-panel-stat-label">Email</span>
-                <span className={`soft-panel-stat-value text-[0.82rem] ${hasEmailValue ? "text-emerald-600" : "text-slate-400"}`}>{hasEmailValue ? "✓" : "—"}</span>
-              </div>
-              <div className="soft-panel-stat-card">
-                <span className="soft-panel-stat-label">Захист</span>
-                <span className="soft-panel-stat-value text-[0.82rem] text-emerald-600">✓</span>
-              </div>
-            </div>
-
             {!loading && (() => {
-              const filled = [
-                hasPhoneValue,
-                hasEmailValue,
-                Boolean(name && !/не вказ|не знайден|помилка/i.test(name)),
-                vins.length > 0,
-              ].filter(Boolean).length;
-              const pct = Math.round((filled / 4) * 100);
+              const isNameFilled = Boolean(
+                name && !/не вказ|не знайден|помилка/i.test(name)
+              );
+              const items = [
+                { label: "Телефон", done: hasPhoneValue, tab: "profile" as const },
+                { label: "Email", done: hasEmailValue, tab: "profile" as const },
+                { label: "Ім'я", done: isNameFilled, tab: "profile" as const },
+                { label: "VIN", done: vins.length > 0, tab: "vins" as const },
+              ];
+              const pct = Math.round(
+                (items.filter((item) => item.done).length / items.length) * 100
+              );
               return (
-                <div className="mt-2.5 pt-2 border-t border-sky-200/30">
+                <div>
                   <div className="mb-1.5 flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">Заповненість профілю</span>
                     <span className={`text-[11px] font-black tabular-nums ${pct >= 75 ? "text-emerald-600" : pct >= 50 ? "text-amber-500" : "text-rose-500"}`}>{pct}%</span>
@@ -558,6 +526,29 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                       className={`h-1.5 rounded-full transition-all duration-700 ease-out ${pct >= 75 ? "bg-gradient-to-r from-emerald-400 to-emerald-500" : pct >= 50 ? "bg-gradient-to-r from-amber-400 to-amber-500" : "bg-gradient-to-r from-rose-400 to-rose-500"}`}
                       style={{ width: `${pct}%` }}
                     />
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {items.map((item) =>
+                      item.done ? (
+                        <span
+                          key={item.label}
+                          className="inline-flex items-center gap-1 rounded-full border border-emerald-200/70 bg-emerald-50/80 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+                        >
+                          <Check size={10} strokeWidth={2.5} />
+                          {item.label}
+                        </span>
+                      ) : (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => setActiveTab(item.tab)}
+                          className="inline-flex items-center gap-1 rounded-full border border-dashed border-sky-200/80 bg-white/70 px-2 py-0.5 text-[10px] font-semibold text-sky-700 transition-colors duration-200 hover:border-sky-300 hover:bg-sky-50"
+                        >
+                          <Plus size={10} strokeWidth={2.5} />
+                          {item.label}
+                        </button>
+                      )
+                    )}
                   </div>
                 </div>
               );

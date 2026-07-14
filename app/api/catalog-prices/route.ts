@@ -4,8 +4,34 @@ import {
   fetchCatalogPriceDetailsByLookupKeys,
   fetchPriceEuroMapByLookupKeys,
 } from "app/lib/catalog-server";
+import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
 
 export const runtime = "nodejs";
+
+// Cost/purchase price ("full" mode) is sensitive business data — same
+// admin-email gate as product-update-price. Regular sale-price lookups
+// ("fast" mode) stay open to any visitor, as before.
+const ADMIN_EMAILS = new Set(
+  (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+);
+
+const verifyAdminToken = async (request: Request): Promise<boolean> => {
+  const authHeader = request.headers.get("authorization") || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  if (!token) return false;
+
+  try {
+    const auth = getFirebaseAdminAuth();
+    const decoded = await auth.verifyIdToken(token);
+    const email = (decoded.email || "").toLowerCase();
+    return Boolean(email && ADMIN_EMAILS.has(email));
+  } catch {
+    return false;
+  }
+};
 
 type PriceBatchItem = {
   stateKey?: unknown;
@@ -120,7 +146,11 @@ const pruneCatalogPriceItemCache = (now: number) => {
 export async function POST(request: Request) {
   try {
     const requestUrl = new URL(request.url);
-    const mode = requestUrl.searchParams.get("mode") === "full" ? "full" : "fast";
+    const requestedFullMode = requestUrl.searchParams.get("mode") === "full";
+    // Cost prices only ever get computed/returned for a verified admin —
+    // an unauthenticated "full" request silently behaves as "fast" instead
+    // of erroring, so the regular sale-price lookup still works normally.
+    const mode = requestedFullMode && (await verifyAdminToken(request)) ? "full" : "fast";
     const body = (await request.json().catch(() => ({}))) as {
       items?: PriceBatchItem[];
     };

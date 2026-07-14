@@ -83,10 +83,10 @@ const buildTelegramErrorMessage = (error: string | undefined) => {
 };
 
 const socialButtonClass =
-  "group inline-flex min-h-[44px] w-full min-w-0 items-center justify-center gap-1.5 rounded-[16px] border border-white/80 bg-white/92 px-2 py-2 text-sm font-extrabold text-slate-800 shadow-[0_14px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70 transition-[transform,border-color,box-shadow,background-color,filter] hover:-translate-y-0.5 hover:border-sky-200 hover:bg-sky-50/80 hover:text-sky-950 hover:shadow-[0_18px_36px_rgba(14,165,233,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-wait disabled:opacity-70";
+  "auth-social-button group inline-flex min-h-[44px] w-full min-w-0 items-center justify-center gap-1.5 rounded-[16px] border border-white/80 bg-white/92 px-2 py-2 text-sm font-extrabold text-slate-800 shadow-[0_14px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70 hover:border-sky-200 hover:bg-sky-50/80 hover:text-sky-950 hover:shadow-[0_20px_40px_rgba(14,165,233,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-wait disabled:opacity-70";
 
 const socialIconShellClass =
-  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sky-100 bg-[#229ED9] text-white shadow-[0_10px_20px_rgba(34,158,217,0.24)] transition group-hover:scale-105 group-hover:shadow-[0_12px_24px_rgba(34,158,217,0.3)]";
+  "relative z-[2] inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sky-100 bg-[#229ED9] text-white shadow-[0_10px_20px_rgba(34,158,217,0.24)] transition-[transform,box-shadow] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110 group-hover:shadow-[0_12px_24px_rgba(34,158,217,0.3)]";
 
 const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -498,7 +498,7 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
                   <path d="M9.04 15.65 8.7 20.4c.49 0 .7-.21.96-.46l2.3-2.2 4.77 3.49c.87.48 1.49.23 1.72-.8l3.12-14.62c.28-1.29-.46-1.8-1.31-1.48L1.9 11.41c-1.25.49-1.23 1.19-.21 1.5l4.7 1.46L17.3 7.54c.51-.34.98-.15.6.19l-8.86 7.92Z" />
                 </svg>
               </span>
-              <span className="truncate tracking-normal">Telegram</span>
+              <span className="relative z-[2] truncate tracking-normal">Telegram</span>
             </button>
           ) : null}
         </div>

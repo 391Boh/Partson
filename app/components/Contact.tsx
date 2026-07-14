@@ -249,8 +249,8 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
               </p>
             </div>
 
-            <button onClick={onClose} className="soft-icon-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10">
-              <X size={18} />
+            <button onClick={onClose} className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
+              <X size={22} strokeWidth={2.5} />
             </button>
           </div>
 

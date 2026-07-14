@@ -122,39 +122,50 @@ function BrandCard({
         onOpen(brand.name);
       }}
       onMouseLeave={(event) => event.currentTarget.blur()}
-      className="group relative isolate flex h-full min-h-[220px] w-full flex-col overflow-hidden rounded-2xl border border-sky-100 bg-white/95 px-2.5 py-2.5 text-left shadow-[0_8px_20px_rgba(15,23,42,0.055)] ring-1 ring-white/80 transition-[border-color,box-shadow,transform,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-sky-300 hover:bg-white hover:shadow-[0_14px_28px_rgba(14,165,233,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 sm:min-h-[260px] sm:rounded-[18px] sm:border-slate-200/90 sm:px-3.5 sm:py-3.5 lg:min-h-[270px] lg:px-4"
+      className="group relative isolate flex h-full min-h-[196px] w-full flex-col overflow-hidden rounded-2xl border border-sky-100 bg-white/95 px-2.5 py-2.5 text-left shadow-[0_8px_20px_rgba(15,23,42,0.055)] ring-1 ring-white/80 transition-[border-color,box-shadow,background-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-sky-300 hover:bg-white hover:shadow-[0_18px_38px_rgba(14,165,233,0.20),0_0_0_1px_rgba(56,189,248,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 sm:min-h-[232px] sm:rounded-[18px] sm:border-slate-200/90 sm:px-3.5 sm:py-3.5 lg:min-h-[240px] lg:px-4"
     >
-      <span className="pointer-events-none absolute inset-x-0 top-0 z-0 h-1 bg-[linear-gradient(90deg,#38bdf8,#0ea5e9,#3b82f6)] opacity-80" />
+      <span className="pointer-events-none absolute inset-x-0 top-0 z-0 h-1 bg-[linear-gradient(90deg,#38bdf8,#0ea5e9,#3b82f6)] opacity-80 transition-[height,opacity,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:h-[3px] group-hover:opacity-100 group-hover:shadow-[0_0_14px_rgba(56,189,248,0.65)]" />
       <span className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(180deg,rgba(248,250,252,0.66),rgba(255,255,255,0.94)_42%,rgba(255,255,255,0.98))]" />
+      <span className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100 bg-[radial-gradient(ellipse_120%_90%_at_0%_0%,rgba(56,189,248,0.14)_0%,rgba(125,211,252,0.05)_45%,transparent_70%)]" />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-[-60%] z-0 w-1/3 -skew-x-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.55),transparent)] opacity-0 transition-[transform,opacity] duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[280%] group-hover:opacity-100"
+      />
 
       <span className="relative z-10 flex min-w-0 items-center gap-2 sm:items-start sm:gap-3">
-        <span className="flex h-11 w-[58px] shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_6px_14px_rgba(15,23,42,0.055)] transition duration-200 group-hover:border-sky-200 sm:h-[58px] sm:w-[86px] sm:rounded-[14px] lg:h-[62px] lg:w-[94px]">
-          {brand.logo ? (
-            <Image
-              src={brand.logo}
-              alt={`${brand.name} logo`}
-              width={320}
-              height={200}
-              quality={75}
-              priority={priority}
-              loading={priority ? undefined : "lazy"}
-              draggable={false}
-              className="h-7 w-12 object-contain drop-shadow-[0_4px_8px_rgba(15,23,42,0.09)] sm:h-[38px] sm:w-[72px] lg:h-[42px] lg:w-[80px]"
-              style={{ imageRendering: "auto" }}
-              sizes="(max-width: 640px) 64px, 80px"
-              onError={handleBrandLogoLoadError}
-            />
-          ) : (
-            <span className="text-[13px] font-black text-slate-600 tracking-tight leading-none text-center px-1">
-              {brand.name.split(" ").map((w) => w[0]).join("").slice(0, 3).toUpperCase()}
-            </span>
-          )}
+        <span className="flex shrink-0 flex-col items-center gap-1">
+          <span className="flex h-11 w-[58px] shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_6px_14px_rgba(15,23,42,0.055)] transition-[border-color,box-shadow,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06] group-hover:border-sky-200 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(14,165,233,0.16)] sm:h-[58px] sm:w-[86px] sm:rounded-[14px] lg:h-[62px] lg:w-[94px]">
+            {brand.logo ? (
+              <Image
+                src={brand.logo}
+                alt={`${brand.name} logo`}
+                width={320}
+                height={200}
+                quality={75}
+                priority={priority}
+                loading={priority ? undefined : "lazy"}
+                draggable={false}
+                className="h-7 w-12 object-contain drop-shadow-[0_4px_8px_rgba(15,23,42,0.09)] sm:h-[38px] sm:w-[72px] lg:h-[42px] lg:w-[80px]"
+                style={{ imageRendering: "auto" }}
+                sizes="(max-width: 640px) 64px, 80px"
+                onError={handleBrandLogoLoadError}
+              />
+            ) : (
+              <span className="text-[13px] font-black text-slate-600 tracking-tight leading-none text-center px-1">
+                {brand.name.split(" ").map((w) => w[0]).join("").slice(0, 3).toUpperCase()}
+              </span>
+            )}
+          </span>
+          <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-[8px] font-black uppercase tracking-[0.05em] text-sky-700 transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[9.5px]">
+            До виробника
+            <ArrowRight size={9} strokeWidth={3} aria-hidden="true" />
+          </span>
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="hidden w-fit rounded-[9px] border border-sky-200/80 bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-sky-800 sm:inline-flex">
             Виробник
           </span>
-          <span className="line-clamp-2 block max-w-full break-words text-left text-[12px] font-black leading-tight text-slate-950 transition-colors duration-200 group-hover:text-sky-800 sm:text-[16px] lg:text-[17px]">
+          <span className="line-clamp-2 block max-w-full break-words text-left text-[12px] font-black leading-tight text-slate-950 transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[16px] lg:text-[17px]">
             {brand.name}
           </span>
           {brand.productCount && brand.productCount > 0 ? (
@@ -166,18 +177,8 @@ function BrandCard({
       </span>
 
       <span className="relative z-10 mt-2 block min-w-0 rounded-xl border border-slate-200/80 bg-slate-50/70 px-2 py-1.5 sm:mt-3 sm:rounded-[14px] sm:px-3 sm:py-2.5">
-        <span className="font-ui block min-w-0 break-words text-left text-[9px] font-semibold leading-[13px] text-slate-600 transition-colors duration-300 group-hover:text-slate-700 sm:text-[12px] sm:leading-5">
+        <span className="font-ui line-clamp-3 block min-w-0 break-words text-left text-[11.5px] font-bold leading-[15px] text-slate-700 transition-colors duration-300 group-hover:text-slate-800 sm:text-[13px] sm:leading-[19px]">
           {brand.description}
-        </span>
-      </span>
-
-      <span className="relative z-10 mt-auto flex items-center justify-end gap-2 pt-1 sm:justify-between sm:pt-3">
-        <span className="hidden text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 sm:inline">
-          Сторінка бренду
-        </span>
-        <span className="inline-flex h-7 w-7 items-center justify-center gap-1.5 rounded-[10px] border border-sky-200 bg-sky-50 text-[10px] font-black uppercase tracking-[0.08em] text-sky-800 transition group-hover:border-sky-300 group-hover:bg-sky-100 sm:h-auto sm:w-auto sm:px-2.5 sm:py-1.5">
-          <span className="hidden sm:inline">Відкрити</span>
-          <ArrowRight size={13} strokeWidth={2.4} aria-hidden="true" />
         </span>
       </span>
     </button>

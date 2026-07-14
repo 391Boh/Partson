@@ -1507,8 +1507,8 @@ body::-webkit-scrollbar-corner,
 }
 
 .auth-form-panel.app-overlay-panel {
-  width: min(390px, calc(100vw - 1.5rem));
-  max-width: 390px;
+  width: min(460px, calc(100vw - 1.5rem));
+  max-width: 460px;
   max-height: calc(100dvh - var(--header-height, 4rem) - 1.5rem);
 }
 
@@ -1721,11 +1721,11 @@ body::-webkit-scrollbar-corner,
     0 4px 10px rgba(37, 99, 235, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transition:
-    transform 0.2s ease,
-    border-color 0.2s ease,
-    background-position 0.36s ease,
-    filter 0.2s ease,
-    box-shadow 0.2s ease;
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    background-position 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-overlay-panel .soft-primary-button:hover {
@@ -1743,6 +1743,91 @@ body::-webkit-scrollbar-corner,
   opacity: 0.6;
   box-shadow: none;
   transform: none;
+}
+
+/* Auth window (login/register) — scoped button treatments so the shared
+   soft-primary-button/soft-secondary-button used elsewhere (checkout,
+   contacts) stay untouched. No hover movement, glow + shine-sweep instead. */
+.auth-primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--soft-radius-control);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.94) 0%, rgba(56, 189, 248, 0.97) 50%, rgba(99, 102, 241, 0.9) 100%);
+  background-size: 180% 180%;
+  background-position: 0% 50%;
+  color: #fff;
+  box-shadow:
+    0 14px 30px rgba(14, 165, 233, 0.24),
+    0 4px 10px rgba(37, 99, 235, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition:
+    background-position 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.auth-primary-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.38), transparent);
+  transform: translateX(-120%) skewX(-15deg);
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.auth-primary-button:hover {
+  background-position: 100% 50%;
+  border-color: rgba(125, 211, 252, 0.62);
+  box-shadow:
+    0 20px 40px rgba(14, 165, 233, 0.32),
+    0 8px 18px rgba(37, 99, 235, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+
+.auth-primary-button:hover::after {
+  transform: translateX(120%) skewX(-15deg);
+}
+
+.auth-primary-button:disabled {
+  opacity: 0.6;
+  box-shadow: none;
+}
+
+.auth-primary-button:disabled::after {
+  display: none;
+}
+
+.auth-social-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition:
+    border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.auth-social-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(100deg, transparent, rgba(56, 189, 248, 0.2), transparent);
+  transform: translateX(-120%) skewX(-15deg);
+  transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.auth-social-button:hover::after {
+  transform: translateX(120%) skewX(-15deg);
 }
 
 .soft-secondary-button {
@@ -1829,6 +1914,49 @@ body::-webkit-scrollbar-corner,
   box-shadow: 0 12px 24px rgba(14, 165, 233, 0.12);
 }
 
+/* Panel close (X) button — bold mark, no border/background, used across the
+   login/order/contacts/account overlay windows instead of soft-icon-button. */
+.app-panel-close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  transition:
+    color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-panel-close-button:hover {
+  color: #0f172a;
+  transform: rotate(90deg);
+}
+
+.app-panel-close-button:focus-visible {
+  outline: 2px solid rgba(14, 165, 233, 0.6);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+.app-overlay-panel .app-panel-close-button {
+  color: #94a3b8;
+}
+
+.app-overlay-panel .app-panel-close-button:hover {
+  color: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-panel-close-button {
+    transition: color 0.2s ease;
+  }
+
+  .app-panel-close-button:hover {
+    transform: none;
+  }
+}
+
 .soft-segment {
   border-radius: var(--soft-radius-control);
   border: 1px solid rgba(203, 213, 225, 0.82);
@@ -1852,11 +1980,11 @@ body::-webkit-scrollbar-corner,
   color: #475569;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transition:
-    transform 0.18s ease,
-    border-color 0.18s ease,
-    background-color 0.18s ease,
-    color 0.18s ease,
-    box-shadow 0.18s ease;
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-overlay-panel .soft-segment:hover {
@@ -2384,10 +2512,10 @@ body::-webkit-scrollbar-corner,
 
 .app-panel-card-hover {
   transition:
-    border-color 0.22s ease,
-    background-color 0.22s ease,
-    box-shadow 0.22s ease,
-    transform 0.22s ease;
+    border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (hover: hover) {
@@ -2744,6 +2872,16 @@ body::-webkit-scrollbar-corner,
 
   .app-panel-card-hover {
     transition: none;
+  }
+
+  .auth-primary-button,
+  .auth-social-button {
+    transition: none;
+  }
+
+  .auth-primary-button::after,
+  .auth-social-button::after {
+    display: none;
   }
 }
 

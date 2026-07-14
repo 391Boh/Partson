@@ -165,6 +165,10 @@ const ALLGOODS_SORT_PRICE_FIELD = "\u0421\u043e\u0440\u0442\u0438\u0440\u043e\u0
 const ALLGOODS_INCLUDE_DESCRIPTION_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435";
 const ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u0424\u043e\u0442\u043eBase64";
 const ALLGOODS_INCLUDE_TOTAL_COUNT_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u041e\u0431\u0449\u0435\u0435\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e";
+// "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u0426\u0456\u043d\u0443\u0417\u0430\u043a\u0443\u043f" \u2014 1C omits cost/purchase price from allgoods responses
+// unless explicitly asked for (see docs/1c/\u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c\u0422\u043e\u0432\u0430\u0440\u044b\u041f\u0430\u043a\u0435\u0442\u043e\u043c_\u043e\u043f\u0442\u0438\u043c\u0438\u0437\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u0430\u044f.bsl).
+// Only ever set this for admin-authenticated cost-price lookups.
+const ALLGOODS_INCLUDE_COST_PRICE_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u0426\u0456\u043d\u0443\u0417\u0430\u043a\u0443\u043f";
 const ALLGOODS_ONLY_WITH_PRICE_FIELD = "\u0422\u043e\u043b\u044c\u043a\u043e\u0421\u0426\u0435\u043d\u043e\u0439";
 
 const INFO_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443";
@@ -2266,6 +2270,7 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
         method: "POST",
         body: {
           [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(normalizedKeys.length * 6, 120)),
+          [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: true,
         },
         timeoutMs,
         retries: 0,
@@ -2274,6 +2279,7 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
           endpoint: "allgoods:price-details",
           body: {
             [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(normalizedKeys.length * 6, 120)),
+            [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: true,
           },
         }),
       }).catch(() => null),
