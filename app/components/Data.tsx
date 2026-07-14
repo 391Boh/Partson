@@ -18,6 +18,7 @@ import ProductCard from "app/components/ProductCard";
 import { CATALOG_PAGE_CACHE_VERSION, invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
+import { PRODUCT_IMAGE_BATCH_MAX_ITEMS } from "app/lib/product-image-constants";
 import {
   buildProductImageBatchKey,
   buildProductImagePath,
@@ -79,7 +80,10 @@ const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 420;
 const IMAGE_PRIORITY_ITEMS_COUNT = 16;
 const DIRECT_IMAGE_LOAD_ITEMS_COUNT = ITEMS_PER_PAGE * 8;
-const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE * 2;
+// Matches PRODUCT_IMAGE_BATCH_MAX_ITEMS (the batch client/API's own cap) so
+// each client-side chunk maps to exactly one /api/catalog-image-batch
+// request instead of silently getting sub-sliced again downstream.
+const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = PRODUCT_IMAGE_BATCH_MAX_ITEMS;
 const VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE = 4;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 45;
@@ -4115,8 +4119,18 @@ const Data: React.FC<DataProps> = ({
       priceUAH: getResolvedProductPriceUAH(item, prices, euroRate),
     }));
   }, [visibleSortedData, sortedData, sortedEntries, prices, euroRate]);
+  // Excludes the first DIRECT_IMAGE_LOAD_ITEMS_COUNT items — those cards
+  // already fire their own direct </product-image/[code]> request
+  // (shouldDirectLoadImage in the render loop below), so including them here
+  // too meant every first-paint product in that range hit 1C twice at once:
+  // once via this batch prefetch, once via the card's own direct <Image>.
+  // Relies on shouldUseVirtualWindow being false (array index === absoluteIndex);
+  // revisit this filter if virtualization is ever turned back on.
   const visibleCatalogImageCandidates = useMemo(
-    () => visibleSortedData.filter((item) => item.hasPhoto === true),
+    () =>
+      visibleSortedData.filter(
+        (item, index) => item.hasPhoto === true && index >= DIRECT_IMAGE_LOAD_ITEMS_COUNT
+      ),
     [visibleSortedData]
   );
   const visibleCatalogPriceCandidates = useMemo(

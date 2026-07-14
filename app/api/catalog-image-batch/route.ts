@@ -5,7 +5,10 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 
 import { findCatalogProductByCode } from "app/lib/catalog-server";
-import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
+import {
+  PRODUCT_IMAGE_BATCH_MAX_ITEMS,
+  PRODUCT_IMAGE_FALLBACK_PATH,
+} from "app/lib/product-image-constants";
 import {
   fetchProductImageBase64,
   fetchProductImageBase64Batch,
@@ -22,7 +25,7 @@ import {
 
 export const runtime = "nodejs";
 
-const MAX_BATCH_ITEMS = 24;
+const MAX_BATCH_ITEMS = PRODUCT_IMAGE_BATCH_MAX_ITEMS;
 const BATCH_CONCURRENCY = 6;
 const CATALOG_IMAGE_READY_CACHE_TTL_MS = 1000 * 60 * 60;
 const CATALOG_IMAGE_MISSING_CACHE_TTL_MS = 1000 * 60 * 30;

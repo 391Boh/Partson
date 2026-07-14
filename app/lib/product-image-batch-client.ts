@@ -8,6 +8,7 @@ import {
   writeProductImageSuccess,
 } from "app/lib/product-image-client";
 import { buildProductImageBatchKey } from "app/lib/product-image-path";
+import { PRODUCT_IMAGE_BATCH_MAX_ITEMS } from "app/lib/product-image-constants";
 
 export type CatalogImageBatchRequestItem = {
   code: string;
@@ -24,7 +25,7 @@ export type CatalogImageBatchResponseItem = {
 };
 
 const CATALOG_IMAGE_BATCH_ROUTE = "/api/catalog-image-batch";
-const MAX_BATCH_ITEMS = 24;
+const MAX_BATCH_ITEMS = PRODUCT_IMAGE_BATCH_MAX_ITEMS;
 const BATCH_RESPONSE_CACHE_TTL_MS = 1000 * 60 * 20;
 
 const batchResponseCache = new Map<

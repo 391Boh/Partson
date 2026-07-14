@@ -1,7 +1,10 @@
 ﻿import "server-only";
 
 import { oneCRequest } from "app/api/_lib/oneC";
-import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
+import {
+  PRODUCT_IMAGE_BATCH_MAX_ITEMS,
+  PRODUCT_IMAGE_FALLBACK_PATH,
+} from "app/lib/product-image-constants";
 
 export { PRODUCT_IMAGE_FALLBACK_PATH };
 
@@ -806,7 +809,7 @@ export const fetchProductImageBase64Batch = async (
   const maxKeys =
     Number.isFinite(options?.maxKeys) && (options?.maxKeys || 0) > 0
       ? Math.floor(options?.maxKeys as number)
-      : 24;
+      : PRODUCT_IMAGE_BATCH_MAX_ITEMS;
   const normalizedKeys = Array.from(
     new Set(lookupKeys.map((key) => safeDecode(key || "").trim()).filter(Boolean))
   ).slice(0, maxKeys);

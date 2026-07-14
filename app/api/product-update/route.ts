@@ -7,6 +7,7 @@ import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
 import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
 import { clearProductImageCacheForProduct } from "app/lib/product-image";
+import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
 
 export const runtime = "nodejs";
 
@@ -343,6 +344,13 @@ export async function POST(request: NextRequest) {
   if (productCode) clearProductImageCacheForProduct(productCode);
   if (image.imageBase64) {
     clearCatalogImageResultCacheForProduct(code, article || undefined);
+    // /product-image/[code]/route.ts caches its final served response
+    // (routeImageHitCache, 4h TTL) and "no image" status (routeMissCache,
+    // 2-3min TTL) keyed by code/article — neither is content-hash-based like
+    // optimizedImageCache is, so without this, a replaced image would keep
+    // serving the old bytes from that cache for up to 4h even though every
+    // other image cache layer was correctly evicted above.
+    clearRouteImageCacheForProduct(code, article || undefined);
   }
 
   // Bust ISR page cache so the next render fetches fresh data from 1C.

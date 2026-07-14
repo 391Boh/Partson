@@ -7,6 +7,7 @@ import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
 import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
 import { clearProductImageCacheForProduct } from "app/lib/product-image";
+import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
 
 export const runtime = "nodejs";
 
@@ -179,6 +180,9 @@ export async function POST(request: NextRequest) {
   clearAllOneCCache();
   clearProductImageCacheForProduct(code);
   clearCatalogImageResultCacheForProduct(code, article || undefined);
+  // See product-update/route.ts for why this is needed separately from
+  // clearCatalogImageResultCacheForProduct above.
+  clearRouteImageCacheForProduct(code, article || undefined);
   if (article) clearProductImageCacheForProduct(article);
   try {
     revalidateTag("product-page-data", "max");

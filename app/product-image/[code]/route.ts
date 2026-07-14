@@ -8,6 +8,13 @@ import sharp from "sharp";
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import { fetchProductImageBase64 } from "app/lib/product-image";
 import { findCatalogProductByCode } from "app/lib/catalog-server";
+import {
+  pruneRouteImageHitCache,
+  pruneRouteMissCache,
+  routeImageHitCache,
+  routeImageInFlight,
+  routeMissCache,
+} from "app/lib/product-image-route-cache";
 
 export const runtime = "nodejs";
 
@@ -150,16 +157,6 @@ const optimizedImageInFlight = new Map<
   string,
   Promise<{ buffer: Buffer; contentType: string }>
 >();
-const routeMissCache = new Map<string, number>();
-const routeImageHitCache = new Map<
-  string,
-  { expiresAt: number; value: { buffer: Buffer; contentType: string } }
->();
-const routeImageInFlight = new Map<
-  string,
-  Promise<{ buffer: Buffer; contentType: string } | null>
->();
-
 const buildBufferHash = (buffer: Buffer) =>
   createHash("sha1").update(buffer).digest("hex");
 
@@ -180,24 +177,6 @@ const pruneOptimizedImageCache = () => {
   for (const [key, entry] of optimizedImageCache.entries()) {
     if (!entry || entry.expiresAt <= now) {
       optimizedImageCache.delete(key);
-    }
-  }
-};
-
-const pruneRouteMissCache = () => {
-  const now = Date.now();
-  for (const [key, expiresAt] of routeMissCache.entries()) {
-    if (expiresAt <= now) {
-      routeMissCache.delete(key);
-    }
-  }
-};
-
-const pruneRouteImageHitCache = () => {
-  const now = Date.now();
-  for (const [key, entry] of routeImageHitCache.entries()) {
-    if (!entry || entry.expiresAt <= now) {
-      routeImageHitCache.delete(key);
     }
   }
 };
