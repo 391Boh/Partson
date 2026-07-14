@@ -232,8 +232,21 @@ const collectModelGroupBreakdown = async (
       seen.add(dedupeKey);
       totalProducts += 1;
 
-      const { label, filterGroup, filterSubcategory, categoryLabel } = resolveGroupFilterParams(item);
-      if (!label || !filterGroup) continue;
+      const resolved = resolveGroupFilterParams(item);
+      // A product can match the description search while having no group
+      // classification at all in 1C (blank "Група" field) — resolveGroupFilterParams
+      // then returns an empty label/filterGroup. Previously these were
+      // dropped from the breakdown entirely while still counting toward
+      // totalProducts above, so the groups shown never summed to the total
+      // the hero stat displayed. Bucket them under "Інше" instead (matching
+      // the same catch-all category getCategoryIconPath already falls back
+      // to) so every counted product is represented by some card — link
+      // target is the plain car search with no group/subcategory filter,
+      // since there's no valid classification to filter by.
+      const { label, filterGroup, filterSubcategory, categoryLabel } =
+        resolved.label && resolved.filterGroup
+          ? resolved
+          : { label: "Інше", filterGroup: "", filterSubcategory: undefined, categoryLabel: "" };
 
       const labelKey = label.toLocaleLowerCase("uk-UA");
       let bucket = labelBuckets.get(labelKey);

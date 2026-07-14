@@ -195,6 +195,14 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
     brand,
     model
   );
+  // Groups with no real Категорія (categoryLabel === "") never make it into
+  // `categories` (see getModelGroupBreakdown's category-bucketing pass) —
+  // including "Інше" (see the analogous fix in auto-directory-data.ts).
+  // Rendered as a trailing flat section below the category blocks so every
+  // group is still shown somewhere, keeping the sum of visible groups equal
+  // to totalProducts instead of silently dropping some when other groups do
+  // have real categories.
+  const uncategorizedGroups = groups.filter((group) => !group.categoryLabel);
   // Catalog links reuse the exact query that produced these results (model
   // name with "рестайлинг"/roman numerals/chassis code stripped as needed) —
   // linking with the raw, un-cleaned model name here would send the user to
@@ -213,7 +221,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
         {showIcon ? (
           <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-sky-100/80 bg-gradient-to-br from-sky-50 to-white">
             <Image
-              src={getCategoryIconPath(group.categoryLabel || group.filterGroup)}
+              src={getCategoryIconPath(group.categoryLabel || group.filterGroup || group.label)}
               alt=""
               aria-hidden
               width={22}
@@ -533,6 +541,12 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                     </div>
                   </article>
                 ))}
+
+                {uncategorizedGroups.length > 0 ? (
+                  <div className="space-y-2.5">
+                    {uncategorizedGroups.map((group) => renderModelGroupCard(group, true))}
+                  </div>
+                ) : null}
               </div>
             ) : (
               // categories.length === 0 here always implies groups.length > 0
