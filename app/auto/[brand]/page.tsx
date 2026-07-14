@@ -160,7 +160,7 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
   };
 
   return (
-    <main className={`${catalogPageBackgroundClass} overflow-hidden pb-6 pt-3 sm:pb-8 lg:pb-10`}>
+    <main className={`${catalogPageBackgroundClass} overflow-hidden pb-6 sm:pb-8 lg:pb-10`}>
       <Script
         id="auto-brand-page-breadcrumb-jsonld"
         type="application/ld+json"
@@ -172,7 +172,10 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
         dangerouslySetInnerHTML={{ __html: safeJsonLd(collectionJsonLd) }}
       />
 
-      <section className="page-shell-inline catalog-hub-stage">
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-sky-200/25 via-cyan-100/10 to-transparent" />
+
+        <div className="page-shell-inline catalog-hub-stage relative flex flex-col py-3 sm:py-4 lg:py-5">
         <CatalogHubHero
           current="auto"
           badge={`Марка: ${brand.name}`}
@@ -199,7 +202,8 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
             { href: "/auto", label: "Усі марки", icon: CarFront, prefetchOnViewport: true },
           ]}
         />
-      </section>
+        </div>
+      </div>
 
       <ModelsDirectoryClient brand={brand.name} brandLogo={brand.logo} models={models} />
     </main>

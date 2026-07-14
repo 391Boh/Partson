@@ -101,7 +101,7 @@ export default function AutoPage() {
   };
 
   return (
-    <main className={`${catalogPageBackgroundClass} overflow-hidden pb-6 pt-3 sm:pb-8 lg:pb-10`}>
+    <main className={`${catalogPageBackgroundClass} overflow-hidden pb-6 sm:pb-8 lg:pb-10`}>
       <Script
         id="auto-page-jsonld"
         type="application/ld+json"
@@ -113,7 +113,10 @@ export default function AutoPage() {
         dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
 
-      <section className="page-shell-inline catalog-hub-stage">
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-sky-200/25 via-cyan-100/10 to-transparent" />
+
+        <div className="page-shell-inline catalog-hub-stage relative flex flex-col py-3 sm:py-4 lg:py-5">
         <CatalogHubHero
           current="auto"
           badge="Підбір по авто"
@@ -166,7 +169,8 @@ export default function AutoPage() {
 
         <h1 className="sr-only">{title}</h1>
 
-      </section>
+        </div>
+      </div>
 
       <AutoBrandsDirectoryClient items={carBrands} />
 
