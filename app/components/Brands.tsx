@@ -173,9 +173,6 @@ function BrandCard({
           </span>
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="hidden w-fit rounded-[9px] border border-sky-200/80 bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-sky-800 sm:inline-flex">
-            Виробник
-          </span>
           <span className="line-clamp-2 block max-w-full break-words text-left text-[12px] font-black leading-tight text-slate-950 transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[16px] lg:text-[17px]">
             {brand.name}
           </span>
