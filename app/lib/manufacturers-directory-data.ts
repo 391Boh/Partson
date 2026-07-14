@@ -71,7 +71,7 @@ const loadManufacturersSeoFacets = async () => {
   return getCatalogSeoFacetsWithTimeout(500).catch(() => EMPTY_SEO_FACETS);
 };
 
-const buildManufacturersDirectoryData = async (
+export const buildManufacturersDirectoryData = async (
   seoFacets: CatalogSeoFacets
 ): Promise<ManufacturersDirectoryData> => {
   const logoMap = await getBrandLogoMap().catch(() => new Map<string, string>());

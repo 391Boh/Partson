@@ -29,6 +29,7 @@ import {
 } from "app/lib/catalog-seo";
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
+import { buildManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
@@ -1137,6 +1138,19 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   const topProducers = seoFacets.producers
     .slice(0, 42)
     .map((p) => ({ label: p.label, slug: p.slug }));
+  // Reuses the seoFacets already fetched above (no extra 1C round-trip) so
+  // the producer picker in the filter sidebar renders with real logos/counts
+  // on first paint — no static-seed-then-live-swap flicker, no client fetch.
+  const manufacturersDirectoryData = await buildManufacturersDirectoryData(seoFacets).catch(
+    () => null
+  );
+  const initialProducerBrands = (manufacturersDirectoryData?.clientProducers ?? []).map(
+    (producer) => ({
+      name: producer.label,
+      logo: producer.logoPath,
+      productCount: producer.productCount,
+    })
+  );
 
   return (
     <>
@@ -1145,6 +1159,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         initialPagePayload={initialPagePayload}
         initialQuerySignature={initialQuerySignature}
         initialTotalCount={seoTotalCount ?? null}
+        initialProducerBrands={initialProducerBrands}
       />
       <CatalogSeoSnapshot
         state={state}

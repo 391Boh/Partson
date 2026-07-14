@@ -35,6 +35,7 @@ type ManufacturerCountsApiPayload = {
 };
 
 interface FilterSidebarProps {
+  initialProducerBrands?: ProducerFilterBrand[];
   selectedCars: string[];
   handleCarChange: (car: string) => void;
   selectedCategories: string[];
@@ -107,7 +108,7 @@ const getFilterDisplayLabel = (value: string) => {
   return stripParentheticalMeta(trimmed);
 };
 
-const initialProducerBrands: ProducerFilterBrand[] = brands.map((brand) => ({
+const staticProducerBrandsSeed: ProducerFilterBrand[] = brands.map((brand) => ({
   name: brand.name,
   logo: brand.logo,
 }));
@@ -115,6 +116,7 @@ const PRODUCER_FILTER_INITIAL_RENDER_LIMIT = 48;
 const PRODUCER_FILTER_SEARCH_RENDER_LIMIT = 96;
 
 const FilterSidebar: FC<FilterSidebarProps> = ({
+  initialProducerBrands = [],
   selectedCars,
   handleCarChange,
   selectedCategories,
@@ -173,7 +175,10 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   }, []);
   const [categoryResetSignal, setCategoryResetSignal] = useState(0);
   const [producerSearchTerm, setProducerSearchTerm] = useState('');
-  const [producerBrands, setProducerBrands] = useState<ProducerFilterBrand[]>(initialProducerBrands);
+  const [producerBrands, setProducerBrands] = useState<ProducerFilterBrand[]>(
+    initialProducerBrands.length > 0 ? initialProducerBrands : staticProducerBrandsSeed
+  );
+  const hasFetchedProducerBrandsRef = useRef(false);
   const deferredProducerSearchTerm = useDeferredValue(producerSearchTerm);
   const filteredProducerBrands = useMemo(() => {
     const query = deferredProducerSearchTerm.trim().toLowerCase();
@@ -201,6 +206,13 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   useEffect(() => {
     let cancelled = false;
     if (activeComponent !== 'producer' && !producerParam) return;
+    // Server already provided the real list with logos/counts (see
+    // app/katalog/page.tsx) — fetching again would just replace it with an
+    // equivalent copy a moment later, causing a visible re-render/flicker
+    // for no benefit. Only hit the API as a fallback when SSR data is
+    // missing (e.g. it timed out), and only once per mount.
+    if (initialProducerBrands.length > 0 || hasFetchedProducerBrandsRef.current) return;
+    hasFetchedProducerBrandsRef.current = true;
 
     const loadProducerBrands = () => {
       fetch('/api/manufacturer-counts', {
@@ -227,7 +239,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [activeComponent, producerParam]);
+  }, [activeComponent, producerParam, initialProducerBrands]);
 
   useEffect(() => {
     if (tabParam === 'category' || tabParam === 'auto' || tabParam === 'producer') {

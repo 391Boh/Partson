@@ -145,16 +145,24 @@ const scheduleCatalogIdleTask = (task: () => void, timeout = 900) => {
 };
 
 
+interface InitialProducerBrand {
+  name: string;
+  logo: string | null;
+  productCount?: number;
+}
+
 interface KatalogProps {
   initialPagePayload?: InitialCatalogPagePayload | null;
   initialQuerySignature?: string | null;
   initialTotalCount?: number | null;
+  initialProducerBrands?: InitialProducerBrand[];
 }
 
 const Katalog: React.FC<KatalogProps> = ({
   initialPagePayload = null,
   initialQuerySignature = null,
   initialTotalCount = null,
+  initialProducerBrands = [],
 }) => {
   const [selectedCars, setSelectedCars] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -701,6 +709,7 @@ const Katalog: React.FC<KatalogProps> = ({
 
   const filterSidebar = (
     <FilterSidebar
+      initialProducerBrands={initialProducerBrands}
       selectedCars={selectedCars}
       handleCarChange={handleCarChange}
       selectedCategories={selectedCategories}

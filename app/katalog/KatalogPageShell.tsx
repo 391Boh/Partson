@@ -21,10 +21,17 @@ type InitialCatalogPagePayload = {
   message?: string;
 };
 
+type InitialProducerBrand = {
+  name: string;
+  logo: string | null;
+  productCount?: number;
+};
+
 export default function KatalogPageShell(props: {
   initialPagePayload?: InitialCatalogPagePayload | null;
   initialQuerySignature?: string | null;
   initialTotalCount?: number | null;
+  initialProducerBrands?: InitialProducerBrand[];
 }) {
   return <KatalogClientPage {...props} />;
 }
