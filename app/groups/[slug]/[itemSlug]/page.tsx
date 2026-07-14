@@ -11,8 +11,6 @@ import {
   directoryCompactMetricAccentClass,
   directoryCompactMetricClass,
   directoryHeaderClass,
-  directoryHeroClass,
-  directoryIconTileClass,
   directoryListCardClass,
   directoryPanelClass,
   directoryPrimaryButtonClass,
@@ -160,10 +158,40 @@ const buildGroupItemProducerSplit = (options: {
 }): GroupItemProducerEntry[] => {
   const groupKeys = new Set(buildFacetLookupKeys(options.groupLabel));
   const itemKeys = new Set(options.itemLabels.flatMap((label) => buildFacetLookupKeys(label)));
-  if (groupKeys.size === 0 || itemKeys.size === 0) return [];
+  if (itemKeys.size === 0) return [];
 
   return options.producers
     .map((producer) => {
+      // The same leaf category can land at different tiers per producer in
+      // 1C's own data — some producers report it as their own top-level
+      // Група directly (2-tier item, no real subdivision below it), others
+      // nest it as a Підгруппа under a different parent Група (3-tier item).
+      // Try the direct-group match first (cheaper, and the common case for
+      // producers with sparse categorization), then fall back to searching
+      // inside the matched parent group's own subgroups.
+      const directGroup = (producer.topGroups ?? []).find((group) =>
+        facetMatches(group, itemKeys)
+      );
+      if (directGroup) {
+        const value = Number(directGroup.productCount);
+        const productCount = Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+        if (productCount <= 0) return null;
+
+        return {
+          label: producer.label,
+          slug: producer.slug,
+          productCount,
+          catalogPath: buildCatalogProducerPath(
+            producer.label,
+            directGroup.label,
+            options.itemLabels[0]
+          ),
+          manufacturerPath: buildManufacturerPath(producer.slug || producer.label),
+        };
+      }
+
+      if (groupKeys.size === 0) return null;
+
       const matchedGroup = (producer.topGroups ?? []).find((group) =>
         facetMatches(group, groupKeys)
       );
@@ -284,7 +312,7 @@ const collectDirectGroupItemProducerSplitCached = unstable_cache(
   { revalidate: 60 * 30 }
 );
 
-export const collectDirectGroupItemProducerSplit = cache(
+const collectDirectGroupItemProducerSplit = cache(
   collectDirectGroupItemProducerSplitCached
 );
 
@@ -373,7 +401,11 @@ const getGroupItemBySlugs = cache(
 
       const producerSplit = await resolveGroupItemProducerSplit({
         seoProducers: seoFacets.producers,
-        seoGroupLabel: seoGroup.label,
+        // producer.topGroups is keyed by the Група tier (seoSubgroup here),
+        // not the Категорія tier (seoGroup) — matching seoGroup.label above
+        // meant this never found a producer (see the analogous fix on
+        // /groups/[slug]/page.tsx's resolveTopProducers).
+        seoGroupLabel: seoSubgroup.label,
         seoItemLabels: [seoSubgroup.label],
         catalogGroupLabel: seoGroup.label,
         catalogSubcategoryLabel: seoSubgroup.label,
@@ -412,7 +444,10 @@ const getGroupItemBySlugs = cache(
       }));
       const producerSplit = await resolveGroupItemProducerSplit({
         seoProducers: seoFacets.producers,
-        seoGroupLabel: group.label,
+        // producer.topGroups is keyed by the Група tier (subgroup here), not
+        // the Категорія tier (group) — see the analogous fix on
+        // /groups/[slug]/page.tsx's resolveTopProducers.
+        seoGroupLabel: subgroup.label,
         seoItemLabels: [subgroup.label, ...children.map((child) => child.label)],
         catalogGroupLabel: group.label,
         catalogSubcategoryLabel: subgroup.label,
@@ -450,7 +485,9 @@ const getGroupItemBySlugs = cache(
       if (!child) continue;
       const producerSplit = await resolveGroupItemProducerSplit({
         seoProducers: seoFacets.producers,
-        seoGroupLabel: group.label,
+        // Same Група-tier fix as above — entry is the Група containing this
+        // Підгруппа-level child, group is still the Категорія.
+        seoGroupLabel: entry.label,
         seoItemLabels: [child.label],
         catalogGroupLabel: entry.label,
         catalogSubcategoryLabel: child.label,
@@ -497,7 +534,8 @@ const getGroupItemBySlugs = cache(
 
     const producerSplit = await resolveGroupItemProducerSplit({
       seoProducers: seoFacets.producers,
-      seoGroupLabel: seoGroup.label,
+      // Same Група-tier fix as above.
+      seoGroupLabel: seoSubgroup.label,
       seoItemLabels: [seoSubgroup.label],
       catalogGroupLabel: seoGroup.label,
       catalogSubcategoryLabel: seoSubgroup.label,
@@ -865,86 +903,108 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   }
 
   return (
-    <main className="catalog-directory-page page-shell-inline py-6 sm:py-8">
-      <nav aria-label="Навігаційні хлібні крихти">
-        <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-          <li className="inline-flex items-center gap-2">
-            <Link href="/" className="transition hover:text-slate-800">Головна</Link>
-          </li>
-          <li className="inline-flex items-center gap-2">
-            <span aria-hidden="true">/</span>
-            <Link href="/groups" className="transition hover:text-slate-800">Групи товарів</Link>
-          </li>
-          <li className="inline-flex items-center gap-2">
-            <span aria-hidden="true">/</span>
-            <Link href={groupPagePath} className="transition hover:text-slate-800">{visibleGroupLabel}</Link>
-          </li>
-          <li className="inline-flex items-center gap-2">
-            <span aria-hidden="true">/</span>
-            <span className="text-slate-700">{visibleLabel}</span>
-          </li>
-        </ol>
-      </nav>
+    <main className="catalog-directory-page page-shell-inline py-5 sm:py-7">
+      <div className="space-y-4 sm:space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <nav aria-label="Навігаційні хлібні крихти">
+            <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+              <li className="inline-flex items-center gap-2">
+                <Link href="/" className="transition hover:text-slate-800">Головна</Link>
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <span aria-hidden="true">/</span>
+                <Link href="/groups" className="transition hover:text-slate-800">Групи товарів</Link>
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <span aria-hidden="true">/</span>
+                <Link href={groupPagePath} className="transition hover:text-slate-800">{visibleGroupLabel}</Link>
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <span aria-hidden="true">/</span>
+                <span className="text-slate-700">{visibleLabel}</span>
+              </li>
+            </ol>
+          </nav>
 
-      <Link
-        href={groupPagePath}
-        className="mt-3 inline-flex text-sm font-semibold text-teal-800 hover:text-teal-900"
-      >
-        &larr; До групи {visibleGroupLabel}
-      </Link>
-
-      <section className={`mt-4 ${directoryHeroClass}`}>
-        <div className="flex items-start gap-4">
-          <div className={directoryIconTileClass}>
-            <Image
-              src={categoryIconPath}
-              alt={`Іконка категорії ${visibleGroupLabel}`}
-              width={48}
-              height={48}
-              sizes="48px"
-              className="h-12 w-12 object-contain"
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="directory-kicker inline-flex rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] uppercase text-teal-800">
-                {item.parentSubgroupLabel ? "Кінцева категорія" : "Підгрупа"}
-              </span>
-              <span className={directoryCompactMetricClass}>
-                {item.parentSubgroupLabel
-                  ? `Підгрупа ${visibleParentLabel}`
-                  : `Група ${visibleGroupLabel}`}
-              </span>
-              <span className={directoryCompactMetricAccentClass}>
-                Пошук за брендом, артикулом і назвою
-              </span>
-            </div>
-
-            <h1 className="directory-heading-hero mt-4 text-3xl leading-[1.1] text-slate-900 sm:text-[2.2rem]">
-              {visibleLabel}
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
-              {pageDescription}
-            </p>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <CatalogPrefetchLink
-                href={item.catalogPath}
-                prefetchCatalogOnViewport
-                className={directoryPrimaryButtonClass}
-              >
-                Перейти в каталог
-              </CatalogPrefetchLink>
-              <SmartLink
-                href={groupPagePath}
-                className={directorySecondaryButtonClass}
-              >
-                До групи {visibleGroupLabel}
-              </SmartLink>
-            </div>
-          </div>
+          <SmartLink href={groupPagePath} className={directorySecondaryButtonClass}>
+            &larr; До групи {visibleGroupLabel}
+          </SmartLink>
         </div>
-      </section>
+
+        <section className="relative overflow-hidden rounded-[30px] border border-white/85 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(240,253,250,0.94),rgba(236,254,255,0.9))] p-4 shadow-[0_28px_70px_rgba(13,148,136,0.15)] ring-1 ring-teal-100/70 sm:p-5 lg:p-6">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-teal-200/35 via-cyan-100/25 to-sky-100/25" />
+
+          <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+            <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+              <div className="flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/90 bg-white/86 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-teal-100/80 sm:h-28 sm:w-28">
+                <Image
+                  src={categoryIconPath}
+                  alt={`Іконка категорії ${visibleGroupLabel}`}
+                  width={48}
+                  height={48}
+                  sizes="48px"
+                  className="max-h-full max-w-full object-contain"
+                  priority
+                />
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="directory-kicker inline-flex rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] uppercase text-teal-800">
+                    {item.parentSubgroupLabel ? "Кінцева категорія" : "Підгрупа"}
+                  </span>
+                  <span className={directoryCompactMetricClass}>
+                    {item.parentSubgroupLabel
+                      ? `Підгрупа ${visibleParentLabel}`
+                      : `Група ${visibleGroupLabel}`}
+                  </span>
+                  <span className={directoryCompactMetricAccentClass}>
+                    Пошук за брендом, артикулом і назвою
+                  </span>
+                </div>
+
+                <h1 className="directory-heading-hero mt-3 text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
+                  {visibleLabel}
+                </h1>
+                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
+                  {pageDescription}
+                </p>
+
+                <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <CatalogPrefetchLink
+                      href={item.catalogPath}
+                      prefetchCatalogOnViewport
+                      className={directoryPrimaryButtonClass}
+                    >
+                      Перейти в каталог
+                    </CatalogPrefetchLink>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside className="grid gap-2.5 rounded-[24px] border border-white/85 bg-white/78 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-teal-100/70 sm:grid-cols-2 xl:grid-cols-1">
+              {[
+                { label: "товарів", value: item.productCount.toLocaleString("uk-UA") },
+                { label: "виробників", value: item.producersCount.toLocaleString("uk-UA") },
+              ].map((metric) => (
+                <div
+                  key={metric.label}
+                  className="rounded-[18px] border border-slate-200/85 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.96))] px-3.5 py-3"
+                >
+                  <span className="directory-counter block text-2xl leading-none text-slate-900">
+                    {metric.value}
+                  </span>
+                  <span className="mt-1.5 block text-[10px] font-medium uppercase tracking-[0.08em] text-slate-500">
+                    {metric.label}
+                  </span>
+                </div>
+              ))}
+            </aside>
+          </div>
+        </section>
+      </div>
 
       <section className={`${directoryPanelClass} mt-6`}>
         <div className={directoryHeaderClass}>

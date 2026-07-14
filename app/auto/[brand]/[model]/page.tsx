@@ -9,6 +9,7 @@ import SmartLink from "app/components/SmartLink";
 import {
   catalogPageBackgroundClass,
   directoryBadgeClass,
+  directoryCompactMetricAccentClass,
   directoryCompactMetricClass,
   directoryDescriptionClass,
   directoryHeaderClass,
@@ -23,6 +24,7 @@ import {
   findCarModelInBrand,
   getModelGroupBreakdown,
   getVerifiedAutoModelKeys,
+  type AutoModelGroupSummary,
 } from "app/lib/auto-directory-data";
 import { resolveCarBrandSocialImage } from "app/lib/car-brand-social-image";
 import {
@@ -184,12 +186,56 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   }
 
   const { brand, model } = resolved;
-  const { groups, totalProducts, effectiveQuery } = await getModelGroupBreakdown(brand, model);
+  const { groups, categories, totalProducts, effectiveQuery } = await getModelGroupBreakdown(
+    brand,
+    model
+  );
   // Catalog links reuse the exact query that produced these results (model
   // name with "рестайлинг"/roman numerals/chassis code stripped as needed) —
   // linking with the raw, un-cleaned model name here would send the user to
   // a different, possibly empty, search than the one the counts came from.
   const searchTerm = effectiveQuery || model;
+
+  // showIcon mirrors renderManufacturerGroupCard's convention: category
+  // blocks already show the icon once in their own header, so per-group
+  // icons only appear in the flat fallback list (no categories resolved).
+  const renderModelGroupCard = (group: AutoModelGroupSummary, showIcon = false) => (
+    <article
+      key={group.slug}
+      className="group/card overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 transition-colors duration-200 hover:border-sky-200"
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+        {showIcon ? (
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-sky-100/80 bg-gradient-to-br from-sky-50 to-white">
+            <Image
+              src={getCategoryIconPath(group.categoryLabel || group.filterGroup)}
+              alt=""
+              aria-hidden
+              width={22}
+              height={22}
+              sizes="22px"
+              className="h-[22px] w-[22px] object-contain"
+            />
+          </span>
+        ) : null}
+
+        <div className="min-w-0 flex-1">
+          <SmartLink
+            href={buildCatalogCarSearchPath(searchTerm, group.filterGroup, group.filterSubcategory)}
+            prefetchOnViewport
+            className="directory-card-title inline-flex text-[15px] leading-tight text-slate-900 transition-colors duration-200 group-hover/card:text-sky-700"
+          >
+            {group.label}
+          </SmartLink>
+        </div>
+
+        <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
+          {formatCount(group.productCount)}{" "}
+          {pluralize(group.productCount, "товар", "товари", "товарів")}
+        </span>
+      </div>
+    </article>
+  );
 
   const siteUrl = getSiteUrl();
   const brandPath = buildAutoBrandPath(brand);
@@ -350,46 +396,63 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
               </div>
             </div>
 
-            <div className="px-4 py-4 sm:px-5 sm:py-5">
-              {groups.length > 0 ? (
-                <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                  {groups.map((group) => (
-                    <article
-                      key={group.slug}
-                      className="group/card overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 transition-colors duration-200 hover:border-sky-200"
-                    >
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-sky-100/80 bg-gradient-to-br from-sky-50 to-white">
-                          <Image
-                            src={getCategoryIconPath(group.categoryLabel || group.filterGroup)}
-                            alt=""
-                            aria-hidden
-                            width={22}
-                            height={22}
-                            sizes="22px"
-                            className="h-[22px] w-[22px] object-contain"
-                          />
-                        </span>
-
-                        <div className="min-w-0 flex-1">
-                          <SmartLink
-                            href={buildCatalogCarSearchPath(searchTerm, group.filterGroup, group.filterSubcategory)}
-                            prefetchOnViewport
-                            className="directory-card-title inline-flex text-[15px] leading-tight text-slate-900 transition-colors duration-200 group-hover/card:text-sky-700"
-                          >
-                            {group.label}
-                          </SmartLink>
+            {categories.length > 0 ? (
+              <div className="space-y-5 px-4 py-4 sm:px-5 sm:py-5">
+                {categories.map((category, categoryIndex) => (
+                  <article
+                    key={`${category.slug}:${categoryIndex}`}
+                    className="overflow-hidden rounded-[24px] border border-sky-100/90 bg-[linear-gradient(180deg,rgba(240,249,255,0.92),rgba(255,255,255,0.98)_34%)] shadow-[0_18px_40px_rgba(14,165,233,0.09)] ring-1 ring-white/80"
+                  >
+                    <div className="border-b border-sky-100/80 px-4 py-4 sm:px-5">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                        <div className="flex min-w-0 gap-3">
+                          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-sky-100/80 bg-gradient-to-br from-sky-50 to-white shadow-[0_2px_8px_rgba(14,165,233,0.10)]">
+                            <Image
+                              src={getCategoryIconPath(category.label)}
+                              alt=""
+                              aria-hidden
+                              width={28}
+                              height={28}
+                              sizes="28px"
+                              className="h-7 w-7 object-contain"
+                            />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="directory-kicker text-[10px] uppercase text-sky-800">
+                              Категорія
+                            </p>
+                            <h3 className="directory-heading mt-0.5 text-xl text-slate-900 sm:text-2xl">
+                              {category.label}
+                            </h3>
+                            <p className="mt-1 text-[13px] leading-5 text-slate-500">
+                              Запчастини для {model} у категорії «{category.label}»: оберіть групу нижче.
+                            </p>
+                          </div>
                         </div>
-
-                        <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
-                          {formatCount(group.productCount)}{" "}
-                          {pluralize(group.productCount, "товар", "товари", "товарів")}
-                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          <span className={directoryCompactMetricClass}>
+                            {pluralize(category.groups.length, "група", "групи", "груп")}
+                          </span>
+                          <span className={directoryCompactMetricAccentClass}>
+                            {formatCount(category.productCount)}{" "}
+                            {pluralize(category.productCount, "товар", "товари", "товарів")}
+                          </span>
+                        </div>
                       </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
+                    </div>
+
+                    <div className="space-y-2 p-2.5 sm:p-3">
+                      {category.groups.map((group) => renderModelGroupCard(group))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : groups.length > 0 ? (
+              <div className="space-y-2.5 px-4 py-4 sm:px-5 sm:py-5">
+                {groups.map((group) => renderModelGroupCard(group, true))}
+              </div>
+            ) : (
+              <div className="px-4 py-4 sm:px-5 sm:py-5">
                 <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">
                   <PackageSearch className="mx-auto mb-2 h-6 w-6 text-slate-400" aria-hidden="true" />
                   Для {brand} {model} поки не знайдено запчастин за описом товару. Спробуйте{" "}
@@ -398,8 +461,8 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                   </SmartLink>{" "}
                   напряму.
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </section>
         </div>
       </div>

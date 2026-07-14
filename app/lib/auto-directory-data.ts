@@ -108,8 +108,21 @@ export interface AutoModelGroupSummary {
   productCount: number;
 }
 
+// Groups that share a real 1C "Категорія" (categoryLabel non-empty) bucketed
+// together — mirrors topCategories in app/manufacturers/[slug]/page.tsx so
+// the model page can render the same "Категорія → groups" block pattern.
+// Groups with no real category (the "promoted" case in resolveGroupFilterParams)
+// are never bucketed here; they stay in the flat `groups` list only.
+export interface AutoModelCategorySummary {
+  slug: string;
+  label: string;
+  productCount: number;
+  groups: AutoModelGroupSummary[];
+}
+
 export interface AutoModelGroupBreakdown {
   groups: AutoModelGroupSummary[];
+  categories: AutoModelCategorySummary[];
   totalProducts: number;
   // The search string that actually produced these results — may differ from
   // the raw model name (see getModelGroupBreakdown's tiered fallback) so
@@ -273,7 +286,39 @@ const collectModelGroupBreakdown = async (
     })
     .sort((a, b) => b.productCount - a.productCount || a.label.localeCompare(b.label, "uk"));
 
-  return { groups, totalProducts };
+  // Bucket groups that share a real categoryLabel — same idea as
+  // collectProducerFallbackStats' topCategories, but built from the already-
+  // deduped `groups` list instead of a second pass over raw items (cheaper,
+  // and keeps the per-group productCount/slug logic in one place above).
+  const categoryBuckets = new Map<
+    string,
+    { label: string; productCount: number; groups: AutoModelGroupSummary[] }
+  >();
+  for (const group of groups) {
+    if (!group.categoryLabel) continue;
+
+    const catSlug = buildSeoSlug(group.categoryLabel);
+    if (!catSlug) continue;
+
+    let bucket = categoryBuckets.get(catSlug);
+    if (!bucket) {
+      bucket = { label: group.categoryLabel, productCount: 0, groups: [] };
+      categoryBuckets.set(catSlug, bucket);
+    }
+    bucket.productCount += group.productCount;
+    bucket.groups.push(group);
+  }
+
+  const categories = Array.from(categoryBuckets.entries())
+    .map(([slug, bucket]) => ({
+      slug,
+      label: bucket.label,
+      productCount: bucket.productCount,
+      groups: bucket.groups,
+    }))
+    .sort((a, b) => b.productCount - a.productCount || a.label.localeCompare(b.label, "uk"));
+
+  return { groups, categories, totalProducts };
 };
 
 // Mirrors collectProducerFallbackStats (app/manufacturers/[slug]/page.tsx) but
@@ -286,7 +331,7 @@ const collectModelGroupBreakdown = async (
 export const getModelGroupBreakdown = cache(
   async (brand: string, model: string): Promise<AutoModelGroupBreakdown> => {
     const cleanedModel = cleanModelQuery(model);
-    if (!cleanedModel) return { groups: [], totalProducts: 0, effectiveQuery: "" };
+    if (!cleanedModel) return { groups: [], categories: [], totalProducts: 0, effectiveQuery: "" };
 
     const primary = await collectModelGroupBreakdown(cleanedModel);
     if (primary.totalProducts > 0) return { ...primary, effectiveQuery: cleanedModel };

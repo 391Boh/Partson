@@ -28,6 +28,7 @@ import {
   getBrandLogoMap,
   getProducerInitials,
   resolveProducerLogo,
+  resolveProducerSocialImage,
 } from "app/lib/brand-logo";
 import {
   findSeoProducerBySlug,
@@ -1176,13 +1177,15 @@ export async function generateMetadata({
     producer.groupsCount
   );
 
+  const producerImage = resolveProducerSocialImage(producer.label, producer.logoPath);
+
   return buildPageMetadata({
     title,
     description,
     canonicalPath: buildManufacturerPath(producer.slug),
     keywords: buildManufacturerKeywords(producer.label),
     openGraphTitle: `${title} | PartsON`,
-    image: {
+    image: producerImage ?? {
       url: "/Car-parts-fullwidth.png",
       alt: `${producer.label} — автозапчастини | PartsON`,
     },

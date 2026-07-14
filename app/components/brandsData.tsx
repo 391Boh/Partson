@@ -93,7 +93,7 @@ export const brands = [
   { name: "RIDER", logo: "/Brands/RIDER.webp", description: "RIDER — виробник пружин підвіски і відповідних аксесуарів для легкових авто, орієнтований на ринок Центральної та Східної Європи." },
   { name: "GOODREM", logo: "/Brands/GOODREM.webp", description: "GOODREM — виробник гумових і гумово-металевих деталей підвіски: сайлентблоків, втулок і подушок двигуна." },
   { name: "UCEL", logo: "/Brands/UCEL.jpg", description: "UCEL — турецький виробник гумотехнічних запчастин підвіски та двигуна, активний на ринку Туреччини та Центральної Азії." },
-  { name: "ASAM-SA", logo: "/Brands/ASAM-SA.webp", description: "ASAM-SA — румунський виробник запчастин з широким асортиментом для Dacia, Renault та інших марок, розповсюджених у Східній Євпропі." },
+  { name: "ASAM-SA", logo: "/Brands/ASAM-SA.png", description: "ASAM-SA — румунський виробник запчастин з широким асортиментом для Dacia, Renault та інших марок, розповсюджених у Східній Євпропі." },
   { name: "WIX", logo: "/Brands/WIX.svg", description: "WIX Filters (Dana Inc.) — американський виробник фільтрів із 1939 року, пропонує оливні, паливні, повітряні та гідравлічні фільтри для легкових і вантажних авто." },
   { name: "Victor Reinz", logo: "/Brands/VICTOR REINZ.webp", description: "Victor Reinz (Dana Inc.) — провідний виробник прокладок двигуна, комплектів ущільнень ГБЦ та герметиків для двигунів усіх типів." },
   { name: "Continental AG", logo: "/Brands/Continental.png", description: "Continental AG — глобальний автомобільний постачальник: шини, електроніка, системи приводу та компоненти гальмівних систем для OEM і aftermarket." },

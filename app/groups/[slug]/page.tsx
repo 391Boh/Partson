@@ -9,8 +9,6 @@ import {
   directoryCompactMetricAccentClass,
   directoryCompactMetricClass,
   directoryHeaderClass,
-  directoryHeroClass,
-  directoryIconTileClass,
   directoryListCardClass,
   directoryPanelClass,
   directoryPrimaryButtonClass,
@@ -90,17 +88,24 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
   const group = dataset?.groups.find(
     (item) => item.slug === slug || item.legacySlug === slug
   );
+  // /groups/[slug] pages render 1C's top-level "Категорія" tier — match
+  // against each producer's topCategories, not topGroups (one tier lower,
+  // e.g. "Гальмівні колодки" under "Гальмівна система"). topCategories slugs
+  // carry a disambiguation hash suffix the plain group-page slug doesn't
+  // (e.g. "detali-dvyhuna-nzpal4" vs "detali-dvyhuna"), so the exact-slug
+  // checks are a fallback — the buildPlainSeoSlug(label) comparison is what
+  // actually matches in practice.
   const resolveTopProducers = (resolvedSlug: string, legacySlug?: string) =>
     seoFacets.producers
       .flatMap((producer) => {
-        const matchingGroup = producer.topGroups?.find(
-          (pg) =>
-            pg.slug === resolvedSlug ||
-            (legacySlug && pg.slug === legacySlug) ||
-            buildPlainSeoSlug(pg.label) === resolvedSlug
+        const matchingCategory = producer.topCategories?.find(
+          (pc) =>
+            pc.slug === resolvedSlug ||
+            (legacySlug && pc.slug === legacySlug) ||
+            buildPlainSeoSlug(pc.label) === resolvedSlug
         );
-        if (!matchingGroup) return [];
-        return [{ label: producer.label, slug: producer.slug, _count: matchingGroup.productCount }];
+        if (!matchingCategory) return [];
+        return [{ label: producer.label, slug: producer.slug, _count: matchingCategory.productCount }];
       })
       .sort((a, b) => b._count - a._count)
       .slice(0, 28)
@@ -470,80 +475,105 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   };
 
   return (
-    <main className="catalog-directory-page page-shell-inline py-6 sm:py-8">
-      <nav aria-label="Навігаційні хлібні крихти">
-        <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-          <li className="inline-flex items-center gap-2">
-            <Link href="/" className="transition hover:text-slate-800">Головна</Link>
-          </li>
-          <li className="inline-flex items-center gap-2">
-            <span aria-hidden="true">/</span>
-            <Link href="/groups" className="transition hover:text-slate-800">Групи товарів</Link>
-          </li>
-          <li className="inline-flex items-center gap-2">
-            <span aria-hidden="true">/</span>
-            <span className="text-slate-700">{visibleGroupLabel}</span>
-          </li>
-        </ol>
-      </nav>
+    <main className="catalog-directory-page page-shell-inline py-5 sm:py-7">
+      <div className="space-y-4 sm:space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <nav aria-label="Навігаційні хлібні крихти">
+            <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+              <li className="inline-flex items-center gap-2">
+                <Link href="/" className="transition hover:text-slate-800">Головна</Link>
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <span aria-hidden="true">/</span>
+                <Link href="/groups" className="transition hover:text-slate-800">Групи товарів</Link>
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <span aria-hidden="true">/</span>
+                <span className="text-slate-700">{visibleGroupLabel}</span>
+              </li>
+            </ol>
+          </nav>
 
-      <Link href="/groups" className="mt-3 inline-flex text-sm font-semibold text-teal-800 hover:text-teal-900">
-        &larr; Усі групи
-      </Link>
-
-      <section className={`mt-4 ${directoryHeroClass}`}>
-        <div className="flex items-start gap-4">
-          <div className={directoryIconTileClass}>
-            <Image
-              src={categoryIconPath}
-              alt={`Іконка категорії ${visibleGroupLabel}`}
-              width={48}
-              height={48}
-              sizes="48px"
-              className="h-12 w-12 object-contain"
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="directory-kicker inline-flex rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] uppercase text-teal-800">
-                {pageBadge}
-              </span>
-              <span className={directoryCompactMetricClass}>
-                {buildGroupHeroSupportLabel(group.label, hasSubgroups)}
-              </span>
-              <span className={directoryCompactMetricAccentClass}>
-                Пошук за назвою, брендом і артикулом
-              </span>
-            </div>
-
-            <h1 className="directory-heading-hero mt-4 text-3xl leading-[1.1] text-slate-900 sm:text-[2.2rem]">
-              {pageTitle}
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
-              {pageDescription}
-            </p>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 sm:text-[15px]">
-              {pageDetails}
-            </p>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <CatalogPrefetchLink
-                href={catalogLink}
-                prefetchCatalogOnViewport
-                className={directoryPrimaryButtonClass}
-              >
-                Перейти в каталог
-              </CatalogPrefetchLink>
-              <Link
-                href="/groups"
-                className={directorySecondaryButtonClass}
-              >
-                Усі групи
-              </Link>
-            </div>
-          </div>
+          <Link href="/groups" className={directorySecondaryButtonClass}>
+            &larr; Усі групи
+          </Link>
         </div>
-      </section>
+
+        <section className="relative overflow-hidden rounded-[30px] border border-white/85 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(240,253,250,0.94),rgba(236,254,255,0.9))] p-4 shadow-[0_28px_70px_rgba(13,148,136,0.15)] ring-1 ring-teal-100/70 sm:p-5 lg:p-6">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-teal-200/35 via-cyan-100/25 to-sky-100/25" />
+
+          <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+            <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+              <div className="flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/90 bg-white/86 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-teal-100/80 sm:h-28 sm:w-28">
+                <Image
+                  src={categoryIconPath}
+                  alt={`Іконка категорії ${visibleGroupLabel}`}
+                  width={48}
+                  height={48}
+                  sizes="48px"
+                  className="max-h-full max-w-full object-contain"
+                  priority
+                />
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="directory-kicker inline-flex rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] uppercase text-teal-800">
+                    {pageBadge}
+                  </span>
+                  <span className={directoryCompactMetricClass}>
+                    {buildGroupHeroSupportLabel(group.label, hasSubgroups)}
+                  </span>
+                  <span className={directoryCompactMetricAccentClass}>
+                    Пошук за назвою, брендом і артикулом
+                  </span>
+                </div>
+
+                <h1 className="directory-heading-hero mt-3 text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
+                  {pageTitle}
+                </h1>
+                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
+                  {pageDescription}
+                </p>
+                <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-500 sm:text-[15px]">
+                  {pageDetails}
+                </p>
+
+                <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <CatalogPrefetchLink
+                      href={catalogLink}
+                      prefetchCatalogOnViewport
+                      className={directoryPrimaryButtonClass}
+                    >
+                      Перейти в каталог
+                    </CatalogPrefetchLink>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside className="grid gap-2.5 rounded-[24px] border border-white/85 bg-white/78 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-teal-100/70 sm:grid-cols-2 xl:grid-cols-1">
+              {[
+                { label: "товарів у групі", value: formatCount(group.productCount) },
+                { label: "підгруп", value: formatCount(group.subgroupsCount) },
+              ].map((metric) => (
+                <div
+                  key={metric.label}
+                  className="rounded-[18px] border border-slate-200/85 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.96))] px-3.5 py-3"
+                >
+                  <span className="directory-counter block text-2xl leading-none text-slate-900">
+                    {metric.value}
+                  </span>
+                  <span className="mt-1.5 block text-[10px] font-medium uppercase tracking-[0.08em] text-slate-500">
+                    {metric.label}
+                  </span>
+                </div>
+              ))}
+            </aside>
+          </div>
+        </section>
+      </div>
 
       {producersWithLogos.length > 0 && (
         <section className="mt-6 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white/96 shadow-[0_8px_28px_rgba(15,23,42,0.06)]">

@@ -74,3 +74,20 @@ export const resolveProducerLogo = (label: string, logoMap: Map<string, string>)
 };
 
 export const getBrandLogoMap = async () => loadBrandLogoMap();
+
+const RASTER_EXTENSION_PATTERN = /\.(png|jpe?g|webp)$/i;
+
+// Social/OG image crawlers (Facebook, Twitter/X, Telegram, Google Discover)
+// don't reliably render SVG previews (same caveat as car-brand-social-image.ts)
+// — a producer whose only logo file is .svg falls back to the generic banner
+// rather than risk a blank link preview. Unlike car brands there's no
+// generated-PNG pipeline for /public/Brands, so this has no raster fallback
+// to reach for beyond the resolved logoPath itself.
+export const resolveProducerSocialImage = (
+  label: string,
+  logoPath: string | null
+): { url: string; alt: string } | null => {
+  if (!logoPath || !RASTER_EXTENSION_PATTERN.test(logoPath)) return null;
+
+  return { url: logoPath, alt: `Логотип ${label}` };
+};
