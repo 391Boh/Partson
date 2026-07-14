@@ -12,14 +12,20 @@ import { brands } from "./brandsData";
 const MOBILE_ITEMS_PER_PAGE = 4;
 const DESKTOP_ITEMS_PER_PAGE = 8;
 
-const pluralizeBrandCount = (value: number) => {
+const pluralizeUk = (value: number, one: string, few: string, many: string) => {
   const mod10 = value % 10;
   const mod100 = value % 100;
-  if (mod100 >= 11 && mod100 <= 19) return "виробників";
-  if (mod10 === 1) return "виробник";
-  if (mod10 >= 2 && mod10 <= 4) return "виробники";
-  return "виробників";
+  if (mod100 >= 11 && mod100 <= 19) return many;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
 };
+
+const pluralizeBrandCount = (value: number) =>
+  pluralizeUk(value, "виробник", "виробники", "виробників");
+
+const pluralizeProductCount = (value: number) =>
+  pluralizeUk(value, "товар", "товари", "товарів");
 
 type BrandItem = {
   name: string;
@@ -144,33 +150,27 @@ function BrandCard({
       />
 
       <span className="relative z-10 flex min-w-0 items-center gap-2 sm:items-start sm:gap-3">
-        <span className="flex shrink-0 flex-col items-center gap-1">
-          <span className="flex h-11 w-[58px] shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_6px_14px_rgba(15,23,42,0.055)] transition-[border-color,box-shadow,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06] group-hover:border-sky-200 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(14,165,233,0.16)] sm:h-[58px] sm:w-[86px] sm:rounded-[14px] lg:h-[62px] lg:w-[94px]">
-            {brand.logo ? (
-              <Image
-                src={brand.logo}
-                alt={`${brand.name} logo`}
-                width={320}
-                height={200}
-                quality={75}
-                priority={priority}
-                loading={priority ? undefined : "lazy"}
-                draggable={false}
-                className="h-7 w-12 object-contain drop-shadow-[0_4px_8px_rgba(15,23,42,0.09)] sm:h-[38px] sm:w-[72px] lg:h-[42px] lg:w-[80px]"
-                style={{ imageRendering: "auto" }}
-                sizes="(max-width: 640px) 64px, 80px"
-                onError={handleBrandLogoLoadError}
-              />
-            ) : (
-              <span className="text-[13px] font-black text-slate-600 tracking-tight leading-none text-center px-1">
-                {brand.name.split(" ").map((w) => w[0]).join("").slice(0, 3).toUpperCase()}
-              </span>
-            )}
-          </span>
-          <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-[8px] font-black uppercase tracking-[0.05em] text-sky-700 transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[9.5px]">
-            До виробника
-            <ArrowRight size={9} strokeWidth={3} aria-hidden="true" />
-          </span>
+        <span className="flex h-11 w-[58px] shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_6px_14px_rgba(15,23,42,0.055)] transition-[border-color,box-shadow,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06] group-hover:border-sky-200 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(14,165,233,0.16)] sm:h-[58px] sm:w-[86px] sm:rounded-[14px] lg:h-[62px] lg:w-[94px]">
+          {brand.logo ? (
+            <Image
+              src={brand.logo}
+              alt={`${brand.name} logo`}
+              width={320}
+              height={200}
+              quality={75}
+              priority={priority}
+              loading={priority ? undefined : "lazy"}
+              draggable={false}
+              className="h-7 w-12 object-contain drop-shadow-[0_4px_8px_rgba(15,23,42,0.09)] sm:h-[38px] sm:w-[72px] lg:h-[42px] lg:w-[80px]"
+              style={{ imageRendering: "auto" }}
+              sizes="(max-width: 640px) 64px, 80px"
+              onError={handleBrandLogoLoadError}
+            />
+          ) : (
+            <span className="text-[13px] font-black text-slate-600 tracking-tight leading-none text-center px-1">
+              {brand.name.split(" ").map((w) => w[0]).join("").slice(0, 3).toUpperCase()}
+            </span>
+          )}
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="line-clamp-2 block max-w-full break-words text-left text-[12px] font-black leading-tight text-slate-950 transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[16px] lg:text-[17px]">
@@ -178,9 +178,13 @@ function BrandCard({
           </span>
           {brand.productCount && brand.productCount > 0 ? (
             <span className="hidden text-[11px] font-bold text-emerald-700 sm:inline">
-              {brand.productCount.toLocaleString("uk-UA")} товарів у каталозі
+              {brand.productCount.toLocaleString("uk-UA")} {pluralizeProductCount(brand.productCount)} у каталозі
             </span>
           ) : null}
+          <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-[8px] font-black uppercase tracking-[0.05em] text-sky-700 transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[9.5px]">
+            До виробника
+            <ArrowRight size={9} strokeWidth={3} aria-hidden="true" />
+          </span>
         </span>
       </span>
 
