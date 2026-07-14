@@ -3,7 +3,7 @@ import Script from "next/script";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Car, PackageSearch } from "lucide-react";
+import { ArrowLeft, Car, MessageCircle, PackageSearch } from "lucide-react";
 
 import SmartLink from "app/components/SmartLink";
 import {
@@ -32,7 +32,12 @@ import {
   buildAutoModelPath,
   buildCatalogCarSearchPath,
 } from "app/lib/catalog-links";
-import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
+import {
+  appendSeoContact,
+  buildPageMetadata,
+  STORE_PHONE_DISPLAY,
+  STORE_PHONE_TEL,
+} from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { getSiteUrl } from "app/lib/site-url";
@@ -255,6 +260,88 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
     ],
   };
 
+  // No matching groups — skip the full hero/stats/groups-panel layout (there's
+  // nothing for it to show) in favor of a compact, honest "not in the catalog
+  // yet" message with a way forward, instead of an elaborate page built
+  // around empty numbers. No collectionJsonLd either — an ItemList with zero
+  // items isn't useful structured data.
+  if (groups.length === 0) {
+    return (
+      <main className={`${catalogPageBackgroundClass} min-h-screen py-5 sm:py-7`}>
+        <Script
+          id="auto-model-page-breadcrumb-jsonld"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
+        />
+
+        <div className="page-shell-inline">
+          <div className="space-y-4 sm:space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <nav aria-label="Навігаційні хлібні крихти">
+                <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+                  <li className="inline-flex items-center gap-2">
+                    <Link href="/" className="transition hover:text-slate-800">Головна</Link>
+                  </li>
+                  <li className="inline-flex items-center gap-2">
+                    <span aria-hidden="true">/</span>
+                    <Link href="/auto" className="transition hover:text-slate-800">Підбір по авто</Link>
+                  </li>
+                  <li className="inline-flex items-center gap-2">
+                    <span aria-hidden="true">/</span>
+                    <Link href={brandPath} className="transition hover:text-slate-800">{brand}</Link>
+                  </li>
+                  <li className="inline-flex items-center gap-2">
+                    <span aria-hidden="true">/</span>
+                    <span className="text-slate-700">{model}</span>
+                  </li>
+                </ol>
+              </nav>
+
+              <Link href={brandPath} className={directorySecondaryButtonClass}>
+                <ArrowLeft size={14} className="mr-1.5 inline-block" />
+                Усі моделі {brand}
+              </Link>
+            </div>
+
+            <section className="relative overflow-hidden rounded-[30px] border border-white/85 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(240,249,255,0.94),rgba(236,254,255,0.9))] px-5 py-10 text-center shadow-[0_28px_70px_rgba(14,165,233,0.15)] ring-1 ring-sky-100/70 sm:px-8 sm:py-12">
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-sky-200/35 via-cyan-100/25 to-emerald-100/25" />
+
+              <div className="relative mx-auto flex max-w-lg flex-col items-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-[20px] border border-white/90 bg-white/86 text-sky-700 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-sky-100/80">
+                  <PackageSearch size={28} strokeWidth={1.8} />
+                </div>
+
+                <h1 className="directory-heading-hero mt-4 text-[1.6rem] leading-[1.15] text-slate-950 sm:text-[1.9rem]">
+                  {brand} {model}
+                </h1>
+                <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-[15px]">
+                  Для {brand} {model} поки не знайдено запчастин у каталозі. Можливо,
+                  ці товари ще не додані в каталог — спробуйте пошук у загальному
+                  каталозі або зверніться до підтримки, і ми допоможемо підібрати
+                  потрібну деталь.
+                </p>
+
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  <SmartLink
+                    href={allProductsPath}
+                    prefetchOnViewport
+                    className={directoryPrimaryButtonClass}
+                  >
+                    Перейти в каталог
+                  </SmartLink>
+                  <a href={`tel:${STORE_PHONE_TEL}`} className={directorySecondaryButtonClass}>
+                    <MessageCircle size={14} className="mr-1.5 inline-block" />
+                    Підтримка: {STORE_PHONE_DISPLAY}
+                  </a>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   const collectionJsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
@@ -447,20 +534,12 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                   </article>
                 ))}
               </div>
-            ) : groups.length > 0 ? (
+            ) : (
+              // categories.length === 0 here always implies groups.length > 0
+              // — the groups.length === 0 case returns early above, before
+              // this JSX is ever built.
               <div className="space-y-2.5 px-4 py-4 sm:px-5 sm:py-5">
                 {groups.map((group) => renderModelGroupCard(group, true))}
-              </div>
-            ) : (
-              <div className="px-4 py-4 sm:px-5 sm:py-5">
-                <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">
-                  <PackageSearch className="mx-auto mb-2 h-6 w-6 text-slate-400" aria-hidden="true" />
-                  Для {brand} {model} поки не знайдено запчастин за описом товару. Спробуйте{" "}
-                  <SmartLink href={allProductsPath} className="font-semibold text-sky-700 hover:text-sky-800">
-                    відкрити каталог
-                  </SmartLink>{" "}
-                  напряму.
-                </div>
               </div>
             )}
           </section>
