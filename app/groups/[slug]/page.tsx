@@ -3,8 +3,10 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
+import { Factory, FolderTree, PackageSearch } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
+import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import {
   directoryCompactMetricAccentClass,
   directoryCompactMetricClass,
@@ -37,7 +39,10 @@ import { safeJsonLd } from "app/lib/safe-json-ld";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
-const GROUP_STATIC_PARAMS_LIMIT_DEFAULT = 0;
+// Default covers the real top-level group count (14, see .env.example) plus
+// headroom, so every group page in the sitemap pre-renders at build by
+// default.
+const GROUP_STATIC_PARAMS_LIMIT_DEFAULT = 20;
 const GROUP_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
 const GROUP_PAGE_SEO_FACETS_TIMEOUT_MS = 500;
 interface GroupPageParams {
@@ -499,8 +504,8 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
           </Link>
         </div>
 
-        <section className="relative overflow-hidden rounded-[30px] border border-white/85 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(240,253,250,0.94),rgba(236,254,255,0.9))] p-4 shadow-[0_28px_70px_rgba(13,148,136,0.15)] ring-1 ring-teal-100/70 sm:p-5 lg:p-6">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-teal-200/35 via-cyan-100/25 to-sky-100/25" />
+        <section className="relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/80 to-transparent" />
 
           <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
@@ -560,7 +565,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
               ].map((metric) => (
                 <div
                   key={metric.label}
-                  className="rounded-[18px] border border-slate-200/85 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.96))] px-3.5 py-3"
+                  className="rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3"
                 >
                   <span className="directory-counter block text-2xl leading-none text-slate-900">
                     {metric.value}
@@ -595,9 +600,9 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
               <Link
                 key={producer.slug}
                 href={buildManufacturerPath(producer.slug)}
-                className="group/brand inline-flex items-center gap-2 rounded-[14px] border border-slate-200/80 bg-white px-3 py-2 shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-[2px] hover:border-teal-300/80 hover:bg-gradient-to-b hover:from-teal-50/60 hover:to-white hover:shadow-[0_6px_18px_rgba(13,148,136,0.14)]"
+                className="group/brand inline-flex items-center gap-2 rounded-[14px] border border-slate-200/75 bg-[linear-gradient(145deg,#ffffff_0%,#f6fafc_62%,#f0f9f7_100%)] px-3 py-2 shadow-[0_3px_10px_rgba(15,23,42,0.045)] transition-[border-color,box-shadow,background-color] duration-300 hover:border-teal-300/75 hover:bg-[linear-gradient(145deg,#ffffff_0%,#eaf8fb_56%,#e1f8f1_100%)] hover:shadow-[0_9px_22px_rgba(13,148,136,0.11)]"
               >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-slate-100 bg-gradient-to-br from-slate-50 to-white shadow-sm">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-cyan-200/70 bg-[linear-gradient(145deg,#ffffff_0%,#e7f5fb_54%,#def7f0_100%)] shadow-[0_6px_16px_rgba(14,165,233,0.08),inset_0_1px_0_white] transition-[border-color,box-shadow] duration-300 group-hover/brand:border-teal-300 group-hover/brand:shadow-[0_9px_20px_rgba(13,148,136,0.12)]">
                   {producer.logoPath ? (
                     <Image
                       src={producer.logoPath}
@@ -625,56 +630,39 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
         </section>
       )}
 
-      <section className={`${directoryPanelClass} mt-6`}>
-        <div className={directoryHeaderClass}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="directory-kicker text-[11px] uppercase text-teal-800">
-                Опис групи
-              </p>
-              <h2 className="directory-heading mt-1 text-xl text-slate-900 sm:text-2xl">
-                {visibleGroupLabel} в каталозі автозапчастин PartsON
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                {seoCopy.intro}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className={directoryCompactMetricClass}>
-                Опис, назви і структура групи
-              </span>
-              <span className={directoryCompactMetricAccentClass}>
-                Навігація до каталогу
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.95fr)]">
-          <div className="space-y-3 text-sm leading-6 text-slate-600">
-            {seoCopy.paragraphs.map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
-            ))}
-          </div>
-
-          <aside className="rounded-lg border border-teal-100/80 bg-[linear-gradient(165deg,rgba(240,253,250,0.94),rgba(239,246,255,0.92),rgba(255,255,255,0.98))] p-4 shadow-[0_16px_34px_rgba(13,148,136,0.08)]">
-            <p className="directory-kicker text-[11px] uppercase text-teal-800">
-              Що входить у групу
-            </p>
-            <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">
-              {seoCopy.highlights.map((highlight) => (
-                <li
-                  key={highlight}
-                  className="flex items-start gap-2 border-b border-white/70 pb-2 last:border-b-0 last:pb-0"
-                >
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500" />
-                  <span>{highlight}</span>
-                </li>
-              ))}
-            </ul>
-          </aside>
-        </div>
-      </section>
+      <CatalogSeoTextSection
+        contained={false}
+        badge="Навігація по групі"
+        title={`${visibleGroupLabel}: підгрупи, виробники та товари`}
+        lead={seoCopy.intro}
+        topics={[
+          {
+            title: "Структура групи",
+            text: hasSubgroups
+              ? `Оберіть потрібний напрям серед ${group.subgroupsCount.toLocaleString("uk-UA")} підгруп, щоб звузити каталог.`
+              : "Перейдіть безпосередньо до товарів цієї групи та уточніть параметри у каталозі.",
+            icon: FolderTree,
+          },
+          {
+            title: "Виробники й аналоги",
+            text: producersWithLogos.length > 0
+              ? "Порівнюйте пропозиції різних брендів у межах однієї групи товарів."
+              : "Використовуйте фільтр виробника, щоб зіставити доступні варіанти й аналоги.",
+            icon: Factory,
+          },
+          {
+            title: "Точний підбір",
+            text: "Звіряйте артикул і технічні характеристики, а за потреби уточнюйте сумісність за VIN.",
+            icon: PackageSearch,
+          },
+        ]}
+        paragraphs={seoCopy.paragraphs}
+        links={[
+          { href: catalogLink, label: `Товари ${visibleGroupLabel}` },
+          { href: "/groups", label: "Усі групи" },
+          { href: "/auto", label: "Підбір за авто" },
+        ]}
+      />
 
       {group.subgroups.length > 0 && (
         <section className="mt-6 space-y-3">

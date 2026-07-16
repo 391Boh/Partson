@@ -84,9 +84,17 @@ export default function HeroAccountClient({
     };
   }, [isAuthReady, user, variant]);
 
-  const benefitItems = useMemo(
-    () => [
-      ...(hasOrders !== true
+  const benefitItems = useMemo(() => {
+    // Guests always qualify (stable from first paint, no flicker risk).
+    // Logged-in users only qualify once the Firestore check confirms they
+    // have no prior orders — showing it optimistically before that resolves
+    // would mean yanking it away a moment later for anyone who already
+    // ordered, which reads as flicker. Hidden-then-appearing is the safer
+    // direction: growing a list is far less jarring than shrinking one.
+    const showDiscount = !user || hasOrders === false;
+
+    return [
+      ...(showDiscount
         ? [
             {
               label: "5% знижка на перше замовлення",
@@ -102,11 +110,25 @@ export default function HeroAccountClient({
         label: "Професійний підбір",
         onClick: () => router.push("/katalog?tab=auto"),
       },
-    ],
-    [hasOrders, router]
-  );
+    ];
+  }, [hasOrders, user, router]);
 
   if (variant === "actions") {
+    // Firebase auth state isn't known during SSR/first paint — rendering
+    // the guest buttons immediately and then swapping to the logged-in "VIN"
+    // button once isAuthReady resolves true is exactly what read as
+    // flickering in the hero. Show a neutral, same-sized placeholder until
+    // the real state is known, then commit to it once, instead of guessing
+    // and correcting.
+    if (!isAuthReady) {
+      return (
+        <div className="flex min-h-[42px] min-w-[272px] items-center justify-center gap-2 sm:min-h-[44px] sm:min-w-[292px]">
+          <span className="h-[42px] w-[130px] animate-pulse rounded-[14px] bg-white/10 sm:h-[44px] sm:w-[138px]" />
+          <span className="h-[42px] w-[130px] animate-pulse rounded-[14px] bg-white/10 sm:h-[44px] sm:w-[138px]" />
+        </div>
+      );
+    }
+
     return (
       <div className="flex min-h-[42px] min-w-[272px] flex-wrap items-center justify-center gap-2 sm:min-h-[44px] sm:min-w-[292px]">
         {user ? (

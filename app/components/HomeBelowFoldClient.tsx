@@ -2,12 +2,24 @@
 
 import dynamic from "next/dynamic";
 
-import DeferredSection from "./DeferredSection";
 import HomeDeferredStack from "./HomeDeferredStack";
 import SectionBoundary from "./SectionBoundary";
 
-const AdvantagesSection = dynamic(() => import("./AdvantagesSection"), {
-  loading: () => <div className="h-[320px] animate-pulse bg-cyan-50/60" aria-hidden="true" />,
+// This block changes from a long single-column layout on mobile to a compact
+// desktop layout, so its placeholder must be responsive too. A single 1200px
+// height still left a shift of more than 800px on tablet-sized viewports.
+const AdvantagesSectionFallback = () => (
+  <div
+    className="h-[2446px] bg-cyan-50/60 sm:h-[2050px] lg:h-[1330px] xl:h-[1200px]"
+    aria-hidden="true"
+  />
+);
+
+const loadAdvantagesSection = () => import("./AdvantagesSection");
+
+const AdvantagesSection = dynamic(loadAdvantagesSection, {
+  ssr: false,
+  loading: AdvantagesSectionFallback,
 });
 
 type InitialSyncedBrand = {
@@ -20,18 +32,21 @@ type InitialSyncedBrand = {
 
 export default function HomeBelowFoldClient({
   initialSyncedBrands,
+  initialProductTree,
 }: {
   initialSyncedBrands?: InitialSyncedBrand[];
+  initialProductTree?: unknown;
 }) {
   return (
     <>
-      <HomeDeferredStack initialSyncedBrands={initialSyncedBrands} />
+      <HomeDeferredStack
+        initialSyncedBrands={initialSyncedBrands}
+        initialProductTree={initialProductTree}
+      />
       <div className="home-section-stage">
-        <DeferredSection rootMargin="80px" minHeight="320px" fallback={<div className="h-[320px] bg-cyan-50/40" />}>
-          <SectionBoundary title="Інформаційний блок тимчасово недоступний">
-            <AdvantagesSection />
-          </SectionBoundary>
-        </DeferredSection>
+        <SectionBoundary title="Інформаційний блок тимчасово недоступний">
+          <AdvantagesSection />
+        </SectionBoundary>
       </div>
     </>
   );

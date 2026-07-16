@@ -6,12 +6,14 @@ interface OpenChatButtonProps {
   message?: string;
   className?: string;
   title?: string;
+  label?: string;
 }
 
 export default function OpenChatButton({
   message = "",
   className,
   title = "Відкрити чат",
+  label,
 }: OpenChatButtonProps) {
   return (
     <button
@@ -31,7 +33,12 @@ export default function OpenChatButton({
       aria-label={title}
       title={title}
     >
-      <MessageCircle size={17} strokeWidth={2.1} />
+      <MessageCircle
+        size={17}
+        strokeWidth={2.1}
+        className={label ? "mr-1.5 shrink-0" : undefined}
+      />
+      {label ? <span>{label}</span> : null}
     </button>
   );
 }

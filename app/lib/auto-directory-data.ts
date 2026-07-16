@@ -7,7 +7,13 @@ import { cache } from "react";
 
 import { carBrands, type CarBrand } from "app/components/carBrands";
 import { fetchBrandModels, type AutoSeoModelEntry } from "app/lib/auto-seo";
+import {
+  cleanCarModelForSearch,
+  stripRomanNumeralsFromModel,
+  stripTrailingChassisCode,
+} from "app/lib/car-model-search";
 import { fetchCatalogProductsByQuery, type CatalogProduct } from "app/lib/catalog-server";
+import { inferCategoryForGroupLabel } from "app/lib/category-icons";
 import { buildPlainSeoSlug, buildSeoSlug } from "app/lib/seo-slug";
 
 const normalizeValue = (value: string | null | undefined) =>
@@ -59,39 +65,19 @@ export const findCarModelInBrand = async (
   );
 };
 
-// Same restyling-word / roman-numeral cleanup as the katalog car-selection
-// flow (KatalogClientPage.tsx / Data.tsx) — kept as small local regexes here
-// rather than a shared import since both sides are plain string utilities
-// with no client/server-only dependency worth threading across the boundary.
-const RESTYLING_WORD_REGEX = /(?<![\p{L}\p{N}_])(рестайлінг|рестайлинг)(?![\p{L}\p{N}_])/giu;
-const ROMAN_NUMERAL_WORD_REGEX = /(?<![\p{L}\p{N}_])(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)(?![\p{L}\p{N}_])/gu;
+// Same restyling-word / roman-numeral / chassis-code cleanup the katalog
+// car-selection flow uses (KatalogClientPage.tsx / Data.tsx) — shared so all
+// three call sites always agree on what counts as "рестайлинг", a roman
+// numeral, or a trailing chassis code instead of three regexes drifting.
+export const cleanModelQuery = cleanCarModelForSearch;
+const stripRomanNumerals = stripRomanNumeralsFromModel;
 
-export const cleanModelQuery = (value: string) =>
-  value
-    .replace(RESTYLING_WORD_REGEX, " ")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-
-const stripRomanNumerals = (value: string) =>
-  value
-    .replace(ROMAN_NUMERAL_WORD_REGEX, " ")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-
-// Chassis/generation codes ("100 IV C4", "Passat B3") put the code as the
-// LAST token — only strip it there, never when it's the only token, since
-// plenty of real model names ARE exactly a letter+digit ("A4", "A6", "Q5",
-// "X5"...). Only used as a last-resort widening after roman numerals alone
-// still found nothing.
-const stripTrailingChassisCode = (value: string) => {
-  const tokens = value.trim().split(/\s+/).filter(Boolean);
-  if (tokens.length < 2) return value;
-
-  const last = tokens[tokens.length - 1];
-  if (!/^\p{L}\d{1,3}$/u.test(last)) return value;
-
-  return tokens.slice(0, -1).join(" ").trim();
-};
+export interface AutoModelSubgroupSummary {
+  label: string;
+  slug: string;
+  filterSubcategory: string;
+  productCount: number;
+}
 
 export interface AutoModelGroupSummary {
   label: string;
@@ -106,6 +92,10 @@ export interface AutoModelGroupSummary {
   // since those are chosen for filtering correctness, not display.
   categoryLabel: string;
   productCount: number;
+  // Every distinct Підгруппа under this group's dominant filterGroup, mirroring
+  // topGroups[].subgroups on the manufacturer page — rendered as chips below
+  // the group card. Empty when the group has no genuine subgroup tier.
+  subgroups: AutoModelSubgroupSummary[];
 }
 
 // Groups that share a real 1C "Категорія" (categoryLabel non-empty) bucketed
@@ -275,9 +265,19 @@ const collectModelGroupBreakdown = async (
 
   const groups = Array.from(labelBuckets.values())
     .map((bucket) => {
-      const dominantVariant = Array.from(bucket.variants.values()).sort(
-        (a, b) => b.count - a.count
-      )[0];
+      // Prefer a variant that carries a real categoryLabel over a larger-count
+      // "promoted" 2-tier variant (categoryLabel === "") for the same label —
+      // otherwise a group that genuinely has a category for SOME of its
+      // products gets bucketed into "Інше" whenever the 2-tier variant just
+      // happens to have more matching items for this particular model, which
+      // reads as the same group randomly landing in a different place from
+      // one model page to the next.
+      const dominantVariant = Array.from(bucket.variants.values()).sort((a, b) => {
+        const aHasCategory = a.categoryLabel ? 1 : 0;
+        const bHasCategory = b.categoryLabel ? 1 : 0;
+        if (aHasCategory !== bHasCategory) return bHasCategory - aHasCategory;
+        return b.count - a.count;
+      })[0];
 
       const baseSlug = buildSeoSlug(bucket.label) || "group";
       let slug = baseSlug;
@@ -288,13 +288,57 @@ const collectModelGroupBreakdown = async (
       }
       usedSlugs.add(slug);
 
+      // Subgroup chips: every variant that shares the dominant filterGroup
+      // (variants under a different filterGroup are the "same label, two
+      // different parents" edge case from the comment above — they link
+      // elsewhere and would mislead as a subgroup of this card) and whose
+      // filterSubcategory is a genuine deeper tier, not just a restatement
+      // of the group's own label (the "promoted" 2-tier case sets
+      // filterSubcategory === label, see resolveGroupFilterParams above).
+      const usedSubSlugs = new Set<string>();
+      const subgroups = Array.from(bucket.variants.values())
+        .filter(
+          (variant) =>
+            variant.filterGroup === dominantVariant.filterGroup &&
+            variant.filterSubcategory &&
+            variant.filterSubcategory.toLocaleLowerCase("uk-UA") !==
+              bucket.label.toLocaleLowerCase("uk-UA")
+        )
+        .map((variant) => {
+          const subLabel = variant.filterSubcategory as string;
+          const subBaseSlug = buildSeoSlug(subLabel) || "subgroup";
+          let subSlug = subBaseSlug;
+          let subSuffix = 2;
+          while (usedSubSlugs.has(subSlug)) {
+            subSlug = `${subBaseSlug}-${subSuffix}`;
+            subSuffix += 1;
+          }
+          usedSubSlugs.add(subSlug);
+
+          return {
+            slug: subSlug,
+            label: subLabel,
+            filterSubcategory: subLabel,
+            productCount: variant.count,
+          };
+        })
+        .sort((a, b) => b.productCount - a.productCount || a.label.localeCompare(b.label, "uk"));
+
+      // 1C has no real Категорія for this group (2-tier item — see
+      // resolveGroupFilterParams' "promoted" case) — guess one from the
+      // group's own name (e.g. "Гальмівні колодки" -> "Гальмівна система")
+      // instead of dumping it in "Інше" just because 1C never tagged it.
+      const categoryLabel =
+        dominantVariant.categoryLabel || inferCategoryForGroupLabel(bucket.label);
+
       return {
         slug,
         label: bucket.label,
         filterGroup: dominantVariant.filterGroup,
         filterSubcategory: dominantVariant.filterSubcategory,
-        categoryLabel: dominantVariant.categoryLabel,
+        categoryLabel,
         productCount: bucket.productCount,
+        subgroups,
       };
     })
     .sort((a, b) => b.productCount - a.productCount || a.label.localeCompare(b.label, "uk"));

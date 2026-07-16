@@ -36,7 +36,6 @@ export default function CatalogSectionNav({
             key={item.id}
             href={item.href}
             aria-current={isCurrent ? "page" : undefined}
-            prefetchOnViewport={!isCurrent}
             className={`group inline-flex h-11 items-center justify-center gap-2.5 rounded-[14px] border px-3 text-[13px] font-semibold leading-none transition ${
               isCurrent
                 ? "border-cyan-300/90 bg-[linear-gradient(135deg,rgba(236,254,255,0.96),rgba(224,242,254,0.92))] text-cyan-950 shadow-[0_12px_24px_rgba(8,145,178,0.12)]"
@@ -45,10 +44,10 @@ export default function CatalogSectionNav({
           >
             <span className="inline-flex min-w-0 items-center gap-2.5">
               <span
-                className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
+                className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition-[border-color,background-color,color,box-shadow] duration-300 ${
                   isCurrent
-                    ? "border-cyan-200 bg-white text-cyan-700"
-                    : "border-slate-200 bg-slate-50 text-slate-500 group-hover:text-slate-700"
+                    ? "border-cyan-200 bg-[linear-gradient(145deg,#ffffff,#cffafe_58%,#ccfbf1)] text-cyan-700 shadow-[0_7px_16px_rgba(8,145,178,0.12),inset_0_1px_0_white]"
+                    : "border-slate-200 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] text-slate-500 group-hover:border-cyan-200 group-hover:bg-[linear-gradient(145deg,#ffffff,#cffafe)] group-hover:text-teal-700 group-hover:shadow-[0_7px_16px_rgba(13,148,136,0.10)]"
                 }`}
               >
                 <Icon size={13} />

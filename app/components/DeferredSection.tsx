@@ -9,8 +9,6 @@ interface DeferredSectionProps {
   minHeight?: string;
   className?: string;
   initiallyVisible?: boolean;
-  /** Fallback timeout to force mount on browsers where observers can be unreliable. */
-  fallbackDelayMs?: number;
 }
 
 const parseRootMarginBuffer = (value: string) => {
@@ -30,7 +28,6 @@ const DeferredSection = ({
   minHeight = "1px",
   className,
   initiallyVisible = false,
-  fallbackDelayMs = 10000,
 }: DeferredSectionProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isVisible, setIsVisible] = useState(initiallyVisible);
@@ -41,10 +38,17 @@ const DeferredSection = ({
     const node = containerRef.current;
     if (!node) return;
 
-    const rect = node.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
     const eagerBufferPx = parseRootMarginBuffer(rootMargin);
-    if (rect.top <= viewportHeight + eagerBufferPx && rect.bottom >= -eagerBufferPx) {
+    const isCloseEnoughToReveal = () => {
+      const rect = node.getBoundingClientRect();
+      // Do not require rect.bottom to remain below the upper buffer. During a
+      // fast swipe the browser can move a whole section from below to above
+      // the observer area between two frames. Such a section has already been
+      // reached and must be mounted instead of remaining a permanent fallback.
+      return rect.top <= window.innerHeight + eagerBufferPx;
+    };
+
+    if (isCloseEnoughToReveal()) {
       // Already within the reveal buffer on mount — no reason to wait for an
       // idle slot, that only adds visible pop-in lag once the user scrolls here.
       setIsVisible(true);
@@ -56,19 +60,27 @@ const DeferredSection = ({
       return;
     }
 
-    const timeoutId = window.setTimeout(() => {
-      setIsVisible(true);
-    }, fallbackDelayMs);
+    let proximityFrameId = 0;
+    const checkProximity = () => {
+      if (proximityFrameId) return;
+      proximityFrameId = window.requestAnimationFrame(() => {
+        proximityFrameId = 0;
+        if (isCloseEnoughToReveal()) setIsVisible(true);
+      });
+    };
 
-    // rootMargin already gives us hundreds of pixels of advance notice before
-    // the section is actually on screen, so once it fires we mount right away
-    // instead of layering a requestIdleCallback wait on top of that head start.
+    // IntersectionObserver callbacks may be coalesced while the main thread is
+    // busy resolving a dynamic chunk. A passive, frame-batched scroll check
+    // closes that gap and also handles a gesture that skips the observer area
+    // entirely. It is removed as soon as this section mounts.
+    window.addEventListener("scroll", checkProximity, { passive: true });
+    window.addEventListener("resize", checkProximity, { passive: true });
+
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
         if (!entry?.isIntersecting) return;
         observer.disconnect();
-        clearTimeout(timeoutId);
         setIsVisible(true);
       },
       { rootMargin, threshold: 0.01 }
@@ -78,9 +90,11 @@ const DeferredSection = ({
 
     return () => {
       observer.disconnect();
-      clearTimeout(timeoutId);
+      window.removeEventListener("scroll", checkProximity);
+      window.removeEventListener("resize", checkProximity);
+      if (proximityFrameId) window.cancelAnimationFrame(proximityFrameId);
     };
-  }, [fallbackDelayMs, initiallyVisible, isVisible, rootMargin]);
+  }, [initiallyVisible, isVisible, rootMargin]);
 
   return (
     <div

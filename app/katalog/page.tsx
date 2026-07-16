@@ -273,13 +273,17 @@ const resolveCatalogSeoState = (
   );
 
   if (producer && group && subcategory) {
-    canonicalPath = buildCatalogProducerPath(producer, group, subcategory);
+    canonicalPath = buildCatalogProducerPath(producer, group, subcategory, {
+      expandHierarchy,
+    });
     title = `${producer}: ${subcategory} - ${group} | Каталог автозапчастин`;
     description = appendSeoContact(
       `${producer} у категорії ${subcategory}: автозапчастини ${group} у каталозі PartsON, актуальна наявність, перевірка сумісності за VIN та доставка по Україні.`
     );
   } else if (producer && group) {
-    canonicalPath = buildCatalogProducerPath(producer, group);
+    canonicalPath = buildCatalogProducerPath(producer, group, null, {
+      expandHierarchy,
+    });
     title = `${producer}: ${group} - каталог автозапчастин`;
     description = appendSeoContact(
       `${producer} у групі ${group}: автозапчастини за артикулом, категорією, ціною й наявністю в PartsON, консультація та доставка по Україні.`
@@ -291,7 +295,9 @@ const resolveCatalogSeoState = (
       `Автозапчастини ${producer} у PartsON: сторінка виробника, пошук за артикулом, категорією і наявністю, підбір сумісних деталей та доставка по Україні.`
     );
   } else if (group && subcategory) {
-    canonicalPath = buildCatalogCategoryPath(group, subcategory);
+    canonicalPath = buildCatalogCategoryPath(group, subcategory, {
+      expandHierarchy,
+    });
     title = `${subcategory} - ${group} | Каталог автозапчастин`;
     description = appendSeoContact(
       `${subcategory} у групі ${group}: каталог автозапчастин PartsON з виробниками, цінами, наявністю, підбором за артикулом і доставкою по Україні.`

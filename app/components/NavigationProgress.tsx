@@ -139,13 +139,9 @@ export default function NavigationProgress() {
       router.prefetch(route);
     };
 
-    const warmAndStartRoute = (event: Event) => {
-      if (event instanceof MouseEvent) {
-        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
-      }
-      if (!getInternalNavigationHref(event)) return;
+    const warmRouteOnHover = (event: PointerEvent) => {
+      if (event.pointerType === "touch") return;
       warmRoute(event);
-      start();
     };
 
     const handleClick = (e: MouseEvent) => {
@@ -187,20 +183,16 @@ export default function NavigationProgress() {
       origReplaceState(state, unused, url);
     };
 
-    document.addEventListener('pointerover', warmRoute, { capture: true, passive: true });
-    document.addEventListener('pointerdown', warmAndStartRoute, { capture: true, passive: true });
+    document.addEventListener('pointerover', warmRouteOnHover, { capture: true, passive: true });
     document.addEventListener('focusin', warmRoute, { capture: true, passive: true });
-    document.addEventListener('touchstart', warmRoute, { capture: true, passive: true });
     document.addEventListener('click', handleClick, { capture: true, passive: true });
     window.addEventListener('popstate', handlePopState);
 
     return () => {
       window.history.pushState = origPushState;
       window.history.replaceState = origReplaceState;
-      document.removeEventListener('pointerover', warmRoute, { capture: true });
-      document.removeEventListener('pointerdown', warmAndStartRoute, { capture: true });
+      document.removeEventListener('pointerover', warmRouteOnHover, { capture: true });
       document.removeEventListener('focusin', warmRoute, { capture: true });
-      document.removeEventListener('touchstart', warmRoute, { capture: true });
       document.removeEventListener('click', handleClick, { capture: true });
       window.removeEventListener('popstate', handlePopState);
     };

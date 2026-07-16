@@ -6,6 +6,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'rea
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import type { PersistedCarSelection } from 'app/components/Auto';
+import { cleanCarModelForSearch } from 'app/lib/car-model-search';
 import CatalogData from 'app/components/Data';
 
 const MemoizedCatalogData = memo(CatalogData);
@@ -13,13 +14,19 @@ const MemoizedCatalogData = memo(CatalogData);
 const FilterSidebar = dynamic(() => import('app/components/filtrtion'), {
   ssr: false,
   loading: () => (
-    <div className="catalog-filter-scroll rounded-[16px] border border-white/72 bg-white/76 p-2 shadow-[0_12px_28px_rgba(15,23,42,0.05)] backdrop-blur-xl sm:p-3">
+    <div className="catalog-card-skeleton catalog-filter-scroll rounded-[16px] border border-white/80 bg-white/78 p-2 shadow-[0_12px_28px_rgba(15,23,42,0.05)] backdrop-blur-xl sm:p-3">
       <div className="flex gap-2 overflow-hidden">
-        {Array.from({ length: 5 }).map((_, index) => (
+        {Array.from({ length: 4 }).map((_, index) => (
           <div
             key={index}
-            className="h-10 w-28 shrink-0 animate-pulse rounded-[14px] bg-slate-200/80"
-          />
+            className="flex h-10 w-32 shrink-0 items-center gap-2 rounded-[14px] border border-slate-200/70 bg-white/82 px-2.5"
+          >
+            <span className="catalog-skeleton-block h-6 w-6 shrink-0 rounded-[9px] bg-sky-100/75" />
+            <span className="min-w-0 flex-1 space-y-1.5">
+              <span className="catalog-skeleton-block block h-2.5 w-4/5 rounded-full" />
+              <span className="catalog-skeleton-block block h-2 w-1/2 rounded-full opacity-70" />
+            </span>
+          </div>
         ))}
       </div>
     </div>
@@ -53,22 +60,12 @@ const STORAGE_KEYS = {
   selection: 'partson:selectedCarSelection',
 };
 
-// \p{L}/\p{N} (not \w, which is ASCII-only) so the boundary check also works
-// around Cyrillic text — otherwise "\bрестайлинг\b" would fail to match at all.
-const RESTYLING_WORD_REGEX = /(?<![\p{L}\p{N}_])(рестайлінг|рестайлинг)(?![\p{L}\p{N}_])/giu;
-
-// The car-modification flow hands us a model like "A6 C4 рестайлинг" — this
-// drops the exact word (either spelling) so the catalog description search
-// isn't skewed by wording that rarely appears verbatim in product text.
-// Roman generation numerals ("Golf IV") are kept in the first attempt — Data.tsx
-// retries without them only if the exact search comes back empty.
-const cleanCarModelForSearch = (value: string) =>
-  value
-    .replace(RESTYLING_WORD_REGEX, ' ')
-    .replace(/\(\s*\)/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .replace(/^[\s,;:/-]+|[\s,;:/-]+$/g, '')
-    .trim();
+// cleanCarModelForSearch (imported above) drops the "рестайлинг"/"рестайлінг"
+// word from a model like "A6 C4 рестайлинг" so the description search isn't
+// skewed by wording that rarely appears verbatim in product text. Roman
+// generation numerals ("Golf IV") are kept in this first attempt — Data.tsx
+// retries without them, then without a trailing chassis code, only if the
+// exact search comes back empty.
 
 const SESSION_KEYS = {
   skipRemoteLoad: 'partson:catalogSkipRemoteLoad',
@@ -186,6 +183,14 @@ const Katalog: React.FC<KatalogProps> = ({
   const currentSearchParams = searchParams ?? new URLSearchParams();
   const searchParamsKey = currentSearchParams.toString();
   const resetParam = currentSearchParams.get('reset');
+  const hasExplicitCatalogFilter = Boolean(
+    currentSearchParams.get('producer') ||
+      currentSearchParams.get('group') ||
+      currentSearchParams.get('subcategory') ||
+      currentSearchParams.get('search')
+  );
+  const hasExplicitCatalogFilterRef = useRef(hasExplicitCatalogFilter);
+  hasExplicitCatalogFilterRef.current = hasExplicitCatalogFilter;
   const router = useRouter();
   const pathname = usePathname() || '/katalog';
   const skipRemoteLoadRef = useRef(false);
@@ -319,6 +324,15 @@ const Katalog: React.FC<KatalogProps> = ({
       setLocalReady(true);
       return;
     }
+    // Filtered links from manufacturer/group/model pages already describe
+    // the requested result set. Restoring a previously saved car here would
+    // silently add selectedCars to the API request and can turn a positive
+    // facet count into an empty catalog.
+    if (hasExplicitCatalogFilter) {
+      setCarsLoaded(true);
+      setLocalReady(true);
+      return;
+    }
 
     try {
       const rawCars = window.localStorage.getItem(STORAGE_KEYS.cars);
@@ -373,7 +387,14 @@ const Katalog: React.FC<KatalogProps> = ({
             ? nextCars
             : [...nextCars, label];
           setSelectedCars(mergedCars);
-          setSelectedCarSelection({
+          // Route through handleCarSelectionChange (not a raw setState) so a
+          // restored selection re-derives the search/filter=description/
+          // carSearch URL params the same way a live confirm does. selectedCars
+          // alone never filters anything in 1C (see
+          // docs/1c/vehicle-compatibility.md) — without this, the UI shows a
+          // car as selected while the catalog silently falls back to the
+          // unfiltered legacy getdata path.
+          handleCarSelectionChange({
             brand,
             model,
             year,
@@ -396,7 +417,7 @@ const Katalog: React.FC<KatalogProps> = ({
     } finally {
       setLocalReady(true);
     }
-  }, [resetParam, searchParamsKey]);
+  }, [hasExplicitCatalogFilter, resetParam, searchParamsKey]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -438,6 +459,11 @@ const Katalog: React.FC<KatalogProps> = ({
           setAuthReady(true);
 
           if (!user) {
+            setCarsLoaded(true);
+            return;
+          }
+
+          if (hasExplicitCatalogFilterRef.current) {
             setCarsLoaded(true);
             return;
           }
@@ -514,7 +540,10 @@ const Katalog: React.FC<KatalogProps> = ({
                   storedCars = [...storedCars, storedSelection.label];
                 }
                 setSelectedCars(storedCars);
-                setSelectedCarSelection(storedSelection);
+                // Same reasoning as the localStorage restore above — go
+                // through handleCarSelectionChange so the description-search
+                // URL params come back in sync with the restored car.
+                handleCarSelectionChange(storedSelection);
                 didApplyRemote = true;
               } else {
                 setSelectedCars(storedCars);

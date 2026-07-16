@@ -1972,11 +1972,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     .join(" → ");
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
   const productHasKnownPhoto = product.hasPhoto !== false;
-  const productDisplayImagePath = productHasKnownPhoto
-    ? buildProductImagePath(product.code || resolvedCode, product.article, {
-        catalog: true,
-      })
-    : "";
   const productSeoImagePath = productHasKnownPhoto
     ? buildProductImagePath(product.code || resolvedCode, product.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
@@ -2174,14 +2169,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       className={isModalView ? "min-h-screen select-none bg-white text-slate-900" : "min-h-screen select-none text-slate-900"}
       style={isModalView ? undefined : pageBackground}
     >
-      {productHasKnownPhoto ? (
-        <link
-          rel="preload"
-          as="image"
-          href={productDisplayImagePath}
-          fetchPriority="high"
-        />
-      ) : null}
       <div
         className={
           isModalView

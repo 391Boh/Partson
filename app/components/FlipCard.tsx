@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { useState, memo, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import { buildCatalogCategoryPath } from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildVisibleProductName } from "app/lib/product-url";
@@ -62,15 +62,16 @@ function FlipCardComponent({
   id,
   isFlipped,
   setFlippedId,
+  onBoundarySwipe,
   priority = false,
 }: {
   product: ProductNode;
   id: number;
   isFlipped: boolean;
   setFlippedId: (id: number | null) => void;
+  onBoundarySwipe?: (direction: "prev" | "next") => void;
   priority?: boolean;
 }) {
-  const router = useRouter();
   const reduceMotion = useReducedMotion();
 
   const [activeGroup, setActiveGroup] = useState<ProductNode | null>(null);
@@ -138,12 +139,23 @@ function FlipCardComponent({
     const verticalDiff = Math.abs(tStartY.current - touch.clientY);
 
     if (Math.abs(diff) > 32 && Math.abs(diff) > verticalDiff) {
-      if (activeGroup) {
-        if (sub + 1 < subPages && diff > 0) setSub(sub + 1);
-        if (sub > 0 && diff < 0) setSub(sub - 1);
+      const currentPage = activeGroup ? sub : page;
+      const pageCount = activeGroup ? subPageCount : mainPageCount;
+      const setCurrentPage = activeGroup ? setSub : setPage;
+
+      if (diff > 0) {
+        if (currentPage < pageCount - 1) {
+          setCurrentPage(currentPage + 1);
+        } else {
+          onBoundarySwipe?.("next");
+        }
+        return;
+      }
+
+      if (currentPage > 0) {
+        setCurrentPage(currentPage - 1);
       } else {
-        if (page + 1 < mainPages && diff > 0) setPage(page + 1);
-        if (page > 0 && diff < 0) setPage(page - 1);
+        onBoundarySwipe?.("prev");
       }
     }
   };
@@ -170,14 +182,6 @@ function FlipCardComponent({
       animate="visible"
       className="relative h-[200px] w-full sm:h-[215px]"
       style={{ perspective: 1200 }} // fixed
-      whileHover={
-        reduceMotion
-          ? undefined
-          : {
-              filter: "saturate(1.1) brightness(1.03)",
-              transition: { type: "spring", stiffness: 220, damping: 20, mass: 0.9 },
-            }
-      }
     >
       <motion.div
         animate={{ rotateY: isFlipped ? 180 : 0 }}
@@ -190,7 +194,7 @@ function FlipCardComponent({
       >
         {/* FRONT */}
         <div
-          className="
+          className={`
             group/card absolute inset-0 rounded-xl overflow-hidden
             border-2 border-sky-200/80
             bg-[image:linear-gradient(148deg,rgba(255,255,255,0.99)_0%,rgba(240,249,255,0.95)_50%,rgba(219,234,254,0.90)_100%)]
@@ -198,7 +202,8 @@ function FlipCardComponent({
             transition-all duration-500
             hover:border-sky-500
             hover:bg-[image:linear-gradient(148deg,rgba(255,255,255,1)_0%,rgba(224,242,254,0.97)_50%,rgba(165,216,251,0.95)_100%)]
-          "
+            ${isFlipped ? "pointer-events-none" : ""}
+          `}
           style={{
             ...safBackface,
             transform: "rotateY(0deg) translateZ(1px)" as string,
@@ -242,7 +247,7 @@ function FlipCardComponent({
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
           onTouchCancel={(e) => e.stopPropagation()}
-          className="absolute inset-0 flex touch-pan-y select-none flex-col overflow-hidden rounded-xl border-2 border-sky-200/80 bg-[image:linear-gradient(148deg,rgba(255,255,255,0.99)_0%,rgba(240,249,255,0.95)_52%,rgba(219,234,254,0.90)_100%)] px-1.5 py-1.5 transition-all duration-300 hover:border-sky-500 sm:px-2 sm:py-2"
+          className={`absolute inset-0 flex touch-pan-y select-none flex-col overflow-hidden rounded-xl border-2 border-sky-200/80 bg-[image:linear-gradient(148deg,rgba(255,255,255,0.99)_0%,rgba(240,249,255,0.95)_52%,rgba(219,234,254,0.90)_100%)] px-1.5 py-1.5 transition-all duration-300 hover:border-sky-500 sm:px-2 sm:py-2 ${isFlipped ? "" : "pointer-events-none"}`}
         >
           {/* HEADER */}
           <div
@@ -323,30 +328,16 @@ function FlipCardComponent({
 
           {/* LIST */}
           <div className="flex flex-1 flex-col gap-0.5 overflow-hidden sm:gap-1">
-            {(activeGroup ? subVisible : mainVisible).map((item, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  if (item.children?.length) {
-                    setActiveGroup(item);
-                    setSub(0);
-                  } else {
-                    router.push(
-                      buildCatalogCategoryPath(activeGroup?.name || product.name, item.name, {
-                        expandHierarchy: true,
-                      })
-                    );
-                  }
-                }}
-                className="
-                  group/item flex min-h-[40px] w-full items-center rounded-lg px-2 py-1 font-medium text-slate-800 sm:min-h-0 sm:px-2.5 sm:py-2
-                  bg-white/95 border border-sky-100/90
-                  hover:bg-[image:linear-gradient(120deg,rgba(224,242,254,0.99)_0%,rgba(255,255,255,0.98)_50%,rgba(191,224,251,0.98)_100%)]
-                  hover:border-sky-500 hover:text-sky-800
-                  text-left transition-colors duration-200
-                "
-              >
-                <div className="flex items-center justify-between gap-2">
+            {(activeGroup ? subVisible : mainVisible).map((item, i) => {
+              const itemClassName = `
+                group/item flex min-h-[40px] w-full items-center rounded-lg px-2 py-1 font-medium text-slate-800 sm:min-h-0 sm:px-2.5 sm:py-2
+                bg-white/95 border border-sky-100/90
+                hover:bg-[image:linear-gradient(120deg,rgba(224,242,254,0.99)_0%,rgba(255,255,255,0.98)_50%,rgba(191,224,251,0.98)_100%)]
+                hover:border-sky-500 hover:text-sky-800
+                text-left transition-colors duration-200
+              `;
+              const itemContent = (
+                <div className="flex w-full items-center justify-between gap-2">
                   <span className="line-clamp-2 min-w-0 text-[11px] leading-[1.15] transition-colors duration-200 group-hover/item:text-sky-800 sm:block sm:truncate sm:text-[13px] sm:leading-normal sm:group-hover/item:text-[13.5px]" title={item.name}>
                     {buildVisibleProductName(item.name)}
                   </span>
@@ -354,8 +345,38 @@ function FlipCardComponent({
                     <ArrowRight className="h-3.5 w-3.5 shrink-0 text-sky-400 transition-colors duration-200 group-hover/item:text-sky-600 sm:h-4 sm:w-4" />
                   )}
                 </div>
-              </button>
-            ))}
+              );
+
+              if (item.children?.length) {
+                return (
+                  <button
+                    key={`${item.name}-${i}`}
+                    type="button"
+                    onClick={() => {
+                      setActiveGroup(item);
+                      setSub(0);
+                    }}
+                    className={itemClassName}
+                  >
+                    {itemContent}
+                  </button>
+                );
+              }
+
+              return (
+                <CatalogPrefetchLink
+                  key={`${item.name}-${i}`}
+                  href={buildCatalogCategoryPath(
+                    activeGroup?.name || product.name,
+                    item.name,
+                    { expandHierarchy: true }
+                  )}
+                  className={itemClassName}
+                >
+                  {itemContent}
+                </CatalogPrefetchLink>
+              );
+            })}
 
             {(activeGroup ? subVisible : mainVisible).length === 0 && (
               <div className="text-center text-[11px] text-slate-400 py-3">

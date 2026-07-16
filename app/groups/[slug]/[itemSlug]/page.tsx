@@ -4,8 +4,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
 import { notFound, permanentRedirect } from "next/navigation";
+import { CarFront, Factory, PackageSearch } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
+import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import GroupItemProducerList from "app/components/GroupItemProducerList";
 import {
   directoryCompactMetricAccentClass,
@@ -49,7 +51,10 @@ import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
-const GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT = 0;
+// Default covers the real subgroup/leaf page count (151, see .env.example)
+// plus headroom, so every group-item page in the sitemap pre-renders at
+// build by default.
+const GROUP_ITEM_STATIC_PARAMS_LIMIT_DEFAULT = 200;
 const GROUP_ITEM_STATIC_PARAMS_FALLBACK_TIMEOUT_MS = 4500;
 const GROUP_ITEM_PAGE_SEO_FACETS_TIMEOUT_MS = 400;
 const GROUP_ITEM_PRODUCER_SPLIT_PAGE_SIZE = 220;
@@ -191,7 +196,8 @@ const buildGroupItemProducerSplit = (options: {
           catalogPath: buildCatalogProducerPath(
             producer.label,
             options.categoryLabel,
-            directGroup.label
+            directGroup.label,
+            { expandHierarchy: true }
           ),
           manufacturerPath: buildManufacturerPath(producer.slug || producer.label),
         };
@@ -218,7 +224,8 @@ const buildGroupItemProducerSplit = (options: {
         catalogPath: buildCatalogProducerPath(
           producer.label,
           options.groupLabel,
-          options.itemLabels[0]
+          options.itemLabels[0],
+          { expandHierarchy: true }
         ),
         manufacturerPath: buildManufacturerPath(producer.slug || producer.label),
       };
@@ -256,6 +263,7 @@ const collectDirectGroupItemProducerSplitUncached = async (
         includePriceEnrichment: false,
         preferLegacySource: false,
         forceAllgoodsSource: true,
+        expandHierarchy: true,
         timeoutMs: GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS,
         retries: 0,
         retryDelayMs: 100,
@@ -300,7 +308,8 @@ const collectDirectGroupItemProducerSplitUncached = async (
         catalogPath: buildCatalogProducerPath(
           entry.label,
           normalizedGroup || undefined,
-          normalizedSubcategory
+          normalizedSubcategory,
+          { expandHierarchy: true }
         ),
         manufacturerPath: buildManufacturerPath(entry.label),
       }))
@@ -315,7 +324,7 @@ const collectDirectGroupItemProducerSplitUncached = async (
 
 const collectDirectGroupItemProducerSplitCached = unstable_cache(
   collectDirectGroupItemProducerSplitUncached,
-  ["group-item:producer-split:v2"],
+  ["group-item:producer-split:v3"],
   { revalidate: 60 * 30 }
 );
 
@@ -340,6 +349,7 @@ const fetchCategoryTopProductsUncached = async (
     includePriceEnrichment: false,
     preferLegacySource: false,
     forceAllgoodsSource: true,
+    expandHierarchy: true,
     timeoutMs: 1400,
     retries: 0,
     retryDelayMs: 100,
@@ -351,7 +361,7 @@ const fetchCategoryTopProductsUncached = async (
 
 const getCategoryTopProductsCached = unstable_cache(
   fetchCategoryTopProductsUncached,
-  ["group-item:top-products:v1"],
+  ["group-item:top-products:v2"],
   { revalidate: 60 * 30 }
 );
 
@@ -954,8 +964,8 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
           </SmartLink>
         </div>
 
-        <section className="relative overflow-hidden rounded-[30px] border border-white/85 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(240,253,250,0.94),rgba(236,254,255,0.9))] p-4 shadow-[0_28px_70px_rgba(13,148,136,0.15)] ring-1 ring-teal-100/70 sm:p-5 lg:p-6">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-teal-200/35 via-cyan-100/25 to-sky-100/25" />
+        <section className="relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/80 to-transparent" />
 
           <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
@@ -1014,7 +1024,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               ].map((metric) => (
                 <div
                   key={metric.label}
-                  className="rounded-[18px] border border-slate-200/85 bg-[linear-gradient(135deg,rgba(248,250,252,0.98),rgba(255,255,255,0.96))] px-3.5 py-3"
+                  className="rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3"
                 >
                   <span className="directory-counter block text-2xl leading-none text-slate-900">
                     {metric.value}
@@ -1029,56 +1039,35 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         </section>
       </div>
 
-      <section className={`${directoryPanelClass} mt-6`}>
-        <div className={directoryHeaderClass}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="directory-kicker text-[11px] uppercase text-teal-800">
-                Опис категорії
-              </p>
-              <h2 className="directory-heading mt-1 text-xl text-slate-900 sm:text-2xl">
-                {visibleLabel} в каталозі PartsON
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                {seoCopy.intro}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className={directoryCompactMetricClass}>
-                Опис категорії і перехід у каталог
-              </span>
-              <span className={directoryCompactMetricAccentClass}>
-                Виробники, бренди та аналоги
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.95fr)]">
-          <div className="space-y-3 text-sm leading-6 text-slate-600">
-            {seoCopy.paragraphs.map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
-            ))}
-          </div>
-
-          <aside className="rounded-lg border border-teal-100/80 bg-[linear-gradient(165deg,rgba(240,253,250,0.94),rgba(239,246,255,0.92),rgba(255,255,255,0.98))] p-4 shadow-[0_16px_34px_rgba(13,148,136,0.08)]">
-            <p className="directory-kicker text-[11px] uppercase text-teal-800">
-              {seoCopy.highlightsTitle}
-            </p>
-            <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">
-              {seoCopy.highlights.map((highlight) => (
-                <li
-                  key={highlight}
-                  className="flex items-start gap-2 border-b border-white/70 pb-2 last:border-b-0 last:pb-0"
-                >
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500" />
-                  <span>{highlight}</span>
-                </li>
-              ))}
-            </ul>
-          </aside>
-        </div>
-      </section>
+      <CatalogSeoTextSection
+        contained={false}
+        badge={item.parentSubgroupLabel ? "Кінцева категорія" : "Підгрупа товарів"}
+        title={`${visibleLabel}: товари, виробники та підбір`}
+        lead={seoCopy.intro}
+        topics={[
+          {
+            title: "Товари категорії",
+            text: `У каталозі для цієї категорії зібрано ${item.productCount.toLocaleString("uk-UA")} товарів із цінами та актуальними характеристиками.`,
+            icon: PackageSearch,
+          },
+          {
+            title: "Виробники й аналоги",
+            text: `Порівнюйте пропозиції ${item.producersCount.toLocaleString("uk-UA")} виробників і переходьте одразу до відфільтрованого асортименту.`,
+            icon: Factory,
+          },
+          {
+            title: "Перевірка сумісності",
+            text: "Перед замовленням звірте артикул і параметри деталі; для точного результату скористайтеся підбором за авто або VIN.",
+            icon: CarFront,
+          },
+        ]}
+        paragraphs={seoCopy.paragraphs}
+        links={[
+          { href: item.catalogPath, label: `Товари ${visibleLabel}` },
+          { href: groupPagePath, label: `Група ${visibleGroupLabel}` },
+          { href: "/auto", label: "Підбір за авто" },
+        ]}
+      />
 
       <section className={`${directoryPanelClass} mt-8`}>
         <div className={directoryHeaderClass}>

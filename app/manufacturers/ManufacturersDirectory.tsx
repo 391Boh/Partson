@@ -3,9 +3,11 @@
 import Image from "next/image";
 import {
   memo,
+  useCallback,
   useEffect,
   useDeferredValue,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { ArrowRight, Factory, Layers3, PackageSearch, Search, Tags, X } from "lucide-react";
@@ -39,6 +41,7 @@ type ManufacturerItem = {
 interface ManufacturersDirectoryProps {
   items: ManufacturerItem[];
   hasIndexedCounts: boolean;
+  totalItems?: number;
 }
 
 type ManufacturerCountsApiPayload = {
@@ -52,6 +55,9 @@ type ManufacturerCardProps = {
   prefetchOnViewport?: boolean;
   priorityLogo?: boolean;
 };
+
+const INITIAL_VISIBLE_MANUFACTURERS = 32;
+const MANUFACTURERS_PAGE_SIZE = 32;
 
 const collapseWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
 
@@ -85,6 +91,9 @@ const stripLeadingManufacturerName = (label: string, description: string) => {
     .trim();
 };
 
+const capitalizeSentence = (value: string) =>
+  value ? `${value.charAt(0).toLocaleUpperCase("uk-UA")}${value.slice(1)}` : value;
+
 const buildManufacturerCardDescription = (item: ManufacturerItem) => {
   const productSummary =
     item.productCount > 0
@@ -97,10 +106,10 @@ const buildManufacturerCardDescription = (item: ManufacturerItem) => {
   const baseDescription = stripLeadingManufacturerName(item.label, item.description ?? "");
 
   if (baseDescription) {
-    return `${item.label}: ${baseDescription}`;
+    return capitalizeSentence(baseDescription);
   }
 
-  return `${item.label} у PartsON: ${productSummary}, ${groupSummary} і швидкий перехід до каталогу виробника.`;
+  return `Асортимент бренду в PartsON: ${productSummary} та ${groupSummary}. Відкрийте сторінку, щоб переглянути доступні позиції й перейти до каталогу.`;
 };
 
 const formatDirectoryCount = (value: number, fallback: string) =>
@@ -118,9 +127,8 @@ const ManufacturerCard = memo(function ManufacturerCard({
   return (
     <SmartLink
       href={manufacturerHref}
-      aria-label={`Відкрити сторінку бренду ${item.label}`}
       prefetchOnViewport={prefetchOnViewport}
-      className={`${directoryCardClass} h-[260px] animate-fadeIn`}
+      className={`${directoryCardClass} h-[350px] animate-fadeIn`}
       itemScope
       itemType="https://schema.org/Brand"
       itemProp="item"
@@ -128,16 +136,16 @@ const ManufacturerCard = memo(function ManufacturerCard({
       <meta itemProp="url" content={manufacturerHref} />
       {item.logoPath ? <meta itemProp="logo" content={item.logoPath} /> : null}
 
-      {/* Hover accent: transform-only, never changes box size / triggers reflow. */}
+      {/* Static geometry: hover only changes light, border and shadow. */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-[3px] origin-left scale-x-0 bg-gradient-to-r from-sky-400 via-teal-400 to-sky-400 transition-transform duration-300 ease-out group-hover:scale-x-100"
+        className="pointer-events-none absolute inset-x-4 top-0 z-[2] h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
       />
 
-      <div className="flex h-full flex-col overflow-hidden p-3.5">
+      <div className="relative z-[1] flex h-full flex-col overflow-hidden p-3.5">
         <div className="flex min-w-0 items-start justify-between gap-2.5">
           <div className="flex min-w-0 flex-1 items-start gap-3">
-            <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_10px_22px_rgba(15,23,42,0.06)]">
+            <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-cyan-200/70 bg-[radial-gradient(circle_at_24%_16%,rgba(255,255,255,1),transparent_35%),linear-gradient(145deg,#fbfdff_0%,#e7f5fb_52%,#e1f7f1_100%)] shadow-[0_10px_24px_rgba(14,165,233,0.085),inset_0_1px_0_rgba(255,255,255,0.98)] transition-[border-color,box-shadow] duration-300 group-hover:border-teal-300 group-hover:shadow-[0_13px_28px_rgba(13,148,136,0.14)]">
               {item.logoPath ? (
                 <Image
                   src={item.logoPath}
@@ -147,7 +155,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
                   sizes="56px"
                   priority={priorityLogo}
                   loading={priorityLogo ? undefined : "lazy"}
-                  className="h-9 w-11 object-contain transition-transform duration-300 ease-out group-hover:scale-[1.06]"
+                  className="h-9 w-11 object-contain"
                 />
               ) : (
                 <span className="directory-card-title text-sm text-slate-700">{item.initials}</span>
@@ -170,7 +178,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
               <p
                 itemProp="name"
                 title={item.label}
-                className="directory-card-title mt-2 truncate text-[16px] leading-tight text-slate-900"
+                className="directory-card-title mt-2 line-clamp-2 min-h-[2.5rem] text-[18px] leading-[1.12] text-slate-950"
               >
                 {item.label}
               </p>
@@ -185,15 +193,15 @@ const ManufacturerCard = memo(function ManufacturerCard({
           </span>
         </div>
 
-        <div className="mt-3 flex h-[3.25rem] items-center rounded-xl border border-slate-200/80 bg-[linear-gradient(135deg,rgba(248,250,252,0.92),rgba(255,255,255,0.96))] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-          <p itemProp="description" className="line-clamp-2 text-[12px] leading-[1.35] text-slate-600">
+        <div className="mt-3 flex h-[8.25rem] items-start rounded-xl border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(250,252,254,0.98)_0%,rgba(245,250,252,0.95)_56%,rgba(241,248,246,0.91)_100%)] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.98)]">
+          <p itemProp="description" className="line-clamp-6 text-[12.5px] font-medium leading-[1.48] text-slate-600">
             {buildManufacturerCardDescription(item)}
           </p>
         </div>
 
         <div className="mt-auto grid grid-cols-3 gap-1.5 border-t border-slate-100 pt-3">
-          <span className="rounded-[12px] border border-slate-200 bg-slate-50/80 px-2 py-1.5 text-center">
-            <PackageSearch className="mx-auto h-3.5 w-3.5 text-sky-700" aria-hidden="true" />
+          <span className="rounded-[12px] border border-sky-200/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(231,245,252,0.78))] px-2 py-1.5 text-center shadow-[inset_0_1px_0_white]">
+            <PackageSearch className="mx-auto h-3.5 w-3.5 text-sky-700 drop-shadow-[0_2px_4px_rgba(14,165,233,0.18)]" aria-hidden="true" />
             <span className="directory-counter mt-1 block text-[11px] leading-none text-slate-900">
               {formatDirectoryCount(item.productCount, countFallback)}
             </span>
@@ -201,8 +209,8 @@ const ManufacturerCard = memo(function ManufacturerCard({
               {pluralize(item.productCount, "товар", "товари", "товарів")}
             </span>
           </span>
-          <span className="rounded-[12px] border border-slate-200 bg-slate-50/80 px-2 py-1.5 text-center">
-            <Layers3 className="mx-auto h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
+          <span className="rounded-[12px] border border-teal-200/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(222,247,240,0.8))] px-2 py-1.5 text-center shadow-[inset_0_1px_0_white]">
+            <Layers3 className="mx-auto h-3.5 w-3.5 text-teal-700 drop-shadow-[0_2px_4px_rgba(13,148,136,0.18)]" aria-hidden="true" />
             <span className="directory-counter mt-1 block text-[11px] leading-none text-slate-900">
               {formatDirectoryCount(item.groupsCount, countFallback)}
             </span>
@@ -210,8 +218,8 @@ const ManufacturerCard = memo(function ManufacturerCard({
               {pluralize(item.groupsCount, "група", "групи", "груп")}
             </span>
           </span>
-          <span className="rounded-[12px] border border-slate-200 bg-slate-50/80 px-2 py-1.5 text-center">
-            <Tags className="mx-auto h-3.5 w-3.5 text-indigo-700" aria-hidden="true" />
+          <span className="rounded-[12px] border border-indigo-200/65 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(239,242,252,0.84))] px-2 py-1.5 text-center shadow-[inset_0_1px_0_white]">
+            <Tags className="mx-auto h-3.5 w-3.5 text-indigo-700 drop-shadow-[0_2px_4px_rgba(79,70,229,0.16)]" aria-hidden="true" />
             <span className="directory-counter mt-1 block text-[11px] leading-none text-slate-900">
               {formatDirectoryCount(item.categoriesCount, countFallback)}
             </span>
@@ -228,43 +236,61 @@ const ManufacturerCard = memo(function ManufacturerCard({
 export default function ManufacturersDirectory({
   items,
   hasIndexedCounts,
+  totalItems = items.length,
 }: ManufacturersDirectoryProps) {
   const [query, setQuery] = useState("");
   const [directoryData, setDirectoryData] = useState({
     items,
     hasIndexedCounts,
   });
+  const [visibleCount, setVisibleCount] = useState(
+    INITIAL_VISIBLE_MANUFACTURERS
+  );
+  const [isLoadingFullDirectory, setIsLoadingFullDirectory] = useState(false);
+  const fullDirectoryPromiseRef = useRef<Promise<ManufacturerCountsApiPayload | null> | null>(
+    null
+  );
+  const autoLoadAttemptedRef = useRef(false);
   const deferredQuery = useDeferredValue(query);
   const normalizedQuery = normalize(deferredQuery);
   const directoryItems = directoryData.items;
 
-  useEffect(() => {
-    if (directoryData.hasIndexedCounts) return;
+  const loadFullDirectory = useCallback(async () => {
+    if (directoryData.items.length >= totalItems) {
+      return;
+    }
 
-    let cancelled = false;
-
-    fetch("/api/manufacturer-counts", {
-      headers: { Accept: "application/json" },
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: ManufacturerCountsApiPayload | null) => {
-        if (cancelled) return;
-        if (!payload || !Array.isArray(payload.clientProducers)) return;
-        if (payload.clientProducers.length === 0) return;
-
-        setDirectoryData({
-          items: payload.clientProducers,
-          hasIndexedCounts:
-            payload.hasIndexedCounts === true ||
-            payload.clientProducers.some((item) => item.productCount > 0),
-        });
+    if (!fullDirectoryPromiseRef.current) {
+      setIsLoadingFullDirectory(true);
+      fullDirectoryPromiseRef.current = fetch("/api/manufacturer-counts", {
+        headers: { Accept: "application/json" },
       })
-      .catch(() => {});
+        .then((response) => (response.ok ? response.json() : null))
+        .catch(() => null);
+    }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [directoryData.hasIndexedCounts]);
+    try {
+      const payload = await fullDirectoryPromiseRef.current;
+      if (!payload || !Array.isArray(payload.clientProducers)) return;
+      if (payload.clientProducers.length === 0) return;
+
+      setDirectoryData({
+        items: payload.clientProducers,
+        hasIndexedCounts:
+          payload.hasIndexedCounts === true ||
+          payload.clientProducers.some((item) => item.productCount > 0),
+      });
+    } finally {
+      fullDirectoryPromiseRef.current = null;
+      setIsLoadingFullDirectory(false);
+    }
+  }, [directoryData.items.length, totalItems]);
+
+  useEffect(() => {
+    if (directoryData.hasIndexedCounts || autoLoadAttemptedRef.current) return;
+    autoLoadAttemptedRef.current = true;
+    void loadFullDirectory();
+  }, [directoryData.hasIndexedCounts, loadFullDirectory]);
 
   const filteredItems = useMemo(
     () =>
@@ -276,6 +302,15 @@ export default function ManufacturersDirectory({
         : directoryItems,
     [directoryItems, normalizedQuery]
   );
+  const visibleItems = filteredItems.slice(0, visibleCount);
+  const advertisedTotalItems = Math.max(totalItems, directoryItems.length);
+  const hasMoreItems =
+    visibleItems.length < filteredItems.length ||
+    (!normalizedQuery && directoryItems.length < advertisedTotalItems);
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE_MANUFACTURERS);
+  }, [normalizedQuery]);
 
   return (
     <section
@@ -299,10 +334,10 @@ export default function ManufacturersDirectory({
                     Каталог брендів
                   </div>
                   <h2 className={directoryTitleClass}>
-                    Єдина сітка виробників каталогу
+                    Бренди автозапчастин у каталозі PartsON
                   </h2>
                   <p className={directoryDescriptionClass}>
-                    Шукайте виробника, відкривайте сторінку бренду або переходьте до товарів виробника у каталозі.
+                    Введіть <strong className="font-bold text-slate-800">назву бренду</strong>, відкрийте його сторінку та перегляньте <strong className="font-bold text-slate-800">товари, групи й категорії</strong> без повторного налаштування фільтрів.
                   </p>
                 </div>
               </div>
@@ -313,7 +348,12 @@ export default function ManufacturersDirectory({
                   <input
                     type="text"
                     value={query}
-                    onChange={(event) => setQuery(event.target.value)}
+                    onFocus={() => void loadFullDirectory()}
+                    onChange={(event) => {
+                      setVisibleCount(INITIAL_VISIBLE_MANUFACTURERS);
+                      setQuery(event.target.value);
+                      void loadFullDirectory();
+                    }}
                     placeholder="Пошук виробника"
                     aria-label="Пошук виробника"
                     className={directorySearchInputClass}
@@ -331,8 +371,8 @@ export default function ManufacturersDirectory({
                 </label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <span className={directoryMetricClass}>
-                    Знайдено: {filteredItems.length.toLocaleString("uk-UA")} {pluralize(
-                      filteredItems.length,
+                    Знайдено: {(normalizedQuery ? filteredItems.length : advertisedTotalItems).toLocaleString("uk-UA")} {pluralize(
+                      normalizedQuery ? filteredItems.length : advertisedTotalItems,
                       "виробник",
                       "виробники",
                       "виробників"
@@ -356,14 +396,13 @@ export default function ManufacturersDirectory({
             {filteredItems.length > 0 ? (
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-3" itemScope itemType="https://schema.org/ItemList">
                 <meta itemProp="numberOfItems" content={String(filteredItems.length)} />
-                {filteredItems.map((item, index) => (
+                {visibleItems.map((item, index) => (
                   <div key={item.slug} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                     <meta itemProp="position" content={String(index + 1)} />
                     <ManufacturerCard
                       item={item}
                       showCounts={directoryData.hasIndexedCounts}
-                      prefetchOnViewport={index < 12}
-                      priorityLogo={index < 6}
+                      priorityLogo={index < 3}
                     />
                   </div>
                 ))}
@@ -373,6 +412,21 @@ export default function ManufacturersDirectory({
                 За цим запитом виробників не знайдено.
               </div>
             )}
+            {hasMoreItems ? (
+              <div className="mt-4 flex justify-center border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await loadFullDirectory();
+                    setVisibleCount((current) => current + MANUFACTURERS_PAGE_SIZE);
+                  }}
+                  disabled={isLoadingFullDirectory}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-5 text-sm font-bold text-sky-800 shadow-[0_8px_18px_rgba(14,165,233,0.08)] transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {isLoadingFullDirectory ? "Завантажую виробників…" : "Показати ще виробників"}
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

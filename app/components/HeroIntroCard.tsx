@@ -28,7 +28,7 @@ export default function HeroIntroCard() {
         style={{ minHeight: 214 }}
         role="button"
         tabIndex={0}
-        aria-label={flipped ? 'Перевернути назад' : 'Показати розділи'}
+        aria-expanded={flipped}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setFlipped((v) => !v)}
       >
         {/* ── FRONT ─────────────────────────────────────────────── */}
@@ -64,6 +64,7 @@ export default function HeroIntroCard() {
               <p className={`${heroHeadingText} mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[18px] leading-tight sm:text-[20px] md:mb-2 md:flex-nowrap md:items-baseline md:text-[22px] lg:text-[24px]`}>
                 <Link
                   href="/"
+                  prefetch={false}
                   onClick={(e) => e.stopPropagation()}
                   className="text-[20px] no-underline sm:text-[23px] md:text-[25px] lg:text-[27px]"
                 >
@@ -116,6 +117,7 @@ export default function HeroIntroCard() {
           <div className="relative z-10 flex flex-1 flex-col justify-center gap-2.5">
             <Link
               href="/inform/diagnostics"
+              prefetch={false}
               onClick={(e) => e.stopPropagation()}
               className={`group/diag inline-flex min-h-[44px] items-center justify-between rounded-xl border border-emerald-100/32 bg-emerald-300/14 px-4 py-2 text-emerald-50 shadow-[0_4px_14px_rgba(16,185,129,0.10)] transition-[border-color,box-shadow] duration-300 ease-out hover:border-emerald-50/55 hover:shadow-[0_10px_24px_rgba(16,185,129,0.18)] ${heroQuickLinkText}`}
             >
@@ -129,6 +131,7 @@ export default function HeroIntroCard() {
             </Link>
             <Link
               href="/blog"
+              prefetch={false}
               onClick={(e) => e.stopPropagation()}
               className={`group/blog inline-flex min-h-[44px] items-center justify-between rounded-xl border border-sky-100/28 bg-sky-300/14 px-4 py-2 text-sky-50 shadow-[0_4px_14px_rgba(14,165,233,0.10)] transition-[border-color,box-shadow] duration-300 ease-out hover:border-sky-100/52 hover:shadow-[0_10px_24px_rgba(14,165,233,0.18)] ${heroQuickLinkText}`}
             >

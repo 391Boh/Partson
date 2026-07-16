@@ -11,6 +11,7 @@ export type CatalogQuerySignatureInput = {
   pricedOnly?: boolean;
   priceFrom?: number | null;
   priceTo?: number | null;
+  priceRate?: number | null;
   inStock?: boolean;
 };
 
@@ -27,6 +28,7 @@ export const buildCatalogQuerySignature = ({
   pricedOnly = false,
   priceFrom = null,
   priceTo = null,
+  priceRate = null,
   inStock = false,
 }: CatalogQuerySignatureInput) =>
   JSON.stringify({
@@ -42,5 +44,6 @@ export const buildCatalogQuerySignature = ({
     pricedOnly,
     priceFrom,
     priceTo,
+    priceRate,
     inStock,
   });

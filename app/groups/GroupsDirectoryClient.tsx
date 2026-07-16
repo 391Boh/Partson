@@ -242,14 +242,14 @@ function GroupCategoryCard({
           {group.subgroups.map((subgroup) => (
             <div
               key={subgroup.slug}
-              className="rounded-[14px] border border-slate-200 bg-white/80 p-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.035)] transition hover:border-sky-200 hover:bg-sky-50/35"
+              className="rounded-[14px] border border-slate-200/80 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.20),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.985),rgba(247,250,253,0.95))] p-2.5 shadow-[0_9px_20px_rgba(15,23,42,0.035)] transition-[border-color,box-shadow,background-color] duration-300 hover:border-cyan-300/75 hover:shadow-[0_13px_26px_rgba(14,165,233,0.075)]"
             >
               <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                 <CatalogPrefetchLink
                   href={buildGroupItemPath(group.slug, subgroup.slug)}
                   className="directory-card-title inline-flex min-w-0 items-center gap-2 text-[13px] leading-5 text-slate-800 transition hover:text-sky-700"
                 >
-                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-sky-200 bg-sky-50 text-sky-700">
+                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-cyan-200/75 bg-[linear-gradient(145deg,#ffffff_0%,#e7f5fb_54%,#def7f0_100%)] text-sky-700 shadow-[0_6px_16px_rgba(14,165,233,0.08),inset_0_1px_0_white]">
                     <ChevronRight size={14} strokeWidth={2.3} />
                   </span>
                   <span>{buildVisibleProductName(subgroup.label)}</span>
@@ -282,7 +282,7 @@ function GroupCategoryCard({
                     <CatalogPrefetchLink
                       key={child.slug}
                       href={buildGroupItemPath(group.slug, child.slug)}
-                      className="flex min-w-0 items-start justify-between gap-3 rounded-[12px] border border-slate-200 bg-white px-2.5 py-2 text-[12px] text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800"
+                      className="flex min-w-0 items-start justify-between gap-3 rounded-[12px] border border-slate-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.95))] px-2.5 py-2 text-[12px] text-slate-700 transition-[border-color,box-shadow,background-color,color] duration-300 hover:border-cyan-300/75 hover:bg-[linear-gradient(145deg,#ffffff_0%,#eaf8fb_55%,#e4f8f2_100%)] hover:text-sky-800 hover:shadow-[0_9px_20px_rgba(14,165,233,0.07)]"
                     >
                       <span className="min-w-0">
                         <span className="directory-card-title block text-slate-800">
@@ -505,10 +505,7 @@ export default function GroupsDirectoryClient({
                 {filteredGroups.map((group, index) => (
                   <div key={group.slug} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                     <meta itemProp="position" content={String(index + 1)} />
-                    <GroupCategoryCard
-                      group={group}
-                      prefetchOnViewport={index < 12}
-                    />
+                    <GroupCategoryCard group={group} />
                   </div>
                 ))}
               </div>

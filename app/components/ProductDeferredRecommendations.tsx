@@ -74,7 +74,6 @@ export default function ProductDeferredRecommendations({
         fallback={<RecommendationSkeleton titleWidth="w-52" cards={3} />}
         minHeight="172px"
         className="min-w-0"
-        fallbackDelayMs={2200}
       >
         <ProductRecentlyViewedSection product={product} euroRate={euroRate} />
       </DeferredSection>

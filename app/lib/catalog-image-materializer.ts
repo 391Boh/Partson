@@ -13,6 +13,7 @@ import {
   getProductRouteImageCacheRevision,
   isRouteImageCacheInvalidating,
   removePersistentRouteImage,
+  routeImageHitCache,
   writePersistentRouteImage,
 } from "app/lib/product-image-route-cache";
 
@@ -25,6 +26,7 @@ const CATALOG_IMAGE_MAX_WIDTH = 320;
 const CATALOG_IMAGE_MAX_HEIGHT = 320;
 const CATALOG_IMAGE_QUALITY = 64;
 const CATALOG_WEBP_PASSTHROUGH_MAX_BYTES = 120 * 1024;
+const CATALOG_ROUTE_MEMORY_CACHE_TTL_MS = 1000 * 60 * 60 * 4;
 
 let fallbackImageHashPromise: Promise<string | null> | null = null;
 
@@ -168,15 +170,29 @@ export const materializeCatalogImageBase64 = async (
       code,
       article
     );
-    await writePersistentRouteImage(persistentCacheKey, optimized);
+    // Hand the optimized buffer straight to the public image route. Previously
+    // the batch waited for a disk write and the route immediately read/hash-checked
+    // that same file again before a card could paint it.
+    routeImageHitCache.set(persistentCacheKey, {
+      expiresAt: Date.now() + CATALOG_ROUTE_MEMORY_CACHE_TTL_MS,
+      value: optimized,
+    });
 
-    if (
-      cacheRevision !== getProductRouteImageCacheRevision(code, article) ||
-      isRouteImageCacheInvalidating(code, article)
-    ) {
-      await removePersistentRouteImage(persistentCacheKey);
-      return null;
-    }
+    // Keep the persistent cache warm for later processes/requests, but do not
+    // make the first visible paint wait on filesystem I/O.
+    void writePersistentRouteImage(persistentCacheKey, optimized)
+      .then(async () => {
+        if (
+          cacheRevision === getProductRouteImageCacheRevision(code, article) &&
+          !isRouteImageCacheInvalidating(code, article)
+        ) {
+          return;
+        }
+
+        routeImageHitCache.delete(persistentCacheKey);
+        await removePersistentRouteImage(persistentCacheKey);
+      })
+      .catch(() => undefined);
 
     return buildProductImagePath(code, article, { catalog: true });
   } catch {

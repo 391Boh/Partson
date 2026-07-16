@@ -6,8 +6,10 @@ import { User } from 'firebase/auth';
 interface Props {
   name: string;
   phone: string;
+  email: string;
   setName: (value: string) => void;
   setPhone: (value: string) => void;
+  setEmail: (value: string) => void;
   user: User | null;
   discountAmount?: number;
   isFirstOrderDiscountApplied?: boolean;
@@ -20,8 +22,10 @@ const PHONE_PATTERN = /^\+380\d{9}$/;
 const CustomerDetails: React.FC<Props> = ({
   name,
   phone,
+  email,
   setName,
   setPhone,
+  setEmail,
   user,
   discountAmount = 0,
   isFirstOrderDiscountApplied = false,
@@ -30,7 +34,8 @@ const CustomerDetails: React.FC<Props> = ({
 }) => {
   const isNameValid = name.trim().length >= 2;
   const isPhoneValid = PHONE_PATTERN.test(phone.trim());
-  const canContinue = isNameValid && isPhoneValid;
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const canContinue = isNameValid && isPhoneValid && isEmailValid;
   const formattedDiscountAmount = new Intl.NumberFormat('uk-UA', {
     style: 'currency',
     currency: 'UAH',
@@ -40,7 +45,7 @@ const CustomerDetails: React.FC<Props> = ({
 
   const handleNext = () => {
     if (!canContinue) {
-      alert('Введіть, будь ласка, ім\'я та телефон у форматі +380XXXXXXXXX.');
+      alert('Введіть ім\'я, телефон у форматі +380XXXXXXXXX і коректний email.');
       return;
     }
     onNext();
@@ -105,6 +110,27 @@ const CustomerDetails: React.FC<Props> = ({
           {!isPhoneValid && phone.length > 0 && (
             <p className="mt-1 text-xs font-semibold text-rose-200">Використайте формат +380XXXXXXXXX.</p>
           )}
+        </div>
+        <div>
+          <label htmlFor="customer-email" className="mb-1 block text-sm font-semibold text-sky-50">
+            Email
+          </label>
+          <input
+            id="customer-email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="name@example.com"
+            autoComplete="email"
+            inputMode="email"
+            className="soft-field px-4 py-2.5"
+          />
+          {!isEmailValid && email.length > 0 && (
+            <p className="mt-1 text-xs font-semibold text-rose-200">Введіть коректну email-адресу.</p>
+          )}
+          <p className="mt-1 text-[11px] font-medium leading-4 text-sky-100/80">
+            Потрібен для замовлення. Після оформлення Google запропонує окремо погодитися або відмовитися від опитування про покупку.
+          </p>
         </div>
       </div>
 

@@ -5,12 +5,14 @@ export async function resolveWithTimeout<T>(
   fallback: T,
   timeoutMs = 2500
 ): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
   try {
     const timeoutResult = { timedOut: true } as const;
     const result = await Promise.race<T | typeof timeoutResult>([
       loader(),
       new Promise<typeof timeoutResult>((resolve) => {
-        setTimeout(() => resolve(timeoutResult), timeoutMs);
+        timeoutId = setTimeout(() => resolve(timeoutResult), timeoutMs);
       }),
     ]);
 
@@ -21,5 +23,9 @@ export async function resolveWithTimeout<T>(
     return result as T;
   } catch {
     return fallback;
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
   }
 }

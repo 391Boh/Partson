@@ -3,7 +3,7 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { FlipCard, type ProductNode } from "./FlipCard";
-import { useRouter } from "next/navigation";
+import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   fetchCatalogVersionHash,
@@ -20,6 +20,21 @@ interface CategoryRow {
   leaf: string;
   id: string;
 }
+
+const getCategoryRowCatalogPath = (row: CategoryRow) => {
+  const path = Array.isArray(row.path) ? row.path : [];
+  const leaf = row.leaf || path[path.length - 1] || "";
+  const group =
+    (path.length >= 2 ? path[path.length - 2] : path[0]) || row.group;
+
+  if (!group) return "/katalog";
+
+  return buildCatalogCategoryPath(
+    group,
+    path.length >= 2 && leaf ? leaf : null,
+    { expandHierarchy: true }
+  );
+};
 
 interface Props {
   products?: unknown;
@@ -464,9 +479,7 @@ const ProductFetcher: React.FC<Props> = ({
   const [page, setPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(MOBILE_ITEMS_PER_PAGE);
   const lastFocusVersionCheckRef = useRef<number>(0);
-  const [canHover, setCanHover] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
-  const router = useRouter();
   const shouldReduceMotion = useReducedMotion() ?? false;
   const shouldAnimate = !shouldReduceMotion && playEntranceAnimations;
   const isBooting = !hasExternalProducts && !isHydrated;
@@ -637,10 +650,26 @@ const ProductFetcher: React.FC<Props> = ({
         return;
       }
 
+      const hasUsableCache = cache.usable && cache.nodes.length > 0;
+
+      // With no cached tree there is nothing to validate. Starting with the
+      // version endpoint made the cold path call getprod twice in sequence and
+      // left the quick-search section loading while the user scrolled to it.
+      if (!hasUsableCache) {
+        const data = await loadProducts({ forceRefresh: true });
+        if (!active) return;
+        if (data.length > 0) {
+          setProductNodes(data);
+          setHasLoadedOnce(true);
+        }
+        setIsLoading(false);
+        setLoadError(cachedProductsLoadError);
+        return;
+      }
+
       const latestHash = await fetchCatalogVersionHash();
       if (!active) return;
 
-      const hasUsableCache = cache.usable && cache.nodes.length > 0;
       const hasMatchingVersion = latestHash ? cache.hash === latestHash : cache.fresh;
       if (hasUsableCache && hasMatchingVersion) {
         setIsLoading(false);
@@ -676,19 +705,6 @@ const ProductFetcher: React.FC<Props> = ({
   useEffect(() => {
     setFlippedId(null);
   }, [page, searchTerm, selectedCategories]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const media = window.matchMedia("(hover: hover)");
-    const update = () => setCanHover(media.matches);
-    update();
-    if (typeof media.addEventListener === "function") {
-      media.addEventListener("change", update);
-      return () => media.removeEventListener("change", update);
-    }
-    media.addListener(update);
-    return () => media.removeListener(update);
-  }, []);
 
   useEffect(() => {
     if (hasExternalProducts || !isHydrated) return;
@@ -775,33 +791,16 @@ const ProductFetcher: React.FC<Props> = ({
   }, [totalPages, getGroupPageWidth]);
 
   const handleRowSelect = (row: CategoryRow) => {
-    const path = Array.isArray(row.path) ? row.path : [];
-    const leaf = row.leaf || path[path.length - 1] || "";
-    const group =
-      (path.length >= 2 ? path[path.length - 2] : path[0]) || row.group;
-
-    if (!group) return;
-
-    const catalogPath = buildCatalogCategoryPath(
-      group,
-      path.length >= 2 && leaf ? leaf : null,
-      { expandHierarchy: true }
-    );
     setSelectedCategories([row.id]);
     if (typeof window !== "undefined") {
       safeSetStorageItem(window.sessionStorage, "catalogScrollTarget", "results");
     }
-    router.push(catalogPath);
   };
 
   return (
     <section
       ref={sectionRef}
-      className={`home-glow-section home-glow-section-sky font-ui group/tovar relative tovar-touch min-h-[420px] w-full overflow-hidden bg-gradient-to-br from-white/95 via-sky-50/85 to-blue-100/70 pb-4 pt-4 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.96),inset_0_-1px_0_rgba(30,64,175,0.18),0_24px_48px_rgba(37,99,235,0.20),0_8px_16px_rgba(14,116,144,0.12)] ${
-        canHover
-          ? "transition-[box-shadow,background-image,filter] duration-300 ease-out hover:from-sky-50/90 hover:via-sky-50/80 hover:to-blue-100/80 hover:brightness-[1.02] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.98),inset_0_-1px_0_rgba(30,64,175,0.24),0_30px_56px_rgba(37,99,235,0.26),0_10px_20px_rgba(14,116,144,0.16)]"
-          : ""
-      } sm:pb-0`}
+      className="home-glow-section home-glow-section-sky font-ui relative tovar-touch min-h-[420px] w-full overflow-hidden bg-gradient-to-br from-white/95 via-sky-50/85 to-blue-100/70 pb-4 pt-4 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.96),inset_0_-1px_0_rgba(30,64,175,0.18),0_24px_48px_rgba(37,99,235,0.20),0_8px_16px_rgba(14,116,144,0.12)] sm:pb-0"
     >
       {/* top bridge — receives hero's sky-blue fade */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[image:linear-gradient(to_bottom,rgba(186,230,253,0.22)_0%,rgba(186,230,253,0.06)_55%,transparent_100%)]" />
@@ -819,14 +818,12 @@ const ProductFetcher: React.FC<Props> = ({
       <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_90%_88%_at_50%_48%,transparent_52%,rgba(15,23,42,0.07)_100%)]" />
       {/* bottom edge shadow — reinforces depth */}
       <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_100%_38%_at_50%_100%,rgba(30,64,175,0.09)_0%,transparent_70%)]" />
-      {/* hover bloom — vivid sweep on hover */}
-      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-[700ms] ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/tovar:opacity-100 bg-[image:radial-gradient(ellipse_180%_100%_at_-4%_3%,rgba(56,189,248,0.30)_0%,rgba(125,211,252,0.10)_36%,transparent_58%),radial-gradient(ellipse_110%_75%_at_110%_6%,rgba(147,197,253,0.24)_0%,rgba(56,189,248,0.06)_40%,transparent_62%),radial-gradient(ellipse_120%_58%_at_50%_106%,rgba(37,99,235,0.14)_0%,transparent_64%),linear-gradient(to_bottom,rgba(255,255,255,0.10)_0%,transparent_30%)]" />
       {/* bottom bridge — eases into Auto's white/sky top */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-10 bg-[image:linear-gradient(to_bottom,transparent_0%,rgba(186,230,253,0.18)_100%)]" />
       <div className="page-shell-inline relative z-10 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <motion.aside
         {...entryMotion}
-        className={`${canHover ? "group " : ""}home-panel-hover home-section-surface relative z-10 min-w-0 self-start overflow-hidden rounded-2xl border border-sky-200/70 bg-gradient-to-br from-white via-sky-50/90 to-blue-100/80 backdrop-blur-sm shadow-[0_20px_48px_rgba(2,132,199,0.24),0_8px_20px_rgba(30,64,175,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] px-4 pb-1 pt-2.5 mb-2 text-gray-800 transition-all duration-300 hover:shadow-[0_28px_60px_rgba(2,132,199,0.32),0_10px_28px_rgba(30,64,175,0.22),inset_0_1px_0_rgba(255,255,255,1)]`}
+        className="group home-panel-hover home-section-surface relative z-10 min-w-0 self-start overflow-hidden rounded-2xl border border-sky-200/70 bg-gradient-to-br from-white via-sky-50/90 to-blue-100/80 shadow-[0_20px_48px_rgba(2,132,199,0.24),0_8px_20px_rgba(30,64,175,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] px-4 pb-1 pt-2.5 mb-2 text-gray-800 transition-shadow duration-300 hover:shadow-[0_28px_60px_rgba(2,132,199,0.32),0_10px_28px_rgba(30,64,175,0.22),inset_0_1px_0_rgba(255,255,255,1)]"
       >
             <div className="absolute inset-0 pointer-events-none opacity-75 bg-[image:radial-gradient(circle_at_20%_20%,rgba(224,242,254,0.95),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(59,130,246,0.18),transparent_36%)]" />
             <div className="relative">
@@ -888,10 +885,11 @@ const ProductFetcher: React.FC<Props> = ({
                       const trailLabel =
                         row.path.slice(0, -1).map(getDisplayLabel).join(" / ") ||
                         getDisplayLabel(row.group);
+                      const catalogPath = getCategoryRowCatalogPath(row);
                       return (
-                        <button
+                        <CatalogPrefetchLink
                           key={row.id}
-                          type="button"
+                          href={catalogPath}
                           onClick={(event) => {
                             event.currentTarget.blur();
                             handleRowSelect(row);
@@ -940,7 +938,7 @@ const ProductFetcher: React.FC<Props> = ({
                               />
                             </span>
                           </div>
-                        </button>
+                        </CatalogPrefetchLink>
                       );
                     })}
                   </div>
@@ -1015,6 +1013,13 @@ const ProductFetcher: React.FC<Props> = ({
                           id={id}
                           isFlipped={flippedId === id}
                           setFlippedId={setFlippedId}
+                          onBoundarySwipe={(direction) => {
+                            if (direction === "next") {
+                              nextPage();
+                            } else {
+                              prevPage();
+                            }
+                          }}
                           priority={pageIndex === 0 && index < 3}
                         />
                       );
@@ -1025,27 +1030,35 @@ const ProductFetcher: React.FC<Props> = ({
             </div>
           </div>
         ) : showSkeleton ? (
-          <div className="grid min-h-[416px] grid-cols-2 grid-rows-2 gap-4 sm:min-h-[685px] sm:grid-rows-3 sm:gap-5 lg:min-h-[450px] lg:grid-cols-3 lg:grid-rows-2">
-                  <div className="col-span-full">
-                    <LoadingNotice
-                      shouldAnimate={shouldAnimate}
-                      title={"\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0443\u0454\u043c\u043e \u0442\u043e\u0432\u0430\u0440\u043d\u0456 \u043a\u0430\u0440\u0442\u043a\u0438"}
-                      subtitle={"\u0413\u043e\u0442\u0443\u0454\u043c\u043e \u0432\u0456\u0437\u0443\u0430\u043b\u044c\u043d\u0438\u0439 \u0441\u043f\u0438\u0441\u043e\u043a \u0434\u043b\u044f \u043f\u0435\u0440\u0435\u0433\u043b\u044f\u0434\u0443..."}
-                    />
-                  </div>
-                  {Array.from({ length: itemsPerPage }).map((_, index) => (
-                    <div
-                      key={`card-skeleton-${index}`}
-                      className="skeleton-card relative overflow-hidden rounded-xl border border-sky-200/70 bg-[image:linear-gradient(148deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.94)_52%,rgba(219,234,254,0.90)_100%)] px-4 py-5 shadow-[0_8px_22px_rgba(8,145,178,0.16),0_2px_8px_rgba(8,145,178,0.09),inset_0_1px_0_rgba(255,255,255,0.95)]"
-                      aria-hidden="true"
-                    >
-                      <div className="pointer-events-none absolute inset-0 opacity-70 bg-[image:radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.2),transparent_42%),radial-gradient(circle_at_85%_18%,rgba(56,189,248,0.16),transparent_40%)]" />
-                      <div className="relative h-12 w-12 rounded-full border border-cyan-200/60 bg-cyan-100/90" />
-                      <div className="relative mt-4 h-3 w-3/4 rounded-full bg-cyan-100/90" />
-                      <div className="relative mt-2 h-3 w-1/2 rounded-full bg-cyan-100/70" />
-                      <div className="relative mt-4 h-6 w-24 rounded-full bg-cyan-100/80" />
-                    </div>
-                  ))}
+          <div>
+            <div className="mb-4">
+              <LoadingNotice
+                shouldAnimate={shouldAnimate}
+                title={"\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0443\u0454\u043c\u043e \u0442\u043e\u0432\u0430\u0440\u043d\u0456 \u043a\u0430\u0440\u0442\u043a\u0438"}
+                subtitle={"\u0413\u043e\u0442\u0443\u0454\u043c\u043e \u0432\u0456\u0437\u0443\u0430\u043b\u044c\u043d\u0438\u0439 \u0441\u043f\u0438\u0441\u043e\u043a \u0434\u043b\u044f \u043f\u0435\u0440\u0435\u0433\u043b\u044f\u0434\u0443..."}
+              />
+            </div>
+            {/* LoadingNotice used to sit inside this grid as a col-span-full
+                item, squeezed into a track sized for a card \u2014 the skeleton
+                never actually formed the even N-column grid the real content
+                does. It's a sibling above the grid now, so every cell below
+                is a uniform placeholder card, same shape the real cards
+                render into. */}
+            <div className="grid min-h-[416px] grid-cols-2 grid-rows-2 gap-4 sm:min-h-[685px] sm:grid-rows-3 sm:gap-5 lg:min-h-[450px] lg:grid-cols-3 lg:grid-rows-2">
+              {Array.from({ length: itemsPerPage }).map((_, index) => (
+                <div
+                  key={`card-skeleton-${index}`}
+                  className="skeleton-card relative overflow-hidden rounded-xl border border-sky-200/70 bg-[image:linear-gradient(148deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.94)_52%,rgba(219,234,254,0.90)_100%)] px-4 py-5 shadow-[0_8px_22px_rgba(8,145,178,0.16),0_2px_8px_rgba(8,145,178,0.09),inset_0_1px_0_rgba(255,255,255,0.95)]"
+                  aria-hidden="true"
+                >
+                  <div className="pointer-events-none absolute inset-0 opacity-70 bg-[image:radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.2),transparent_42%),radial-gradient(circle_at_85%_18%,rgba(56,189,248,0.16),transparent_40%)]" />
+                  <div className="relative h-12 w-12 rounded-full border border-cyan-200/60 bg-cyan-100/90" />
+                  <div className="relative mt-4 h-3 w-3/4 rounded-full bg-cyan-100/90" />
+                  <div className="relative mt-2 h-3 w-1/2 rounded-full bg-cyan-100/70" />
+                  <div className="relative mt-4 h-6 w-24 rounded-full bg-cyan-100/80" />
+                </div>
+              ))}
+            </div>
           </div>
         ) : productLoadError ? (
           <div className="grid min-h-[416px] grid-cols-2 grid-rows-2 gap-4 sm:min-h-[685px] sm:grid-rows-3 sm:gap-5 lg:min-h-[450px] lg:grid-cols-3 lg:grid-rows-2">

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, MessageCircle, Minus, Plus, ShoppingCart } from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
-import { pushAnalyticsEvent, pushEcommerceEvent } from "app/lib/gtm";
+import { pushEcommerceEvent } from "app/lib/gtm";
 
 type ProductPageActionsProps = {
   code: string;
@@ -105,12 +105,6 @@ const ProductPageActions = ({
   };
 
   const handleRequestManager = () => {
-    pushAnalyticsEvent("generate_lead", {
-      lead_source: "product_page",
-      lead_type: "price_request",
-      product_id: code,
-    });
-
     const lines: string[] = ["Потрібна ціна на товар (за запитом)."];
     if (name.trim()) lines.push(`Товар: ${name.trim()}`);
     if (article.trim()) lines.push(`Артикул: ${article.trim()}`);

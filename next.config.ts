@@ -90,7 +90,7 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 31536000,
     qualities: [60, 70, 75, 85],
-    deviceSizes: [360, 420, 640, 768, 1024, 1280, 1536, 1920],
+    deviceSizes: [360, 420, 512, 640, 768, 1024, 1280, 1536, 1920],
     imageSizes: [32, 48, 64, 96, 128, 192, 256, 320],
     localPatterns: [
       // Keep default strict behavior for regular local images (no query string).

@@ -683,8 +683,15 @@ const Category: React.FC<CategoryProps> = ({
       nextParams.delete("subcategory");
     }
     nextParams.delete("reset");
-    nextParams.delete("search");
-    nextParams.delete("filter");
+    const preservesCarSearch =
+      nextParams.get("carSearch") === "1" &&
+      Boolean(nextParams.get("search")) &&
+      nextParams.get("filter") === "description";
+    if (!preservesCarSearch) {
+      nextParams.delete("search");
+      nextParams.delete("filter");
+      nextParams.delete("carSearch");
+    }
 
     return `/katalog?${nextParams.toString()}`;
   };

@@ -24,11 +24,6 @@ const FACET_PAGE_SIZE = parsePositiveInt(process.env.SEO_FACET_PAGE_SIZE, 120);
 const FACET_MAX_PAGES = parseOptionalPositiveInt(process.env.SEO_FACET_MAX_PAGES);
 const FACET_MAX_ITEMS = parseOptionalPositiveInt(process.env.SEO_FACET_MAX_ITEMS);
 const SEO_COUNTS_SNAPSHOT_PATH = ".cache/seo-counts.json";
-const isProductionBuildPhase =
-  process.env.NEXT_PHASE === "phase-production-build" ||
-  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
-  process.env.npm_lifecycle_event === "build";
-
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
 const normalizeToken = (value: string | null | undefined) =>
@@ -415,11 +410,14 @@ const collectSeoFacets = cache(async (): Promise<CatalogSeoFacets> =>
 export const getCatalogSeoFacets = async () => collectSeoFacets();
 
 export const getCatalogSeoFacetsWithTimeout = async (timeoutMs = 250) => {
-  if (isProductionBuildPhase) {
-    const snapshot = await readCatalogSeoFacetsSnapshot();
-    if (snapshot && (snapshot.totalProductCount > 0 || snapshot.groups.length > 0)) {
-      return snapshot;
-    }
+  // The checked-in snapshot is generated from the same catalog scan and is
+  // available on every production instance. Reading it first avoids making a
+  // cold page request wait for the full paginated 1C traversal. The live
+  // loader remains the fallback for development and installations without a
+  // snapshot.
+  const snapshot = await readCatalogSeoFacetsSnapshot();
+  if (snapshot && (snapshot.totalProductCount > 0 || snapshot.groups.length > 0)) {
+    return snapshot;
   }
 
   return resolveWithTimeout(

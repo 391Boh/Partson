@@ -16,6 +16,7 @@ type SmartLinkProps = LinkProps &
   Omit<AnchorHTMLAttributes<HTMLAnchorElement>, keyof LinkProps> & {
     prefetchOnIntent?: boolean;
     prefetchOnViewport?: boolean;
+    prefetchOnTouch?: boolean;
   };
 
 const getPrefetchableHref = (href: LinkProps["href"]) => {
@@ -35,6 +36,7 @@ const SmartLink = forwardRef<HTMLAnchorElement, SmartLinkProps>(function SmartLi
     onTouchStart,
     prefetchOnIntent = true,
     prefetchOnViewport = false,
+    prefetchOnTouch = false,
     ...props
   },
   ref
@@ -75,10 +77,10 @@ const SmartLink = forwardRef<HTMLAnchorElement, SmartLinkProps>(function SmartLi
 
   const handleTouchStart = useCallback(
     (event: TouchEvent<HTMLAnchorElement>) => {
-      warmRoute();
+      if (prefetchOnTouch) warmRoute();
       onTouchStart?.(event);
     },
-    [onTouchStart, warmRoute]
+    [onTouchStart, prefetchOnTouch, warmRoute]
   );
 
   return (

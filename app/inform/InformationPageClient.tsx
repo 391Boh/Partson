@@ -135,18 +135,19 @@ const InfoCard = memo(function InfoCard({ title, icon: Icon, accent = 'sky', fea
   const a = ACCENT[accent];
   return (
     <article
-      className={`group relative isolate flex h-full flex-col overflow-hidden rounded-[16px] border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.96))] p-5 shadow-[0_12px_28px_rgba(15,23,42,0.055)] ring-1 ring-white/80 transition-[border-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-[0_18px_36px_rgba(14,165,233,0.12)] ${
-        featured ? 'border-sky-200 ring-2 ring-sky-100' : ''
+      className={`group relative isolate flex h-full flex-col overflow-hidden rounded-[22px] border bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_38%),radial-gradient(circle_at_0%_100%,rgba(153,246,228,0.10),transparent_42%),linear-gradient(148deg,rgba(255,255,255,0.995)_0%,rgba(248,251,254,0.98)_58%,rgba(244,249,249,0.95)_100%)] p-4 shadow-[0_16px_34px_rgba(15,23,42,0.075),0_4px_12px_rgba(14,116,144,0.045),inset_0_1px_0_rgba(255,255,255,0.98)] ring-1 ring-white/90 transition-[border-color,box-shadow,background-color] duration-300 ease-out hover:border-cyan-300/80 hover:shadow-[0_22px_42px_rgba(14,165,233,0.13),0_7px_18px_rgba(13,148,136,0.07),inset_0_1px_0_rgba(255,255,255,1)] sm:p-5 ${
+        featured ? 'border-cyan-200/90 ring-cyan-100/80' : 'border-slate-200/85'
       }`}
     >
-      <div className="relative">
-        <div className="mb-4 flex items-start gap-3 sm:items-center">
-          <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border shadow-sm ${a.wrap}`}>
+      <span className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/75 to-transparent opacity-70 transition-opacity duration-300 group-hover:opacity-100" />
+      <div className="relative z-10">
+        <div className="mb-3.5 flex items-start gap-3 sm:items-center">
+          <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] border shadow-[0_8px_18px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] ${a.wrap}`}>
             <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
           </span>
-          <h3 className="directory-card-title min-w-0 flex-1 text-[15px] leading-tight text-slate-900">{title}</h3>
+          <h2 className="directory-card-title min-w-0 flex-1 text-[16px] leading-tight text-slate-950">{title}</h2>
         </div>
-        <div className="text-[13.5px] leading-relaxed text-slate-600">{children}</div>
+        <div className="text-[13.5px] font-medium leading-6 text-slate-600">{children}</div>
       </div>
     </article>
   );
@@ -154,9 +155,9 @@ const InfoCard = memo(function InfoCard({ title, icon: Icon, accent = 'sky', fea
 
 // ─── Пункт списку ──────────────────────────────────────────────────────────
 const Li = ({ icon: Icon, cls, children }: { icon: LucideIcon; cls: string; children: ReactNode }) => (
-  <li className="flex items-start gap-3">
-    <span className={`mt-0.5 shrink-0 ${cls}`}><Icon size={15} strokeWidth={1.8} aria-hidden="true" /></span>
-    <span className="text-[13.5px] leading-relaxed text-slate-600">{children}</span>
+  <li className="flex items-start gap-2.5">
+    <span className={`mt-1 shrink-0 ${cls}`}><Icon size={15} strokeWidth={1.9} aria-hidden="true" /></span>
+    <span className="text-[13.5px] font-medium leading-6 text-slate-600">{children}</span>
   </li>
 );
 
@@ -445,9 +446,9 @@ const DiagnosticsTab = () => (
                 </span>
                 <div className="space-y-2">
                   <div className="grid grid-cols-[minmax(0,1fr)_74px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_92px]">
-                    <h2 className="text-balance text-[24px] font-black leading-[1.08] text-slate-950 sm:text-[30px]">
+                    <h3 className="text-balance text-[24px] font-black leading-[1.08] text-slate-950 sm:text-[30px]">
                       Діагностика, яка знаходить причину несправності
-                    </h2>
+                    </h3>
                     <figure className="grid h-[74px] w-[74px] place-items-center justify-self-end rounded-2xl border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(224,242,254,0.86))] p-2 shadow-[0_10px_22px_rgba(14,165,233,0.1)] ring-1 ring-white/80 sm:h-[92px] sm:w-[92px] sm:p-2.5">
                       <Image
                         src="/Katlogo/datchyky_ta_elektronika.png"
@@ -540,9 +541,9 @@ const DiagnosticsTab = () => (
                 <Wrench size={13} strokeWidth={2} aria-hidden="true" />
                 Запис на діагностику
               </p>
-              <h2 className="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[22px]">
+              <h3 className="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[22px]">
                 Залиште заявку — уточнимо симптоми й час візиту
-              </h2>
+              </h3>
               <p className="mt-1.5 text-[12.5px] font-semibold leading-relaxed text-slate-600">
                 Передзвонимо, підкажемо що підготувати, зорієнтуємо по вартості та за потреби
                 одразу підберемо запчастини після перевірки.
@@ -778,6 +779,7 @@ const PrivacyTab = () => (
       <ul className="space-y-3">
         <Li icon={Truck} cls="text-amber-500">Службам доставки: Нова Пошта, Укрпошта, Meest або іншим перевізникам, яких обирає клієнт.</Li>
         <Li icon={CreditCard} cls="text-amber-500">Платіжним сервісам і банкам для проведення онлайн-оплати або повернення коштів.</Li>
+        <Li icon={MessageCircle} cls="text-amber-500">Google Customer Reviews — email, номер замовлення, країна та очікувана дата доставки для показу добровільної пропозиції залишити відгук після покупки.</Li>
         <Li icon={Building2} cls="text-amber-500">Постачальникам, сервісним партнерам, бухгалтерам, технічним провайдерам сайту — лише в межах необхідного.</Li>
         <Li icon={ShieldCheck} cls="text-amber-500">Державним органам — лише у випадках, прямо передбачених законом.</Li>
       </ul>
@@ -938,10 +940,7 @@ const renderTabContent = (key: InformationSectionKey) => {
 // ─── Головний компонент ────────────────────────────────────────────────────
 export default function InformationPageClient({ initialSectionKey }: InformationPageClientProps) {
   const activeTab = tabs.find((tab) => tab.key === initialSectionKey) || tabs[0];
-  const activeDescription =
-    activeTab.key === 'about'
-      ? 'Локальний магазин у Львові, точний підбір деталей і підтримка замовлення від консультації до отримання.'
-      : activeTab.seoDescription;
+  const activeDescription = activeTab.intro;
 
   const ActiveIcon = activeTab.icon;
 
@@ -967,11 +966,11 @@ export default function InformationPageClient({ initialSectionKey }: Information
           </nav>
 
           {/* Заголовок сторінки */}
-          <section className="relative overflow-hidden rounded-[30px] border border-white/85 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(240,249,255,0.94),rgba(236,254,255,0.9))] p-4 shadow-[0_28px_70px_rgba(14,165,233,0.15)] ring-1 ring-sky-100/70 sm:p-5 lg:p-6">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-sky-200/35 via-cyan-100/25 to-emerald-100/25" />
+          <section className="relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.14),transparent_36%),radial-gradient(circle_at_96%_6%,rgba(20,184,166,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.995)_0%,rgba(247,251,254,0.98)_56%,rgba(241,249,247,0.95)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+            <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
-            <div className="relative grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] border border-white/90 bg-white/86 text-sky-600 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-sky-100/80 sm:h-20 sm:w-20">
+            <div className="relative grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center lg:gap-5">
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] border border-white/95 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(239,249,253,0.94),rgba(232,248,243,0.90))] text-sky-700 shadow-[0_16px_36px_rgba(15,23,42,0.09),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-sky-100/80 sm:h-20 sm:w-20">
                 <ActiveIcon size={28} strokeWidth={1.7} aria-hidden="true" />
               </span>
 
@@ -985,7 +984,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
                 <h1 className="directory-heading-hero mt-3 text-[1.55rem] leading-[1.12] text-slate-950 sm:text-[2.15rem]">
                   {activeTab.seoTitle}
                 </h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-[15px]">
+                <p className="mt-3 max-w-4xl text-sm font-medium leading-6 text-slate-600 sm:text-[15px]">
                   {activeDescription}
                 </p>
               </div>
@@ -993,7 +992,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
           </section>
 
           {/* Навігаційні вкладки */}
-          <nav aria-label="Розділи інформації" className={`${directoryPanelClass} p-2`}>
+          <nav aria-label="Розділи інформації" className={`${directoryPanelClass} p-2 sm:p-2.5`}>
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
               {tabs.map((tab) => {
                 const isActive = tab.key === activeTab.key;
@@ -1003,10 +1002,10 @@ export default function InformationPageClient({ initialSectionKey }: Information
                     key={tab.key}
                     href={getInformationPath(tab.key)}
                     aria-current={isActive ? 'page' : undefined}
-                    className={`group relative rounded-[14px] border px-3 py-3 text-left transition-all duration-200 active:scale-[0.98] ${
+                    className={`group relative overflow-hidden rounded-[15px] border px-3 py-3 text-left transition-[border-color,box-shadow,background-color] duration-250 ${
                       isActive
-                        ? 'border-cyan-300/90 bg-[linear-gradient(135deg,rgba(236,254,255,0.96),rgba(224,242,254,0.92))] text-cyan-950 shadow-[0_12px_24px_rgba(8,145,178,0.12)]'
-                        : 'border-slate-200/90 bg-white/88 text-slate-700 hover:border-slate-300 hover:bg-white'
+                        ? 'border-cyan-300/90 bg-[radial-gradient(circle_at_100%_0%,rgba(45,212,191,0.16),transparent_42%),linear-gradient(140deg,rgba(240,253,255,0.98),rgba(230,246,252,0.95))] text-cyan-950 shadow-[0_12px_26px_rgba(8,145,178,0.13),inset_0_1px_0_rgba(255,255,255,0.94)]'
+                        : 'border-slate-200/85 bg-white/86 text-slate-700 shadow-[0_7px_18px_rgba(15,23,42,0.035)] hover:border-sky-200 hover:bg-white hover:shadow-[0_11px_24px_rgba(14,165,233,0.08)]'
                     }`}
                   >
                     <div className="flex items-center gap-2">

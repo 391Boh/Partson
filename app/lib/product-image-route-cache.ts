@@ -19,7 +19,7 @@ const PERSISTENT_ROUTE_CACHE_EXPIRY_GRACE_MS = 1000 * 60 * 5;
 const PERSISTENT_ROUTE_CACHE_MAX_ENTRIES = 5000;
 const PERSISTENT_ROUTE_CACHE_PRUNE_INTERVAL_MS = 1000 * 60 * 60;
 const PERSISTENT_ROUTE_CACHE_DIR = path.join(
-  process.cwd(),
+  /*turbopackIgnore: true*/ process.cwd(),
   ".cache",
   "product-images",
   "routes"

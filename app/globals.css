@@ -8,14 +8,10 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: "Exo 2";
-  src: url("/fonts/exo2-variable-italic.woff2") format("woff2-variations");
-  font-style: italic;
-  font-weight: 400 900;
-  font-display: swap;
+html[data-analytics-consent="granted"] .analytics-consent-banner,
+html[data-analytics-consent="denied"] .analytics-consent-banner {
+  display: none;
 }
-
 
 @layer base {
   :root {
@@ -314,6 +310,17 @@
   transform: translate3d(0, 0, 0);
   -webkit-backface-visibility: hidden;
   -webkit-transform: translate3d(0, 0, 0);
+  /* The hero stacks ~8 separate gradient layers (section background, two
+     pseudo-elements, five overlay spans). Without containment, a repaint
+     anywhere else on the page can force the browser to re-evaluate this
+     whole stack before it's settled, which is what read as artifacts while
+     scrolling. `contain` isolates the hero's layout/paint from the rest of
+     the page in both directions — matches .home-section-stage, which
+     already uses this successfully for other homepage sections.
+     overflow-hidden is already set on the section in hero.tsx, so the paint
+     containment here doesn't newly clip anything that wasn't already
+     clipped. */
+  contain: layout style paint;
 }
 
 .hero-section-smooth::before {
@@ -483,6 +490,33 @@
 
 .skeleton-item::after {
   content: none;
+}
+
+.catalog-card-skeleton {
+  animation: catalogSkeletonBreathe 1.8s ease-in-out infinite;
+  animation-delay: var(--catalog-skeleton-delay, 0ms);
+}
+
+.catalog-skeleton-block {
+  background-color: rgba(203, 213, 225, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+@keyframes catalogSkeletonBreathe {
+  0%,
+  100% {
+    opacity: 0.76;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-card-skeleton {
+    animation: none;
+    opacity: 0.9;
+  }
 }
 
 .catalog-image-loading {
@@ -722,9 +756,11 @@ h4, h5, h6 {
 .directory-heading {
   font-family: var(--font-display-stack);
   font-style: normal;
-  font-weight: 690;
-  font-variation-settings: "wght" 690;
-  letter-spacing: -0.022em;
+  font-weight: 780;
+  font-variation-settings: "wght" 780;
+  letter-spacing: -0.026em;
+  line-height: 1.12;
+  text-rendering: geometricPrecision;
   text-wrap: pretty;
   overflow-wrap: anywhere;
 }
@@ -732,9 +768,11 @@ h4, h5, h6 {
 .directory-heading-hero {
   font-family: var(--font-display-stack);
   font-style: normal;
-  font-weight: 740;
-  font-variation-settings: "wght" 740;
-  letter-spacing: -0.028em;
+  font-weight: 830;
+  font-variation-settings: "wght" 830;
+  letter-spacing: -0.034em;
+  line-height: 1.06;
+  text-rendering: geometricPrecision;
   text-wrap: pretty;
   overflow-wrap: anywhere;
 }
@@ -742,21 +780,22 @@ h4, h5, h6 {
 .directory-card-title {
   font-family: var(--font-display-stack);
   font-style: normal;
-  font-weight: 670;
-  font-variation-settings: "wght" 670;
-  letter-spacing: -0.012em;
+  font-weight: 760;
+  font-variation-settings: "wght" 760;
+  letter-spacing: -0.018em;
+  text-rendering: geometricPrecision;
 }
 
 .directory-kicker {
-  font-weight: 680;
-  font-variation-settings: "wght" 680;
+  font-weight: 720;
+  font-variation-settings: "wght" 720;
   letter-spacing: 0.1em;
 }
 
 .directory-counter {
   font-family: var(--font-display-stack);
-  font-weight: 700;
-  font-variation-settings: "wght" 700;
+  font-weight: 760;
+  font-variation-settings: "wght" 760;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.012em;
 }
@@ -1278,7 +1317,31 @@ h4, h5, h6 {
 }
 
 .skeleton-card::after {
-  content: none;
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: skeleton-shimmer 1.7s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-card::after {
+    animation: none;
+    display: none;
+  }
 }
 
 
@@ -2518,6 +2581,31 @@ body::-webkit-scrollbar-corner,
     transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Each catalog card carries its own 3D perspective/backface flip context
+   plus layered gradients and shadows — cheap for one card, expensive for
+   the dozens visible on a catalog page. content-visibility: auto tells the
+   browser to skip layout/paint entirely for cards currently off-screen, so
+   scrolling a long grid only has to composite what's actually on screen
+   instead of every mounted card, which is what read as page-wide scroll
+   jank/stutter on desktop. contain-intrinsic-size reserves the known card
+   height so skipped cards don't collapse and shift the layout underneath
+   them before they're measured.
+*/
+.catalog-product-card {
+  content-visibility: auto;
+  /* Matches the .catalog-product-card height override below (23.75rem,
+     mobile-only !important) — the inline h-[360px] Tailwind class is
+     overridden there, so 380px is what mobile actually renders at. */
+  contain-intrinsic-size: 100% 380px;
+}
+
+@media (min-width: 640px) {
+  .catalog-product-card {
+    /* Matches ProductCard.tsx's inline sm:h-[340px]. */
+    contain-intrinsic-size: 100% 340px;
+  }
+}
+
 @media (hover: hover) {
   .app-panel-card-hover:hover {
     border-color: rgba(125, 211, 252, 0.72);
@@ -2549,17 +2637,13 @@ body::-webkit-scrollbar-corner,
     height: 23.75rem !important;
   }
 
-  .catalog-product-card.catalog-product-card--admin {
-    height: 40rem !important;
-  }
-
   .catalog-product-card:hover {
     transform: none !important;
   }
 
   .catalog-product-card [itemprop="name"] {
     display: -webkit-box;
-    -webkit-line-clamp: 3;
+    -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
@@ -2647,8 +2731,8 @@ body::-webkit-scrollbar-corner,
   }
 
   #catalog-results {
-    padding-left: 0.55rem;
-    padding-right: 0.55rem;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
   }
 
   html:has(.soft-modal-shell),

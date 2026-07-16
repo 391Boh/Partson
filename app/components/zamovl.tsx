@@ -23,6 +23,34 @@ import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 type DeliveryMethodType = ComponentProps<typeof DeliveryMethod>["deliveryMethod"];
 type PaymentMethodType = ComponentProps<typeof PaymentMethod>["paymentMethod"];
 
+const addBusinessDays = (start: Date, businessDays: number) => {
+  const result = new Date(start);
+  let remaining = businessDays;
+  while (remaining > 0) {
+    result.setDate(result.getDate() + 1);
+    const day = result.getDay();
+    if (day !== 0 && day !== 6) remaining -= 1;
+  }
+  return result;
+};
+
+const formatDateOnly = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const estimateDeliveryDate = (deliveryMethod: DeliveryMethodType) => {
+  const businessDays =
+    deliveryMethod === "Нова Пошта"
+      ? 4
+      : deliveryMethod === "Доставка у Львові"
+        ? 2
+        : 1;
+  return formatDateOnly(addBusinessDays(new Date(), businessDays));
+};
+
 const deductOrderStock = async (
   items: { code: string; article: string; quantity: number }[]
 ) => {
@@ -93,6 +121,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("+380");
+  const [email, setEmail] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethodType>("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("");
   const [selectedCity, setSelectedCity] = useState<CityOrWarehouse | null>(null);
@@ -108,6 +137,8 @@ const Zamovl: React.FC<ZamovlProps> = ({
   const [confirmedPaymentMethod, setConfirmedPaymentMethod] =
     useState<PaymentMethodType>("");
   const [confirmedPaymentStatus, setConfirmedPaymentStatus] = useState("");
+  const [confirmedEstimatedDeliveryDate, setConfirmedEstimatedDeliveryDate] =
+    useState("");
   const itemDiscountRate =
     totalAmount > 0 && discountAmount > 0
       ? Math.min(1, discountAmount / totalAmount)
@@ -141,6 +172,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
       setFirebaseUser(user);
 
       if (user) {
+        setEmail(user.email || "");
         try {
           const userDocRef = doc(db, "users", user.uid);
           const userDocSnap = await getDoc(userDocRef);
@@ -149,6 +181,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
             const data = userDocSnap.data();
             setName(data.name || "");
             setPhone(data.phone || "+380");
+            setEmail(data.email || user.email || "");
             if (data.deliveryMethod) setDeliveryMethod(data.deliveryMethod);
             if (data.deliveryCity) setSelectedCity(data.deliveryCity);
             if (data.deliveryWarehouse) setSelectedWarehouse(data.deliveryWarehouse);
@@ -160,6 +193,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
       } else {
         setName("");
         setPhone("+380");
+        setEmail("");
       }
 
       setIsLoading(false);
@@ -182,6 +216,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
           ? "paid"
           : "pending";
     const resolvedPaymentProvider = isCardPayment ? "liqpay" : "cash";
+    const estimatedDeliveryDate = estimateDeliveryDate(deliveryMethod);
 
     const normalizedCartItems = cartItems.map((item) => ({
       name: item.name,
@@ -210,6 +245,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
         uid: firebaseUser?.uid || null,
         name,
         phone,
+        email: email.trim().toLowerCase(),
         deliveryMethod,
         paymentMethod,
         city: selectedCity?.Description || null,
@@ -229,6 +265,8 @@ const Zamovl: React.FC<ZamovlProps> = ({
           : null,
         totalAmount: payableAmount,
         orderId,
+        deliveryCountry: "UA",
+        estimatedDeliveryDate,
         paymentStatus: resolvedPaymentStatus,
         paymentProvider: resolvedPaymentProvider,
         liqpayStatus:
@@ -315,6 +353,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
       setConfirmedAmount(payableAmount);
       setConfirmedPaymentMethod(paymentMethod);
       setConfirmedPaymentStatus(resolvedPaymentStatus);
+      setConfirmedEstimatedDeliveryDate(estimatedDeliveryDate);
       onClearCart();
       setCurrentStep(3);
 
@@ -360,8 +399,10 @@ const Zamovl: React.FC<ZamovlProps> = ({
           <CustomerDetails
             name={name}
             phone={phone}
+            email={email}
             setName={setName}
             setPhone={setPhone}
+            setEmail={setEmail}
             user={firebaseUser}
             discountAmount={discountAmount}
             isFirstOrderDiscountApplied={isFirstOrderDiscountApplied}
@@ -417,7 +458,12 @@ const Zamovl: React.FC<ZamovlProps> = ({
           <OrderConfirmation
             name={name}
             phone={phone}
+            email={email}
             orderId={orderId}
+            deliveryCountry="UA"
+            estimatedDeliveryDate={
+              confirmedEstimatedDeliveryDate || estimateDeliveryDate(deliveryMethod)
+            }
             totalAmount={confirmedAmount ?? payableAmount}
             subtotalAmount={totalAmount}
             discountAmount={discountAmount}

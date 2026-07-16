@@ -17,7 +17,12 @@ import {
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
-const DESCRIPTION_REQUEST_TIMEOUT_MS = 2600;
+// /api/product-description's own comment documents 1C description lookups
+// measured live at 1.9-3.7s per call, even repeated back-to-back. The old
+// 2600ms client timeout raced (and often lost to) that latency on ordinary,
+// successful requests — showing "Не вдалося завантажити опис" for products
+// that genuinely have one. Comfortably above the documented worst case.
+const DESCRIPTION_REQUEST_TIMEOUT_MS = 4500;
 const ARTICLE_COPY_FEEDBACK_MS = 1200;
 const safBackface = {
     backfaceVisibility: "hidden" as const,
@@ -265,12 +270,6 @@ const ProductCard: React.FC<Props> = ({
     }, [cartQty]);
 
     useEffect(() => {
-        if (!hasCostPrice && showCostPrice) {
-            setShowCostPrice(false);
-        }
-    }, [hasCostPrice, showCostPrice]);
-
-    useEffect(() => {
         setProducerLogoFailed(false);
     }, [producerLogoSrc]);
 
@@ -286,6 +285,12 @@ const ProductCard: React.FC<Props> = ({
 const [description, setDescription] = useState<string | null>(null);
 const [loadingDesc, setLoadingDesc] = useState(false);
 const descLoaded = useRef(false);
+// Which descriptionRequestUrl descLoaded/description currently reflect — lets
+// the fetch effect tell "same product, re-flipped" (skip refetch, keep
+// showing what's already loaded) apart from "URL actually changed" (e.g. an
+// admin edits the catalog number inline while the card is open), which must
+// reset both instead of silently keeping the previous product's description.
+const descLoadedForUrl = useRef("");
 
 // ================== ADMIN EDIT ==================
 const [isEditMode, setIsEditMode] = useState(false);
@@ -561,6 +566,16 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
 
 
 useEffect(() => {
+    // The product this card refers to changed (e.g. an admin edited the
+    // catalog number/article while the card was open) — the previously
+    // loaded description belongs to a different product now, so it must not
+    // keep showing while descLoaded.current still gates a refetch below.
+    if (descLoadedForUrl.current !== descriptionRequestUrl) {
+        descLoadedForUrl.current = descriptionRequestUrl;
+        descLoaded.current = false;
+        setDescription(null);
+    }
+
     if (!isFlipped) return;
     if (!descriptionRequestUrl) return;
     if (descLoaded.current) return;
@@ -630,29 +645,27 @@ useEffect(() => {
     }
 
     let cancelled = false;
+    let activeController: AbortController | null = null;
 
     const attemptFetch = async () => {
-        let timeoutId: number | undefined;
+        const controller = new AbortController();
+        activeController = controller;
+        const timeoutId = window.setTimeout(
+            () => controller.abort(),
+            DESCRIPTION_REQUEST_TIMEOUT_MS
+        );
         try {
-            const timeoutPromise = new Promise<Response>((_, reject) => {
-                timeoutId = window.setTimeout(
-                    () => reject(new Error("product-card-description-timeout")),
-                    DESCRIPTION_REQUEST_TIMEOUT_MS
-                );
+            const res = await fetch(descriptionRequestUrl, {
+                method: "GET",
+                headers: { Accept: "application/json" },
+                signal: controller.signal,
             });
-            const res = await Promise.race([
-                fetch(descriptionRequestUrl, {
-                    method: "GET",
-                    headers: { Accept: "application/json" },
-                }),
-                timeoutPromise,
-            ]);
             const data = (await res.json()) as { description?: string | null };
             return typeof data.description === "string" && data.description.trim()
                 ? data.description.trim()
                 : null;
         } finally {
-            if (timeoutId != null) window.clearTimeout(timeoutId);
+            window.clearTimeout(timeoutId);
         }
     };
 
@@ -697,17 +710,14 @@ useEffect(() => {
 
     return () => {
         cancelled = true;
+        activeController?.abort();
     };
 }, [descriptionRequestUrl, isFlipped]);
-
-    const isAdminEditing = isAdmin && (
-        isEditMode || quickEditName || quickEditArticle || quickEditProducer || quickEditPrice || quickEditQty
-    );
 
     return (
         <>
         <article
-            className={`catalog-product-card relative w-full ${isAdminEditing ? "catalog-product-card--admin h-[640px] sm:h-[580px]" : "h-[360px] sm:h-[340px]"} [perspective:1200px] select-none transition-[height] duration-150 ease-out ${cardMotionClass}`}
+            className={`catalog-product-card relative w-full h-[360px] sm:h-[340px] [perspective:1200px] select-none ${cardMotionClass}`}
             itemScope
             itemType="https://schema.org/Product"
         >
@@ -744,7 +754,7 @@ useEffect(() => {
                         shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.07),0_12px_24px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)]
                         hover:shadow-[0_2px_4px_rgba(14,165,233,0.05),0_8px_20px_rgba(14,165,233,0.10),0_20px_36px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)]
                         bg-[linear-gradient(155deg,rgba(255,255,255,1)_0%,rgba(248,250,252,0.98)_50%,rgba(238,246,255,0.95)_100%)]
-                        p-2.5 flex flex-col text-[11px] sm:text-[12px] relative ${isAdminEditing ? "overflow-visible" : "overflow-hidden"}
+                        p-2.5 flex flex-col text-[11px] sm:text-[12px] relative overflow-hidden
                         transition-[box-shadow,border-color,opacity] duration-200
                         ${frontVisibilityClass}
                     `}
@@ -770,7 +780,10 @@ useEffect(() => {
                                 productCode={code}
                                 articleHint={item.article}
                                 alt={`Фото товару ${name}`}
-                                hasKnownPhoto={item.hasPhoto === true}
+                                // Only an explicit `false` is authoritative. Older
+                                // catalog responses can omit hasPhoto even though the
+                                // product image route already has a valid photo.
+                                hasKnownPhoto={item.hasPhoto !== false}
                                 className="w-full h-full transition-transform duration-200 group-hover:scale-[1.02]"
                                 onClick={() => onImageOpen(code, item.article)}
                                 loadingMode={imageLoadingMode}
@@ -871,7 +884,8 @@ useEffect(() => {
                                                 ],
                                             });
                                         }}
-                                        className="catalog-card-name font-display text-left text-[14.5px] font-black italic tracking-[-0.028em] text-slate-950 sm:text-[15.5px] leading-[1.03] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-3"
+                                        className="catalog-card-name font-display text-left text-[14.5px] font-black italic tracking-[-0.028em] text-slate-950 sm:text-[15.5px] leading-[1.03] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-4 sm:line-clamp-3"
+                                        title={name}
                                     >
                                         <span itemProp="name">{name}</span>
                                     </SmartLink>
@@ -894,7 +908,7 @@ useEffect(() => {
                     <div className="catalog-card-meta flex flex-col gap-1 text-slate-700 mt-2 font-semibold">
                         <div className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
                             <span className="font-bold text-slate-500">{"\u041A\u043E\u0434:"}</span>
-                            <span className="min-w-0 max-w-[55%] truncate font-extrabold text-slate-800">{code || "-"}</span>
+                            <span className="min-w-0 max-w-[55%] truncate font-extrabold text-slate-800" title={code || "-"}>{code || "-"}</span>
                         </div>
                           {quickEditArticle ? (
                               <div className="flex items-center gap-1 px-1 py-0.5" onClick={(e) => e.stopPropagation()}>
@@ -936,7 +950,8 @@ useEffect(() => {
                                           type="button"
                                           onClick={handleCopyArticle}
                                           className="group/copy inline-flex items-center gap-1.5 min-w-0"
-                                          aria-label="Скопіювати артикул"
+                                          aria-label={`Скопіювати артикул ${article}`}
+                                          title={article}
                                       >
                                           {articleCopied ? (
                                               <Check size={13} className="text-emerald-600 flex-shrink-0" aria-hidden="true" />
@@ -1046,8 +1061,12 @@ useEffect(() => {
                         </div>
                     ) : (
                         <div className="catalog-card-price-row mt-2 flex w-full items-center gap-1.5 sm:mt-2.5">
-                            {/* Pill toggle Прод / Закуп */}
-                            {hasCostPrice && (
+                            {/* Pill toggle Прод / Закуп — visible to any admin, even before a
+                                cost price has ever been saved, so they have a way to switch into
+                                "Закуп" mode and enter one for the first time via the pencil edit
+                                below (previously gated on hasCostPrice, which made that impossible:
+                                you couldn't set a cost price without already having one). */}
+                            {isAdmin && (
                                 <div className="flex shrink-0 rounded-[10px] border border-slate-200 bg-slate-100/70 p-[3px] shadow-inner gap-[2px]">
                                     <button
                                         type="button"
@@ -1070,16 +1089,20 @@ useEffect(() => {
                                 </div>
                             )}
                             {/* Price display */}
-                            <div className={`ml-auto flex min-h-[32px] w-fit max-w-[72%] items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/90 backdrop-blur-md border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice && hasCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
-                                <span className={`text-[10px] font-bold uppercase tracking-[0.06em] ${showCostPrice && hasCostPrice ? 'text-amber-500' : 'text-slate-400'}`}>
-                                    {showCostPrice && hasCostPrice ? 'Закуп:' : 'Ціна:'}
+                            <div className={`ml-auto flex min-h-[32px] w-fit max-w-[72%] items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/90 backdrop-blur-md border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
+                                <span className={`text-[10px] font-bold uppercase tracking-[0.06em] ${showCostPrice ? 'text-amber-500' : 'text-slate-400'}`}>
+                                    {showCostPrice ? 'Закуп:' : 'Ціна:'}
                                 </span>
                                 <span className="flex items-center gap-1 tabular-nums">
-                                    {showCostPrice && hasCostPrice ? (
-                                        <>
-                                            <span className="text-amber-700 font-black text-[13px] leading-none">{costPriceUAH.toLocaleString('uk-UA')}</span>
-                                            <span className="text-[10px] font-bold text-amber-500">грн</span>
-                                        </>
+                                    {showCostPrice ? (
+                                        hasCostPrice ? (
+                                            <>
+                                                <span className="text-amber-700 font-black text-[13px] leading-none">{costPriceUAH.toLocaleString('uk-UA')}</span>
+                                                <span className="text-[10px] font-bold text-amber-500">грн</span>
+                                            </>
+                                        ) : (
+                                            <span className="text-slate-400 italic text-[10px] font-bold">не вказано</span>
+                                        )
                                     ) : hasPrice ? (
                                         <>
                                             <span className="text-blue-600 font-black text-[13px] leading-none">{priceUAH.toLocaleString('uk-UA')}</span>
@@ -1119,8 +1142,8 @@ useEffect(() => {
                     )}
 
                     {/* Низ */}
-                    <div className="catalog-card-actions flex justify-between items-center mt-auto pt-2 border-t border-slate-200 gap-1">
-                        <div className="flex flex-col items-start gap-1">
+                    <div className="catalog-card-actions flex min-w-0 justify-between items-center mt-auto pt-2 border-t border-slate-200 gap-1">
+                        <div className="flex min-w-0 flex-col items-start gap-1">
                             <div className="flex items-center gap-1">
                                 <span
                                     aria-hidden="true"
@@ -1183,6 +1206,7 @@ useEffect(() => {
                                     }}
                                     className="flex w-8 h-8 sm:w-7 sm:h-7 min-h-0 min-w-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 shadow-[0_3px_8px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
                                     disabled={isCounterDisabled || qty <= 1}
+                                    aria-label="Зменшити кількість"
                                 >
                                     <Minus size={14} strokeWidth={2.5} />
                                 </button>
@@ -1197,13 +1221,14 @@ useEffect(() => {
                                     }}
                                     className="flex w-8 h-8 sm:w-7 sm:h-7 min-h-0 min-w-0 items-center justify-center rounded-full border border-blue-400/70 bg-[linear-gradient(135deg,#2563eb,#0284c7)] text-white shadow-[0_6px_12px_rgba(37,99,235,0.22)] hover:brightness-105 transition-all duration-150 disabled:opacity-30"
                                     disabled={isPlusDisabled}
+                                    aria-label="Збільшити кількість"
                                 >
                                     <Plus size={14} strokeWidth={2.5} />
                                 </button>
                             </div>
                         </div>
 
-                         <div className="flex items-center gap-1.5 sm:gap-1">
+                         <div className="flex shrink-0 items-center gap-1">
                              {cartQty > 0 && (
                                  <button
                                      onClick={(e) => {
@@ -1399,7 +1424,7 @@ useEffect(() => {
     {/* Content: edit form or description */}
     {isAdmin && onAdminEdit && isEditMode ? (
         <>
-            <div className="flex-1 overflow-visible px-2.5 py-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+            <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-2.5 py-2 space-y-1.5 [-webkit-overflow-scrolling:touch]" onClick={(e) => e.stopPropagation()}>
                 <div>
                     <label className="block text-[8px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Опис</label>
                     <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 resize-none focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-100 transition-all disabled:opacity-50 hover:border-slate-300" rows={2} disabled={editSaving} />
@@ -1500,7 +1525,7 @@ useEffect(() => {
             </div>
         </>
     ) : (
-        <div className="flex-1 overflow-y-auto px-3 py-2.5">
+        <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-3 py-2.5 [-webkit-overflow-scrolling:touch]">
             {loadingDesc && (
                 <div className="space-y-2 animate-pulse">
                     <div className="h-2 bg-slate-200 rounded w-5/6" />

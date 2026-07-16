@@ -412,6 +412,7 @@ const fetchAllgoodsProductsByExactLookup = async (
     retryDelayMs?: number;
     cacheTtlMs?: number;
     includeDescription?: boolean;
+    includeCostPrice?: boolean;
   }
 ) => {
   const normalized = (lookupValue || "").trim();
@@ -422,21 +423,27 @@ const fetchAllgoodsProductsByExactLookup = async (
       ? Math.min(Math.floor(options?.limit as number), 24)
       : 8;
 
+  // Same ВключатьЦінуЗакуп flag the batched price-details lookup sends —
+  // without it here too, the per-key fallback below always comes back with
+  // ЦінаПрод but no cost price, even for admin callers that asked for one.
   const requestBodies: Array<Record<string, unknown>> = [
     {
       [ALLGOODS_LIMIT_FIELD]: limit,
       [ALLGOODS_CODE_FIELD]: normalized,
       [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: options?.includeDescription === true,
+      [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: options?.includeCostPrice === true,
     },
     {
       [ALLGOODS_LIMIT_FIELD]: limit,
       [ALLGOODS_ARTICLE_FIELD]: normalized,
       [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: options?.includeDescription === true,
+      [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: options?.includeCostPrice === true,
     },
     {
       [ALLGOODS_LIMIT_FIELD]: limit,
       [ALLGOODS_ARTICLE_ALT_FIELD]: normalized,
       [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: options?.includeDescription === true,
+      [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: options?.includeCostPrice === true,
     },
   ];
 
@@ -538,6 +545,7 @@ export const fetchExactCatalogProductByLookup = async (
     retryDelayMs?: number;
     cacheTtlMs?: number;
     includeDescription?: boolean;
+    includeCostPrice?: boolean;
   }
 ) => {
   const normalized = safeDecode(lookupValue || "").trim();
@@ -550,6 +558,7 @@ export const fetchExactCatalogProductByLookup = async (
     retryDelayMs: options?.retryDelayMs ?? 100,
     cacheTtlMs: options?.cacheTtlMs ?? 1000 * 30,
     includeDescription: options?.includeDescription,
+    includeCostPrice: options?.includeCostPrice,
   }).catch(() => []);
 
   return exactMatches.find((item) => isExactCatalogLookupMatch(item, normalized)) ?? null;
@@ -677,27 +686,49 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   };
 
   if (isPriceSorted) {
-    // Price-sort pagination: 1C ignores ПосляКода when СортировкаПоЦене is active,
-    // so cursor-based continuation is unreliable. Instead, always fetch a fixed
-    // PRICE_SORT_BATCH items from 1C and slice by page. All pages share the same
-    // 1C cache entry (same request body), so only the first page pays the fetch cost.
-    const PRICE_SORT_BATCH = 240; // up to 20 pages × 12 items
+    // The optimized 1C function returns a stable price+code keyset cursor.
+    // Use it directly: the old fixed 240-item window capped the sorted catalog,
+    // transferred far too much data for page one and made continuation pages
+    // rebuild/slice the same large response.
+    if (page === 1 || requestedCursor) {
+      const parsed = await requestAllgoodsPage({
+        ...requestBodyBase,
+        [ALLGOODS_LIMIT_FIELD]: limit,
+        ...(requestedCursor
+          ? { [ALLGOODS_CURSOR_FIELD]: requestedCursor }
+          : {}),
+      });
+      const items = sortPricedWindow(filterPricedItems(parsed.items)).slice(0, limit);
+      const hasMore = items.length === limit && parsed.hasMore;
+
+      return {
+        items,
+        hasMore,
+        nextCursor: hasMore ? parsed.nextCursor : "",
+        cursorField: null,
+        totalCount: parsed.totalCount,
+      };
+    }
+
+    // Backward-compatible continuation for an older 1C installation that can
+    // sort but does not return price_code_v1. It is only reached on page 2+;
+    // current installations stay on the lightweight cursor path above.
+    const LEGACY_PRICE_SORT_BATCH = 240;
     const start = (page - 1) * limit;
     const parsed = await requestAllgoodsPage({
       ...requestBodyBase,
-      [ALLGOODS_LIMIT_FIELD]: PRICE_SORT_BATCH,
+      [ALLGOODS_LIMIT_FIELD]: LEGACY_PRICE_SORT_BATCH,
     });
     const sourceItems = sortPricedWindow(filterPricedItems(parsed.items));
     const pageSlice = sourceItems.slice(start, start + limit);
-    // hasMore is true only when the current page is full AND there are more items
     const hasMore =
       pageSlice.length === limit &&
       (sourceItems.length > start + limit ||
-        (parsed.hasMore && parsed.items.length >= PRICE_SORT_BATCH));
+        (parsed.hasMore && parsed.items.length >= LEGACY_PRICE_SORT_BATCH));
+
     return {
       items: pageSlice,
       hasMore,
-      // No cursor — next page uses the same fixed-batch approach with page+1
       nextCursor: "",
       cursorField: null,
       totalCount: parsed.totalCount,
@@ -909,13 +940,29 @@ const resolveHierarchyBranches = async (
         sameCatalogFacet(entry.label, normalizedSubcategory)
       );
       if (subgroup) {
-        if (subgroup.children.length === 0) {
-          return [{ group: root.label, subcategory: subgroup.label }];
+        // A promoted group can contain products both directly at the
+        // category+group pair and in its child subgroups. Keep both branches:
+        // omitting the direct pair made count-backed links empty for producers
+        // whose products live at the two-level tier.
+        const branches: CatalogHierarchyBranch[] = [];
+        pushUnique(branches, {
+          group: root.label,
+          subcategory: subgroup.label,
+        });
+        // Some 1C trees collapse a child whose label repeats its parent and
+        // therefore expose no `children` here, while allgoods still stores
+        // real products under group=subgroup (for example a mix of direct
+        // category→group items and group→same-named-subgroup items). Include
+        // the group-level branch as well so hierarchy links return the same
+        // combined set represented by their facet counters.
+        pushUnique(branches, { group: subgroup.label });
+        for (const child of subgroup.children) {
+          pushUnique(branches, {
+            group: subgroup.label,
+            subcategory: child.label,
+          });
         }
-        return subgroup.children.map((child) => ({
-          group: subgroup.label,
-          subcategory: child.label,
-        }));
+        return branches;
       }
     }
 
@@ -1261,11 +1308,19 @@ const fetchCatalogProductsByQueryInner = async (options: {
   const shouldEnrichInlinePrices = options.includePriceEnrichment === true;
   // allgoods is noticeably heavier on 1C. Use it only when cursor-based
   // continuation, explicit sorting, or price range filtering actually needs it.
-  const canUseAllgoods = selectedCars.length === 0 && !shouldPreferLegacyGetdata;
+  // selectedCars itself is never read inside the allgoods branch below (it's
+  // a client-side facet, not a 1C query param here) — but the katalog car
+  // picker always populates it alongside a description search in the same
+  // click (see CarModifications.tsx's handleConfirm calling both onSelectCar
+  // and onSelectDetails), so without the forceAllgoodsSource escape hatch,
+  // car-driven description search silently fell through to legacy getdata,
+  // which ignores the description field entirely and returns the whole
+  // unfiltered catalog.
+  const canUseAllgoods =
+    (selectedCars.length === 0 || forceAllgoodsSource) && !shouldPreferLegacyGetdata;
 
   if (
     expandHierarchy &&
-    selectedCars.length === 0 &&
     selectedCategories.length === 0 &&
     (group || subcategory)
   ) {
@@ -1678,6 +1733,18 @@ const fetchCatalogProductsByQueryInner = async (options: {
       // Description search is only available via explicit filter="description".
       return { items: [], hasMore: false, nextCursor: "", cursorField: null };
     } catch (err) {
+      // Price constraints and ordering are implemented only by allgoods.
+      // Falling through to legacy getdata after a transient allgoods failure
+      // returns a fast-looking but unsorted/unfiltered page, which is worse than
+      // retrying the correct source (and previously broke ASC intermittently).
+      if (
+        sortOrder !== "none" ||
+        options.pricedItemsOnly === true ||
+        options.priceFrom != null ||
+        options.priceTo != null
+      ) {
+        throw err;
+      }
       if (searchQuery) {
         // For text searches, never fall through to legacy getdata.
         // getdata ignores unknown search fields and returns the full catalog.
@@ -1837,6 +1904,8 @@ export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInne
     group &&
     subcategory &&
     isFirstPage &&
+    options.expandHierarchy !== true &&
+    !(options.producer || "").trim() &&
     (options.selectedCars?.length ?? 0) === 0 &&
     (options.selectedCategories?.length ?? 0) === 0
   ) {
@@ -2376,6 +2445,7 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
           retries: 0,
           retryDelayMs: 80,
           cacheTtlMs,
+          includeCostPrice: true,
         }).catch(() => null);
         if (!exactProduct) return;
         if (

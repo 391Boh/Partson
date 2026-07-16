@@ -138,6 +138,18 @@ const scheduleFirebaseAuthSubscription = () => {
   timeoutId = window.setTimeout(start, 500);
 };
 
+const hasPersistedAuthIntent = () => {
+  if (typeof window === "undefined") return false;
+  try {
+    return Boolean(
+      localStorage.getItem("user_id") ||
+        sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) === "1"
+    );
+  } catch {
+    return false;
+  }
+};
+
 export const getFirebaseAuthSnapshot = () => snapshot;
 
 export const publishFirebaseAuthUser = (user: User | null) => {
@@ -156,7 +168,9 @@ export const subscribeToFirebaseAuthState = (
 
   // Don't pre-load Firebase for guests (no user_id in localStorage → snapshot is ready+null).
   // Only schedule when user might be logged in (snapshot not yet resolved, or user is set).
-  if (!snapshot.ready || snapshot.user !== null) {
+  if (!snapshot.ready && !hasPersistedAuthIntent()) {
+    emitSnapshot({ ready: true, user: null });
+  } else if (!snapshot.ready || snapshot.user !== null) {
     scheduleFirebaseAuthSubscription();
   }
 

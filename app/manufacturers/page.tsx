@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Factory, PackageSearch, Search, Tags } from "lucide-react";
 
+import CatalogDirectoryGuide from "app/components/CatalogDirectoryGuide";
 import CatalogHubHero from "app/components/CatalogHubHero";
+import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
@@ -40,18 +42,6 @@ const buildManufacturersPageDescription = (
     `Виробники автозапчастин PartsON: ${brandSummary} з окремими сторінками брендів, товарами, групами і підбором за виробником. Самовивіз у Львові та доставка по Україні.${coverageSummary}`
   );
 };
-
-const manufacturersIntroParagraphs = [
-  "Сторінка виробників потрібна для швидкого переходу до бренду, а не лише для перегляду кількості товарів. Тут зібрані окремі сторінки брендів із прямим маршрутом до груп, категорій і каталогу виробника.",
-  "Якщо користувач шукає запчастини конкретного бренду, ця структура дозволяє швидше знайти потрібний напрямок: від сторінки виробника до групи товарів, категорії та конкретної позиції без зайвих переходів по фільтрах.",
-];
-
-const manufacturersIntroHighlights = [
-  "окремі сторінки брендів і виробників;",
-  "зрозумілі назви брендів замість сухих числових блоків;",
-  "перехід до груп і категорій виробника прямо зі сторінки бренду;",
-  "швидкий вхід у каталог запчастин конкретного виробника;",
-];
 
 export async function generateMetadata(): Promise<Metadata> {
   const { clientProducers, indexedBrands, indexedProducts } =
@@ -121,7 +111,7 @@ export default async function ManufacturersPage() {
       "@type": "ItemList",
       name: "Список виробників автозапчастин PartsON",
       numberOfItems: clientProducers.length,
-      itemListElement: clientProducers.map((producer, index) => ({
+      itemListElement: clientProducers.slice(0, 48).map((producer, index) => ({
         "@type": "ListItem",
         position: index + 1,
         url: `${siteUrl}${buildManufacturerPath(producer.slug)}`,
@@ -130,9 +120,6 @@ export default async function ManufacturersPage() {
           name: producer.label,
           url: `${siteUrl}${buildManufacturerPath(producer.slug)}`,
           logo: producer.logoPath ? `${siteUrl}${producer.logoPath}` : undefined,
-          description:
-            producer.description ||
-            `Запчастини ${producer.label}: сторінка бренду, групи, категорії та товари виробника в PartsON.`,
         },
       })),
     },
@@ -159,21 +146,21 @@ export default async function ManufacturersPage() {
   return (
     <main className={catalogPageBackgroundClass}>
       <div className="relative">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-sky-200/25 via-cyan-100/10 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_60%_74%_at_12%_0%,rgba(20,184,166,0.11),transparent_68%),radial-gradient(ellipse_58%_72%_at_88%_0%,rgba(14,165,233,0.12),transparent_68%)]" />
 
         <div className={`${catalogShellClass} catalog-hub-stage relative flex flex-col py-3 sm:py-4 lg:py-5`}>
           <CatalogHubHero
             current="manufacturers"
             badge="Бренди та виробники"
             icon={Factory}
-            title="Виробники автозапчастин і бренди"
-            description="Єдиний список виробників PartsON з окремими сторінками брендів, товарами, групами, підгрупами та швидким переходом у відфільтрований каталог."
+            title="Бренди та виробники автозапчастин"
+            description="Знайдіть потрібний бренд, перегляньте його асортимент і відкрийте каталог з уже вибраним виробником."
             highlights={[
-              "Пошук виробника за назвою без зайвих переходів",
+              "Пошук бренду за назвою",
               hasIndexedCounts && indexedProducts > 0
-                ? "Сторінки брендів генеруються з каталожного індексу"
-                : "Сторінки брендів оновлюються з каталожного індексу",
-              "Групи, підгрупи і товари бренду відкриваються готовими фільтрами",
+                ? "Актуальний асортимент з каталогу"
+                : "Асортимент синхронізується з каталогом",
+              "Готовий фільтр виробника",
             ]}
             stats={[
               {
@@ -203,55 +190,79 @@ export default async function ManufacturersPage() {
                 href: buildManufacturerPath(manufacturer.slug),
                 label: manufacturer.label,
                 icon: Factory,
-                prefetchOnViewport: true,
               })),
             ]}
           />
 
-          <p className="sr-only">Виробники автозапчастин і бренди PartsON</p>
         </div>
       </div>
 
-      <section className="relative pb-2 pt-0 sm:pb-3">
-        <div className={catalogShellClass}>
-          <div className="rounded-[28px] border border-white/80 bg-white/88 p-5 shadow-[0_22px_48px_rgba(14,165,233,0.12)] backdrop-blur-xl sm:p-6">
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.95fr)]">
-              <div>
-                <p className="directory-kicker text-[11px] uppercase text-sky-800">
-                  Опис сторінок брендів
-                </p>
-                <h2 className="directory-heading mt-2 text-xl text-slate-900 sm:text-2xl">
-                  Для чого потрібні сторінки виробників
-                </h2>
-                <div className="mt-3 space-y-3 text-sm leading-6 text-slate-600 sm:text-[15px]">
-                  {manufacturersIntroParagraphs.map((paragraph) => (
-                    <p key={paragraph}>{paragraph}</p>
-                  ))}
-                </div>
-              </div>
+      <CatalogDirectoryGuide
+        badge="Пошук за брендом"
+        title="Знайдіть виробника й одразу перейдіть до його асортименту"
+        paragraphs={[
+          "У каталозі зібрані окремі сторінки брендів із товарами, групами та категоріями. Це коротший шлях до потрібної деталі, коли виробник уже відомий.",
+          "Введіть назву бренду, відкрийте його сторінку та продовжте пошук у готовій добірці — без повторного налаштування фільтрів.",
+        ]}
+        steps={[
+          {
+            label: "Крок 1",
+            title: "Знайдіть бренд",
+            description: "Скористайтеся пошуком або перегляньте єдину сітку виробників.",
+            icon: Search,
+          },
+          {
+            label: "Крок 2",
+            title: "Відкрийте сторінку",
+            description: "Перегляньте групи, категорії та доступні позиції бренду.",
+            icon: Factory,
+          },
+          {
+            label: "Крок 3",
+            title: "Перейдіть до товарів",
+            description: "Каталог відкриється з уже вибраним виробником.",
+            icon: PackageSearch,
+          },
+        ]}
+      />
 
-              <aside className="rounded-[22px] border border-sky-100/80 bg-[linear-gradient(165deg,rgba(240,249,255,0.96),rgba(236,254,255,0.92),rgba(255,255,255,0.98))] p-4 shadow-[0_16px_34px_rgba(14,165,233,0.08)]">
-                <p className="directory-kicker text-[11px] uppercase text-sky-800">
-                  Що бачить користувач
-                </p>
-                <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">
-                  {manufacturersIntroHighlights.map((highlight) => (
-                    <li
-                      key={highlight}
-                      className="flex items-start gap-2 border-b border-white/70 pb-2 last:border-b-0 last:pb-0"
-                    >
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
-                      <span>{highlight}</span>
-                    </li>
-                  ))}
-                </ul>
-              </aside>
-            </div>
-          </div>
-        </div>
-      </section>
+      <ManufacturersDirectory
+        items={clientProducers.slice(0, 32)}
+        totalItems={clientProducers.length}
+        hasIndexedCounts={hasIndexedCounts}
+      />
 
-      <ManufacturersDirectory items={clientProducers} hasIndexedCounts={hasIndexedCounts} />
+      <CatalogSeoTextSection
+        badge="Вибір бренду запчастин"
+        title="Як вибрати виробника автозапчастин і знайти потрібний товар"
+        lead="Сторінка виробника об’єднує його товари, групи та категорії в одному місці, тому знайти потрібну запчастину можна без повторного налаштування каталогу."
+        topics={[
+          {
+            title: "Пошук за назвою бренду",
+            text: "Введіть виробника в пошуку та відкрийте окрему сторінку з доступним асортиментом PartsON.",
+            icon: Search,
+          },
+          {
+            title: "Порівняння асортименту",
+            text: "Переглядайте кількість товарів, груп і категорій, щоб швидко оцінити представленість бренду.",
+            icon: Tags,
+          },
+          {
+            title: "Каталог із готовим фільтром",
+            text: "Після переходу до товарів виробник уже вибраний — залишається уточнити автомобіль або групу запчастин.",
+            icon: PackageSearch,
+          },
+        ]}
+        paragraphs={[
+          "Каталог PartsON допомагає порівнювати бренди оригінальних деталей і aftermarket-рішення для легкових та комерційних автомобілів. На сторінках виробників можна перейти до гальмівних колодок, фільтрів, деталей підвіски, компонентів двигуна та інших товарних груп.",
+          "Назва бренду не замінює перевірку сумісності. Перед купівлею звірте артикул, характеристики й застосування деталі, а за потреби надішліть VIN менеджеру. Доступні самовивіз у Львові та доставка замовлень по Україні.",
+        ]}
+        links={[
+          { href: "/katalog", label: "Каталог запчастин" },
+          { href: "/auto", label: "Підбір по авто" },
+          { href: "/groups", label: "Групи товарів" },
+        ]}
+      />
 
       <script
         type="application/ld+json"

@@ -30,7 +30,7 @@ import {
 import { db } from '../../firebase';
 import { useCart } from 'app/context/CartContext';
 import ProductCardImage from 'app/components/ProductCardImage';
-import { pushAnalyticsEvent } from 'app/lib/gtm';
+import { pushGenerateLeadEvent } from 'app/lib/gtm';
 
 interface Message {
   id: string;
@@ -497,6 +497,37 @@ export default function TelegramChat({
     );
   }, [messages, optimisticMessages]);
 
+  const trackChatLeadAfterSuccess = useCallback(
+    (messageType: 'text' | 'image') => {
+      if (chatLeadTrackedRef.current) return;
+
+      const userId = getUserId();
+      if (!userId) return;
+
+      const storageKey = `partson:analytics:chat-lead:${userId}`;
+      try {
+        if (window.sessionStorage.getItem(storageKey) === '1') {
+          chatLeadTrackedRef.current = true;
+          return;
+        }
+      } catch {}
+
+      const dispatched = pushGenerateLeadEvent({
+        lead_source: 'site_chat',
+        lead_type: 'chat_message',
+        message_type: messageType,
+      });
+
+      if (!dispatched) return;
+
+      chatLeadTrackedRef.current = true;
+      try {
+        window.sessionStorage.setItem(storageKey, '1');
+      } catch {}
+    },
+    [getUserId]
+  );
+
   /**
    * SEND MESSAGE
    */
@@ -530,25 +561,7 @@ export default function TelegramChat({
           type: 'text',
           clientMessageId,
         });
-
-        if (!chatLeadTrackedRef.current) {
-          const storageKey = `partson:analytics:chat-lead:${userId}`;
-          let alreadyTracked = false;
-          try {
-            alreadyTracked = window.sessionStorage.getItem(storageKey) === '1';
-          } catch {}
-
-          if (!alreadyTracked) {
-            pushAnalyticsEvent('generate_lead', {
-              lead_source: 'site_chat',
-              lead_type: 'chat_message',
-            });
-            try {
-              window.sessionStorage.setItem(storageKey, '1');
-            } catch {}
-          }
-          chatLeadTrackedRef.current = true;
-        }
+        trackChatLeadAfterSuccess('text');
       } catch (error) {
         setOptimisticMessages((prev) =>
           prev.map((message) =>
@@ -560,7 +573,7 @@ export default function TelegramChat({
         throw error;
       }
     },
-    [getUserId]
+    [getUserId, trackChatLeadAfterSuccess]
   );
 
   const sendMessage = async () => {
@@ -621,6 +634,7 @@ export default function TelegramChat({
           imageUrl,
           imageName: trimmedName || 'Фото',
         });
+        trackChatLeadAfterSuccess('image');
         setImageUploadProgress(100);
       } catch {
         setImageUploadError('Не вдалося підготувати або надіслати фото. Спробуйте ще раз.');
@@ -629,7 +643,7 @@ export default function TelegramChat({
         setImageUploadProgress(null);
       }
     },
-    [getUserId]
+    [getUserId, trackChatLeadAfterSuccess]
   );
 
   const handleImageSelection = async (event: ChangeEvent<HTMLInputElement>) => {

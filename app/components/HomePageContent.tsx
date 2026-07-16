@@ -11,8 +11,10 @@ type InitialSyncedBrand = {
 
 export default function HomePageContent({
   initialSyncedBrands,
+  initialProductTree,
 }: {
   initialSyncedBrands?: InitialSyncedBrand[];
+  initialProductTree?: unknown;
 }) {
   return (
     <div className="home-static relative min-h-screen overflow-hidden text-white">
@@ -20,7 +22,10 @@ export default function HomePageContent({
         <Hero />
       </div>
 
-      <HomeBelowFoldClient initialSyncedBrands={initialSyncedBrands} />
+      <HomeBelowFoldClient
+        initialSyncedBrands={initialSyncedBrands}
+        initialProductTree={initialProductTree}
+      />
     </div>
   );
 }

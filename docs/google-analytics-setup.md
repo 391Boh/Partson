@@ -7,6 +7,11 @@
 
 Не підключайте GTM і окремий `gtag.js` вручну одночасно — це створить дублікати `page_view`, ecommerce-подій і доходу.
 
+Для підтверджених лідів сайт використовує наявну `gtag`-чергу GTM і явно
+направляє `generate_lead` у вказаний GA4 stream. Другий `gtag.js` при цьому не
+завантажується. Це гарантує доставку події, навіть якщо в опублікованому
+GTM-контейнері ще немає окремого Custom Event trigger для `generate_lead`.
+
 ## 1. Створення GA4
 
 1. Відкрийте [Google Analytics](https://analytics.google.com/).
@@ -27,12 +32,16 @@
 
 ```env
 NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID=GTM-XXXXXXX
-NEXT_PUBLIC_GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 NEXT_PUBLIC_ANALYTICS_ENABLE_IN_DEVELOPMENT=0
 NEXT_PUBLIC_ANALYTICS_DEBUG=0
 ```
 
-Коли є валідний `GTM-…`, код використовує лише GTM. `G-…` залишається документованим Measurement ID, але окремий `gtag.js` не завантажується.
+Коли є валідний `GTM-…`, код використовує GTM як єдиний завантажувач.
+`G-…` потрібен коду для гарантованої доставки підтвердженого
+`generate_lead`, але окремий `gtag.js` не завантажується. Замість
+`NEXT_PUBLIC_GA_MEASUREMENT_ID` підтримується старий alias
+`NEXT_PUBLIC_GOOGLE_ANALYTICS_ID`; не задавайте два різні ID одночасно.
 
 Після зміни `NEXT_PUBLIC_*` потрібна нова production-збірка та перезапуск застосунку.
 
@@ -85,14 +94,19 @@ NEXT_PUBLIC_ANALYTICS_DEBUG=0
 Додайте ще один GA4 Event tag з Event name `{{Event}}` і trigger:
 
 ```text
-^(search|view_search_results|login|sign_up|generate_lead|contact_click|web_vitals)$
+^(search|view_search_results|login|sign_up|contact_click|web_vitals)$
 ```
+
+`generate_lead` не додавайте до цього GTM-тега: після підтвердження заявки
+сайт надсилає його прямо в GA4 stream, указаний у
+`NEXT_PUBLIC_GA_MEASUREMENT_ID`. Це не дає дублювати lead при відкритті чату
+і при фактичному надсиланні повідомлення.
 
 Для потрібних параметрів створіть Data Layer Variables і передайте їх як event parameters:
 
 - `search_term`, `search_filter`, `search_source`, `results_count`;
 - `method`;
-- `lead_source`, `lead_type`, `product_id`;
+- `lead_source`, `lead_type`, `product_id`, `message_type`;
 - `contact_method`, `contact_role`, `placement`;
 - `metric_name`, `metric_value`, `metric_rating`.
 
@@ -102,7 +116,7 @@ NEXT_PUBLIC_ANALYTICS_DEBUG=0
 
 ```env
 NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID=
-NEXT_PUBLIC_GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 ```
 
 Після rebuild сайт сам завантажить Google tag і напряму надсилатиме `page_view`, ecommerce, пошук, авторизацію, контакти та Web Vitals. Додаткові теги в GTM у цьому режимі не потрібні.
@@ -135,7 +149,8 @@ view_item_list → select_item → view_item → add_to_cart
 - `remove_from_cart`;
 - `search`, `view_search_results`;
 - `login`, `sign_up` без email або телефону;
-- `generate_lead` після заявки, запиту ціни або першого успішного повідомлення у чаті;
+- `generate_lead` після успішного запису заявки або першого успішного
+  повідомлення у чаті; невдалий запит і просте відкриття чату lead не створюють;
 - `contact_click` для дзвінка, Viber, Telegram і карти;
 - `web_vitals` для LCP, CLS, INP та інших метрик.
 
@@ -147,7 +162,7 @@ view_item_list → select_item → view_item → add_to_cart
 
 - `page_type`;
 - `search_filter`, `search_source`, `results_count`;
-- `lead_source`, `lead_type`;
+- `lead_source`, `lead_type`, `message_type`;
 - `contact_method`, `contact_role`, `placement`;
 - `metric_name`, `metric_rating`.
 
@@ -175,13 +190,17 @@ view_item_list → select_item → view_item → add_to_cart
    - пошук → картка товару;
    - додавання у кошик;
    - checkout;
-   - тестове замовлення.
+   - тестове замовлення;
+   - відкрийте чат і успішно надішліть одне текстове повідомлення;
 5. Перевірте:
    - один `page_view` на один маршрут;
    - відсутність email, телефону, VIN та адреси у параметрах;
    - одна `purchase` з реальним `transaction_id`;
    - `currency = UAH`;
-   - правильні `items`, `value`, coupon і item discounts.
+   - правильні `items`, `value`, coupon і item discounts;
+   - один `generate_lead` з `lead_source = site_chat`,
+     `lead_type = chat_message`, `message_type = text`;
+   - що невдала відповідь `/api/chat/message` не створює `generate_lead`.
 6. Поверніть обидва debug/dev прапорці у `0` перед production deploy.
 
 Офіційно: [DebugView](https://support.google.com/analytics/answer/7201382), [Validate ecommerce](https://developers.google.com/analytics/devguides/collection/ga4/validate-ecommerce), [Measure ecommerce](https://developers.google.com/analytics/devguides/collection/ga4/ecommerce).

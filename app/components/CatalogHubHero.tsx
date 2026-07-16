@@ -46,12 +46,12 @@ export default function CatalogHubHero({
   highlights = [],
 }: CatalogHubHeroProps) {
   return (
-    <section className={`${directoryPanelClass} relative overflow-hidden select-none`}>
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(240,253,250,0.8),transparent_42%,rgba(239,246,255,0.9))]" />
-      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-teal-200/60" />
+    <section className={`${directoryPanelClass} group relative overflow-hidden select-none`}>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_6%_0%,rgba(20,184,166,0.14),transparent_34%),radial-gradient(circle_at_94%_8%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_68%_108%,rgba(99,102,241,0.055),transparent_42%),linear-gradient(128deg,rgba(255,255,255,0.72)_0%,rgba(248,251,255,0.18)_48%,rgba(239,248,250,0.68)_100%)]" />
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/80 to-transparent" />
 
       <div className="relative px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_460px]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_480px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_520px]">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="directory-kicker inline-flex items-center gap-2 rounded-md border border-teal-200/80 bg-teal-50 px-3 py-1 text-[10px] uppercase text-teal-900 shadow-[0_8px_18px_rgba(13,148,136,0.06)]">
@@ -114,24 +114,26 @@ export default function CatalogHubHero({
             )}
           </div>
 
-          <div className="space-y-3 xl:w-full xl:max-w-[420px] xl:justify-self-end 2xl:max-w-[460px]">
+          <div className="space-y-3 xl:w-full xl:max-w-[480px] xl:justify-self-end 2xl:max-w-[520px]">
             <div className="rounded-lg border border-slate-200/80 bg-white/82 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
               <CatalogSectionNav current={current} />
               {stats.length > 0 && (
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="mt-3 grid grid-cols-1 gap-2 min-[430px]:grid-cols-3">
                   {stats.map((stat) => {
                     const StatIcon = stat.icon;
 
                     return (
                       <div
                         key={`${stat.label}:${stat.value}`}
-                        className="rounded-md border border-slate-200 bg-white/90 px-3 py-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.04)]"
+                        className="min-w-0 rounded-md border border-slate-200 bg-white/90 px-3 py-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.04)]"
                       >
-                        <div className="directory-counter-label flex items-center gap-2 text-[10px] uppercase text-slate-500">
-                          <StatIcon size={14} className="text-teal-700" strokeWidth={2.1} />
+                        <div className="directory-counter-label flex min-w-0 flex-col items-start gap-1 text-[8px] uppercase text-slate-500 min-[430px]:flex-row min-[430px]:items-center min-[430px]:gap-2 min-[430px]:text-[10px]">
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[9px] border border-teal-200/80 bg-[linear-gradient(145deg,#ffffff,#ccfbf1)] text-teal-700 shadow-[0_6px_14px_rgba(13,148,136,0.10),inset_0_1px_0_white]">
+                            <StatIcon size={13} strokeWidth={2.1} />
+                          </span>
                           <span>{stat.label}</span>
                         </div>
-                        <p className="directory-counter mt-1.5 text-[15px] leading-5 text-slate-900 sm:text-[16px]">
+                        <p className="directory-counter mt-1.5 break-words text-[12px] leading-4 text-slate-900 min-[430px]:text-[14px] min-[430px]:leading-5 sm:text-[15px]">
                           {stat.value}
                         </p>
                       </div>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
+import { getProductTreeNodes } from "app/lib/product-tree";
 import { STORE_PHONE_SEO_LABEL, buildPageMetadata } from "app/lib/seo-metadata";
 import HomePageContent from "./components/HomePageContent";
 
@@ -42,18 +42,13 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  // Same reasoning as the katalog producer picker (app/katalog/page.tsx):
-  // resolve the real, synced brand list server-side and seed the client
-  // carousel with it directly, instead of showing a smaller static list
-  // that then visibly swaps a moment later once a client fetch resolves.
-  const manufacturersData = await getFullManufacturersDirectoryData().catch(() => null);
-  const initialSyncedBrands = (manufacturersData?.clientProducers ?? []).map((producer) => ({
-    name: producer.label,
-    logo: producer.logoPath,
-    description: producer.description || "",
-    productCount: producer.productCount,
-    groupsCount: producer.groupsCount,
-  }));
+  // Seed the quick-search block from the server's six-hour product-tree cache.
+  // Without this, reaching the section starts two sequential client requests
+  // to 1C (version, then tree), so the block appears to stall during scroll.
+  const resolvedProductTree = await getProductTreeNodes().catch(() => []);
+  const initialProductTree = resolvedProductTree.length > 0
+    ? resolvedProductTree
+    : undefined;
 
-  return <HomePageContent initialSyncedBrands={initialSyncedBrands} />;
+  return <HomePageContent initialProductTree={initialProductTree} />;
 }

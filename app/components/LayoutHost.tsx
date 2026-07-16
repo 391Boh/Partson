@@ -448,11 +448,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         return false;
       }
     })();
-    const delayMs = isLikelyLoggedIn
-      ? (enableIdleFirebase ? 3500 : 1800)
-      : 30000;
-
-    timeoutId = window.setTimeout(triggerDepsLoad, delayMs);
+    if (isLikelyLoggedIn) {
+      const delayMs = enableIdleFirebase ? 3500 : 1800;
+      timeoutId = window.setTimeout(triggerDepsLoad, delayMs);
+    }
 
     return () => {
       cancelled = true;
@@ -719,7 +718,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     // The homepage already loads its interactive sections as they approach
     // the viewport. Global route/chunk warmup here used to compete with the
     // hero, fonts and category data during the first load.
-    if (pathname === "/") return;
+    if (pathname === "/" || !enableAggressiveWarmup) return;
 
     const connection = (navigator as Navigator & {
       connection?: { saveData?: boolean; effectiveType?: string };

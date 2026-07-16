@@ -13,11 +13,15 @@ import {
   ThumbsUp,
 } from "lucide-react";
 import { getFirestore, doc, updateDoc, Timestamp } from "firebase/firestore";
+import GoogleCustomerReviewsOptIn from "./GoogleCustomerReviewsOptIn";
 
 interface OrderConfirmationProps {
   name: string;
   phone: string;
+  email: string;
   orderId: string;
+  deliveryCountry: string;
+  estimatedDeliveryDate: string;
   totalAmount: number;
   subtotalAmount?: number;
   discountAmount?: number;
@@ -46,7 +50,10 @@ const saveRating = async (orderId: string, rating: number, comment: string) => {
 const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
   name,
   phone,
+  email,
   orderId,
+  deliveryCountry,
+  estimatedDeliveryDate,
   totalAmount,
   subtotalAmount = totalAmount,
   discountAmount = 0,
@@ -91,6 +98,12 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
 
   return (
     <div className="mx-auto mt-4 max-w-xl space-y-3 text-sky-50 sm:mt-5">
+      <GoogleCustomerReviewsOptIn
+        orderId={orderId}
+        email={email}
+        deliveryCountry={deliveryCountry}
+        estimatedDeliveryDate={estimatedDeliveryDate}
+      />
       <div className="soft-panel-hero px-4 py-5 text-center sm:px-5 sm:py-6">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] border border-emerald-100 bg-white/90 text-emerald-500 shadow-[0_18px_34px_rgba(16,185,129,0.18)]">
           <CheckCircle size={42} className="animate-pulse" aria-hidden="true" />

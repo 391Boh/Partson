@@ -311,9 +311,9 @@ export default function AdvantagesPhotoSlider({
                 fill
                 draggable={false}
                 sizes="(min-width: 1280px) 320px, (min-width: 1024px) 300px, (min-width: 640px) 300px, 78vw"
-                quality={70}
+                quality={60}
                 className="pointer-events-none select-none object-cover transition-transform duration-500 ease-out group-hover/card:scale-[1.05]"
-                priority={index <= 1}
+                priority={index === 0}
               />
               <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-transparent p-3.5 pt-10">
                 <p className="text-[12.5px] font-semibold leading-snug text-white drop-shadow-sm">

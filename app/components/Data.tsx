@@ -17,6 +17,7 @@ import ImageModal from "app/components/ImageModal";
 import ProductCard from "app/components/ProductCard";
 import { CATALOG_PAGE_CACHE_VERSION, invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
+import { stripRomanNumeralsFromModel, stripTrailingChassisCode } from "app/lib/car-model-search";
 import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
 import {
   buildProductImageBatchKey,
@@ -81,16 +82,19 @@ const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
 const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
-const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 420;
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 1600;
 // Start only the actual LCP candidate at high priority. A small first row may
 // still load eagerly, while the rest of the page is resolved by one batch.
 const IMAGE_HIGH_PRIORITY_ITEMS_COUNT = 1;
 const IMAGE_EAGER_ITEMS_COUNT = 4;
-// Reveal the first row quickly, then let the existing effect advance through
-// subsequent chunks without making the initial response wait for every card.
+// Resolve the whole first page in one batch call. A smaller chunk here leaves
+// most first-page cards "unqueued" long enough to trip ProductCardImage's
+// deferDirectLoad fallback (see DEFERRED_DIRECT_LOAD_DELAY_MS), so instead of
+// one shared batch request they each fire an individual direct image request
+// in parallel — more concurrent requests and raggedy pop-in, not less.
 const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE;
 const VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE = 4;
-const VISIBLE_IMAGE_DEEP_RECOVERY_DELAY_MS = 180;
+const VISIBLE_IMAGE_DEEP_RECOVERY_DELAY_MS = 60;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 45;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
@@ -637,7 +641,57 @@ const mergeUniqueProducts = (current: Product[], incoming: Product[]) => {
 };
 
 const CATALOG_GRID_CLASS =
-  "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 md:grid-cols-3 lg:grid-cols-4";
+  "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-4";
+
+const CatalogProductCardSkeleton = ({ index }: { index: number }) => (
+  <article
+    className="catalog-card-skeleton relative flex h-[360px] w-full flex-col overflow-hidden rounded-xl border border-slate-200/80 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_36%),linear-gradient(155deg,rgba(255,255,255,0.99)_0%,rgba(248,250,252,0.97)_52%,rgba(239,246,255,0.92)_100%)] p-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.03),0_10px_24px_rgba(15,23,42,0.05)] sm:h-[340px]"
+    aria-hidden="true"
+    style={{ "--catalog-skeleton-delay": `${(index % 4) * 90}ms` } as React.CSSProperties}
+  >
+    <div className="flex h-20 gap-2 rounded-xl border border-slate-200/65 bg-slate-100/75 p-1.5">
+      <div className="catalog-skeleton-block h-full w-[36%] shrink-0 rounded-lg bg-white/90 ring-1 ring-slate-200/65 sm:w-[40%]" />
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 px-1">
+        <div className="catalog-skeleton-block h-3 w-[88%] rounded-full" />
+        <div className="catalog-skeleton-block h-3 w-[72%] rounded-full" />
+        <div className="catalog-skeleton-block h-2.5 w-[46%] rounded-full opacity-75" />
+      </div>
+    </div>
+
+    <div className="mt-2 flex items-center gap-1.5 border-b border-slate-100/90 pb-2">
+      <div className="catalog-skeleton-block h-5 w-20 rounded-full bg-sky-100/75" />
+      <div className="catalog-skeleton-block h-5 w-16 rounded-full bg-teal-100/70" />
+    </div>
+
+    <div className="mt-2.5 space-y-2.5 px-1">
+      <div className="flex items-center justify-between gap-3">
+        <div className="catalog-skeleton-block h-2.5 w-16 rounded-full opacity-70" />
+        <div className="catalog-skeleton-block h-3 w-28 rounded-full" />
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="catalog-skeleton-block h-2.5 w-20 rounded-full opacity-70" />
+        <div className="catalog-skeleton-block h-3 w-24 rounded-full" />
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="catalog-skeleton-block h-2.5 w-14 rounded-full opacity-70" />
+        <div className="catalog-skeleton-block h-3 w-32 rounded-full" />
+      </div>
+    </div>
+
+    <div className="mt-auto flex h-[122px] flex-col justify-end">
+      <div className="mb-3 ml-auto flex items-center gap-2">
+        <div className="catalog-skeleton-block h-8 w-28 rounded-[13px] bg-sky-100/75" />
+      </div>
+      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+        <div className="catalog-skeleton-block h-9 w-24 rounded-full bg-white/90 ring-1 ring-slate-200/70" />
+        <div className="flex gap-1.5">
+          <div className="catalog-skeleton-block h-11 w-11 rounded-lg bg-rose-100/65" />
+          <div className="catalog-skeleton-block h-11 w-11 rounded-lg bg-sky-100/70" />
+        </div>
+      </div>
+    </div>
+  </article>
+);
 
 const CatalogTransitionLoader = ({
   label = "Оновлюю каталог",
@@ -645,20 +699,38 @@ const CatalogTransitionLoader = ({
 }: {
   label?: string;
   compact?: boolean;
-}) => (
-  <div
-    className={`col-span-full flex w-full items-center justify-center ${
-      compact ? "min-h-16" : "min-h-[180px]"
-    }`}
-    role="status"
-    aria-label={label}
-  >
-    <div className="inline-flex items-center gap-3 rounded-[18px] border border-sky-100 bg-white/95 px-4 py-3 text-sm font-bold text-slate-700 shadow-[0_18px_42px_rgba(14,165,233,0.12)] ring-1 ring-white/90 backdrop-blur-md">
-      <span className="catalog-soft-spinner" aria-hidden="true" />
-      <span className="leading-tight">{label}</span>
+}) => {
+  if (compact) {
+    return (
+      <div
+        className="col-span-full flex min-h-16 w-full items-center justify-center"
+        role="status"
+        aria-label={label}
+      >
+        <div className="inline-flex items-center gap-3 rounded-[18px] border border-sky-100 bg-white/95 px-4 py-3 text-sm font-bold text-slate-700 shadow-[0_18px_42px_rgba(14,165,233,0.12)] ring-1 ring-white/90 backdrop-blur-md">
+          <span className="catalog-soft-spinner" aria-hidden="true" />
+          <span className="leading-tight">{label}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative col-span-full w-full" role="status" aria-label={label}>
+      <div className="pointer-events-none absolute inset-x-0 top-5 z-10 flex justify-center px-3">
+        <div className="inline-flex items-center gap-3 rounded-[18px] border border-sky-100 bg-white/95 px-4 py-3 text-sm font-bold text-slate-700 shadow-[0_18px_42px_rgba(14,165,233,0.12)] ring-1 ring-white/90 backdrop-blur-md">
+          <span className="catalog-soft-spinner" aria-hidden="true" />
+          <span className="leading-tight">{label}</span>
+        </div>
+      </div>
+      <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-4" aria-hidden="true">
+        {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
+          <CatalogProductCardSkeleton key={index} index={index} />
+        ))}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 type CatalogPagePayload = {
   items: Product[];
@@ -784,10 +856,6 @@ const normalizeArticleToken = (value: string) =>
   value
     .replace(/[\u0400-\u04FF]/g, (ch) => ARTICLE_CYRILLIC_TO_LATIN[ch] ?? "")
     .replace(/[^a-z0-9\/]/g, "");
-
-// Car generation suffixes like "Golf IV" or "Rio III" \u2014 matched as a whole
-// token so real alnum model codes ("X5", "IX35") are never touched.
-const ROMAN_NUMERAL_WORD_REGEX = /(?<![\p{L}\p{N}_])(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)(?![\p{L}\p{N}_])/gu;
 
 const normalizeCacheList = (values: string[]) =>
   Array.from(
@@ -1236,6 +1304,7 @@ function useCatalogData(params: {
   const [pageImagePending, setPageImagePending] = useState<Record<string, true>>({});
   const [pageImageMissing, setPageImageMissing] = useState<Record<string, true>>({});
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [euroRate, setEuroRate] = useState<number>(DEFAULT_EURO_RATE);
   const [flippedCard, setFlippedCard] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -1285,6 +1354,8 @@ function useCatalogData(params: {
         pricedOnly,
         priceFrom,
         priceTo,
+        priceRate:
+          priceFrom !== null || priceTo !== null ? euroRate : null,
         inStock,
       }),
     [
@@ -1300,6 +1371,7 @@ function useCatalogData(params: {
       pricedOnly,
       priceFrom,
       priceTo,
+      euroRate,
       inStock,
     ]
   );
@@ -2234,9 +2306,6 @@ function useCatalogData(params: {
     []
   );
 
-  // ? Курс EUR (fallback 50)
-  const [euroRate, setEuroRate] = useState<number>(DEFAULT_EURO_RATE);
-
   // ? РєСѓСЂСЃ Р· РќРћР’РћР“Рћ PROXY: /api/proxy?endpoint=euro
   useEffect(() => {
     const cachedRate = readCachedEuroRate();
@@ -2330,6 +2399,8 @@ function useCatalogData(params: {
         pricedOnly,
         priceFrom,
         priceTo,
+        priceRate:
+          priceFrom !== null || priceTo !== null ? euroRate : null,
         inStock,
       }),
     [
@@ -2344,6 +2415,7 @@ function useCatalogData(params: {
       pricedOnly,
       priceFrom,
       priceTo,
+      euroRate,
       inStock,
     ]
   );
@@ -3095,8 +3167,12 @@ function useCatalogData(params: {
     if (producerFromURL) params.set("producer", producerFromURL);
     if (expandHierarchyFromURL) params.set("scope", "hierarchy");
     if (pricedOnly) params.set("pricedOnly", "1");
-    if (typeof priceFrom === "number") params.set("priceFrom", String(priceFrom));
-    if (typeof priceTo === "number") params.set("priceTo", String(priceTo));
+    if (typeof priceFrom === "number") {
+      params.set("priceFrom", String(Math.round((priceFrom / euroRate) * 100) / 100));
+    }
+    if (typeof priceTo === "number") {
+      params.set("priceTo", String(Math.round((priceTo / euroRate) * 100) / 100));
+    }
     if (inStock) params.set("inStock", "1");
 
     fetch(`/api/catalog-search-count?${params.toString()}`, {
@@ -3130,6 +3206,7 @@ function useCatalogData(params: {
     pricedOnly,
     priceFrom,
     priceTo,
+    euroRate,
     inStock,
   ]);
 
@@ -4100,7 +4177,7 @@ const Data: React.FC<DataProps> = ({
 
     if (romanNumeralFallbackAttemptedRef.current !== raw) {
       romanNumeralFallbackAttemptedRef.current = raw;
-      const stripped = raw.replace(ROMAN_NUMERAL_WORD_REGEX, " ").replace(/\s{2,}/g, " ").trim();
+      const stripped = stripRomanNumeralsFromModel(raw);
       if (stripped && stripped !== raw) {
         redirectTo(stripped);
         return;
@@ -4109,13 +4186,9 @@ const Data: React.FC<DataProps> = ({
 
     if (chassisCodeFallbackAttemptedRef.current !== raw) {
       chassisCodeFallbackAttemptedRef.current = raw;
-      const tokens = raw.split(/\s+/).filter(Boolean);
-      const lastToken = tokens[tokens.length - 1];
-      if (tokens.length >= 2 && lastToken && /^\p{L}\d{1,3}$/u.test(lastToken)) {
-        const stripped = tokens.slice(0, -1).join(" ").trim();
-        if (stripped && stripped !== raw) {
-          redirectTo(stripped);
-        }
+      const stripped = stripTrailingChassisCode(raw);
+      if (stripped && stripped !== raw) {
+        redirectTo(stripped);
       }
     }
   }, [
@@ -4412,16 +4485,16 @@ const Data: React.FC<DataProps> = ({
     searchFilter,
     visibleSortedData.length,
   ]);
-  // Start one stable LCP candidate directly. It is selected from the unsorted
-  // filtered list so later price updates cannot switch a card between direct
-  // and batch loading while a request is in flight.
+  // Start the actual first visible photo directly. The rest of the first row
+  // is resolved in a small shared batch, so one slow 1C image cannot hold all
+  // visible cards behind a 12-item request.
   const directCatalogImageKey = useMemo(() => {
     if (catalogReadyQuerySignature !== catalogQuerySignature) return "";
-    const firstPhoto = filteredData.find((item) => item.hasPhoto === true);
+    const firstPhoto = visibleSortedData.find((item) => item.hasPhoto === true);
     return firstPhoto
       ? buildProductImageBatchKey(firstPhoto.code, firstPhoto.article)
       : "";
-  }, [catalogQuerySignature, catalogReadyQuerySignature, filteredData]);
+  }, [catalogQuerySignature, catalogReadyQuerySignature, visibleSortedData]);
   const visibleCatalogImageCandidates = useMemo(
     () =>
       catalogReadyQuerySignature === catalogQuerySignature
@@ -4474,7 +4547,6 @@ const Data: React.FC<DataProps> = ({
     visibleSortedData.length > 0 || shouldShowInitialSkeleton;
   const gridColumnCount = useMemo(() => {
     if (viewportWidth >= 1024) return 4;
-    if (viewportWidth >= 768) return 3;
     if (viewportWidth >= 640) return 2;
     return 1;
   }, [viewportWidth]);
@@ -4742,10 +4814,6 @@ const Data: React.FC<DataProps> = ({
         : "Не знайшов товар у каталозі. Потрібна допомога з підбором.";
 
     if (typeof window !== "undefined") {
-      pushAnalyticsEvent("generate_lead", {
-        lead_source: "catalog_empty_state",
-        lead_type: "parts_selection",
-      });
       window.dispatchEvent(
         new CustomEvent("openChatWithMessage", { detail: message })
       );
@@ -4783,11 +4851,6 @@ const Data: React.FC<DataProps> = ({
       if (carLabel) lines.push(`Авто: ${carLabel}`);
 
       if (typeof window !== "undefined") {
-        pushAnalyticsEvent("generate_lead", {
-          lead_source: "catalog_card",
-          lead_type: "price_request",
-          product_id: item.code,
-        });
         window.dispatchEvent(
           new CustomEvent("openChatWithMessage", { detail: lines.join("\n") })
         );
@@ -4906,12 +4969,11 @@ const Data: React.FC<DataProps> = ({
                   subGroup: normalizedSubGroup,
                   category: normalizedGroup || item.category,
                 });
-                const shouldPrefetchProductRoute = absoluteIndex < 10;
-
                 return (
                   <div
                     key={stableKey || `${code || "item"}-${index}`}
                     data-catalog-card="1"
+                    className="min-w-0"
                   >
                     <ProductCard
                       item={item}
@@ -4937,7 +4999,6 @@ const Data: React.FC<DataProps> = ({
                       batchImageOnly={Boolean(imageBatchKey && !shouldDirectLoadImage)}
                       isFlipped={flippedCard === code}
                       motionEnabled={shouldAnimateList}
-                      prefetchProductRoute={shouldPrefetchProductRoute}
                       onAddToCart={handleAddToCart}
                       onRequestPrice={handleRequestPriceForItem}
                       onRemoveFromCart={handleRemoveFromCart}

@@ -80,7 +80,8 @@ export const buildManufacturerPath = (
 export const buildCatalogProducerPath = (
   producer: string | null | undefined,
   group?: string | null,
-  subcategory?: string | null
+  subcategory?: string | null,
+  options?: { expandHierarchy?: boolean }
 ) => {
   const normalizedProducer = normalizeFacetValue(producer);
   const normalizedGroup = normalizeFacetValue(group);
@@ -96,6 +97,9 @@ export const buildCatalogProducerPath = (
 
   if (canUseSubcategory) {
     params.set("subcategory", normalizedSubcategory);
+  }
+  if (options?.expandHierarchy) {
+    params.set("scope", "hierarchy");
   }
 
   return `/katalog?${params.toString()}`;

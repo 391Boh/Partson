@@ -90,11 +90,11 @@ const ModelCard = memo(function ModelCard({
     >
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-[3px] origin-left scale-x-0 bg-gradient-to-r from-sky-400 via-teal-400 to-sky-400 transition-transform duration-300 ease-out group-hover:scale-x-100"
+        className="pointer-events-none absolute inset-x-4 top-0 z-[2] h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
       />
 
-      <div className="flex h-full items-center gap-3 p-4">
-        <span className="relative inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-slate-200 bg-[linear-gradient(145deg,#ffffff,#f0f9ff_58%,#ecfeff)] text-sky-700 shadow-[0_10px_22px_rgba(15,23,42,0.06)]">
+      <div className="relative z-[1] flex h-full items-center gap-3 p-4">
+        <span className="relative inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-cyan-200/75 bg-[radial-gradient(circle_at_24%_16%,#ffffff,transparent_35%),linear-gradient(145deg,#fbfdff_0%,#e6f5fb_52%,#def7f0_100%)] text-sky-700 shadow-[0_10px_24px_rgba(14,165,233,0.09),inset_0_1px_0_white] transition-[border-color,box-shadow,color] duration-300 group-hover:border-teal-300 group-hover:text-teal-700 group-hover:shadow-[0_13px_28px_rgba(13,148,136,0.14)]">
           <Car size={21} strokeWidth={2} />
         </span>
 
@@ -293,8 +293,8 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
           <div className="px-4 py-4 sm:px-5 sm:py-5">
             {sortedModels.length > 0 ? (
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-3">
-                {sortedModels.map((model, index) => (
-                  <ModelCard key={model.name} brand={brand} model={model} prefetchOnViewport={index < 12} />
+                {sortedModels.map((model) => (
+                  <ModelCard key={model.name} brand={brand} model={model} />
                 ))}
               </div>
             ) : (

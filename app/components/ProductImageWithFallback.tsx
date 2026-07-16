@@ -261,6 +261,24 @@ export default function ProductImageWithFallback({
     requestSrc,
   ]);
 
+  const handleImageRef = useCallback(
+    (node: HTMLImageElement | null) => {
+      if (!node || !requestSrc || !node.complete) return;
+
+      // A high-priority preload can finish before React hydrates this client
+      // component. In that case the native load event has already fired and
+      // `onLoad` will not necessarily run again, which previously left the
+      // skeleton over a fully downloaded image. Read the DOM state during the
+      // ref commit so cached/preloaded images become visible immediately.
+      if (node.naturalWidth > 0) {
+        handleLoad();
+      } else {
+        handleError();
+      }
+    },
+    [handleError, handleLoad, requestSrc]
+  );
+
   const isLoaded = status === "loaded";
   const showPlaceholder = !hasKnownPhoto || status === "missing";
   const showSkeleton = !showPlaceholder && !isLoaded;
@@ -311,6 +329,7 @@ export default function ProductImageWithFallback({
         {requestSrc ? (
           <Image
             key={requestSrc}
+            ref={handleImageRef}
             src={requestSrc}
             alt={alt}
             priority={preferImmediateDecode}

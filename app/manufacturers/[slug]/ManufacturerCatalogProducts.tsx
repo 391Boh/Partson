@@ -8,7 +8,7 @@ import { useCart } from "app/context/CartContext";
 import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
 import { buildProductImageBatchKey, buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
-import { pushAnalyticsEvent, pushEcommerceEvent } from "app/lib/gtm";
+import { pushEcommerceEvent } from "app/lib/gtm";
 
 type ManufacturerCatalogProduct = {
   code: string;
@@ -238,11 +238,6 @@ export default function ManufacturerCatalogProducts({
   );
 
   const handleRequestPrice = useCallback((item: ManufacturerCatalogProduct) => {
-    pushAnalyticsEvent("generate_lead", {
-      lead_source: "manufacturer_page",
-      lead_type: "price_request",
-      product_id: item.code,
-    });
     const lines = ["Потрібна ціна на товар (за запитом)."];
     if (item.name?.trim()) lines.push(`Товар: ${item.name.trim()}`);
     if (item.article?.trim()) lines.push(`Артикул: ${item.article.trim()}`);
@@ -318,7 +313,6 @@ export default function ManufacturerCatalogProducts({
                 )}
                 isFlipped={flippedCard === item.code}
                 motionEnabled={false}
-                prefetchProductRoute={index < 3}
                 onAddToCart={handleAddToCart}
                 onRequestPrice={handleRequestPrice}
                 onRemoveFromCart={removeFromCart}

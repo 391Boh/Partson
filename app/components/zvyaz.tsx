@@ -11,7 +11,7 @@ import {
 } from "firebase/firestore";
 import { app } from "../../firebase";
 import { notifyTelegramAdmin } from "app/lib/telegram-notify-client";
-import { pushAnalyticsEvent } from "app/lib/gtm";
+import { pushGenerateLeadEvent } from "app/lib/gtm";
 
 interface ZvyazProps {
   onClose: () => void;
@@ -54,7 +54,7 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, onBack, userData }) => {
         source: "contacts/callback",
       });
 
-      pushAnalyticsEvent("generate_lead", {
+      pushGenerateLeadEvent({
         lead_source: "contacts_modal",
         lead_type: "callback_request",
       });

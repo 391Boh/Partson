@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { ArrowRight, CarFront, Factory, Layers3 } from "lucide-react";
+import { ArrowRight, CarFront, Factory, Layers3, Search, ShieldCheck, SlidersHorizontal, Truck } from "lucide-react";
 
 import AutoBrandsDirectoryClient from "app/auto/AutoBrandsDirectoryClient";
+import CatalogDirectoryGuide from "app/components/CatalogDirectoryGuide";
 import CatalogHubHero from "app/components/CatalogHubHero";
+import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import { carBrands } from "app/components/carBrands";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
@@ -114,7 +116,7 @@ export default function AutoPage() {
       />
 
       <div className="relative">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-sky-200/25 via-cyan-100/10 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_60%_74%_at_12%_0%,rgba(20,184,166,0.11),transparent_68%),radial-gradient(ellipse_58%_72%_at_88%_0%,rgba(14,165,233,0.12),transparent_68%)]" />
 
         <div className="page-shell-inline catalog-hub-stage relative flex flex-col py-3 sm:py-4 lg:py-5">
         <CatalogHubHero
@@ -156,23 +158,80 @@ export default function AutoPage() {
               href: "/groups",
               label: "Групи товарів",
               icon: Layers3,
-              prefetchOnViewport: true,
             },
             {
               href: "/manufacturers",
               label: "Виробники",
               icon: Factory,
-              prefetchOnViewport: true,
             },
           ]}
         />
 
-        <h1 className="sr-only">{title}</h1>
-
         </div>
       </div>
 
+      <CatalogDirectoryGuide
+        badge="Підбір без зайвих фільтрів"
+        title="Від марки автомобіля до сумісних деталей — у три зрозумілі кроки"
+        paragraphs={[
+          "Почніть із марки, далі оберіть модель — каталог автоматично збере релевантні запчастини та збереже вибраний автомобіль у фільтрі.",
+          "Не впевнені у модифікації? Надішліть VIN менеджеру PartsON, і ми перевіримо сумісність перед замовленням.",
+        ]}
+        steps={[
+          {
+            label: "Крок 1",
+            title: "Оберіть марку",
+            description: "Знайдіть автомобіль у списку або через пошук.",
+            icon: CarFront,
+          },
+          {
+            label: "Крок 2",
+            title: "Уточніть модель",
+            description: "Перейдіть до потрібної моделі та покоління.",
+            icon: Search,
+          },
+          {
+            label: "Крок 3",
+            title: "Перегляньте каталог",
+            description: "Отримайте товари з уже підготовленим авто-фільтром.",
+            icon: SlidersHorizontal,
+          },
+        ]}
+      />
+
       <AutoBrandsDirectoryClient items={carBrands} />
+
+      <CatalogSeoTextSection
+        badge="Точний підбір автозапчастин"
+        title="Як підібрати автозапчастини за маркою, моделлю та VIN"
+        lead="Правильно вибраний автомобіль звужує каталог до сумісних деталей і допомагає уникнути помилки ще до оформлення замовлення."
+        topics={[
+          {
+            title: "Підбір за автомобілем",
+            text: "Оберіть марку й модель, щоб переглядати запчастини для конкретного автомобіля, а не весь каталог.",
+            icon: CarFront,
+          },
+          {
+            title: "Перевірка за VIN",
+            text: "VIN допомагає уточнити модифікацію, двигун і комплектацію, якщо одна модель має кілька варіантів деталей.",
+            icon: ShieldCheck,
+          },
+          {
+            title: "Львів і доставка по Україні",
+            text: "Замовлення можна забрати в магазині PartsON у Львові або отримати службою доставки у своєму місті.",
+            icon: Truck,
+          },
+        ]}
+        paragraphs={[
+          "Почніть із марки та моделі автомобіля, далі оберіть потрібну групу: гальмівна система, підвіска, двигун, фільтри, електрика або інший вузол. У каталозі відображаються актуальні ціни, наявність і доступні виробники.",
+          "Якщо ви не впевнені у сумісності, передайте менеджеру VIN-код або артикул старої деталі. Фахівці PartsON перевірять варіант за каталогом і допоможуть підібрати оригінальну запчастину чи якісний аналог.",
+        ]}
+        links={[
+          { href: "/katalog", label: "Відкрити каталог" },
+          { href: "/groups", label: "Групи запчастин" },
+          { href: "/inform", label: "Магазин у Львові" },
+        ]}
+      />
 
     </main>
   );

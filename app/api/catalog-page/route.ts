@@ -78,7 +78,7 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawSearch = toTrimmedString(body.searchQuery);
   const effectiveSearch = rawFilter === "article" ? normalizeArticleQuery(rawSearch) : rawSearch;
   return JSON.stringify({
-    source: "catalog-page:v29-photo-flag-only",
+    source: "catalog-page:v31-strict-price-sort",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -257,6 +257,12 @@ export async function POST(request: Request) {
     const normalizedProducer = toTrimmedString(body.producer);
     const expandHierarchy = body.expandHierarchy === true;
     const normalizedSelectedCategories = toStringArray(body.selectedCategories);
+    const hasPriceControls =
+      body.sortOrder === "asc" ||
+      body.sortOrder === "desc" ||
+      body.pricedOnly === true ||
+      toNonNegativeNumber(body.priceFrom) !== null ||
+      toNonNegativeNumber(body.priceTo) !== null;
     const isDescriptionSearch =
       body.searchFilter === "description" && Boolean(normalizedSearchQuery);
     const hasTightFilterContext = Boolean(
@@ -265,7 +271,9 @@ export async function POST(request: Request) {
         normalizedSubcategory ||
         normalizedProducer ||
         expandHierarchy ||
-        normalizedSelectedCategories.length > 0
+        normalizedSelectedCategories.length > 0 ||
+        hasPriceControls ||
+        body.inStock === true
     );
 
     // Catalog browsing without car binding should prefer the complete allgoods feed.

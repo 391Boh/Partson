@@ -2,17 +2,48 @@
 
 import dynamic from "next/dynamic";
 
-import DeferredSection from "./DeferredSection";
 import SectionBoundary from "./SectionBoundary";
 
-const ProductFetcher = dynamic(() => import("./tovar"), {
-  loading: () => <div className="h-[320px] animate-pulse bg-sky-50/60" aria-hidden="true" />,
+// Keep the placeholders close to the rendered height at every layout
+// breakpoint. The sections become much taller in the one/two-column layouts;
+// using only the desktop height here causes a large layout shift on phones and
+// tablets as soon as the dynamic chunk resolves.
+const ProductSectionFallback = () => (
+  <div
+    className="h-[1065px] bg-sky-50/60 sm:h-[1340px] lg:h-[568px]"
+    aria-hidden="true"
+  />
+);
+
+const AutoSectionFallback = () => (
+  <div
+    className="h-[750px] bg-slate-50/70 sm:h-[735px] lg:h-[460px] xl:h-[438px]"
+    aria-hidden="true"
+  />
+);
+
+const BrandsSectionFallback = () => (
+  <div
+    className="h-[573px] bg-[linear-gradient(180deg,#e2f0f7_0%,#c8e1ee_48%,#d8eaec_100%)] sm:h-[660px] lg:h-[617px]"
+    aria-hidden="true"
+  />
+);
+
+const loadProductSection = () => import("./tovar");
+const loadAutoSection = () => import("./Auto");
+const loadBrandsSection = () => import("./Brands");
+
+const ProductFetcher = dynamic(loadProductSection, {
+  ssr: false,
+  loading: ProductSectionFallback,
 });
-const Auto = dynamic(() => import("./Auto"), {
-  loading: () => <div className="h-[420px] animate-pulse bg-slate-50/70" aria-hidden="true" />,
+const Auto = dynamic(loadAutoSection, {
+  ssr: false,
+  loading: AutoSectionFallback,
 });
-const BrandCarousel = dynamic(() => import("./Brands"), {
-  loading: () => <div className="h-[300px] animate-pulse bg-sky-50/70" aria-hidden="true" />,
+const BrandCarousel = dynamic(loadBrandsSection, {
+  ssr: false,
+  loading: BrandsSectionFallback,
 });
 
 type InitialSyncedBrand = {
@@ -25,33 +56,39 @@ type InitialSyncedBrand = {
 
 export default function HomeDeferredStack({
   initialSyncedBrands,
+  initialProductTree,
 }: {
   initialSyncedBrands?: InitialSyncedBrand[];
+  initialProductTree?: unknown;
 }) {
   return (
     <>
+      {/* These sections deliberately render from the first pass. Deferring
+          their mount until a scroll observer fires made fast vertical scroll
+          depend on observer timing, chunk download and API startup. Dynamic
+          imports still keep separate chunks, while rendering them here makes
+          the browser request every chunk immediately and removes scroll as a
+          loading trigger. Responsive fallbacks keep the document stable until
+          each chunk is ready. */}
       <section className="section-reveal home-section-stage relative w-full">
-        <DeferredSection rootMargin="60px" minHeight="320px" fallback={<div className="h-[320px] bg-sky-50/40" />}>
-          <SectionBoundary title="Модуль товарів тимчасово недоступний">
-            <ProductFetcher playEntranceAnimations={false} />
-          </SectionBoundary>
-        </DeferredSection>
+        <SectionBoundary title="Модуль товарів тимчасово недоступний">
+          <ProductFetcher
+            products={initialProductTree}
+            playEntranceAnimations={false}
+          />
+        </SectionBoundary>
       </section>
 
       <section className="section-reveal home-section-stage relative w-full">
-        <DeferredSection rootMargin="0px" minHeight="420px" fallback={<div className="h-[420px] bg-slate-50/40" />}>
-          <SectionBoundary title="Модуль підбору авто тимчасово недоступний">
-            <Auto playEntranceAnimations={false} showSummary />
-          </SectionBoundary>
-        </DeferredSection>
+        <SectionBoundary title="Модуль підбору авто тимчасово недоступний">
+          <Auto playEntranceAnimations={false} showSummary />
+        </SectionBoundary>
       </section>
 
       <section className="section-reveal home-section-stage relative w-full">
-        <DeferredSection rootMargin="80px" minHeight="300px" fallback={<div className="h-[300px] bg-sky-50/40" />}>
-          <SectionBoundary title="Модуль брендів тимчасово недоступний">
-            <BrandCarousel playEntranceAnimations={false} initialSyncedBrands={initialSyncedBrands} />
-          </SectionBoundary>
-        </DeferredSection>
+        <SectionBoundary title="Модуль брендів тимчасово недоступний">
+          <BrandCarousel playEntranceAnimations={false} initialSyncedBrands={initialSyncedBrands} />
+        </SectionBoundary>
       </section>
     </>
   );

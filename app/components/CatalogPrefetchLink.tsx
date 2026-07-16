@@ -8,6 +8,7 @@ import { prefetchCatalogListing } from "app/lib/catalog-page-prefetch";
 type CatalogPrefetchLinkProps = React.ComponentProps<typeof SmartLink> & {
   href: string;
   prefetchCatalogOnViewport?: boolean;
+  prefetchCatalogOnTouch?: boolean;
 };
 
 export default function CatalogPrefetchLink({
@@ -16,6 +17,7 @@ export default function CatalogPrefetchLink({
   onFocus,
   onTouchStart,
   prefetchCatalogOnViewport = false,
+  prefetchCatalogOnTouch = false,
   prefetchOnIntent = true,
   prefetchOnViewport = false,
   ...props
@@ -73,10 +75,10 @@ export default function CatalogPrefetchLink({
 
   const handleTouchStart = useCallback(
     (event: TouchEvent<HTMLAnchorElement>) => {
-      warmCatalog();
+      if (prefetchCatalogOnTouch) warmCatalog();
       onTouchStart?.(event);
     },
-    [onTouchStart, warmCatalog]
+    [onTouchStart, prefetchCatalogOnTouch, warmCatalog]
   );
 
   return (

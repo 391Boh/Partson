@@ -52,16 +52,15 @@ function AutoBrandCard({
     <SmartLink
       href={brandHref}
       className={directoryCardClass}
-      aria-label={`Відкрити каталог запчастин для ${brand.name}`}
       prefetchOnViewport={prefetchOnViewport}
       itemScope
       itemType="https://schema.org/Brand"
       itemProp="item"
     >
       <meta itemProp="url" content={brandHref} />
-      <div className="flex h-full min-h-[142px] flex-col p-3">
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
+      <div className="flex h-full min-h-[124px] flex-col p-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex w-12 shrink-0 flex-col items-center gap-1.5">
             <div className={directoryIconTileClass}>
               <Image
                 src={brand.logo}
@@ -69,36 +68,31 @@ function AutoBrandCard({
                 width={48}
                 height={48}
                 sizes="36px"
-                className="relative z-[1] h-9 w-9 object-contain transition duration-300 group-hover:scale-[1.04]"
+                className="relative z-[1] h-9 w-9 object-contain"
                 unoptimized={brand.logo.endsWith('.svg')}
               />
             </div>
-
-            <div className="min-w-0 [overflow-wrap:anywhere]">
-              <span className="directory-kicker inline-flex rounded-[10px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] uppercase text-sky-800">
-                Марка
-              </span>
-              <p itemProp="name" className="directory-card-title mt-1.5 truncate text-[16px] leading-tight text-slate-900">
-                {brand.name}
-              </p>
-              <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-600">
-                Перейдіть до моделей і підбору сумісних запчастин.
-              </p>
-            </div>
+            <span className="directory-kicker inline-flex rounded-[9px] border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[8px] uppercase leading-none text-sky-800">
+              Марка
+            </span>
           </div>
 
-          <span className={`${directoryActionIconClass} h-8 w-8 rounded-md`}>
-            <ArrowRight size={16} strokeWidth={2.3} />
-          </span>
-        </div>
-
-        <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-2.5">
-          <span className="text-xs font-semibold text-slate-500">
-            Марка → моделі
-          </span>
-          <span className="directory-kicker rounded-[10px] border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] uppercase text-sky-800">
-            Відкрити
-          </span>
+          <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <p itemProp="name" className="directory-card-title min-w-0 truncate text-[16px] leading-tight text-slate-900">
+                {brand.name}
+              </p>
+              <span className={`${directoryActionIconClass} h-8 !w-auto gap-1.5 rounded-md px-2.5`}>
+                <span className="directory-kicker text-[10px] uppercase text-sky-800">
+                  Моделі
+                </span>
+                <ArrowRight size={16} strokeWidth={2.3} />
+              </span>
+            </div>
+            <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-600">
+              Перейдіть до моделей і підбору сумісних запчастин.
+            </p>
+          </div>
         </div>
       </div>
     </SmartLink>
@@ -141,7 +135,7 @@ export default function AutoBrandsDirectoryClient({
   return (
     <section
       id="auto-featured-brands"
-      className="relative mt-4 pb-2 pt-0 sm:pb-3"
+      className="relative pb-2 pt-0 sm:pb-3"
       style={{ contentVisibility: "auto", containIntrinsicSize: "1280px 1500px" }}
     >
       <div className="page-shell-inline">
@@ -202,10 +196,7 @@ export default function AutoBrandsDirectoryClient({
                 {filteredItems.map((brand, index) => (
                   <div key={brand.id} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                     <meta itemProp="position" content={String(index + 1)} />
-                    <AutoBrandCard
-                      brand={brand}
-                      prefetchOnViewport={index < 12}
-                    />
+                    <AutoBrandCard brand={brand} />
                   </div>
                 ))}
               </div>

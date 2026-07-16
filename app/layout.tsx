@@ -124,6 +124,10 @@ const analyticsConsentBootstrap = `
     var match=d.cookie.match(/(?:^|;\\s*)partson_analytics_consent=([^;]*)/);
     var choice=match?decodeURIComponent(match[1]):'';
     var analyticsGranted=choice==='granted';
+    d.documentElement.setAttribute(
+      'data-analytics-consent',
+      choice==='granted'||choice==='denied'?choice:'unset'
+    );
     w.gtag('consent','default',{
       analytics_storage:analyticsGranted?'granted':'denied',
       ad_storage:'denied',
@@ -379,7 +383,7 @@ export default function RootLayout({
   const globalStylesheetHref = resolveGlobalStylesheetHref();
 
   return (
-    <html lang="uk">
+    <html lang="uk" suppressHydrationWarning>
       <head>
         {/* Plain, synchronous, render-blocking stylesheet — deliberately NOT
             preload+async-apply. That was tried and reverted: a <link> created
@@ -390,15 +394,6 @@ export default function RootLayout({
             refreshes. See resolveGlobalStylesheetHref above for why this is
             a plain static file instead of a Next.js-managed import. */}
         <link rel="stylesheet" href={globalStylesheetHref} />
-        {/* Explicit fetchpriority on logo preload — Next.js client-component boundary
-            prevents the Image priority prop from writing fetchpriority into the SSR
-            <link> tag reliably. This manual link guarantees LCP hint arrives early. */}
-        <link
-          rel="preload"
-          as="image"
-          href="/Car-parts.png"
-          fetchPriority="high"
-        />
         <link
           rel="preload"
           href="/fonts/exo2-variable.woff2"
@@ -406,66 +401,11 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
-        <link
-          rel="preload"
-          href="/fonts/exo2-variable-italic.woff2"
-          as="font"
-          type="font/woff2"
-          crossOrigin="anonymous"
-        />
-        {analyticsEnabled ? (
-          <link rel="preconnect" href="https://www.googletagmanager.com" crossOrigin="anonymous" />
-        ) : null}
-        {analyticsEnabled ? (
-          <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
-        ) : null}
-        {analyticsEnabled ? (
-          <link rel="preconnect" href="https://www.google-analytics.com" crossOrigin="anonymous" />
-        ) : null}
         {analyticsEnabled ? (
           <Script
             id="partson-analytics-consent-default"
             strategy="beforeInteractive"
             dangerouslySetInnerHTML={{ __html: analyticsConsentBootstrap }}
-          />
-        ) : null}
-        {analyticsMode === "gtm" ? (
-          <Script
-            id="google-tag-manager"
-            strategy="afterInteractive"
-            dangerouslySetInnerHTML={{
-              __html: `
-                (function(w,d,s,l,i){
-                  w[l]=w[l]||[];
-                  w[l].push({'gtm.start': new Date().getTime(), event:'gtm.js'});
-                  var f=d.getElementsByTagName(s)[0],
-                    j=d.createElement(s),
-                    dl=l!='dataLayer'?'&l='+l:'';
-                  j.async=true;
-                  j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
-                  f.parentNode.insertBefore(j,f);
-                })(window,document,'script','dataLayer','${googleTagManagerId}');
-              `,
-            }}
-          />
-        ) : null}
-        {analyticsMode === "gtag" ? (
-          <Script
-            id="google-tag-script"
-            src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`}
-            strategy="afterInteractive"
-          />
-        ) : null}
-        {analyticsMode === "gtag" ? (
-          <Script
-            id="google-tag-config"
-            strategy="afterInteractive"
-            dangerouslySetInnerHTML={{
-              __html: `
-                window.gtag('js', new Date());
-                window.gtag('config', '${googleAnalyticsId}', { send_page_view: false });
-              `,
-            }}
           />
         ) : null}
         <script
@@ -482,9 +422,12 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <Suspense fallback={null}>
-          <AnalyticsRuntime enabled={analyticsEnabled} />
-        </Suspense>
+        <AnalyticsRuntime
+          enabled={analyticsEnabled}
+          mode={analyticsMode === "gtm" ? "gtm" : "gtag"}
+          googleTagManagerId={googleTagManagerId}
+          googleAnalyticsId={googleAnalyticsId}
+        />
         <WebVitalsReporter />
         <div className="page-scale-root">
           <ClientWrapper>

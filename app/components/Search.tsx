@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import SmartLink from "app/components/SmartLink";
 import {
   Search, Clock, X, ImageOff, ChevronRight,
   PackageCheck, PackageX, SlidersHorizontal, ChevronDown,
@@ -452,10 +453,16 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           {suggestions.map((p, i) => {
             const priceStr = formatUAH(p.priceEuro, euroRate);
             const inStock  = typeof p.quantity === "number" ? p.quantity > 0 : true;
+            const productHref = buildProductPath({
+              code: p.code,
+              article: p.article,
+              name: p.name,
+              producer: p.producer,
+            });
             return (
-              <button
+              <SmartLink
                 key={p.code}
-                type="button"
+                href={productHref}
                 className={`font-ui group flex w-full items-center gap-2.5 px-3 py-3 text-left transition-colors duration-100 hover:bg-white/[0.055] active:bg-white/[0.08] cursor-pointer sm:gap-3 sm:px-3.5 sm:py-3.5 ${
                   i < suggestions.length - 1 ? "border-b border-white/[0.05]" : ""
                 }`}
@@ -484,7 +491,6 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
                       },
                     ],
                   });
-                  router.push(buildProductPath({ code: p.code, article: p.article, name: p.name, producer: p.producer }));
                   setDropdown(false); setQuery(""); onSearch(p.name, "name");
                 }}
               >
@@ -520,7 +526,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
                     }
                   </span>
                 </div>
-              </button>
+              </SmartLink>
             );
           })}
           </div>

@@ -8,7 +8,7 @@ import {
   CarFront, Factory, Layers3, BookOpen
 } from 'lucide-react';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { useCart } from 'app/context/CartContext';
 import { useFirebaseAuthState } from 'app/lib/firebase-auth-state';
@@ -16,44 +16,12 @@ import SmartLink from 'app/components/SmartLink';
 import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { createPortal } from 'react-dom';
 
-type AppRouterInstance = ReturnType<typeof useRouter>;
 type AuthModalModule = typeof import('./AuthModal');
 
 let authModalModulePromise: Promise<AuthModalModule> | null = null;
 const loadAuthModalModule = () => {
   authModalModulePromise ??= import('./AuthModal');
   return authModalModulePromise;
-};
-
-const CATALOG_PREFETCH_ROUTES = [
-  '/katalog',
-  '/auto',
-  '/groups',
-  '/manufacturers',
-] as const;
-
-const INFO_PREFETCH_ROUTES = [
-  '/inform/delivery',
-  '/inform/payment',
-  '/inform/about',
-  '/inform/location',
-  '/inform/privacy',
-  '/inform/warranty',
-  '/inform/returns',
-  '/inform/diagnostics',
-  '/blog',
-] as const;
-
-const prefetchRouteList = (
-  router: AppRouterInstance,
-  prefetchedRoutes: Set<string>,
-  routes: readonly string[]
-) => {
-  for (const route of routes) {
-    if (prefetchedRoutes.has(route)) continue;
-    prefetchedRoutes.add(route);
-    router.prefetch(route);
-  }
 };
 
 type ContactComponentProps = {
@@ -112,25 +80,10 @@ const Header: React.FC = () => {
   const [AuthModalComponent, setAuthModalComponent] =
     useState<ComponentType<AuthModalComponentProps> | null>(null);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
-  const prefetchedRoutesRef = useRef<Set<string>>(new Set());
-  const skipManualPrefetchRef = useRef(false);
-
   const navRef = useRef<HTMLDivElement>(null);
   const searchModalRef = useRef<HTMLDivElement>(null);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname() || "";
-  const router = useRouter();
-
-  const prefetchCatalogRoutes = () => {
-    if (skipManualPrefetchRef.current) return;
-    prefetchRouteList(router, prefetchedRoutesRef.current, CATALOG_PREFETCH_ROUTES);
-  };
-
-  const prefetchInfoRoutes = () => {
-    if (skipManualPrefetchRef.current) return;
-    prefetchRouteList(router, prefetchedRoutesRef.current, INFO_PREFETCH_ROUTES);
-  };
-
   const preloadAuthModal = () => {
     if (AuthModalComponent) return;
     void loadAuthModalModule().then((module) => {
@@ -158,17 +111,6 @@ const Header: React.FC = () => {
 
     return () => window.cancelAnimationFrame(frameId);
   }, [pathname]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const connection = (navigator as Navigator & {
-      connection?: { saveData?: boolean; effectiveType?: string };
-    }).connection;
-    skipManualPrefetchRef.current =
-      Boolean(connection?.saveData) ||
-      (typeof connection?.effectiveType === 'string' &&
-        connection.effectiveType.includes('2g'));
-  }, []);
 
   useEffect(() => {
     const handleCloseOverlays = () => {
@@ -229,8 +171,6 @@ const Header: React.FC = () => {
     setShowSearchModal(false);
     setModals({ contact: false, order: false, auth: false });
     setAuthInitialTab(null);
-    if (menu === 'menu') prefetchCatalogRoutes();
-    if (menu === 'info') prefetchInfoRoutes();
     setActiveMenu(prev => (prev === menu ? '' : menu));
   };
 
@@ -285,9 +225,7 @@ const Header: React.FC = () => {
     if (pathname !== '/') return;
     event.preventDefault();
     if (window.scrollY > 0) {
-      window.scrollTo({ top: 0, behavior: 'auto' });
-    } else {
-      window.location.reload();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -485,9 +423,6 @@ const Header: React.FC = () => {
                   data-overlay-toggle="menu"
                   aria-label="Меню"
                   onClick={() => toggleMenu("menu")}
-                  onPointerEnter={prefetchCatalogRoutes}
-                  onFocus={prefetchCatalogRoutes}
-                  onTouchStart={prefetchCatalogRoutes}
                   className={`${buttonBaseClass} ${
                     activeMenu === "menu" ? rightActionActiveClass : ''
                   }`}
@@ -550,9 +485,6 @@ const Header: React.FC = () => {
                   data-overlay-toggle="info"
                   aria-label="Інформація"
                   onClick={() => toggleMenu("info")}
-                  onPointerEnter={prefetchInfoRoutes}
-                  onFocus={prefetchInfoRoutes}
-                  onTouchStart={prefetchInfoRoutes}
                   className={`${buttonBaseClass} ${
                     activeMenu === "info" ? rightActionActiveClass : ''
                   }`}

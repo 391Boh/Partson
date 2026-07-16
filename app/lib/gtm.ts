@@ -30,6 +30,8 @@ const analyticsEnabledInCurrentEnvironment =
   process.env.NODE_ENV === "production" ||
   process.env.NEXT_PUBLIC_ANALYTICS_ENABLE_IN_DEVELOPMENT === "1";
 
+let directGenerateLeadDestinationConfigured = false;
+
 const fallbackAnalyticsMode: AnalyticsMode =
   !analyticsEnabledInCurrentEnvironment
     ? "disabled"
@@ -101,8 +103,23 @@ const isAnalyticsSuppressedForStaff = () => {
   }
 };
 
+const hasAnalyticsConsent = () => {
+  if (typeof document === "undefined") return false;
+
+  try {
+    const match = document.cookie.match(
+      new RegExp(`(?:^|;\\s*)${ANALYTICS_CONSENT_COOKIE}=([^;]*)`)
+    );
+    return match ? decodeURIComponent(match[1]) === "granted" : false;
+  } catch {
+    return false;
+  }
+};
+
 const canDispatchAnalytics = () =>
-  getAnalyticsMode() !== "disabled" && !isAnalyticsSuppressedForStaff();
+  getAnalyticsMode() !== "disabled" &&
+  hasAnalyticsConsent() &&
+  !isAnalyticsSuppressedForStaff();
 
 const withDebugMode = <T extends object>(parameters: T) =>
   analyticsDebugEnabled
@@ -133,6 +150,36 @@ export function pushAnalyticsEvent(
   parameters: Record<string, unknown> = {}
 ): boolean {
   return pushDataLayer({ event: eventName, ...parameters });
+}
+
+/**
+ * Send the recommended GA4 generate_lead event after the lead is confirmed.
+ *
+ * In GTM mode the published container may not yet have a Custom Event tag for
+ * generate_lead. When a GA4 Measurement ID is configured, route this one event
+ * directly to that same destination without loading a second gtag.js script.
+ */
+export function pushGenerateLeadEvent(
+  parameters: Record<string, unknown> = {}
+): boolean {
+  if (typeof window === "undefined" || !canDispatchAnalytics()) return false;
+
+  if (getAnalyticsMode() === "gtm" && /^G-[A-Z0-9]+$/.test(configuredGaId)) {
+    if (!window.gtag) return false;
+
+    if (!directGenerateLeadDestinationConfigured) {
+      window.gtag("config", configuredGaId, { send_page_view: false });
+      directGenerateLeadDestinationConfigured = true;
+    }
+
+    window.gtag("event", "generate_lead", {
+      ...withDebugMode(parameters),
+      send_to: configuredGaId,
+    });
+    return true;
+  }
+
+  return pushAnalyticsEvent("generate_lead", parameters);
 }
 
 /**

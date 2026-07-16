@@ -166,10 +166,18 @@ export const readProductImageSuccess = (
     return normalizeProductImageCachedSrc(memoryHit.src);
   }
 
-  return (
+  const persistedHit =
     readProductImageSuccessFromStorage(window.sessionStorage, cacheKey) ??
-    readProductImageSuccessFromStorage(window.localStorage, cacheKey)
-  );
+    readProductImageSuccessFromStorage(window.localStorage, cacheKey);
+
+  if (persistedHit) {
+    productImageMemoryCache.set(cacheKey, {
+      src: persistedHit,
+      t: Date.now(),
+    });
+  }
+
+  return persistedHit;
 };
 
 const readProductImageMissingFromStorage = (

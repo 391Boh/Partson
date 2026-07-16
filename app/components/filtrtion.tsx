@@ -164,7 +164,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   // instant) but only commit to the parent — which feeds straight into the
   // catalog fetch's cache key — after a pause, instead of firing a full
   // /api/catalog-page request per digit typed.
-  const PRICE_RANGE_DEBOUNCE_MS = 400;
+  const PRICE_RANGE_DEBOUNCE_MS = 220;
   const [localPriceFrom, setLocalPriceFrom] = useState(priceFrom);
   const [localPriceTo, setLocalPriceTo] = useState(priceTo);
   const priceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -200,8 +200,17 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       cancelPendingPriceCommit();
       priceDebounceRef.current = setTimeout(() => {
         priceDebounceRef.current = null;
-        lastCommittedPriceRef.current = { from, to };
-        onPriceRangeChange?.(from, to);
+        const normalizedFrom =
+          from !== null && to !== null && from > to ? to : from;
+        const normalizedTo =
+          from !== null && to !== null && from > to ? from : to;
+        lastCommittedPriceRef.current = {
+          from: normalizedFrom,
+          to: normalizedTo,
+        };
+        setLocalPriceFrom(normalizedFrom);
+        setLocalPriceTo(normalizedTo);
+        onPriceRangeChange?.(normalizedFrom, normalizedTo);
       }, PRICE_RANGE_DEBOUNCE_MS);
     },
     [cancelPendingPriceCommit, onPriceRangeChange]
@@ -537,6 +546,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     nextParams.delete('producer');
     nextParams.delete('search');
     nextParams.delete('filter');
+    nextParams.delete('carSearch');
     nextParams.delete('reset');
     const nextQuery = nextParams.toString();
     if (nextQuery !== searchParamsKey) {
@@ -720,8 +730,15 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                         // category, the same way selecting a category (see
                         // katkomp.tsx's buildSelectionHref) already preserves
                         // an existing producer.
-                        nextParams.delete('search');
-                        nextParams.delete('filter');
+                        const preservesCarSearch =
+                          nextParams.get('carSearch') === '1' &&
+                          Boolean(nextParams.get('search')) &&
+                          nextParams.get('filter') === 'description';
+                        if (!preservesCarSearch) {
+                          nextParams.delete('search');
+                          nextParams.delete('filter');
+                          nextParams.delete('carSearch');
+                        }
                         nextParams.delete('reset');
                         nextParams.set('tab', 'producer');
                         router.replace(
@@ -1010,7 +1027,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 </span>
                 {!isSortNone && (
                   <span className="text-[11px] font-semibold leading-none">
-                    {isSortAsc ? '↓' : '↑'}
+                    {isSortAsc ? '↑' : '↓'}
                   </span>
                 )}
               </span>

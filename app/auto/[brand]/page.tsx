@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { notFound } from "next/navigation";
-import { ArrowRight, CarFront, Layers3 } from "lucide-react";
+import { ArrowRight, CarFront, Layers3, Search, ShieldCheck } from "lucide-react";
 
 import ModelsDirectoryClient from "app/auto/[brand]/ModelsDirectoryClient";
 import CatalogHubHero from "app/components/CatalogHubHero";
+import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import { carBrands } from "app/components/carBrands";
 import { findCarBrandBySlug, getModelsForBrand } from "app/lib/auto-directory-data";
@@ -18,19 +19,16 @@ import { getSiteUrl } from "app/lib/site-url";
 export const revalidate = 21600;
 export const dynamicParams = true;
 
-const AUTO_BRAND_STATIC_PARAMS_LIMIT_DEFAULT = 0;
+// Every brand page is in auto-sitemap.xml and the list itself is static data
+// (no 1C call needed to enumerate it) — cheap to pre-render in full, so the
+// default covers all of it (see .env.example for the current real count).
+const AUTO_BRAND_STATIC_PARAMS_LIMIT_DEFAULT = 100;
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric < 0) return fallbackValue;
   return Math.floor(numeric);
 };
-
-// Every brand page is in auto-sitemap.xml and the list itself is static data
-// (no 1C call needed to enumerate it) — cheap to pre-render in full. Still
-// gated behind an env limit like every other SEO_*_STATIC_PARAMS_LIMIT in
-// this app, defaulting to 0/disabled so a fresh checkout builds fast until
-// someone opts in (see .env.example).
 export async function generateStaticParams() {
   const limit = parsePositiveInt(
     process.env.SEO_AUTO_BRAND_STATIC_PARAMS_LIMIT,
@@ -173,7 +171,7 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
       />
 
       <div className="relative">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-sky-200/25 via-cyan-100/10 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_60%_74%_at_12%_0%,rgba(20,184,166,0.11),transparent_68%),radial-gradient(ellipse_58%_72%_at_88%_0%,rgba(14,165,233,0.12),transparent_68%)]" />
 
         <div className="page-shell-inline catalog-hub-stage relative flex flex-col py-3 sm:py-4 lg:py-5">
         <CatalogHubHero
@@ -206,6 +204,38 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
       </div>
 
       <ModelsDirectoryClient brand={brand.name} brandLogo={brand.logo} models={models} />
+
+      <CatalogSeoTextSection
+        badge={`Запчастини для ${brand.name}`}
+        title={`Як підібрати запчастини для ${brand.name} за моделлю`}
+        lead={`Оберіть свою модель ${brand.name}, щоб перейти до груп деталей і побачити товари, знайдені саме для цього автомобіля.`}
+        topics={[
+          {
+            title: "Оберіть модель",
+            text: "Знайдіть назву моделі через пошук або перегляньте весь список у зручному порядку.",
+            icon: Search,
+          },
+          {
+            title: "Відкрийте групу",
+            text: "На сторінці моделі товари розподілені за системами та групами, тому каталог простіше звузити.",
+            icon: Layers3,
+          },
+          {
+            title: "Перевірте деталь",
+            text: "Перед замовленням зіставте артикул і характеристики; якщо є сумнів, уточніть сумісність за VIN.",
+            icon: ShieldCheck,
+          },
+        ]}
+        paragraphs={[
+          `Сторінка марки ${brand.name} допомагає почати підбір із конкретної моделі, а не переглядати весь каталог автозапчастин. Після вибору моделі відкриються доступні групи товарів і прямі переходи до результатів пошуку.`,
+          "Рік випуску, модифікація двигуна й комплектація можуть впливати на сумісність. Дані сторінки зручно використовувати для первинного відбору, а остаточний вибір варто підтвердити за каталоговим номером або VIN-кодом автомобіля.",
+        ]}
+        links={[
+          { href: "/auto", label: "Усі марки авто" },
+          { href: "/groups", label: "Групи запчастин" },
+          { href: "/manufacturers", label: "Виробники деталей" },
+        ]}
+      />
     </main>
   );
 }

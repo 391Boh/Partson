@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   ANALYTICS_CONSENT_COOKIE,
@@ -14,6 +21,74 @@ import {
 } from "app/lib/gtm";
 
 type ConsentChoice = "granted" | "denied";
+type AnalyticsMode = "gtm" | "gtag";
+
+type AnalyticsRuntimeProps = {
+  enabled: boolean;
+  mode: AnalyticsMode;
+  googleTagManagerId?: string;
+  googleAnalyticsId?: string;
+};
+
+type AnalyticsLoaderWindow = Window & {
+  __PARTSON_ANALYTICS_LOADER_STARTED__?: boolean;
+};
+
+const loadAnalyticsScript = (
+  mode: AnalyticsMode,
+  googleTagManagerId = "",
+  googleAnalyticsId = ""
+) => {
+  const analyticsWindow = window as AnalyticsLoaderWindow;
+  if (analyticsWindow.__PARTSON_ANALYTICS_LOADER_STARTED__) return;
+
+  if (mode === "gtm" && /^GTM-[A-Z0-9]+$/.test(googleTagManagerId)) {
+    analyticsWindow.__PARTSON_ANALYTICS_LOADER_STARTED__ = true;
+    (window.dataLayer ??= []).push({
+      "gtm.start": Date.now(),
+      event: "gtm.js",
+    });
+
+    const script = document.createElement("script");
+    script.id = "google-tag-manager";
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtm.js?id=${encodeURIComponent(
+      googleTagManagerId
+    )}`;
+    script.addEventListener(
+      "error",
+      () => {
+        analyticsWindow.__PARTSON_ANALYTICS_LOADER_STARTED__ = false;
+        script.remove();
+      },
+      { once: true }
+    );
+    document.head.appendChild(script);
+    return;
+  }
+
+  if (mode === "gtag" && /^G-[A-Z0-9]+$/.test(googleAnalyticsId)) {
+    analyticsWindow.__PARTSON_ANALYTICS_LOADER_STARTED__ = true;
+    window.gtag?.("js", new Date());
+    window.gtag?.("config", googleAnalyticsId, { send_page_view: false });
+
+    const script = document.createElement("script");
+    script.id = "google-tag-script";
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(
+      googleAnalyticsId
+    )}`;
+    script.addEventListener(
+      "error",
+      () => {
+        analyticsWindow.__PARTSON_ANALYTICS_LOADER_STARTED__ = false;
+        script.remove();
+      },
+      { once: true }
+    );
+    document.head.appendChild(script);
+  }
+};
 
 const readConsentChoice = (): ConsentChoice | null => {
   if (typeof document === "undefined") return null;
@@ -53,7 +128,7 @@ const sanitizeReferrer = (value: string) => {
   }
 };
 
-function AnalyticsPageViewTracker() {
+function AnalyticsPageViewTracker({ enabled }: { enabled: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const search = searchParams.toString();
@@ -65,7 +140,7 @@ function AnalyticsPageViewTracker() {
   const previousLocationRef = useRef("");
 
   useEffect(() => {
-    if (!pathname || lastRouteRef.current === routeKey) return;
+    if (!enabled || !pathname || lastRouteRef.current === routeKey) return;
 
     const safeLocation = buildSafeAnalyticsLocation(window.location);
     const safeUrl = new URL(safeLocation);
@@ -88,26 +163,36 @@ function AnalyticsPageViewTracker() {
 
     lastRouteRef.current = routeKey;
     previousLocationRef.current = safeLocation;
-  }, [pathname, routeKey, searchParams]);
+  }, [enabled, pathname, routeKey, searchParams]);
 
   return null;
 }
 
-function AnalyticsConsentBanner() {
+function AnalyticsConsentBanner({
+  onConsentChange,
+}: {
+  onConsentChange: (granted: boolean) => void;
+}) {
   const [choice, setChoice] = useState<ConsentChoice | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  // Render the first-time banner in the server HTML so it cannot appear late
+  // and become the LCP element after hydration. The tiny consent bootstrap in
+  // <head> hides it before paint for returning visitors.
+  const [isOpen, setIsOpen] = useState(true);
 
   useEffect(() => {
     const storedChoice = readConsentChoice();
     setChoice(storedChoice);
     setIsOpen(storedChoice === null);
+    document.documentElement.dataset.analyticsConsent = storedChoice ?? "unset";
 
     if (storedChoice) {
       updateAnalyticsConsent(storedChoice === "granted");
     }
+    onConsentChange(storedChoice === "granted");
 
     const openSettings = () => {
       setChoice(readConsentChoice());
+      document.documentElement.dataset.analyticsConsent = "settings";
       setIsOpen(true);
     };
     window.addEventListener(ANALYTICS_CONSENT_SETTINGS_EVENT, openSettings);
@@ -116,12 +201,14 @@ function AnalyticsConsentBanner() {
         ANALYTICS_CONSENT_SETTINGS_EVENT,
         openSettings
       );
-  }, []);
+  }, [onConsentChange]);
 
   const selectChoice = (nextChoice: ConsentChoice) => {
     persistConsentChoice(nextChoice);
     setChoice(nextChoice);
+    document.documentElement.dataset.analyticsConsent = nextChoice;
     updateAnalyticsConsent(nextChoice === "granted");
+    onConsentChange(nextChoice === "granted");
     setIsOpen(false);
   };
 
@@ -132,7 +219,7 @@ function AnalyticsConsentBanner() {
       role="dialog"
       aria-modal="false"
       aria-labelledby="analytics-consent-title"
-      className="fixed inset-x-3 bottom-3 z-[120] mx-auto max-w-3xl overflow-hidden rounded-[20px] border border-slate-200/90 bg-white/95 p-3.5 shadow-[0_24px_70px_rgba(15,23,42,0.24)] ring-1 ring-white backdrop-blur-xl sm:bottom-5 sm:p-4"
+      className="analytics-consent-banner fixed inset-x-3 bottom-3 z-[120] mx-auto max-w-3xl overflow-hidden rounded-[20px] border border-slate-200/90 bg-white/95 p-3.5 shadow-[0_24px_70px_rgba(15,23,42,0.24)] ring-1 ring-white backdrop-blur-xl sm:bottom-5 sm:p-4"
     >
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div className="min-w-0">
@@ -144,10 +231,11 @@ function AnalyticsConsentBanner() {
           </p>
           <p className="mt-1 text-[12px] font-medium leading-5 text-slate-600 sm:text-[12.5px]">
             Google Analytics допомагає покращувати каталог і оформлення
-            замовлень. До згоди можливі лише обмежені сигнали без аналітичних
-            cookies; рекламне зберігання та персоналізацію вимкнено. Деталі — у{" "}
+            замовлень. До згоди аналітичні скрипти не завантажуються;
+            рекламне зберігання та персоналізацію вимкнено. Деталі — у{" "}
             <Link
               href="/inform/privacy"
+              prefetch={false}
               className="font-bold text-sky-700 underline decoration-sky-200 underline-offset-2 hover:text-sky-900"
             >
               політиці конфіденційності
@@ -172,7 +260,7 @@ function AnalyticsConsentBanner() {
           <button
             type="button"
             onClick={() => selectChoice("granted")}
-            className="inline-flex min-h-10 items-center justify-center rounded-[13px] border border-sky-500 bg-sky-600 px-3 text-[12px] font-extrabold text-white shadow-[0_10px_24px_rgba(2,132,199,0.24)] transition hover:bg-sky-700"
+            className="inline-flex min-h-10 items-center justify-center rounded-[13px] border border-sky-700 bg-sky-700 px-3 text-[12px] font-extrabold text-white shadow-[0_10px_24px_rgba(2,132,199,0.24)] transition hover:bg-sky-800"
           >
             Дозволити
           </button>
@@ -182,13 +270,31 @@ function AnalyticsConsentBanner() {
   );
 }
 
-export default function AnalyticsRuntime({ enabled }: { enabled: boolean }) {
+export default function AnalyticsRuntime({
+  enabled,
+  mode,
+  googleTagManagerId,
+  googleAnalyticsId,
+}: AnalyticsRuntimeProps) {
+  const [analyticsGranted, setAnalyticsGranted] = useState(false);
+  const handleConsentChange = useCallback(
+    (granted: boolean) => {
+      setAnalyticsGranted(granted);
+      if (granted) {
+        loadAnalyticsScript(mode, googleTagManagerId, googleAnalyticsId);
+      }
+    },
+    [googleAnalyticsId, googleTagManagerId, mode]
+  );
+
   if (!enabled) return null;
 
   return (
     <>
-      <AnalyticsPageViewTracker />
-      <AnalyticsConsentBanner />
+      <Suspense fallback={null}>
+        <AnalyticsPageViewTracker enabled={analyticsGranted} />
+      </Suspense>
+      <AnalyticsConsentBanner onConsentChange={handleConsentChange} />
     </>
   );
 }

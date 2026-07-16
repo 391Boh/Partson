@@ -9,6 +9,7 @@ type PaymentMethodValue = React.ComponentProps<typeof PaymentMethod>['paymentMet
 interface CheckoutOrderData {
   name: string;
   phone: string;
+  email: string;
   amount: number;
   orderId: string;
   paymentMethod: PaymentMethodValue;
@@ -22,6 +23,7 @@ const Checkout: React.FC = () => {
   const [orderData, setOrderData] = useState<CheckoutOrderData>({
     name: 'User',
     phone: '0991234567',
+    email: 'customer@example.com',
     amount: 200,
     orderId: 'ORDER123',
     paymentMethod: '',
@@ -68,7 +70,10 @@ const Checkout: React.FC = () => {
         <OrderConfirmation
           name={orderData.name}
           phone={orderData.phone}
+          email={orderData.email}
           orderId={orderData.orderId}
+          deliveryCountry="UA"
+          estimatedDeliveryDate="2026-07-20"
           totalAmount={orderData.amount}
           paymentMethod={orderData.paymentMethod}
           paymentStatus={orderData.paymentStatus}

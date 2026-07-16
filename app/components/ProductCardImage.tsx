@@ -10,7 +10,6 @@ import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import {
   readProductImageSuccess,
-  readProductImageMissing,
   writeProductImageSuccess,
   writeProductImageMissing,
   clearProductImageSuccess,
@@ -86,7 +85,10 @@ const ProductCardImage: React.FC<Props> = ({
     return primarySrc;
   });
   const [status, setStatus] = useState<ImageStatus>(() => {
-    if (!hasKnownPhoto || batchImageMissing) return "missing";
+    // A batch miss is not authoritative: the lightweight lookup can time out
+    // or miss an image that the direct product route can still resolve. Only
+    // explicit product metadata may skip the image request altogether.
+    if (!hasKnownPhoto) return "missing";
     return "loading";
   });
 
@@ -112,9 +114,8 @@ const ProductCardImage: React.FC<Props> = ({
     statusRef.current = status;
   }, [status]);
 
-  const handleLoad = useCallback((event: React.SyntheticEvent<HTMLImageElement>) => {
-    const currentTarget = event.currentTarget;
-    const nextSrc = currentTarget.currentSrc || currentTarget.src || requestSrc;
+  const commitLoadedImage = useCallback((image: HTMLImageElement) => {
+    const nextSrc = image.currentSrc || image.src || requestSrc;
     const loadedPath = normalizeSrcPath(nextSrc);
 
     if (loadedPath && loadedPath === PRODUCT_IMAGE_FALLBACK_PATH.toLowerCase()) {
@@ -136,6 +137,13 @@ const ProductCardImage: React.FC<Props> = ({
     setStatus("loaded");
   }, [normalizedArticle, normalizedCode, requestSrc]);
 
+  const handleLoad = useCallback(
+    (event: React.SyntheticEvent<HTMLImageElement>) => {
+      commitLoadedImage(event.currentTarget);
+    },
+    [commitLoadedImage]
+  );
+
   useEffect(() => {
     let deferredLoadTimer: number | null = null;
 
@@ -156,13 +164,12 @@ const ProductCardImage: React.FC<Props> = ({
       return () => {};
     }
 
+    // Batch loading is only a warm-up optimization. A non-transient batch miss
+    // must release the card to its direct route instead of replacing a valid
+    // image with a placeholder. It also clears a stale miss written by older
+    // clients, so the direct request below gets a genuine recovery attempt.
     if (batchImageMissing) {
-      directFallbackQueuedRef.current = false;
-      writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
-      setRequestSrc("");
-      setStatus("missing");
-      setFinalRetryQueued(true);
-      return () => {};
+      clearProductImageMissing(normalizedCode, normalizedArticle || undefined);
     }
 
     const cachedSrc = readProductImageSuccess(normalizedCode, normalizedArticle || undefined);
@@ -184,14 +191,6 @@ const ProductCardImage: React.FC<Props> = ({
     if (!hasKnownPhoto) {
       directFallbackQueuedRef.current = false;
       writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
-      setRequestSrc("");
-      setStatus("missing");
-      setFinalRetryQueued(false);
-      return () => {};
-    }
-
-    if (readProductImageMissing(normalizedCode, normalizedArticle || undefined)) {
-      directFallbackQueuedRef.current = false;
       setRequestSrc("");
       setStatus("missing");
       setFinalRetryQueued(false);
@@ -266,7 +265,6 @@ const ProductCardImage: React.FC<Props> = ({
   useEffect(() => {
     if (!hasKnownPhoto) return;
     if (disableDirectLoad) return;
-    if (batchImageMissing) return;
     if (status !== "missing") return;
     if (!finalRetrySrc) return;
     if (finalRetryQueued) return;
@@ -278,7 +276,7 @@ const ProductCardImage: React.FC<Props> = ({
     }, FINAL_RETRY_DELAY_MS);
 
     return () => window.clearTimeout(timeoutId);
-  }, [batchImageMissing, disableDirectLoad, finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
+  }, [disableDirectLoad, finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
 
 
   const handleError = useCallback(() => {
@@ -344,11 +342,25 @@ const ProductCardImage: React.FC<Props> = ({
     requestSrc,
   ]);
 
+  // A prefetched/data-URI image can finish before React attaches onLoad during
+  // hydration. Inspect the DOM node as soon as the ref is attached so a real,
+  // already decoded image cannot remain hidden behind the catalog skeleton.
+  const handleImageRef = useCallback(
+    (image: HTMLImageElement | null) => {
+      if (!image || !requestSrc || !image.complete) return;
+      if (image.naturalWidth > 0) {
+        commitLoadedImage(image);
+        return;
+      }
+      handleError();
+    },
+    [commitLoadedImage, handleError, requestSrc]
+  );
+
 
   const canOpen = Boolean(onClick) && status === "loaded";
   const imageAlt = (alt || "Фото товару").trim();
-  const showLoadingSkeleton =
-    status !== "loaded" && status !== "missing" && (status === "loading" || batchImagePending || !requestSrc);
+  const showLoadingSkeleton = status === "loading" || status === "retrying";
   const showPlaceholder = status === "missing";
   const imageDecodingMode = fetchPriority === "high" ? "sync" : "async";
   const imageFadeClass = "duration-0";
@@ -402,6 +414,7 @@ const ProductCardImage: React.FC<Props> = ({
           )}
           {requestSrc && (
             <Image
+              ref={handleImageRef}
               key={requestSrc}
               src={requestSrc}
               alt={imageAlt}

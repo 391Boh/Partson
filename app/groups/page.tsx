@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { ChevronRight, FolderTree, Layers3 } from "lucide-react";
+import { ChevronRight, FolderTree, Layers3, PackageSearch } from "lucide-react";
 
+import CatalogDirectoryGuide from "app/components/CatalogDirectoryGuide";
 import CatalogHubHero from "app/components/CatalogHubHero";
+import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import GroupsDirectoryClient from "app/groups/GroupsDirectoryClient";
 import { getFullGroupsDirectoryData } from "app/lib/groups-directory-data";
@@ -38,18 +40,6 @@ const buildGroupsPageDescription = (
     `Категорії автозапчастин PartsON: ${countSummary} для підбору деталей за групою, назвою, артикулом або VIN. Самовивіз у Львові й доставка по Україні.${indexedSummary}`
   );
 };
-
-const groupsIntroParagraphs = [
-  "Сторінка груп товарів потрібна не для перегляду сухих лічильників, а для швидкої навігації по вузлах автомобіля. Тут користувач бачить зрозумілі назви груп, підгруп і кінцевих категорій, щоб відразу перейти до релевантного каталогу без зайвого ручного пошуку.",
-  "Кожна сторінка групи на PartsON веде до конкретного каталожного напрямку: підвіска, гальмівна система, деталі двигуна, фільтри, електрика, охолодження та інші вузли. Це допомагає знаходити потрібні запчастини за логікою ремонту, а не лише за кількістю товарів у вибірці.",
-];
-
-const groupsIntroHighlights = [
-  "зрозумілі назви груп, підгруп і кінцевих категорій;",
-  "швидкий перехід у каталог з уже підготовленою структурою підбору;",
-  "сторінки під комерційні запити по вузлах і типах автозапчастин;",
-  "пошук деталей за категорією, артикулом, назвою або VIN;",
-];
 
 export async function generateMetadata(): Promise<Metadata> {
   const {
@@ -170,7 +160,7 @@ export default async function GroupsPage() {
   return (
     <main className={catalogPageBackgroundClass}>
       <div className="relative">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-sky-200/25 via-cyan-100/10 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_60%_74%_at_12%_0%,rgba(20,184,166,0.11),transparent_68%),radial-gradient(ellipse_58%_72%_at_88%_0%,rgba(14,165,233,0.12),transparent_68%)]" />
 
         <div className={`${catalogShellClass} catalog-hub-stage relative flex flex-col py-3 sm:py-4 lg:py-5`}>
           <CatalogHubHero
@@ -214,53 +204,41 @@ export default async function GroupsPage() {
                 href: `/groups/${group.slug}`,
                 label: buildVisibleProductName(group.label),
                 icon: ChevronRight,
-                prefetchOnViewport: true,
               })),
             ]}
           />
 
-          <h1 className="sr-only">Категорії автозапчастин і групи товарів PartsON</h1>
         </div>
       </div>
 
-      <section className="relative pb-2 pt-0 sm:pb-3">
-        <div className={catalogShellClass}>
-          <div className="rounded-[28px] border border-white/80 bg-white/88 p-5 shadow-[0_22px_48px_rgba(14,165,233,0.12)] backdrop-blur-xl sm:p-6">
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.95fr)]">
-              <div>
-                <p className="directory-kicker text-[11px] uppercase text-sky-800">
-                  Опис каталогу груп
-                </p>
-                <h2 className="directory-heading mt-2 text-xl text-slate-900 sm:text-2xl">
-                  Як користуватися сторінкою груп товарів
-                </h2>
-                <div className="mt-3 space-y-3 text-sm leading-6 text-slate-600 sm:text-[15px]">
-                  {groupsIntroParagraphs.map((paragraph) => (
-                    <p key={paragraph}>{paragraph}</p>
-                  ))}
-                </div>
-              </div>
-
-              <aside className="rounded-[22px] border border-sky-100/80 bg-[linear-gradient(165deg,rgba(240,249,255,0.96),rgba(236,254,255,0.92),rgba(255,255,255,0.98))] p-4 shadow-[0_16px_34px_rgba(14,165,233,0.08)]">
-                <p className="directory-kicker text-[11px] uppercase text-sky-800">
-                  Що дає ця сторінка
-                </p>
-                <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">
-                  {groupsIntroHighlights.map((highlight) => (
-                    <li
-                      key={highlight}
-                      className="flex items-start gap-2 border-b border-white/70 pb-2 last:border-b-0 last:pb-0"
-                    >
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
-                      <span>{highlight}</span>
-                    </li>
-                  ))}
-                </ul>
-              </aside>
-            </div>
-          </div>
-        </div>
-      </section>
+      <CatalogDirectoryGuide
+        badge="Навігація за вузлом авто"
+        title="Від системи автомобіля до конкретної групи запчастин"
+        paragraphs={[
+          "Групи впорядковують каталог за логікою ремонту: підвіска, гальма, двигун, фільтри, електрика, охолодження та інші системи автомобіля.",
+          "Оберіть напрямок, уточніть підгрупу або кінцеву категорію — і відкрийте добірку товарів із уже підготовленим фільтром.",
+        ]}
+        steps={[
+          {
+            label: "Крок 1",
+            title: "Оберіть систему",
+            description: "Почніть із вузла автомобіля або знайдіть його за назвою.",
+            icon: Layers3,
+          },
+          {
+            label: "Крок 2",
+            title: "Уточніть групу",
+            description: "Перейдіть до підгрупи чи конкретного типу запчастини.",
+            icon: FolderTree,
+          },
+          {
+            label: "Крок 3",
+            title: "Перегляньте товари",
+            description: "Отримайте релевантні позиції та продовжте пошук у каталозі.",
+            icon: PackageSearch,
+          },
+        ]}
+      />
 
       {hasResolvedGroups ? (
         <GroupsDirectoryClient
@@ -278,6 +256,38 @@ export default async function GroupsPage() {
           </div>
         </section>
       )}
+
+      <CatalogSeoTextSection
+        badge="Каталог за типом запчастини"
+        title="Як знайти автозапчастину за групою, категорією або вузлом авто"
+        lead="Структура груп допомагає перейти від системи автомобіля до конкретного типу деталі та відкрити релевантні товари з готовим фільтром."
+        topics={[
+          {
+            title: "Оберіть вузол автомобіля",
+            text: "Почніть із підвіски, гальм, двигуна, охолодження, електрики або іншої системи автомобіля.",
+            icon: Layers3,
+          },
+          {
+            title: "Уточніть категорію",
+            text: "Перейдіть від основної групи до підгрупи й конкретного типу запчастини, потрібного для ремонту.",
+            icon: FolderTree,
+          },
+          {
+            title: "Порівняйте товари",
+            text: "Перегляньте доступних виробників, актуальну наявність і ціни у сформованій добірці каталогу.",
+            icon: PackageSearch,
+          },
+        ]}
+        paragraphs={[
+          "Категорії автозапчастин PartsON охоплюють деталі двигуна, гальмівну й паливну системи, підвіску, рульове керування, фільтри, освітлення, кузовні компоненти, мастила та інші напрямки ремонту й обслуговування автомобіля.",
+          "Пошук за групою зручний, коли відомий тип деталі. Для точного підбору додатково вкажіть марку й модель авто, артикул або VIN-код. Замовлення доступні із самовивозом у Львові та доставкою по Україні.",
+        ]}
+        links={[
+          { href: "/katalog", label: "Перейти в каталог" },
+          { href: "/auto", label: "Підбір за авто" },
+          { href: "/manufacturers", label: "Виробники" },
+        ]}
+      />
 
       <script
         type="application/ld+json"

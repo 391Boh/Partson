@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
-import { getSiteUrl } from "app/lib/site-url";
-import { safeJsonLd } from "app/lib/safe-json-ld";
 
 const infoDescription = appendSeoContact(
   "Інформація PartsON: доставка, оплата, контакти, повернення, гарантія, локація магазину та комп'ютерна діагностика авто у Львові."
@@ -34,39 +32,5 @@ export const metadata: Metadata = buildPageMetadata({
 });
 
 export default function InformLayout({ children }: { children: ReactNode }) {
-  const siteUrl = getSiteUrl();
-  const infoPageJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "AboutPage",
-    name: "Інформація про магазин PartsON",
-    url: `${siteUrl}/inform`,
-    description: infoDescription,
-    isPartOf: {
-      "@type": "WebSite",
-      name: "PartsON",
-      url: siteUrl,
-    },
-    mainEntity: {
-      "@type": "AutoPartsStore",
-      name: "PartsON",
-      telephone: "+380634211851",
-      email: "romaniukbboogg@gmail.com",
-      address: {
-        "@type": "PostalAddress",
-        streetAddress: "вул. Перфецького, 8",
-        addressLocality: "Львів",
-        addressCountry: "UA",
-      },
-    },
-  };
-
-  return (
-    <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(infoPageJsonLd) }}
-      />
-      {children}
-    </>
-  );
+  return children;
 }

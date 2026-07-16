@@ -54,6 +54,7 @@ const collectProducerItems = async (group: string, subcategory: string) => {
       includePriceEnrichment: false,
       preferLegacySource: false,
       forceAllgoodsSource: true,
+      expandHierarchy: true,
       timeoutMs: TIMEOUT_MS,
       retries: 0,
       retryDelayMs: 100,
@@ -95,7 +96,12 @@ const collectProducerItems = async (group: string, subcategory: string) => {
       label: entry.label,
       slug: buildPlainSeoSlug(entry.label),
       productCount: entry.productKeys.size,
-      catalogPath: buildCatalogProducerPath(entry.label, group || undefined, subcategory),
+      catalogPath: buildCatalogProducerPath(
+        entry.label,
+        group || undefined,
+        subcategory,
+        { expandHierarchy: true }
+      ),
       manufacturerPath: buildManufacturerPath(entry.label),
     }))
     .filter((entry) => entry.productCount > 0)
