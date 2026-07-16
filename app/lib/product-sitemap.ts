@@ -49,6 +49,23 @@ const PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS = parsePositiveInt(
   6000
 );
 
+// A single slow/dropped 1C response used to abort the whole sitemap/feed
+// build with zero retries — one transient timeout on page 1 meant an empty
+// Google Merchant feed run. Retry a couple of times before giving up, and
+// size the outer fallback window to fit every attempt plus backoff.
+const PRODUCT_SITEMAP_SOURCE_RETRIES = parsePositiveInt(
+  process.env.PRODUCT_SITEMAP_SOURCE_RETRIES,
+  2
+);
+const PRODUCT_SITEMAP_SOURCE_RETRY_DELAY_MS = parsePositiveInt(
+  process.env.PRODUCT_SITEMAP_SOURCE_RETRY_DELAY_MS,
+  500
+);
+const PRODUCT_SITEMAP_SOURCE_FALLBACK_TIMEOUT_MS =
+  PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS * (PRODUCT_SITEMAP_SOURCE_RETRIES + 1) +
+  PRODUCT_SITEMAP_SOURCE_RETRY_DELAY_MS * PRODUCT_SITEMAP_SOURCE_RETRIES +
+  2000;
+
 const PRODUCT_SITEMAP_PRICE_LOOKUP_CHUNK_SIZE = parsePositiveInt(
   process.env.PRODUCT_SITEMAP_PRICE_LOOKUP_CHUNK_SIZE,
   40
@@ -329,11 +346,11 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
         forceAllgoodsSource: true,
         pricedItemsOnly: false,
         timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
-        retries: 0,
-        retryDelayMs: 180,
+        retries: PRODUCT_SITEMAP_SOURCE_RETRIES,
+        retryDelayMs: PRODUCT_SITEMAP_SOURCE_RETRY_DELAY_MS,
         cacheTtlMs: 1000 * 60 * 5,
       }),
-      PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000,
+      PRODUCT_SITEMAP_SOURCE_FALLBACK_TIMEOUT_MS,
       fallbackPageResult
     );
 
@@ -341,7 +358,7 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
       // Normal empty page, continue to the shared termination logic below.
     } else if (pageResult.items.length === 0) {
       const message = `Failed to fetch product sitemap source page for state "${requestState}"`;
-      const timeoutMessage = `Operation timed out after ${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS + 1000}ms`;
+      const timeoutMessage = `Operation timed out after ${PRODUCT_SITEMAP_SOURCE_FALLBACK_TIMEOUT_MS}ms (${PRODUCT_SITEMAP_SOURCE_RETRIES + 1} attempts of ${PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS}ms each)`;
       logProductSitemapFailure(message, timeoutMessage);
 
       if (batches.length === 0 && currentBatch.length === 0) {
