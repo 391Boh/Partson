@@ -240,6 +240,21 @@ const PRIMARY_WARMUP_ROUTES = [
   "/inform/privacy",
 ] as const;
 
+const shouldUseLightNetworkWarmup = () => {
+  const connection = (navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
+  }).connection;
+  const isSlowConnection =
+    Boolean(connection?.saveData) ||
+    (typeof connection?.effectiveType === "string" &&
+      connection.effectiveType.includes("2g"));
+  const deviceMemory = (navigator as Navigator & { deviceMemory?: number })
+    .deviceMemory;
+  const isLowMemoryDevice =
+    typeof deviceMemory === "number" && deviceMemory > 0 && deviceMemory <= 4;
+  return isSlowConnection || isLowMemoryDevice;
+};
+
 const isNavigationClick = (event: Event) => {
   const target = event.target;
   const element =
@@ -318,6 +333,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const pathnameValue = usePathname();
   const pathname = pathnameValue ?? "";
   const warmupStartedRef = useRef(false);
+  const primaryRoutePrefetchStartedRef = useRef(false);
   const previousPathnameRef = useRef(pathname);
   const adminPanelPathnameRef = useRef(pathname);
   const isDevelopment = process.env.NODE_ENV !== "production";
@@ -710,6 +726,30 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     };
   }, [isAdminPanelOpen, isChatOpen]);
 
+  // Route prefetching is cheap (Next.js dedupes/caches it) and pays off on
+  // every visit, unlike the heavier warmup below (chunk preloads, catalog
+  // fetches) which is intentionally opt-in. Kept independent of
+  // enableAggressiveWarmup so real visitors — who never set that env flag —
+  // still get it.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (primaryRoutePrefetchStartedRef.current) return;
+    // The homepage already loads its interactive sections as they approach
+    // the viewport; prefetching every primary route here would compete with
+    // the hero, fonts and category data during the first paint.
+    if (pathname === "/") return;
+    primaryRoutePrefetchStartedRef.current = true;
+
+    const frameId = window.requestAnimationFrame(() => {
+      const routes = shouldUseLightNetworkWarmup()
+        ? PRIMARY_WARMUP_ROUTES.slice(0, 4)
+        : PRIMARY_WARMUP_ROUTES;
+      routes.forEach((route) => router.prefetch(route));
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [pathname, router]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (warmupStartedRef.current) return;
@@ -720,18 +760,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     // hero, fonts and category data during the first load.
     if (pathname === "/" || !enableAggressiveWarmup) return;
 
-    const connection = (navigator as Navigator & {
-      connection?: { saveData?: boolean; effectiveType?: string };
-    }).connection;
-    const isSlowConnection =
-      Boolean(connection?.saveData) ||
-      (typeof connection?.effectiveType === "string" &&
-        connection.effectiveType.includes("2g"));
-    const deviceMemory = (navigator as Navigator & { deviceMemory?: number })
-      .deviceMemory;
-    const isLowMemoryDevice =
-      typeof deviceMemory === "number" && deviceMemory > 0 && deviceMemory <= 4;
-    const shouldUseLightWarmup = isSlowConnection || isLowMemoryDevice;
+    const shouldUseLightWarmup = shouldUseLightNetworkWarmup();
     const hasFreshGetProdCache = () => {
       try {
         const raw = window.sessionStorage.getItem(CATALOG_PRODUCTS_CACHE_KEY);
@@ -782,14 +811,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       try {
         void import("./tovar");
       } catch {}
-    };
-
-    const prefetchPrimaryRoutes = () => {
-      const routes = shouldUseLightWarmup
-        ? PRIMARY_WARMUP_ROUTES.slice(0, 4)
-        : PRIMARY_WARMUP_ROUTES;
-
-      routes.forEach((route) => router.prefetch(route));
     };
 
     let routesWarmed = false;
@@ -973,7 +994,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     if (!shouldUseLightWarmup) {
       initialWarmupFrameId = window.requestAnimationFrame(() => {
-        prefetchPrimaryRoutes();
         preloadCriticalChunks();
         if (enableAggressiveWarmup) {
           warmRoutesTimer = window.setTimeout(() => void warmRoutes(), 1800);
