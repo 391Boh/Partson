@@ -216,8 +216,7 @@ function AnalyticsConsentBanner({
 
   return (
     <aside
-      role="dialog"
-      aria-modal="false"
+      role="region"
       aria-labelledby="analytics-consent-title"
       className="analytics-consent-banner fixed inset-x-3 bottom-3 z-[120] mx-auto max-w-3xl overflow-hidden rounded-[20px] border border-slate-200/90 bg-white/95 p-3.5 shadow-[0_24px_70px_rgba(15,23,42,0.24)] ring-1 ring-white backdrop-blur-xl sm:bottom-5 sm:p-4"
     >

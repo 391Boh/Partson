@@ -470,6 +470,7 @@ export default function BrandCarousel({
               <div
                 key={pageIndex}
                 data-brand-page
+                role="group"
                 aria-label={`Сторінка ${pageIndex + 1} з ${totalPages}`}
                 className="w-full min-w-0 shrink-0 snap-start bg-transparent px-1.5 [scroll-snap-stop:always] sm:px-2"
               >
