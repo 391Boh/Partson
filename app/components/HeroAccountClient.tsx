@@ -84,13 +84,18 @@ export default function HeroAccountClient({
     };
   }, [isAuthReady, user, variant]);
 
+  // Guests always qualify (stable from first paint, no flicker risk).
+  // Logged-in users only qualify once the Firestore check confirms they have
+  // no prior orders. Before that check resolves, `user` is already a real
+  // object but `hasOrders` is still null — `!user || hasOrders === false`
+  // reads as true→false→(true|false) for that window: the item appeared
+  // optimistically, then got yanked out the instant login was confirmed,
+  // then possibly reappeared once the Firestore check landed. Wait for the
+  // full picture (auth ready, and the order check too if logged in) before
+  // computing the list at all, so it renders once and never changes.
+  const isBenefitsDataReady = isAuthReady && (!user || hasOrders !== null);
+
   const benefitItems = useMemo(() => {
-    // Guests always qualify (stable from first paint, no flicker risk).
-    // Logged-in users only qualify once the Firestore check confirms they
-    // have no prior orders — showing it optimistically before that resolves
-    // would mean yanking it away a moment later for anyone who already
-    // ordered, which reads as flicker. Hidden-then-appearing is the safer
-    // direction: growing a list is far less jarring than shrinking one.
     const showDiscount = !user || hasOrders === false;
 
     return [
@@ -200,22 +205,37 @@ export default function HeroAccountClient({
         </div>
       </div>
       <ul className="space-y-2 text-[13px] font-semibold tracking-[-0.01em] text-white sm:text-[15px]">
-        {benefitItems.map(({ label, onClick }) => (
-          <li key={label}>
-            <button
-              type="button"
-              onClick={onClick}
-              className="group home-chip-hover w-full flex cursor-pointer items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-sky-300/50 motion-safe:hover:bg-[image:linear-gradient(120deg,rgba(56,189,248,0.16)_0%,rgba(255,255,255,0.10)_100%)]"
-            >
-              <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-emerald-400/70 text-emerald-300/90 transition-colors duration-200 group-hover:border-emerald-300 group-hover:text-emerald-200">
-                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M5 12l4 4 10-10" />
-                </svg>
-              </span>
-              <span className="text-[13px] transition-all duration-200 group-hover:text-[13.5px] group-hover:text-sky-100 sm:text-[15px] sm:group-hover:text-[15.5px]">{label}</span>
-            </button>
-          </li>
-        ))}
+        {isBenefitsDataReady ? (
+          benefitItems.map(({ label, onClick }) => (
+            <li key={label}>
+              <button
+                type="button"
+                onClick={onClick}
+                className="group home-chip-hover w-full flex cursor-pointer items-center gap-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-sky-300/50 motion-safe:hover:bg-[image:linear-gradient(120deg,rgba(56,189,248,0.16)_0%,rgba(255,255,255,0.10)_100%)]"
+              >
+                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-emerald-400/70 text-emerald-300/90 transition-colors duration-200 group-hover:border-emerald-300 group-hover:text-emerald-200">
+                  <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M5 12l4 4 10-10" />
+                  </svg>
+                </span>
+                <span className="text-[13px] transition-all duration-200 group-hover:text-[13.5px] group-hover:text-sky-100 sm:text-[15px] sm:group-hover:text-[15.5px]">{label}</span>
+              </button>
+            </li>
+          ))
+        ) : (
+          // Same list, not yet known whether the discount row belongs — a
+          // static-height skeleton avoids the row count (and card height)
+          // changing once isBenefitsDataReady flips, instead of rendering
+          // an optimistic guess that then has to be corrected.
+          <>
+            <li aria-hidden="true">
+              <span className="block h-[38px] animate-pulse rounded-lg border border-white/10 bg-white/5" />
+            </li>
+            <li aria-hidden="true">
+              <span className="block h-[38px] animate-pulse rounded-lg border border-white/10 bg-white/5" />
+            </li>
+          </>
+        )}
       </ul>
     </div>
   );
