@@ -63,15 +63,16 @@ const nextConfig: NextConfig = {
       dynamic: 1800,
       static: 7200,
     },
-    optimizePackageImports: [
-      "lucide-react",
-      "react-icons",
-      "framer-motion",
-      "firebase/app",
-      "firebase/auth",
-      "firebase/firestore",
-      "firebase/storage",
-    ],
+    // firebase/* used to be in this list too. This codebase lazily
+    // `import()`s firebase/app, firebase/auth and firebase/firestore from
+    // several places (app/lib/firebase-auth-state.ts, LayoutHost.tsx,
+    // HeroAccountClient.tsx, Auto.tsx) so they land in their own async
+    // webpack chunk rather than the main bundle. Combined with barrel-file
+    // optimization, that chunk's `initializeApp` import resolved to an
+    // object without the function on it at runtime ("... is not a
+    // function"), reproducing on every load, not just a stale dev cache.
+    // The tree-shaking win isn't worth breaking firebase init.
+    optimizePackageImports: ["lucide-react", "react-icons", "framer-motion"],
   },
   webpack(config, { dev }) {
     if (dev) {
