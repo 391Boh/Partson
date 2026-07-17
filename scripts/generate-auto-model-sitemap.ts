@@ -19,6 +19,20 @@ const MODEL_CHECK_CONCURRENCY = parsePositiveInt(
   12
 );
 
+// hasAnyModelProducts' per-request timeout (app/lib/auto-directory-data.ts)
+// was raised from 1500ms/0 retries to 4000ms/1 retry to stop 1C timeouts
+// from being misread as "no products" — correct, but it also raised this
+// script's worst case (every one of 5444 pairs, up to 3 tiers each,
+// genuinely timing out) from ~34 minutes to multiple hours, which is what
+// "hung" a production build when 1C was degraded. Bound the whole run: once
+// the budget is spent, skip remaining pairs instead of still waiting on
+// each one — a build step should degrade to "used what it had time for",
+// never to "ran for hours".
+const RUN_BUDGET_MS = parsePositiveInt(
+  process.env.AUTO_MODEL_SITEMAP_BUDGET_MS,
+  6 * 60 * 1000
+);
+
 // oneC.js caps the "allgoods" endpoint at 4 concurrent requests by default —
 // a deliberate limit protecting 1C during normal site traffic. This script
 // runs as its own separate process (not the live site), so it's safe to ask
@@ -95,9 +109,16 @@ async function run(outputPath: string, startedAt: number) {
   console.log(`ℹ️  Марок: ${carBrands.length}, моделей до перевірки: ${pairs.length}`);
 
   let checked = 0;
+  let skippedForBudget = 0;
   const verifiedKeys: string[] = [];
+  const runDeadline = startedAt + RUN_BUDGET_MS;
 
   await mapWithConcurrency(pairs, MODEL_CHECK_CONCURRENCY, async (pair) => {
+    if (Date.now() >= runDeadline) {
+      skippedForBudget += 1;
+      return;
+    }
+
     const hasProducts = await hasAnyModelProducts(pair.brand, pair.model).catch(() => false);
     checked += 1;
     if (hasProducts) {
@@ -108,12 +129,20 @@ async function run(outputPath: string, startedAt: number) {
     }
   });
 
+  if (skippedForBudget > 0) {
+    console.warn(
+      `⚠️  Часовий бюджет (${RUN_BUDGET_MS / 1000}с) вичерпано — пропущено ${skippedForBudget}/${pairs.length} ще не перевірених пар (лишились у попередньому стані, не позначені як "з товарами").`
+    );
+  }
+
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(
     outputPath,
     `${JSON.stringify({
       generatedAt: new Date().toISOString(),
       totalModelsChecked: pairs.length,
+      checkedCount: checked,
+      skippedForBudget,
       verifiedCount: verifiedKeys.length,
       verifiedKeys,
     })}\n`,
