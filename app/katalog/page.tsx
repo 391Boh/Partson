@@ -810,12 +810,12 @@ const CatalogSeoSnapshot = ({
             <div className="min-w-0">
               {/* Хлібні крихти-бейдж */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-100 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-600 shadow-sm">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-100 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-700 shadow-sm">
                   <PackageSearch size={11} aria-hidden />
                   Каталог PartsON
                 </span>
                 {breadcrumbParts.length > 0 && (
-                  <span className="inline-flex min-w-0 flex-wrap items-center gap-1 text-[11px] font-semibold text-slate-400">
+                  <span className="inline-flex min-w-0 flex-wrap items-center gap-1 text-[11px] font-semibold text-slate-500">
                     {breadcrumbParts.map((part, i) => (
                       <span key={part} className="inline-flex min-w-0 items-center gap-1">
                         {i > 0 && <span className="text-slate-300" aria-hidden>/</span>}
@@ -836,7 +836,7 @@ const CatalogSeoSnapshot = ({
 
               {/* H3 — підзаголовок з ключовими словами (не дублює h2) */}
               {seoSubheading && (
-                <h3 className="mt-1.5 max-w-2xl text-[13px] font-bold text-sky-600 sm:text-[14px]">
+                <h3 className="mt-1.5 max-w-2xl text-[13px] font-bold text-sky-700 sm:text-[14px]">
                   {seoSubheading}
                 </h3>
               )}
@@ -860,7 +860,7 @@ const CatalogSeoSnapshot = ({
                     <Phone size={14} aria-hidden />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-slate-400">Консультація</span>
+                    <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-slate-500">Консультація</span>
                     <span className="block truncate">{STORE_PHONE_DISPLAY}</span>
                   </span>
                 </a>
@@ -873,7 +873,7 @@ const CatalogSeoSnapshot = ({
                     <MapPin size={14} aria-hidden />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-slate-400">Магазин</span>
+                    <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-slate-500">Магазин</span>
                     <span className="block truncate">{STORE_ADDRESS}</span>
                   </span>
                 </Link>
@@ -886,7 +886,7 @@ const CatalogSeoSnapshot = ({
                     <Truck size={14} aria-hidden />
                   </span>
                   <span>
-                    <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-slate-400">Доставка</span>
+                    <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-slate-500">Доставка</span>
                     Нова Пошта
                   </span>
                 </Link>
@@ -901,7 +901,7 @@ const CatalogSeoSnapshot = ({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[9.5px] font-black uppercase tracking-[0.16em] text-sky-500">
+                  <p className="text-[9.5px] font-black uppercase tracking-[0.16em] text-sky-700">
                     {countLabel}
                   </p>
                   <p className="mt-1 font-display text-[2.1rem] font-black leading-none text-slate-900">
@@ -923,7 +923,7 @@ const CatalogSeoSnapshot = ({
                   </span>
                 </p>
                 {hasMore && !hasExactCount ? (
-                  <p className="mt-0.5 text-[11px] text-slate-400">
+                  <p className="mt-0.5 text-[11px] text-slate-500">
                     список оновлюється під час перегляду
                   </p>
                 ) : (
@@ -941,7 +941,7 @@ const CatalogSeoSnapshot = ({
         {visibleItems.length > 0 && (
           <div className="px-4 py-5 sm:px-6" data-nosnippet>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
                 Позиції каталогу
               </p>
               <Link
@@ -964,7 +964,7 @@ const CatalogSeoSnapshot = ({
                       <span className="line-clamp-2 text-[12.5px] font-bold leading-[1.45] text-slate-800 group-hover:text-sky-700">
                         {visibleName}
                       </span>
-                      <span className="mt-1 line-clamp-1 text-[11px] font-medium text-slate-400">
+                      <span className="mt-1 line-clamp-1 text-[11px] font-medium text-slate-500">
                         {[item.producer, item.article].filter(Boolean).join(" · ")}
                       </span>
                     </a>
@@ -991,7 +991,7 @@ const CatalogSeoSnapshot = ({
                     </h3>
                     <Link
                       href="/groups"
-                      className="inline-flex items-center gap-1 text-[12px] font-bold text-sky-600 transition hover:text-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                      className="inline-flex items-center gap-1 text-[12px] font-bold text-sky-700 transition hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                     >
                       Усі групи
                       <ArrowUpRight size={12} aria-hidden />
@@ -1020,7 +1020,7 @@ const CatalogSeoSnapshot = ({
                     </h3>
                     <Link
                       href="/manufacturers"
-                      className="inline-flex items-center gap-1 text-[12px] font-bold text-sky-600 transition hover:text-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                      className="inline-flex items-center gap-1 text-[12px] font-bold text-sky-700 transition hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                     >
                       Усі виробники
                       <ArrowUpRight size={12} aria-hidden />

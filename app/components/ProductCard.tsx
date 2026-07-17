@@ -764,6 +764,7 @@ useEffect(() => {
                         zIndex: isFrontVisible ? 2 : 1,
                     }}
                     aria-hidden={!isFrontVisible}
+                    inert={!isFrontVisible ? true : undefined}
                 >
                     {/* Р¤РѕС‚Рѕ + РЅР°Р·РІР° */}
                     <div
@@ -1351,6 +1352,7 @@ useEffect(() => {
         zIndex: isFrontVisible ? 1 : 2,
     }}
     aria-hidden={isFrontVisible}
+    inert={isFrontVisible ? true : undefined}
 >
     {/* Header: name + action buttons */}
     <div className="flex items-start gap-2 px-3 pt-2.5 pb-2 border-b border-slate-100/80 bg-gradient-to-r from-white to-slate-50/60 rounded-t-xl">

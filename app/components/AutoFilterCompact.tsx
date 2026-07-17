@@ -879,7 +879,10 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
                                     src={brand.logo}
-                                    alt={brand.name}
+                                    // Decorative: the brand name right below already labels this
+                                    // logo, so a repeated alt would have screen readers announce
+                                    // it twice.
+                                    alt=""
                                     className="h-6 w-6 object-contain"
                                     loading="lazy"
                                     onError={handleBrandLogoLoadError}
