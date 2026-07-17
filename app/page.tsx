@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { getGoogleRating } from "app/lib/google-rating";
 import { getProductTreeNodes } from "app/lib/product-tree";
 import { STORE_PHONE_SEO_LABEL, buildPageMetadata } from "app/lib/seo-metadata";
 import HomePageContent from "./components/HomePageContent";
@@ -45,10 +46,23 @@ export default async function HomePage() {
   // Seed the quick-search block from the server's six-hour product-tree cache.
   // Without this, reaching the section starts two sequential client requests
   // to 1C (version, then tree), so the block appears to stall during scroll.
-  const resolvedProductTree = await getProductTreeNodes().catch(() => []);
+  // Google rating is fetched the same way and for the same reason: without
+  // it, AdvantagesSection renders without the review badge, then fetches
+  // it client-side and grows once the badge appears — a real, measured
+  // layout shift that lands mid-scroll for anyone scrolling fast.
+  const [resolvedProductTree, googleRating] = await Promise.all([
+    getProductTreeNodes().catch(() => []),
+    getGoogleRating().catch(() => null),
+  ]);
   const initialProductTree = resolvedProductTree.length > 0
     ? resolvedProductTree
     : undefined;
 
-  return <HomePageContent initialProductTree={initialProductTree} />;
+  return (
+    <HomePageContent
+      initialProductTree={initialProductTree}
+      googleRatingValue={googleRating?.ratingValue}
+      googleReviewCount={googleRating?.reviewCount}
+    />
+  );
 }

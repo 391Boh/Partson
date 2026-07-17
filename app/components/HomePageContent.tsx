@@ -12,9 +12,13 @@ type InitialSyncedBrand = {
 export default function HomePageContent({
   initialSyncedBrands,
   initialProductTree,
+  googleRatingValue,
+  googleReviewCount,
 }: {
   initialSyncedBrands?: InitialSyncedBrand[];
   initialProductTree?: unknown;
+  googleRatingValue?: number;
+  googleReviewCount?: number;
 }) {
   return (
     <div className="home-static relative min-h-screen overflow-hidden text-white">
@@ -25,6 +29,8 @@ export default function HomePageContent({
       <HomeBelowFoldClient
         initialSyncedBrands={initialSyncedBrands}
         initialProductTree={initialProductTree}
+        googleRatingValue={googleRatingValue}
+        googleReviewCount={googleReviewCount}
       />
     </div>
   );
