@@ -4,14 +4,46 @@ import React, { useState, useRef, useMemo, useCallback, useEffect } from "react"
 import Image from "next/image";
 import { Car, Check, ChevronLeft, ChevronRight, HelpCircle, Plus, KeyRound, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../../firebase";
+import type { User } from "firebase/auth";
 import dynamic from "next/dynamic";
 import { carBrands, CarBrand } from "../components/carBrands";
 
 const CarModels = dynamic(() => import("./CarModels"), { ssr: false });
 const CarModifications = dynamic(() => import("./CarModifications"), { ssr: false });
+
+type AutoFirebaseDeps = {
+  auth: typeof import("../../firebase").auth;
+  db: typeof import("../../firebase").db;
+  onAuthStateChanged: typeof import("firebase/auth").onAuthStateChanged;
+  doc: typeof import("firebase/firestore").doc;
+  getDoc: typeof import("firebase/firestore").getDoc;
+  setDoc: typeof import("firebase/firestore").setDoc;
+};
+
+let autoFirebaseDepsPromise: Promise<AutoFirebaseDeps> | null = null;
+// Auto renders eagerly on the homepage (see HomeDeferredStack), so its chunk
+// downloads and evaluates immediately on mount. Bundling firebase/auth +
+// firebase/firestore statically here made that chunk noticeably heavier to
+// parse than its siblings — measured via Playwright, this section was still
+// showing its loading fallback ~2s after mount, well after Product/Brands
+// had already resolved, reading as a flash/pop-in during fast scroll. Load
+// them lazily instead, the same way app/lib/firebase-auth-state.ts already
+// does for the header's auth state.
+const loadAutoFirebaseDeps = () => {
+  autoFirebaseDepsPromise ??= Promise.all([
+    import("../../firebase"),
+    import("firebase/auth"),
+    import("firebase/firestore"),
+  ]).then(([firebaseModule, authModule, firestoreModule]) => ({
+    auth: firebaseModule.auth,
+    db: firebaseModule.db,
+    onAuthStateChanged: authModule.onAuthStateChanged,
+    doc: firestoreModule.doc,
+    getDoc: firestoreModule.getDoc,
+    setDoc: firestoreModule.setDoc,
+  }));
+  return autoFirebaseDepsPromise;
+};
 
 export interface PersistedCarSelection {
   brand: string;
@@ -454,10 +486,13 @@ const AutoSection: React.FC<AutoProps> = ({
   }, [selectedVinProp]);
 
   useEffect(() => {
-    const auth = getAuth();
     let cancelled = false;
+    let unsubscribeAuth: (() => void) | null = null;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    void loadAutoFirebaseDeps().then(({ auth, db, onAuthStateChanged, doc, getDoc }) => {
+      if (cancelled) return;
+
+      unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (!cancelled) {
         setFirebaseUser(user ?? null);
       }
@@ -540,11 +575,12 @@ const AutoSection: React.FC<AutoProps> = ({
             }
           }
         });
+      });
     });
 
     return () => {
       cancelled = true;
-      unsubscribeAuth();
+      unsubscribeAuth?.();
     };
   }, [isStandalonePersistenceEnabled]);
 
@@ -803,6 +839,7 @@ const AutoSection: React.FC<AutoProps> = ({
 
     const timer = window.setTimeout(async () => {
       try {
+        const { db, doc, setDoc } = await loadAutoFirebaseDeps();
         const docRef = doc(db, "users", firebaseUser.uid);
         const avtoPayload = {
           cars: internalSelectedCars,
@@ -943,7 +980,7 @@ const AutoSection: React.FC<AutoProps> = ({
     lastSelectedLabelRef.current = null;
   };
   const handleRemoveVin = async (vin: string) => {
-    const auth = getAuth();
+    const { auth, db, doc, setDoc } = await loadAutoFirebaseDeps();
     const user = auth.currentUser;
     if (!user) return;
     setVinLoading(true);
