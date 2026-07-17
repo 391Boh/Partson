@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
@@ -53,6 +53,31 @@ async function main() {
   console.log("🚀 Перевірка моделей авто на наявність реальних товарів...");
   const startedAt = Date.now();
 
+  const outputPath =
+    process.env.AUTO_MODEL_SITEMAP_SNAPSHOT_PATH ||
+    join(process.cwd(), ".cache", "auto-model-sitemap.json");
+
+  try {
+    await run(outputPath, startedAt);
+  } catch (error) {
+    // Per-model failures already resolve to `false` inside the loop below,
+    // so this only fires for something more fundamental (e.g. 1C down
+    // hard enough that even fetchBrandModels can't get a brand list). Same
+    // reasoning as generate-seo-counts.ts: don't let that kill `next build`
+    // over stale-but-valid model data, unless there's no snapshot to fall
+    // back to yet.
+    if (existsSync(outputPath)) {
+      console.warn(
+        "⚠️  Не вдалося оновити перелік моделей авто (1C недоступний) — залишаю попередній знімок:",
+        error
+      );
+      return;
+    }
+    throw error;
+  }
+}
+
+async function run(outputPath: string, startedAt: number) {
   const { carBrands } = await import("app/components/carBrands");
   const { fetchBrandModels } = await import("app/lib/auto-seo");
   const { hasAnyModelProducts } = await import("app/lib/auto-directory-data");
@@ -82,10 +107,6 @@ async function main() {
       console.log(`   … перевірено ${checked}/${pairs.length}`);
     }
   });
-
-  const outputPath =
-    process.env.AUTO_MODEL_SITEMAP_SNAPSHOT_PATH ||
-    join(process.cwd(), ".cache", "auto-model-sitemap.json");
 
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(

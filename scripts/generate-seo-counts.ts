@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const parseOptionalPositiveInt = (value: string | undefined) => {
@@ -41,7 +41,25 @@ async function main() {
   const pricedProductSnapshotPath =
     process.env.PRODUCT_SITEMAP_PRICED_SNAPSHOT_PATH ||
     join(process.cwd(), ".cache", "product-sitemap-priced-entries.json");
-  const entries = await getAllProductSitemapEntries();
+
+  let entries: Awaited<ReturnType<typeof getAllProductSitemapEntries>>;
+  try {
+    entries = await getAllProductSitemapEntries();
+  } catch (error) {
+    // 1C being fully unreachable used to fail this step, which - via the
+    // `&&`-chained build script - killed `next build` too, blocking a
+    // deploy over stale SEO counts that were already fine to keep serving.
+    // Only hard-fail when there's truly nothing to fall back to (first-ever
+    // run, or the snapshot was deleted).
+    if (existsSync(outputPath)) {
+      console.warn(
+        "⚠️  Не вдалося оновити SEO-лічильники (1C недоступний) — залишаю попередній знімок:",
+        error
+      );
+      return;
+    }
+    throw error;
+  }
   const pricedEntries = entries.filter(
     (entry) =>
       typeof entry.priceEuro === "number" &&
