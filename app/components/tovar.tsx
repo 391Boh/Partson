@@ -1106,7 +1106,7 @@ const ProductFetcher: React.FC<Props> = ({
             </div>
 
             {/* Desktop: dots */}
-            <div className="hidden items-center gap-2 px-1 sm:flex">
+            <div className="hidden items-center gap-1 px-1 sm:flex">
               {Array.from({ length: totalPages }).map((_, index) => {
                 const dotPage = index + 1;
                 const isActive = dotPage === page;
@@ -1116,12 +1116,16 @@ const ProductFetcher: React.FC<Props> = ({
                     type="button"
                     onClick={() => goToPage(dotPage)}
                     aria-label={`\u0421\u0442\u043e\u0440\u0456\u043d\u043a\u0430 ${dotPage}`}
-                    className={`rounded-full transition-all duration-300 ${
-                      isActive
-                        ? "h-2.5 w-7 bg-gradient-to-r from-cyan-400 via-sky-500 to-blue-500 shadow-[0_3px_10px_rgba(14,116,144,0.38),0_1px_4px_rgba(8,145,178,0.22)]"
-                        : "h-2.5 w-2.5 bg-sky-200/80 hover:w-4 hover:bg-sky-300/90 hover:shadow-[0_2px_6px_rgba(8,145,178,0.18)]"
-                    }`}
-                  />
+                    className="group inline-flex min-h-[32px] min-w-[24px] items-center justify-center"
+                  >
+                    <span
+                      className={`block rounded-full transition-all duration-300 ${
+                        isActive
+                          ? "h-2.5 w-7 bg-gradient-to-r from-cyan-400 via-sky-500 to-blue-500 shadow-[0_3px_10px_rgba(14,116,144,0.38),0_1px_4px_rgba(8,145,178,0.22)]"
+                          : "h-2.5 w-2.5 bg-sky-200/80 group-hover:w-4 group-hover:bg-sky-300/90 group-hover:shadow-[0_2px_6px_rgba(8,145,178,0.18)]"
+                      }`}
+                    />
+                  </button>
                 );
               })}
             </div>
