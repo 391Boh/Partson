@@ -2599,10 +2599,20 @@ body::-webkit-scrollbar-corner,
   contain-intrinsic-size: 100% 380px;
 }
 
+.catalog-product-card.catalog-product-card--admin {
+  /* Matches the 26.875rem mobile !important override below. */
+  contain-intrinsic-size: 100% 430px;
+}
+
 @media (min-width: 640px) {
   .catalog-product-card {
     /* Matches ProductCard.tsx's inline sm:h-[340px]. */
     contain-intrinsic-size: 100% 340px;
+  }
+
+  .catalog-product-card.catalog-product-card--admin {
+    /* Matches ProductCard.tsx's inline sm:h-[410px] admin variant. */
+    contain-intrinsic-size: 100% 410px;
   }
 }
 
@@ -2635,6 +2645,15 @@ body::-webkit-scrollbar-corner,
 
   .catalog-product-card {
     height: 23.75rem !important;
+  }
+
+  /* Admin edit form (description + category/group/subgroup, each with an
+     autocomplete list) doesn't fit the regular card height without heavy
+     scrolling — a bit taller specifically for admins. Kept as a fixed
+     height (not conditional on edit-mode being open) so toggling edit on
+     a card never itself changes card height and reflows the grid. */
+  .catalog-product-card.catalog-product-card--admin {
+    height: 26.875rem !important;
   }
 
   .catalog-product-card:hover {

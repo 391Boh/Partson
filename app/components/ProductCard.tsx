@@ -717,7 +717,7 @@ useEffect(() => {
     return (
         <>
         <article
-            className={`catalog-product-card relative w-full h-[360px] sm:h-[340px] [perspective:1200px] select-none ${cardMotionClass}`}
+            className={`catalog-product-card relative w-full [perspective:1200px] select-none ${isAdmin ? "catalog-product-card--admin h-[430px] sm:h-[410px]" : "h-[360px] sm:h-[340px]"} ${cardMotionClass}`}
             itemScope
             itemType="https://schema.org/Product"
         >
