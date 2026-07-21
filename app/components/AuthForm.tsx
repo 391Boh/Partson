@@ -552,6 +552,9 @@ const AuthForm: React.FC<AuthFormProps> = ({
     >
       <div
         ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-form-modal-title"
         className={`auth-form-panel soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto text-slate-700 transform-gpu transition-all duration-300 ease-out pointer-events-auto ${
           isClosing
             ? "translate-x-4 scale-[0.98] opacity-0"
@@ -569,7 +572,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 {mode === "login" ? <LogIn size={14} /> : <UserPlus size={14} />}
                 {mode === "login" ? "Вхід" : "Реєстрація"}
               </span>
-              <h2 className="soft-panel-title">
+              <h2 id="auth-form-modal-title" className="soft-panel-title">
                 {mode === "login" ? "Вхід до акаунта" : "Створити акаунт"}
               </h2>
               <p className="soft-panel-subtitle">

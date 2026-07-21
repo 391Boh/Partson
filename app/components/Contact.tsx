@@ -240,6 +240,9 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
     <>
       <div
         ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="contact-modal-title"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
         className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter overflow-y-auto overflow-x-hidden"
@@ -253,7 +256,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                 <Phone size={14} />
                 Контакти
               </span>
-              <h2 className="soft-panel-title">Зв&apos;язок і підтримка</h2>
+              <h2 id="contact-modal-title" className="soft-panel-title">Зв&apos;язок і підтримка</h2>
               <p className="soft-panel-subtitle">
                 Телефонуйте, пишіть у Viber або Telegram — відповімо швидко.
               </p>

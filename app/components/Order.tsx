@@ -405,6 +405,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     return (
       <div
         ref={orderRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="past-orders-modal-title"
         className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
       >
         <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
@@ -416,7 +419,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                 <ClipboardList size={14} />
                 Замовлення
               </span>
-              <h3 className="soft-panel-title">Історія замовлень</h3>
+              <h3 id="past-orders-modal-title" className="soft-panel-title">Історія замовлень</h3>
               <p className="soft-panel-subtitle">
                 Перегляд попередніх оформлень, сум, способу доставки та оплати.
               </p>
@@ -691,6 +694,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   return (
     <div
       ref={orderRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="my-order-modal-title"
       className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
@@ -702,7 +708,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               <ShoppingCart size={14} />
               Кошик
             </span>
-            <h3 className="soft-panel-title">Моє замовлення</h3>
+            <h3 id="my-order-modal-title" className="soft-panel-title">Моє замовлення</h3>
             <p className="soft-panel-subtitle">
               Перевірте товари, суму та перейдіть до оформлення без зайвих кроків.
             </p>

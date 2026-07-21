@@ -375,6 +375,21 @@ const Header: React.FC = () => {
     setAuthInitialTab(null);
   };
 
+  // None of the menu dropdowns or modal portals had an Escape-to-close
+  // handler — keyboard users had no way out except Tab-ing to a close
+  // button or clicking the backdrop. One shared listener covers all of
+  // them since closeAllOverlays already resets every piece of overlay
+  // state at once.
+  useEffect(() => {
+    if (!hasOverlayPortalOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeAllOverlays();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasOverlayPortalOpen]);
+
   return (
     <header
       suppressHydrationWarning
@@ -622,6 +637,9 @@ const Header: React.FC = () => {
         renderPortal(
           <div
             ref={searchModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="header-search-modal-title"
             className="fixed left-2 right-2 top-[calc(var(--header-height,4rem)+0.55rem)] z-[95] w-auto max-w-[460px] rounded-[22px] border border-white/[0.11] bg-[image:radial-gradient(ellipse_120%_80%_at_10%_0%,rgba(56,189,248,0.16),transparent_52%),radial-gradient(ellipse_80%_60%_at_90%_100%,rgba(37,99,235,0.12),transparent_55%),linear-gradient(155deg,rgba(10,16,36,0.98),rgba(8,20,50,0.97)_54%,rgba(6,16,42,0.98))] p-3.5 shadow-[0_28px_72px_rgba(2,6,23,0.62),0_12px_32px_rgba(2,6,23,0.38),inset_0_1px_0_rgba(255,255,255,0.07)] backdrop-blur-2xl animate-fadeIn sm:left-auto sm:right-4 sm:w-[86%] sm:rounded-[24px] sm:p-4"
           >
             {/* modal header */}
@@ -630,7 +648,7 @@ const Header: React.FC = () => {
                 <span className="inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-sky-400/25 bg-sky-500/15 text-sky-300">
                   <MagnifyingGlassIcon className="h-4 w-4" />
                 </span>
-                <h2 className="text-[15px] font-bold tracking-[-0.02em] text-slate-100">
+                <h2 id="header-search-modal-title" className="text-[15px] font-bold tracking-[-0.02em] text-slate-100">
                   Пошук запчастин
                 </h2>
               </div>
