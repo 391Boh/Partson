@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
@@ -63,6 +63,28 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+type StoredSnapshot = {
+  verifiedKeys?: unknown;
+  resumeIndex?: unknown;
+};
+
+const readPreviousSnapshot = (outputPath: string) => {
+  try {
+    const raw = readFileSync(outputPath, "utf8");
+    const parsed = JSON.parse(raw) as StoredSnapshot;
+    const verifiedKeys = Array.isArray(parsed.verifiedKeys)
+      ? parsed.verifiedKeys.filter((key): key is string => typeof key === "string")
+      : [];
+    const resumeIndex =
+      typeof parsed.resumeIndex === "number" && Number.isFinite(parsed.resumeIndex)
+        ? Math.max(0, Math.floor(parsed.resumeIndex))
+        : 0;
+    return { verifiedKeys, resumeIndex };
+  } catch {
+    return { verifiedKeys: [] as string[], resumeIndex: 0 };
+  }
+};
+
 async function main() {
   console.log("🚀 Перевірка моделей авто на наявність реальних товарів...");
   const startedAt = Date.now();
@@ -102,15 +124,32 @@ async function run(outputPath: string, startedAt: number) {
     async (brand) => fetchBrandModels(brand.name).catch(() => null)
   );
 
-  const pairs = brandGroups.flatMap((group) =>
+  const allPairs = brandGroups.flatMap((group) =>
     group ? group.models.map((model) => ({ brand: group.brand, model: model.name })) : []
   );
 
-  console.log(`ℹ️  Марок: ${carBrands.length}, моделей до перевірки: ${pairs.length}`);
+  console.log(`ℹ️  Марок: ${carBrands.length}, моделей до перевірки: ${allPairs.length}`);
+
+  const { verifiedKeys: previousVerifiedKeys, resumeIndex: previousResumeIndex } =
+    readPreviousSnapshot(outputPath);
+  const verifiedKeys = new Set(previousVerifiedKeys);
+
+  // 1C is consistently too slow to get through all ~5400 pairs inside one
+  // budget window (measured: ~200 pairs in 6 minutes under real load), and
+  // mapWithConcurrency always started at index 0 — every run re-checked the
+  // same early brands (alphabetically first) and never reached the rest.
+  // Rotate the start point by where the previous run left off so repeated
+  // builds sweep across the whole list over time instead of stalling on the
+  // same ~200 pairs forever.
+  const startIndex =
+    allPairs.length > 0 ? previousResumeIndex % allPairs.length : 0;
+  const pairs =
+    startIndex === 0
+      ? allPairs
+      : [...allPairs.slice(startIndex), ...allPairs.slice(0, startIndex)];
 
   let checked = 0;
   let skippedForBudget = 0;
-  const verifiedKeys: string[] = [];
   const runDeadline = startedAt + RUN_BUDGET_MS;
 
   await mapWithConcurrency(pairs, MODEL_CHECK_CONCURRENCY, async (pair) => {
@@ -121,8 +160,14 @@ async function run(outputPath: string, startedAt: number) {
 
     const hasProducts = await hasAnyModelProducts(pair.brand, pair.model).catch(() => false);
     checked += 1;
+    const key = `${pair.brand}::${pair.model}`;
     if (hasProducts) {
-      verifiedKeys.push(`${pair.brand}::${pair.model}`);
+      verifiedKeys.add(key);
+    } else {
+      // An explicit re-check that came back empty overrides a stale "had
+      // products" from an earlier run (e.g. the model was delisted) — only
+      // pairs skipped by the budget below keep their prior status untouched.
+      verifiedKeys.delete(key);
     }
     if (checked % 200 === 0) {
       console.log(`   … перевірено ${checked}/${pairs.length}`);
@@ -131,26 +176,29 @@ async function run(outputPath: string, startedAt: number) {
 
   if (skippedForBudget > 0) {
     console.warn(
-      `⚠️  Часовий бюджет (${RUN_BUDGET_MS / 1000}с) вичерпано — пропущено ${skippedForBudget}/${pairs.length} ще не перевірених пар (лишились у попередньому стані, не позначені як "з товарами").`
+      `⚠️  Часовий бюджет (${RUN_BUDGET_MS / 1000}с) вичерпано — пропущено ${skippedForBudget}/${pairs.length} ще не перевірених пар цього разу (лишились у попередньому стані). Наступний запуск продовжить з того місця.`
     );
   }
+
+  const resumeIndex = allPairs.length > 0 ? (startIndex + checked) % allPairs.length : 0;
 
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(
     outputPath,
     `${JSON.stringify({
       generatedAt: new Date().toISOString(),
-      totalModelsChecked: pairs.length,
+      totalModelsChecked: allPairs.length,
       checkedCount: checked,
       skippedForBudget,
-      verifiedCount: verifiedKeys.length,
-      verifiedKeys,
+      resumeIndex,
+      verifiedCount: verifiedKeys.size,
+      verifiedKeys: Array.from(verifiedKeys),
     })}\n`,
     "utf8"
   );
 
   const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
-  console.log(`✅ Моделей з реальними товарами: ${verifiedKeys.length}/${pairs.length}`);
+  console.log(`✅ Моделей з реальними товарами (накопичено): ${verifiedKeys.size}/${allPairs.length}`);
   console.log(`🎉 Знімок збережено: ${outputPath}`);
   console.log(`⏱  Час генерації: ${elapsedSeconds}с`);
 }
