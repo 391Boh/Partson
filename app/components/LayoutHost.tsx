@@ -118,32 +118,33 @@ const ADMIN_ROLE_VALUES = new Set([
 const normalizeAdminToken = (value: string) =>
   value.trim().toLowerCase().replace(/[\s_-]+/g, "");
 
-const normalizeEmail = (value: unknown) =>
-  typeof value === "string" ? value.trim().toLowerCase() : "";
-
-const ADMIN_EMAIL_VALUES = new Set(
-  (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
-    .split(",")
-    .map((item) => normalizeEmail(item))
-    .filter(Boolean)
-);
-
 const normalizeAdminValue = (value: unknown) =>
   typeof value === "string" ? normalizeAdminToken(value) : "";
 
-const hasAdminEmail = (value: unknown) => {
-  const normalized = normalizeEmail(value);
-  return normalized ? ADMIN_EMAIL_VALUES.has(normalized) : false;
-};
-
 const getAdminStorageKey = (uid: string) => `partson:isAdmin:${uid}`;
 
-const hasProviderAdminEmail = (
-  providerData?: Array<{ email?: string | null } | null> | null
-) =>
-  Array.isArray(providerData)
-    ? providerData.some((provider) => hasAdminEmail(provider?.email))
-    : false;
+// Used to be a client-side Set built from NEXT_PUBLIC_ADMIN_EMAILS compared
+// directly against the signed-in user's email. Being a "use client"
+// component meant that env var's actual value — the real admin email(s) —
+// got inlined into the shipped JS bundle for anyone to read out of the
+// page source, a targeted-phishing risk. The allowlist itself now only
+// lives server-side (see app/api/is-admin/route.ts); this just asks it.
+const checkIsAdminOnServer = async (idToken: string): Promise<boolean> => {
+  try {
+    const response = await fetch("/api/is-admin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+    });
+    if (!response.ok) return false;
+    const data = (await response.json()) as { isAdmin?: unknown };
+    return data.isAdmin === true;
+  } catch {
+    return false;
+  }
+};
 
 const readRememberedAdminAccess = (uid: string) => {
   if (typeof window === "undefined") return false;
@@ -1048,11 +1049,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     const currentUser = auth.currentUser;
     if (currentUser) {
       setAuthUserUid(currentUser.uid);
-      if (
-        readRememberedAdminAccess(currentUser.uid) ||
-        hasAdminEmail(currentUser.email) ||
-        hasProviderAdminEmail(currentUser.providerData)
-      ) {
+      // Optimistic instant paint for a returning admin on the same device;
+      // the authoritative check (custom claims / Firestore role / the
+      // server-side email allowlist) still runs below via onAuthStateChanged.
+      if (readRememberedAdminAccess(currentUser.uid)) {
         setIsAdmin(true);
       }
     }
@@ -1072,11 +1072,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setAuthUserUid(user.uid);
-        if (
-          readRememberedAdminAccess(user.uid) ||
-          hasAdminEmail(user.email) ||
-          hasProviderAdminEmail(user.providerData)
-        ) {
+        if (readRememberedAdminAccess(user.uid)) {
           setIsAdmin(true);
         }
         const userRef = doc(db, "users", user.uid);
@@ -1095,9 +1091,11 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         }
 
         let claims: Record<string, unknown> = {};
+        let idToken = "";
         try {
           const token = await user.getIdTokenResult(true);
           claims = (token?.claims ?? {}) as Record<string, unknown>;
+          idToken = token?.token ?? "";
         } catch {
           claims = {};
         }
@@ -1111,10 +1109,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
             : false) ||
           hasAdminRole(claims.permissions);
 
-        const isAdminEmail =
-          hasAdminEmail(user.email) ||
-          hasAdminEmail(userData?.email) ||
-          hasAdminEmail(claims.email);
+        const isAdminEmail = idToken ? await checkIsAdminOnServer(idToken) : false;
 
         const lastAuthenticatedUid = normalizeStoredId(
           localStorage.getItem("user_id")

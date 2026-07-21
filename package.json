@@ -40,6 +40,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@radix-ui/react-slot": "^1.1.2",
+    "@sentry/nextjs": "^10.67.0",
     "@tailwindcss/postcss": "^4.1.7",
     "body-parser": "^2.2.0",
     "class-variance-authority": "^0.7.1",
