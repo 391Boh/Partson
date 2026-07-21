@@ -5,10 +5,7 @@ import {
   fetchPriceEuroMapByLookupKeys,
   toPriceUah,
 } from "app/lib/catalog-server";
-import {
-  PRODUCT_IMAGE_FALLBACK_PATH,
-  getProductImagePath,
-} from "app/lib/product-image";
+import { getProductImagePath } from "app/lib/product-image";
 import {
   getAllProductSitemapEntries,
   type ProductSitemapEntry,
@@ -303,11 +300,18 @@ const toGoogleMerchantFeedItem = (
   const priceUah = toPriceUah(entry.priceEuro ?? null, euroRate);
   if (priceUah == null) return null;
 
+  // Google Merchant Center policy requires the image to depict the actual
+  // product. Photo-less items used to fall back to one shared generic photo
+  // (/Car-parts-fullwidth.webp) — hundreds of different SKUs pointing at the
+  // exact same image, which reads as exactly the kind of generic/stock
+  // image the policy prohibits and risks item- or account-level
+  // disapprovals. Drop them from the ads feed instead; that same fallback
+  // is still a reasonable on-site browsing compromise (used elsewhere via
+  // getProductImagePath), just not fit for an ads feed.
+  if (entry.hasPhoto === false) return null;
+
   const article = (entry.article || "").trim() || undefined;
-  const imagePath =
-    entry.hasPhoto === false
-      ? PRODUCT_IMAGE_FALLBACK_PATH
-      : getProductImagePath(code, article);
+  const imagePath = getProductImagePath(code, article);
 
   return {
     id: code,
