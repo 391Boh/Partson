@@ -20,6 +20,7 @@
     "generate:seo-counts": "tsx --require ./scripts/preload.cjs --env-file=.env.local scripts/generate-seo-counts.ts",
     "generate:feed": "tsx --require ./scripts/preload.cjs --env-file=.env.local scripts/generate-merchant-feed.ts",
     "generate:auto-model-sitemap": "tsx --require ./scripts/preload.cjs --env-file=.env.local scripts/generate-auto-model-sitemap.ts",
+    "indexnow:submit": "tsx --require ./scripts/preload.cjs --env-file=.env.local scripts/submit-indexnow.ts",
     "merchant:feed:update": "bash scripts/update-merchant-feed.sh",
     "merchant:cron:install": "bash scripts/install-merchant-feed-cron.sh",
     "merchant:cron:list": "crontab -l | grep -A2 -B2 'partson merchant feed' || true",

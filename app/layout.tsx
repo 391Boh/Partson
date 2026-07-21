@@ -221,12 +221,41 @@ export const metadata: Metadata = {
 const websiteJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
+  "@id": `${siteUrl}#website`,
   name: "PartsON",
   url: siteUrl,
+  inLanguage: "uk-UA",
+  description:
+    "PartsON — каталог автозапчастин із пошуком за назвою, артикулом, кодом, виробником і автомобілем.",
   publisher: { "@id": organizationId },
+  hasPart: [
+    {
+      "@type": "CollectionPage",
+      name: "Каталог автозапчастин",
+      url: `${siteUrl}/katalog`,
+    },
+    {
+      "@type": "CollectionPage",
+      name: "Групи автозапчастин",
+      url: `${siteUrl}/groups`,
+    },
+    {
+      "@type": "CollectionPage",
+      name: "Виробники автозапчастин",
+      url: `${siteUrl}/manufacturers`,
+    },
+    {
+      "@type": "CollectionPage",
+      name: "Підбір за автомобілем",
+      url: `${siteUrl}/auto`,
+    },
+  ],
   potentialAction: {
     "@type": "SearchAction",
-    target: `${siteUrl}/katalog?search={search_term_string}`,
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${siteUrl}/katalog?search={search_term_string}`,
+    },
     "query-input": "required name=search_term_string",
   },
 };
@@ -275,6 +304,17 @@ const organizationJsonLd = {
   sameAs: sameAsLinks.length > 0 ? sameAsLinks : undefined,
   description:
     "Інтернет-магазин автозапчастин PartsON з каталогом, підбором деталей та доставкою по Україні.",
+  areaServed: {
+    "@type": "Country",
+    name: "Україна",
+  },
+  knowsAbout: [
+    "автозапчастини",
+    "підбір запчастин за VIN",
+    "пошук запчастин за артикулом",
+    "оригінальні запчастини та аналоги",
+    "доставка автозапчастин по Україні",
+  ],
   email: "romaniukbboogg@gmail.com",
   telephone: "+380634211851",
   address: {
@@ -319,6 +359,12 @@ const localBusinessJsonLd = {
   description:
     "Магазин автозапчастин PartsON: підбір деталей, консультація та доставка по Україні.",
   priceRange: "$$",
+  currenciesAccepted: "UAH",
+  paymentAccepted: "Готівка, банківська картка, післяплата, безготівковий розрахунок",
+  areaServed: {
+    "@type": "Country",
+    name: "Україна",
+  },
   telephone: "+380634211851",
   email: "romaniukbboogg@gmail.com",
   parentOrganization: { "@id": organizationId },
