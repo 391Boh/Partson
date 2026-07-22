@@ -1015,13 +1015,13 @@ useEffect(() => {
                                       {producerPath ? (
                                           <SmartLink href={producerPath} prefetchOnIntent onClick={(event) => event.stopPropagation()} className="flex min-w-0 justify-end no-underline" title={displayProducer}>
                                               {showProducerLogo ? (
-                                                  <Image src={producerLogoSrc || ""} alt={displayProducer} width={112} height={34} loading="lazy" onError={() => setProducerLogoFailed(true)} className="h-7 w-auto max-w-[112px] object-contain object-right" />
+                                                  <Image src={producerLogoSrc || ""} alt={displayProducer} width={112} height={34} loading="lazy" onError={() => setProducerLogoFailed(true)} className="aspect-[112/34] h-7 w-auto max-w-[112px] object-contain object-right" />
                                               ) : (
                                                   <span className="min-w-0 truncate font-extrabold text-blue-700 hover:text-blue-800">{displayProducer}</span>
                                               )}
                                           </SmartLink>
                                       ) : showProducerLogo ? (
-                                          <Image src={producerLogoSrc || ""} alt={displayProducer} width={112} height={34} loading="lazy" onError={() => setProducerLogoFailed(true)} className="h-7 w-auto max-w-[112px] object-contain object-right" />
+                                          <Image src={producerLogoSrc || ""} alt={displayProducer} width={112} height={34} loading="lazy" onError={() => setProducerLogoFailed(true)} className="aspect-[112/34] h-7 w-auto max-w-[112px] object-contain object-right" />
                                       ) : (
                                           <span className="min-w-0 truncate font-extrabold text-slate-800">{displayProducer}</span>
                                       )}

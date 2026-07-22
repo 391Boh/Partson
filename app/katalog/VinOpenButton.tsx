@@ -13,7 +13,7 @@ export default function VinOpenButton() {
         <Fingerprint size={14} aria-hidden />
       </span>
       <span>
-        <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-slate-400">
+        <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-slate-500">
           Підбір
         </span>
         За VIN і кодом

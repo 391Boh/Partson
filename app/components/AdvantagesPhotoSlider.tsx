@@ -364,7 +364,7 @@ export default function AdvantagesPhotoSlider({
               }}
               aria-label={`Показати фото магазину ${index + 1}`}
               aria-current={index === activeIndex}
-              className="group inline-flex min-h-[32px] min-w-[18px] items-center justify-center"
+              className="group inline-flex min-h-[32px] min-w-[24px] items-center justify-center"
             >
               <span
                 className={`block h-1.5 rounded-full transition-[width,background-color,box-shadow] duration-200 ease-out ${
