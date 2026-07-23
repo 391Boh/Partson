@@ -491,10 +491,13 @@ export default function TelegramChat({
         .filter((id): id is string => typeof id === 'string' && id.length > 0)
     );
 
-    return [...messages, ...optimisticMessages].filter(
-      (message) =>
-        !message.clientMessageId || !confirmedClientIds.has(message.clientMessageId)
-    );
+    return [
+      ...messages,
+      ...optimisticMessages.filter(
+        (message) =>
+          !message.clientMessageId || !confirmedClientIds.has(message.clientMessageId)
+      ),
+    ];
   }, [messages, optimisticMessages]);
 
   const trackChatLeadAfterSuccess = useCallback(
