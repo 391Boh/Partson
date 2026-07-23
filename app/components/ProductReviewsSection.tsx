@@ -1,6 +1,13 @@
 "use client";
 
-import { ChevronDown, MessageSquare, Send, Star } from "lucide-react";
+import {
+  ChevronDown,
+  MessageSquare,
+  RefreshCcw,
+  Send,
+  Sparkles,
+  Star,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import StarRatingInput from "./StarRatingInput";
 
@@ -299,54 +306,35 @@ export default function ProductReviewsSection({
             </div>
           )}
 
-          {/* loading skeleton */}
+          {/* compact loading state keeps the section stable without flashing cards */}
           {loading && (
-            <div className="space-y-2">
-              {[1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="h-12 animate-pulse rounded-[12px] bg-slate-100"
+            <div className="flex min-h-[92px] items-center justify-center rounded-[15px] border border-sky-100 bg-[linear-gradient(135deg,rgba(240,249,255,0.74),rgba(255,255,255,0.98))] px-4 py-4">
+              <span className="inline-flex items-center gap-2 text-[12px] font-bold text-slate-500">
+                <RefreshCcw
+                  size={14}
+                  className="animate-spin text-sky-500"
+                  aria-hidden="true"
                 />
-              ))}
+                Перевіряємо актуальні відгуки…
+              </span>
             </div>
           )}
 
+          {/* A temporary backend delay must not look like a broken product page. */}
           {!loading && loadError && reviews.length === 0 && (
-            <div className="rounded-[13px] border border-amber-200 bg-amber-50/70 px-3.5 py-3 text-center">
-              <p className="text-[12px] font-bold text-amber-800">
-                Не вдалося завантажити відгуки
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setLoading(true);
-                  void load(true);
-                }}
-                className="mt-2 inline-flex items-center rounded-[10px] border border-amber-300 bg-white px-3 py-1.5 text-[11px] font-black text-amber-800 transition hover:bg-amber-100"
-              >
-                Спробувати ще раз
-              </button>
-            </div>
+            <ReviewEmptyState
+              onWriteReview={() => setShowForm(true)}
+              onRefresh={() => {
+                setLoading(true);
+                void load(true);
+              }}
+              canRefresh
+            />
           )}
 
           {/* empty state */}
           {!loading && !loadError && reviews.length === 0 && !showForm && (
-            <div className="py-4 text-center">
-              <p className="text-[13px] font-semibold text-slate-500">
-                Відгуків ще немає
-              </p>
-              <p className="mt-1 text-[11px] font-medium text-slate-400">
-                Будьте першим, хто поділиться враженням від цього товару
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowForm(true)}
-                className="mt-2.5 inline-flex items-center gap-1.5 rounded-[11px] bg-sky-600 px-3.5 py-1.5 text-[12px] font-black text-white shadow-[0_6px_16px_rgba(14,165,233,0.24)] transition hover:bg-sky-700"
-              >
-                <Star size={12} />
-                Залишити перший відгук
-              </button>
-            </div>
+            <ReviewEmptyState onWriteReview={() => setShowForm(true)} />
           )}
 
           {/* review list */}
@@ -355,7 +343,7 @@ export default function ProductReviewsSection({
               {visible.map((review) => (
                 <div
                   key={review.id}
-                  className="rounded-[12px] border border-slate-100 bg-slate-50/70 px-3.5 py-2.5"
+                  className="rounded-[14px] border border-slate-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] px-3.5 py-3 shadow-[0_5px_14px_rgba(15,23,42,0.045)] transition-[border-color,box-shadow,background-color] duration-200 hover:border-sky-200 hover:bg-sky-50/30 hover:shadow-[0_9px_20px_rgba(14,165,233,0.08)]"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -397,5 +385,51 @@ export default function ProductReviewsSection({
         </div>
       </div>
     </section>
+  );
+}
+
+function ReviewEmptyState({
+  onWriteReview,
+  onRefresh,
+  canRefresh = false,
+}: {
+  onWriteReview: () => void;
+  onRefresh?: () => void;
+  canRefresh?: boolean;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-[17px] border border-sky-100 bg-[radial-gradient(circle_at_12%_20%,rgba(56,189,248,0.13),transparent_32%),linear-gradient(135deg,rgba(248,252,255,0.99),rgba(255,255,255,0.98)_58%,rgba(240,249,255,0.92))] px-4 py-5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_20px_rgba(14,165,233,0.06)] sm:px-5">
+      <div className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-sky-100/60 blur-2xl" />
+      <span className="relative mx-auto inline-flex h-10 w-10 items-center justify-center rounded-[13px] border border-amber-200/80 bg-[linear-gradient(145deg,#fffdf4,#fff7d6)] text-amber-500 shadow-[0_8px_18px_rgba(245,158,11,0.13)]">
+        <Sparkles size={18} aria-hidden="true" />
+      </span>
+      <p className="relative mt-2.5 text-[14px] font-black tracking-[-0.01em] text-slate-900">
+        Відгуків про цей товар ще немає
+      </p>
+      <p className="relative mx-auto mt-1 max-w-md text-[11.5px] font-medium leading-5 text-slate-500">
+        Поділіться досвідом — ваша оцінка допоможе іншим покупцям швидше
+        визначитися з вибором.
+      </p>
+      <div className="relative mt-3 flex flex-wrap items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={onWriteReview}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-[11px] border border-sky-600 bg-[linear-gradient(135deg,#0284c7,#0369a1)] px-3.5 text-[12px] font-black text-white shadow-[0_8px_18px_rgba(2,132,199,0.2)] transition-[border-color,background-color,box-shadow] duration-200 hover:border-sky-700 hover:from-sky-700 hover:to-sky-800 hover:shadow-[0_11px_24px_rgba(2,132,199,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+        >
+          <Star size={12} aria-hidden="true" />
+          Залишити перший відгук
+        </button>
+        {canRefresh && onRefresh ? (
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-[11px] border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-500 shadow-[0_4px_12px_rgba(15,23,42,0.05)] transition-[border-color,color,box-shadow,background-color] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 hover:shadow-[0_7px_16px_rgba(14,165,233,0.08)]"
+          >
+            <RefreshCcw size={11} aria-hidden="true" />
+            Оновити
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }

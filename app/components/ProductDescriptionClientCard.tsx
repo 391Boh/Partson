@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 type ProductDescriptionClientCardProps = {
-  fallbackText: string;
   initialText?: string | null;
   lookupKeys: string[];
   isModalView: boolean;
@@ -26,7 +25,6 @@ const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
 const DESCRIPTION_REQUEST_TIMEOUT_MS = 2600;
 
 export default function ProductDescriptionClientCard({
-  fallbackText,
   initialText,
   lookupKeys,
   isModalView,
@@ -41,11 +39,17 @@ export default function ProductDescriptionClientCard({
 }: ProductDescriptionClientCardProps) {
   const normalizedInitialText =
     typeof initialText === "string" && initialText.trim() ? initialText.trim() : null;
-  const [descriptionText, setDescriptionText] = useState(
-    normalizedInitialText || fallbackText
+  const [descriptionText, setDescriptionText] = useState<string | null>(
+    normalizedInitialText
   );
-  const [hasCatalogDescription, setHasCatalogDescription] = useState(
-    Boolean(normalizedInitialText)
+  const [descriptionStatus, setDescriptionStatus] = useState<
+    "loading" | "ready" | "missing"
+  >(
+    normalizedInitialText
+      ? "ready"
+      : enableClientLookup
+        ? "loading"
+        : "missing"
   );
 
   const requestUrl = useMemo(() => {
@@ -71,12 +75,21 @@ export default function ProductDescriptionClientCard({
   );
 
   useEffect(() => {
-    setDescriptionText(normalizedInitialText || fallbackText);
-    setHasCatalogDescription(Boolean(normalizedInitialText));
-  }, [fallbackText, normalizedInitialText]);
+    setDescriptionText(normalizedInitialText);
+    setDescriptionStatus(
+      normalizedInitialText
+        ? "ready"
+        : enableClientLookup && requestUrl
+          ? "loading"
+          : "missing"
+    );
+  }, [enableClientLookup, normalizedInitialText, requestUrl]);
 
   useEffect(() => {
     if (!enableClientLookup || !requestUrl) return;
+    // The server already supplied the canonical 1C description. Avoid a
+    // duplicate client request and keep the rendered text stable.
+    if (normalizedInitialText) return;
 
     const readCachedDescription = () => {
       if (typeof window === "undefined" || !cacheKey) return null;
@@ -132,36 +145,37 @@ export default function ProductDescriptionClientCard({
     const cachedDescription = readCachedDescription();
     if (cachedDescription) {
       setDescriptionText(cachedDescription);
-      setHasCatalogDescription(true);
+      setDescriptionStatus("ready");
       return;
     }
 
     let cancelled = false;
     let loadTimerId: number | null = null;
+    let activeController: AbortController | null = null;
 
     const attemptFetch = async () => {
-      let timeoutId: number | undefined;
+      const controller = new AbortController();
+      activeController = controller;
+      const timeoutId = window.setTimeout(
+        () => controller.abort(),
+        DESCRIPTION_REQUEST_TIMEOUT_MS
+      );
+
       try {
-        const timeoutPromise = new Promise<Response>((_, reject) => {
-          timeoutId = window.setTimeout(
-            () => reject(new Error("product-description-timeout")),
-            DESCRIPTION_REQUEST_TIMEOUT_MS
-          );
+        const response = await fetch(requestUrl, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+          signal: controller.signal,
         });
-        const response = await Promise.race([
-          fetch(requestUrl, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-            cache: "no-store",
-          }),
-          timeoutPromise,
-        ]);
+        if (!response.ok) throw new Error("product-description-request-failed");
         const payload = (await response.json()) as { description?: string | null };
         return typeof payload.description === "string" && payload.description.trim()
           ? payload.description.trim()
           : null;
       } finally {
-        if (timeoutId != null) window.clearTimeout(timeoutId);
+        window.clearTimeout(timeoutId);
+        if (activeController === controller) activeController = null;
       }
     };
 
@@ -175,6 +189,8 @@ export default function ProductDescriptionClientCard({
           nextDescription = await attemptFetch();
         } catch {
           if (cancelled) return;
+          await new Promise((resolve) => window.setTimeout(resolve, 160));
+          if (cancelled) return;
           nextDescription = await attemptFetch();
         }
         if (cancelled) return;
@@ -182,10 +198,14 @@ export default function ProductDescriptionClientCard({
         if (nextDescription) {
           writeCachedDescription(nextDescription);
           setDescriptionText(nextDescription);
-          setHasCatalogDescription(true);
+          setDescriptionStatus("ready");
+        } else {
+          setDescriptionStatus("missing");
         }
       } catch {
-        // Keep fallback description on network issues.
+        if (!cancelled) {
+          setDescriptionStatus("missing");
+        }
       }
     };
 
@@ -195,35 +215,25 @@ export default function ProductDescriptionClientCard({
         return;
       }
 
-      const requestIdleCallback = window.requestIdleCallback;
-      if (typeof requestIdleCallback === "function") {
-        const idleId = requestIdleCallback(() => void loadDescription(), {
-          timeout: 900,
-        });
-        loadTimerId = idleId;
-        return;
-      }
-
-      loadTimerId = window.setTimeout(() => void loadDescription(), 260);
+      // Starting the network request shortly after hydration makes missing
+      // catalog content arrive sooner without competing with the first paint.
+      loadTimerId = window.setTimeout(() => void loadDescription(), 80);
     };
 
     scheduleLoad();
 
     return () => {
       cancelled = true;
+      activeController?.abort();
       if (loadTimerId != null && typeof window !== "undefined") {
-        if (typeof window.cancelIdleCallback === "function") {
-          window.cancelIdleCallback(loadTimerId);
-        } else {
-          window.clearTimeout(loadTimerId);
-        }
+        window.clearTimeout(loadTimerId);
       }
     };
   }, [cacheKey, enableClientLookup, normalizedInitialText, requestUrl]);
 
   const descriptionParagraphs = useMemo(
     () =>
-      descriptionText
+      (descriptionText || "")
         .split(/\n{2,}|\r?\n(?=[A-ZА-ЯІЇЄҐ0-9-])/)
         .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
         .filter(Boolean),
@@ -235,12 +245,14 @@ export default function ProductDescriptionClientCard({
       <div className="flex flex-wrap items-end justify-between gap-2.5 border-b border-slate-900/8 pb-3">
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-sky-900">
-            Опис і підбір
+            Характеристики та застосування
           </p>
           <h2 className="font-display mt-1 text-[1.05rem] font-extrabold italic leading-[1.12] tracking-normal text-slate-950 sm:text-[1.16rem]">
             {productName
-              ? `Опис: ${productName.length > 52 ? `${productName.slice(0, 52).trimEnd()}…` : productName}`
-              : "Що варто знати про товар"}
+              ? productName.length > 58
+                ? `${productName.slice(0, 58).trimEnd()}…`
+                : productName
+              : "Основні характеристики товару"}
           </h2>
         </div>
         <div className="flex items-center gap-2">
@@ -255,13 +267,31 @@ export default function ProductDescriptionClientCard({
           descriptionParagraphs.map((paragraph) => (
             <p key={paragraph}>{paragraph}</p>
           ))
+        ) : descriptionStatus === "loading" ? (
+          <div
+            className="space-y-2.5 py-1"
+            role="status"
+            aria-label="Завантаження опису товару з 1С"
+          >
+            <span className="sr-only">Завантажуємо опис товару з 1С…</span>
+            <div className="h-3.5 w-full animate-pulse rounded-full bg-slate-200/80" />
+            <div className="h-3.5 w-[92%] animate-pulse rounded-full bg-slate-200/70" />
+            <div className="h-3.5 w-[68%] animate-pulse rounded-full bg-slate-200/60" />
+          </div>
         ) : (
-          <p>{fallbackText}</p>
+          <p className="rounded-[14px] border border-amber-200/80 bg-amber-50/70 px-3 py-2.5 text-slate-700">
+            Опис у 1С для цього товару поки не заповнений. Уточнити
+            характеристики та застосування можна в чаті.
+          </p>
         )}
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
         <span className="inline-flex rounded-[10px] border border-slate-200 bg-white/86 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-slate-500 shadow-[0_6px_14px_rgba(15,23,42,0.04)]">
-          {hasCatalogDescription ? "Оригінальний опис" : "Коротко про товар"}
+          {descriptionStatus === "ready"
+            ? "Опис із 1С"
+            : descriptionStatus === "loading"
+              ? "Завантаження з 1С"
+              : "Опис не заповнений"}
         </span>
         <span className="inline-flex rounded-[10px] border border-sky-100 bg-sky-50/80 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-sky-700 shadow-[0_6px_14px_rgba(14,165,233,0.05)]">
           Сумісність і підбір

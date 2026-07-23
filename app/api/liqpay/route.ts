@@ -3,6 +3,7 @@ import crypto from "crypto";
 
 import { checkRateLimit, setRateLimitHeaders } from "../_lib/rateLimit";
 import { isNonEmptyString, readJsonObject } from "../_lib/requestValidation";
+import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 
 const normalizeOrigin = (value: string) => {
   const raw = value.trim();
@@ -176,7 +177,7 @@ export async function POST(req: NextRequest) {
   const body = parsed.value;
   const amount = readAmount(body.amount);
   const orderId = readString(body, "order_id");
-  const description = readString(body, "description", `Оплата замовлення ${orderId}`);
+  const description = `Оплата замовлення №${orderId}`;
   const requestedResultUrl = readString(body, "result_url");
   const requestedServerUrl = readString(body, "server_url");
   const resultUrl = buildSameOriginUrl(requestedResultUrl, "/success", req);
@@ -189,6 +190,7 @@ export async function POST(req: NextRequest) {
   if (
     amount == null ||
     !isNonEmptyString(orderId, { maxLength: 128 }) ||
+    !/^[A-Za-z0-9_-]+$/.test(orderId) ||
     !isNonEmptyString(description, { maxLength: 255 }) ||
     !isNonEmptyString(requestedResultUrl, { maxLength: 2048 }) ||
     !isNonEmptyString(requestedServerUrl, { maxLength: 2048 }) ||
@@ -212,23 +214,44 @@ export async function POST(req: NextRequest) {
     return forbidden;
   }
 
+  try {
+    const orderSnapshot = await getFirebaseAdminDb()
+      .collection("orders")
+      .doc(orderId)
+      .get();
+    const order = orderSnapshot.data();
+    const expectedAmount = readAmount(order?.totalAmount);
+
+    if (!orderSnapshot.exists || expectedAmount == null || expectedAmount !== amount) {
+      const mismatch = NextResponse.json(
+        { error: "Payment amount does not match the order" },
+        { status: 409 }
+      );
+      setRateLimitHeaders(mismatch.headers, rateResult);
+      return mismatch;
+    }
+  } catch (error) {
+    console.error("Failed to verify order before LiqPay initialization:", error);
+    const unavailable = NextResponse.json(
+      { error: "Unable to verify the order before payment" },
+      { status: 503 }
+    );
+    setRateLimitHeaders(unavailable.headers, rateResult);
+    return unavailable;
+  }
+
   const payload: Record<string, unknown> = {
     version: 3,
     public_key: normalizedPublicKey,
-    action: readString(body, "action", "pay") || "pay",
+    action: "pay",
     amount,
-    currency: readString(body, "currency", "UAH") || "UAH",
+    currency: "UAH",
     description,
     order_id: orderId,
-    language: readString(body, "language", "uk") || "uk",
+    language: "uk",
     result_url: resultUrl,
     server_url: serverUrl,
   };
-
-  const info = readString(body, "info");
-  if (info) {
-    payload.info = info;
-  }
 
   if (isSandboxMode) {
     payload.sandbox = 1;

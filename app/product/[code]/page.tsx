@@ -1,4 +1,4 @@
-import { cache, type CSSProperties } from "react";
+import { cache, Suspense, type CSSProperties } from "react";
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
 import dynamic from "next/dynamic";
@@ -62,6 +62,7 @@ const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 480;
 const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 280;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 80;
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 520;
+const PRODUCT_PAGE_REVIEWS_TIMEOUT_MS = 220;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_PHONE_TEL = "+380634211851";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
@@ -182,6 +183,29 @@ const ProductDeferredRecommendations = dynamic(
       </section>
     ),
   }
+);
+
+const ProductRelatedItemsFallback = () => (
+  <section
+    aria-label="Завантаження рекомендованих товарів"
+    className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.92),rgba(248,250,252,0.98))] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.05)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4"
+  >
+    <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-2.5">
+      <div className="min-w-0 flex-1">
+        <div className="h-3 w-28 animate-pulse rounded-full bg-sky-100 motion-reduce:animate-none" />
+        <div className="mt-2 h-6 w-72 max-w-full animate-pulse rounded-full bg-slate-100 motion-reduce:animate-none" />
+      </div>
+      <div className="h-6 w-20 animate-pulse rounded-full bg-slate-100 motion-reduce:animate-none" />
+    </div>
+    <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+      {Array.from({ length: 2 }).map((_, index) => (
+        <div
+          key={index}
+          className="h-[88px] animate-pulse rounded-[14px] border border-slate-200 bg-slate-100 motion-reduce:animate-none"
+        />
+      ))}
+    </div>
+  </section>
 );
 
 interface ProductPageParams {
@@ -829,29 +853,6 @@ const buildProductMetaDescription = (options: {
       `${STORE_PHONE_DISPLAY}, ${STORE_ADDRESS}.`,
     ].join(" ")
   );
-};
-
-const buildProductFallbackDescription = (options: {
-  visibleName: string;
-  producer: string;
-  group: string;
-  subGroup: string;
-  quantity: number;
-}) => {
-  const { visibleName, producer, group, subGroup, quantity } = options;
-  const categoryLabel =
-    buildVisibleProductName(subGroup || group || "каталогу автозапчастин");
-  const availabilityLabel =
-    quantity > 0
-      ? "Наявність і ціну підтверджуємо перед оформленням."
-      : "Менеджер уточнить термін постачання перед замовленням.";
-
-  return trimSeoDescription([
-    `${trimSeoPhrase(`${visibleName}${producer ? ` ${producer}` : ""}`, 82)}. ${availabilityLabel}`,
-    `${categoryLabel ? `Категорія: ${categoryLabel}.` : ""}`,
-    "Підбір за VIN, перевірка сумісності, аналоги, артикул, код виробника, самовивіз у Львові та доставка по Україні.",
-    "Перед замовленням звіряємо параметри деталі, виробника, покоління авто й можливі заміни.",
-  ].filter(Boolean).join(" "), 300);
 };
 
 const trimSeoPhrase = (value: string, maxLength: number) => {
@@ -1917,13 +1918,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     product.costPriceEuro != null && pagePrice.euroRate != null
       ? toPriceUah(product.costPriceEuro, pagePrice.euroRate)
       : null;
-  const fallbackDescription = buildProductFallbackDescription({
-    visibleName: visibleProductName,
-    producer: product.producer,
-    group: productGroup,
-    subGroup: productSubgroup,
-    quantity: product.quantity,
-  });
   const schemaDescription = buildProductMetaDescription({
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubgroup,
@@ -1987,7 +1981,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   >(
     () => reviewsPromise,
     [null, null],
-    650
+    PRODUCT_PAGE_REVIEWS_TIMEOUT_MS
   );
   const jsonLd = shouldEmitProductStructuredData
     ? buildProductJsonLd({
@@ -2188,7 +2182,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         }
       >
         <article
-          className={`overflow-hidden border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.97),rgba(255,255,255,0.99))] shadow-[0_22px_58px_rgba(15,23,42,0.1)] backdrop-blur-xl ${
+          className={`overflow-hidden border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.98),rgba(255,255,255,1))] shadow-[0_22px_58px_rgba(15,23,42,0.1)] ${
             isModalView ? "rounded-2xl" : "rounded-[24px] sm:rounded-[26px]"
           }`}
         >
@@ -2218,13 +2212,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               )}
               <div className="grid gap-3 xl:grid-cols-[minmax(190px,224px)_minmax(0,1fr)_296px] xl:items-stretch 2xl:grid-cols-[minmax(204px,240px)_minmax(0,1fr)_312px]">
                 <div className="order-2 min-w-0 self-stretch xl:order-1">
-                  <div className="flex h-full min-h-[220px] items-center justify-center overflow-hidden rounded-[20px] border border-white/80 bg-white/86 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_14px_30px_rgba(14,165,233,0.1)] backdrop-blur-sm transition-[box-shadow,border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-sky-200/90 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.94),0_18px_36px_rgba(14,165,233,0.14)] sm:min-h-[260px] xl:min-h-0">
+                  <div className="flex h-full min-h-[220px] items-center justify-center overflow-hidden rounded-[20px] border border-white/90 bg-white/95 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_14px_30px_rgba(14,165,233,0.1)] transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-200 hover:bg-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,1),0_18px_38px_rgba(14,165,233,0.15)] sm:min-h-[260px] xl:min-h-0">
                     <ProductImageWithFallback
                       alt={`Фото товару ${product.name}`}
                       width={640}
                       height={640}
                       loading="eager"
-                      decoding="sync"
+                      decoding="async"
                       fetchPriority="high"
                       zoomEnabled
                       productCode={product.code || resolvedCode}
@@ -2237,7 +2231,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   </div>
                 </div>
 
-                <div className="order-1 flex h-full min-w-0 flex-col justify-center rounded-[20px] border border-white/80 bg-white/78 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.07)] ring-1 ring-white/70 backdrop-blur-md transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white/86 hover:shadow-[0_16px_34px_rgba(15,23,42,0.09)] xl:order-2 sm:p-3.5">
+                <div className="order-1 flex h-full min-w-0 flex-col justify-center rounded-[20px] border border-white/90 bg-white/92 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.07)] ring-1 ring-white/80 transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white hover:shadow-[0_16px_34px_rgba(15,23,42,0.1)] xl:order-2 sm:p-3.5">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-[13px] border px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.09em] shadow-[0_8px_18px_rgba(15,23,42,0.07)] ${
@@ -2299,7 +2293,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                                       width={72}
                                       height={38}
                                       className="h-8 w-auto max-w-[72px] object-contain"
-                                      priority
+                                      loading="lazy"
                                     />
                                   </Link>
                                 ) : (
@@ -2310,7 +2304,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                                       width={72}
                                       height={38}
                                       className="h-8 w-auto max-w-[72px] object-contain"
-                                      priority
+                                      loading="lazy"
                                     />
                                   </div>
                                 )}
@@ -2319,7 +2313,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                           ) : (
                             <div
                               key={item.label}
-                              className="rounded-[14px] border border-slate-200 bg-white/82 px-3 py-2.5 shadow-[0_4px_10px_rgba(15,23,42,0.05)] backdrop-blur-sm transition-[box-shadow,border-color] duration-300 hover:border-sky-200"
+                              className="rounded-[14px] border border-slate-200 bg-white/95 px-3 py-2.5 shadow-[0_4px_10px_rgba(15,23,42,0.05)] transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-200 hover:bg-sky-50/40 hover:shadow-[0_8px_18px_rgba(14,165,233,0.08)]"
                             >
                               <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500">
                                 {item.label}
@@ -2346,7 +2340,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                     {productHeroHighlights.map((item) => (
                       <span
                         key={item}
-                        className="inline-flex min-h-6 items-center rounded-[9px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(248,250,252,0.96))] px-2 py-0.5 text-[10px] font-semibold tracking-normal text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_8px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)] backdrop-blur-sm"
+                        className="inline-flex min-h-6 items-center rounded-[9px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(248,250,252,0.98))] px-2 py-0.5 text-[10px] font-semibold tracking-normal text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_8px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)]"
                       >
                         {item}
                       </span>
@@ -2354,7 +2348,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   </div>
                 </div>
                 <div className="order-3 min-w-0 self-stretch xl:pl-1">
-                  <div className="h-full rounded-[22px] border border-white/80 bg-white/82 p-1.5 shadow-[0_12px_30px_rgba(15,23,42,0.08)] ring-1 ring-white/70 backdrop-blur-sm transition-[box-shadow,border-color] duration-300 hover:border-sky-100 hover:shadow-[0_16px_36px_rgba(15,23,42,0.1)]">
+                  <div className="h-full rounded-[22px] border border-white/90 bg-white/94 p-1.5 shadow-[0_12px_30px_rgba(15,23,42,0.08)] ring-1 ring-white/80 transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white hover:shadow-[0_16px_36px_rgba(15,23,42,0.11)]">
                     <ProductPurchasePanelClient
                       lookupKeys={lookupKeys}
                       isModalView={isModalView}
@@ -2432,7 +2426,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <section className="space-y-2.5">
               <div className="grid gap-2.5">
                 <ProductDescriptionClientCard
-                  fallbackText={fallbackDescription}
                   initialText={product.description || null}
                   lookupKeys={lookupKeys}
                   isModalView={isModalView}
@@ -2496,18 +2489,20 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
               {!isModalView && (
                 <>
-                  <ProductRelatedItemsSection
-                    product={{
-                      code: product.code,
-                      article: product.article,
-                      name: product.name,
-                      producer: product.producer,
-                      group: product.group,
-                      subGroup: product.subGroup,
-                      category: product.category,
-                    }}
-                    euroRate={recommendationEuroRate}
-                  />
+                  <Suspense fallback={<ProductRelatedItemsFallback />}>
+                    <ProductRelatedItemsSection
+                      product={{
+                        code: product.code,
+                        article: product.article,
+                        name: product.name,
+                        producer: product.producer,
+                        group: product.group,
+                        subGroup: product.subGroup,
+                        category: product.category,
+                      }}
+                      euroRate={recommendationEuroRate}
+                    />
+                  </Suspense>
                   <ProductDeferredRecommendations
                     product={{
                       code: product.code,
@@ -2555,7 +2550,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                   {faqItems.map((item) => (
                     <div
                       key={item.question}
-                      className="rounded-[16px] border border-slate-900/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(236,243,248,0.94))] px-3.5 py-3 shadow-[0_8px_18px_rgba(2,6,23,0.05)]"
+                      className="rounded-[16px] border border-slate-900/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(236,243,248,0.96))] px-3.5 py-3 shadow-[0_8px_18px_rgba(2,6,23,0.05)] transition-[border-color,box-shadow,background-color] duration-200 hover:border-sky-200 hover:bg-sky-50/35 hover:shadow-[0_12px_24px_rgba(14,165,233,0.09)]"
                     >
                       <h3 className="text-[13.5px] font-bold leading-5 text-slate-950 not-italic">
                         {item.question}

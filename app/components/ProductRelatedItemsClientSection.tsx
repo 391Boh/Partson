@@ -247,7 +247,7 @@ const RecommendationBlock = ({
               item={item}
               priceLabel={priceLabel}
               sourceArticle={articleLabel}
-              imagePriority={index < 2}
+              imagePriority={false}
               prefetchedImageSrc={resolvedImages[imageKey] || ""}
             />
           );

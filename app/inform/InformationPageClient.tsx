@@ -244,10 +244,44 @@ const DeliveryTab = () => (
 
 const PaymentTab = () => (
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <section className="relative overflow-hidden rounded-[24px] border border-emerald-100 bg-[radial-gradient(circle_at_100%_0%,rgba(52,211,153,0.13),transparent_38%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,253,250,0.94))] p-4 shadow-[0_16px_36px_rgba(15,23,42,0.07)] sm:col-span-2 sm:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+            Платіжний партнер
+          </p>
+          <h2 className="mt-1.5 text-lg font-black tracking-tight text-slate-900">
+            Захищена онлайн-оплата через LiqPay
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-slate-600">
+            Дані картки вводяться безпосередньо у захищеній формі LiqPay.
+            PartsON не отримує і не зберігає номер картки, строк її дії або CVV-код.
+          </p>
+        </div>
+        <a
+          href="https://www.liqpay.ua/"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Офіційний сайт LiqPay"
+          className="shrink-0 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-[border-color,box-shadow] hover:border-emerald-200 hover:shadow-[0_12px_26px_rgba(16,185,129,0.10)]"
+        >
+          <Image
+            src="/liqpay-logo.svg"
+            alt="LiqPay"
+            width={500}
+            height={104}
+            className="h-[25px] w-auto"
+            priority
+          />
+        </a>
+      </div>
+    </section>
+
     <InfoCard title="Онлайн-оплата картою" icon={CreditCard} accent="emerald" featured>
       <ul className="space-y-3">
-        <Li icon={CheckCircle} cls="text-emerald-500"><strong className="font-semibold text-slate-700">Visa / MasterCard</strong> через захищений платіжний шлюз</Li>
-        <Li icon={ShieldCheck} cls="text-emerald-500">Безпечна транзакція з шифруванням даних</Li>
+        <Li icon={CheckCircle} cls="text-emerald-500"><strong className="font-semibold text-slate-700">Visa / Mastercard</strong> через захищену платіжну форму LiqPay</Li>
+        <Li icon={ShieldCheck} cls="text-emerald-500">Комісія платіжного сервісу не додається до вартості замовлення</Li>
+        <Li icon={CheckCircle} cls="text-emerald-500">Замовлення вважається оплаченим після отримання успішного статусу від LiqPay</Li>
       </ul>
     </InfoCard>
 
@@ -267,8 +301,8 @@ const PaymentTab = () => (
 
     <InfoCard title="Гарантія та повернення" icon={RefreshCcw} accent="rose">
       <ul className="space-y-3">
-        <Li icon={CheckCircle} cls="text-rose-500">Умови повернення та обміну <strong className="font-semibold text-slate-700">уточнюються з менеджером</strong> залежно від товарної групи</Li>
-        <Li icon={ShieldCheck} cls="text-rose-500">Якість товару — наш пріоритет</Li>
+        <Li icon={CheckCircle} cls="text-rose-500">Правила, строки та порядок оформлення описані на сторінці <Link href="/inform/returns" className="font-semibold text-slate-700 underline decoration-rose-300 underline-offset-4">«Повернення»</Link></Li>
+        <Li icon={ShieldCheck} cls="text-rose-500">Умови отримання і тарифи перевізників наведені у розділі <Link href="/inform/delivery" className="font-semibold text-slate-700 underline decoration-rose-300 underline-offset-4">«Доставка»</Link></Li>
       </ul>
     </InfoCard>
   </div>

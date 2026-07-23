@@ -50,6 +50,11 @@ function decodeData(data: string) {
 const readString = (value: unknown) =>
   typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
 
+const readAmount = (value: unknown) => {
+  const amount = Number(readString(value).replace(',', '.'));
+  return Number.isFinite(amount) && amount > 0 ? Number(amount.toFixed(2)) : null;
+};
+
 const getPaymentStatus = (liqpayStatus: string) => {
   if (liqpayStatus === 'success') return 'paid';
   if (['failure', 'error', 'reversed'].includes(liqpayStatus)) return 'failed';
@@ -111,9 +116,12 @@ export async function POST(req: NextRequest) {
   const orderId = readString(decoded.order_id);
   const transactionId = readString(decoded.transaction_id);
   const paymentId = readString(decoded.payment_id);
+  const callbackPublicKey = readString(decoded.public_key);
+  const callbackCurrency = readString(decoded.currency).toUpperCase();
+  const callbackAmount = readAmount(decoded.amount);
   const paymentStatus = getPaymentStatus(liqpayStatus);
 
-  if (!orderId) {
+  if (!orderId || !/^[A-Za-z0-9_-]+$/.test(orderId)) {
     const invalidOrder = NextResponse.json({ error: 'Callback has no order_id' }, { status: 400 });
     setRateLimitHeaders(invalidOrder.headers, rateResult);
     return invalidOrder;
@@ -121,8 +129,30 @@ export async function POST(req: NextRequest) {
 
   try {
     const adminDb = getFirebaseAdminDb();
+    const orderRef = adminDb.collection('orders').doc(orderId);
+    const orderSnapshot = await orderRef.get();
+    const expectedAmount = readAmount(orderSnapshot.data()?.totalAmount);
+    const configuredPublicKey = readString(process.env.LIQPAY_PUBLIC_KEY);
+
+    if (
+      !orderSnapshot.exists ||
+      expectedAmount == null ||
+      callbackAmount == null ||
+      expectedAmount !== callbackAmount ||
+      callbackCurrency !== 'UAH' ||
+      !configuredPublicKey ||
+      callbackPublicKey !== configuredPublicKey
+    ) {
+      const mismatch = NextResponse.json(
+        { error: 'LiqPay callback does not match the order' },
+        { status: 409 }
+      );
+      setRateLimitHeaders(mismatch.headers, rateResult);
+      return mismatch;
+    }
+
     const now = new Date();
-    await adminDb.collection('orders').doc(orderId).set(
+    await orderRef.set(
       {
         orderId,
         paymentMethod: 'Картка',

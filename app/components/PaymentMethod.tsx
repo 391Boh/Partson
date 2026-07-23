@@ -2,7 +2,9 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Check, CreditCard, Loader2, Percent, ShieldCheck, X } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { ArrowLeft, Check, Loader2, Percent, ShieldCheck, X } from 'lucide-react';
 
 type OrderPayload = Record<string, unknown>;
 type LiqPayInitParams = {
@@ -242,6 +244,22 @@ const PaymentMethod: React.FC<Props> = ({
     const initLiqPay = async () => {
       try {
         setPaymentError(null);
+        await onCardPaymentStarted?.({
+          name,
+          phone,
+          amount,
+          subtotalAmount,
+          discountAmount,
+          isFirstOrderDiscountApplied,
+          orderId,
+          paymentMethod,
+          deliveryMethod,
+          paymentStatus: 'pending',
+          paymentProvider: 'liqpay',
+        });
+
+        if (cancelled) return;
+
         const resultUrl =
           resolveSameOriginPaymentUrl(process.env.NEXT_PUBLIC_LIQPAY_RESULT_URL, '/success');
         const callbackUrl =
@@ -263,14 +281,6 @@ const PaymentMethod: React.FC<Props> = ({
             language: 'uk',
             result_url: resultUrl,
             server_url: callbackUrl,
-            info: JSON.stringify({
-              name,
-              phone,
-              subtotalAmount,
-              discountAmount,
-              totalAmount: amount,
-              firstOrderDiscount: isFirstOrderDiscountApplied,
-            }),
           }),
         });
 
@@ -297,22 +307,6 @@ const PaymentMethod: React.FC<Props> = ({
           setPaymentError('Платіжний віджет ще не готовий. Спробуйте ще раз за кілька секунд.');
           return;
         }
-
-        await onCardPaymentStarted?.({
-          name,
-          phone,
-          amount,
-          subtotalAmount,
-          discountAmount,
-          isFirstOrderDiscountApplied,
-          orderId,
-          paymentMethod,
-          deliveryMethod,
-          paymentStatus: 'pending',
-          paymentProvider: 'liqpay',
-        });
-
-        if (cancelled) return;
 
         const checkoutContainer = document.getElementById(checkoutContainerId);
         if (checkoutContainer) {
@@ -411,7 +405,14 @@ const PaymentMethod: React.FC<Props> = ({
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
                       <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-sky-100 bg-white/90 text-sky-700 shadow-[0_12px_24px_rgba(14,165,233,0.12)]">
-                        <CreditCard size={22} strokeWidth={1.9} aria-hidden="true" />
+                        <Image
+                          src="/liqpay-payment-symbol.svg"
+                          alt=""
+                          width={185}
+                          height={119}
+                          className="h-8 w-9 object-contain"
+                          aria-hidden="true"
+                        />
                       </span>
                       <div className="min-w-0">
                         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-sky-700">
@@ -567,7 +568,14 @@ const PaymentMethod: React.FC<Props> = ({
         <div className="soft-surface-card flex flex-col gap-3 rounded-[18px] p-3.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-sky-100 bg-white/90 text-sky-700">
-              <CreditCard size={20} strokeWidth={1.9} aria-hidden="true" />
+              <Image
+                src="/liqpay-payment-symbol.svg"
+                alt=""
+                width={185}
+                height={119}
+                className="h-7 w-8 object-contain"
+                aria-hidden="true"
+              />
             </span>
             <div className="min-w-0">
               <p className="text-sm font-bold text-slate-800">Оплата карткою через LiqPay</p>
@@ -617,6 +625,22 @@ const PaymentMethod: React.FC<Props> = ({
           {paymentError}
         </div>
       )}
+
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium leading-5 text-slate-600">
+        <ShieldCheck size={14} className="text-emerald-600" aria-hidden="true" />
+        <span>Продовжуючи оплату, ви погоджуєтеся з умовами</span>
+        <Link href="/inform/payment" className="font-semibold text-sky-700 underline underline-offset-2">
+          оплати
+        </Link>
+        <span aria-hidden="true">·</span>
+        <Link href="/inform/delivery" className="font-semibold text-sky-700 underline underline-offset-2">
+          доставки
+        </Link>
+        <span aria-hidden="true">·</span>
+        <Link href="/inform/returns" className="font-semibold text-sky-700 underline underline-offset-2">
+          повернення
+        </Link>
+      </div>
 
       <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:justify-end">
         <button

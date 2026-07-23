@@ -17,6 +17,7 @@ import {
   FaShieldAlt,
   FaTools,
   FaTruck,
+  FaUndoAlt,
   FaWallet,
 } from "react-icons/fa";
 import { SiFacebook, SiInstagram, SiTelegram } from "react-icons/si";
@@ -28,6 +29,7 @@ const infoLinks = [
   { href: "/inform/delivery",    icon: FaTruck,      label: "Доставка" },
   { href: "/inform/location",    icon: FaMapMarkerAlt, label: "Локація" },
   { href: "/inform/payment",     icon: FaWallet,     label: "Оплата" },
+  { href: "/inform/returns",     icon: FaUndoAlt,    label: "Повернення" },
   { href: "/inform/privacy",     icon: FaShieldAlt,  label: "Конфіденційність" },
   { href: "/auto",               icon: FaCarSide,    label: "Марки і моделі" },
   { href: "/inform/diagnostics", icon: FaTools,      label: "Діагностика" },
@@ -310,6 +312,29 @@ export default function Footer() {
           className={`${colBase} ${visible ? colVisible : colHidden} mt-8 border-t border-slate-200/70 pt-5 text-center text-sm text-slate-500`}
           style={{ transitionDelay: visible ? "320ms" : "0ms" }}
         >
+          <SmartLink
+            href="/inform/payment"
+            aria-label="Онлайн-оплата через LiqPay — умови оплати"
+            className="mx-auto mb-4 flex w-fit items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-[border-color,box-shadow,background-color] hover:border-emerald-200 hover:bg-white hover:shadow-[0_12px_28px_rgba(16,185,129,0.10)]"
+          >
+            <span className="rounded-lg bg-white px-2.5 py-1.5">
+              <Image
+                src="/liqpay-logo.svg"
+                alt="LiqPay"
+                width={500}
+                height={104}
+                className="h-[18px] w-auto"
+              />
+            </span>
+            <span className="text-left">
+              <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                Безпечна онлайн-оплата
+              </span>
+              <span className="mt-0.5 block text-xs font-semibold text-slate-700">
+                Карткою через захищений платіжний сервіс
+              </span>
+            </span>
+          </SmartLink>
           <p>
             © {new Date().getFullYear()}{" "}
             <SmartLink href="/" className="font-semibold text-sky-700 hover:text-sky-900">

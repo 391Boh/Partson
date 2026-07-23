@@ -9,7 +9,7 @@ import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 
 // Cap the SSR prefetch so the Suspense boundary does not hold the page past this.
-const RELATED_SSR_TIMEOUT_MS = 720;
+const RELATED_SSR_TIMEOUT_MS = 280;
 const isProductionBuildPhase =
   process.env.NEXT_PHASE === "phase-production-build" ||
   process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
