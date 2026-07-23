@@ -14,6 +14,7 @@ import {
   toPriceUah,
 } from "app/lib/catalog-server";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
+import ProductPageAdminEditGate from "app/components/ProductPageAdminEditGate";
 import ProductRelatedItemsSection from "app/components/ProductRelatedItemsSection";
 import {
   buildCatalogCategoryPath,
@@ -50,7 +51,11 @@ import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
 import { producerDescriptions } from "app/lib/producer-descriptions";
 import { unstable_noStore as noStore } from "next/cache";
 import { clearAllOneCCache } from "app/api/_lib/oneC";
-import { getProductReviewStats } from "app/lib/reviews-server";
+import {
+  getProductReviews,
+  getProductReviewStats,
+  type ProductReview,
+} from "app/lib/reviews-server";
 
 const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 420;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 480;
@@ -154,10 +159,6 @@ const OpenChatButton = dynamic(() => import("app/components/OpenChatButton"), {
     <span className="inline-flex h-9 w-9 rounded-[12px] border border-sky-100 bg-sky-50" />
   ),
 });
-
-const ProductPageAdminEditPanel = dynamic(
-  () => import("app/components/ProductPageAdminEditPanel")
-);
 
 const ProductReviewsSection = dynamic(
   () => import("app/components/ProductReviewsSection"),
@@ -424,6 +425,7 @@ const buildProductJsonLd = (options: {
   canonicalUrl: string;
   imageUrls: string[];
   aggregateRating?: { ratingCount: number; avgRating: number };
+  reviews?: ProductReview[];
 }) => {
   const {
     name,
@@ -439,6 +441,7 @@ const buildProductJsonLd = (options: {
     canonicalUrl,
     imageUrls,
     aggregateRating,
+    reviews = [],
   } = options;
 
   const offers =
@@ -476,41 +479,6 @@ const buildProductJsonLd = (options: {
             Date.now() + 1000 * 60 * 60 * 24 * 30
           ).toISOString().slice(0, 10),
           url: canonicalUrl,
-          shippingDetails: {
-            "@type": "OfferShippingDetails",
-            shippingDestination: {
-              "@type": "DefinedRegion",
-              addressCountry: "UA",
-            },
-            shippingRate: {
-              "@type": "MonetaryAmount",
-              value: "0",
-              currency: "UAH",
-            },
-            deliveryTime: {
-              "@type": "ShippingDeliveryTime",
-              handlingTime: {
-                "@type": "QuantitativeValue",
-                minValue: 0,
-                maxValue: 1,
-                unitCode: "DAY",
-              },
-              transitTime: {
-                "@type": "QuantitativeValue",
-                minValue: 1,
-                maxValue: 3,
-                unitCode: "DAY",
-              },
-            },
-          },
-          hasMerchantReturnPolicy: {
-            "@type": "MerchantReturnPolicy",
-            applicableCountry: "UA",
-            returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
-            merchantReturnDays: 14,
-            returnFees: "https://schema.org/FreeReturn",
-            returnMethod: "https://schema.org/ReturnByMail",
-          },
         }
       : undefined;
 
@@ -527,6 +495,8 @@ const buildProductJsonLd = (options: {
     image: imageUrls.map((url) => ({
       "@type": "ImageObject",
       url,
+      contentUrl: url,
+      caption: `${visibleName || name}${article ? ` — артикул ${article}` : ""}`,
     })),
     sku: article || undefined,
     mpn: code || undefined,
@@ -574,6 +544,25 @@ const buildProductJsonLd = (options: {
             bestRating: "5",
             worstRating: "1",
           },
+        }
+      : {}),
+    ...(reviews.length > 0
+      ? {
+          review: reviews.slice(0, 5).map((review) => ({
+            "@type": "Review",
+            author: {
+              "@type": "Person",
+              name: review.authorName || "Анонімний покупець",
+            },
+            reviewRating: {
+              "@type": "Rating",
+              ratingValue: String(review.rating),
+              bestRating: "5",
+              worstRating: "1",
+            },
+            datePublished: review.createdAt?.slice(0, 10) || undefined,
+            reviewBody: review.comment || undefined,
+          })),
         }
       : {}),
   };
@@ -1618,7 +1607,8 @@ export async function generateMetadata({
 
   const productImagePath = routeProduct && routeProduct.hasPhoto !== false
     ? buildProductImagePath(routeProduct.code || resolvedCode, routeProduct.article, {
-        noFallback: false,
+        noFallback: true,
+        retryToken: 1,
       })
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const siteUrl = getSiteUrl();
@@ -1906,7 +1896,21 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const visibleProductGroup = buildVisibleProductName(productGroup);
   const visibleProductSubgroup = buildVisibleProductName(productSubgroup);
   const siteUrl = getSiteUrl();
-  const pagePrice = await resolveProductSeoPrice(inlineInitialPriceEuro);
+  const reviewsPromise: Promise<
+    readonly [
+      Awaited<ReturnType<typeof getProductReviewStats>>,
+      ProductReview[] | null,
+    ]
+  > = resolvedCode
+    ? Promise.all([
+        getProductReviewStats(resolvedCode),
+        getProductReviews(resolvedCode),
+      ]).catch(() => [null, null] as const)
+    : Promise.resolve([null, []]);
+  const [pagePrice, brandLogoMap] = await Promise.all([
+    resolveProductSeoPrice(inlineInitialPriceEuro),
+    getBrandLogoMap().catch(() => new Map<string, string>()),
+  ]);
   const initialPriceUah = pagePrice.priceUah;
   const recommendationEuroRate = pagePrice.euroRate ?? undefined;
   const initialCostPriceUah =
@@ -1935,7 +1939,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const producerLandingPath = product.producer
     ? buildManufacturerPath(product.producer)
     : null;
-  const brandLogoMap = await getBrandLogoMap().catch(() => new Map<string, string>());
   const producerLogoPath = product.producer
     ? resolveProducerLogo(product.producer, brandLogoMap)
     : null;
@@ -1973,12 +1976,19 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
   const productHasKnownPhoto = product.hasPhoto !== false;
   const productSeoImagePath = productHasKnownPhoto
-    ? buildProductImagePath(product.code || resolvedCode, product.article)
+    ? buildProductImagePath(product.code || resolvedCode, product.article, {
+        noFallback: true,
+        retryToken: 1,
+      })
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const productSeoImageUrl = `${siteUrl}${productSeoImagePath}`;
-  const reviewStats = resolvedCode
-    ? await resolveWithTimeout(() => getProductReviewStats(resolvedCode), null, 150)
-    : null;
+  const [reviewStats, initialReviews] = await resolveWithTimeout<
+    readonly [Awaited<ReturnType<typeof getProductReviewStats>>, ProductReview[] | null]
+  >(
+    () => reviewsPromise,
+    [null, null],
+    650
+  );
   const jsonLd = shouldEmitProductStructuredData
     ? buildProductJsonLd({
         name: product.name,
@@ -1994,6 +2004,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         canonicalUrl,
         imageUrls: [productSeoImageUrl],
         aggregateRating: reviewStats ?? undefined,
+        reviews: initialReviews ?? undefined,
       })
     : null;
   const itemPageJsonLd = buildProductItemPageJsonLd({
@@ -2360,7 +2371,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             </div>
           </header>
 
-          <ProductPageAdminEditPanel
+          <ProductPageAdminEditGate
             code={product.code || resolvedCode}
             article={product.article || ""}
             name={product.name || ""}
@@ -2518,7 +2529,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           </div>
 
           {!isModalView && resolvedCode && (
-            <ProductReviewsSection productCode={resolvedCode} />
+            <ProductReviewsSection
+              productCode={resolvedCode}
+              initialReviews={initialReviews}
+            />
           )}
 
           {!isModalView && (

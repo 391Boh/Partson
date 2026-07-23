@@ -1,5 +1,5 @@
 const normalizeSegment = (value?: string) => (value || "").trim();
-const PRODUCT_IMAGE_ROUTE_VERSION = "2";
+const PRODUCT_IMAGE_ROUTE_VERSION = "3";
 
 export const buildProductImageBatchKey = (
   productCode: string,

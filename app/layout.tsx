@@ -121,23 +121,36 @@ const analyticsConsentBootstrap = `
     w.dataLayer=w.dataLayer||[];
     w.gtag=w.gtag||function(){w.dataLayer.push(arguments);};
     w.__PARTSON_ANALYTICS_MODE__=${JSON.stringify(analyticsMode)};
-    var match=d.cookie.match(/(?:^|;\\s*)partson_analytics_consent=([^;]*)/);
-    var choice=match?decodeURIComponent(match[1]):'';
-    var analyticsGranted=choice==='granted';
+    var analyticsMatch=d.cookie.match(/(?:^|;\\s*)partson_analytics_consent=([^;]*)/);
+    var advertisingMatch=d.cookie.match(/(?:^|;\\s*)partson_advertising_consent=([^;]*)/);
+    var analyticsChoice=analyticsMatch?decodeURIComponent(analyticsMatch[1]):'';
+    var advertisingChoice=advertisingMatch?decodeURIComponent(advertisingMatch[1]):'';
+    var analyticsGranted=analyticsChoice==='granted';
+    var advertisingGranted=advertisingChoice==='granted';
+    var validAnalyticsChoice=analyticsChoice==='granted'||analyticsChoice==='denied';
+    var validAdvertisingChoice=advertisingChoice==='granted'||advertisingChoice==='denied';
     d.documentElement.setAttribute(
       'data-analytics-consent',
-      choice==='granted'||choice==='denied'?choice:'unset'
+      validAnalyticsChoice?analyticsChoice:'unset'
+    );
+    d.documentElement.setAttribute(
+      'data-advertising-consent',
+      validAdvertisingChoice?advertisingChoice:'unset'
+    );
+    d.documentElement.setAttribute(
+      'data-consent-preferences',
+      validAnalyticsChoice&&validAdvertisingChoice?'complete':'unset'
     );
     w.gtag('consent','default',{
       analytics_storage:analyticsGranted?'granted':'denied',
-      ad_storage:'denied',
-      ad_user_data:'denied',
-      ad_personalization:'denied',
+      ad_storage:advertisingGranted?'granted':'denied',
+      ad_user_data:advertisingGranted?'granted':'denied',
+      ad_personalization:advertisingGranted?'granted':'denied',
       functionality_storage:'granted',
       security_storage:'granted',
       wait_for_update:500
     });
-    w.gtag('set','ads_data_redaction',true);
+    w.gtag('set','ads_data_redaction',!advertisingGranted);
   })(window,document);
 `;
 

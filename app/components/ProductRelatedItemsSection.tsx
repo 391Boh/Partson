@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { RelatedProductCardItem } from "app/lib/product-related";
-import { getAnalogProducts } from "app/lib/product-related";
+import { getAnalogProducts, getSimilarProducts } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import ProductRelatedItemsClientSection from "app/components/ProductRelatedItemsClientSection";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
@@ -9,7 +9,7 @@ import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 
 // Cap the SSR prefetch so the Suspense boundary does not hold the page past this.
-const RELATED_SSR_TIMEOUT_MS = 120;
+const RELATED_SSR_TIMEOUT_MS = 720;
 const isProductionBuildPhase =
   process.env.NEXT_PHASE === "phase-production-build" ||
   process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
@@ -68,17 +68,28 @@ export default async function ProductRelatedItemsSection({
   const subGroup = (product.subGroup || "").trim();
   const category = (product.category || "").trim();
 
-  const initialRelatedItems = isProductionBuildPhase
-    ? null
-    : await resolveWithTimeout<RelatedProductCardItem[] | null>(
-        () => getAnalogProducts(article, code, name, producer, group, subGroup, category),
-        null,
-        RELATED_SSR_TIMEOUT_MS
-      ).then((items) => (items && items.length > 0 ? items : null));
+  const [initialRelatedItems, initialSimilarItems] = isProductionBuildPhase
+    ? [null, null]
+    : await Promise.all([
+        resolveWithTimeout<RelatedProductCardItem[] | null>(
+          () => getAnalogProducts(article, code, name, producer, group, subGroup, category),
+          null,
+          RELATED_SSR_TIMEOUT_MS
+        ).then((items) => (items && items.length > 0 ? items : null)),
+        resolveWithTimeout<RelatedProductCardItem[] | null>(
+          () => getSimilarProducts(article, code, name, producer, group, subGroup, category),
+          null,
+          RELATED_SSR_TIMEOUT_MS
+        ).then((items) => (items && items.length > 0 ? items : null)),
+      ]);
 
   const recommendationItemListJsonLd = buildRecommendationItemListJsonLd(
     initialRelatedItems ?? [],
     `Аналоги для ${buildVisibleProductName(name || article || code)}`
+  );
+  const similarItemListJsonLd = buildRecommendationItemListJsonLd(
+    initialSimilarItems ?? [],
+    `Схожі товари для ${buildVisibleProductName(name || article || code)}`
   );
 
   return (
@@ -86,6 +97,7 @@ export default async function ProductRelatedItemsSection({
       <ProductRelatedItemsClientSection
         product={product}
         initialRelatedItems={initialRelatedItems}
+        initialSimilarItems={initialSimilarItems}
         euroRate={euroRate}
       />
       {recommendationItemListJsonLd ? (
@@ -93,6 +105,14 @@ export default async function ProductRelatedItemsSection({
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: safeJsonLd(recommendationItemListJsonLd),
+          }}
+        />
+      ) : null}
+      {similarItemListJsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: safeJsonLd(similarItemListJsonLd),
           }}
         />
       ) : null}

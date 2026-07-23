@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, MessageSquare, Send, Star } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import StarRatingInput from "./StarRatingInput";
 
 interface Review {
@@ -43,37 +43,108 @@ const fmtDate = (iso: string | null) => {
 
 export default function ProductReviewsSection({
   productCode,
+  initialReviews = null,
 }: {
   productCode: string;
+  initialReviews?: Review[] | null;
 }) {
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState<Review[]>(initialReviews ?? []);
+  const [loading, setLoading] = useState(initialReviews === null);
+  const [loadError, setLoadError] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [authorName, setAuthorName] = useState("");
+  const activeRequestRef = useRef<AbortController | null>(null);
+  const requestVersionRef = useRef(0);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `/api/reviews?code=${encodeURIComponent(productCode)}`
-      );
-      if (!res.ok) return;
-      const data = (await res.json()) as { reviews: Review[] };
-      setReviews(data.reviews ?? []);
-    } catch {
-      // ignore
-    } finally {
+  const load = useCallback(async (cacheBust = false) => {
+    const requestVersion = requestVersionRef.current + 1;
+    requestVersionRef.current = requestVersion;
+    activeRequestRef.current?.abort();
+    setLoadError(false);
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (requestVersion !== requestVersionRef.current) return;
+      const controller = new AbortController();
+      activeRequestRef.current = controller;
+      const timeoutId = window.setTimeout(() => controller.abort(), 5200);
+
+      try {
+        const params = new URLSearchParams({ code: productCode });
+        if (cacheBust || attempt > 0) params.set("_refresh", String(Date.now()));
+        const res = await fetch(`/api/reviews?${params.toString()}`, {
+          headers: { Accept: "application/json" },
+          cache: cacheBust ? "no-store" : "default",
+          signal: controller.signal,
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          reviews?: Review[];
+          retryable?: boolean;
+        };
+
+        if (!res.ok) {
+          if (data.retryable !== false && attempt === 0) {
+            await new Promise((resolve) => window.setTimeout(resolve, 220));
+            continue;
+          }
+          throw new Error("reviews-request-failed");
+        }
+
+        if (requestVersion === requestVersionRef.current) {
+          setReviews(Array.isArray(data.reviews) ? data.reviews : []);
+          setLoading(false);
+        }
+        return;
+      } catch (error) {
+        lastError = error;
+        if (requestVersion !== requestVersionRef.current) return;
+        if (attempt === 0) {
+          await new Promise((resolve) => window.setTimeout(resolve, 220));
+          continue;
+        }
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    }
+
+    if (requestVersion === requestVersionRef.current) {
       setLoading(false);
+      setLoadError(Boolean(lastError));
     }
   }, [productCode]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    requestVersionRef.current += 1;
+    activeRequestRef.current?.abort();
+    setReviews(initialReviews ?? []);
+    setLoading(initialReviews === null);
+    setLoadError(false);
+    setShowAll(false);
+
+    if (initialReviews === null) {
+      void load();
+    } else {
+      const refreshId = window.setTimeout(() => {
+        void load();
+      }, 1800);
+      return () => {
+        window.clearTimeout(refreshId);
+        requestVersionRef.current += 1;
+        activeRequestRef.current?.abort();
+      };
+    }
+
+    return () => {
+      requestVersionRef.current += 1;
+      activeRequestRef.current?.abort();
+    };
+  }, [initialReviews, load]);
 
   const avgRating =
     reviews.length > 0
@@ -84,20 +155,22 @@ export default function ProductReviewsSection({
     e.preventDefault();
     if (rating < 1) return;
     setSubmitting(true);
+    setSubmitError(false);
     try {
-      await fetch("/api/reviews", {
+      const response = await fetch("/api/reviews", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ productCode, rating, comment, authorName }),
       });
+      if (!response.ok) throw new Error("review-submit-failed");
       setSubmitted(true);
       setShowForm(false);
       setRating(0);
       setComment("");
       setAuthorName("");
-      await load();
+      await load(true);
     } catch {
-      // ignore
+      setSubmitError(true);
     } finally {
       setSubmitting(false);
     }
@@ -206,6 +279,11 @@ export default function ProductReviewsSection({
                   Скасувати
                 </button>
               </div>
+              {submitError ? (
+                <p role="alert" className="mt-2 text-[11px] font-bold text-rose-600">
+                  Не вдалося надіслати відгук. Перевірте з’єднання та спробуйте ще раз.
+                </p>
+              ) : null}
             </form>
           )}
 
@@ -233,8 +311,26 @@ export default function ProductReviewsSection({
             </div>
           )}
 
+          {!loading && loadError && reviews.length === 0 && (
+            <div className="rounded-[13px] border border-amber-200 bg-amber-50/70 px-3.5 py-3 text-center">
+              <p className="text-[12px] font-bold text-amber-800">
+                Не вдалося завантажити відгуки
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoading(true);
+                  void load(true);
+                }}
+                className="mt-2 inline-flex items-center rounded-[10px] border border-amber-300 bg-white px-3 py-1.5 text-[11px] font-black text-amber-800 transition hover:bg-amber-100"
+              >
+                Спробувати ще раз
+              </button>
+            </div>
+          )}
+
           {/* empty state */}
-          {!loading && reviews.length === 0 && !showForm && (
+          {!loading && !loadError && reviews.length === 0 && !showForm && (
             <div className="py-4 text-center">
               <p className="text-[13px] font-semibold text-slate-500">
                 Відгуків ще немає

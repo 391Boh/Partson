@@ -642,6 +642,8 @@ const mergeUniqueProducts = (current: Product[], incoming: Product[]) => {
 
 const CATALOG_GRID_CLASS =
   "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-4";
+const ADMIN_CATALOG_GRID_CLASS =
+  "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 xl:gap-4 2xl:grid-cols-4";
 
 const CatalogProductCardSkeleton = ({ index }: { index: number }) => (
   <article
@@ -4882,7 +4884,7 @@ const Data: React.FC<DataProps> = ({
           <div className="relative">
             <div
               ref={catalogGridRef}
-              className={`${CATALOG_GRID_CLASS} ${
+              className={`${isAdmin ? ADMIN_CATALOG_GRID_CLASS : CATALOG_GRID_CLASS} ${
                 shouldDimCatalogGrid ? "opacity-[0.88]" : "opacity-100"
               }`}
             >

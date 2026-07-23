@@ -24,7 +24,7 @@ type FieldKey =
   | "subGroup"
   | "category";
 
-type Props = {
+export type ProductPageAdminEditPanelProps = {
   code: string;
   article: string;
   name: string;
@@ -145,7 +145,7 @@ export default function ProductPageAdminEditPanel({
   category: initialCategory = "",
   quantity: initialQuantity = 0,
   description: initialDescription = "",
-}: Props) {
+}: ProductPageAdminEditPanelProps) {
   const router = useRouter();
   const pathname = usePathname();
   // Use _refresh param to bypass staleTimes.dynamic router cache and trigger

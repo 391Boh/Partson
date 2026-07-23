@@ -5,7 +5,7 @@ import {
   fetchPriceEuroMapByLookupKeys,
   toPriceUah,
 } from "app/lib/catalog-server";
-import { getProductImagePath } from "app/lib/product-image";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import {
   getAllProductSitemapEntries,
   type ProductSitemapEntry,
@@ -311,7 +311,10 @@ const toGoogleMerchantFeedItem = (
   if (entry.hasPhoto === false) return null;
 
   const article = (entry.article || "").trim() || undefined;
-  const imagePath = getProductImagePath(code, article);
+  const imagePath = buildProductImagePath(code, article, {
+    noFallback: true,
+    retryToken: 1,
+  });
 
   return {
     id: code,

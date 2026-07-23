@@ -32,6 +32,7 @@ type ProductRelatedItemsClientSectionProps = {
   };
   // аналоги — products found by searching the current article in 1C product names
   initialRelatedItems?: RelatedItem[] | null;
+  initialSimilarItems?: RelatedItem[] | null;
   euroRate?: number;
 };
 
@@ -74,11 +75,13 @@ const buildRecommendationImageKey = (
     buildRecommendationImageArticle(item, sourceArticle)
   );
 
-const RELATED_ITEMS_CACHE_PREFIX = "partson:v1:product-analogs:";
-const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v1:product-similar:";
+const RELATED_ITEMS_CACHE_PREFIX = "partson:v2:product-analogs:";
+const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v2:product-similar:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
-const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 1200;
-const SIMILAR_ITEMS_REQUEST_TIMEOUT_MS = 3200;
+const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 5600;
+const SIMILAR_ITEMS_REQUEST_TIMEOUT_MS = 6200;
+const RECOMMENDATION_REQUEST_ATTEMPTS = 2;
+const RECOMMENDATION_RETRY_DELAY_MS = 240;
 const RECOMMENDATION_PRICE_TIMEOUT_MS = 520;
 const RELATED_ITEMS_VISIBLE_LIMIT = 6;
 const RECOMMENDATION_VISIBLE_ITEMS_EVENT = "partson:product-recommendation-visible-items";
@@ -183,6 +186,7 @@ const Skeleton = () => (
 const RecommendationBlock = ({
   eyebrow,
   title,
+  description,
   badgeLabel,
   items,
   articleLabel,
@@ -192,6 +196,7 @@ const RecommendationBlock = ({
 }: {
   eyebrow: string;
   title: string;
+  description: string;
   badgeLabel: string;
   items: RelatedItem[];
   articleLabel: string;
@@ -211,6 +216,9 @@ const RecommendationBlock = ({
           <h2 className="font-display-italic mt-0.5 break-words text-[1.05rem] font-black leading-tight text-slate-950 sm:text-[1.18rem]">
             {title}
           </h2>
+          <p className="mt-1 max-w-2xl text-[11px] font-medium leading-relaxed text-slate-600 sm:text-[11.5px]">
+            {description}
+          </p>
         </div>
         <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] text-sky-800">
           {badgeLabel}
@@ -252,6 +260,7 @@ const RecommendationBlock = ({
 export default function ProductRelatedItemsClientSection({
   product,
   initialRelatedItems = null,
+  initialSimilarItems = null,
   euroRate = 50,
 }: ProductRelatedItemsClientSectionProps) {
   const articleLabel = (product.article || "").trim();
@@ -265,12 +274,18 @@ export default function ProductRelatedItemsClientSection({
     () => normalizeRelatedItems(initialRelatedItems),
     [initialRelatedItems]
   );
+  const normalizedInitialSimilarItems = useMemo(
+    () => normalizeRelatedItems(initialSimilarItems),
+    [initialSimilarItems]
+  );
 
   // null = still loading, [] = loaded & empty, [...] = loaded with results
   const [relatedItems, setRelatedItems] = useState<RelatedItem[] | null>(
     normalizedInitialRelatedItems
   );
-  const [similarItems, setSimilarItems] = useState<RelatedItem[] | null>(null);
+  const [similarItems, setSimilarItems] = useState<RelatedItem[] | null>(
+    normalizedInitialSimilarItems
+  );
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
   const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
   const [pendingImageKeys, setPendingImageKeys] = useState<Record<string, true>>({});
@@ -371,23 +386,53 @@ export default function ProductRelatedItemsClientSection({
   };
 
   const fetchItems = async (url: string, timeoutMs = RELATED_ITEMS_REQUEST_TIMEOUT_MS) => {
-    let timeoutId: number | undefined;
-    const timeoutPromise = new Promise<Response>((_, reject) => {
-      timeoutId = window.setTimeout(
-        () => reject(new Error("product-recommendation-timeout")),
-        timeoutMs
-      );
-    });
-    const response = await Promise.race([
-      fetch(url, { method: "GET", headers: { Accept: "application/json" } }),
-      timeoutPromise,
-    ]).finally(() => {
-      if (timeoutId != null) window.clearTimeout(timeoutId);
-    });
-    if (!response.ok) throw new Error("Failed to load product recommendations");
+    let lastError: unknown = null;
 
-    const payload = (await response.json()) as { items?: RelatedItem[] };
-    return normalizeRelatedItems(payload.items) || [];
+    for (let attempt = 0; attempt < RECOMMENDATION_REQUEST_ATTEMPTS; attempt += 1) {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const requestUrl = new URL(url, window.location.origin);
+        if (attempt > 0) requestUrl.searchParams.set("_retry", String(attempt));
+
+        const response = await fetch(requestUrl.toString(), {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          items?: RelatedItem[];
+          retryable?: boolean;
+        };
+
+        if (!response.ok) {
+          if (payload.retryable !== false && attempt + 1 < RECOMMENDATION_REQUEST_ATTEMPTS) {
+            await new Promise((resolve) =>
+              window.setTimeout(resolve, RECOMMENDATION_RETRY_DELAY_MS)
+            );
+            continue;
+          }
+          throw new Error("Failed to load product recommendations");
+        }
+
+        return normalizeRelatedItems(payload.items) || [];
+      } catch (error) {
+        lastError = error;
+        if (attempt + 1 < RECOMMENDATION_REQUEST_ATTEMPTS) {
+          await new Promise((resolve) =>
+            window.setTimeout(resolve, RECOMMENDATION_RETRY_DELAY_MS)
+          );
+          continue;
+        }
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    }
+
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Failed to load product recommendations");
   };
 
   // Load аналоги (by article/name search) — independent
@@ -443,6 +488,14 @@ export default function ProductRelatedItemsClientSection({
       return;
     }
 
+    if (normalizedInitialSimilarItems !== null) {
+      setSimilarItems(normalizedInitialSimilarItems);
+      if (normalizedInitialSimilarItems.length > 0) {
+        writeCachedItems(similarCacheKey, normalizedInitialSimilarItems);
+      }
+      return;
+    }
+
     const cached = readCachedItems(similarCacheKey);
     if (cached) {
       setSimilarItems(cached);
@@ -469,17 +522,26 @@ export default function ProductRelatedItemsClientSection({
       cancelled = true;
       cancel();
     };
-  }, [similarRequestUrl, similarCacheKey]);
+  }, [normalizedInitialSimilarItems, similarRequestUrl, similarCacheKey]);
 
   const visibleRelatedItems = useMemo(
     () => (relatedItems ?? []).slice(0, RELATED_ITEMS_VISIBLE_LIMIT),
     [relatedItems]
   );
 
-  const visibleSimilarItems = useMemo(
-    () => (similarItems ?? []).slice(0, RELATED_ITEMS_VISIBLE_LIMIT),
-    [similarItems]
-  );
+  const visibleSimilarItems = useMemo(() => {
+    const relatedIdentityKeys = new Set(
+      (relatedItems ?? []).flatMap(buildRecommendationIdentityKeys)
+    );
+
+    return (similarItems ?? [])
+      .filter((item) =>
+        buildRecommendationIdentityKeys(item).every(
+          (identityKey) => !relatedIdentityKeys.has(identityKey)
+        )
+      )
+      .slice(0, RELATED_ITEMS_VISIBLE_LIMIT);
+  }, [relatedItems, similarItems]);
 
   // Combined list for image/price loading
   const allVisibleItems = useMemo(() => {
@@ -705,21 +767,26 @@ export default function ProductRelatedItemsClientSection({
 
   if (!articleLabel && !productCode && !productDisplayName) return null;
 
-  const bothLoading = relatedItems === null && similarItems === null;
-  if (bothLoading) {
+  const isLoading = relatedItems === null || similarItems === null;
+  const hasAnalogs = visibleRelatedItems.length > 0;
+  const hasSimilar = visibleSimilarItems.length > 0;
+  if (isLoading && !hasAnalogs && !hasSimilar) {
     return <Skeleton />;
   }
 
-  const hasAnalogs = visibleRelatedItems.length > 0;
-  const hasSimilar = visibleSimilarItems.length > 0;
   if (relatedItems !== null && similarItems !== null && !hasAnalogs && !hasSimilar) return null;
 
   return (
     <div className="space-y-2.5">
       {hasAnalogs ? (
         <RecommendationBlock
-          eyebrow="Аналоги"
-          title="Аналоги"
+          eyebrow="Перевірені альтернативи"
+          title={
+            articleLabel
+              ? `Аналоги для артикулу ${articleLabel}`
+              : "Аналоги та сумісні альтернативи"
+          }
+          description="Позиції, знайдені за крос-номером і даними товару. Перед замовленням звірте сумісність з автомобілем."
           badgeLabel={`${visibleRelatedItems.length} позицій`}
           items={visibleRelatedItems}
           articleLabel={articleLabel}
@@ -730,8 +797,13 @@ export default function ProductRelatedItemsClientSection({
       ) : null}
       {hasSimilar ? (
         <RecommendationBlock
-          eyebrow="Схожі товари"
-          title="Товари з тієї ж категорії"
+          eyebrow="Добірка з каталогу"
+          title={`Схожі товари${
+            product.subGroup || product.group
+              ? `: ${buildVisibleProductName(product.subGroup || product.group || "")}`
+              : ""
+          }`}
+          description="Інші товари з тієї ж групи — для швидкого порівняння ціни, бренду та наявності."
           badgeLabel={`${visibleSimilarItems.length} позицій`}
           items={visibleSimilarItems}
           articleLabel={articleLabel}

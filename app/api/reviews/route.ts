@@ -1,4 +1,5 @@
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
+import { getProductReviews } from "app/lib/reviews-server";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -6,41 +7,66 @@ export const runtime = "nodejs";
 const MAX_COMMENT = 500;
 const MAX_NAME = 60;
 const MAX_CODE = 120;
+const REVIEWS_CACHE_CONTROL =
+  "public, max-age=30, s-maxage=60, stale-while-revalidate=300";
+const NO_STORE_CACHE_CONTROL = "private, no-store, max-age=0";
+const REVIEWS_TIMEOUT_MS = 4200;
+
+const loadReviewsWithTimeout = async (code: string) => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutResult = { timedOut: true } as const;
+
+  try {
+    return await Promise.race([
+      getProductReviews(code),
+      new Promise<typeof timeoutResult>((resolve) => {
+        timeoutId = setTimeout(() => resolve(timeoutResult), REVIEWS_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   if (!code || code.length > MAX_CODE) {
-    return NextResponse.json({ reviews: [] });
+    return NextResponse.json(
+      { reviews: [], retryable: false },
+      { status: 400, headers: { "cache-control": NO_STORE_CACHE_CONTROL } }
+    );
   }
 
   try {
-    const db = getFirebaseAdminDb();
-    const snap = await db
-      .collection("productReviews")
-      .doc(code)
-      .collection("reviews")
-      .orderBy("createdAt", "desc")
-      .limit(20)
-      .get();
+    const result = await loadReviewsWithTimeout(code.trim());
+    if (!Array.isArray(result)) {
+      return NextResponse.json(
+        { reviews: [], retryable: true, reason: "timeout" },
+        {
+          status: 503,
+          headers: {
+            "cache-control": NO_STORE_CACHE_CONTROL,
+            "retry-after": "1",
+          },
+        }
+      );
+    }
 
-    const reviews = snap.docs.map((doc) => {
-      const d = doc.data();
-      return {
-        id: doc.id,
-        rating: typeof d.rating === "number" ? d.rating : 0,
-        comment: typeof d.comment === "string" ? d.comment : "",
-        authorName: typeof d.authorName === "string" ? d.authorName : "",
-        createdAt:
-          d.createdAt &&
-          typeof (d.createdAt as { toDate?: unknown }).toDate === "function"
-            ? (d.createdAt as { toDate: () => Date }).toDate().toISOString()
-            : null,
-      };
-    });
-
-    return NextResponse.json({ reviews });
+    return NextResponse.json(
+      { reviews: result, retryable: false },
+      { headers: { "cache-control": REVIEWS_CACHE_CONTROL } }
+    );
   } catch {
-    return NextResponse.json({ reviews: [] });
+    return NextResponse.json(
+      { reviews: [], retryable: true, reason: "upstream" },
+      {
+        status: 503,
+        headers: {
+          "cache-control": NO_STORE_CACHE_CONTROL,
+          "retry-after": "1",
+        },
+      }
+    );
   }
 }
 
@@ -88,8 +114,14 @@ export async function POST(request: NextRequest) {
       });
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json(
+      { ok: true },
+      { headers: { "cache-control": NO_STORE_CACHE_CONTROL } }
+    );
   } catch {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Server error" },
+      { status: 500, headers: { "cache-control": NO_STORE_CACHE_CONTROL } }
+    );
   }
 }

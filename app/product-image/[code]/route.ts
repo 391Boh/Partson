@@ -110,8 +110,11 @@ const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
 const OPTIMIZED_IMAGE_CACHE_TTL_MS = 1000 * 60 * 60 * 4;
 const ROUTE_IMAGE_HIT_CACHE_TTL_MS = 1000 * 60 * 60 * 4;
 const ROUTE_IMAGE_HIT_CACHE_TTL_MS_FULL = 1000 * 60 * 60 * 2;
-const FULL_ROUTE_MISS_CACHE_TTL_MS = 1000 * 60;
-const FULL_ROUTE_LOOKUP_BUDGET_MS = 2400;
+// A slow 1C response is not an authoritative "no image" result. Full product
+// images are SEO assets, so don't poison later browser/Googlebot requests with
+// a cached miss and give the recovery lookup enough time to complete.
+const FULL_ROUTE_MISS_CACHE_TTL_MS = 0;
+const FULL_ROUTE_LOOKUP_BUDGET_MS = 3800;
 const DISK_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const DISK_CACHE_DIR = path.join(process.cwd(), ".cache", "product-images");
 let diskCacheDirReady: Promise<void> | null = null;
@@ -485,7 +488,8 @@ const respondWithImage = (
       "content-type": value.contentType,
       "cache-control": options.cacheBust
         ? "no-store"
-        : "public, max-age=300, s-maxage=300, stale-while-revalidate=60",
+        : "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
+      "x-robots-tag": "all",
       "vary": "Accept",
     },
   });

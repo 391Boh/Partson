@@ -717,7 +717,7 @@ useEffect(() => {
     return (
         <>
         <article
-            className={`catalog-product-card relative w-full [perspective:1200px] select-none ${isAdmin ? "catalog-product-card--admin h-[430px] sm:h-[410px]" : "h-[360px] sm:h-[340px]"} ${cardMotionClass}`}
+            className={`catalog-product-card relative w-full [perspective:1200px] select-none ${isAdmin ? "catalog-product-card--admin h-[470px] sm:h-[440px] xl:h-[420px]" : "h-[360px] sm:h-[340px]"} ${cardMotionClass}`}
             itemScope
             itemType="https://schema.org/Product"
         >
@@ -808,7 +808,7 @@ useEffect(() => {
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); frontImageInputRef.current?.click(); }}
                                         disabled={frontImageSaving}
-                                        className="absolute top-1 left-1 inline-flex items-center justify-center p-1 rounded-md bg-white/90 border border-violet-200 text-violet-600 shadow-sm opacity-0 group-hover/imgarea:opacity-100 hover:bg-violet-50 hover:border-violet-300 transition-all duration-150 disabled:opacity-50"
+                                        className="catalog-admin-edit-trigger absolute left-1 top-1 inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-violet-200 bg-white/95 p-1 text-violet-600 shadow-sm opacity-100 hover:bg-violet-50 hover:border-violet-300 sm:min-h-7 sm:min-w-7 transition-all duration-150 disabled:opacity-50"
                                         title="Замінити фото"
                                     >
                                         {frontImageSaving
@@ -856,7 +856,7 @@ useEffect(() => {
                                     )}
                                 </div>
                             ) : (
-                                <div className="relative">
+                                <div className={`relative ${isAdmin ? "pr-8 sm:pr-7" : ""}`}>
                                     <SmartLink
                                         href={productHref}
                                         itemProp="url"
@@ -894,7 +894,7 @@ useEffect(() => {
                                         <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); setQuickNameVal(item.name || ''); setQuickEditName(true); }}
-                                            className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center p-0.5 rounded-md bg-white/90 border border-violet-200 text-violet-500 shadow-sm opacity-0 group-hover/nameedit:opacity-100 hover:bg-violet-50 hover:border-violet-300 transition-all duration-150"
+                                            className="catalog-admin-edit-trigger absolute -right-0.5 -top-0.5 inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-violet-200 bg-white/95 p-1 text-violet-500 shadow-sm opacity-100 hover:bg-violet-50 hover:border-violet-300 sm:min-h-7 sm:min-w-7 transition-all duration-150"
                                             title="Редагувати назву"
                                         >
                                             <Pencil size={10} />
@@ -941,7 +941,7 @@ useEffect(() => {
                                           <button
                                               type="button"
                                               onClick={(e) => { e.stopPropagation(); setQuickArticleVal(article !== '-' ? article : ''); setQuickEditArticle(true); }}
-                                              className="inline-flex flex-shrink-0 items-center justify-center p-0.5 rounded text-violet-400 opacity-0 group-hover/article:opacity-100 hover:text-violet-600 hover:bg-violet-50 transition-all duration-150"
+                                              className="catalog-admin-edit-trigger inline-flex min-h-7 min-w-7 flex-shrink-0 items-center justify-center rounded-lg p-1 text-violet-500 opacity-100 hover:bg-violet-50 hover:text-violet-700 sm:min-h-6 sm:min-w-6 transition-all duration-150"
                                               title="Редагувати артикул"
                                           >
                                               <Pencil size={10} />
@@ -1008,7 +1008,7 @@ useEffect(() => {
                                   <span className="flex min-w-0 max-w-[55%] items-center gap-1 justify-end">
                                       {isAdmin && onAdminEdit && (
                                           <button type="button" onClick={(e) => { e.stopPropagation(); setQuickProducerVal(displayProducer !== '-' ? displayProducer : ''); setQuickEditProducer(true); fetchProducerSuggestions(displayProducer !== '-' ? displayProducer : ''); }}
-                                              className="inline-flex flex-shrink-0 items-center justify-center p-0.5 rounded text-violet-400 opacity-0 group-hover/producer:opacity-100 hover:text-violet-600 hover:bg-violet-50 transition-all duration-150" title={"\u0420\u0435\u0434\u0430\u0433\u0443\u0432\u0430\u0442\u0438 \u0432\u0438\u0440\u043E\u0431\u043D\u0438\u043A\u0430"}>
+                                              className="catalog-admin-edit-trigger inline-flex min-h-7 min-w-7 flex-shrink-0 items-center justify-center rounded-lg p-1 text-violet-500 opacity-100 hover:bg-violet-50 hover:text-violet-700 sm:min-h-6 sm:min-w-6 transition-all duration-150" title={"\u0420\u0435\u0434\u0430\u0433\u0443\u0432\u0430\u0442\u0438 \u0432\u0438\u0440\u043E\u0431\u043D\u0438\u043A\u0430"}>
                                               <Pencil size={10} />
                                           </button>
                                       )}
@@ -1032,7 +1032,7 @@ useEffect(() => {
 
                     {/* Ціна */}
                     {quickEditPrice ? (
-                        <div className="mt-2 flex w-full items-center gap-1.5 sm:mt-2.5" onClick={(e) => e.stopPropagation()} style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>
+                        <div className={`mt-2 flex w-full items-center gap-1.5 sm:mt-2.5 ${isAdmin ? "catalog-admin-price-editor" : ""}`} onClick={(e) => e.stopPropagation()} style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>
                             <span className={`flex-shrink-0 text-[9px] font-bold uppercase tracking-wide ${showCostPrice ? 'text-amber-600' : 'text-blue-600'}`}>
                                 {showCostPrice ? 'Закуп €' : 'Продаж €'}
                             </span>
@@ -1130,7 +1130,7 @@ useEffect(() => {
                                         }
                                         setQuickEditPrice(true);
                                     }}
-                                    className="inline-flex flex-shrink-0 items-center justify-center p-1 rounded-md border border-violet-200 bg-violet-50 text-violet-500 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-[0.95] transition-all duration-150"
+                                    className="inline-flex min-h-8 min-w-8 flex-shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 p-1 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-[0.95] transition-all duration-150"
                                     title="Редагувати ціну"
                                 >
                                     <Pencil size={11} />
@@ -1143,8 +1143,8 @@ useEffect(() => {
                     )}
 
                     {/* Низ */}
-                    <div className="catalog-card-actions flex min-w-0 justify-between items-center mt-auto pt-2 border-t border-slate-200 gap-1">
-                        <div className="flex min-w-0 flex-col items-start gap-1">
+                    <div className={`catalog-card-actions mt-auto flex min-w-0 justify-between gap-2 border-t border-slate-200 pt-2 ${isAdmin ? "catalog-card-actions--admin flex-col items-stretch xl:flex-row xl:items-end" : "items-center"}`}>
+                        <div className={`flex min-w-0 flex-col items-start gap-1 ${isAdmin ? "w-full xl:w-auto" : ""}`}>
                             <div className="flex items-center gap-1">
                                 <span
                                     aria-hidden="true"
@@ -1162,7 +1162,7 @@ useEffect(() => {
                                     <button
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); setQuickEditQty(true); setQuickQtyVal(''); }}
-                                        className="inline-flex items-center justify-center p-0.5 rounded text-slate-300 hover:text-emerald-500 transition-colors"
+                                        className="inline-flex min-h-7 min-w-7 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50/70 p-1 text-emerald-600 hover:border-emerald-200 hover:bg-emerald-100 transition-colors"
                                         title="Поступлення / Продаж"
                                     >
                                         <Pencil size={9} />
@@ -1170,7 +1170,7 @@ useEffect(() => {
                                 )}
                             </div>
                             {quickEditQty && (
-                                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()} style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>
+                                <div className="flex w-full flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()} style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>
                                     <input
                                         type="number" min="1" step="1"
                                         value={quickQtyVal}
@@ -1229,7 +1229,7 @@ useEffect(() => {
                             </div>
                         </div>
 
-                         <div className="flex shrink-0 items-center gap-1">
+                         <div className={`flex shrink-0 items-center gap-1 ${isAdmin ? "w-full justify-end xl:w-auto" : ""}`}>
                              {cartQty > 0 && (
                                  <button
                                      onClick={(e) => {
@@ -1364,7 +1364,7 @@ useEffect(() => {
                 <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); enterEditMode(); }}
-                    className="inline-flex items-center justify-center p-1.5 rounded-lg border border-violet-200 bg-violet-50 text-violet-500 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-95 transition-all duration-150"
+                    className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 p-1.5 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-95 transition-all duration-150"
                     title="Редагувати"
                 >
                     <Pencil size={12} />
@@ -1382,7 +1382,7 @@ useEffect(() => {
                     }
                     onFlip(code);
                 }}
-                className="inline-flex items-center justify-center p-1.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 active:scale-95 transition-all duration-150"
+                className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 active:scale-95 transition-all duration-150"
                 aria-label="Назад"
             >
                 <ChevronDown size={14} className="rotate-180" />
@@ -1426,7 +1426,7 @@ useEffect(() => {
     {/* Content: edit form or description */}
     {isAdmin && onAdminEdit && isEditMode ? (
         <>
-            <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-2.5 py-2 space-y-1.5 [-webkit-overflow-scrolling:touch]" onClick={(e) => e.stopPropagation()}>
+            <div className="catalog-admin-edit-form min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-2.5 py-2 space-y-1.5 [-webkit-overflow-scrolling:touch]" onClick={(e) => e.stopPropagation()}>
                 <div>
                     <label className="block text-[8px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Опис</label>
                     <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 resize-none focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-100 transition-all disabled:opacity-50 hover:border-slate-300" rows={2} disabled={editSaving} />
@@ -1501,7 +1501,7 @@ useEffect(() => {
                     )}
                 </div>
             </div>
-            <div className="px-2.5 pb-2.5 pt-1.5 border-t border-slate-100 bg-white/40" onClick={(e) => e.stopPropagation()}>
+            <div className="catalog-admin-edit-footer border-t border-slate-100 bg-white/70 px-2.5 pb-2.5 pt-1.5" onClick={(e) => e.stopPropagation()}>
                 {editError && (
                     <div className="flex items-center gap-1 rounded-lg bg-rose-50 border border-rose-200 px-2 py-1 mb-1.5">
                         <X size={10} className="text-rose-500 flex-shrink-0" />
@@ -1516,11 +1516,11 @@ useEffect(() => {
                 )}
                 <div className="flex gap-1.5">
                     <button type="button" onClick={(e) => { e.stopPropagation(); void handleAdminSave(); }} disabled={editSaving}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 text-white text-[10px] font-bold py-2 hover:bg-violet-700 active:scale-[0.97] disabled:opacity-50 transition-all shadow-sm">
+                        className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-violet-600 py-2 text-[12px] font-bold text-white shadow-sm hover:bg-violet-700 active:scale-[0.97] disabled:opacity-50 transition-all">
                         {editSaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : <><Save size={10} />Зберегти</>}
                     </button>
                     <button type="button" onClick={(e) => { e.stopPropagation(); setIsEditMode(false); setEditError(null); setGroupSuggestions([]); setSubGroupSuggestions([]); setCategorySuggestions([]); }} disabled={editSaving}
-                        className="px-3 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 text-[10px] hover:bg-slate-50 hover:border-slate-300 active:scale-[0.97] disabled:opacity-50 transition-all">
+                        className="flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-[11px] text-slate-500 hover:bg-slate-50 hover:border-slate-300 active:scale-[0.97] disabled:opacity-50 transition-all">
                         <X size={13} />
                     </button>
                 </div>

@@ -9,8 +9,14 @@ declare global {
 export type AnalyticsMode = "gtm" | "gtag" | "disabled";
 
 export const ANALYTICS_CONSENT_COOKIE = "partson_analytics_consent";
+export const ADVERTISING_CONSENT_COOKIE = "partson_advertising_consent";
 export const ANALYTICS_CONSENT_SETTINGS_EVENT =
   "partson:open-analytics-consent-settings";
+
+export interface GoogleConsentSelection {
+  analyticsGranted: boolean;
+  advertisingGranted: boolean;
+}
 
 const configuredGtmId = (
   process.env.NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID || ""
@@ -103,18 +109,21 @@ const isAnalyticsSuppressedForStaff = () => {
   }
 };
 
-const hasAnalyticsConsent = () => {
+const hasConsentCookie = (cookieName: string) => {
   if (typeof document === "undefined") return false;
 
   try {
     const match = document.cookie.match(
-      new RegExp(`(?:^|;\\s*)${ANALYTICS_CONSENT_COOKIE}=([^;]*)`)
+      new RegExp(`(?:^|;\\s*)${cookieName}=([^;]*)`)
     );
     return match ? decodeURIComponent(match[1]) === "granted" : false;
   } catch {
     return false;
   }
 };
+
+const hasAnalyticsConsent = () =>
+  hasConsentCookie(ANALYTICS_CONSENT_COOKIE);
 
 const canDispatchAnalytics = () =>
   getAnalyticsMode() !== "disabled" &&
@@ -228,20 +237,25 @@ export function pushPageView(parameters: {
   return true;
 }
 
-const consentState = (analyticsGranted: boolean) => ({
+const consentState = ({
+  analyticsGranted,
+  advertisingGranted,
+}: GoogleConsentSelection) => ({
   analytics_storage: analyticsGranted ? "granted" : "denied",
-  ad_storage: "denied",
-  ad_user_data: "denied",
-  ad_personalization: "denied",
+  ad_storage: advertisingGranted ? "granted" : "denied",
+  ad_user_data: advertisingGranted ? "granted" : "denied",
+  ad_personalization: advertisingGranted ? "granted" : "denied",
 });
 
-export function updateAnalyticsConsent(analyticsGranted: boolean): void {
+export function updateGoogleConsent(selection: GoogleConsentSelection): void {
   if (typeof window === "undefined") return;
 
-  window.gtag?.("consent", "update", consentState(analyticsGranted));
+  window.gtag?.("consent", "update", consentState(selection));
+  window.gtag?.("set", "ads_data_redaction", !selection.advertisingGranted);
   (window.dataLayer ??= []).push({
-    event: "analytics_consent_update",
-    analytics_consent: analyticsGranted ? "granted" : "denied",
+    event: "consent_preferences_update",
+    analytics_consent: selection.analyticsGranted ? "granted" : "denied",
+    advertising_consent: selection.advertisingGranted ? "granted" : "denied",
   });
 }
 

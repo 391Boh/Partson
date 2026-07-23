@@ -8,8 +8,7 @@
   font-display: swap;
 }
 
-html[data-analytics-consent="granted"] .analytics-consent-banner,
-html[data-analytics-consent="denied"] .analytics-consent-banner {
+html[data-consent-preferences="complete"] .analytics-consent-banner {
   display: none;
 }
 
@@ -2600,8 +2599,8 @@ body::-webkit-scrollbar-corner,
 }
 
 .catalog-product-card.catalog-product-card--admin {
-  /* Matches the 26.875rem mobile !important override below. */
-  contain-intrinsic-size: 100% 430px;
+  /* Admin controls need a taller stable paint placeholder on narrow screens. */
+  contain-intrinsic-size: 100% 470px;
 }
 
 @media (min-width: 640px) {
@@ -2611,8 +2610,65 @@ body::-webkit-scrollbar-corner,
   }
 
   .catalog-product-card.catalog-product-card--admin {
-    /* Matches ProductCard.tsx's inline sm:h-[410px] admin variant. */
-    contain-intrinsic-size: 100% 410px;
+    contain-intrinsic-size: 100% 440px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .catalog-product-card.catalog-product-card--admin {
+    contain-intrinsic-size: 100% 420px;
+  }
+}
+
+.catalog-admin-price-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.25rem 2.25rem;
+}
+
+.catalog-admin-price-editor > span:first-child {
+  grid-column: 1 / -1;
+}
+
+.catalog-admin-price-editor > div {
+  min-width: 0;
+}
+
+.catalog-admin-price-editor > button {
+  min-height: 2.25rem;
+  min-width: 2.25rem;
+}
+
+.catalog-admin-edit-form input,
+.catalog-admin-edit-form textarea {
+  min-height: 2.25rem;
+  font-size: 0.75rem;
+}
+
+.catalog-admin-edit-form textarea {
+  min-height: 4.25rem;
+}
+
+.catalog-admin-edit-form label {
+  font-size: 0.625rem;
+}
+
+.catalog-admin-edit-form [role="option"],
+.catalog-admin-edit-form > div > div > button {
+  min-height: 2.25rem;
+}
+
+.catalog-admin-edit-footer button {
+  min-height: 2.5rem;
+  font-size: 0.75rem;
+}
+
+@media (min-width: 1280px) {
+  .catalog-admin-price-editor {
+    display: flex;
+  }
+
+  .catalog-admin-price-editor > span:first-child {
+    grid-column: auto;
   }
 }
 
@@ -2653,7 +2709,7 @@ body::-webkit-scrollbar-corner,
      height (not conditional on edit-mode being open) so toggling edit on
      a card never itself changes card height and reflows the grid. */
   .catalog-product-card.catalog-product-card--admin {
-    height: 26.875rem !important;
+    height: 29.375rem !important;
   }
 
   .catalog-product-card:hover {
@@ -2681,6 +2737,10 @@ body::-webkit-scrollbar-corner,
     margin-bottom: 0.45rem;
     border-color: rgba(186, 230, 253, 0.9);
     background: linear-gradient(135deg, rgba(248, 250, 252, 0.98), rgba(224, 242, 254, 0.92));
+  }
+
+  .catalog-product-card--admin .catalog-card-hero {
+    height: 5.875rem;
   }
 
   .catalog-card-image {
@@ -2739,6 +2799,10 @@ body::-webkit-scrollbar-corner,
 
   .catalog-card-actions button {
     border-radius: 0.75rem;
+  }
+
+  .catalog-card-actions--admin {
+    min-height: 6.25rem;
   }
 
   [data-catalog-card="1"] {

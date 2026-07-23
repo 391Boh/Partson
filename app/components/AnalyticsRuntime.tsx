@@ -12,12 +12,14 @@ import {
 } from "react";
 
 import {
+  ADVERTISING_CONSENT_COOKIE,
   ANALYTICS_CONSENT_COOKIE,
   ANALYTICS_CONSENT_SETTINGS_EVENT,
   buildSafeAnalyticsLocation,
+  type GoogleConsentSelection,
   pushPageView,
   sanitizeAnalyticsSearchTerm,
-  updateAnalyticsConsent,
+  updateGoogleConsent,
 } from "app/lib/gtm";
 
 type ConsentChoice = "granted" | "denied";
@@ -90,20 +92,27 @@ const loadAnalyticsScript = (
   }
 };
 
-const readConsentChoice = (): ConsentChoice | null => {
+const readConsentChoice = (cookieName: string): ConsentChoice | null => {
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(
-    new RegExp(`(?:^|;\\s*)${ANALYTICS_CONSENT_COOKIE}=([^;]*)`)
+    new RegExp(`(?:^|;\\s*)${cookieName}=([^;]*)`)
   );
   const value = match ? decodeURIComponent(match[1]) : "";
   return value === "granted" || value === "denied" ? value : null;
 };
 
-const persistConsentChoice = (choice: ConsentChoice) => {
+const persistConsentChoice = (cookieName: string, choice: ConsentChoice) => {
   const maxAgeSeconds = 60 * 60 * 24 * 180;
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `${ANALYTICS_CONSENT_COOKIE}=${choice}; Path=/; Max-Age=${maxAgeSeconds}; SameSite=Lax${secure}`;
+  document.cookie = `${cookieName}=${choice}; Path=/; Max-Age=${maxAgeSeconds}; SameSite=Lax${secure}`;
 };
+
+const readConsentSelection = (): GoogleConsentSelection => ({
+  analyticsGranted:
+    readConsentChoice(ANALYTICS_CONSENT_COOKIE) === "granted",
+  advertisingGranted:
+    readConsentChoice(ADVERTISING_CONSENT_COOKIE) === "granted",
+});
 
 const resolvePageType = (pathname: string) => {
   if (pathname === "/") return "home";
@@ -171,28 +180,50 @@ function AnalyticsPageViewTracker({ enabled }: { enabled: boolean }) {
 function AnalyticsConsentBanner({
   onConsentChange,
 }: {
-  onConsentChange: (granted: boolean) => void;
+  onConsentChange: (selection: GoogleConsentSelection) => void;
 }) {
-  const [choice, setChoice] = useState<ConsentChoice | null>(null);
+  const [analyticsGranted, setAnalyticsGranted] = useState(false);
+  const [advertisingGranted, setAdvertisingGranted] = useState(false);
+  const [hasStoredChoice, setHasStoredChoice] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   // Render the first-time banner in the server HTML so it cannot appear late
   // and become the LCP element after hydration. The tiny consent bootstrap in
   // <head> hides it before paint for returning visitors.
   const [isOpen, setIsOpen] = useState(true);
 
   useEffect(() => {
-    const storedChoice = readConsentChoice();
-    setChoice(storedChoice);
-    setIsOpen(storedChoice === null);
-    document.documentElement.dataset.analyticsConsent = storedChoice ?? "unset";
+    const storedAnalyticsChoice = readConsentChoice(ANALYTICS_CONSENT_COOKIE);
+    const storedAdvertisingChoice = readConsentChoice(ADVERTISING_CONSENT_COOKIE);
+    const selection = readConsentSelection();
+    const hasCompleteChoice =
+      storedAnalyticsChoice !== null && storedAdvertisingChoice !== null;
 
-    if (storedChoice) {
-      updateAnalyticsConsent(storedChoice === "granted");
+    setAnalyticsGranted(selection.analyticsGranted);
+    setAdvertisingGranted(selection.advertisingGranted);
+    setHasStoredChoice(hasCompleteChoice);
+    setIsOpen(!hasCompleteChoice);
+    document.documentElement.dataset.analyticsConsent =
+      storedAnalyticsChoice ?? "unset";
+    document.documentElement.dataset.advertisingConsent =
+      storedAdvertisingChoice ?? "unset";
+    document.documentElement.dataset.consentPreferences = hasCompleteChoice
+      ? "complete"
+      : "unset";
+
+    if (storedAnalyticsChoice || storedAdvertisingChoice) {
+      updateGoogleConsent(selection);
     }
-    onConsentChange(storedChoice === "granted");
+    onConsentChange(selection);
 
     const openSettings = () => {
-      setChoice(readConsentChoice());
+      const currentSelection = readConsentSelection();
+      setAnalyticsGranted(currentSelection.analyticsGranted);
+      setAdvertisingGranted(currentSelection.advertisingGranted);
+      setHasStoredChoice(true);
       document.documentElement.dataset.analyticsConsent = "settings";
+      document.documentElement.dataset.advertisingConsent = "settings";
+      document.documentElement.dataset.consentPreferences = "settings";
+      setShowDetails(true);
       setIsOpen(true);
     };
     window.addEventListener(ANALYTICS_CONSENT_SETTINGS_EVENT, openSettings);
@@ -203,12 +234,24 @@ function AnalyticsConsentBanner({
       );
   }, [onConsentChange]);
 
-  const selectChoice = (nextChoice: ConsentChoice) => {
-    persistConsentChoice(nextChoice);
-    setChoice(nextChoice);
-    document.documentElement.dataset.analyticsConsent = nextChoice;
-    updateAnalyticsConsent(nextChoice === "granted");
-    onConsentChange(nextChoice === "granted");
+  const saveSelection = (selection: GoogleConsentSelection) => {
+    const analyticsChoice: ConsentChoice = selection.analyticsGranted
+      ? "granted"
+      : "denied";
+    const advertisingChoice: ConsentChoice = selection.advertisingGranted
+      ? "granted"
+      : "denied";
+
+    persistConsentChoice(ANALYTICS_CONSENT_COOKIE, analyticsChoice);
+    persistConsentChoice(ADVERTISING_CONSENT_COOKIE, advertisingChoice);
+    setAnalyticsGranted(selection.analyticsGranted);
+    setAdvertisingGranted(selection.advertisingGranted);
+    setHasStoredChoice(true);
+    document.documentElement.dataset.analyticsConsent = analyticsChoice;
+    document.documentElement.dataset.advertisingConsent = advertisingChoice;
+    document.documentElement.dataset.consentPreferences = "complete";
+    updateGoogleConsent(selection);
+    onConsentChange(selection);
     setIsOpen(false);
   };
 
@@ -220,18 +263,16 @@ function AnalyticsConsentBanner({
       aria-labelledby="analytics-consent-title"
       className="analytics-consent-banner fixed inset-x-3 bottom-3 z-[120] mx-auto max-w-3xl overflow-hidden rounded-[20px] border border-slate-200/90 bg-white/95 p-3.5 shadow-[0_24px_70px_rgba(15,23,42,0.24)] ring-1 ring-white backdrop-blur-xl sm:bottom-5 sm:p-4"
     >
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <div className="grid gap-3">
         <div className="min-w-0">
           <p
             id="analytics-consent-title"
             className="text-sm font-extrabold tracking-tight text-slate-950"
           >
-            Аналітичні cookies
+            Налаштування cookies
           </p>
-          <p className="mt-1 text-[12px] font-medium leading-5 text-slate-600 sm:text-[12.5px]">
-            Google Analytics допомагає покращувати каталог і оформлення
-            замовлень. До згоди аналітичні скрипти не завантажуються;
-            рекламне зберігання та персоналізацію вимкнено. Деталі — у{" "}
+          <p className="mt-1 text-[11.5px] font-medium leading-4 text-slate-600 sm:text-[12px]">
+            Аналітика й рекламні технології вимкнені до вашого вибору. Деталі — у{" "}
             <Link
               href="/inform/privacy"
               prefetch={false}
@@ -241,27 +282,77 @@ function AnalyticsConsentBanner({
             </Link>
             .
           </p>
-          {choice ? (
+          {hasStoredChoice ? (
             <p className="mt-1 text-[10.5px] font-semibold text-slate-400">
-              Поточний вибір: {choice === "granted" ? "аналітику дозволено" : "лише необхідні"}.
+              Поточний вибір можна змінити й зберегти повторно.
             </p>
           ) : null}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:min-w-[270px]">
+        {showDetails ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex cursor-pointer items-start gap-3 rounded-[14px] border border-sky-100 bg-sky-50/70 p-3">
+              <input
+                type="checkbox"
+                checked={analyticsGranted}
+                onChange={(event) => setAnalyticsGranted(event.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-sky-700"
+              />
+              <span>
+                <span className="block text-[12px] font-extrabold text-slate-900">Аналітика</span>
+                <span className="mt-0.5 block text-[11px] font-medium leading-4 text-slate-600">
+                  Відвідуваність, пошук і кроки оформлення замовлення.
+                </span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-[14px] border border-violet-100 bg-violet-50/70 p-3">
+              <input
+                type="checkbox"
+                checked={advertisingGranted}
+                onChange={(event) => setAdvertisingGranted(event.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-violet-700"
+              />
+              <span>
+                <span className="block text-[12px] font-extrabold text-slate-900">Рекламні дані</span>
+                <span className="mt-0.5 block text-[11px] font-medium leading-4 text-slate-600">
+                  Оцінка ефективності реклами та, за згодою, персоналізація.
+                </span>
+              </span>
+            </label>
+          </div>
+        ) : null}
+
+        <div className="grid gap-2 sm:grid-cols-3">
           <button
             type="button"
-            onClick={() => selectChoice("denied")}
+            onClick={() =>
+              saveSelection({ analyticsGranted: false, advertisingGranted: false })
+            }
             className="inline-flex min-h-10 items-center justify-center rounded-[13px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
           >
             Лише необхідні
           </button>
           <button
             type="button"
-            onClick={() => selectChoice("granted")}
+            onClick={() => {
+              if (showDetails) {
+                saveSelection({ analyticsGranted, advertisingGranted });
+                return;
+              }
+              setShowDetails(true);
+            }}
+            className="inline-flex min-h-10 items-center justify-center rounded-[13px] border border-sky-200 bg-sky-50 px-3 text-[12px] font-extrabold text-sky-800 transition hover:bg-sky-100"
+          >
+            {showDetails ? "Зберегти вибір" : "Налаштувати"}
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              saveSelection({ analyticsGranted: true, advertisingGranted: true })
+            }
             className="inline-flex min-h-10 items-center justify-center rounded-[13px] border border-sky-700 bg-sky-700 px-3 text-[12px] font-extrabold text-white shadow-[0_10px_24px_rgba(2,132,199,0.24)] transition hover:bg-sky-800"
           >
-            Дозволити
+            Дозволити все
           </button>
         </div>
       </div>
@@ -277,9 +368,9 @@ export default function AnalyticsRuntime({
 }: AnalyticsRuntimeProps) {
   const [analyticsGranted, setAnalyticsGranted] = useState(false);
   const handleConsentChange = useCallback(
-    (granted: boolean) => {
-      setAnalyticsGranted(granted);
-      if (granted) {
+    (selection: GoogleConsentSelection) => {
+      setAnalyticsGranted(selection.analyticsGranted);
+      if (selection.analyticsGranted || selection.advertisingGranted) {
         loadAnalyticsScript(mode, googleTagManagerId, googleAnalyticsId);
       }
     },

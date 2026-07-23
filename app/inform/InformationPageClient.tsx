@@ -804,13 +804,14 @@ const PrivacyTab = () => (
 
     <InfoCard title="Cookies, аналітика та зміни політики" icon={Clock} accent="slate">
       <ul className="space-y-3">
-        <Li icon={Info} cls="text-slate-500">Сайт використовує необхідні технології для роботи сервісу та, за вашою згодою, Google Analytics для оцінки відвідуваності, пошуку й етапів оформлення замовлення.</Li>
-        <Li icon={ShieldCheck} cls="text-slate-500">Рекламне зберігання та персоналізацію вимкнено. Без згоди аналітичні cookies не встановлюються; можливі лише обмежені сигнали без cookies відповідно до Google Consent Mode.</Li>
+        <Li icon={Info} cls="text-slate-500">Сайт використовує необхідні технології для роботи сервісу та, лише за вашим окремим вибором, Google Analytics для оцінки відвідуваності, пошуку й етапів оформлення замовлення.</Li>
+        <Li icon={ShieldCheck} cls="text-slate-500">Рекламні технології Google, зберігання рекламних ідентифікаторів та персоналізація дозволяються лише після окремої згоди в налаштуваннях cookies. До вибору необов&apos;язкові Google-теги не завантажуються.</Li>
+        <Li icon={RefreshCcw} cls="text-slate-500">Згоду на аналітику й рекламні дані можна надати, відхилити або відкликати незалежно в будь-який момент.</Li>
         <Li icon={ShieldCheck} cls="text-slate-500">Ми не продаємо персональні дані клієнтів третім особам.</Li>
         <Li icon={Clock} cls="text-slate-500">Політика може оновлюватися при зміні сервісів або законодавства. Актуальна версія завжди доступна на цій сторінці.</Li>
       </ul>
       <AnalyticsConsentSettingsButton
-        label="Змінити налаштування аналітики"
+        label="Змінити налаштування cookies"
         className="mt-4 inline-flex min-h-10 items-center justify-center rounded-[12px] border border-sky-200 bg-sky-50 px-4 text-[12.5px] font-bold text-sky-800 transition hover:border-sky-300 hover:bg-sky-100"
       />
     </InfoCard>

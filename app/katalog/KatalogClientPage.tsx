@@ -2,7 +2,7 @@
 
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import type { PersistedCarSelection } from 'app/components/Auto';
@@ -233,6 +233,34 @@ const Katalog: React.FC<KatalogProps> = ({
     ? Boolean(firebaseUser)
     : (Boolean(firebaseUser) || isLikelyLoggedIn);
 
+  // Confirming a car modification no longer binds to an exact 1C fitment
+  // lookup — instead it drives a catalog "search by description" using the
+  // chosen model, with restyling wording removed because it rarely appears
+  // verbatim in product descriptions.
+  const handleCarSelectionChange = useCallback(
+    (selection: PersistedCarSelection | null) => {
+      setSelectedCarSelection(selection);
+      if (!selection) return;
+
+      const cleanedModel = cleanCarModelForSearch(selection.model || '');
+      if (!cleanedModel) return;
+
+      const nextParams = new URLSearchParams(searchParamsKey);
+      nextParams.set('search', cleanedModel);
+      nextParams.set('filter', 'description');
+      // Marks the search as car-driven so the filter header shows the "Авто"
+      // chip instead of duplicating the raw model as a manual search query.
+      nextParams.set('carSearch', '1');
+      const nextQuery = nextParams.toString();
+      if (nextQuery !== searchParamsKey) {
+        router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
+      }
+    },
+    [pathname, router, searchParamsKey]
+  );
+  const handleCarSelectionChangeRef = useRef(handleCarSelectionChange);
+  handleCarSelectionChangeRef.current = handleCarSelectionChange;
+
   const carSummary = useMemo(() => {
     if (!selectedCarSelection) return '';
     const baseLabel =
@@ -394,7 +422,7 @@ const Katalog: React.FC<KatalogProps> = ({
           // docs/1c/vehicle-compatibility.md) — without this, the UI shows a
           // car as selected while the catalog silently falls back to the
           // unfiltered legacy getdata path.
-          handleCarSelectionChange({
+          handleCarSelectionChangeRef.current({
             brand,
             model,
             year,
@@ -543,7 +571,7 @@ const Katalog: React.FC<KatalogProps> = ({
                 // Same reasoning as the localStorage restore above — go
                 // through handleCarSelectionChange so the description-search
                 // URL params come back in sync with the restored car.
-                handleCarSelectionChange(storedSelection);
+                handleCarSelectionChangeRef.current(storedSelection);
                 didApplyRemote = true;
               } else {
                 setSelectedCars(storedCars);
@@ -700,30 +728,6 @@ const Katalog: React.FC<KatalogProps> = ({
     setSelectedCars((prev) =>
       prev.includes(car) ? prev.filter((c) => c !== car) : [...prev, car]
     );
-  };
-
-  // Confirming a car modification no longer binds to an exact 1C fitment
-  // lookup — instead it drives a catalog "search by description" using the
-  // chosen model (e.g. "A6 C4"), with the word "рестайлинг"/"рестайлінг"
-  // stripped out since product descriptions rarely include it verbatim.
-  const handleCarSelectionChange = (selection: PersistedCarSelection | null) => {
-    setSelectedCarSelection(selection);
-    if (!selection) return;
-
-    const cleanedModel = cleanCarModelForSearch(selection.model || '');
-    if (!cleanedModel) return;
-
-    const nextParams = new URLSearchParams(currentSearchParams.toString());
-    nextParams.set('search', cleanedModel);
-    nextParams.set('filter', 'description');
-    // Marks this search as car-driven so the filter header shows the "Авто"
-    // chip (already fed by selectedCarSelection) instead of also rendering
-    // the raw model/description text as if the user typed a manual search.
-    nextParams.set('carSearch', '1');
-    const nextQuery = nextParams.toString();
-    if (nextQuery !== currentSearchParams.toString()) {
-      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
-    }
   };
 
   const handleCategoryToggle = (category: string) => {
