@@ -32,11 +32,11 @@ const DELIVERY_CITY_POINTS: CityPoint[] = [
   { name: "Вінниця", x: 712.4, y: 606.4, labelDx: 32, labelDy: 10, anchor: "start" },
   { name: "Полтава", x: 1371.3, y: 546.4, labelDx: 0, labelDy: 44, anchor: "middle" },
   { name: "Чернівці", x: 438.1, y: 765.3, labelDx: 32, labelDy: 16, anchor: "start" },
-  { name: "Рівне", x: 514.1, y: 403.0, labelDx: 32, labelDy: -14, anchor: "start" },
-  { name: "Луцьк", x: 438.6, y: 394.9, labelDx: -32, labelDy: 20, anchor: "end" },
+  { name: "Рівне", x: 438.8, y: 385.3, labelDx: 32, labelDy: -12, anchor: "start" },
+  { name: "Луцьк", x: 371.2, y: 407.6, labelDx: -32, labelDy: 20, anchor: "end" },
   { name: "Тернопіль", x: 401.1, y: 552.2, labelDx: 32, labelDy: 10, anchor: "start" },
   { name: "Івано-Франківськ", x: 305.4, y: 658.8, labelDx: 32, labelDy: 10, anchor: "start" },
-  { name: "Ужгород", x: 142.4, y: 720.0, labelDx: 32, labelDy: 22, anchor: "start" },
+  { name: "Ужгород", x: 127.0, y: 756.1, labelDx: 32, labelDy: 20, anchor: "start" },
 ];
 
 export const DELIVERY_CITY_NAMES = DELIVERY_CITY_POINTS.map((c) => c.name);
