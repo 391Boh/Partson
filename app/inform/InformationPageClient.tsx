@@ -37,7 +37,6 @@ import {
 } from './section-config';
 import DiagnosticsConsultationForm from './DiagnosticsConsultationForm';
 import AnalyticsConsentSettingsButton from 'app/components/AnalyticsConsentSettingsButton';
-import UkraineDeliveryMap, { DELIVERY_CITY_NAMES } from 'app/components/UkraineDeliveryMap';
 import {
   catalogPageBackgroundClass,
   directoryBadgeClass,
@@ -178,14 +177,28 @@ const DeliveryTab = () => (
             </span>
           </div>
 
-          <div className="rounded-2xl border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.95),rgba(240,249,255,0.9))] p-3 shadow-[0_12px_26px_rgba(14,165,233,0.08)]">
+          <div className="overflow-hidden rounded-2xl border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.95),rgba(240,249,255,0.9))] p-3 shadow-[0_12px_26px_rgba(14,165,233,0.08)]">
             <p className="text-[11px] font-black uppercase tracking-[0.12em] text-sky-700">
               Географія доставки
             </p>
-            <UkraineDeliveryMap />
-            <p className="sr-only">
-              PartsON доставляє автозапчастини по всій Україні, зокрема у{" "}
-              {DELIVERY_CITY_NAMES.join(", ")} та інші міста.
+            <Image
+              src="/ukraine-delivery-map.svg"
+              alt="Карта України з обласними центрами — географія доставки PartsON"
+              width={700}
+              height={480}
+              className="mt-2 h-auto w-full rounded-[14px]"
+            />
+            <p className="mt-1.5 text-[9px] font-medium text-slate-400">
+              Карта:{" "}
+              <a
+                href="https://commons.wikimedia.org/wiki/File:%D0%9A%D0%B0%D1%80%D1%82%D0%B0_%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D0%B8_(%D1%83%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D1%81%D1%8C%D0%BA%D0%BE%D1%8E)_%D0%B7_%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BC%D0%B8_%D0%BC%D1%96%D1%81%D1%82.svg"
+                target="_blank"
+                rel="noreferrer"
+                className="underline decoration-slate-300 underline-offset-2 hover:text-slate-600"
+              >
+                Wikimedia Commons
+              </a>
+              , CC BY-SA 3.0
             </p>
           </div>
         </div>
