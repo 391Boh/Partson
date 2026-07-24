@@ -231,7 +231,7 @@ export default async function InformationSectionPage({
                   {
                     "@type": "Offer",
                     itemOffered: {
-                      "@type": "Product",
+                      "@type": "Service",
                       name: "Оригінальні автозапчастини та перевірені аналоги",
                     },
                   },

@@ -635,7 +635,13 @@ const buildCatalogItemListJsonLd = (
 ) => {
   const currentUrl = `${siteUrl}${state.canonicalPath}`;
   const itemListElement = items
-    .filter((item) => item.code && item.name)
+    .filter(
+      (item) =>
+        item.code &&
+        item.name &&
+        typeof item.priceEuro === "number" &&
+        item.priceEuro > 0
+    )
     .slice(0, INITIAL_CATALOG_PAGE_LIMIT)
     .map((item, index) => {
       const url = `${siteUrl}${buildSeoProductPath(item)}`;
