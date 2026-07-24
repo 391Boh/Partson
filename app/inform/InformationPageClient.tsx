@@ -228,7 +228,7 @@ const DeliveryTab = () => (
         <div className="space-y-3">
           <p>
             <PartsOnLink /> відправляє замовлення <strong className="font-semibold text-slate-700">Новою Поштою в будь-яке місто України</strong> —
-            у відділення, поштомат або кур'єром додому, зазвичай за 1–2 робочих дні
+            у відділення, поштомат або кур&apos;єром додому, зазвичай за 1–2 робочих дні
             після підтвердження. У Львові додатково доступні самовивіз з{" "}
             <AddressMapLink className="text-sky-700" /> в день замовлення та доставка
             по місту за домовленістю з менеджером.
@@ -249,7 +249,7 @@ const DeliveryTab = () => (
 
     <InfoCard title="Нова Пошта по Україні" icon={Truck} accent="sky" featured>
       <ul className="space-y-3">
-        <Li icon={Package} cls="text-sky-500"><strong className="font-semibold text-slate-700">Нова Пошта</strong> — у відділення, поштомат або адресна доставка кур'єром</Li>
+        <Li icon={Package} cls="text-sky-500"><strong className="font-semibold text-slate-700">Нова Пошта</strong> — у відділення, поштомат або адресна доставка кур&apos;єром</Li>
         <Li icon={Truck} cls="text-sky-500"><strong className="font-semibold text-slate-700">Укрпошта</strong> та <strong className="font-semibold text-slate-700">Meest</strong> — за запитом клієнта</Li>
         <Li icon={Clock} cls="text-sky-500">Відправка зазвичай <strong className="font-semibold text-slate-700">1–2 робочих дні</strong> після підтвердження замовлення</Li>
         <Li icon={CheckCircle} cls="text-sky-500">Номер ТТН для відстеження надсилаємо одразу після відправки</Li>
