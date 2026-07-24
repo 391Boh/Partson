@@ -14,6 +14,7 @@ import {
 } from "app/lib/car-model-search";
 import { fetchCatalogProductsByQuery, type CatalogProduct } from "app/lib/catalog-server";
 import { inferCategoryForGroupLabel } from "app/lib/category-icons";
+import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildPlainSeoSlug, buildSeoSlug } from "app/lib/seo-slug";
 
 const normalizeValue = (value: string | null | undefined) =>
@@ -38,12 +39,26 @@ export interface AutoModelsPageData {
 // cache()-wrapped so generateMetadata (needs models.length for the SEO
 // title/description) and the page body can both call this without a second
 // 1C round-trip within the same request.
+// oneCRequest's own "getauto" timeout is 30s (tuned for an interactive
+// request that's fine waiting that long) — during `next build`'s static
+// generation, a single page only has a 60s budget total, and this same call
+// runs for every brand across generateMetadata and the page body. A 30s hang
+// here alone could push a brand's page past the limit and fail the whole
+// build. Cap it tighter for this build-time path; a timed-out brand just
+// renders with an empty model list (see AutoBrandModelsPage below) instead
+// of taking the build down, and picks up real data on the next revalidation.
+const MODELS_FOR_BRAND_TIMEOUT_MS = 8000;
+
 export const getModelsForBrand = cache(
   async (brand: string): Promise<AutoModelsPageData | null> => {
     const normalizedBrand = normalizeValue(brand);
     if (!normalizedBrand) return null;
 
-    const result = await fetchBrandModels(normalizedBrand).catch(() => null);
+    const result = await resolveWithTimeout(
+      () => fetchBrandModels(normalizedBrand).catch(() => null),
+      null,
+      MODELS_FOR_BRAND_TIMEOUT_MS
+    );
     if (!result || result.models.length === 0) return null;
 
     return { brand: result.brand, models: result.models };
@@ -385,27 +400,44 @@ const collectModelGroupBreakdown = async (
 // numeral stripped ("Golf IV" -> "Golf"), then also with a trailing chassis
 // code stripped ("100 IV C4" -> "100 C4" -> "100") — each tier only runs if
 // the previous one found literally nothing.
+// Each collectModelGroupBreakdown() call can page through up to
+// MODEL_GROUP_FALLBACK_MAX_PAGES (40) requests at up to 2.5s apiece, and the
+// cascade below can call it up to three times (primary, numeral-stripped,
+// chassis-code-stripped tiers) when 1C keeps returning results but never
+// finishes early — worst case, no single call ever times out but the total
+// still runs past Next's 60s static-generation limit and fails the whole
+// build. There was no overall cap on the cascade, only on each individual
+// page fetch. Bound the whole thing so a slow/broad model degrades to an
+// empty breakdown instead of taking the build down with it.
+const MODEL_GROUP_BREAKDOWN_TIMEOUT_MS = 8000;
+
 export const getModelGroupBreakdown = cache(
   async (brand: string, model: string): Promise<AutoModelGroupBreakdown> => {
     const cleanedModel = cleanModelQuery(model);
     if (!cleanedModel) return { groups: [], categories: [], totalProducts: 0, effectiveQuery: "" };
 
-    const primary = await collectModelGroupBreakdown(cleanedModel);
-    if (primary.totalProducts > 0) return { ...primary, effectiveQuery: cleanedModel };
+    return resolveWithTimeout(
+      async () => {
+        const primary = await collectModelGroupBreakdown(cleanedModel);
+        if (primary.totalProducts > 0) return { ...primary, effectiveQuery: cleanedModel };
 
-    const withoutNumerals = stripRomanNumerals(cleanedModel);
-    if (withoutNumerals && withoutNumerals !== cleanedModel) {
-      const secondary = await collectModelGroupBreakdown(withoutNumerals);
-      if (secondary.totalProducts > 0) return { ...secondary, effectiveQuery: withoutNumerals };
-    }
+        const withoutNumerals = stripRomanNumerals(cleanedModel);
+        if (withoutNumerals && withoutNumerals !== cleanedModel) {
+          const secondary = await collectModelGroupBreakdown(withoutNumerals);
+          if (secondary.totalProducts > 0) return { ...secondary, effectiveQuery: withoutNumerals };
+        }
 
-    const withoutChassisCode = stripTrailingChassisCode(withoutNumerals || cleanedModel);
-    if (withoutChassisCode && withoutChassisCode !== (withoutNumerals || cleanedModel)) {
-      const tertiary = await collectModelGroupBreakdown(withoutChassisCode);
-      if (tertiary.totalProducts > 0) return { ...tertiary, effectiveQuery: withoutChassisCode };
-    }
+        const withoutChassisCode = stripTrailingChassisCode(withoutNumerals || cleanedModel);
+        if (withoutChassisCode && withoutChassisCode !== (withoutNumerals || cleanedModel)) {
+          const tertiary = await collectModelGroupBreakdown(withoutChassisCode);
+          if (tertiary.totalProducts > 0) return { ...tertiary, effectiveQuery: withoutChassisCode };
+        }
 
-    return { ...primary, effectiveQuery: cleanedModel };
+        return { ...primary, effectiveQuery: cleanedModel };
+      },
+      { groups: [], categories: [], totalProducts: 0, effectiveQuery: cleanedModel },
+      MODEL_GROUP_BREAKDOWN_TIMEOUT_MS
+    );
   }
 );
 
