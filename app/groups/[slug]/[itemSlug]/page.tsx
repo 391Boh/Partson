@@ -41,6 +41,8 @@ import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getProductTreeDataset } from "app/lib/product-tree";
+import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getGroupItemSeoCopy } from "app/lib/seo-copy";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
@@ -852,14 +854,21 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     },
   };
 
-  const productItemListJsonLd = visibleProducts.length > 0
+  // Google requires an `offers` (or review/aggregateRating) block on Product
+  // structured data — products with no resolved price can't satisfy that, so
+  // they're excluded here even though they still render in the visible list below.
+  const pricedSchemaProducts = visibleProducts.filter(
+    (product) => typeof product.priceEuro === "number" && product.priceEuro > 0
+  );
+
+  const productItemListJsonLd = pricedSchemaProducts.length > 0
     ? {
         "@context": "https://schema.org",
         "@type": "ItemList",
         "@id": `${canonicalPageUrl}#product-list`,
         name: `Популярні товари: ${visibleLabel}`,
-        numberOfItems: visibleProducts.length,
-        itemListElement: visibleProducts.map((product, index) => {
+        numberOfItems: pricedSchemaProducts.length,
+        itemListElement: pricedSchemaProducts.map((product, index) => {
           const productPath = buildProductPath({
             code: product.code,
             article: product.article,
@@ -869,18 +878,37 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
             subGroup: product.subGroup,
             category: product.category,
           });
+          const url = `${siteUrl}${productPath}`;
+          const imagePath =
+            product.hasPhoto === true
+              ? buildProductImagePath(product.code, product.article)
+              : PRODUCT_IMAGE_FALLBACK_PATH;
+
           return {
             "@type": "ListItem",
             position: index + 1,
-            url: `${siteUrl}${productPath}`,
+            url,
             item: {
               "@type": "Product",
               name: buildVisibleProductName(product.name),
               sku: product.article || undefined,
               mpn: product.code || undefined,
+              image: `${siteUrl}${imagePath}`,
               brand: product.producer
                 ? { "@type": "Brand", name: product.producer }
                 : undefined,
+              url,
+              offers: {
+                "@type": "Offer",
+                priceCurrency: "UAH",
+                price: Math.round((product.priceEuro as number) * 50),
+                availability:
+                  product.quantity > 0
+                    ? "https://schema.org/InStock"
+                    : "https://schema.org/OutOfStock",
+                itemCondition: "https://schema.org/NewCondition",
+                url,
+              },
             },
           };
         }),

@@ -1316,14 +1316,21 @@ export default async function ManufacturerDetailPage({
       : undefined,
   };
 
-  const productItemListJsonLd = visibleProducts.length > 0
+  // Google requires an `offers` (or review/aggregateRating) block on Product
+  // structured data — products with no resolved price can't satisfy that, so
+  // they're excluded here even though they still render in the visible list below.
+  const pricedSchemaProducts = visibleProducts.filter(
+    (product) => typeof product.priceEuro === "number" && product.priceEuro > 0
+  );
+
+  const productItemListJsonLd = pricedSchemaProducts.length > 0
     ? {
         "@context": "https://schema.org",
         "@type": "ItemList",
         "@id": `${canonicalPageUrl}#product-list`,
         name: `Популярні товари бренду ${producer.label}`,
-        numberOfItems: visibleProducts.length,
-        itemListElement: visibleProducts.map((product, index) => {
+        numberOfItems: pricedSchemaProducts.length,
+        itemListElement: pricedSchemaProducts.map((product, index) => {
           const productPath = buildProductPath({
             code: product.code,
             article: product.article,
@@ -1333,14 +1340,15 @@ export default async function ManufacturerDetailPage({
             subGroup: product.subGroup,
             category: product.category,
           });
+          const url = `${siteUrl}${productPath}`;
           return {
             "@type": "ListItem",
             position: index + 1,
-            url: `${siteUrl}${productPath}`,
+            url,
             item: {
               "@type": "Product",
               name: buildVisibleProductName(product.name),
-              url: `${siteUrl}${productPath}`,
+              url,
               image:
                 product.hasPhoto === true
                   ? `${siteUrl}${buildProductImagePath(product.code, product.article)}`
@@ -1350,6 +1358,17 @@ export default async function ManufacturerDetailPage({
               category:
                 product.subGroup || product.group || product.category || undefined,
               brand: { "@type": "Brand", name: producer.label },
+              offers: {
+                "@type": "Offer",
+                priceCurrency: "UAH",
+                price: Math.round((product.priceEuro as number) * 50),
+                availability:
+                  product.quantity > 0
+                    ? "https://schema.org/InStock"
+                    : "https://schema.org/OutOfStock",
+                itemCondition: "https://schema.org/NewCondition",
+                url,
+              },
             },
           };
         }),
