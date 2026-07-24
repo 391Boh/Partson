@@ -22,7 +22,11 @@ type ProductDescriptionClientCardProps = {
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
-const DESCRIPTION_REQUEST_TIMEOUT_MS = 2600;
+// /api/product-description's own comment documents 1C description lookups
+// measured live at 1.9-3.7s per call, even repeated back-to-back (see the
+// matching constant in ProductCard.tsx). A shorter timeout here would just
+// reintroduce false "not filled in" states for products that do have one.
+const DESCRIPTION_REQUEST_TIMEOUT_MS = 4500;
 
 export default function ProductDescriptionClientCard({
   initialText,
@@ -271,27 +275,27 @@ export default function ProductDescriptionClientCard({
           <div
             className="space-y-2.5 py-1"
             role="status"
-            aria-label="Завантаження опису товару з 1С"
+            aria-label="Завантаження опису товару"
           >
-            <span className="sr-only">Завантажуємо опис товару з 1С…</span>
+            <span className="sr-only">Завантажуємо опис товару…</span>
             <div className="h-3.5 w-full animate-pulse rounded-full bg-slate-200/80" />
             <div className="h-3.5 w-[92%] animate-pulse rounded-full bg-slate-200/70" />
             <div className="h-3.5 w-[68%] animate-pulse rounded-full bg-slate-200/60" />
           </div>
         ) : (
           <p className="rounded-[14px] border border-amber-200/80 bg-amber-50/70 px-3 py-2.5 text-slate-700">
-            Опис у 1С для цього товару поки не заповнений. Уточнити
-            характеристики та застосування можна в чаті.
+            Детальний опис цього товару ще уточнюється. Напишіть нам у чат —
+            підкажемо характеристики, сумісність і допоможемо з вибором.
           </p>
         )}
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
         <span className="inline-flex rounded-[10px] border border-slate-200 bg-white/86 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-slate-500 shadow-[0_6px_14px_rgba(15,23,42,0.04)]">
           {descriptionStatus === "ready"
-            ? "Опис із 1С"
+            ? "Опис товару"
             : descriptionStatus === "loading"
-              ? "Завантаження з 1С"
-              : "Опис не заповнений"}
+              ? "Завантаження опису"
+              : "Опис уточнюється"}
         </span>
         <span className="inline-flex rounded-[10px] border border-sky-100 bg-sky-50/80 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-sky-700 shadow-[0_6px_14px_rgba(14,165,233,0.05)]">
           Сумісність і підбір

@@ -24,6 +24,13 @@ function normalize(value?: string | null): string {
   return (value ?? "").trim();
 }
 
+// Next's built-in sitemap serializer does not XML-escape `images[].url`,
+// unlike the hand-rolled builder in app/lib/sitemap-xml.ts used by the other
+// sitemaps — so a raw `&` in the image URL's query string breaks the XML.
+function escapeXmlUrl(value: string): string {
+  return value.replace(/&/g, "&amp;");
+}
+
 export default async function sitemap(props: {
   id: Promise<string | number>;
 }): Promise<MetadataRoute.Sitemap> {
@@ -61,10 +68,12 @@ export default async function sitemap(props: {
         entry.hasPhoto === false
           ? undefined
           : [
-              `${siteUrl}${buildProductImagePath(normalizedCode, entry.article ?? undefined, {
-                noFallback: true,
-                retryToken: 1,
-              })}`,
+              escapeXmlUrl(
+                `${siteUrl}${buildProductImagePath(normalizedCode, entry.article ?? undefined, {
+                  noFallback: true,
+                  retryToken: 1,
+                })}`
+              ),
             ];
 
       return {

@@ -1167,7 +1167,16 @@ const compactProductLookupToken = (value: string) =>
 const normalizeProductRouteLookupParam = (value: string) =>
   safeDecodeURIComponent(value || "").trim().toLowerCase();
 
-const getSitemapProductLookupIndex = cache(async () => {
+// `react`'s cache() only dedupes within a single request's render pass, not
+// across requests — with ~10k catalog entries, rebuilding this Map from the
+// snapshot file on every product-page hit was the main source of the slow
+// streamed response. The snapshot only changes on redeploy (new build writes
+// a fresh file, pm2 restart starts a fresh process), so a plain module-level
+// singleton is safe and shared across every request for the process lifetime.
+let sitemapProductLookupIndexPromise: Promise<Map<string, CatalogProduct>> | null =
+  null;
+
+const buildSitemapProductLookupIndex = async () => {
   const snapshotEntries = await getAllProductSitemapSnapshotEntries().catch(
     () => []
   );
@@ -1209,7 +1218,19 @@ const getSitemapProductLookupIndex = cache(async () => {
   }
 
   return index;
-});
+};
+
+const getSitemapProductLookupIndex = () => {
+  if (!sitemapProductLookupIndexPromise) {
+    sitemapProductLookupIndexPromise = buildSitemapProductLookupIndex().catch(
+      (error) => {
+        sitemapProductLookupIndexPromise = null;
+        throw error;
+      }
+    );
+  }
+  return sitemapProductLookupIndexPromise;
+};
 
 const findSitemapProductByLookupTokens = cache(async (lookupTokens: string[]) => {
   const normalizedTokens = Array.from(
