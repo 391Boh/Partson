@@ -21,18 +21,18 @@ type CityPoint = {
 const LVIV_POINT = { name: "Львів", x: 231.6, y: 504.0 };
 
 const DELIVERY_CITY_POINTS: CityPoint[] = [
-  { name: "Київ", x: 934.9, y: 400.9, labelDx: 24, labelDy: 8, anchor: "start" },
-  { name: "Харків", x: 1553.3, y: 478.0, labelDx: -24, labelDy: 8, anchor: "end" },
+  { name: "Київ", x: 934.9, y: 400.9, labelDx: 30, labelDy: 8, anchor: "start" },
+  { name: "Харків", x: 1553.3, y: 478.0, labelDx: -30, labelDy: 8, anchor: "end" },
   { name: "Одеса", x: 956.7, y: 1071.0, labelDx: 0, labelDy: 46, anchor: "middle" },
-  { name: "Дніпро", x: 1424.9, y: 736.2, labelDx: 24, labelDy: -12, anchor: "start" },
-  { name: "Запоріжжя", x: 1434.8, y: 842.0, labelDx: 24, labelDy: 14, anchor: "start" },
-  { name: "Івано-Франківськ", x: 305.4, y: 658.8, labelDx: 24, labelDy: 8, anchor: "start" },
-  { name: "Тернопіль", x: 401.1, y: 552.3, labelDx: 24, labelDy: 8, anchor: "start" },
-  { name: "Рівне", x: 472.2, y: 372.2, labelDx: 24, labelDy: 8, anchor: "start" },
-  { name: "Луцьк", x: 372.0, y: 350.7, labelDx: -24, labelDy: -14, anchor: "end" },
-  { name: "Ужгород", x: 43.0, y: 709.9, labelDx: 24, labelDy: -14, anchor: "start" },
-  { name: "Чернівці", x: 438.0, y: 765.3, labelDx: 24, labelDy: 14, anchor: "start" },
-  { name: "Вінниця", x: 712.3, y: 606.4, labelDx: 24, labelDy: 8, anchor: "start" },
+  { name: "Дніпро", x: 1424.9, y: 736.2, labelDx: 30, labelDy: -12, anchor: "start" },
+  { name: "Запоріжжя", x: 1434.8, y: 842.0, labelDx: 30, labelDy: 14, anchor: "start" },
+  { name: "Івано-Франківськ", x: 305.4, y: 658.8, labelDx: 30, labelDy: 8, anchor: "start" },
+  { name: "Тернопіль", x: 401.1, y: 552.3, labelDx: 30, labelDy: 8, anchor: "start" },
+  { name: "Рівне", x: 472.2, y: 372.2, labelDx: 30, labelDy: 8, anchor: "start" },
+  { name: "Луцьк", x: 372.0, y: 350.7, labelDx: -30, labelDy: -14, anchor: "end" },
+  { name: "Ужгород", x: 43.0, y: 709.9, labelDx: 30, labelDy: -14, anchor: "start" },
+  { name: "Чернівці", x: 438.0, y: 765.3, labelDx: 30, labelDy: 14, anchor: "start" },
+  { name: "Вінниця", x: 712.3, y: 606.4, labelDx: 30, labelDy: 8, anchor: "start" },
 ];
 
 export const DELIVERY_CITY_NAMES = DELIVERY_CITY_POINTS.map((c) => c.name);
@@ -64,23 +64,23 @@ export default function UkraineDeliveryMap() {
       />
 
       <g>
-        <circle cx={LVIV_POINT.x} cy={LVIV_POINT.y} r="38" fill="#0284c7" opacity="0.16" />
+        <circle cx={LVIV_POINT.x} cy={LVIV_POINT.y} r="46" fill="#0284c7" opacity="0.16" />
         <circle
           cx={LVIV_POINT.x}
           cy={LVIV_POINT.y}
-          r="17"
+          r="20"
           fill="#0369a1"
           stroke="white"
-          strokeWidth="6"
+          strokeWidth="7"
         />
         <text
-          x={LVIV_POINT.x + 26}
-          y={LVIV_POINT.y + 8}
-          fontSize="44"
+          x={LVIV_POINT.x + 32}
+          y={LVIV_POINT.y + 10}
+          fontSize="56"
           fontWeight="800"
           fill="#0c4a6e"
         >
-          Львів · магазин
+          Львів
         </text>
       </g>
 
@@ -89,15 +89,15 @@ export default function UkraineDeliveryMap() {
           <circle
             cx={city.x}
             cy={city.y}
-            r="12"
+            r="15"
             fill="#10b981"
             stroke="white"
-            strokeWidth="4"
+            strokeWidth="5"
           />
           <text
             x={city.x + city.labelDx}
             y={city.y + city.labelDy}
-            fontSize="34"
+            fontSize="46"
             fontWeight="700"
             fill="#334155"
             textAnchor={city.anchor}

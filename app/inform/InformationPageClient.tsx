@@ -160,28 +160,28 @@ const DeliveryTab = () => (
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <div className="sm:col-span-2">
       <InfoCard title="Доставка автозапчастин у Львові та в кожне місто України" icon={Route} accent="sky" featured>
-        <div className="space-y-4">
-          <p>
-            <PartsOnLink /> організовує доставку автозапчастин у Львові та відправляє
-            замовлення по всій Україні. Для клієнтів у Львові доступний самовивіз з{" "}
-            <AddressMapLink className="text-sky-700" />, а для інших міст — доставка у
-            відділення, поштомат або адресно через перевізника.
-          </p>
-          <p>
-            Відправляємо запчастини для ТО, підвіски, гальмівної системи, двигуна,
-            електроніки та інших товарних груп у Київ, Харків, Одесу, Дніпро,
-            Івано-Франківськ, Тернопіль, Рівне, Луцьк та інші населені пункти України.
-          </p>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(260px,0.95fr)] lg:items-start">
+          <div className="space-y-3">
+            <p>
+              <PartsOnLink /> організовує доставку автозапчастин у Львові та відправляє
+              замовлення по всій Україні. Для клієнтів у Львові доступний самовивіз з{" "}
+              <AddressMapLink className="text-sky-700" />, а для інших міст — доставка у
+              відділення, поштомат або адресно через перевізника.
+            </p>
+            <p>
+              Відправляємо запчастини для ТО, підвіски, гальмівної системи, двигуна,
+              електроніки та інших товарних груп у Київ, Харків, Одесу, Дніпро,
+              Івано-Франківськ, Тернопіль, Рівне, Луцьк та інші населені пункти України.
+            </p>
+            <span className="inline-flex rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700 shadow-sm">
+              Доставляємо у кожне місто України
+            </span>
+          </div>
 
-          <div className="rounded-2xl border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.95),rgba(240,249,255,0.9))] p-3 shadow-[0_12px_26px_rgba(14,165,233,0.08)] sm:p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-sky-700">
-                Географія доставки
-              </p>
-              <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700 shadow-sm">
-                Доставляємо у кожне місто України
-              </span>
-            </div>
+          <div className="rounded-2xl border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.95),rgba(240,249,255,0.9))] p-3 shadow-[0_12px_26px_rgba(14,165,233,0.08)]">
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-sky-700">
+              Географія доставки
+            </p>
             <UkraineDeliveryMap />
             <p className="sr-only">
               PartsON доставляє автозапчастини по всій Україні, зокрема у{" "}
