@@ -37,6 +37,7 @@ import {
 } from './section-config';
 import DiagnosticsConsultationForm from './DiagnosticsConsultationForm';
 import AnalyticsConsentSettingsButton from 'app/components/AnalyticsConsentSettingsButton';
+import UkraineDeliveryMap, { DELIVERY_CITY_NAMES } from 'app/components/UkraineDeliveryMap';
 import {
   catalogPageBackgroundClass,
   directoryBadgeClass,
@@ -54,20 +55,6 @@ const ADDRESS = 'Львів, вул. Перфецького, 8';
 const MAPS_URL = 'https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu&g_ep=EgoyMDI2MDUxNy4wIKXMDSoASAFQAw%3D%3D';
 const MAPS_EMBED_URL = 'https://www.google.com/maps?cid=11517394092669341405&output=embed';
 const VIBER_URL = 'https://connect.viber.com/business/36969536-f36d-11f0-84df-f601f1189001';
-const DELIVERY_CITIES = [
-  'Київ',
-  'Харків',
-  'Одеса',
-  'Дніпро',
-  'Запоріжжя',
-  'Івано-Франківськ',
-  'Тернопіль',
-  'Рівне',
-  'Луцьк',
-  'Ужгород',
-  'Чернівці',
-  'Вінниця',
-] as const;
 
 // ─── Типи ──────────────────────────────────────────────────────────────────
 type InfoCardProps = {
@@ -173,38 +160,33 @@ const DeliveryTab = () => (
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <div className="sm:col-span-2">
       <InfoCard title="Доставка автозапчастин у Львові та в кожне місто України" icon={Route} accent="sky" featured>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)]">
-          <div className="space-y-3">
-            <p>
-              <PartsOnLink /> організовує доставку автозапчастин у Львові та відправляє
-              замовлення по всій Україні. Для клієнтів у Львові доступний самовивіз з{" "}
-              <AddressMapLink className="text-sky-700" />, а для інших міст — доставка у
-              відділення, поштомат або адресно через перевізника.
-            </p>
-            <p>
-              Відправляємо запчастини для ТО, підвіски, гальмівної системи, двигуна,
-              електроніки та інших товарних груп у Київ, Харків, Одесу, Дніпро,
-              Івано-Франківськ, Тернопіль, Рівне, Луцьк та інші населені пункти України.
-            </p>
-          </div>
+        <div className="space-y-4">
+          <p>
+            <PartsOnLink /> організовує доставку автозапчастин у Львові та відправляє
+            замовлення по всій Україні. Для клієнтів у Львові доступний самовивіз з{" "}
+            <AddressMapLink className="text-sky-700" />, а для інших міст — доставка у
+            відділення, поштомат або адресно через перевізника.
+          </p>
+          <p>
+            Відправляємо запчастини для ТО, підвіски, гальмівної системи, двигуна,
+            електроніки та інших товарних груп у Київ, Харків, Одесу, Дніпро,
+            Івано-Франківськ, Тернопіль, Рівне, Луцьк та інші населені пункти України.
+          </p>
 
-          <div className="rounded-2xl border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.95),rgba(240,249,255,0.9))] p-3 shadow-[0_12px_26px_rgba(14,165,233,0.08)]">
-            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-sky-700">
-              Міста доставки
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {DELIVERY_CITIES.map((city) => (
-                <span
-                  key={city}
-                  className="rounded-full border border-sky-100 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 shadow-sm"
-                >
-                  {city}
-                </span>
-              ))}
+          <div className="rounded-2xl border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.95),rgba(240,249,255,0.9))] p-3 shadow-[0_12px_26px_rgba(14,165,233,0.08)] sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-sky-700">
+                Географія доставки
+              </p>
               <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700 shadow-sm">
-                та кожне місто України
+                Доставляємо у кожне місто України
               </span>
             </div>
+            <UkraineDeliveryMap />
+            <p className="sr-only">
+              PartsON доставляє автозапчастини по всій Україні, зокрема у{" "}
+              {DELIVERY_CITY_NAMES.join(", ")} та інші міста.
+            </p>
           </div>
         </div>
       </InfoCard>
