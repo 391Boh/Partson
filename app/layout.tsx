@@ -103,6 +103,8 @@ const googleAnalyticsId = (() => {
 
   return /^G-[A-Z0-9]+$/.test(rawId) ? rawId : "";
 })();
+const plerdySiteHash = (process.env.NEXT_PUBLIC_PLERDY_SITE_HASH || "").trim();
+const plerdySuid = (process.env.NEXT_PUBLIC_PLERDY_SUID || "").trim();
 const analyticsEnabledInCurrentEnvironment =
   process.env.NODE_ENV === "production" ||
   process.env.NEXT_PUBLIC_ANALYTICS_ENABLE_IN_DEVELOPMENT === "1";
@@ -486,6 +488,8 @@ export default function RootLayout({
           mode={analyticsMode === "gtm" ? "gtm" : "gtag"}
           googleTagManagerId={googleTagManagerId}
           googleAnalyticsId={googleAnalyticsId}
+          plerdySiteHash={plerdySiteHash}
+          plerdySuid={plerdySuid}
         />
         <WebVitalsReporter />
         <div className="page-scale-root">

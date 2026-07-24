@@ -30,10 +30,45 @@ type AnalyticsRuntimeProps = {
   mode: AnalyticsMode;
   googleTagManagerId?: string;
   googleAnalyticsId?: string;
+  plerdySiteHash?: string;
+  plerdySuid?: string;
 };
 
 type AnalyticsLoaderWindow = Window & {
   __PARTSON_ANALYTICS_LOADER_STARTED__?: boolean;
+  __PARTSON_PLERDY_LOADER_STARTED__?: boolean;
+  _protocol?: string;
+  _site_hash_code?: string;
+  _suid?: number;
+};
+
+// Plerdy (heatmaps/click tracking) is an analytics tool like GTM/GA — loaded
+// only once the visitor has granted analytics consent via the cookie banner
+// below, same as the Google loaders, instead of running unconditionally for
+// every visitor regardless of their choice.
+const loadPlerdyScript = (siteHash: string, suid: string) => {
+  if (!siteHash || !suid) return;
+
+  const analyticsWindow = window as AnalyticsLoaderWindow;
+  if (analyticsWindow.__PARTSON_PLERDY_LOADER_STARTED__) return;
+  analyticsWindow.__PARTSON_PLERDY_LOADER_STARTED__ = true;
+
+  analyticsWindow._protocol = window.location.protocol === "https:" ? "https://" : "http://";
+  analyticsWindow._site_hash_code = siteHash;
+  analyticsWindow._suid = Number(suid);
+
+  const script = document.createElement("script");
+  script.async = true;
+  script.referrerPolicy = "strict-origin-when-cross-origin";
+  script.src = `https://a.plerdy.com/public/js/click/main.js?v=${Math.random()}`;
+  script.addEventListener(
+    "error",
+    () => {
+      analyticsWindow.__PARTSON_PLERDY_LOADER_STARTED__ = false;
+    },
+    { once: true }
+  );
+  document.head.appendChild(script);
 };
 
 const loadAnalyticsScript = (
@@ -365,6 +400,8 @@ export default function AnalyticsRuntime({
   mode,
   googleTagManagerId,
   googleAnalyticsId,
+  plerdySiteHash = "",
+  plerdySuid = "",
 }: AnalyticsRuntimeProps) {
   const [analyticsGranted, setAnalyticsGranted] = useState(false);
   const handleConsentChange = useCallback(
@@ -373,8 +410,11 @@ export default function AnalyticsRuntime({
       if (selection.analyticsGranted || selection.advertisingGranted) {
         loadAnalyticsScript(mode, googleTagManagerId, googleAnalyticsId);
       }
+      if (selection.analyticsGranted) {
+        loadPlerdyScript(plerdySiteHash, plerdySuid);
+      }
     },
-    [googleAnalyticsId, googleTagManagerId, mode]
+    [googleAnalyticsId, googleTagManagerId, mode, plerdySiteHash, plerdySuid]
   );
 
   if (!enabled) return null;
