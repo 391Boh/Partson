@@ -230,7 +230,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         }
 
         // fallback: cyrillic → article transliteration
-        if ((ef === "all" || ef === "name") && !trimmed.includes(" ")) {
+        if (ef === "all" || ef === "name") {
           const artQ = toArticle(trimmed);
           if (artQ.length >= 2 && artQ !== trimmed && /\d/.test(artQ)) {
             const artKey = ck(artQ, "name");
