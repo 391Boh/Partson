@@ -34,15 +34,15 @@ const DELIVERY_CITY_POINTS: CityPoint[] = [
   { name: "Чернігів", x: 1018.0, y: 223.8, labelDx: 32, labelDy: 10, anchor: "start" },
   { name: "Черкаси", x: 1101.4, y: 570.7, labelDx: 32, labelDy: 10, anchor: "start" },
   { name: "Житомир", x: 733.0, y: 433.8, labelDx: -32, labelDy: 10, anchor: "end" },
-  { name: "Суми", x: 1398.0, y: 323.5, labelDx: 32, labelDy: 10, anchor: "start" },
+  { name: "Суми", x: 1380.3, y: 350.1, labelDx: 32, labelDy: 10, anchor: "start" },
   { name: "Хмельницький", x: 552.0, y: 574.3, labelDx: 0, labelDy: 56, anchor: "middle" },
   { name: "Чернівці", x: 438.1, y: 765.3, labelDx: 32, labelDy: 16, anchor: "start" },
-  { name: "Рівне", x: 472.3, y: 372.1, labelDx: 32, labelDy: 10, anchor: "start" },
+  { name: "Рівне", x: 514.1, y: 403.0, labelDx: 32, labelDy: -14, anchor: "start" },
   { name: "Кропивницький", x: 1123.4, y: 728.8, labelDx: 0, labelDy: 58, anchor: "middle" },
-  { name: "Луцьк", x: 372.0, y: 350.6, labelDx: -32, labelDy: -16, anchor: "end" },
+  { name: "Луцьк", x: 438.6, y: 394.9, labelDx: -32, labelDy: 20, anchor: "end" },
   { name: "Тернопіль", x: 401.1, y: 552.2, labelDx: 32, labelDy: 10, anchor: "start" },
   { name: "Івано-Франківськ", x: 305.4, y: 658.8, labelDx: 32, labelDy: 10, anchor: "start" },
-  { name: "Ужгород", x: 42.9, y: 709.8, labelDx: 32, labelDy: -16, anchor: "start" },
+  { name: "Ужгород", x: 142.4, y: 720.0, labelDx: 32, labelDy: 22, anchor: "start" },
 ];
 
 export const DELIVERY_CITY_NAMES = DELIVERY_CITY_POINTS.map((c) => c.name);
