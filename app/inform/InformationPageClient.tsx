@@ -1043,7 +1043,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
                         : 'border-slate-200/85 bg-white/86 text-slate-700 shadow-[0_7px_18px_rgba(15,23,42,0.035)] hover:border-sky-200 hover:bg-white hover:shadow-[0_11px_24px_rgba(14,165,233,0.08)]'
                     }`}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span
                         className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
                           isActive
@@ -1053,7 +1053,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
                       >
                         <Icon size={13} strokeWidth={isActive ? 2.2 : 1.8} aria-hidden="true" />
                       </span>
-                      <span className="directory-card-title text-[13px] leading-none text-inherit">{tab.title}</span>
+                      <span className="directory-card-title min-w-0 break-words text-[13px] leading-snug text-inherit">{tab.title}</span>
                     </div>
                     <p className={`mt-1 pl-8 text-[11px] font-medium leading-snug ${isActive ? 'text-cyan-800/80' : 'text-slate-400'}`}>
                       {tab.subtitle}
