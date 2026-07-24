@@ -156,49 +156,67 @@ const ViberIcon = () => (
 
 // ─── Доставка по містах (SEO) ──────────────────────────────────────────────
 const DELIVERY_CITY_BLURBS: ReadonlyArray<{
+  name: string;
   city: string;
   preposition: string;
   text: string;
+  icon: LucideIcon;
 }> = [
   {
+    name: "Львів",
     city: "Львові",
     preposition: "у",
     text: "Самовивіз із магазину на Перфецького, 8 у день замовлення, або доставка по місту за домовленістю з менеджером.",
+    icon: Store,
   },
   {
+    name: "Київ",
     city: "Києві",
     preposition: "у",
     text: "Новою Поштою — у відділення, поштомат або кур'єром додому. Відправка зазвичай протягом 1–2 днів.",
+    icon: Truck,
   },
   {
+    name: "Харків",
     city: "Харкові",
     preposition: "у",
     text: "Обираєте зручне відділення чи поштомат Нової Пошти при оформленні замовлення.",
+    icon: Truck,
   },
   {
+    name: "Одеса",
     city: "Одесі",
     preposition: "в",
     text: "Відправляємо в день підтвердження — отримати можна у відділенні Нової Пошти або поштоматі.",
+    icon: Truck,
   },
   {
+    name: "Дніпро",
     city: "Дніпрі",
     preposition: "у",
     text: "Автозапчастини Новою Поштою — зазвичай за 1–2 робочих дні з моменту відправки.",
+    icon: Truck,
   },
   {
+    name: "Запоріжжя",
     city: "Запоріжжі",
     preposition: "у",
     text: "Доступна доставка у відділення, поштомат або адресно кур'єром — оберіть варіант при оформленні.",
+    icon: Truck,
   },
   {
+    name: "Миколаїв",
     city: "Миколаєві",
     preposition: "у",
     text: "Відправляємо Новою Поштою, Укрпоштою або Meest — за вашим запитом при оформленні.",
+    icon: Package,
   },
   {
+    name: "Вінниця",
     city: "Вінниці",
     preposition: "у",
     text: "Замовлення прибуває зазвичай за 1–2 дні після відправки Новою Поштою.",
+    icon: Package,
   },
 ];
 
@@ -206,19 +224,14 @@ const DELIVERY_CITY_BLURBS: ReadonlyArray<{
 const DeliveryTab = () => (
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <div className="sm:col-span-2">
-      <InfoCard title="Доставка автозапчастин Новою Поштою по Україні та оперативно у Львові" icon={Route} accent="sky" featured>
+      <InfoCard title="Доставка автозапчастин Новою Поштою по Україні" icon={Route} accent="sky" featured>
         <div className="space-y-3">
           <p>
             <PartsOnLink /> відправляє замовлення <strong className="font-semibold text-slate-700">Новою Поштою в будь-яке місто України</strong> —
-            у відділення, поштомат або кур'єром додому. Для клієнтів у Львові доступні
-            самовивіз з <AddressMapLink className="text-sky-700" /> в день підтвердження
-            та доставка по місту за домовленістю з менеджером.
-          </p>
-          <p>
-            Відправляємо запчастини для ТО, підвіски, гальмівної системи, двигуна,
-            електроніки та інших товарних груп у Київ, Харків, Одесу, Дніпро,
-            Запоріжжя, Івано-Франківськ, Тернопіль, Рівне, Луцьк та інші населені
-            пункти України.
+            у відділення, поштомат або кур'єром додому, зазвичай за 1–2 робочих дні
+            після підтвердження. У Львові додатково доступні самовивіз з{" "}
+            <AddressMapLink className="text-sky-700" /> в день замовлення та доставка
+            по місту за домовленістю з менеджером.
           </p>
           <div className="flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[11px] font-black text-sky-800 shadow-sm">
@@ -267,16 +280,20 @@ const DeliveryTab = () => (
 
     <div className="sm:col-span-2">
       <InfoCard title="Доставка автозапчастин по містах України" icon={MapPin} accent="sky">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {DELIVERY_CITY_BLURBS.map(({ city, text, preposition }) => (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {DELIVERY_CITY_BLURBS.map(({ name, city, text, preposition, icon: CityIcon }) => (
             <div
-              key={city}
-              className="rounded-[16px] border border-slate-200/80 bg-white/70 p-3 shadow-[0_6px_16px_rgba(15,23,42,0.04)]"
+              key={name}
+              aria-label={`Доставка автозапчастин ${preposition} ${city}`}
+              className="group rounded-[16px] border border-slate-200/80 bg-[linear-gradient(160deg,rgba(255,255,255,0.98),rgba(248,250,252,0.92))] p-3.5 shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_12px_24px_rgba(14,165,233,0.1)]"
             >
-              <h3 className="text-[13px] font-black text-slate-800">
-                Доставка автозапчастин {preposition} {city}
-              </h3>
-              <p className="mt-1 text-[12px] leading-relaxed text-slate-600">{text}</p>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-sky-100 bg-sky-50 text-sky-600 transition group-hover:border-sky-200 group-hover:bg-sky-100">
+                  <CityIcon size={14} strokeWidth={2.2} aria-hidden="true" />
+                </span>
+                <h3 className="text-[14px] font-black text-slate-800">{name}</h3>
+              </div>
+              <p className="mt-2 text-[12px] leading-relaxed text-slate-600">{text}</p>
             </div>
           ))}
         </div>
