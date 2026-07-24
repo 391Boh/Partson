@@ -154,70 +154,100 @@ const ViberIcon = () => (
   </svg>
 );
 
+// ─── Доставка по містах (SEO) ──────────────────────────────────────────────
+const DELIVERY_CITY_BLURBS: ReadonlyArray<{
+  city: string;
+  preposition: string;
+  text: string;
+}> = [
+  {
+    city: "Львові",
+    preposition: "у",
+    text: "Самовивіз із магазину на Перфецького, 8 у день замовлення, або доставка по місту за домовленістю з менеджером.",
+  },
+  {
+    city: "Києві",
+    preposition: "у",
+    text: "Новою Поштою — у відділення, поштомат або кур'єром додому. Відправка зазвичай протягом 1–2 днів.",
+  },
+  {
+    city: "Харкові",
+    preposition: "у",
+    text: "Обираєте зручне відділення чи поштомат Нової Пошти при оформленні замовлення.",
+  },
+  {
+    city: "Одесі",
+    preposition: "в",
+    text: "Відправляємо в день підтвердження — отримати можна у відділенні Нової Пошти або поштоматі.",
+  },
+  {
+    city: "Дніпрі",
+    preposition: "у",
+    text: "Автозапчастини Новою Поштою — зазвичай за 1–2 робочих дні з моменту відправки.",
+  },
+  {
+    city: "Запоріжжі",
+    preposition: "у",
+    text: "Доступна доставка у відділення, поштомат або адресно кур'єром — оберіть варіант при оформленні.",
+  },
+  {
+    city: "Миколаєві",
+    preposition: "у",
+    text: "Відправляємо Новою Поштою, Укрпоштою або Meest — за вашим запитом при оформленні.",
+  },
+  {
+    city: "Вінниці",
+    preposition: "у",
+    text: "Замовлення прибуває зазвичай за 1–2 дні після відправки Новою Поштою.",
+  },
+];
+
 // ─── Вкладки ───────────────────────────────────────────────────────────────
 const DeliveryTab = () => (
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <div className="sm:col-span-2">
-      <InfoCard title="Доставка автозапчастин у Львові та в кожне місто України" icon={Route} accent="sky" featured>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(260px,0.95fr)] lg:items-start">
-          <div className="space-y-3">
-            <p>
-              <PartsOnLink /> організовує доставку автозапчастин у Львові та відправляє
-              замовлення по всій Україні. Для клієнтів у Львові доступний самовивіз з{" "}
-              <AddressMapLink className="text-sky-700" />, а для інших міст — доставка у
-              відділення, поштомат або адресно через перевізника.
-            </p>
-            <p>
-              Відправляємо запчастини для ТО, підвіски, гальмівної системи, двигуна,
-              електроніки та інших товарних груп у Київ, Харків, Одесу, Дніпро,
-              Івано-Франківськ, Тернопіль, Рівне, Луцьк та інші населені пункти України.
-            </p>
-            <span className="inline-flex rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700 shadow-sm">
-              Доставляємо у кожне місто України
+      <InfoCard title="Доставка автозапчастин Новою Поштою по Україні та оперативно у Львові" icon={Route} accent="sky" featured>
+        <div className="space-y-3">
+          <p>
+            <PartsOnLink /> відправляє замовлення <strong className="font-semibold text-slate-700">Новою Поштою в будь-яке місто України</strong> —
+            у відділення, поштомат або кур'єром додому. Для клієнтів у Львові доступні
+            самовивіз з <AddressMapLink className="text-sky-700" /> в день підтвердження
+            та доставка по місту за домовленістю з менеджером.
+          </p>
+          <p>
+            Відправляємо запчастини для ТО, підвіски, гальмівної системи, двигуна,
+            електроніки та інших товарних груп у Київ, Харків, Одесу, Дніпро,
+            Запоріжжя, Івано-Франківськ, Тернопіль, Рівне, Луцьк та інші населені
+            пункти України.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[11px] font-black text-sky-800 shadow-sm">
+              <Truck size={13} strokeWidth={2.4} aria-hidden="true" />
+              Нова Пошта по всій Україні
             </span>
-          </div>
-
-          <div className="overflow-hidden rounded-2xl border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.95),rgba(240,249,255,0.9))] p-3 shadow-[0_12px_26px_rgba(14,165,233,0.08)]">
-            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-sky-700">
-              Географія доставки
-            </p>
-            <Image
-              src="/ukraine-delivery-map.svg"
-              alt="Карта України з обласними центрами — географія доставки PartsON"
-              width={700}
-              height={480}
-              className="mt-2 h-auto w-full rounded-[14px]"
-            />
-            <p className="mt-1.5 text-[9px] font-medium text-slate-400">
-              Карта:{" "}
-              <a
-                href="https://commons.wikimedia.org/wiki/File:%D0%9A%D0%B0%D1%80%D1%82%D0%B0_%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D0%B8_(%D1%83%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D1%81%D1%8C%D0%BA%D0%BE%D1%8E)_%D0%B7_%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BC%D0%B8_%D0%BC%D1%96%D1%81%D1%82.svg"
-                target="_blank"
-                rel="noreferrer"
-                className="underline decoration-slate-300 underline-offset-2 hover:text-slate-600"
-              >
-                Wikimedia Commons
-              </a>
-              , CC BY-SA 3.0
-            </p>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-black text-emerald-700 shadow-sm">
+              <Navigation size={13} strokeWidth={2.4} aria-hidden="true" />
+              Оперативна доставка у Львові
+            </span>
           </div>
         </div>
       </InfoCard>
     </div>
 
-    <InfoCard title="Доставка по Україні" icon={Truck} accent="sky">
+    <InfoCard title="Нова Пошта по Україні" icon={Truck} accent="sky" featured>
       <ul className="space-y-3">
-        <Li icon={Package} cls="text-sky-500"><strong className="font-semibold text-slate-700">Нова Пошта</strong> — у відділення або адресна доставка</Li>
+        <Li icon={Package} cls="text-sky-500"><strong className="font-semibold text-slate-700">Нова Пошта</strong> — у відділення, поштомат або адресна доставка кур'єром</Li>
         <Li icon={Truck} cls="text-sky-500"><strong className="font-semibold text-slate-700">Укрпошта</strong> та <strong className="font-semibold text-slate-700">Meest</strong> — за запитом клієнта</Li>
-        <Li icon={Clock} cls="text-sky-500">Відправка зазвичай <strong className="font-semibold text-slate-700">1–2 робочих дні</strong> після підтвердження</Li>
+        <Li icon={Clock} cls="text-sky-500">Відправка зазвичай <strong className="font-semibold text-slate-700">1–2 робочих дні</strong> після підтвердження замовлення</Li>
+        <Li icon={CheckCircle} cls="text-sky-500">Номер ТТН для відстеження надсилаємо одразу після відправки</Li>
       </ul>
     </InfoCard>
 
-    <InfoCard title="Доставка у Львові" icon={MapPin} accent="emerald" featured>
+    <InfoCard title="Оперативна доставка у Львові" icon={MapPin} accent="emerald" featured>
       <ul className="space-y-3">
         <Li icon={Navigation} cls="text-emerald-500">Доставка по Львову <strong className="font-semibold text-slate-700">за домовленістю</strong> з менеджером</Li>
         <Li icon={Building2} cls="text-emerald-500">Самовивіз з магазину <AddressMapLink className="text-emerald-700" /> за попереднім підтвердженням</Li>
-        <Li icon={Store} cls="text-emerald-500">Можна узгодити отримання у день підтвердження, якщо товар є в наявності у Львові</Li>
+        <Li icon={Store} cls="text-emerald-500">Отримання <strong className="font-semibold text-slate-700">у день підтвердження</strong>, якщо товар є в наявності у Львові</Li>
       </ul>
     </InfoCard>
 
@@ -234,6 +264,24 @@ const DeliveryTab = () => (
         <Li icon={CheckCircle} cls="text-cyan-500">Рекомендуємо перевіряти комплектність і стан посилки <strong className="font-semibold text-slate-700">під час отримання</strong></Li>
       </ul>
     </InfoCard>
+
+    <div className="sm:col-span-2">
+      <InfoCard title="Доставка автозапчастин по містах України" icon={MapPin} accent="sky">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {DELIVERY_CITY_BLURBS.map(({ city, text, preposition }) => (
+            <div
+              key={city}
+              className="rounded-[16px] border border-slate-200/80 bg-white/70 p-3 shadow-[0_6px_16px_rgba(15,23,42,0.04)]"
+            >
+              <h3 className="text-[13px] font-black text-slate-800">
+                Доставка автозапчастин {preposition} {city}
+              </h3>
+              <p className="mt-1 text-[12px] leading-relaxed text-slate-600">{text}</p>
+            </div>
+          ))}
+        </div>
+      </InfoCard>
+    </div>
   </div>
 );
 
