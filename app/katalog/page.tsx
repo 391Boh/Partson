@@ -49,6 +49,8 @@ const INITIAL_CATALOG_SSR_TIMEOUT_MS = 250;
 const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 350;
 const CATALOG_SEO_FACETS_TIMEOUT_MS = 200;
 const CATALOG_PRODUCT_TREE_TIMEOUT_MS = 200;
+const CATALOG_IMAGE_MAP_TIMEOUT_MS = 300;
+const MANUFACTURERS_DIRECTORY_TIMEOUT_MS = 300;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
 
@@ -1135,9 +1137,11 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   const initialPagePayload = rawInitialPagePayload
     ? {
       ...rawInitialPagePayload,
-        images: await resolvePersistentCatalogImageMap(
-          rawInitialPagePayload.items
-        ),
+        images: await resolveWithTimeout(
+          () => resolvePersistentCatalogImageMap(rawInitialPagePayload.items),
+          {},
+          CATALOG_IMAGE_MAP_TIMEOUT_MS
+        ).catch(() => ({})),
       }
     : null;
   const seoFacets = await resolveCatalogSeoFacetsWithFallback(rawSeoFacets);
@@ -1167,9 +1171,11 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   // Reuses the seoFacets already fetched above (no extra 1C round-trip) so
   // the producer picker in the filter sidebar renders with real logos/counts
   // on first paint — no static-seed-then-live-swap flicker, no client fetch.
-  const manufacturersDirectoryData = await buildManufacturersDirectoryData(seoFacets).catch(
-    () => null
-  );
+  const manufacturersDirectoryData = await resolveWithTimeout(
+    () => buildManufacturersDirectoryData(seoFacets),
+    null,
+    MANUFACTURERS_DIRECTORY_TIMEOUT_MS
+  ).catch(() => null);
   const initialProducerBrands = (manufacturersDirectoryData?.clientProducers ?? []).map(
     (producer) => ({
       name: producer.label,
