@@ -560,12 +560,13 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     articleHint.toLowerCase(),
     acceptsAvif ? "avif" : "webp",
   ].join("::");
-  const canUsePersistentCatalogCache =
-    !hasCacheBust &&
-    catalogMode &&
-    !strictMode &&
-    !noRedirectFallback &&
-    retryAttempt === 0;
+  // Persist optimized bytes to disk for both catalog thumbnails and full
+  // product-page images — a full image is looked up from 1C just as often
+  // (every popular product page) and costs more per miss (bigger lookup
+  // budget, sharp resize at higher quality), so it benefits at least as much
+  // from surviving process restarts and the 2h in-memory cache expiring.
+  const canUsePersistentImageCache =
+    !hasCacheBust && !strictMode && !noRedirectFallback && retryAttempt === 0;
   const routeCacheRevisionAtStart = getProductRouteImageCacheRevision(
     normalizedCode,
     articleHint
@@ -616,7 +617,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   }
 
   if (
-    canUsePersistentCatalogCache &&
+    canUsePersistentImageCache &&
     !isRouteImageCacheInvalidating(normalizedCode, articleHint)
   ) {
     const revisionBeforeRead = getProductRouteImageCacheRevision(
@@ -750,7 +751,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
               : ROUTE_IMAGE_HIT_CACHE_TTL_MS_FULL),
           value: optimizedImage,
         });
-        if (canUsePersistentCatalogCache) {
+        if (canUsePersistentImageCache) {
           void writePersistentRouteImage(routeHitCacheKey, optimizedImage).then(
             async () => {
               if (!canWriteRouteCache()) {
