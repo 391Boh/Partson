@@ -1,5 +1,3 @@
-"use client";
-
 import AnalogProductThumb from "app/components/AnalogProductThumb";
 import SmartLink from "app/components/SmartLink";
 import { buildProductImagePath } from "app/lib/product-image-path";

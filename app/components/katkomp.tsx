@@ -359,6 +359,11 @@ const Category: React.FC<CategoryProps> = ({
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const categoryCarouselRef = useRef<HTMLDivElement | null>(null);
+  const [categoryCarouselState, setCategoryCarouselState] = useState({
+    canGoBack: false,
+    canGoForward: false,
+  });
   const lastResetSignalRef = useRef<number | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -719,12 +724,47 @@ const Category: React.FC<CategoryProps> = ({
     subgroup: "\u041f\u043e\u0448\u0443\u043a",
   };
 
-  const currentCount =
-    step === "category"
-      ? filteredCategoryItems.length
-      : step === "group"
-      ? filteredGroupItems.length
-      : filteredSubgroupItems.length;
+  const searchPlaceholderMap = {
+    category: "Знайти категорію або запчастину",
+    group: "Знайти групу товарів",
+    subgroup: "Знайти підгрупу товарів",
+  };
+
+  const updateCategoryCarouselState = () => {
+    const carousel = categoryCarouselRef.current;
+    if (!carousel) return;
+
+    const maxScrollLeft = carousel.scrollWidth - carousel.clientWidth;
+    setCategoryCarouselState({
+      canGoBack: carousel.scrollLeft > 4,
+      canGoForward: maxScrollLeft - carousel.scrollLeft > 4,
+    });
+  };
+
+  const scrollCategoryCarousel = (direction: -1 | 1) => {
+    const carousel = categoryCarouselRef.current;
+    if (!carousel) return;
+    carousel.scrollBy({
+      left: direction * carousel.clientWidth,
+      behavior: "smooth",
+    });
+  };
+
+  useEffect(() => {
+    if (step !== "category" || isSearchMode) return;
+    const carousel = categoryCarouselRef.current;
+    if (!carousel) return;
+
+    carousel.scrollTo({ left: 0, behavior: "auto" });
+    const frame = window.requestAnimationFrame(updateCategoryCarouselState);
+    const resizeObserver = new ResizeObserver(updateCategoryCarouselState);
+    resizeObserver.observe(carousel);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+    };
+  }, [filteredCategoryItems.length, isSearchMode, step]);
 
   const handleCategorySelect = (name: string) => {
     setActiveCategory(name);
@@ -782,8 +822,8 @@ const Category: React.FC<CategoryProps> = ({
 
   return (
     <div className="flex h-full flex-col gap-2">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-600">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
           {!isSearchMode && (activeCategory || activeGroup) ? (
             <button
               type="button"
@@ -794,9 +834,6 @@ const Category: React.FC<CategoryProps> = ({
             </button>
           ) : null}
           <span>{isSearchMode ? "\u041f\u043e\u0448\u0443\u043a" : headerLabelMap[step]}</span>
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-            {isSearchMode ? searchResults.length : currentCount}
-          </span>
           {!isSearchMode &&
             activeTrail.map((item) => (
               <span
@@ -809,17 +846,19 @@ const Category: React.FC<CategoryProps> = ({
             ))}
         </div>
 
-        <label className="relative w-full shrink-0 sm:ml-auto sm:w-[260px]">
+        <label className="group/search relative w-full shrink-0 sm:ml-auto sm:w-[340px]">
+          <span className="sr-only">{searchLabelMap[step]}</span>
           <input
             type="text"
-            placeholder={searchLabelMap[step]}
-            className="h-7 w-full rounded-lg border border-slate-200 bg-white px-6 pr-6 text-[16px] sm:text-[10px] text-slate-700 placeholder:text-slate-400 focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            placeholder={searchPlaceholderMap[step]}
+            aria-label={searchPlaceholderMap[step]}
+            className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/80 pl-11 pr-10 text-[16px] font-medium text-slate-800 shadow-[inset_0_1px_2px_rgba(15,23,42,0.03)] outline-none transition-[background-color,border-color,box-shadow] duration-300 ease-out placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(59,130,246,0.10)] sm:h-11 sm:text-[13px]"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             data-search="true"
           />
           <svg
-            className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400 transition-colors duration-300 ease-out group-focus-within/search:text-blue-600"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -835,7 +874,8 @@ const Category: React.FC<CategoryProps> = ({
             <button
               type="button"
               onClick={() => setSearchTerm("")}
-              className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md px-1 text-[10px] text-slate-400 transition hover:text-slate-600"
+              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-sm text-slate-400 transition-colors duration-300 ease-out hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Очистити пошук"
             >
               {"x"}
             </button>
@@ -894,40 +934,77 @@ const Category: React.FC<CategoryProps> = ({
             )}
 
             {!isSearchMode && step === "category" && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+              <div className="relative py-2">
                 {filteredCategoryItems.length > 0 ? (
-                  filteredCategoryItems.map((item) => {
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => scrollCategoryCarousel(-1)}
+                      disabled={!categoryCarouselState.canGoBack}
+                      aria-label="Попередні категорії"
+                      className="absolute left-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-600 shadow-md backdrop-blur transition-[border-color,background-color,color,box-shadow] duration-300 ease-out hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 disabled:pointer-events-none disabled:opacity-0 sm:left-2"
+                    >
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <div
+                      ref={categoryCarouselRef}
+                      onScroll={updateCategoryCarouselState}
+                      className="flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-3"
+                    >
+                    {filteredCategoryItems.map((item, itemIndex) => {
                     const isSelected = selectedCategories.includes(item.name);
                     const isActive = activeCategory === item.name;
                     const buttonClass = isSelected
-                      ? "border-emerald-200 bg-emerald-50/70 text-emerald-800"
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-800"
                       : isActive
-                      ? "border-blue-200 bg-blue-50/70 text-blue-800"
-                      : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/40";
+                      ? "border-blue-300 bg-blue-50 text-blue-800"
+                      : "border-slate-200 bg-white hover:border-blue-300";
 
                     return (
                       <button
                         key={item.name}
                         type="button"
                         onClick={() => handleCategorySelect(item.name)}
-                        className={`flex items-start gap-2 rounded-xl border px-2.5 py-1.5 text-left text-[10px] transition shadow-sm ${buttonClass}`}
+                        className={`group/card relative flex min-h-28 w-[calc((100%_-_1rem)/3)] shrink-0 cursor-pointer snap-start flex-col items-center justify-center overflow-hidden rounded-2xl border px-2 py-3 text-center shadow-[0_4px_16px_rgba(15,23,42,0.04)] transition-[background-color,border-color,box-shadow] duration-300 ease-out hover:bg-slate-50/80 hover:shadow-[0_6px_20px_rgba(15,23,42,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 sm:min-h-32 sm:w-[calc((100%_-_1.5rem)/3)] sm:px-4 sm:py-4 ${buttonClass}`}
                       >
-                        <Image
-                          src={getCategoryIcon(getCompactDisplayLabel(item.name))}
-                          alt={getCompactDisplayLabel(item.name)}
-                          width={16}
-                          height={16}
-                          unoptimized
-                          className="h-4 w-4 shrink-0 object-contain"
-                        />
-                        <div className="text-[11px] font-semibold text-slate-800 line-clamp-2">
-                          {getCompactDisplayLabel(item.name)}
+                        <span className="flex h-12 w-12 shrink-0 items-center justify-center sm:h-16 sm:w-16">
+                          <Image
+                            src={getCategoryIcon(getCompactDisplayLabel(item.name))}
+                            alt=""
+                            width={48}
+                            height={48}
+                            quality={70}
+                            sizes="(min-width: 640px) 48px, 40px"
+                            priority={itemIndex < 3}
+                            loading={itemIndex < 3 ? undefined : "lazy"}
+                            className="h-10 w-10 object-contain sm:h-12 sm:w-12"
+                          />
+                        </span>
+                        <div className="mt-2 min-w-0">
+                          <div className="line-clamp-2 text-[11px] font-bold leading-tight text-slate-900 transition-colors duration-300 ease-out group-hover/card:text-blue-600 sm:text-sm sm:leading-snug">
+                            {getCompactDisplayLabel(item.name)}
+                          </div>
                         </div>
                       </button>
                     );
-                  })
+                    })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => scrollCategoryCarousel(1)}
+                      disabled={!categoryCarouselState.canGoForward}
+                      aria-label="Наступні категорії"
+                      className="absolute right-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-600 shadow-md backdrop-blur transition-[border-color,background-color,color,box-shadow] duration-300 ease-out hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 disabled:pointer-events-none disabled:opacity-0 sm:right-2"
+                    >
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </>
                 ) : (
-                  <div className="col-span-full py-4 text-center text-[11px] text-slate-400">
+                  <div className="py-4 text-center text-[11px] text-slate-400">
                     {"\u041d\u0456\u0447\u043e\u0433\u043e \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}
                   </div>
                 )}

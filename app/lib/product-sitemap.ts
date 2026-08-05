@@ -5,6 +5,7 @@ import {
   fetchCatalogProductsByQuery,
   type CatalogProduct,
 } from "app/lib/catalog-server";
+import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
@@ -163,6 +164,10 @@ const normalizeProductCodes = (codes: string[]) => {
 };
 
 const toProductSitemapEntry = (product: CatalogProduct): ProductSitemapEntry | null => {
+  if (!isPublicCatalogProduct(product)) {
+    return null;
+  }
+
   const code = (product.code || "").trim();
 
   if (!code) {
@@ -241,7 +246,10 @@ const readProductSitemapEntriesSnapshot = async () => {
 
     return rawEntries
       .map(toSnapshotProductSitemapEntry)
-      .filter((entry): entry is ProductSitemapEntry => Boolean(entry));
+      .filter(
+        (entry): entry is ProductSitemapEntry =>
+          Boolean(entry && isPublicCatalogProduct(entry))
+      );
   } catch (error) {
     logProductSitemapFailure("Failed to read product sitemap snapshot", error);
     return [];
@@ -344,7 +352,7 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
         includePriceEnrichment: false,
         preferLegacySource: false,
         forceAllgoodsSource: true,
-        pricedItemsOnly: false,
+        pricedItemsOnly: true,
         timeoutMs: PRODUCT_SITEMAP_SOURCE_TIMEOUT_MS,
         retries: PRODUCT_SITEMAP_SOURCE_RETRIES,
         retryDelayMs: PRODUCT_SITEMAP_SOURCE_RETRY_DELAY_MS,
@@ -475,7 +483,8 @@ const getProductSitemapEntryBatchesSafe = async () => {
 const isPricedProductSitemapEntry = (entry: ProductSitemapEntry) =>
   typeof entry.priceEuro === "number" &&
   Number.isFinite(entry.priceEuro) &&
-  entry.priceEuro > 0;
+  entry.priceEuro > 0 &&
+  entry.hasPhoto === true;
 
 const getProductSitemapEntryLookupKeys = (entry: ProductSitemapEntry) =>
   Array.from(
@@ -673,7 +682,11 @@ const getPricedProductSitemapEntryBatchesSafe = async () => {
       enrichProductSitemapEntriesWithPrices(batches.flat())
     )
     .then((entries) =>
-      chunkProductSitemapEntries(entries.filter(isPricedProductSitemapEntry))
+      chunkProductSitemapEntries(
+        entries.filter(
+          (entry) => isPricedProductSitemapEntry(entry) && entry.hasPhoto === true
+        )
+      )
     )
     .then((batches) => {
       pricedProductSitemapEntryBatchesMemory = batches;
@@ -727,7 +740,9 @@ export const getAllPricedProductSitemapSnapshotEntries = async () => {
   if (pricedEntries.length > 0) return pricedEntries;
 
   const allEntries = await readProductSitemapEntriesSnapshot();
-  return allEntries.filter(isPricedProductSitemapEntry);
+  return allEntries.filter(
+    (entry) => isPricedProductSitemapEntry(entry) && entry.hasPhoto === true
+  );
 };
 
 export const getProductCodesBySitemapId = async (id: string) => {

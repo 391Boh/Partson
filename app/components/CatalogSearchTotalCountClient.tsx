@@ -6,6 +6,10 @@ import { useSearchParams } from "next/navigation";
 type CatalogSearchTotalCountClientProps = {
   className?: string;
   initialOpenCount: number;
+  // Shown as-is whenever there's no active filter of any kind (plain
+  // /katalog): the SSR facet aggregate is already the exact catalog-wide
+  // total there, so there's nothing for the live endpoint to improve on.
+  initialFallbackCount?: number | null;
 };
 
 type SearchCountPayload = {
@@ -35,6 +39,7 @@ const formatCount = (count: number, exact = true) => {
 export default function CatalogSearchTotalCountClient({
   className,
   initialOpenCount,
+  initialFallbackCount = null,
 }: CatalogSearchTotalCountClientProps) {
   const searchParams = useSearchParams();
   const [openCount, setOpenCount] = useState(initialOpenCount);
@@ -48,14 +53,29 @@ export default function CatalogSearchTotalCountClient({
     const params = new URLSearchParams();
     const current = searchParams ?? new URLSearchParams();
     const search = (current.get("search") || "").trim();
-    if (!search) return "";
+    if (search) {
+      params.set("search", search);
+      params.set("filter", current.get("filter") || "all");
+    }
 
-    params.set("search", search);
-    params.set("filter", current.get("filter") || "all");
-
-    for (const key of ["group", "subcategory", "producer", "scope"]) {
+    for (const key of [
+      "group",
+      "subcategory",
+      "producer",
+      "scope",
+      "pricedOnly",
+      "priceFrom",
+      "priceTo",
+      "inStock",
+    ]) {
       const value = current.get(key);
       if (value) params.set(key, value);
+    }
+
+    for (const key of ["car", "category"]) {
+      for (const value of current.getAll(key)) {
+        if (value) params.append(key, value);
+      }
     }
 
     return params.toString();
@@ -66,6 +86,23 @@ export default function CatalogSearchTotalCountClient({
   }, [initialOpenCount]);
 
   useEffect(() => {
+    const catalogWindow = window as Window & {
+      __partsonCatalogVisibleCount?: number;
+      __partsonCatalogTotalCount?: number | null;
+    };
+    if (
+      typeof catalogWindow.__partsonCatalogVisibleCount === "number" &&
+      Number.isFinite(catalogWindow.__partsonCatalogVisibleCount)
+    ) {
+      setOpenCount(Math.max(0, catalogWindow.__partsonCatalogVisibleCount));
+    }
+    if (
+      typeof catalogWindow.__partsonCatalogTotalCount === "number" &&
+      Number.isFinite(catalogWindow.__partsonCatalogTotalCount)
+    ) {
+      setFilterTotal(Math.max(0, catalogWindow.__partsonCatalogTotalCount));
+    }
+
     const handleVisibleCount = (event: Event) => {
       const detail = (event as CustomEvent<{ count?: number; loading?: boolean }>).detail;
       if (detail?.loading) { setIsLoading(true); return; }
@@ -97,7 +134,7 @@ export default function CatalogSearchTotalCountClient({
     return () => window.removeEventListener("partson:price-filter-state", handlePriceFilter);
   }, []);
 
-  // Reset filterTotal and price filter flag when search query changes
+  // Reset the previous query's live total when the active query changes.
   useEffect(() => {
     setFilterTotal(null);
     setPriceFilterActive(false);
@@ -149,23 +186,32 @@ export default function CatalogSearchTotalCountClient({
   }, [countQuery]);
 
   const resolvedCount = useMemo(() => {
+    if (!countQuery && !priceFilterActive) {
+      // No URL-level filter active. Data's own live total (filterTotal) is
+      // the unbiased catalog-wide count; prefer it over initialFallbackCount,
+      // which comes from the SSR facet aggregate — that crawl is priced-items
+      // -only (built for schema.org purposes) and undercounts the real total.
+      // initialFallbackCount is only a placeholder until Data's first dispatch
+      // arrives just after hydration.
+      return filterTotal ?? initialFallbackCount ?? openCount;
+    }
     if (priceFilterActive) {
-      // Price filter applied locally — server total is irrelevant, use local count
+      // Price filters live in the catalog client state rather than the URL;
+      // Data publishes their complete server-side total through filterTotal.
       return filterTotal ?? openCount;
     }
-    // Prefer the dedicated search-count endpoint's total once it resolves — it's
-    // the most authoritative for text search. While it's still loading (it can
-    // take a few seconds) or unavailable (no active search), fall back to the
-    // live filter total already pushed by the main catalog fetch instead of the
-    // merely-loaded-so-far count, so the counter never drops to an undercount.
+    // The dedicated endpoint receives the complete active filter now, including
+    // price, stock, car and category values, so it remains authoritative for
+    // the entire result set rather than only the products already opened.
     return totalCount ?? filterTotal ?? openCount;
-  }, [openCount, totalCount, filterTotal, priceFilterActive]);
+  }, [countQuery, initialFallbackCount, openCount, totalCount, filterTotal, priceFilterActive]);
+
+  const isCounting =
+    isLoading && totalCount == null && filterTotal == null && Boolean(countQuery);
 
   return (
     <span className={className}>
-      {isLoading && totalCount == null && filterTotal == null
-        ? "рахую..."
-        : formatCount(resolvedCount, isExact)}
+      {isCounting ? "рахую..." : formatCount(resolvedCount, isExact)}
     </span>
   );
 }

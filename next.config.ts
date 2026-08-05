@@ -75,7 +75,10 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["lucide-react", "react-icons", "framer-motion"],
   },
   webpack(config, { dev }) {
-    if (dev) {
+    // Native filesystem events are considerably cheaper on a local disk.
+    // Polling remains available explicitly through `npm run dev:poll` for
+    // Docker/network volumes where native events may not arrive.
+    if (dev && process.env.FORCE_DEV_POLLING === "1") {
       config.watchOptions = {
         ...(config.watchOptions || {}),
         aggregateTimeout: 180,
@@ -105,6 +108,25 @@ const nextConfig: NextConfig = {
       {
         source: "/inform",
         destination: "/inform/delivery",
+        permanent: true,
+      },
+      // These three used to duplicate entries already covered by
+      // groups-/manufacturers-/other-pages-sitemap.xml and were dropped from
+      // the sitemap index (see app/lib/sitemap-sections.ts) — redirect any
+      // stale GSC submissions or backlinks to the index instead of a 404.
+      {
+        source: "/sitemap-pages.xml",
+        destination: "/sitemap.xml",
+        permanent: true,
+      },
+      {
+        source: "/sitemap-categories.xml",
+        destination: "/sitemap.xml",
+        permanent: true,
+      },
+      {
+        source: "/sitemap-brands.xml",
+        destination: "/sitemap.xml",
         permanent: true,
       },
     ];

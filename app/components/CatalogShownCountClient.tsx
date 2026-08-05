@@ -39,6 +39,22 @@ export default function CatalogShownCountClient({
   useEffect(() => {
     if (eventName === "none") return;
 
+    // Data can finish its cached first-page render before this lower SEO block
+    // hydrates. Read the latest published value first so that an already-fired
+    // event is not lost and the counter never remains on the SSR snapshot.
+    const catalogWindow = window as Window & {
+      __partsonCatalogVisibleCount?: number;
+      __partsonCatalogTotalCount?: number | null;
+    };
+    const publishedCount =
+      eventName === "filtered"
+        ? catalogWindow.__partsonCatalogTotalCount
+        : catalogWindow.__partsonCatalogVisibleCount;
+    if (typeof publishedCount === "number" && Number.isFinite(publishedCount)) {
+      setCount(Math.max(0, publishedCount));
+      setIsLoading(false);
+    }
+
     const eventType =
       eventName === "filtered"
         ? "partson:catalog-filter-total-count"

@@ -2596,27 +2596,19 @@ body::-webkit-scrollbar-corner,
      mobile-only !important) — the inline h-[360px] Tailwind class is
      overridden there, so 380px is what mobile actually renders at. */
   contain-intrinsic-size: 100% 380px;
+  contain: layout paint style;
 }
 
-.catalog-product-card.catalog-product-card--admin {
-  /* Admin controls need a taller stable paint placeholder on narrow screens. */
-  contain-intrinsic-size: 100% 470px;
+/* The grid wrapper itself is a paint boundary. Appending the next page can
+   then be laid out without invalidating decorative sections above it. */
+#catalog-results {
+  contain: layout style;
 }
 
 @media (min-width: 640px) {
   .catalog-product-card {
     /* Matches ProductCard.tsx's inline sm:h-[340px]. */
     contain-intrinsic-size: 100% 340px;
-  }
-
-  .catalog-product-card.catalog-product-card--admin {
-    contain-intrinsic-size: 100% 440px;
-  }
-}
-
-@media (min-width: 1280px) {
-  .catalog-product-card.catalog-product-card--admin {
-    contain-intrinsic-size: 100% 420px;
   }
 }
 
@@ -2703,15 +2695,6 @@ body::-webkit-scrollbar-corner,
     height: 23.75rem !important;
   }
 
-  /* Admin edit form (description + category/group/subgroup, each with an
-     autocomplete list) doesn't fit the regular card height without heavy
-     scrolling — a bit taller specifically for admins. Kept as a fixed
-     height (not conditional on edit-mode being open) so toggling edit on
-     a card never itself changes card height and reflows the grid. */
-  .catalog-product-card.catalog-product-card--admin {
-    height: 29.375rem !important;
-  }
-
   .catalog-product-card:hover {
     transform: none !important;
   }
@@ -2737,10 +2720,6 @@ body::-webkit-scrollbar-corner,
     margin-bottom: 0.45rem;
     border-color: rgba(186, 230, 253, 0.9);
     background: linear-gradient(135deg, rgba(248, 250, 252, 0.98), rgba(224, 242, 254, 0.92));
-  }
-
-  .catalog-product-card--admin .catalog-card-hero {
-    height: 5.875rem;
   }
 
   .catalog-card-image {
@@ -2799,10 +2778,6 @@ body::-webkit-scrollbar-corner,
 
   .catalog-card-actions button {
     border-radius: 0.75rem;
-  }
-
-  .catalog-card-actions--admin {
-    min-height: 6.25rem;
   }
 
   [data-catalog-card="1"] {
@@ -3080,4 +3055,156 @@ body::-webkit-scrollbar-corner,
 .app-overlay-panel .border-slate-200\/70,
 .app-overlay-panel .border-slate-200\/80 {
   border-color: rgba(203, 213, 225, 0.78);
+}
+
+/* Customer header panels: contacts, cart/checkout, account and auth share one
+   calm visual language. The shell stays light so its content cards no longer
+   look pasted onto a dark surface, while the blue/teal accents match the site. */
+.customer-overlay-panel.app-overlay-panel.soft-modal-shell {
+  color-scheme: light;
+  border-color: rgba(186, 230, 253, 0.78);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(125, 211, 252, 0.3), transparent 34%),
+    radial-gradient(circle at 96% 8%, rgba(94, 234, 212, 0.18), transparent 30%),
+    linear-gradient(155deg, rgba(255, 255, 255, 0.985) 0%, rgba(248, 252, 255, 0.98) 48%, rgba(240, 249, 255, 0.97) 100%);
+  color: #334155;
+  box-shadow:
+    0 28px 72px rgba(15, 23, 42, 0.22),
+    0 10px 28px rgba(14, 116, 144, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.64);
+  backdrop-filter: blur(20px) saturate(150%);
+}
+
+.customer-overlay-panel.app-overlay-panel.soft-panel-glow::before {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.58), transparent 30%),
+    linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.08), transparent);
+}
+
+.customer-overlay-panel.app-overlay-panel.soft-panel-glow::after {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.05), transparent 54%, rgba(20, 184, 166, 0.06));
+}
+
+.customer-overlay-panel .soft-panel-accent {
+  background: linear-gradient(90deg, #38bdf8 0%, #0ea5e9 46%, #14b8a6 100%);
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.24);
+}
+
+.customer-overlay-panel.app-overlay-panel .soft-panel-eyebrow {
+  border-color: rgba(14, 165, 233, 0.2);
+  background: rgba(224, 242, 254, 0.82);
+  color: #0369a1;
+}
+
+.customer-overlay-panel.app-overlay-panel .soft-panel-title {
+  color: #0f172a;
+}
+
+.customer-overlay-panel.app-overlay-panel .soft-panel-subtitle {
+  color: #64748b;
+}
+
+.customer-overlay-panel.app-overlay-panel .soft-panel-tabs {
+  border-color: rgba(186, 230, 253, 0.76);
+  background: rgba(240, 249, 255, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 20px rgba(14, 116, 144, 0.07);
+}
+
+.customer-overlay-panel.app-overlay-panel .soft-segment {
+  color: #475569;
+}
+
+.customer-overlay-panel.app-overlay-panel .soft-segment--active {
+  border-color: rgba(125, 211, 252, 0.72);
+  background: rgba(255, 255, 255, 0.96);
+  color: #0369a1;
+  box-shadow: 0 7px 18px rgba(14, 116, 144, 0.1), inset 0 1px 0 #fff;
+}
+
+.customer-overlay-panel.app-overlay-panel .app-panel-close-button,
+.customer-overlay-panel.app-overlay-panel .soft-icon-button {
+  border-color: rgba(203, 213, 225, 0.78);
+  background: rgba(255, 255, 255, 0.82);
+  color: #475569;
+  box-shadow: 0 7px 16px rgba(15, 23, 42, 0.08), inset 0 1px 0 #fff;
+}
+
+.customer-overlay-panel.app-overlay-panel .app-panel-close-button:hover,
+.customer-overlay-panel.app-overlay-panel .soft-icon-button:hover {
+  border-color: rgba(125, 211, 252, 0.9);
+  background: #fff;
+  color: #0369a1;
+  transform: none;
+}
+
+.customer-overlay-panel.app-overlay-panel .soft-primary-button {
+  border-color: rgba(14, 165, 233, 0.34);
+  background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 52%, #0f766e 118%);
+  box-shadow: 0 12px 26px rgba(14, 116, 144, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.customer-overlay-panel.app-overlay-panel .soft-primary-button:hover {
+  transform: none;
+  filter: brightness(1.035);
+  box-shadow: 0 15px 30px rgba(14, 116, 144, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.customer-overlay-panel--auth .text-slate-300 {
+  color: #64748b;
+}
+
+.customer-overlay-panel .app-panel-scroll {
+  scrollbar-color: rgba(14, 165, 233, 0.5) transparent;
+}
+
+@media (min-width: 640px) {
+  .customer-overlay-panel.app-overlay-panel--wide {
+    width: min(740px, calc(100vw - 2.75rem));
+  }
+
+  .customer-overlay-panel--auth.auth-form-panel.app-overlay-panel {
+    width: min(450px, calc(100vw - 2.75rem));
+  }
+}
+
+@media (max-width: 639px) {
+  .customer-overlay-panel.app-overlay-panel {
+    top: calc(var(--header-height, 3.5rem) + 0.3rem);
+    right: max(0.35rem, env(safe-area-inset-right));
+    bottom: max(0.35rem, env(safe-area-inset-bottom));
+    left: max(0.35rem, env(safe-area-inset-left));
+    border-radius: 20px;
+    backdrop-filter: blur(12px) saturate(135%);
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  }
+
+  .customer-overlay-panel--auth.auth-form-panel.app-overlay-panel {
+    top: calc(var(--header-height, 3.5rem) + 0.45rem);
+    bottom: auto;
+    max-height: calc(100dvh - var(--header-height, 3.5rem) - 0.9rem);
+  }
+
+  .customer-overlay-panel .soft-panel-content {
+    padding: 0.65rem !important;
+  }
+
+  .customer-overlay-panel .soft-panel-header {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    border-radius: 14px;
+    background: rgba(248, 252, 255, 0.88);
+    padding: 0.35rem;
+    backdrop-filter: blur(10px);
+  }
+
+  .customer-overlay-panel .soft-panel-title {
+    font-size: 1rem !important;
+  }
+
+  .customer-overlay-panel .soft-panel-subtitle {
+    font-size: 0.69rem !important;
+    line-height: 1.25 !important;
+  }
 }

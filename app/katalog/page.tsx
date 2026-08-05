@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 import {
   ArrowUpRight,
@@ -15,7 +16,6 @@ import CatalogSearchTotalCountClient from "app/components/CatalogSearchTotalCoun
 import VinOpenButton from "app/katalog/VinOpenButton";
 import CatalogShownCountClient from "app/components/CatalogShownCountClient";
 import KatalogPageShell from "app/katalog/KatalogPageShell";
-import { resolvePersistentCatalogImageMap } from "app/lib/catalog-persistent-images";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import {
   buildAutoBrandPath,
@@ -49,7 +49,6 @@ const INITIAL_CATALOG_SSR_TIMEOUT_MS = 250;
 const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 350;
 const CATALOG_SEO_FACETS_TIMEOUT_MS = 200;
 const CATALOG_PRODUCT_TREE_TIMEOUT_MS = 200;
-const CATALOG_IMAGE_MAP_TIMEOUT_MS = 300;
 const MANUFACTURERS_DIRECTORY_TIMEOUT_MS = 300;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
@@ -181,7 +180,7 @@ const fetchCatalogSeoSnapshotPayload = async (
 
 const getCatalogSeoSnapshotPayloadCached = unstable_cache(
   fetchCatalogSeoSnapshotPayload,
-  ["catalog-seo-snapshot-v3-photo-flag-only"],
+  ["catalog-seo-snapshot-v5-all-products"],
   {
     revalidate: 60 * 15,
     tags: ["catalog-seo-snapshot"],
@@ -775,23 +774,24 @@ const CatalogSeoSnapshot = ({
         : `PartsON — офіційний магазин автозапчастин на вул. Перфецького, 8 у Львові. Консультація спеціалістів з підбору деталей, допомога з визначенням артикулу та OEM-коду. Оплата готівкою, карткою або онлайн через LiqPay. Режим роботи: пн–сб 08:00–18:00, нд 08:00–16:00.`;
 
   const countLabel = hasExactCount
-    ? "Позицій у фільтрі"
+    ? "Усього за фільтром"
     : isSearchState
       ? "Знайдено"
-      : "У вибірці";
+      : "Усього товарів";
 
-  const renderFilteredCount = (className = "text-slate-950") => (
-    <CatalogShownCountClient
-      initialCount={initialFilteredCount}
-      className={className}
-      eventName="filtered"
-    />
-  );
-  const renderSearchTotalCount = (className = "text-slate-950") => (
-    <CatalogSearchTotalCountClient
-      initialOpenCount={visibleItemsCount}
-      className={className}
-    />
+  const renderTotalCount = (className = "text-slate-950") => (
+    // useSearchParams() inside CatalogSearchTotalCountClient forces a dynamic
+    // bailout all the way up to the nearest Suspense boundary — without one
+    // here, that bailout hits this page's `revalidate` (ISR) config and
+    // throws DYNAMIC_SERVER_USAGE. The fallback is the plain SSR number so
+    // there's no visible flash before the client value hydrates in.
+    <Suspense fallback={<span className={className}>{initialFilteredCount.toLocaleString("uk-UA")}</span>}>
+      <CatalogSearchTotalCountClient
+        initialOpenCount={visibleItemsCount}
+        initialFallbackCount={initialFilteredCount}
+        className={className}
+      />
+    </Suspense>
   );
   const renderShownCount = (className = "text-slate-700") => (
     <CatalogShownCountClient initialCount={visibleItemsCount} className={className} />
@@ -806,12 +806,13 @@ const CatalogSeoSnapshot = ({
   return (
     <section
       aria-labelledby="catalog-seo-block-title"
-      className="mx-auto mt-5 w-full max-w-7xl px-3 pb-10 sm:mt-6 sm:px-4 lg:px-6"
+      className="mx-auto mt-7 w-full max-w-7xl px-3 pb-12 sm:mt-9 sm:px-4 lg:px-6"
     >
-      <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.07)]">
+      <div className="relative overflow-hidden rounded-[26px] border border-sky-200/80 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.09),0_5px_18px_rgba(14,165,233,0.07)] ring-1 ring-white">
 
         {/* ── Верхня секція: заголовок + лічильник ─────────────────────── */}
-        <div className="border-b border-slate-100/80 bg-[linear-gradient(135deg,#f5f9ff_0%,#edf5ff_50%,#f8fbff_100%)] px-4 py-5 sm:px-6 sm:py-6">
+        <div className="relative overflow-hidden border-b border-sky-100 bg-[radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.16),transparent_32%),radial-gradient(circle_at_92%_18%,rgba(59,130,246,0.13),transparent_34%),linear-gradient(135deg,#f8fcff_0%,#eef8ff_48%,#f8fbff_100%)] px-4 py-6 sm:px-7 sm:py-7">
+          <span className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full border-[34px] border-white/40" aria-hidden />
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_230px] lg:items-start">
 
             {/* Ліва колонка — тексти */}
@@ -904,28 +905,27 @@ const CatalogSeoSnapshot = ({
 
             {/* ── Лічильник — світлий варіант ─────────────────────────── */}
             <div
-              className="rounded-[20px] border border-sky-200/70 bg-gradient-to-br from-sky-50 via-white to-blue-50/60 p-4 shadow-[0_8px_28px_rgba(14,165,233,0.10)] ring-1 ring-sky-100/50"
+              className="relative overflow-hidden rounded-[20px] border border-sky-300/75 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(235,248,255,0.94))] p-4 shadow-[0_14px_34px_rgba(2,132,199,0.14),inset_0_1px_0_#fff] ring-1 ring-white/90"
               data-nosnippet
             >
+              <span className="pointer-events-none absolute inset-x-5 top-0 h-[3px] rounded-b-full bg-gradient-to-r from-sky-500 via-cyan-400 to-blue-500" aria-hidden />
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[9.5px] font-black uppercase tracking-[0.16em] text-sky-700">
                     {countLabel}
                   </p>
                   <p className="mt-1 font-display text-[2.1rem] font-black leading-none text-slate-900">
-                    {isSearchState
-                      ? renderSearchTotalCount("text-slate-900")
-                      : renderFilteredCount("text-slate-900")}
+                    {renderTotalCount("text-slate-900")}
                   </p>
                 </div>
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-sky-100 text-sky-600 ring-1 ring-sky-200/60">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-sky-500 to-cyan-500 text-white shadow-[0_8px_18px_rgba(14,165,233,0.24)] ring-1 ring-white/80">
                   <Tags size={17} aria-hidden />
                 </span>
               </div>
 
-              <div className="mt-3.5 rounded-[14px] border border-sky-100 bg-white/70 px-3 py-2.5">
+              <div className="mt-3.5 rounded-[14px] border border-white bg-white/80 px-3 py-2.5 shadow-[0_5px_15px_rgba(15,23,42,0.05)]">
                 <p className="text-[12px] font-semibold leading-[1.6] text-slate-600">
-                  Відкрито зараз:{" "}
+                  Завантажено зараз:{" "}
                   <span className="font-black text-sky-700">
                     {renderShownCount("text-sky-700")}
                   </span>
@@ -947,7 +947,7 @@ const CatalogSeoSnapshot = ({
 
         {/* ── Список товарів для SEO ────────────────────────────────────── */}
         {visibleItems.length > 0 && (
-          <div className="px-4 py-5 sm:px-6" data-nosnippet>
+          <div className="bg-[linear-gradient(180deg,#ffffff,#fbfdff)] px-4 py-6 sm:px-7" data-nosnippet>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
                 Позиції каталогу
@@ -967,7 +967,7 @@ const CatalogSeoSnapshot = ({
                   <li key={item.code}>
                     <a
                       href={buildSeoProductPath(item)}
-                      className="group flex min-h-[58px] flex-col justify-center rounded-[13px] border border-slate-200/70 bg-slate-50/60 px-3 py-2.5 transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-sky-200 hover:bg-white hover:shadow-[0_8px_20px_rgba(14,165,233,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                      className="group flex min-h-[62px] flex-col justify-center rounded-[14px] border border-slate-200/80 bg-white px-3.5 py-2.5 shadow-[0_4px_14px_rgba(15,23,42,0.04)] transition-[border-color,background-color,box-shadow,color] duration-300 hover:border-sky-300 hover:bg-sky-50/45 hover:shadow-[0_9px_22px_rgba(14,165,233,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                     >
                       <span className="line-clamp-2 text-[12.5px] font-bold leading-[1.45] text-slate-800 group-hover:text-sky-700">
                         {visibleName}
@@ -987,11 +987,11 @@ const CatalogSeoSnapshot = ({
         {showDiscovery && (
           <nav
             aria-label="Розділи каталогу"
-            className="border-t border-slate-100/80 bg-slate-50/50 px-4 py-5 sm:px-6"
+            className="border-t border-sky-100 bg-[linear-gradient(145deg,#f8fbff,#eef8ff_55%,#f8fcff)] px-4 py-6 sm:px-7"
           >
             <div className="grid gap-4 lg:grid-cols-2 lg:gap-5">
               {topGroups.length > 0 && (
-                <div className="rounded-[16px] border border-slate-200/60 bg-white/80 p-4">
+                <div className="rounded-[18px] border border-white bg-white/85 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.055)] ring-1 ring-sky-100/80">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <h3 className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
                       <ListTree size={12} aria-hidden />
@@ -1020,7 +1020,7 @@ const CatalogSeoSnapshot = ({
                 </div>
               )}
               {topProducers.length > 0 && (
-                <div className="rounded-[16px] border border-slate-200/60 bg-white/80 p-4">
+                <div className="rounded-[18px] border border-white bg-white/85 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.055)] ring-1 ring-sky-100/80">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <h3 className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
                       <Tags size={12} aria-hidden />
@@ -1137,11 +1137,9 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   const initialPagePayload = rawInitialPagePayload
     ? {
       ...rawInitialPagePayload,
-        images: await resolveWithTimeout(
-          () => resolvePersistentCatalogImageMap(rawInitialPagePayload.items),
-          {},
-          CATALOG_IMAGE_MAP_TIMEOUT_MS
-        ).catch(() => ({})),
+        // Images warm up client-side in one shared batch. Avoid holding the
+        // initial HTML response behind filesystem checks for every card.
+        images: {},
       }
     : null;
   const seoFacets = await resolveCatalogSeoFacetsWithFallback(rawSeoFacets);

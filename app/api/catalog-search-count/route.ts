@@ -153,9 +153,8 @@ const fetchSearchCount = async (
       onlyInStock: inStock,
     });
 
-    // 1C повертає total_count одразу на allgoods-джерелі — немає сенсу пагінувати далі.
-    // Car-filtered queries never go through allgoods (see canUseAllgoods in
-    // catalog-server.ts), so this branch simply won't trigger for them.
+    // For the full visible catalog the upstream allgoods total is exact, so
+    // avoid walking every page merely to display the result count.
     if (
       page === 1 &&
       !cursor &&

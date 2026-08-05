@@ -555,7 +555,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-form-modal-title"
-        className={`auth-form-panel soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto text-slate-700 transform-gpu transition-all duration-300 ease-out pointer-events-auto ${
+        className={`customer-overlay-panel customer-overlay-panel--auth auth-form-panel soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto text-slate-700 transform-gpu transition-all duration-300 ease-out pointer-events-auto ${
           isClosing
             ? "translate-x-4 scale-[0.98] opacity-0"
             : isVisible

@@ -39,6 +39,7 @@ import {
 } from "app/lib/product-route-resolver";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
+import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import {
@@ -1636,7 +1637,8 @@ export async function generateMetadata({
   const siteUrl = getSiteUrl();
   const productImageUrl = `${siteUrl}${productImagePath}`;
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
-  const shouldIndexProduct = !isModalView && Boolean(routeProduct);
+  const shouldIndexProduct =
+    !isModalView && Boolean(routeProduct) && isPublicCatalogProduct(routeProduct);
 
   const inlinePriceEuroForMeta = toPositiveNumberOrNull(routeProduct?.priceEuro);
   const seoPriceForMeta = await resolveProductSeoPrice(inlinePriceEuroForMeta);
@@ -2004,7 +2006,16 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     [null, null],
     PRODUCT_PAGE_REVIEWS_TIMEOUT_MS
   );
-  const jsonLd = shouldEmitProductStructuredData
+  // Google's Product rich-result eligibility requires at least one of
+  // offers/review/aggregateRating. A price-on-request product with no
+  // reviews yet would otherwise ship a Product block with none of the
+  // three, which Search Console flags as invalid — skip emitting it rather
+  // than publish an incomplete schema.
+  const hasProductSchemaSignal =
+    initialPriceUah != null ||
+    Boolean(initialReviews && initialReviews.length > 0) ||
+    Boolean(reviewStats && reviewStats.ratingCount >= 3);
+  const jsonLd = shouldEmitProductStructuredData && hasProductSchemaSignal
     ? buildProductJsonLd({
         name: product.name,
         visibleName: visibleProductName,

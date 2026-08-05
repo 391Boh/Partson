@@ -143,7 +143,7 @@ const ProductCard: React.FC<Props> = ({
 }) => {
     const motionEnabled = motionEnabledProp ?? true;
     const cardMotionClass = motionEnabled
-        ? "transition-transform duration-200 ease-out hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+        ? "transition-[border-color,box-shadow] duration-300 ease-out motion-reduce:transition-none"
         : "";
     const flipMotionClass = motionEnabled
         ? "transition-transform duration-300 ease-out motion-reduce:transition-none"
@@ -717,28 +717,32 @@ useEffect(() => {
     return (
         <>
         <article
-            className={`catalog-product-card relative w-full [perspective:1200px] select-none ${isAdmin ? "catalog-product-card--admin h-[470px] sm:h-[440px] xl:h-[420px]" : "h-[360px] sm:h-[340px]"} ${cardMotionClass}`}
-            itemScope
-            itemType="https://schema.org/Product"
+            className={`catalog-product-card relative w-full [perspective:1200px] select-none h-[360px] sm:h-[340px] ${isAdmin ? "catalog-product-card--admin" : ""} ${cardMotionClass}`}
+            itemScope={hasPrice ? true : undefined}
+            itemType={hasPrice ? "https://schema.org/Product" : undefined}
         >
-            <meta itemProp="sku" content={article !== "-" ? article : code} />
-            {code ? <meta itemProp="mpn" content={code} /> : null}
-            {producer !== "-" ? <meta itemProp="brand" content={producer} /> : null}
-            <meta itemProp="url" content={productHref} />
-            <meta
-                itemProp="image"
-                content={prefetchedImageSrc || `/product-image/${encodeURIComponent(code)}`}
-            />
-            <div itemProp="offers" itemScope itemType="https://schema.org/Offer">
-                <meta itemProp="priceCurrency" content="UAH" />
-                {hasPrice ? <meta itemProp="price" content={String(priceUAH)} /> : null}
-                <link
-                    itemProp="availability"
-                    href={isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"}
-                />
-                <link itemProp="itemCondition" href="https://schema.org/NewCondition" />
-                <meta itemProp="url" content={productHref} />
-            </div>
+            {hasPrice ? (
+                <>
+                    <meta itemProp="sku" content={article !== "-" ? article : code} />
+                    {code ? <meta itemProp="mpn" content={code} /> : null}
+                    {producer !== "-" ? <meta itemProp="brand" content={producer} /> : null}
+                    <meta itemProp="url" content={productHref} />
+                    <meta
+                        itemProp="image"
+                        content={prefetchedImageSrc || `/product-image/${encodeURIComponent(code)}`}
+                    />
+                    <div itemProp="offers" itemScope itemType="https://schema.org/Offer">
+                        <meta itemProp="priceCurrency" content="UAH" />
+                        <meta itemProp="price" content={String(priceUAH)} />
+                        <link
+                            itemProp="availability"
+                            href={isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"}
+                        />
+                        <link itemProp="itemCondition" href="https://schema.org/NewCondition" />
+                        <meta itemProp="url" content={productHref} />
+                    </div>
+                </>
+            ) : null}
             <div
                 className={`relative w-full h-full cursor-pointer ${flipMotionClass}`}
                 style={{
@@ -750,7 +754,8 @@ useEffect(() => {
                 <div
                     className={`
                         catalog-card-face catalog-card-face-front absolute inset-0 w-full h-full backface-hidden
-                        rounded-xl border border-slate-200 hover:border-sky-200/90
+                        rounded-xl border
+                        ${isAdmin ? "border-violet-200/80 hover:border-violet-300" : "border-slate-200 hover:border-sky-200/90"}
                         shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.07),0_12px_24px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)]
                         hover:shadow-[0_2px_4px_rgba(14,165,233,0.05),0_8px_20px_rgba(14,165,233,0.10),0_20px_36px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)]
                         bg-[linear-gradient(155deg,rgba(255,255,255,1)_0%,rgba(248,250,252,0.98)_50%,rgba(238,246,255,0.95)_100%)]
@@ -808,7 +813,7 @@ useEffect(() => {
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); frontImageInputRef.current?.click(); }}
                                         disabled={frontImageSaving}
-                                        className="catalog-admin-edit-trigger absolute left-1 top-1 inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-violet-200 bg-white/95 p-1 text-violet-600 shadow-sm opacity-100 hover:bg-violet-50 hover:border-violet-300 sm:min-h-7 sm:min-w-7 transition-all duration-150 disabled:opacity-50"
+                                        className="catalog-admin-edit-trigger absolute left-1 top-1 inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-violet-200 bg-white/95 p-1 text-violet-600 shadow-sm opacity-100 hover:bg-violet-50 hover:border-violet-300 sm:min-h-7 sm:min-w-7 sm:opacity-0 sm:group-hover/imgarea:opacity-100 sm:group-focus-within/imgarea:opacity-100 transition-all duration-150 disabled:opacity-50"
                                         title="Замінити фото"
                                     >
                                         {frontImageSaving
@@ -894,7 +899,7 @@ useEffect(() => {
                                         <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); setQuickNameVal(item.name || ''); setQuickEditName(true); }}
-                                            className="catalog-admin-edit-trigger absolute -right-0.5 -top-0.5 inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-violet-200 bg-white/95 p-1 text-violet-500 shadow-sm opacity-100 hover:bg-violet-50 hover:border-violet-300 sm:min-h-7 sm:min-w-7 transition-all duration-150"
+                                            className="catalog-admin-edit-trigger absolute -right-0.5 -top-0.5 inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-violet-200 bg-white/95 p-1 text-violet-500 shadow-sm opacity-100 hover:bg-violet-50 hover:border-violet-300 sm:min-h-7 sm:min-w-7 sm:opacity-0 sm:group-hover/nameedit:opacity-100 sm:group-focus-within/nameedit:opacity-100 transition-all duration-150"
                                             title="Редагувати назву"
                                         >
                                             <Pencil size={10} />
@@ -941,7 +946,7 @@ useEffect(() => {
                                           <button
                                               type="button"
                                               onClick={(e) => { e.stopPropagation(); setQuickArticleVal(article !== '-' ? article : ''); setQuickEditArticle(true); }}
-                                              className="catalog-admin-edit-trigger inline-flex min-h-7 min-w-7 flex-shrink-0 items-center justify-center rounded-lg p-1 text-violet-500 opacity-100 hover:bg-violet-50 hover:text-violet-700 sm:min-h-6 sm:min-w-6 transition-all duration-150"
+                                              className="catalog-admin-edit-trigger inline-flex min-h-7 min-w-7 flex-shrink-0 items-center justify-center rounded-lg p-1 text-violet-500 opacity-100 hover:bg-violet-50 hover:text-violet-700 sm:min-h-6 sm:min-w-6 sm:opacity-0 sm:group-hover/article:opacity-100 sm:group-focus-within/article:opacity-100 transition-all duration-150"
                                               title="Редагувати артикул"
                                           >
                                               <Pencil size={10} />
@@ -1008,7 +1013,7 @@ useEffect(() => {
                                   <span className="flex min-w-0 max-w-[55%] items-center gap-1 justify-end">
                                       {isAdmin && onAdminEdit && (
                                           <button type="button" onClick={(e) => { e.stopPropagation(); setQuickProducerVal(displayProducer !== '-' ? displayProducer : ''); setQuickEditProducer(true); fetchProducerSuggestions(displayProducer !== '-' ? displayProducer : ''); }}
-                                              className="catalog-admin-edit-trigger inline-flex min-h-7 min-w-7 flex-shrink-0 items-center justify-center rounded-lg p-1 text-violet-500 opacity-100 hover:bg-violet-50 hover:text-violet-700 sm:min-h-6 sm:min-w-6 transition-all duration-150" title={"\u0420\u0435\u0434\u0430\u0433\u0443\u0432\u0430\u0442\u0438 \u0432\u0438\u0440\u043E\u0431\u043D\u0438\u043A\u0430"}>
+                                              className="catalog-admin-edit-trigger inline-flex min-h-7 min-w-7 flex-shrink-0 items-center justify-center rounded-lg p-1 text-violet-500 opacity-100 hover:bg-violet-50 hover:text-violet-700 sm:min-h-6 sm:min-w-6 sm:opacity-0 sm:group-hover/producer:opacity-100 sm:group-focus-within/producer:opacity-100 transition-all duration-150" title={"\u0420\u0435\u0434\u0430\u0433\u0443\u0432\u0430\u0442\u0438 \u0432\u0438\u0440\u043E\u0431\u043D\u0438\u043A\u0430"}>
                                               <Pencil size={10} />
                                           </button>
                                       )}
@@ -1061,7 +1066,7 @@ useEffect(() => {
                             </button>
                         </div>
                     ) : (
-                        <div className="catalog-card-price-row mt-2 flex w-full items-center gap-1.5 sm:mt-2.5">
+                        <div className="catalog-card-price-row group/price mt-2 flex w-full items-center gap-1.5 sm:mt-2.5">
                             {/* Pill toggle Прод / Закуп — visible to any admin, even before a
                                 cost price has ever been saved, so they have a way to switch into
                                 "Закуп" mode and enter one for the first time via the pencil edit
@@ -1130,7 +1135,7 @@ useEffect(() => {
                                         }
                                         setQuickEditPrice(true);
                                     }}
-                                    className="inline-flex min-h-8 min-w-8 flex-shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 p-1 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-[0.95] transition-all duration-150"
+                                    className="inline-flex min-h-8 min-w-8 flex-shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 p-1 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-[0.95] sm:opacity-0 sm:group-hover/price:opacity-100 sm:group-focus-within/price:opacity-100 transition-all duration-150"
                                     title="Редагувати ціну"
                                 >
                                     <Pencil size={11} />
@@ -1143,9 +1148,9 @@ useEffect(() => {
                     )}
 
                     {/* Низ */}
-                    <div className={`catalog-card-actions mt-auto flex min-w-0 justify-between gap-2 border-t border-slate-200 pt-2 ${isAdmin ? "catalog-card-actions--admin flex-col items-stretch xl:flex-row xl:items-end" : "items-center"}`}>
-                        <div className={`flex min-w-0 flex-col items-start gap-1 ${isAdmin ? "w-full xl:w-auto" : ""}`}>
-                            <div className="flex items-center gap-1">
+                    <div className="catalog-card-actions mt-auto flex min-w-0 items-center justify-between gap-2 border-t border-slate-200 pt-2">
+                        <div className="flex min-w-0 flex-col items-start gap-1">
+                            <div className="group/qty flex items-center gap-1">
                                 <span
                                     aria-hidden="true"
                                     data-nosnippet
@@ -1162,7 +1167,7 @@ useEffect(() => {
                                     <button
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); setQuickEditQty(true); setQuickQtyVal(''); }}
-                                        className="inline-flex min-h-7 min-w-7 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50/70 p-1 text-emerald-600 hover:border-emerald-200 hover:bg-emerald-100 transition-colors"
+                                        className="inline-flex min-h-7 min-w-7 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50/70 p-1 text-emerald-600 hover:border-emerald-200 hover:bg-emerald-100 sm:opacity-0 sm:group-hover/qty:opacity-100 sm:group-focus-within/qty:opacity-100 transition-all duration-150"
                                         title="Поступлення / Продаж"
                                     >
                                         <Pencil size={9} />
@@ -1194,9 +1199,10 @@ useEffect(() => {
                             )}
                             {quickQtyError && <p className="text-[9px] text-rose-500 font-medium">{quickQtyError}</p>}
 
+                            {hasPrice ? (
                             <div
-                                className={`flex items-center bg-white border border-slate-200 rounded-full px-1.5 py-0.5 shadow-xs hover:shadow-sm transition-all duration-200 ${
-                                    isCounterDisabled ? "opacity-50 pointer-events-none" : ""
+                                className={`flex items-center rounded-full border border-slate-200 bg-white px-1.5 py-0.5 shadow-xs transition-[border-color,box-shadow] duration-300 hover:border-slate-300 hover:shadow-sm ${
+                                    isCounterDisabled ? "pointer-events-none opacity-50" : ""
                                 }`}
                             >
                                 <button
@@ -1227,9 +1233,10 @@ useEffect(() => {
                                     <Plus size={14} strokeWidth={2.5} />
                                 </button>
                             </div>
+                            ) : null}
                         </div>
 
-                         <div className={`flex shrink-0 items-center gap-1 ${isAdmin ? "w-full justify-end xl:w-auto" : ""}`}>
+                         <div className="flex shrink-0 items-center gap-1">
                              {cartQty > 0 && (
                                  <button
                                      onClick={(e) => {
@@ -1284,13 +1291,13 @@ useEffect(() => {
                                              ? "Надіслати запит у чат"
                                              : "Додати в кошик"
                                  }
-                                 className={`relative p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-all duration-200 text-xs ${
+                                 className={`relative flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-[background-color,border-color,box-shadow,color] duration-300 ease-out ${
                                      isCartButtonDisabled
                                          ? isPriceLoading
                                              ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-wait"
                                              : "bg-slate-200 text-slate-500 cursor-not-allowed"
                                          : isRequestAction
-                                             ? "border border-amber-300/80 bg-[linear-gradient(135deg,#fef3c7,#f59e0b)] text-amber-950 shadow-[0_10px_18px_rgba(245,158,11,0.20)] hover:brightness-105 hover:shadow-[0_12px_22px_rgba(245,158,11,0.24)]"
+                                             ? "min-w-[132px] border border-amber-300 bg-amber-50 text-amber-900 shadow-[0_6px_16px_rgba(245,158,11,0.14)] hover:border-amber-400 hover:bg-amber-100 hover:text-amber-950 hover:shadow-[0_8px_20px_rgba(245,158,11,0.18)]"
                                              : "border border-rose-300/80 bg-[linear-gradient(135deg,#fb7185,#e11d48)] text-white shadow-[0_10px_18px_rgba(225,29,72,0.22)] hover:brightness-105 hover:shadow-[0_12px_22px_rgba(225,29,72,0.26)]"
                                  } ${tapMotionClass} ${
                                      justAdded && motionEnabled ? "scale-105" : "scale-100"
@@ -1314,7 +1321,10 @@ useEffect(() => {
                                  {isPriceLoading ? (
                                      <span className="inline-block h-[18px] w-[18px] rounded-full border-2 border-slate-300 border-t-slate-500 animate-spin" />
                                  ) : isRequestAction ? (
-                                     <MessageCircle size={18} />
+                                     <>
+                                         <MessageCircle size={17} />
+                                         <span>Уточнити ціну</span>
+                                     </>
                                  ) : (
                                      <ShoppingCart size={18} />
                                  )}
@@ -1339,7 +1349,8 @@ useEffect(() => {
 <div
     className={`
         catalog-card-face absolute inset-0 w-full h-full backface-hidden
-        rounded-xl border border-slate-200
+        rounded-xl border
+        ${isAdmin ? "border-violet-200/80" : "border-slate-200"}
         bg-[linear-gradient(155deg,rgba(248,250,252,1)_0%,rgba(255,255,255,0.98)_50%,rgba(240,249,255,0.95)_100%)]
         shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.07),0_12px_24px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)]
         flex flex-col
@@ -1355,7 +1366,7 @@ useEffect(() => {
     inert={isFrontVisible ? true : undefined}
 >
     {/* Header: name + action buttons */}
-    <div className="flex items-start gap-2 px-3 pt-2.5 pb-2 border-b border-slate-100/80 bg-gradient-to-r from-white to-slate-50/60 rounded-t-xl">
+    <div className="group/backheader flex items-start gap-2 px-3 pt-2.5 pb-2 border-b border-slate-100/80 bg-gradient-to-r from-white to-slate-50/60 rounded-t-xl">
         <h3 className="flex-1 min-w-0 font-display text-[13.5px] font-black italic tracking-[-0.025em] text-slate-950 sm:text-[14.5px] leading-snug line-clamp-2">
             {name}
         </h3>
@@ -1364,7 +1375,7 @@ useEffect(() => {
                 <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); enterEditMode(); }}
-                    className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 p-1.5 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-95 transition-all duration-150"
+                    className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 p-1.5 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-95 sm:opacity-0 sm:group-hover/backheader:opacity-100 sm:group-focus-within/backheader:opacity-100 transition-all duration-150"
                     title="Редагувати"
                 >
                     <Pencil size={12} />

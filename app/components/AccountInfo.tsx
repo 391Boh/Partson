@@ -416,7 +416,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
   return (
     <div
       ref={modalRef}
-      className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden select-none"
+      className="customer-overlay-panel customer-overlay-panel--profile soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden select-none"
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-4">
         <div className="soft-panel-accent h-1 rounded-full" />

@@ -1,18 +1,24 @@
 "use client";
 
 import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
-import { FlipCard, type ProductNode } from "./FlipCard";
+import type { ProductNode } from "./FlipCard";
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
-import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   fetchCatalogVersionHash,
   readCatalogBrowserCache,
   writeCatalogBrowserCache,
 } from "app/lib/catalog-client-cache";
 import { buildCatalogCategoryPath } from "app/lib/catalog-links";
+import { buildProductImagePath } from "app/lib/product-image-path";
+import { PRODUCT_IMAGE_BATCH_MAX_ITEMS } from "app/lib/product-image-constants";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { safeSetStorageItem } from "app/lib/safe-storage";
+import { getCategoryIconPath } from "app/lib/category-icons";
+import groupPreviewManifest from "app/generated/group-preview-manifest";
 
 interface CategoryRow {
   group: string;
@@ -47,7 +53,8 @@ let cachedProductsLoadError: string | null = null;
 let cachedProductsHash: string | null = null;
 
 const RETRYABLE_HTTP_STATUSES = new Set([500, 502, 503, 504]);
-const MAX_FETCH_ATTEMPTS = 3;
+const MAX_FETCH_ATTEMPTS = 1;
+const CATALOG_PRODUCTS_TIMEOUT_MS = 32_000;
 const MAX_TREE_DEPTH = 8;
 const MAX_CHILDREN_PER_NODE = 250;
 const MAX_GROUPS_FOR_RENDER = 240;
@@ -193,7 +200,7 @@ const loadProducts = async (options: LoadOptions = {}): Promise<ProductNode[]> =
             new Promise<Response>((_, reject) => {
               timeoutId = setTimeout(
                 () => reject(new Error("catalog-products-timeout")),
-                12000
+                CATALOG_PRODUCTS_TIMEOUT_MS
               );
             }),
           ]);
@@ -231,7 +238,10 @@ const loadProducts = async (options: LoadOptions = {}): Promise<ProductNode[]> =
           await wait(250 * (attempt + 1));
           continue;
         }
-        cachedProductsLoadError = lastError;
+        cachedProductsLoadError =
+          lastError === "catalog-products-timeout"
+            ? "Каталог відповідає довше, ніж очікувалося"
+            : lastError;
         cachedProducts = [];
         cachedProductsHash = null;
         return [];
@@ -282,6 +292,11 @@ const readFirstArray = (
 
 const treeKey = (value: string) => normalizeLabel(value).toLocaleLowerCase("uk-UA");
 
+const nodeMatchesSearch = (node: ProductNode, query: string): boolean => {
+  if (treeKey(node.name).includes(query)) return true;
+  return (node.children ?? []).some((child) => nodeMatchesSearch(child, query));
+};
+
 const transformNode = (node: unknown, depth = 0): ProductNode => {
   const record =
     node && typeof node === "object"
@@ -312,9 +327,281 @@ const toProductNodes = (value: unknown): ProductNode[] => {
   return transformData(value);
 };
 
-const MOBILE_ITEMS_PER_PAGE = 4;
-const DESKTOP_ITEMS_PER_PAGE = 6;
+const MOBILE_ITEMS_PER_PAGE = 2;
+const DESKTOP_ITEMS_PER_PAGE = 4;
 const QUICK_SEARCH_MAX_ROWS = 5;
+const groupPreviewCache = new Map<string, string | null>();
+const groupPreviewRequests = new Map<string, Promise<string | null>>();
+const groupPreviewVerifyRequests = new Map<string, Promise<string | null>>();
+const rejectedDirectGroupPreviews = new Set<string>();
+const warmedGroupPreviewImages = new Set<string>();
+type GroupPreviewCandidate = {
+  code?: string;
+  article?: string;
+  hasPhoto?: boolean;
+  hasPrice?: boolean;
+  priceEuro?: number | null;
+};
+const candidateHasKnownPrice = (item: GroupPreviewCandidate) =>
+  item.hasPrice === true ||
+  (typeof item.priceEuro === "number" && Number.isFinite(item.priceEuro) && item.priceEuro > 0);
+const GROUP_PREVIEW_STORAGE_PREFIX = "catalog-group-preview:v1:";
+// One catalog-page fetch (limit 12) always fits under the batch endpoint's
+// max, so every candidate can be verified in a single round-trip instead of
+// several sequential chunked requests.
+const GROUP_PREVIEW_BATCH_MAX = PRODUCT_IMAGE_BATCH_MAX_ITEMS;
+// Bounds how many catalog-page round-trips loadGroupPreview will make while
+// hunting for a photographed product in a group that isn't in the static
+// manifest, so a group with no photo at all fails fast instead of paging
+// through its entire catalog.
+const MAX_GROUP_PREVIEW_PAGES = 2;
+
+const findPreviewInCandidates = async (items: GroupPreviewCandidate[]) => {
+  if (items.length === 0) return null;
+
+  // Photos declared by 1C are the most reliable signal, checked first.
+  // Among the rest, a product that has a price tends to be an actively
+  // maintained/sellable listing and is more likely to have a real photo too,
+  // so it's worth checking before priceless ones within the same batch.
+  const ordered = [
+    ...items.filter((item) => item.hasPhoto === true),
+    ...items.filter((item) => item.hasPhoto !== true && candidateHasKnownPrice(item)),
+    ...items.filter((item) => item.hasPhoto !== true && !candidateHasKnownPrice(item)),
+  ].slice(0, GROUP_PREVIEW_BATCH_MAX);
+
+  const candidates = ordered.map((item) => ({
+    code: item.code?.trim() || "",
+    article: item.article?.trim() || undefined,
+    // Some 1C records have a real photo but omit the flag. The image route
+    // requires an explicit value, so every candidate is checked.
+    hasPhoto: true,
+  }));
+
+  const response = await fetch("/api/catalog-image-batch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items: candidates, deep: false }),
+  });
+  if (!response.ok) return null;
+
+  const payload = (await response.json()) as {
+    items?: Array<{ status?: string; src?: string }>;
+  };
+  return payload.items?.find((item) => item.status === "ready" && item.src)?.src ?? null;
+};
+
+const loadGroupPreview = (category: string, group: string) => {
+  const key = `${category.trim().toLowerCase()}::${group.trim().toLowerCase()}`;
+  if (groupPreviewCache.has(key)) return Promise.resolve(groupPreviewCache.get(key) ?? null);
+  const generatedSrc = groupPreviewManifest[key];
+  if (generatedSrc) {
+    groupPreviewCache.set(key, generatedSrc);
+    return Promise.resolve(generatedSrc);
+  }
+  if (typeof window !== "undefined") {
+    try {
+      const storedSrc = window.sessionStorage.getItem(`${GROUP_PREVIEW_STORAGE_PREFIX}${key}`);
+      if (storedSrc) {
+        groupPreviewCache.set(key, storedSrc);
+        return Promise.resolve(storedSrc);
+      }
+    } catch {
+      // Storage can be unavailable in strict privacy mode; memory cache still works.
+    }
+  }
+  const pending = groupPreviewRequests.get(key);
+  if (pending) return pending;
+
+  const request = (async () => {
+    let page = 1;
+    let cursor = "";
+    let cursorField = "";
+    const checkedCodes = new Set<string>();
+
+    while (true) {
+      // Groups with no photographed product at all would otherwise page
+      // through their entire catalog (hundreds of round-trips) before giving
+      // up. Capping how far this hunts bounds the worst case to a couple of
+      // requests; a group that still hasn't shown a photo by then almost
+      // certainly doesn't have one.
+      if (page > MAX_GROUP_PREVIEW_PAGES) return null;
+
+      const response = await fetch("/api/catalog-page", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page,
+          // Matches GROUP_PREVIEW_BATCH_MAX so a single page, in the common
+          // case, already supplies enough candidates for one verification
+          // round-trip instead of needing a second page fetch.
+          limit: GROUP_PREVIEW_BATCH_MAX,
+          cursor,
+          cursorField,
+          group: category,
+          subcategory: group,
+          expandHierarchy: true,
+          sortOrder: "none",
+        }),
+      });
+      if (!response.ok) return null;
+
+      const payload = (await response.json()) as {
+        items?: GroupPreviewCandidate[];
+        hasMore?: boolean;
+        nextCursor?: string;
+        cursorField?: string;
+      };
+      const freshItems = (payload.items ?? []).filter((item) => {
+        const code = item.code?.trim().toLowerCase() || "";
+        if (!code || checkedCodes.has(code)) return false;
+        checkedCodes.add(code);
+        return true;
+      });
+
+      // When several items declare a photo, one that also has a price is a
+      // more reliably real/maintained listing — prefer it over an arbitrary
+      // first match.
+      const declaredPhotoCandidates = freshItems.filter(
+        (item) => item.hasPhoto === true && item.code?.trim()
+      );
+      const declaredPhoto =
+        declaredPhotoCandidates.find(candidateHasKnownPrice) ?? declaredPhotoCandidates[0];
+      if (declaredPhoto?.code && !rejectedDirectGroupPreviews.has(key)) {
+        // The catalog already tells us this product has a photo, so its
+        // stable route is returned immediately instead of waiting for a
+        // verification round-trip. The 1C flag is occasionally wrong though,
+        // so verification still runs in the background — if the optimistic
+        // image 404s, the <img onError> handler below can recover from this
+        // already-in-flight result instead of re-fetching this page from
+        // scratch.
+        if (!groupPreviewVerifyRequests.has(key)) {
+          const verification = findPreviewInCandidates(freshItems).finally(() => {
+            groupPreviewVerifyRequests.delete(key);
+          });
+          groupPreviewVerifyRequests.set(key, verification);
+        }
+        return buildProductImagePath(declaredPhoto.code, declaredPhoto.article, {
+          catalog: true,
+          noFallback: true,
+        });
+      }
+
+      const src = await findPreviewInCandidates(freshItems);
+      if (src) return src;
+      if (!payload.hasMore || freshItems.length === 0) return null;
+
+      const nextCursor = payload.nextCursor?.trim() || "";
+      if (nextCursor && nextCursor === cursor) return null;
+      cursor = nextCursor;
+      cursorField = payload.cursorField?.trim() || cursorField;
+      page += 1;
+    }
+  })()
+    .catch(() => null)
+    .then((src) => {
+      groupPreviewCache.set(key, src);
+      if (src && typeof window !== "undefined") {
+        try {
+          window.sessionStorage.setItem(`${GROUP_PREVIEW_STORAGE_PREFIX}${key}`, src);
+        } catch {
+          // Keep the in-memory result when browser storage is unavailable.
+        }
+      }
+      groupPreviewRequests.delete(key);
+      return src;
+    });
+
+  groupPreviewRequests.set(key, request);
+  return request;
+};
+
+const preloadChildPreviews = (
+  parent: ProductNode,
+  limit = DESKTOP_ITEMS_PER_PAGE
+) => {
+  for (const child of (parent.children ?? []).slice(0, limit)) {
+    void loadGroupPreview(parent.name, child.name).then((src) => {
+      if (!src || typeof window === "undefined" || warmedGroupPreviewImages.has(src)) return;
+      warmedGroupPreviewImages.add(src);
+      const image = new window.Image();
+      image.decoding = "async";
+      // These are the cards opened by the user's current action. Starting the
+      // request at high priority avoids a second-long skeleton while the
+      // browser is still processing below-the-fold images.
+      image.fetchPriority = "high";
+      image.onload = () => {
+        // Keep the URL marked as warm; the decoded response is now in the
+        // browser cache and the visible Next Image can paint immediately.
+      };
+      image.onerror = () => {
+        warmedGroupPreviewImages.delete(src);
+      };
+      image.src = src;
+    });
+  }
+};
+
+const GroupPreviewImage = React.memo(({ category, group }: { category: string; group: string }) => {
+  const cacheKey = `${category.trim().toLowerCase()}::${group.trim().toLowerCase()}`;
+  const [src, setSrc] = useState<string | null | undefined>(() =>
+    groupPreviewCache.get(cacheKey) ?? groupPreviewManifest[cacheKey]
+  );
+
+  useEffect(() => {
+    let active = true;
+    void loadGroupPreview(category, group).then((nextSrc) => {
+      if (active) setSrc(nextSrc);
+    });
+    return () => { active = false; };
+  }, [category, group]);
+
+  if (src === null) return null;
+
+  if (src === undefined) {
+    return (
+      <span className="relative block h-[88px] w-full overflow-hidden border-b border-sky-100 bg-[linear-gradient(110deg,#f8fcff_20%,#e5f6ff_42%,#f4fbff_64%)] bg-[length:220%_100%] motion-safe:animate-pulse sm:h-[104px]" aria-hidden="true" />
+    );
+  }
+
+  return (
+    <span className="relative block h-[88px] w-full overflow-hidden border-b border-sky-100/90 bg-[radial-gradient(circle_at_72%_12%,rgba(125,211,252,0.28),transparent_43%),linear-gradient(145deg,#ffffff_0%,#f5fbff_55%,#eaf8ff_100%)] shadow-[inset_0_2px_6px_rgba(15,23,42,0.08),inset_0_-4px_12px_rgba(2,132,199,0.10),inset_0_0_0_1px_rgba(15,23,42,0.03)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.16),inset_0_-8px_20px_rgba(2,132,199,0.22),inset_0_0_0_1px_rgba(2,132,199,0.08)] sm:h-[104px]">
+      <Image
+        src={src}
+        alt=""
+        fill
+        unoptimized
+        loading="eager"
+        fetchPriority="high"
+        sizes="(min-width: 1280px) 280px, (min-width: 640px) 23vw, 46vw"
+        className="object-contain p-2.5 transition-[filter,opacity,transform] duration-500 ease-out group-hover/category:scale-[1.08] group-hover/category:brightness-[1.04] group-hover/category:saturate-[1.1] sm:p-3"
+        onError={() => {
+          rejectedDirectGroupPreviews.add(cacheKey);
+          groupPreviewCache.delete(cacheKey);
+          try {
+            window.sessionStorage.removeItem(`${GROUP_PREVIEW_STORAGE_PREFIX}${cacheKey}`);
+          } catch {
+            // Continue with memory-only fallback in restricted storage mode.
+          }
+          setSrc(undefined);
+          const pendingVerification = groupPreviewVerifyRequests.get(cacheKey);
+          groupPreviewVerifyRequests.delete(cacheKey);
+          const recovery = pendingVerification
+            ? pendingVerification.then((verifiedSrc) => {
+                if (verifiedSrc) {
+                  groupPreviewCache.set(cacheKey, verifiedSrc);
+                  return verifiedSrc;
+                }
+                return loadGroupPreview(category, group);
+              })
+            : loadGroupPreview(category, group);
+          void recovery.then(setSrc);
+        }}
+      />
+      <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-sky-900/5 via-transparent to-white/20" />
+    </span>
+  );
+});
+GroupPreviewImage.displayName = "GroupPreviewImage";
 
 const collectLeafPaths = (
   nodes?: ProductNode[],
@@ -366,16 +653,53 @@ const getGroupCategories = (group: ProductNode) => {
 type ProductSearchInputProps = {
   searchTerm: string;
   onSearchChange: (value: string) => void;
+  suggestions: string[];
 };
 
 const ProductSearchInput = React.memo(
-  ({ searchTerm, onSearchChange }: ProductSearchInputProps) => {
+  ({ searchTerm, onSearchChange, suggestions }: ProductSearchInputProps) => {
+    const [animatedPlaceholder, setAnimatedPlaceholder] = useState("Введіть назву запчастини");
+
+    useEffect(() => {
+      if (searchTerm) return;
+      const examples = suggestions.filter(Boolean).slice(0, 6);
+      if (examples.length === 0) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        setAnimatedPlaceholder(`Наприклад: ${examples[0]}`);
+        return;
+      }
+
+      let exampleIndex = 0;
+      let characterIndex = 0;
+      let isDeleting = false;
+      let timeoutId: ReturnType<typeof setTimeout>;
+
+      const tick = () => {
+        const example = examples[exampleIndex];
+        characterIndex += isDeleting ? -1 : 1;
+        setAnimatedPlaceholder(`Наприклад: ${example.slice(0, characterIndex)}`);
+
+        let delay = isDeleting ? 38 : 68;
+        if (!isDeleting && characterIndex >= example.length) {
+          isDeleting = true;
+          delay = 1350;
+        } else if (isDeleting && characterIndex <= 0) {
+          isDeleting = false;
+          exampleIndex = (exampleIndex + 1) % examples.length;
+          delay = 280;
+        }
+        timeoutId = setTimeout(tick, delay);
+      };
+
+      timeoutId = setTimeout(tick, 350);
+      return () => clearTimeout(timeoutId);
+    }, [searchTerm, suggestions]);
+
     return (
-      <label className="relative block mb-2">
-        <Search
-          size={16}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400"
-        />
+      <label className="relative mb-2 block rounded-[18px] bg-[linear-gradient(135deg,#0284c7,#22d3ee)] p-[2px] shadow-[0_12px_28px_rgba(2,132,199,0.2),0_0_0_3px_rgba(255,255,255,0.78)] transition-[box-shadow,background-image] duration-300 focus-within:bg-[linear-gradient(135deg,#0ea5e9_0%,#38bdf8_48%,#2dd4bf_100%)] focus-within:shadow-[0_15px_34px_rgba(14,165,233,0.24),0_0_0_4px_rgba(125,211,252,0.14)]">
+        <span className="pointer-events-none absolute left-4 top-1/2 z-10 inline-flex -translate-y-1/2 items-center justify-center text-sky-700">
+          <Search size={19} strokeWidth={2.2} />
+        </span>
         <input
           type="text"
           value={searchTerm}
@@ -383,9 +707,9 @@ const ProductSearchInput = React.memo(
           onTouchStart={(e) => {
             e.currentTarget.focus();
           }}
-          placeholder="Група або категорія"
+          placeholder={animatedPlaceholder}
           aria-label="\u0412\u0432\u0435\u0434\u0456\u0442\u044c \u043d\u0430\u0437\u0432\u0443 \u0433\u0440\u0443\u043f\u0438 \u0430\u0431\u043e \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u0457"
-          className="w-full rounded-xl border border-blue-200 bg-white/90 px-9 py-2 text-[16px] sm:text-sm text-gray-700 placeholder:text-blue-300/95 shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition select-text"
+          className="h-11 w-full rounded-[16px] border-0 bg-white pl-11 pr-11 text-[15px] font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,1)] outline-none transition-[background-color,box-shadow] duration-300 placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:text-slate-800 focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,1)] select-text sm:h-12"
           data-search="true"
         />
         {searchTerm && (
@@ -393,7 +717,7 @@ const ProductSearchInput = React.memo(
             type="button"
             onClick={() => onSearchChange("")}
             aria-label="\u041e\u0447\u0438\u0441\u0442\u0438\u0442\u0438 \u043f\u043e\u0448\u0443\u043a"
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-blue-400 hover:text-blue-800 transition"
+            className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
             <X size={16} />
           </button>
@@ -475,7 +799,8 @@ const ProductFetcher: React.FC<Props> = ({
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [flippedId, setFlippedId] = useState<number | null>(null);
+  const [activeCategory, setActiveCategory] = useState<ProductNode | null>(null);
+  const [browseTrail, setBrowseTrail] = useState<ProductNode[]>([]);
   const [page, setPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(MOBILE_ITEMS_PER_PAGE);
   const lastFocusVersionCheckRef = useRef<number>(0);
@@ -498,6 +823,18 @@ const ProductFetcher: React.FC<Props> = ({
         ? productNodes.slice(0, MAX_GROUPS_FOR_RENDER)
         : [],
     [productNodes]
+  );
+
+  const searchSuggestions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          normalizedProducts.flatMap((category) =>
+            (category.children ?? []).map((group) => buildVisibleProductName(group.name))
+          )
+        )
+      ).slice(0, 6),
+    [normalizedProducts]
   );
 
   const rows = useMemo<CategoryRow[]>(() => {
@@ -569,17 +906,35 @@ const ProductFetcher: React.FC<Props> = ({
     [normalizedProducts]
   );
 
-  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / itemsPerPage));
+  const currentBrowseNode = browseTrail[browseTrail.length - 1] ?? activeCategory;
+  const searchGroupParents = useMemo(() => {
+    const parents = new Map<ProductNode, ProductNode>();
+    for (const category of filteredGroups) {
+      for (const group of category.children ?? []) parents.set(group, category);
+    }
+    return parents;
+  }, [filteredGroups]);
+  const browseNodes = useMemo(
+    () => {
+      const query = treeKey(searchTerm.trim());
+      if (!query) {
+        return currentBrowseNode ? (currentBrowseNode.children ?? []) : filteredGroups;
+      }
+      // A search always looks across every category, regardless of which one
+      // (if any) is currently open — narrowing to just the active category
+      // would hide matches the user is explicitly asking for.
+      return filteredGroups.flatMap((category) =>
+        (category.children ?? []).filter((group) => nodeMatchesSearch(group, query))
+      );
+    },
+    [currentBrowseNode, filteredGroups, searchTerm]
+  );
+  const browseItemsPerPage = itemsPerPage;
+  const totalPages = Math.max(1, Math.ceil(browseNodes.length / browseItemsPerPage));
 
   const safePage = (value: number) => {
     if (!Number.isFinite(value)) return 1;
     return Math.max(1, Math.min(value, totalPages));
-  };
-
-  const goToPage = (value: number) => {
-    const next = safePage(value);
-    setPage((prev) => (prev === next ? prev : next));
-    scrollToGroupPage(next);
   };
 
   const nextPage = () => {
@@ -703,8 +1058,16 @@ const ProductFetcher: React.FC<Props> = ({
   }, [searchTerm, selectedCategories]);
 
   useEffect(() => {
-    setFlippedId(null);
-  }, [page, searchTerm, selectedCategories]);
+    if (!isHydrated || activeCategory || filteredGroups.length === 0) return;
+
+    // Start warming as soon as the category cards become available. Waiting
+    // for requestIdleCallback meant that a quick click could open the group
+    // before its images had even started downloading. Warm the complete first
+    // page because all of these previews can become visible after one click.
+    for (const category of filteredGroups.slice(0, itemsPerPage)) {
+      preloadChildPreviews(category, DESKTOP_ITEMS_PER_PAGE);
+    }
+  }, [activeCategory, filteredGroups, isHydrated, itemsPerPage]);
 
   useEffect(() => {
     if (hasExternalProducts || !isHydrated) return;
@@ -753,15 +1116,58 @@ const ProductFetcher: React.FC<Props> = ({
     };
   }, [hasExternalProducts, isHydrated]);
 
+  const groupPagesRef = useRef<HTMLDivElement | null>(null);
+  const groupScrollFrameRef = useRef<number | null>(null);
   const groupPages = useMemo(() => {
     const pages: ProductNode[][] = [];
-    for (let index = 0; index < filteredGroups.length; index += itemsPerPage) {
-      pages.push(filteredGroups.slice(index, index + itemsPerPage));
+    for (let index = 0; index < browseNodes.length; index += browseItemsPerPage) {
+      pages.push(browseNodes.slice(index, index + browseItemsPerPage));
     }
     return pages.length > 0 ? pages : [[]];
-  }, [filteredGroups, itemsPerPage]);
+  }, [browseItemsPerPage, browseNodes]);
 
-  const groupPagesRef = useRef<HTMLDivElement | null>(null);
+  const openCategory = useCallback((category: ProductNode) => {
+    preloadChildPreviews(category);
+    setActiveCategory(category);
+    setBrowseTrail([]);
+    setPage(1);
+    window.requestAnimationFrame(() => {
+      groupPagesRef.current?.scrollTo({ left: 0, behavior: "auto" });
+    });
+  }, []);
+
+  const closeCategory = useCallback(() => {
+    if (browseTrail.length > 0) {
+      setBrowseTrail((current) => current.slice(0, -1));
+    } else {
+      setActiveCategory(null);
+    }
+    setPage(1);
+    window.requestAnimationFrame(() => {
+      groupPagesRef.current?.scrollTo({ left: 0, behavior: "auto" });
+    });
+  }, [browseTrail.length]);
+
+  const openGroup = useCallback((group: ProductNode) => {
+    preloadChildPreviews(group);
+    setBrowseTrail((current) => [...current, group]);
+    setPage(1);
+    window.requestAnimationFrame(() => {
+      groupPagesRef.current?.scrollTo({ left: 0, behavior: "auto" });
+    });
+  }, []);
+
+  const openSearchGroup = useCallback((category: ProductNode, group: ProductNode) => {
+    preloadChildPreviews(group);
+    setActiveCategory(category);
+    setBrowseTrail([group]);
+    setSearchTerm("");
+    setPage(1);
+    window.requestAnimationFrame(() => {
+      groupPagesRef.current?.scrollTo({ left: 0, behavior: "auto" });
+    });
+  }, []);
+
   const getGroupPageWidth = useCallback(() => {
     const container = groupPagesRef.current;
     if (!container) return 0;
@@ -778,10 +1184,10 @@ const ProductFetcher: React.FC<Props> = ({
     },
     [getGroupPageWidth]
   );
-  const handleGroupPagesScroll = useCallback(() => {
+  const syncGroupPageFromScroll = useCallback(() => {
     const container = groupPagesRef.current;
     if (!container) return;
-    const pageWidth = getGroupPageWidth();
+    const pageWidth = container.clientWidth || getGroupPageWidth();
     if (!pageWidth) return;
     const nextPage = Math.max(
       1,
@@ -790,6 +1196,20 @@ const ProductFetcher: React.FC<Props> = ({
     setPage((prev) => (prev === nextPage ? prev : nextPage));
   }, [totalPages, getGroupPageWidth]);
 
+  const handleGroupPagesScroll = useCallback(() => {
+    if (groupScrollFrameRef.current !== null) return;
+    groupScrollFrameRef.current = window.requestAnimationFrame(() => {
+      groupScrollFrameRef.current = null;
+      syncGroupPageFromScroll();
+    });
+  }, [syncGroupPageFromScroll]);
+
+  useEffect(() => () => {
+    if (groupScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(groupScrollFrameRef.current);
+    }
+  }, []);
+
   const handleRowSelect = (row: CategoryRow) => {
     setSelectedCategories([row.id]);
     if (typeof window !== "undefined") {
@@ -797,65 +1217,59 @@ const ProductFetcher: React.FC<Props> = ({
     }
   };
 
+  const retryProductTree = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    const data = await loadProducts({ forceRefresh: true });
+    if (data.length > 0) {
+      setProductNodes(data);
+      setHasLoadedOnce(true);
+    }
+    setLoadError(cachedProductsLoadError);
+    setIsLoading(false);
+  }, []);
+
   return (
     <section
       ref={sectionRef}
-      className="home-glow-section home-glow-section-sky font-ui relative tovar-touch min-h-[420px] w-full overflow-hidden bg-gradient-to-br from-white/95 via-sky-50/85 to-blue-100/70 pb-4 pt-4 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.96),inset_0_-1px_0_rgba(30,64,175,0.18),0_24px_48px_rgba(37,99,235,0.20),0_8px_16px_rgba(14,116,144,0.12)] sm:pb-0"
+      className="group/selector home-glow-section home-glow-section-sky font-ui relative tovar-touch min-h-[390px] w-full overflow-hidden border-y border-sky-200/70 bg-[radial-gradient(circle_at_8%_12%,rgba(56,189,248,0.2),transparent_34%),radial-gradient(circle_at_92%_78%,rgba(99,102,241,0.12),transparent_32%),linear-gradient(180deg,#e5f5ff_0%,#f0f3ff_48%,#e4f8ff_100%)] pb-3 pt-4 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.98),inset_0_-1px_0_rgba(14,116,144,0.14),0_14px_36px_rgba(30,64,175,0.08)] transition-[border-color,box-shadow] duration-500 hover:border-sky-300 hover:shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(14,116,144,0.18),0_20px_48px_rgba(30,64,175,0.13)] sm:pb-0"
     >
       {/* top bridge — receives hero's sky-blue fade */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[image:linear-gradient(to_bottom,rgba(186,230,253,0.22)_0%,rgba(186,230,253,0.06)_55%,transparent_100%)]" />
-      {/* primary light source — top-left warm spot */}
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_140%_90%_at_-4%_-6%,rgba(255,255,255,0.58)_0%,rgba(186,230,253,0.30)_26%,rgba(186,230,253,0.06)_50%,transparent_64%)]" />
-      {/* secondary light — top-right cool accent */}
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_80%_65%_at_110%_-4%,rgba(147,197,253,0.34)_0%,rgba(186,230,253,0.08)_40%,transparent_60%)]" />
-      {/* depth sink — bottom gets heavier/darker */}
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_110%_55%_at_50%_112%,rgba(30,64,175,0.12)_0%,rgba(37,99,235,0.04)_46%,transparent_70%)]" />
-      {/* diagonal shimmer — light brushing across surface */}
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:linear-gradient(132deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.06)_22%,rgba(255,255,255,0.02)_40%,transparent_58%)]" />
-      {/* surface shine — thin bright strip at very top */}
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:linear-gradient(to_bottom,rgba(255,255,255,0.50)_0%,rgba(255,255,255,0.12)_2.5%,transparent_9%)]" />
-      {/* corner vignette — edges sink into shadow */}
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_90%_88%_at_50%_48%,transparent_52%,rgba(15,23,42,0.07)_100%)]" />
-      {/* bottom edge shadow — reinforces depth */}
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_100%_38%_at_50%_100%,rgba(30,64,175,0.09)_0%,transparent_70%)]" />
       {/* bottom bridge — eases into Auto's white/sky top */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-10 bg-[image:linear-gradient(to_bottom,transparent_0%,rgba(186,230,253,0.18)_100%)]" />
-      <div className="page-shell-inline relative z-10 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_14%_16%,rgba(14,165,233,0.24),transparent_36%),radial-gradient(circle_at_84%_72%,rgba(34,211,238,0.18),transparent_34%),linear-gradient(115deg,rgba(255,255,255,0.18),rgba(129,140,248,0.08),rgba(255,255,255,0.14))] opacity-0 transition-opacity duration-500 group-hover/selector:opacity-100" />
+      <div className="page-shell-inline relative z-10 flex flex-col gap-4">
         <motion.aside
         {...entryMotion}
-        className="group home-panel-hover home-section-surface relative z-10 min-w-0 self-start overflow-hidden rounded-2xl border border-sky-200/70 bg-gradient-to-br from-white via-sky-50/90 to-blue-100/80 shadow-[0_20px_48px_rgba(2,132,199,0.24),0_8px_20px_rgba(30,64,175,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] px-4 pb-1 pt-2.5 mb-2 text-gray-800 transition-shadow duration-300 hover:shadow-[0_28px_60px_rgba(2,132,199,0.32),0_10px_28px_rgba(30,64,175,0.22),inset_0_1px_0_rgba(255,255,255,1)]"
+        className="group/search relative z-10 w-full min-w-0 overflow-hidden rounded-[22px] border border-sky-300 bg-[radial-gradient(circle_at_0%_0%,rgba(56,189,248,0.2),transparent_32%),radial-gradient(circle_at_100%_100%,rgba(45,212,191,0.12),transparent_28%),linear-gradient(125deg,#ffffff_0%,#f8fcff_48%,#edf7ff_100%)] px-3 pb-3 pt-3 text-gray-800 shadow-[0_18px_46px_rgba(14,116,144,0.18),0_4px_14px_rgba(15,23,42,0.06),inset_0_1px_0_#fff] ring-1 ring-white/90 transition-[border-color,box-shadow] duration-300 hover:border-sky-400 hover:shadow-[0_23px_54px_rgba(2,132,199,0.24),0_5px_16px_rgba(15,23,42,0.07),inset_0_1px_0_#fff] sm:px-4 sm:py-4"
       >
-            <div className="absolute inset-0 pointer-events-none opacity-75 bg-[image:radial-gradient(circle_at_20%_20%,rgba(224,242,254,0.95),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(59,130,246,0.18),transparent_36%)]" />
+            <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-cyan-200/25 blur-3xl transition-opacity duration-300 group-hover/search:opacity-80" />
             <div className="relative">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-9 w-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shadow-inner">
-                  <Search size={16} />
-                </div>
-                <div className="min-w-0 flex-1">
-                <h2 className="font-display relative min-w-0 text-[22px] tracking-[-0.045em] text-slate-700 sm:text-[25px]">
-                  <span className="relative inline-block max-w-full break-words">
-                    {"\u0428\u0432\u0438\u0434\u043a\u0438\u0439 \u043f\u043e\u0448\u0443\u043a \u0442\u043e\u0432\u0430\u0440\u0456\u0432!"}
-                    <span className="pointer-events-none absolute left-0 -bottom-1 h-[3px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400 transform origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100 hover:scale-x-100 shadow-[0_4px_12px_rgba(37,99,235,0.3)]" />
-                  </span>
-                </h2>
-                  <span className="mt-2.5 block text-[12px] font-semibold leading-tight text-slate-400">
-                    {"Знайдено "}
-                    <span className="font-bold tabular-nums text-sky-600">
+              <div className="flex w-full items-center justify-between gap-2.5 min-[480px]:gap-4 sm:gap-5">
+                <div className="w-[52%] min-w-[160px] max-w-[400px] shrink-0 border-r border-sky-200/80 pr-2.5 min-[480px]:pr-4 sm:w-[400px] sm:pr-5">
+                  <ProductSearchInput
+                    searchTerm={searchTerm}
+                    onSearchChange={setSearchTerm}
+                    suggestions={searchSuggestions}
+                  />
+                  <span className="mt-1.5 block px-1 text-[10px] font-medium text-slate-500">
+                    {searchTerm.trim() ? "Знайдено " : "Доступно для пошуку: "}
+                    <strong className="font-extrabold tabular-nums text-sky-700">
                       {showSkeleton ? "—" : filteredRows.length}
-                    </span>
-                    {!showSkeleton && (
-                      <>{" "}{pluralWord(filteredRows.length, "групу", "групи", "груп")}</>
-                    )}
+                    </strong>
+                    {!showSkeleton && <> {pluralWord(filteredRows.length, "група", "групи", "груп")}</>}
                   </span>
+                </div>
+                <div className="min-w-0 flex-1 pl-0.5 min-[480px]:pl-1 sm:pl-2">
+                  <h2 className="font-display text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:text-[22px]">
+                    Швидкий пошук необхідної запчастини за декілька секунд!
+                  </h2>
+                  <p className="mt-1 hidden text-[11px] leading-relaxed text-slate-500 sm:block">Введіть назву — результати з’являться одразу.</p>
                 </div>
               </div>
 
-              <ProductSearchInput
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-              />
-
-              <div className="pr-1 pb-3 mt-4">
+              <div className="hidden" aria-hidden="true">
                 {showSkeleton ? (
                   <motion.div
                     key="loading"
@@ -877,8 +1291,8 @@ const ProductFetcher: React.FC<Props> = ({
                       ))}
                     </div>
                   </motion.div>
-                ) : displayedRows.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-3.5">
+                ) : displayedRows.length > 0 && searchTerm.trim() ? (
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
                     {displayedRows.map((row) => {
                       const isActive = selectedCategories.includes(row.id);
                       const displayLeaf = getDisplayLabel(row.leaf);
@@ -895,18 +1309,10 @@ const ProductFetcher: React.FC<Props> = ({
                             handleRowSelect(row);
                           }}
                           onMouseLeave={(event) => event.currentTarget.blur()}
-                          className={`group/row relative w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-all duration-300 ${
+                          className={`group/row relative w-full overflow-hidden rounded-[11px] border px-3 py-2 text-left transition-[border-color,background-color,color] duration-200 ${
                             isActive
-                              ? "border-cyan-400/90 bg-[image:linear-gradient(115deg,rgba(207,250,254,0.98)_0%,rgba(224,242,254,0.97)_50%,rgba(186,230,253,0.95)_100%)] shadow-[0_12px_28px_rgba(6,182,212,0.30),0_4px_10px_rgba(8,145,178,0.18),inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-cyan-300/70"
-                              : [
-                                  "border-sky-200/80 bg-[image:linear-gradient(120deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.95)_48%,rgba(224,242,254,0.92)_100%)] shadow-[0_4px_14px_rgba(8,145,178,0.12),0_1px_4px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]",
-                                  "hover:-translate-y-[2px]",
-                                  "hover:border-cyan-300/80",
-                                  "hover:shadow-[0_16px_36px_rgba(6,182,212,0.28),0_4px_12px_rgba(8,145,178,0.18),inset_0_1px_0_rgba(255,255,255,0.95)]",
-                                  "hover:ring-1 hover:ring-cyan-200/70",
-                                  "hover:bg-[image:linear-gradient(115deg,rgba(240,249,255,0.99)_0%,rgba(224,250,254,0.97)_50%,rgba(186,230,253,0.94)_100%)]",
-                                  "active:translate-y-0 active:shadow-[0_4px_12px_rgba(8,145,178,0.14)]",
-                                ].join(" ")
+                              ? "border-sky-400 bg-sky-50 text-sky-900"
+                              : "border-slate-200/90 bg-white text-slate-800 hover:border-sky-300 hover:bg-sky-50/60"
                           }`}
                         >
                           <div
@@ -977,7 +1383,7 @@ const ProductFetcher: React.FC<Props> = ({
                         <button
                           type="button"
                           onClick={() => setSearchTerm("")}
-                          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-sky-200/70 bg-white px-3 py-1.5 text-[11px] font-semibold text-sky-600 shadow-[0_2px_8px_rgba(8,145,178,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-200 hover:-translate-y-[1px] hover:border-sky-300/80 hover:shadow-[0_6px_16px_rgba(8,145,178,0.20)]"
+                          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-sky-700 transition-colors duration-200 hover:border-sky-300 hover:bg-sky-50"
                         >
                           <X size={11} />
                           Очистити пошук
@@ -995,39 +1401,259 @@ const ProductFetcher: React.FC<Props> = ({
 
         <motion.div {...entryMotion} className="relative z-10 min-w-0">
         {filteredGroups.length > 0 ? (
-          <div
-            ref={groupPagesRef}
-            onScroll={handleGroupPagesScroll}
-            className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
-          >
-            <div className="flex">
+          <div className="relative px-1.5 pb-6 pt-1 sm:px-3 sm:pb-8">
+            <div className="relative px-7 sm:px-10">
+              <button
+                type="button"
+                onClick={prevPage}
+                disabled={page <= 1}
+                className="absolute left-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
+                aria-label="Попередня сторінка"
+              >
+                <ChevronLeft size={34} strokeWidth={2.6} />
+              </button>
+
+              <div
+                ref={groupPagesRef}
+                onScroll={handleGroupPagesScroll}
+                className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [touch-action:pan-x_pan-y] [-webkit-overflow-scrolling:touch] [scrollbar-width:none]"
+              >
+              <div className="flex">
               {groupPages.map((pageGroups, pageIndex) => (
-                <div key={pageIndex} data-group-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
-                  <div className="grid min-h-[416px] grid-cols-2 grid-rows-2 gap-4 sm:min-h-[685px] sm:grid-rows-3 sm:gap-5 lg:min-h-[450px] lg:grid-cols-3 lg:grid-rows-2">
+                <div key={pageIndex} data-group-page className="w-full min-w-full flex-none snap-start px-1.5 pb-3 [scroll-snap-stop:always] sm:px-2 sm:pb-4">
+                  <div className={activeCategory && !searchTerm.trim()
+                    ? "grid min-h-[170px] grid-cols-2 grid-rows-1 gap-3 sm:min-h-[190px] sm:grid-cols-4 sm:gap-3.5"
+                    : "flex min-h-[170px] flex-nowrap gap-3 sm:min-h-[190px] sm:gap-3.5"}>
+                    {pageGroups.length === 0 ? (
+                      <div className="col-span-full flex min-h-[140px] w-full flex-1 items-center justify-center rounded-[18px] border border-dashed border-sky-300/80 bg-white/55 px-5 text-center shadow-[inset_0_1px_0_#fff]">
+                        <div>
+                          <p className="text-sm font-extrabold text-slate-700">Нічого не знайдено</p>
+                          <p className="mt-1 text-xs font-medium text-slate-500">Змініть запит — список оновиться одразу</p>
+                        </div>
+                      </div>
+                    ) : null}
                     {pageGroups.map((group, index) => {
-                      const id = pageIndex * itemsPerPage + index;
+                      const id = pageIndex * browseItemsPerPage + index;
+                      const label = buildVisibleProductName(group.name);
+                      const isSearchActive = Boolean(searchTerm.trim());
+                      const searchCategory = isSearchActive ? searchGroupParents.get(group) : undefined;
+                      const cardClass = searchCategory
+                        ? "group/category relative flex h-[170px] min-w-0 shrink-0 basis-[calc((100%_-_0.75rem)/2)] flex-col overflow-hidden rounded-[20px] border border-sky-200/95 bg-white text-left shadow-[0_10px_24px_rgba(15,23,42,0.09)] ring-1 ring-white/90 transition-[border-color,background-color,box-shadow] duration-500 ease-out hover:border-sky-500 hover:bg-cyan-50/50 hover:shadow-[0_20px_38px_rgba(2,132,199,0.24),0_0_0_3px_rgba(34,211,238,0.14)] sm:h-[190px] sm:basis-[calc((100%_-_2.625rem)/4)]"
+                        : activeCategory
+                          ? "group/category relative flex h-[170px] min-w-0 flex-col overflow-hidden rounded-[18px] border border-sky-300/90 bg-white text-left shadow-[0_8px_22px_rgba(15,23,42,0.09),0_2px_6px_rgba(2,132,199,0.07),inset_0_1px_0_#fff] ring-1 ring-white/90 transition-[border-color,background-color,box-shadow] duration-500 ease-out hover:border-cyan-500 hover:bg-sky-50/40 hover:shadow-[0_18px_36px_rgba(2,132,199,0.22),0_0_0_3px_rgba(34,211,238,0.14),inset_0_1px_0_#fff] sm:h-[190px]"
+                        : "group/category relative flex h-[170px] min-w-0 shrink-0 basis-[calc((100%_-_0.75rem)/2)] flex-col items-center justify-center overflow-hidden rounded-[20px] border border-sky-200/95 bg-[radial-gradient(circle_at_50%_-8%,rgba(125,211,252,0.44),transparent_48%),linear-gradient(150deg,#ffffff_0%,#f3faff_50%,#e9f8ff_100%)] px-3 text-center shadow-[0_10px_24px_rgba(15,23,42,0.09),0_3px_9px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 transition-[border-color,background-color,box-shadow] duration-500 ease-out hover:border-sky-500 hover:bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] hover:shadow-[0_22px_40px_rgba(2,132,199,0.26),0_0_0_3px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,1)] sm:h-[190px] sm:basis-[calc((100%_-_2.625rem)/4)]";
+
+                      if (searchCategory) {
+                        const hasChildren = Boolean(group.children?.length);
+                        const content = (
+                          <>
+                            <GroupPreviewImage category={searchCategory.name} group={group.name} />
+                            <span className="relative flex min-h-0 flex-1 items-center justify-between gap-2.5 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] px-3 py-2.5">
+                              <span className="min-w-0">
+                                <span className="line-clamp-2 text-[13px] font-extrabold leading-tight text-slate-800 transition-colors duration-300 group-hover/category:text-sky-900 sm:text-sm">{label}</span>
+                                <span className="mt-1 block truncate text-[10px] font-semibold text-sky-600">{buildVisibleProductName(searchCategory.name)}</span>
+                              </span>
+                              <ChevronRight size={18} className="shrink-0 text-sky-700 transition-colors duration-300 group-hover/category:text-cyan-600" />
+                            </span>
+                          </>
+                        );
+
+                        if (hasChildren) {
+                          return (
+                            <button
+                              key={`${group.name}-${id}`}
+                              type="button"
+                              onClick={() => openSearchGroup(searchCategory, group)}
+                              className={cardClass}
+                            >
+                              {content}
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <CatalogPrefetchLink
+                            key={`${group.name}-${id}`}
+                            href={buildCatalogCategoryPath(searchCategory.name, group.name, { expandHierarchy: true })}
+                            className={cardClass}
+                          >
+                            {content}
+                          </CatalogPrefetchLink>
+                        );
+                      }
+
+                      if (!activeCategory) {
+                        return (
+                          <button
+                            key={`${group.name}-${id}`}
+                            type="button"
+                            onClick={() => openCategory(group)}
+                            onPointerEnter={() => preloadChildPreviews(group)}
+                            onPointerDown={() => preloadChildPreviews(group)}
+                            onFocus={() => preloadChildPreviews(group)}
+                            className={cardClass}
+                          >
+                            <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_22%,rgba(255,255,255,0.9),transparent_46%),linear-gradient(180deg,rgba(34,211,238,0.08),rgba(59,130,246,0.1))] opacity-0 transition-opacity duration-300 group-hover/category:opacity-100" />
+                            <span className="pointer-events-none absolute inset-x-6 top-0 h-[3px] rounded-full bg-gradient-to-r from-transparent via-sky-500 to-cyan-400 opacity-55 transition-opacity duration-300 group-hover/category:opacity-100" />
+                            <span className="pointer-events-none absolute inset-0 shadow-[inset_0_2px_6px_rgba(15,23,42,0.06)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.10),inset_0_0_0_1px_rgba(2,132,199,0.06)]" />
+                            <span className="relative mb-2 flex h-[70px] w-full items-center justify-center sm:h-[82px]">
+                              <span className="pointer-events-none absolute h-16 w-16 rounded-full bg-cyan-400/0 blur-2xl transition-[background-color] duration-300 ease-out group-hover/category:bg-cyan-400/35 sm:h-20 sm:w-20" />
+                              <Image
+                                src={getCategoryIconPath(label)}
+                                alt=""
+                                width={76}
+                                height={76}
+                                sizes="(min-width: 640px) 76px, 64px"
+                                quality={72}
+                                priority={pageIndex === 0 && index < 3}
+                                className="relative h-16 w-16 object-contain drop-shadow-[0_7px_12px_rgba(14,116,144,0.14)] transition-[filter,opacity,transform] duration-500 ease-out group-hover/category:scale-[1.08] group-hover/category:brightness-[1.06] group-hover/category:saturate-[1.12] group-hover/category:drop-shadow-[0_12px_20px_rgba(2,132,199,0.32)] sm:h-[76px] sm:w-[76px]"
+                              />
+                            </span>
+                            <span className="relative line-clamp-2 text-sm font-extrabold leading-tight text-slate-800 transition-colors duration-300 group-hover/category:text-sky-900 sm:text-[15px]">
+                              {label}
+                            </span>
+                            <span className="relative mt-1.5 inline-flex items-center gap-1 rounded-full border border-sky-100 bg-white/80 px-2 py-0.5 text-[10px] font-bold text-slate-500 transition-[border-color,color,background-color,box-shadow] duration-300 group-hover/category:border-cyan-400 group-hover/category:bg-cyan-50 group-hover/category:text-sky-800 group-hover/category:shadow-[0_5px_14px_rgba(8,145,178,0.14)] sm:text-[10px]">
+                              {group.children?.length ?? 0}{" "}
+                              {pluralWord(group.children?.length ?? 0, "група", "групи", "груп")}
+                              <ChevronRight size={11} />
+                            </span>
+                          </button>
+                        );
+                      }
+
+                      const hasChildren = Boolean(group.children?.length);
+                      const catalogParentName = currentBrowseNode?.name || activeCategory.name;
+                      const groupCardContent = (
+                        <>
+                          <span className="pointer-events-none absolute inset-x-5 top-0 z-10 h-[3px] rounded-b-full bg-gradient-to-r from-sky-500 via-cyan-400 to-blue-500 opacity-80 transition-opacity duration-300 group-hover/category:opacity-100" />
+                          {pageIndex === page - 1 ? (
+                            <GroupPreviewImage category={catalogParentName} group={group.name} />
+                          ) : null}
+                          <span className="relative flex min-h-0 flex-1 items-center justify-between gap-2.5 bg-[linear-gradient(145deg,#ffffff_0%,#f4faff_100%)] px-3.5 py-2.5 transition-colors duration-300 group-hover/category:bg-sky-50/80">
+                            <span className="min-w-0">
+                              <span className="line-clamp-2 text-[12px] font-black leading-[1.22] text-slate-700 transition-colors duration-300 group-hover/category:text-sky-700 sm:text-[13px]">{label}</span>
+                              {hasChildren ? (
+                                <span className="mt-1 block text-[10px] font-semibold text-sky-600">
+                                  {group.children?.length ?? 0}{" "}
+                                  {pluralWord(group.children?.length ?? 0, "підгрупа", "підгрупи", "підгруп")}
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700 transition-[color,background-color,box-shadow] duration-300 group-hover/category:bg-cyan-100 group-hover/category:text-cyan-800 group-hover/category:shadow-[0_4px_12px_rgba(8,145,178,0.18)]">
+                              <ChevronRight size={17} strokeWidth={2.5} />
+                            </span>
+                          </span>
+                        </>
+                      );
+
+                      if (hasChildren) {
+                        return (
+                          <button
+                            key={`${group.name}-${id}`}
+                            type="button"
+                            onClick={() => openGroup(group)}
+                            onPointerEnter={() => preloadChildPreviews(group)}
+                            onPointerDown={() => preloadChildPreviews(group)}
+                            onFocus={() => preloadChildPreviews(group)}
+                            className={cardClass}
+                            aria-label={`Відкрити підгрупи: ${label}`}
+                          >
+                            {groupCardContent}
+                          </button>
+                        );
+                      }
+
                       return (
-                        <FlipCard
+                        <CatalogPrefetchLink
                           key={`${group.name}-${id}`}
-                          product={group}
-                          id={id}
-                          isFlipped={flippedId === id}
-                          setFlippedId={setFlippedId}
-                          onBoundarySwipe={(direction) => {
-                            if (direction === "next") {
-                              nextPage();
-                            } else {
-                              prevPage();
-                            }
-                          }}
-                          priority={pageIndex === 0 && index < 3}
-                        />
+                          href={buildCatalogCategoryPath(catalogParentName, group.name, { expandHierarchy: true })}
+                          className={cardClass}
+                        >
+                          {groupCardContent}
+                        </CatalogPrefetchLink>
                       );
                     })}
                   </div>
                 </div>
               ))}
+              </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={nextPage}
+                disabled={page >= totalPages}
+                className="absolute right-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
+                aria-label="Наступна сторінка"
+              >
+                <ChevronRight size={34} strokeWidth={2.6} />
+              </button>
             </div>
+            {activeCategory && !searchTerm.trim() ? (
+              <div className="relative mt-2 flex min-h-10 items-center justify-between gap-2.5 px-2 sm:gap-3 sm:px-3">
+                <button
+                  type="button"
+                  onClick={closeCategory}
+                  className="group/back inline-flex min-h-10 shrink-0 items-center gap-1.5 border-0 bg-transparent px-1 text-xs font-extrabold text-sky-700 shadow-none transition-colors duration-300 hover:text-cyan-600 focus-visible:outline-none focus-visible:text-cyan-600 focus-visible:underline focus-visible:decoration-2 focus-visible:underline-offset-4"
+                >
+                  <ArrowLeft size={16} strokeWidth={2.4} className="text-cyan-600 transition-[color,transform] duration-300 group-hover/back:-translate-x-0.5 group-hover/back:text-cyan-600" />
+                  {browseTrail.length > 0 ? "Назад" : "Категорії"}
+                </button>
+                <div className="ml-auto min-w-0 max-w-[38%] text-right sm:max-w-[42%]">
+                  <p className="truncate text-sm font-extrabold text-slate-700 sm:text-base">
+                    {buildVisibleProductName(currentBrowseNode?.name || activeCategory.name)}
+                  </p>
+                  <p className="truncate text-[11px] font-medium text-slate-500">
+                    {browseTrail.length > 0 ? "Оберіть потрібну підгрупу" : "Оберіть потрібну групу"}
+                  </p>
+                </div>
+                {totalPages > 1 ? (
+                  <div className="absolute left-1/2 top-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">
+                    <span className="h-px w-4 bg-gradient-to-r from-transparent to-cyan-500/75 sm:w-6" />
+                    <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
+                    <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(14,116,144,0.14)]">{page}</span>
+                    <span className="font-semibold text-cyan-400">/</span>
+                    <span className="font-extrabold text-slate-500">{totalPages}</span>
+                    <span className="h-px w-4 bg-gradient-to-l from-transparent to-cyan-500/75 sm:w-6" />
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="relative mt-2 flex min-h-10 items-center px-2 sm:px-3">
+                <div className="min-w-0 max-w-[calc(50%_-_38px)]">
+                  <h3 className="text-base font-extrabold text-slate-700 sm:text-lg">
+                    <span className="text-sky-700 tabular-nums">{browseNodes.length}</span>{" "}
+                    {searchTerm.trim()
+                      ? pluralWord(browseNodes.length, "група", "групи", "груп")
+                      : `${pluralWord(browseNodes.length, "категорія", "категорії", "категорій")} товарів`}
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-500 sm:text-xs">
+                    {searchTerm.trim() ? "Оберіть потрібну групу товарів" : "Оберіть категорію, щоб переглянути її групи"}
+                  </p>
+                </div>
+                {totalPages > 1 ? (
+                  <div className="absolute left-1/2 top-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">
+                    <span className="h-px w-4 bg-gradient-to-r from-transparent to-cyan-500/75 sm:w-6" />
+                    <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
+                    <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(14,116,144,0.14)]">{page}</span>
+                    <span className="font-semibold text-cyan-400">/</span>
+                    <span className="font-extrabold text-slate-500">{totalPages}</span>
+                    <span className="h-px w-4 bg-gradient-to-l from-transparent to-cyan-500/75 sm:w-6" />
+                  </div>
+                ) : null}
+                <Link
+                  href="/groups"
+                  className="group/all-groups ml-auto inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-extrabold text-sky-700 transition-colors duration-300 hover:text-cyan-600 focus-visible:outline-none focus-visible:text-cyan-600 focus-visible:underline focus-visible:decoration-2 focus-visible:underline-offset-4"
+                >
+                  Усі групи товарів
+                  <ChevronRight
+                    size={15}
+                    strokeWidth={2.6}
+                    className="transition-transform duration-300 group-hover/all-groups:translate-x-0.5"
+                  />
+                </Link>
+              </div>
+            )}
           </div>
         ) : showSkeleton ? (
           <div>
@@ -1044,7 +1670,7 @@ const ProductFetcher: React.FC<Props> = ({
                 does. It's a sibling above the grid now, so every cell below
                 is a uniform placeholder card, same shape the real cards
                 render into. */}
-            <div className="grid min-h-[416px] grid-cols-2 grid-rows-2 gap-4 sm:min-h-[685px] sm:grid-rows-3 sm:gap-5 lg:min-h-[450px] lg:grid-cols-3 lg:grid-rows-2">
+            <div className="grid min-h-[170px] grid-cols-2 grid-rows-1 gap-3 sm:min-h-[190px] sm:grid-cols-4 sm:gap-3.5">
               {Array.from({ length: itemsPerPage }).map((_, index) => (
                 <div
                   key={`card-skeleton-${index}`}
@@ -1061,13 +1687,24 @@ const ProductFetcher: React.FC<Props> = ({
             </div>
           </div>
         ) : productLoadError ? (
-          <div className="grid min-h-[416px] grid-cols-2 grid-rows-2 gap-4 sm:min-h-[685px] sm:grid-rows-3 sm:gap-5 lg:min-h-[450px] lg:grid-cols-3 lg:grid-rows-2">
-                <div className="col-span-full rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-700">
-                  Помилка завантаження категорій: {productLoadError}
+          <div className="grid min-h-[170px] grid-cols-2 grid-rows-1 gap-3 sm:min-h-[190px] sm:grid-cols-4 sm:gap-3.5">
+                <div className="col-span-full flex min-h-[150px] items-center justify-center rounded-[22px] border border-sky-200/90 bg-white/80 px-5 py-6 text-center shadow-[0_12px_30px_rgba(14,116,144,0.1)]">
+                  <div>
+                    <p className="text-sm font-extrabold text-slate-800">Не вдалося завантажити категорії</p>
+                    <p className="mt-1 text-xs font-medium text-slate-500">{productLoadError}</p>
+                    <button
+                      type="button"
+                      onClick={() => void retryProductTree()}
+                      disabled={isLoading}
+                      className="mt-4 inline-flex h-9 items-center justify-center rounded-xl border border-sky-300 bg-sky-50 px-4 text-xs font-bold text-sky-800 transition-colors duration-200 hover:border-sky-400 hover:bg-sky-100 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {isLoading ? "Завантажуємо…" : "Спробувати ще раз"}
+                    </button>
+                  </div>
                 </div>
           </div>
         ) : (
-          <div className="grid min-h-[416px] grid-cols-2 grid-rows-2 gap-4 sm:min-h-[685px] sm:grid-rows-3 sm:gap-5 lg:min-h-[450px] lg:grid-cols-3 lg:grid-rows-2">
+          <div className="grid min-h-[170px] grid-cols-2 grid-rows-1 gap-3 sm:min-h-[190px] sm:grid-cols-4 sm:gap-3.5">
                 <motion.div
                   key="empty"
                   initial={shouldAnimate ? { opacity: 0 } : false}
@@ -1084,71 +1721,6 @@ const ProductFetcher: React.FC<Props> = ({
           </div>
         )}
 
-        <div className="mt-5 flex items-center justify-center pb-6 sm:pb-8">
-          <div className="flex items-center gap-2 rounded-2xl border border-sky-200/70 bg-gradient-to-r from-white via-sky-50/70 to-white px-3 py-2 shadow-[0_10px_24px_rgba(8,145,178,0.12),0_2px_8px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm">
-
-            {/* Prev */}
-            <button
-              type="button"
-              onClick={prevPage}
-              disabled={page <= 1}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
-              aria-label="\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
-            >
-              <ChevronLeft size={15} />
-            </button>
-
-            {/* Mobile: N / total */}
-            <div className="flex min-w-[68px] items-center justify-center gap-1 rounded-xl border border-sky-100/80 bg-white/90 px-3 py-1.5 shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)] sm:hidden">
-              <span className="text-[13px] font-extrabold text-sky-600">{page}</span>
-              <span className="text-[11px] font-semibold text-slate-300">/</span>
-              <span className="text-[13px] font-bold text-slate-400">{totalPages}</span>
-            </div>
-
-            {/* Desktop: dots */}
-            <div className="hidden items-center gap-1 px-1 sm:flex">
-              {Array.from({ length: totalPages }).map((_, index) => {
-                const dotPage = index + 1;
-                const isActive = dotPage === page;
-                return (
-                  <button
-                    key={`page-dot-${dotPage}`}
-                    type="button"
-                    onClick={() => goToPage(dotPage)}
-                    aria-label={`\u0421\u0442\u043e\u0440\u0456\u043d\u043a\u0430 ${dotPage}`}
-                    className="group inline-flex min-h-[32px] min-w-[24px] items-center justify-center"
-                  >
-                    <span
-                      className={`block rounded-full transition-all duration-300 ${
-                        isActive
-                          ? "h-2.5 w-7 bg-gradient-to-r from-cyan-400 via-sky-500 to-blue-500 shadow-[0_3px_10px_rgba(14,116,144,0.38),0_1px_4px_rgba(8,145,178,0.22)]"
-                          : "h-2.5 w-2.5 bg-sky-200/80 group-hover:w-4 group-hover:bg-sky-300/90 group-hover:shadow-[0_2px_6px_rgba(8,145,178,0.18)]"
-                      }`}
-                    />
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Next */}
-            <button
-              type="button"
-              onClick={nextPage}
-              disabled={page >= totalPages}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
-              aria-label="\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0430 \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
-            >
-              <ChevronRight size={15} />
-            </button>
-
-            {/* Desktop: N / total */}
-            <div className="hidden items-center gap-0.5 rounded-lg border border-sky-100/80 bg-white/90 px-2.5 py-1 shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)] sm:flex">
-              <span className="text-[11px] font-extrabold text-sky-600">{page}</span>
-              <span className="mx-0.5 text-[10px] font-semibold text-slate-300">/</span>
-              <span className="text-[11px] font-bold text-slate-400">{totalPages}</span>
-            </div>
-          </div>
-        </div>
         </motion.div>
       </div>
     </section>

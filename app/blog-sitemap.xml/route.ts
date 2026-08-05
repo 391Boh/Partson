@@ -3,7 +3,8 @@ import { getConfiguredSitemapLastModified } from "app/lib/sitemap-dates";
 import { buildUrlSetXml, createSitemapXmlResponse } from "app/lib/sitemap-xml";
 import { getSiteUrl } from "app/lib/site-url";
 
-export const revalidate = 600;
+// force-dynamic re-runs this on every request, which makes a `revalidate`
+// window meaningless — dropped rather than left as dead/misleading config.
 export const dynamic = "force-dynamic";
 
 export async function GET() {

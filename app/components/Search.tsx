@@ -306,15 +306,15 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         so the filter DROPDOWN is rendered as a sibling BELOW this div.
         The filter BUTTON stays inside for correct visual placement.
       */}
-      <div className={`font-ui flex w-full items-center overflow-hidden rounded-[16px] border transition-[border-color,box-shadow] duration-200 ${
+      <div className={`group/search font-ui flex h-10 w-full items-center overflow-hidden rounded-[14px] border transition-[background-color,border-color,box-shadow] duration-300 ease-out ${
         barActive
-          ? "border-sky-400/40 bg-[image:linear-gradient(145deg,rgba(26,46,82,0.98),rgba(12,80,130,0.96)_54%,rgba(8,96,128,0.94))] shadow-[0_0_0_3px_rgba(56,189,248,0.10),0_6px_20px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.16)]"
-          : "border-white/[0.13] bg-[image:linear-gradient(145deg,rgba(255,255,255,0.06)_0%,rgba(56,189,248,0.08)_55%,rgba(99,102,241,0.07)_100%)] shadow-[0_2px_8px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.10)] hover:border-white/[0.22] hover:shadow-[0_4px_14px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.14)]"
+          ? "border-sky-400/55 bg-slate-900/90 shadow-[0_0_0_3px_rgba(56,189,248,0.10),0_8px_24px_rgba(0,0,0,0.28)]"
+          : "border-white/15 bg-white/[0.07] shadow-[0_4px_16px_rgba(0,0,0,0.18)] hover:border-white/25 hover:bg-white/[0.09] hover:shadow-[0_6px_20px_rgba(0,0,0,0.22)] focus-within:border-sky-400/55 focus-within:bg-white/[0.09] focus-within:shadow-[0_0_0_3px_rgba(56,189,248,0.10),0_6px_20px_rgba(0,0,0,0.22)]"
       }`}>
 
         {/* search icon */}
-        <span className="pointer-events-none shrink-0 pl-3 pr-1.5 text-slate-400">
-          <Search size={15} strokeWidth={2.2} aria-hidden="true" />
+        <span className="pointer-events-none shrink-0 pl-3.5 pr-2 text-slate-400 transition-colors duration-300 ease-out group-focus-within/search:text-sky-400">
+          <Search size={16} strokeWidth={2.2} aria-hidden="true" />
         </span>
 
         {/* input */}
@@ -326,7 +326,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           autoCorrect="off"
           autoCapitalize="off"
           spellCheck={false}
-          className="font-ui min-w-0 flex-1 bg-transparent py-2 text-[13.5px] font-semibold tracking-[-0.005em] text-slate-100 outline-none placeholder:font-normal placeholder:text-slate-400/55 sm:text-sm"
+          className="font-ui min-w-0 flex-1 bg-transparent py-1.5 text-[16px] font-semibold tracking-[-0.005em] text-slate-100 outline-none placeholder:font-normal placeholder:text-slate-400/70 sm:text-[13px]"
           value={query}
           onChange={e => { prefetch(); setQuery(e.target.value); setDropdown(true); }}
           onFocus={() => { prefetch(); setDropdown(true); }}
@@ -339,7 +339,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           <button
             type="button"
             aria-label="Очистити"
-            className="shrink-0 p-2 text-slate-500 transition-colors duration-100 hover:text-slate-200"
+            className="shrink-0 rounded-full p-2 text-slate-500 transition-colors duration-300 ease-out hover:bg-white/[0.06] hover:text-slate-200"
             onClick={() => { setQuery(""); inputRef.current?.focus(); }}
           >
             <X size={14} strokeWidth={2.5} />
@@ -351,7 +351,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           type="button"
           aria-label="Фільтр пошуку"
           onClick={() => { setFilterOpen(v => !v); setDropdown(false); }}
-          className={`flex self-stretch shrink-0 items-center gap-1 border-l border-white/[0.09] px-2.5 text-[11px] font-bold uppercase tracking-[0.06em] transition-colors duration-100 ${
+          className={`flex min-w-10 self-stretch shrink-0 items-center justify-center gap-1 border-l border-white/10 px-2.5 text-[11px] font-bold uppercase tracking-[0.06em] transition-[background-color,color] duration-300 ease-out sm:min-w-12 ${
             filterOpen
               ? "bg-sky-500/10 text-sky-300"
               : filter !== "all"
@@ -365,7 +365,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           }
           <ChevronDown
             size={10} strokeWidth={2.5}
-            className={`transition-transform duration-150 ${filterOpen ? "rotate-180 text-sky-300" : ""}`}
+            className={`transition-[color,transform] duration-300 ease-out ${filterOpen ? "rotate-180 text-sky-300" : ""}`}
           />
         </button>
 
@@ -373,14 +373,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         <button
           type="submit"
           aria-label="Пошук"
-          className="group relative flex self-stretch shrink-0 items-center gap-1.5 overflow-hidden rounded-r-[15px] bg-[image:linear-gradient(145deg,rgba(215,30,55,0.97),rgba(239,56,72,0.94)_50%,rgba(252,100,115,0.90))] px-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-1px_0_rgba(0,0,0,0.14)] transition-[filter,box-shadow] duration-150 hover:brightness-[1.09] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_0_16px_rgba(239,68,68,0.22)] active:brightness-90 active:scale-[0.97] cursor-pointer sm:px-4"
+          className="group relative flex min-w-10 self-stretch shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-r-[13px] bg-rose-600 px-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] transition-[background-color,box-shadow,color] duration-300 ease-out hover:bg-rose-500 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_0_18px_rgba(244,63,94,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70 sm:min-w-20 sm:px-3.5"
           onClick={() => doSearch()}
         >
-          {/* shimmer sweep */}
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 -translate-x-full skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-500 ease-out group-hover:translate-x-full"
-          />
           <Search size={15} strokeWidth={2.5} className="relative" />
           <span className="relative hidden text-[11.5px] font-bold tracking-[0.05em] sm:inline">
             Пошук
@@ -398,7 +393,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
             <button
               key={f.value}
               type="button"
-              className={`flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-[12.5px] font-semibold transition-colors duration-100 ${
+              className={`flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-[12.5px] font-semibold transition-colors duration-300 ease-out ${
                 filter === f.value
                   ? "bg-sky-500/[0.13] text-sky-300"
                   : "text-slate-300 hover:bg-white/[0.07] hover:text-white"
@@ -463,7 +458,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
               <SmartLink
                 key={p.code}
                 href={productHref}
-                className={`font-ui group flex w-full items-center gap-2.5 px-3 py-3 text-left transition-colors duration-100 hover:bg-white/[0.055] active:bg-white/[0.08] cursor-pointer sm:gap-3 sm:px-3.5 sm:py-3.5 ${
+                className={`font-ui group flex w-full cursor-pointer items-center gap-2.5 px-3 py-3 text-left transition-colors duration-300 ease-out hover:bg-white/[0.055] active:bg-white/[0.08] sm:gap-3 sm:px-3.5 sm:py-3.5 ${
                   i < suggestions.length - 1 ? "border-b border-white/[0.05]" : ""
                 }`}
                 onClick={() => {
@@ -539,7 +534,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           >
             <Search size={12} strokeWidth={2.5} />
             Показати всі результати
-            <ChevronRight size={12} strokeWidth={2.5} className="transition-transform duration-150 group-hover:translate-x-0.5" />
+            <ChevronRight size={12} strokeWidth={2.5} className="transition-colors duration-300 group-hover:text-sky-200" />
           </button>
         </div>
       )}
@@ -575,7 +570,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
             >
               <Clock size={13} className="shrink-0 text-sky-500/70" strokeWidth={2} />
               <span className="min-w-0 flex-1 truncate">{item}</span>
-              <ChevronRight size={12} className="shrink-0 text-slate-600 transition-transform duration-100 group-hover:translate-x-0.5" strokeWidth={2} />
+              <ChevronRight size={12} className="shrink-0 text-slate-600 transition-colors duration-300 group-hover:text-sky-400" strokeWidth={2} />
             </button>
           ))}
         </div>

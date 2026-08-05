@@ -18,7 +18,7 @@ import {
 
 
 const FINAL_RETRY_DELAY_MS = 60;
-const DEFERRED_DIRECT_LOAD_DELAY_MS = 150;
+const DEFERRED_DIRECT_LOAD_DELAY_MS = 90;
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();

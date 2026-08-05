@@ -180,7 +180,7 @@ function FlipCardComponent({
       variants={entrance}
       initial={reduceMotion ? "visible" : "hidden"}
       animate="visible"
-      className="relative h-[200px] w-full sm:h-[215px]"
+      className="relative h-[170px] w-full sm:h-[185px]"
       style={{ perspective: 1200 }} // fixed
     >
       <motion.div
@@ -196,12 +196,11 @@ function FlipCardComponent({
         <div
           className={`
             group/card absolute inset-0 rounded-xl overflow-hidden
-            border-2 border-sky-200/80
-            bg-[image:linear-gradient(148deg,rgba(255,255,255,0.99)_0%,rgba(240,249,255,0.95)_50%,rgba(219,234,254,0.90)_100%)]
-            flex flex-col items-center justify-center text-center px-4
-            transition-all duration-500
-            hover:border-sky-500
-            hover:bg-[image:linear-gradient(148deg,rgba(255,255,255,1)_0%,rgba(224,242,254,0.97)_50%,rgba(165,216,251,0.95)_100%)]
+            border border-slate-200/90 bg-white/92
+            flex flex-col items-center justify-center text-center px-3
+            shadow-[0_7px_20px_rgba(15,23,42,0.06)]
+            transition-[border-color,background-color,box-shadow] duration-300
+            hover:border-sky-300 hover:bg-sky-50/55 hover:shadow-[0_10px_24px_rgba(14,116,144,0.1)]
             ${isFlipped ? "pointer-events-none" : ""}
           `}
           style={{
@@ -209,8 +208,6 @@ function FlipCardComponent({
             transform: "rotateY(0deg) translateZ(1px)" as string,
           }}
         >
-          {/* depth glow — persistent, intensifies on hover */}
-          <div className="pointer-events-none absolute inset-0 opacity-40 transition-opacity duration-500 group-hover/card:opacity-100 bg-[image:radial-gradient(circle_at_22%_18%,rgba(56,189,248,0.22),transparent_52%),radial-gradient(circle_at_80%_82%,rgba(8,145,178,0.16),transparent_48%)]" />
           <Image
             src={getCategoryIconPath(displayProductName)}
             alt={displayProductName}
@@ -224,14 +221,14 @@ function FlipCardComponent({
               if (target.src.includes("/Katlogo/rul.png")) return;
               target.src = "/Katlogo/rul.png";
             }}
-            className="relative mb-4 transition-transform duration-500 group-hover/card:scale-[1.18]"
+            className="relative mb-2.5 h-11 w-11 object-contain opacity-90 transition-opacity duration-300 group-hover/card:opacity-100 sm:h-12 sm:w-12"
           />
 
-          <h3 className="relative text-[13px] font-bold text-slate-800 line-clamp-2 mb-2.5 transition-all duration-200 group-hover/card:text-[13.5px] group-hover/card:text-sky-900">
+          <h3 className="relative mb-2 line-clamp-2 text-[12px] font-bold text-slate-800 transition-colors duration-200 group-hover/card:text-sky-800 sm:text-[13px]">
             {displayProductName}
           </h3>
 
-          <span className="relative px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/80 transition-colors duration-300 group-hover/card:border-sky-400 group-hover/card:bg-sky-100">
+          <span className="relative text-[10px] font-semibold text-slate-400 transition-colors duration-200 group-hover/card:text-sky-600">
             {children.length} груп
           </span>
         </div>
@@ -247,16 +244,14 @@ function FlipCardComponent({
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
           onTouchCancel={(e) => e.stopPropagation()}
-          className={`absolute inset-0 flex touch-pan-y select-none flex-col overflow-hidden rounded-xl border-2 border-sky-200/80 bg-[image:linear-gradient(148deg,rgba(255,255,255,0.99)_0%,rgba(240,249,255,0.95)_52%,rgba(219,234,254,0.90)_100%)] px-1.5 py-1.5 transition-all duration-300 hover:border-sky-500 sm:px-2 sm:py-2 ${isFlipped ? "" : "pointer-events-none"}`}
+          className={`absolute inset-0 flex touch-pan-y select-none flex-col overflow-hidden rounded-xl border border-sky-300/80 bg-white px-1.5 py-1.5 shadow-[0_10px_26px_rgba(14,116,144,0.12)] transition-colors duration-300 sm:px-2 sm:py-2 ${isFlipped ? "" : "pointer-events-none"}`}
         >
           {/* HEADER */}
           <div
             className="
               mb-1.5 flex h-8 items-center justify-between rounded-lg px-1 sm:mb-2 sm:h-9 sm:px-2
-              bg-gradient-to-r from-sky-100/70 via-white/90 to-sky-50/60
-              border border-sky-200/50
-              transition-all duration-300
-              hover:from-sky-200/60 hover:to-sky-100/50
+              bg-sky-50/80 border border-sky-100
+              transition-colors duration-200 hover:bg-sky-100/70
             "
           >
             <button
@@ -331,9 +326,8 @@ function FlipCardComponent({
             {(activeGroup ? subVisible : mainVisible).map((item, i) => {
               const itemClassName = `
                 group/item flex min-h-[40px] w-full items-center rounded-lg px-2 py-1 font-medium text-slate-800 sm:min-h-0 sm:px-2.5 sm:py-2
-                bg-white/95 border border-sky-100/90
-                hover:bg-[image:linear-gradient(120deg,rgba(224,242,254,0.99)_0%,rgba(255,255,255,0.98)_50%,rgba(191,224,251,0.98)_100%)]
-                hover:border-sky-500 hover:text-sky-800
+                bg-white border border-slate-200/80
+                hover:bg-sky-50 hover:border-sky-300 hover:text-sky-800
                 text-left transition-colors duration-200
               `;
               const itemContent = (

@@ -64,9 +64,17 @@ async function main() {
     (entry) =>
       typeof entry.priceEuro === "number" &&
       Number.isFinite(entry.priceEuro) &&
-      entry.priceEuro > 0
+      entry.priceEuro > 0 &&
+      entry.hasPhoto === true
   );
-  const facets = buildCatalogSeoFacetsFromSitemapEntries(entries);
+  const publicEntries = entries.filter(
+    (entry) =>
+      typeof entry.priceEuro === "number" &&
+      Number.isFinite(entry.priceEuro) &&
+      entry.priceEuro > 0 &&
+      entry.hasPhoto === true
+  );
+  const facets = buildCatalogSeoFacetsFromSitemapEntries(publicEntries);
 
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, `${JSON.stringify(facets)}\n`, "utf8");
@@ -75,8 +83,8 @@ async function main() {
     productSnapshotPath,
     `${JSON.stringify({
       generatedAt: facets.generatedAt,
-      count: entries.length,
-      entries,
+      count: publicEntries.length,
+      entries: publicEntries,
     })}\n`,
     "utf8"
   );

@@ -39,7 +39,6 @@ export const metadata: Metadata = {
     alt: "Інтернет-магазин автозапчастин у Львові PartsON",
   },
   }),
-  title: { absolute: `${homeTitle} | PartsON` },
 };
 
 export default async function HomePage() {

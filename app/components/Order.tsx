@@ -408,7 +408,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="past-orders-modal-title"
-        className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
+        className="customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
       >
         <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
           <div className="soft-panel-accent h-1 rounded-full" />
@@ -697,7 +697,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
       role="dialog"
       aria-modal="true"
       aria-labelledby="my-order-modal-title"
-      className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
+      className="customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
         <div className="soft-panel-accent h-1 rounded-full" />

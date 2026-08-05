@@ -6,6 +6,7 @@ import { type CatalogProduct, fetchCatalogProductsByQuery } from "app/lib/catalo
 import { resolveProductCategoryHierarchy } from "app/lib/catalog-hierarchy";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
+import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
@@ -231,12 +232,14 @@ const buildCatalogSeoFacets = async (): Promise<CatalogSeoFacets> => {
       cursor: cursor || undefined,
       cursorField: cursorField || undefined,
       sortOrder: "none",
+      pricedItemsOnly: true,
     });
     const batch = batchResult.items;
 
     if (batch.length === 0) break;
 
     for (const product of batch) {
+      if (!isPublicCatalogProduct(product)) continue;
       const productKey = resolveProductKey(product);
       if (!productKey) continue;
       allProductKeys.add(productKey);

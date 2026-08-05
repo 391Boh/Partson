@@ -308,7 +308,7 @@ const toGoogleMerchantFeedItem = (
   // disapprovals. Drop them from the ads feed instead; that same fallback
   // is still a reasonable on-site browsing compromise (used elsewhere via
   // getProductImagePath), just not fit for an ads feed.
-  if (entry.hasPhoto === false) return null;
+  if (entry.hasPhoto !== true) return null;
 
   const article = (entry.article || "").trim() || undefined;
   const imagePath = buildProductImagePath(code, article, {

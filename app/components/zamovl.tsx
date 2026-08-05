@@ -479,7 +479,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
   };
 
   return (
-    <div className="soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden">
+    <div className="customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden">
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col p-3 sm:p-4">
         <div className="soft-panel-accent mb-3.5 h-[3px] rounded-full" />
         <div className="soft-panel-header border-b border-slate-200/60 pb-3">

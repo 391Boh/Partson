@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { resolvePersistentCatalogImageMap } from "app/lib/catalog-persistent-images";
 import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
 import type { CatalogProduct } from "app/lib/catalog-server";
 
@@ -78,7 +77,7 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawSearch = toTrimmedString(body.searchQuery);
   const effectiveSearch = rawFilter === "article" ? normalizeArticleQuery(rawSearch) : rawSearch;
   return JSON.stringify({
-    source: "catalog-page:v31-strict-price-sort",
+    source: "catalog-page:v33-all-products",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -135,19 +134,6 @@ const buildStaleCatalogPayload = (payload: CatalogPageApiPayload): CatalogPageAp
   serviceUnavailable: false,
   message: "",
 });
-
-const withPersistentCatalogImages = async (
-  payload: CatalogPageApiPayload
-): Promise<CatalogPageApiPayload> => {
-  const images = await resolvePersistentCatalogImageMap(payload.items);
-  return {
-    ...payload,
-    // `images` is derived from the current persistent cache. Replacing it
-    // prevents a URL stored in the route response cache from surviving image
-    // invalidation merely because it existed in an older payload.
-    images,
-  };
-};
 
 const CATALOG_ROUTE_TIMEOUT_RESULT = Symbol("catalog-route-timeout");
 
@@ -232,7 +218,7 @@ export async function POST(request: Request) {
 
     const cacheHit = getFreshRouteCacheValue(routeCacheKey);
     if (cacheHit) {
-      return NextResponse.json(await withPersistentCatalogImages(cacheHit), {
+      return NextResponse.json(cacheHit, {
         headers: { "cache-control": "private, max-age=60, stale-while-revalidate=600" },
       });
     }
@@ -517,9 +503,7 @@ export async function POST(request: Request) {
 
     if (staleCacheHit) {
       void inFlight.catch(() => null);
-      const stalePayload = await withPersistentCatalogImages(
-        buildStaleCatalogPayload(staleCacheHit)
-      );
+      const stalePayload = buildStaleCatalogPayload(staleCacheHit);
       return NextResponse.json(stalePayload, {
         headers: { "cache-control": "private, max-age=30, stale-while-revalidate=300" },
       });
@@ -536,7 +520,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(await withPersistentCatalogImages(payload), {
+    return NextResponse.json(payload, {
       headers: { "cache-control": "private, max-age=60, stale-while-revalidate=600" },
     });
   } catch (error) {
@@ -547,7 +531,7 @@ export async function POST(request: Request) {
     const staleHit = getStaleRouteCacheValue(routeCacheKey);
     if (staleHit) {
       return NextResponse.json(
-        await withPersistentCatalogImages(buildStaleCatalogPayload(staleHit))
+        buildStaleCatalogPayload(staleHit)
       );
     }
 

@@ -82,7 +82,7 @@ const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
 const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
-const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 1600;
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 500;
 // Start only the actual LCP candidate at high priority. A small first row may
 // still load eagerly, while the rest of the page is resolved by one batch.
 const IMAGE_HIGH_PRIORITY_ITEMS_COUNT = 1;
@@ -98,7 +98,11 @@ const VISIBLE_IMAGE_DEEP_RECOVERY_DELAY_MS = 60;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 45;
 const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
-const VIRTUAL_OVERSCAN_ROWS = 4;
+// Keep only a small, generous window mounted once the catalog grows beyond
+// three API pages. This prevents images, card effects and React reconciliation
+// for old pages from competing with the browser's scroll frame.
+const VIRTUALIZATION_MIN_ITEMS = ITEMS_PER_PAGE * 3;
+const VIRTUAL_OVERSCAN_ROWS = 3;
 const SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT = 2;
 const SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS = 520;
 const DEFAULT_EURO_RATE = 50;
@@ -642,8 +646,6 @@ const mergeUniqueProducts = (current: Product[], incoming: Product[]) => {
 
 const CATALOG_GRID_CLASS =
   "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-4";
-const ADMIN_CATALOG_GRID_CLASS =
-  "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 xl:gap-4 2xl:grid-cols-4";
 
 const CatalogProductCardSkeleton = ({ index }: { index: number }) => (
   <article
@@ -1322,20 +1324,20 @@ function useCatalogData(params: {
   const [catalogTotalCount, setCatalogTotalCount] = useState<number | null>(
     typeof initialTotalCount === "number" && initialTotalCount > 0 ? initialTotalCount : null
   );
-  // Determines the display total from a first-page payload.
-  // 1C returns count=items.length (page count, not grand total), so we can't
-  // naively use it. Rules: no more pages → exact count; server has a real total
-  // (> page size) → use it; otherwise fall back to the SSR snapshot total.
+  // Determines the display total from a first-page payload. The service is
+  // only asked to compute the real total on page 1 (ВключатьОбщееКоличество
+  // is sent true exactly when there's no cursor yet — see requestAllgoodsPage
+  // in catalog-server.ts), so whatever totalCount comes back with that first
+  // page is the genuine grand total and can be trusted directly, not just
+  // when it happens to exceed this page's item count.
   const resolveFirstPageTotal = useCallback(
     (items: Product[], cachedTotal: number | null | undefined, hasMore: boolean | undefined): number | null => {
       const pageHasMore =
         typeof hasMore === "boolean" ? hasMore : items.length >= ITEMS_PER_PAGE;
       if (!pageHasMore) return items.length;
-      if (
-        typeof cachedTotal === "number" &&
-        Number.isFinite(cachedTotal) &&
-        cachedTotal > items.length
-      ) return cachedTotal;
+      if (typeof cachedTotal === "number" && Number.isFinite(cachedTotal) && cachedTotal >= 0) {
+        return cachedTotal;
+      }
       return initialTotalCount ?? null;
     },
     [initialTotalCount]
@@ -3941,7 +3943,7 @@ const Data: React.FC<DataProps> = ({
           prefetchNextPageTriggerRef.current?.();
         }
       },
-      { rootMargin: "300px" }
+      { rootMargin: "900px" }
     );
     observer.observe(button);
     return () => observer.disconnect();
@@ -4316,10 +4318,12 @@ const Data: React.FC<DataProps> = ({
       __partsonCatalogVisibleCount?: number;
       __partsonCatalogVisibleSignature?: string;
       __partsonCatalogTotalCount?: number | null;
+      __partsonCatalogTotalSignature?: string;
     };
     win.__partsonCatalogVisibleCount = visibleSortedData.length;
     win.__partsonCatalogVisibleSignature = filterSignature;
     win.__partsonCatalogTotalCount = totalCountForCurrentFilter;
+    win.__partsonCatalogTotalSignature = filterSignature;
     window.dispatchEvent(
       new CustomEvent("partson:catalog-visible-count", {
         detail: { count: visibleSortedData.length, signature: filterSignature, loading: isDataLoading },
@@ -4552,7 +4556,8 @@ const Data: React.FC<DataProps> = ({
     if (viewportWidth >= 640) return 2;
     return 1;
   }, [viewportWidth]);
-  const shouldUseVirtualWindow = false;
+  const shouldUseVirtualWindow =
+    viewportWidth > 0 && visibleSortedEntries.length >= VIRTUALIZATION_MIN_ITEMS;
   const virtualizedEntries = useMemo(() => {
     if (!shouldUseVirtualWindow) return visibleSortedEntries;
 
@@ -4692,7 +4697,8 @@ const Data: React.FC<DataProps> = ({
     if (typeof window === "undefined") return;
 
     if (!shouldUseVirtualWindow) {
-      setVirtualRowHeightPx(VIRTUAL_ROW_ESTIMATED_HEIGHT_PX);
+      const estimatedHeight = viewportWidth < 640 ? 392 : 360;
+      setVirtualRowHeightPx(estimatedHeight);
       setVirtualWindowRange({
         startIndex: 0,
         endIndex: visibleSortedEntries.length,
@@ -4788,6 +4794,7 @@ const Data: React.FC<DataProps> = ({
   }, [
     gridColumnCount,
     shouldUseVirtualWindow,
+    viewportWidth,
     virtualRowHeightPx,
     visibleSortedEntries.length,
   ]);
@@ -4884,7 +4891,7 @@ const Data: React.FC<DataProps> = ({
           <div className="relative">
             <div
               ref={catalogGridRef}
-              className={`${isAdmin ? ADMIN_CATALOG_GRID_CLASS : CATALOG_GRID_CLASS} ${
+              className={`${CATALOG_GRID_CLASS} ${
                 shouldDimCatalogGrid ? "opacity-[0.88]" : "opacity-100"
               }`}
             >

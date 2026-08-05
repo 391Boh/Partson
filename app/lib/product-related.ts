@@ -17,6 +17,7 @@ import {
   type ProductSitemapEntry,
 } from "app/lib/product-sitemap";
 import { buildVisibleProductName } from "app/lib/product-url";
+import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 
 export type RelatedProductCardItem = {
   code: string;
@@ -281,6 +282,7 @@ const collectAndFilterUnique = (
   const targetProducer = normalizeLookupValue(targetProduct.producer);
 
   return source.filter((item) => {
+    if (!isPublicCatalogProduct(item)) return false;
     const itemCode = normalizeLookupValue(item.code);
     const itemArticle = normalizeLookupValue(item.article);
     const itemProducer = normalizeLookupValue(item.producer);
@@ -321,6 +323,7 @@ const collectAndFilterUniqueRelatedItems = (
   const targetProducer = normalizeLookupValue(targetProduct.producer);
 
   return source.filter((item) => {
+    if (!isPublicCatalogProduct(item)) return false;
     const itemCode = normalizeLookupValue(item.code);
     const itemArticle = normalizeLookupValue(item.article);
     const itemProducer = normalizeLookupValue(item.producer);

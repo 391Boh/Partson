@@ -360,6 +360,10 @@ const fetchRawTreeNodes = async (): Promise<ProductTreeNode[]> => {
   return rows.map((row) => toTreeNode(row));
 };
 
+// Standalone build scripts run before Next initializes its incremental cache,
+// so they need the same parser/source without the unstable_cache wrapper.
+export const getProductTreeNodesUncached = fetchRawTreeNodes;
+
 const fetchRawTreeNodesCached = unstable_cache(
   fetchRawTreeNodes,
   ["product-tree-raw-nodes-v1"],
