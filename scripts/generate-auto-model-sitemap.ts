@@ -85,6 +85,16 @@ const readPreviousSnapshot = (outputPath: string) => {
   }
 };
 
+// RUN_BUDGET_MS is only checked *between* pair-check iterations — it can't
+// interrupt a single in-flight request that's already hanging. Seen in
+// production: 1C accepted the connection but never answered one particular
+// brand/model query, and hasAnyModelProducts' own 4s+1-retry timeout never
+// fired for it either, so the whole build sat frozen indefinitely instead of
+// degrading to "used what it had time for". This hard deadline races the
+// entire run against a timer that doesn't care what's still pending inside
+// it, so a single stuck request can no longer block the build past this.
+const HARD_TIMEOUT_MS = RUN_BUDGET_MS + 90_000;
+
 async function main() {
   console.log("🚀 Перевірка моделей авто на наявність реальних товарів...");
   const startedAt = Date.now();
@@ -94,23 +104,40 @@ async function main() {
     join(process.cwd(), ".cache", "auto-model-sitemap.json");
 
   try {
-    await run(outputPath, startedAt);
+    await Promise.race([
+      run(outputPath, startedAt),
+      new Promise<never>((_, reject) => {
+        setTimeout(
+          () => reject(new Error(`Hard timeout after ${HARD_TIMEOUT_MS}ms — a request never returned`)),
+          HARD_TIMEOUT_MS
+        ).unref();
+      }),
+    ]);
   } catch (error) {
     // Per-model failures already resolve to `false` inside the loop below,
     // so this only fires for something more fundamental (e.g. 1C down
-    // hard enough that even fetchBrandModels can't get a brand list). Same
-    // reasoning as generate-seo-counts.ts: don't let that kill `next build`
-    // over stale-but-valid model data, unless there's no snapshot to fall
-    // back to yet.
+    // hard enough that even fetchBrandModels can't get a brand list, or the
+    // hard timeout above). Same reasoning as generate-seo-counts.ts: don't
+    // let that kill `next build` over stale-but-valid model data, unless
+    // there's no snapshot to fall back to yet.
     if (existsSync(outputPath)) {
       console.warn(
         "⚠️  Не вдалося оновити перелік моделей авто (1C недоступний) — залишаю попередній знімок:",
         error
       );
-      return;
+      // A request the race above lost interest in can still be dangling and
+      // keep the event loop (and the build) alive — force down regardless
+      // rather than trust it to ever settle.
+      process.exit(0);
     }
+    // No fallback snapshot exists yet — a genuine failure here should still
+    // fail the build (caught by main().catch below), not be silently OK'd.
     throw error;
   }
+
+  // Successful run() — same reasoning as the fallback branch: don't let an
+  // abandoned dangling request from a near-miss race keep this alive.
+  process.exit(0);
 }
 
 async function run(outputPath: string, startedAt: number) {
