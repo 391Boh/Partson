@@ -152,6 +152,32 @@ const hasPersistedAuthIntent = () => {
 
 export const getFirebaseAuthSnapshot = () => snapshot;
 
+// Admin-action call sites (getAdminToken in Data.tsx and friends) used to
+// read getFirebaseAuthSnapshot() synchronously. The real Firebase Auth
+// subscription is deliberately deferred until the first pointerdown/keydown
+// or a 500ms timeout (see scheduleFirebaseAuthSubscription) to keep it off
+// the critical path for guests. The bug: clicking an admin "edit" button IS
+// that first pointerdown — it kicks off the deferred subscription AND, in
+// the same synchronous handler, immediately reads the still-stale snapshot
+// before the async Firebase load has resolved. A genuinely logged-in admin
+// clicking edit as their first interaction on the page would see "Не
+// авторизовано" even though they're authenticated, because the check ran
+// before the subscription had a chance to confirm it. This waits for the
+// subscription to actually resolve (kicking it off immediately, not
+// deferred) instead of trusting whatever snapshot happens to exist yet.
+export const waitForFirebaseAuthReady = (): Promise<FirebaseAuthSnapshot> => {
+  ensureFirebaseAuthSubscription();
+  if (snapshot.ready) return Promise.resolve(snapshot);
+  return new Promise((resolve) => {
+    const listener = (next: FirebaseAuthSnapshot) => {
+      if (!next.ready) return;
+      listeners.delete(listener);
+      resolve(next);
+    };
+    listeners.add(listener);
+  });
+};
+
 export const publishFirebaseAuthUser = (user: User | null) => {
   try {
     sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);

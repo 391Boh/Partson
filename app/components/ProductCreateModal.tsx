@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { clearBrowserCatalogCache } from "app/components/Data";
-import { getFirebaseAuthSnapshot } from "app/lib/firebase-auth-state";
+import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
 import {
   formatProductImageSize,
   prepareProductImage,
@@ -143,7 +143,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   const handleSubmit = async () => {
     if (!fields.name.trim()) { setError("Введіть назву товару"); return; }
 
-    const snapshot = getFirebaseAuthSnapshot();
+    const snapshot = await waitForFirebaseAuthReady();
     const user = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
     if (!user) { setError("Не авторизовано"); return; }
     let token: string;

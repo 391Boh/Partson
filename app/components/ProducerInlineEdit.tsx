@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Check, Pencil, X } from "lucide-react";
 
-import { getFirebaseAuthSnapshot } from "app/lib/firebase-auth-state";
+import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
 
 type ProducerInlineEditProps = {
   code: string;
@@ -94,7 +94,7 @@ export default function ProducerInlineEdit({
     const toSave = (overrideValue ?? value).trim();
     if (!toSave) return;
 
-    const snapshot = getFirebaseAuthSnapshot();
+    const snapshot = await waitForFirebaseAuthReady();
     const user = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
     if (!user) {
       setError("Не авторизовано");

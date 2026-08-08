@@ -24,7 +24,7 @@ import {
   buildProductImagePath,
 } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
-import { getFirebaseAuthSnapshot } from "app/lib/firebase-auth-state";
+import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
 import {
   pushAnalyticsEvent,
   pushEcommerceEvent,
@@ -3885,7 +3885,7 @@ const Data: React.FC<DataProps> = ({
   }, []);
 
   const getAdminToken = useCallback(async (): Promise<string | null> => {
-    const snapshot = getFirebaseAuthSnapshot();
+    const snapshot = await waitForFirebaseAuthReady();
     if (!snapshot.user) return null;
     return (snapshot.user as { getIdToken: () => Promise<string> })
       .getIdToken()

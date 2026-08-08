@@ -4,7 +4,7 @@ import { Check, ChevronDown, ImagePlus, Minus, Package, Pencil, Plus, Settings2,
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { getFirebaseAuthSnapshot } from "app/lib/firebase-auth-state";
+import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { clearProductImageMissing, clearProductImageSuccess } from "app/lib/product-image-client";
 import { buildProductImageBatchKey } from "app/lib/product-image-path";
@@ -315,7 +315,7 @@ export default function ProductPageAdminEditPanel({
   };
 
   const getToken = async (): Promise<string | null> => {
-    const snapshot = getFirebaseAuthSnapshot();
+    const snapshot = await waitForFirebaseAuthReady();
     const user = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
     if (!user) return null;
     try { return await user.getIdToken(); } catch { return null; }
