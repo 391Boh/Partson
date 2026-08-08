@@ -118,6 +118,22 @@ export const buildManufacturersDirectoryData = async (
     });
   }
 
+  // Prefer the unfiltered per-producer total (queried directly against 1C,
+  // see app/lib/producer-total-counts.ts) over the price+photo-gated count
+  // above wherever it's available — a brand with real stock that just hasn't
+  // had photos/prices entered yet should still show its real product count
+  // here, matching what the manufacturer's own page already shows (see
+  // app/manufacturers/[slug]/page.tsx's live fallback count).
+  const producerTotalCounts = seoFacets.producerTotalCounts;
+  if (producerTotalCounts) {
+    for (const [slug, entry] of bySlug) {
+      const total = producerTotalCounts[slug];
+      if (typeof total === "number" && total > entry.productCount) {
+        entry.productCount = total;
+      }
+    }
+  }
+
   const clientProducers = Array.from(bySlug.values()).sort((left, right) =>
     left.label.localeCompare(right.label, "uk", { sensitivity: "base" })
   );

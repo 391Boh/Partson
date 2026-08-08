@@ -137,19 +137,27 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
     container.scrollTo({ left: targetLeft, behavior: 'smooth' });
   }, [brandPage]);
 
+  const brandScrollRafRef = useRef<number | null>(null);
   const handleBrandPagesScroll = useCallback(() => {
     if (brandScrollLockRef.current) return;
-    const container = brandPagesRef.current;
-    if (!container) return;
-    const pageWidth = container.clientWidth;
-    if (!pageWidth) return;
-    const nextPage = Math.round(container.scrollLeft / pageWidth);
-    if (nextPage !== brandPage) setBrandPage(nextPage);
+    if (brandScrollRafRef.current != null) return;
+    brandScrollRafRef.current = window.requestAnimationFrame(() => {
+      brandScrollRafRef.current = null;
+      const container = brandPagesRef.current;
+      if (!container) return;
+      const pageWidth = container.clientWidth;
+      if (!pageWidth) return;
+      const nextPage = Math.round(container.scrollLeft / pageWidth);
+      if (nextPage !== brandPage) setBrandPage(nextPage);
+    });
   }, [brandPage]);
 
   useEffect(() => {
     return () => {
       if (brandScrollUnlockTimerRef.current) clearTimeout(brandScrollUnlockTimerRef.current);
+      if (brandScrollRafRef.current != null) {
+        window.cancelAnimationFrame(brandScrollRafRef.current);
+      }
     };
   }, []);
 

@@ -715,7 +715,7 @@ const getStaticProductRecommendationsUncached = async (
   const entries = await getAllProductSitemapSnapshotEntries().catch(() => []);
   if (entries.length === 0) {
     return {
-      related: [] as RelatedProductCardItem[],
+      analogs: [] as RelatedProductCardItem[],
       similar: [] as RelatedProductCardItem[],
     };
   }
@@ -728,17 +728,30 @@ const getStaticProductRecommendationsUncached = async (
     targetProduct
   );
 
-  const relatedCandidates = candidates.filter(
-    (item) => scoreStaticRecommendation(item, targetProduct, "related") >= 7
-  );
-  const related = sortStaticRecommendationItems(
-    relatedCandidates,
+  // "Аналоги" means found by cross-reference: the target's own article/code
+  // number literally appears in the candidate's name (mirrors
+  // findAnalogProductsByArticleInName). A same-subgroup/producer match alone
+  // is NOT an analog — that's what the "similar" bucket below is for. Scoring
+  // by subgroup/producer here previously let unrelated same-subgroup products
+  // get mislabeled as analogs whenever live crossref search came back empty.
+  const targetArticle = normalizeLookupValue(targetProduct.article);
+  const targetCode = normalizeLookupValue(targetProduct.code);
+  const analogCandidates = candidates.filter((item) => {
+    if (!targetArticle && !targetCode) return false;
+    const itemName = normalizeLookupValue(buildVisibleProductName(item.name));
+    return (
+      (targetArticle.length >= 3 && itemName.includes(targetArticle)) ||
+      (targetCode.length >= 3 && itemName.includes(targetCode))
+    );
+  });
+  const analogs = sortStaticRecommendationItems(
+    analogCandidates,
     targetProduct,
     "related",
     MAX_RELATED_ITEMS
   );
-  const relatedIdentityKeys = new Set(
-    related.flatMap((item) => [
+  const analogIdentityKeys = new Set(
+    analogs.flatMap((item) => [
       normalizeLookupValue(item.code) ? `code:${normalizeLookupValue(item.code)}` : "",
       normalizeLookupValue(item.article) ? `article:${normalizeLookupValue(item.article)}` : "",
     ].filter(Boolean))
@@ -749,12 +762,12 @@ const getStaticProductRecommendationsUncached = async (
       normalizeLookupValue(item.code) ? `code:${normalizeLookupValue(item.code)}` : "",
       normalizeLookupValue(item.article) ? `article:${normalizeLookupValue(item.article)}` : "",
     ].filter(Boolean);
-    if (itemKeys.some((key) => relatedIdentityKeys.has(key))) return false;
+    if (itemKeys.some((key) => analogIdentityKeys.has(key))) return false;
     return scoreStaticRecommendation(item, targetProduct, "similar") >= 6;
   });
 
   return {
-    related,
+    analogs,
     similar: sortStaticRecommendationItems(
       similarCandidates,
       targetProduct,

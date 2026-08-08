@@ -85,6 +85,18 @@ const applyInline = (text: string): (string | React.ReactElement)[] => {
   });
 };
 
+// Authors rarely type "## " by hand. A standalone short line with no
+// sentence-ending punctuation (or ending in "?") reads as a section title in
+// practice — "Синтетична", "Як часто потрібно міняти моторну оливу?" — while
+// a normal sentence almost always ends in ".", "," ";" or ":". Only promotes
+// single-line paragraph blocks, so it never touches multi-line body text.
+const looksLikeAutoHeading = (line: string): boolean => {
+  const trimmed = line.trim();
+  if (trimmed.length < 3 || trimmed.length > 100) return false;
+  if (/[.,;:!]$/.test(trimmed)) return false;
+  return /[?)a-zа-яіїєґ'’0-9»"]$/iu.test(trimmed);
+};
+
 const parseContent = (content: string): BlockNode[] => {
   const lines = content.split("\n");
   const blocks: BlockNode[] = [];
@@ -92,7 +104,13 @@ const parseContent = (content: string): BlockNode[] => {
   let currentUl: string[] = [];
 
   const flushP = () => {
-    if (currentP.length > 0) { blocks.push({ type: "p", lines: [...currentP] }); currentP = []; }
+    if (currentP.length === 0) return;
+    if (currentP.length === 1 && looksLikeAutoHeading(currentP[0])) {
+      blocks.push({ type: "h2", text: currentP[0].trim() });
+    } else {
+      blocks.push({ type: "p", lines: [...currentP] });
+    }
+    currentP = [];
   };
   const flushUl = () => {
     if (currentUl.length > 0) { blocks.push({ type: "ul", items: [...currentUl] }); currentUl = []; }
@@ -165,6 +183,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const contentBlocks = parseContent(post.content);
   const extraImages = post.extraImages ?? [];
   const videoEmbedUrl = post.videoUrl ? getVideoEmbedUrl(post.videoUrl) : null;
+  // Not a recognized YouTube/Vimeo link but still a video URL — an uploaded
+  // file (see /api/blog/upload), play it natively instead of iframe-embedding.
+  const videoFileUrl = post.videoUrl && !videoEmbedUrl ? post.videoUrl : null;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -316,27 +337,27 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </div>
 
           {/* article content */}
-          <div className="space-y-5">
+          <div className="space-y-6">
             {(() => {
               let pIdx = 0;
               return contentBlocks.map((block, idx) => {
                 if (block.type === "h2") {
                   return (
-                    <h2 key={idx} className="mt-8 mb-2 text-[1.2rem] font-black leading-tight tracking-[-0.03em] text-slate-950 sm:text-[1.35rem]">
+                    <h2 key={idx} className="mt-9 mb-2.5 text-[1.2rem] font-black leading-tight tracking-[-0.03em] text-slate-950 sm:text-[1.35rem]">
                       {applyInline(block.text)}
                     </h2>
                   );
                 }
                 if (block.type === "h3") {
                   return (
-                    <h3 key={idx} className="mt-6 mb-1.5 text-[1rem] font-extrabold leading-tight tracking-[-0.02em] text-slate-800 sm:text-[1.08rem]">
+                    <h3 key={idx} className="mt-7 mb-1.5 text-[1rem] font-extrabold leading-tight tracking-[-0.02em] text-slate-800 sm:text-[1.08rem]">
                       {applyInline(block.text)}
                     </h3>
                   );
                 }
                 if (block.type === "ul") {
                   return (
-                    <ul key={idx} className="ml-4 space-y-1.5 list-disc">
+                    <ul key={idx} className="ml-4 space-y-2 list-disc marker:text-sky-400">
                       {block.items.map((item, iIdx) => (
                         <li key={iIdx} className="text-[15.5px] font-[440] leading-[1.8] text-slate-700 sm:text-[16px]">
                           {applyInline(item)}
@@ -351,8 +372,8 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 const isFirst = pIdx === 0;
                 pIdx++;
 
-                const makeText = (align: string) => (
-                  <p className={`text-[15.5px] font-[440] leading-[1.9] text-slate-700 sm:text-[16px] ${align}`}>
+                const paragraph = (
+                  <p className="text-[15.5px] font-[440] leading-[1.85] text-slate-700 sm:text-[16px]">
                     {block.lines.map((line, lIdx) =>
                       lIdx < block.lines.length - 1 ? (
                         <span key={lIdx}>{applyInline(line)}<br /></span>
@@ -365,39 +386,34 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
                 if (!img) {
                   return (
-                    <div key={idx} className="group relative">
+                    <div key={idx} className="relative">
                       {isFirst && (
                         <div className="absolute -left-4 top-1 bottom-1 w-[3px] rounded-full bg-gradient-to-b from-sky-400/70 to-sky-200/30 sm:-left-5" />
                       )}
-                      {!isFirst && (
-                        <div className="mb-5 h-px bg-gradient-to-r from-slate-200/70 via-slate-100/50 to-transparent" />
-                      )}
-                      {makeText("text-justify")}
+                      {paragraph}
                     </div>
                   );
                 }
 
                 return (
-                  <div key={idx}>
-                    {!isFirst && (
-                      <div className="mb-7 h-px bg-gradient-to-r from-slate-200/60 via-slate-100/40 to-transparent" />
-                    )}
-                    <div className={`flex flex-col gap-4 sm:items-start ${isEven ? "sm:flex-row" : "sm:flex-row-reverse"}`}>
-                      <div className="w-full shrink-0 sm:w-[250px] lg:w-[290px]">
-                        <div className="overflow-hidden rounded-[8px] border border-slate-200/60 shadow-[0_3px_14px_rgba(15,23,42,0.09)] transition-shadow hover:shadow-[0_6px_22px_rgba(15,23,42,0.13)]">
-                          <Image
-                            src={img}
-                            alt={`${post.title} — фото ${pIdx}`}
-                            width={580}
-                            height={400}
-                            unoptimized
-                            className="aspect-[4/3] w-full object-cover"
-                          />
-                        </div>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        {makeText(isEven ? "sm:text-right" : "text-justify")}
-                      </div>
+                  <div
+                    key={idx}
+                    className={`flex flex-col gap-4 sm:items-center ${
+                      isEven ? "sm:flex-row" : "sm:flex-row-reverse"
+                    }`}
+                  >
+                    <div className="w-full shrink-0 sm:w-[30%] sm:max-w-[260px]">
+                      <Image
+                        src={img}
+                        alt={`${post.title} — фото ${pIdx}`}
+                        width={580}
+                        height={400}
+                        unoptimized
+                        className="h-auto w-full rounded-[14px] object-contain shadow-[0_10px_30px_rgba(15,23,42,0.16)]"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {paragraph}
                     </div>
                   </div>
                 );
@@ -406,7 +422,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </div>
 
           {/* ── video ── */}
-          {videoEmbedUrl && (
+          {(videoEmbedUrl || videoFileUrl) && (
             <div className="mt-8">
               <div className="mb-4 flex items-center gap-3">
                 <div className="h-[2px] w-8 rounded-full bg-sky-400/60" />
@@ -414,17 +430,27 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 <div className="h-px flex-1 bg-gradient-to-r from-sky-200/50 to-transparent" />
               </div>
               <div
-                className="overflow-hidden rounded-[10px] border border-slate-200/60 shadow-[0_4px_18px_rgba(15,23,42,0.09)]"
+                className="overflow-hidden rounded-[10px] border border-slate-200/60 bg-slate-950 shadow-[0_4px_18px_rgba(15,23,42,0.09)]"
                 style={{ aspectRatio: "16/9" }}
               >
-                <iframe
-                  src={videoEmbedUrl}
-                  title={post.title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="h-full w-full"
-                  loading="lazy"
-                />
+                {videoEmbedUrl ? (
+                  <iframe
+                    src={videoEmbedUrl}
+                    title={post.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="h-full w-full"
+                    loading="lazy"
+                  />
+                ) : (
+                  <video
+                    src={videoFileUrl ?? undefined}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="h-full w-full object-contain"
+                  />
+                )}
               </div>
             </div>
           )}

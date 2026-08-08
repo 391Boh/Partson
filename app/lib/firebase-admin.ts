@@ -3,6 +3,7 @@ import "server-only";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 const readServiceAccount = () => {
   const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
@@ -53,3 +54,11 @@ const getFirebaseAdminApp = () => {
 export const getFirebaseAdminAuth = () => getAuth(getFirebaseAdminApp());
 
 export const getFirebaseAdminDb = () => getFirestore(getFirebaseAdminApp());
+
+const readStorageBucketName = () =>
+  process.env.FIREBASE_STORAGE_BUCKET ||
+  process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+  undefined;
+
+export const getFirebaseAdminBucket = () =>
+  getStorage(getFirebaseAdminApp()).bucket(readStorageBucketName());

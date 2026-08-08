@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
+import { transliterateCyrillicToLatin, fixLayoutUkrainianToEnglish } from "../lib/transliterate";
 
 interface Props {
   selectedBrand: string;
@@ -12,6 +13,24 @@ interface Props {
   onYearSelect: (year: number | null) => void;
   onCountChange?: (count: number) => void;
   compact?: boolean;
+  // Lets a parent (Auto.tsx) host the model search box in its own hero
+  // search bar instead of the compact field CarModels renders internally.
+  // Falls back to internal state when omitted (e.g. AutoFilterCompact.tsx).
+  searchTerm?: string;
+  onSearchTermChange?: (value: string) => void;
+  // Lets a parent (Auto.tsx) host the year-picker controls elsewhere in its
+  // own layout instead of the row CarModels renders internally. When
+  // provided, CarModels reports the data the controls need (bounds/loading/
+  // error) instead of rendering them itself. Falls back to rendering its
+  // own row when omitted (e.g. AutoFilterCompact.tsx).
+  onYearMetaChange?: (meta: YearMeta) => void;
+}
+
+export interface YearMeta {
+  bounds: { min: number; max: number } | null;
+  loading: boolean;
+  error: string | null;
+  hasOptions: boolean;
 }
 
 interface YearRange {
@@ -279,6 +298,9 @@ const extractErrorMessage = (text: string) => {
   onYearSelect,
   onCountChange,
   compact = false,
+  searchTerm: searchTermProp,
+  onSearchTermChange,
+  onYearMetaChange,
   }) => {
   const isCompact = Boolean(compact);
   const [isSmUp, setIsSmUp] = useState(() => {
@@ -294,7 +316,9 @@ const extractErrorMessage = (text: string) => {
   const [yearLoading, setYearLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [yearError, setYearError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [internalSearchTerm, setInternalSearchTerm] = useState("");
+  const searchTerm = searchTermProp ?? internalSearchTerm;
+  const setSearchTerm = onSearchTermChange ?? setInternalSearchTerm;
   const [modelPage, setModelPage] = useState(0);
   const [hasYearData, setHasYearData] = useState(false);
   const [yearInput, setYearInput] = useState("");
@@ -319,6 +343,15 @@ const extractErrorMessage = (text: string) => {
       max: Math.max(...yearOptions),
     };
   }, [yearOptions]);
+
+  useEffect(() => {
+    onYearMetaChange?.({
+      bounds: yearBounds,
+      loading: yearLoading,
+      error: yearError,
+      hasOptions: yearOptions.length > 0,
+    });
+  }, [onYearMetaChange, yearBounds, yearLoading, yearError, yearOptions.length]);
 
   useEffect(() => {
     if (selectedYear == null) {
@@ -403,7 +436,7 @@ const extractErrorMessage = (text: string) => {
     return () => {
       cancelled = true;
     };
-  }, [selectedBrand]);
+  }, [selectedBrand, setSearchTerm]);
 
   useEffect(() => {
     if (hasYearData) return;
@@ -499,7 +532,21 @@ const extractErrorMessage = (text: string) => {
         : modelsForYear ?? models;
 
     if (!term) return baseModels;
-    return baseModels.filter((model) => model.toLowerCase().includes(term));
+
+    // Model names are Latin, like car brands (Auto.tsx) — so besides typing
+    // Cyrillic phonetically, also recover a query typed with Ukrainian
+    // layout active by mistake (e.g. "ігдa" meant to be "golf").
+    const transliteratedTerm = transliterateCyrillicToLatin(term);
+    const layoutFixedTerm = fixLayoutUkrainianToEnglish(term);
+
+    return baseModels.filter((model) => {
+      const name = model.toLowerCase();
+      return (
+        name.includes(term) ||
+        name.includes(transliteratedTerm) ||
+        (layoutFixedTerm !== term && name.includes(layoutFixedTerm))
+      );
+    });
   }, [models, modelsForYear, searchTerm, selectedYear, modelYearMap]);
 
   useEffect(() => {
@@ -510,7 +557,7 @@ const extractErrorMessage = (text: string) => {
   const compactModelCols = isSmUp ? 4 : 2;
   const modelsPerPage = isCompact
     ? compactModelRows * compactModelCols
-    : isSmUp ? 8 : 6;
+    : 8;
   const totalModelPages = Math.max(
     1,
     Math.ceil(filteredModels.length / modelsPerPage)
@@ -538,6 +585,14 @@ const extractErrorMessage = (text: string) => {
     return result;
   }, [modelYearMap]);
   const modelPagesRef = useRef<HTMLDivElement | null>(null);
+  const modelPagesScrollRafRef = useRef(0);
+  useEffect(() => {
+    return () => {
+      if (modelPagesScrollRafRef.current) {
+        window.cancelAnimationFrame(modelPagesScrollRafRef.current);
+      }
+    };
+  }, []);
   const getModelPageWidth = useCallback(() => {
     const container = modelPagesRef.current;
     if (!container) return 0;
@@ -571,15 +626,19 @@ const extractErrorMessage = (text: string) => {
   }, [modelPage, totalModelPages, scrollToModelPage]);
 
   const handleModelPagesScroll = useCallback(() => {
-    const container = modelPagesRef.current;
-    if (!container) return;
-    const pageWidth = getModelPageWidth();
-    if (!pageWidth) return;
-    const nextPage = Math.max(
-      0,
-      Math.min(totalModelPages - 1, Math.round(container.scrollLeft / pageWidth))
-    );
-    setModelPage((prev) => (prev === nextPage ? prev : nextPage));
+    if (modelPagesScrollRafRef.current) return;
+    modelPagesScrollRafRef.current = window.requestAnimationFrame(() => {
+      modelPagesScrollRafRef.current = 0;
+      const container = modelPagesRef.current;
+      if (!container) return;
+      const pageWidth = getModelPageWidth();
+      if (!pageWidth) return;
+      const nextPage = Math.max(
+        0,
+        Math.min(totalModelPages - 1, Math.round(container.scrollLeft / pageWidth))
+      );
+      setModelPage((prev) => (prev === nextPage ? prev : nextPage));
+    });
   }, [totalModelPages, getModelPageWidth]);
 
   const canGoPrev = safeModelPage > 0;
@@ -801,10 +860,10 @@ const extractErrorMessage = (text: string) => {
                             type="button"
                             onClick={() => onModelSelect(model)}
                             title={model}
-                            className={`flex h-8 items-center justify-center rounded-lg border px-1.5 text-center text-[9px] font-semibold uppercase tracking-[0.04em] leading-tight transition-all duration-200 active:scale-[0.96] ${
+                            className={`flex h-8 items-center justify-center rounded-lg border px-1.5 text-center text-[9px] font-semibold uppercase tracking-[0.04em] leading-tight transition-[border-color,background-color,box-shadow,color] duration-300 ease-out active:scale-[0.96] ${
                               isActive
                                 ? "border-sky-400/50 bg-sky-500 text-white shadow-[0_3px_10px_rgba(14,165,233,0.25)]"
-                                : "border-slate-200/70 bg-white text-slate-600 hover:border-sky-200 hover:bg-sky-50/60"
+                                : "border-sky-200/95 bg-white text-slate-600 shadow-[0_2px_6px_rgba(15,23,42,0.06)] hover:border-sky-500 hover:bg-sky-50/70 hover:text-sky-900 hover:shadow-[0_6px_16px_rgba(2,132,199,0.16)]"
                             }`}
                           >
                             <span className="line-clamp-2">{model}</span>
@@ -827,107 +886,85 @@ const extractErrorMessage = (text: string) => {
       className="w-full mx-auto flex flex-col gap-2 sm:gap-2.5"
     >
       <div className="flex flex-col gap-2 sm:gap-2.5">
-        <div className="flex items-center gap-2 w-full">
-          <div className="relative flex-1 min-w-0">
-            <svg
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sky-500/70"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-5-5" />
-            </svg>
-            <input
-              type="text"
-              placeholder={LABEL_SEARCH_MODEL}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full rounded-xl border border-slate-200/80 bg-white px-10 py-2.5 text-sm font-semibold text-slate-700 placeholder:text-slate-400 shadow-[0_2px_8px_rgba(15,23,42,0.06)] outline-none transition-all duration-200 focus:border-sky-400 focus:ring-4 focus:ring-sky-200/60 hover:border-sky-300/70 hover:shadow-[0_4px_14px_rgba(14,165,233,0.14)]"
-              data-search="true"
-            />
+        {searchTermProp === undefined && (
+          <div className="flex items-center gap-2 w-full">
+            <div className="relative flex-1 min-w-0">
+              <svg
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sky-500/70"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-5-5" />
+              </svg>
+              <input
+                type="text"
+                placeholder={LABEL_SEARCH_MODEL}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-10 py-2.5 text-sm font-semibold text-slate-800 placeholder:font-normal placeholder:text-slate-400 shadow-[inset_0_1px_2px_rgba(15,23,42,0.03)] outline-none transition-[background-color,border-color,box-shadow] duration-300 ease-out hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(59,130,246,0.10)]"
+                data-search="true"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-sky-100/90 bg-gradient-to-r from-sky-50/70 to-blue-50/50 px-3 py-2 shadow-sm">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-600/80 whitespace-nowrap">
-            {LABEL_PRODUCTION_YEAR}
-          </span>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-500 shadow-sm transition-all duration-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-600 hover:shadow-[0_3px_8px_rgba(14,165,233,0.18)] active:scale-[0.92] disabled:opacity-35"
-              onClick={handleDecreaseYear}
-              disabled={!canDecreaseYear}
-              aria-label={LABEL_PREV_YEAR}
-            >
-              <ChevronLeft size={12} />
-            </button>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={yearInput}
-              onChange={(e) => handleYearInputChange(e.target.value)}
-              className="h-8 w-[68px] rounded-xl border border-slate-200/80 bg-white px-2 text-center text-[13px] font-bold text-slate-700 shadow-sm placeholder:text-slate-300 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200/80 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.10)]"
-              placeholder="——"
-            />
-            <button
-              type="button"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-500 shadow-sm transition-all duration-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-600 hover:shadow-[0_3px_8px_rgba(14,165,233,0.18)] active:scale-[0.92] disabled:opacity-35"
-              onClick={handleIncreaseYear}
-              disabled={!canIncreaseYear}
-              aria-label={LABEL_NEXT_YEAR}
-            >
-              <ChevronRight size={12} />
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={clearYearSelection}
-            disabled={selectedYear == null && yearInput.trim() === ""}
-            className="rounded-full border border-slate-200/80 bg-white px-3 py-1 text-[10px] font-semibold text-slate-500 shadow-sm transition-all duration-150 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
-          >
-            {LABEL_CLEAR_YEAR}
-          </button>
-          {yearBounds && (
-            <span className="text-[10px] font-semibold text-sky-600/60 hidden sm:inline">
-              {yearBounds.min}–{yearBounds.max}
+        {!onYearMetaChange && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-sky-100/90 bg-gradient-to-r from-sky-50/70 to-blue-50/50 px-3 py-2 shadow-sm">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-600/80 whitespace-nowrap">
+              {LABEL_PRODUCTION_YEAR}
             </span>
-          )}
-
-          <div className="ml-auto inline-flex items-center gap-1.5 rounded-xl border border-sky-200/70 bg-gradient-to-r from-white via-sky-50/70 to-white px-1.5 py-1.5 shadow-[0_6px_16px_rgba(8,145,178,0.12),0_2px_6px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.95)]">
-            <button
-              type="button"
-              onClick={handlePrevPage}
-              disabled={!canGoPrev}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
-              aria-label={LABEL_PREV_PAGE}
-            >
-              <ChevronLeft size={15} />
-            </button>
-            <div className="flex min-w-[42px] items-center justify-center gap-0.5 rounded-lg border border-sky-100/80 bg-white/90 px-2 py-1 shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)]">
-              <span className="text-[12px] font-extrabold text-sky-600">{safeModelPage + 1}</span>
-              <span className="text-[10px] font-semibold text-slate-300">/</span>
-              <span className="text-[12px] font-bold text-slate-400">{totalModelPages}</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-500 shadow-sm transition-all duration-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-600 hover:shadow-[0_3px_8px_rgba(14,165,233,0.18)] active:scale-[0.92] disabled:opacity-35"
+                onClick={handleDecreaseYear}
+                disabled={!canDecreaseYear}
+                aria-label={LABEL_PREV_YEAR}
+              >
+                <ChevronLeft size={12} />
+              </button>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={yearInput}
+                onChange={(e) => handleYearInputChange(e.target.value)}
+                className="h-8 w-[68px] rounded-xl border border-slate-200/80 bg-white px-2 text-center text-[13px] font-bold text-slate-700 shadow-sm placeholder:text-slate-300 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200/80 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.10)]"
+                placeholder="——"
+              />
+              <button
+                type="button"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-500 shadow-sm transition-all duration-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-600 hover:shadow-[0_3px_8px_rgba(14,165,233,0.18)] active:scale-[0.92] disabled:opacity-35"
+                onClick={handleIncreaseYear}
+                disabled={!canIncreaseYear}
+                aria-label={LABEL_NEXT_YEAR}
+              >
+                <ChevronRight size={12} />
+              </button>
             </div>
             <button
               type="button"
-              onClick={handleNextPage}
-              disabled={!canGoNext}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
-              aria-label={LABEL_NEXT_PAGE}
+              onClick={clearYearSelection}
+              disabled={selectedYear == null && yearInput.trim() === ""}
+              className="rounded-full border border-slate-200/80 bg-white px-3 py-1 text-[10px] font-semibold text-slate-500 shadow-sm transition-all duration-150 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
             >
-              <ChevronRight size={15} />
+              {LABEL_CLEAR_YEAR}
             </button>
+            {yearBounds && (
+              <span className="ml-auto text-[10px] font-semibold text-sky-600/60">
+                {yearBounds.min}–{yearBounds.max}
+              </span>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
-      {(yearError || (!yearLoading && yearOptions.length === 0)) && (
+      {!onYearMetaChange && (yearError || (!yearLoading && yearOptions.length === 0)) && (
         <div className="mt-0 text-xs text-blue-600/80 flex flex-col gap-0.5 px-1">
           {yearError && (
             <span className="text-red-500 font-semibold">{yearError}</span>
@@ -961,15 +998,27 @@ const extractErrorMessage = (text: string) => {
               </p>
             )}
 
-            <div
-              ref={modelPagesRef}
-              onScroll={handleModelPagesScroll}
-              className="no-scrollbar group/logogrid mt-2 overflow-x-auto overflow-y-hidden overscroll-x-contain sm:mt-3 [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
-            >
+            <div className="relative mt-2 px-7 sm:mt-3 sm:px-10">
+              {totalModelPages > 1 && (
+                <button
+                  type="button"
+                  onClick={handlePrevPage}
+                  disabled={!canGoPrev}
+                  className="absolute left-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
+                  aria-label={LABEL_PREV_PAGE}
+                >
+                  <ChevronLeft size={34} strokeWidth={2.6} />
+                </button>
+              )}
+              <div
+                ref={modelPagesRef}
+                onScroll={handleModelPagesScroll}
+                className="no-scrollbar group/logogrid overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
+              >
               <div className="flex">
               {modelPages.map((page, pageIndex) => (
                 <div key={pageIndex} data-model-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 place-items-stretch">
+                <div className="grid grid-cols-4 gap-1.5 sm:gap-2.5 place-items-stretch">
               {page.map((model) => {
                 const isActive = selectedModel === model;
                 const yr = modelYearRanges[model];
@@ -984,17 +1033,16 @@ const extractErrorMessage = (text: string) => {
                     type="button"
                     onClick={() => onModelSelect(model)}
                     title={yearLabel ? `${model} (${yearLabel})` : model}
-                    className={`group relative flex min-h-[56px] flex-col justify-center overflow-hidden rounded-xl border px-3 py-2 text-left transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:min-h-[64px] ${
+                    className={`group/category relative flex min-h-[72px] flex-col items-center justify-center overflow-hidden rounded-[16px] border px-3 py-2.5 text-center transition-[border-color,background-color,box-shadow] duration-500 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:min-h-[86px] ${
                       isActive
                         ? "border-sky-400/60 bg-sky-500 text-white shadow-[0_6px_22px_rgba(14,165,233,0.38)] ring-1 ring-sky-300/60"
-                        : "border-slate-200/60 bg-white text-slate-700 shadow-[0_2px_6px_rgba(15,23,42,0.07)] hover:border-sky-400/70 hover:shadow-[0_12px_32px_rgba(14,165,233,0.28)]"
+                        : "border-sky-200/95 bg-[radial-gradient(circle_at_50%_-8%,rgba(125,211,252,0.44),transparent_48%),linear-gradient(150deg,#ffffff_0%,#f3faff_50%,#e9f8ff_100%)] text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.09),0_3px_9px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 hover:border-sky-500 hover:bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] hover:shadow-[0_22px_40px_rgba(2,132,199,0.26),0_0_0_3px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,1)]"
                     }`}
                   >
-                    <span className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-sky-50/0 to-blue-100/0 transition-all duration-300 group-hover:from-sky-50 group-hover:to-blue-100/70" />
-                    <span className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-inset ring-transparent transition-all duration-300 group-hover:ring-sky-400/40" />
-                    <span className={`relative truncate text-[14px] font-semibold leading-tight tracking-[0.02em] sm:text-[15px] ${isActive ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.18)]" : "text-slate-800 group-hover:text-sky-800"}`}>{model}</span>
+                    <span className="pointer-events-none absolute inset-0 shadow-[inset_0_2px_6px_rgba(15,23,42,0.06)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.10),inset_0_0_0_1px_rgba(2,132,199,0.06)]" />
+                    <span className={`relative line-clamp-2 w-full text-[14px] font-semibold leading-tight tracking-[0.02em] transition-colors duration-300 ease-out sm:text-[15px] ${isActive ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.18)]" : "text-slate-800 group-hover/category:text-sky-900"}`}>{model}</span>
                     {yearLabel && (
-                      <span className={`relative mt-1 text-[11px] font-semibold leading-none tracking-[0.03em] ${isActive ? "text-sky-100" : "text-slate-400 group-hover:text-sky-600/80"}`}>
+                      <span className={`relative mt-1 text-[11px] font-semibold leading-none tracking-[0.03em] transition-colors duration-300 ease-out ${isActive ? "text-sky-100" : "text-slate-400 group-hover/category:text-sky-600/80"}`}>
                         {yearLabel}
                       </span>
                     )}
@@ -1008,7 +1056,31 @@ const extractErrorMessage = (text: string) => {
                 </div>
               ))}
               </div>
+              </div>
+              {totalModelPages > 1 && (
+                <button
+                  type="button"
+                  onClick={handleNextPage}
+                  disabled={!canGoNext}
+                  className="absolute right-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
+                  aria-label={LABEL_NEXT_PAGE}
+                >
+                  <ChevronRight size={34} strokeWidth={2.6} />
+                </button>
+              )}
             </div>
+            {totalModelPages > 1 && (
+              <div className="relative mt-3 flex min-h-9 items-center justify-center px-2 sm:px-3">
+                <div className="inline-flex items-center gap-2 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">
+                  <span className="h-px w-4 bg-gradient-to-r from-transparent to-cyan-500/75 sm:w-6" />
+                  <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
+                  <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(14,116,144,0.14)]">{safeModelPage + 1}</span>
+                  <span className="font-semibold text-cyan-400">/</span>
+                  <span className="font-extrabold text-slate-500">{totalModelPages}</span>
+                  <span className="h-px w-4 bg-gradient-to-l from-transparent to-cyan-500/75 sm:w-6" />
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

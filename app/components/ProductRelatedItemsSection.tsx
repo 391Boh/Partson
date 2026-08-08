@@ -1,7 +1,11 @@
 import "server-only";
 
 import type { RelatedProductCardItem } from "app/lib/product-related";
-import { getAnalogProducts, getSimilarProducts } from "app/lib/product-related";
+import {
+  getAnalogProducts,
+  getSimilarProducts,
+  getStaticProductRecommendations,
+} from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import ProductRelatedItemsClientSection from "app/components/ProductRelatedItemsClientSection";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
@@ -68,7 +72,7 @@ export default async function ProductRelatedItemsSection({
   const subGroup = (product.subGroup || "").trim();
   const category = (product.category || "").trim();
 
-  const [initialRelatedItems, initialSimilarItems] = isProductionBuildPhase
+  let [initialRelatedItems, initialSimilarItems] = isProductionBuildPhase
     ? [null, null]
     : await Promise.all([
         resolveWithTimeout<RelatedProductCardItem[] | null>(
@@ -82,6 +86,25 @@ export default async function ProductRelatedItemsSection({
           RELATED_SSR_TIMEOUT_MS
         ).then((items) => (items && items.length > 0 ? items : null)),
       ]);
+
+  // Same static-sitemap fallback as /api/product-analogs and /api/product-similar
+  // (see app/lib/product-related.ts) so the first paint already has both blocks
+  // instead of one popping in after a client-side refetch.
+  if (!isProductionBuildPhase && (initialRelatedItems === null || initialSimilarItems === null)) {
+    const staticRecommendations = await resolveWithTimeout(
+      () =>
+        getStaticProductRecommendations(article, code, name, producer, group, subGroup, category),
+      { analogs: [], similar: [] },
+      RELATED_SSR_TIMEOUT_MS
+    );
+
+    if (initialRelatedItems === null && staticRecommendations.analogs.length > 0) {
+      initialRelatedItems = staticRecommendations.analogs;
+    }
+    if (initialSimilarItems === null && staticRecommendations.similar.length > 0) {
+      initialSimilarItems = staticRecommendations.similar;
+    }
+  }
 
   const recommendationItemListJsonLd = buildRecommendationItemListJsonLd(
     initialRelatedItems ?? [],

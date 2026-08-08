@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type CatalogSearchTotalCountClientProps = {
@@ -134,8 +134,15 @@ export default function CatalogSearchTotalCountClient({
     return () => window.removeEventListener("partson:price-filter-state", handlePriceFilter);
   }, []);
 
-  // Reset the previous query's live total when the active query changes.
+  // Reset the previous query's live total when the active query actually
+  // changes. This effect's deps fire on mount too, which used to wipe the
+  // filterTotal that the window-globals effect above had just set from
+  // Data's live dispatch — leaving the stale SSR fallback count on screen
+  // until a later dispatch (e.g. loading the next page) overwrote it again.
+  const previousCountQueryRef = useRef(countQuery);
   useEffect(() => {
+    if (previousCountQueryRef.current === countQuery) return;
+    previousCountQueryRef.current = countQuery;
     setFilterTotal(null);
     setPriceFilterActive(false);
   }, [countQuery]);

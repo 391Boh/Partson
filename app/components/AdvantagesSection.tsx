@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import { Star } from "lucide-react";
 import {
   ArrowUpRightIcon,
-  CheckBadgeIcon,
   ChatBubbleLeftRightIcon,
   SparklesIcon,
   Squares2X2Icon,
   TruckIcon,
 } from "@heroicons/react/24/outline";
-import AdvantagesPhotoSlider from "./AdvantagesPhotoSlider";
 
 const STORE_MAPS_URL =
   "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu&g_ep=EgoyMDI2MDUxNy4wIKXMDSoASAFQAw%3D%3D";
@@ -29,10 +29,10 @@ type AdvantagePanel = {
   eyebrow: string;
   summary: ReactNode;
   points: string[];
+  image: { src: string; alt: string };
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   iconTone: string;
-  glowTone: string;
-  markerTone: string;
+  dotTone: string;
   ctaTone: string;
   cta: string;
   action: { type: "link"; href: string } | { type: "chat"; message: string };
@@ -49,10 +49,13 @@ const advantagePanels: AdvantagePanel[] = [
       "Оригінал чи аналог — пояснюємо різницю та ризики.",
       "Перевіряємо сумісність до оплати, не після.",
     ],
+    image: {
+      src: "/storefront/photos/partson-store-1.jpg",
+      alt: "Фасад магазину PartsON у Львові з логотипами VW, Audi, BMW, Mercedes, Toyota, Honda, Hyundai, Skoda, Peugeot, Volvo, Kia",
+    },
     icon: ChatBubbleLeftRightIcon,
     iconTone: "bg-sky-100 text-sky-700 border-sky-200/90",
-    glowTone: "bg-sky-200/45",
-    markerTone: "bg-sky-50 text-sky-700 border-sky-200/80",
+    dotTone: "bg-sky-500",
     ctaTone: "text-sky-700",
     cta: "Написати в чат",
     action: {
@@ -72,11 +75,14 @@ const advantagePanels: AdvantagePanel[] = [
       "Щітки склоочисника Bosch Aerotwin, датчики, електроніка.",
       "Розумний баланс ціни, якості й реальної наявності товару.",
     ],
+    image: {
+      src: "/storefront/photos/partson-store-4.jpg",
+      alt: "Моторні оливи GM, Mercedes-Benz, Ford Motorcraft, ELF Evolution, Mobil Super у каталозі PartsON",
+    },
     icon: Squares2X2Icon,
-    iconTone: "bg-indigo-100 text-indigo-700 border-indigo-200/90",
-    glowTone: "bg-indigo-200/40",
-    markerTone: "bg-indigo-50 text-indigo-700 border-indigo-200/80",
-    ctaTone: "text-indigo-700",
+    iconTone: "bg-cyan-100 text-cyan-700 border-cyan-200/90",
+    dotTone: "bg-cyan-500",
+    ctaTone: "text-cyan-700",
     cta: "Перейти в каталог",
     action: { type: "link", href: "/katalog" },
   },
@@ -90,11 +96,14 @@ const advantagePanels: AdvantagePanel[] = [
       "Доставка по Україні для приватних і бізнес-клієнтів.",
       "Оплата карткою, онлайн, при отриманні або за безготівковим рахунком.",
     ],
+    image: {
+      src: "/storefront/photos/partson-store-2.jpg",
+      alt: "Стенд автотоварів Bosch і Vitol: компресори, пускові пристрої, домкрати, буксирні троси",
+    },
     icon: TruckIcon,
-    iconTone: "bg-emerald-100 text-emerald-700 border-emerald-200/90",
-    glowTone: "bg-emerald-200/40",
-    markerTone: "bg-emerald-50 text-emerald-700 border-emerald-200/80",
-    ctaTone: "text-emerald-700",
+    iconTone: "bg-blue-100 text-blue-700 border-blue-200/90",
+    dotTone: "bg-blue-500",
+    ctaTone: "text-blue-700",
     cta: "Умови доставки й оплати",
     action: { type: "link", href: "/inform/delivery" },
   },
@@ -181,8 +190,8 @@ const AdvantagesSection = ({
                     Купити автозапчастини у Львові з підбором за VIN, артикулом і маркою авто
                   </h2>
 
-                  <div className="mt-4 grid gap-x-8 gap-y-3 lg:grid-cols-2">
-                    <p className="text-[14px] leading-relaxed text-slate-700 sm:text-[15px]">
+                  <div className="mt-4 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+                    <p className="max-w-2xl text-[14px] leading-relaxed text-slate-700 sm:text-[15px]">
                       <PartsOnLink /> - інтернет-магазин і магазин автозапчастин у Львові за адресою
                       {" "}
                       <a
@@ -197,26 +206,28 @@ const AdvantagesSection = ({
                       <a href="tel:+380634211851" className="font-extrabold text-sky-800 transition hover:text-sky-600">
                         +38 (063) 421-18-51
                       </a>
-                      . Ми швидко підбираємо сумісні деталі за VIN-кодом, артикулом, кодом товару
-                      або маркою авто — Volkswagen, Audi, BMW, Mercedes-Benz, Toyota, Honda, Hyundai,
-                      Nissan, Skoda, Peugeot, Renault, Volvo, Kia, Mazda, Seat, Lexus, Mitsubishi,
-                      Chevrolet, Citroën, Ford, Fiat та інших.
+                      . Працюємо з деталями для <strong className="font-extrabold text-slate-900">Volkswagen, Audi, BMW, Mercedes-Benz, Toyota,
+                      Honda, Hyundai</strong>, Nissan, Skoda, Peugeot, Renault, Volvo, Kia, Mazda, Seat, Lexus,
+                      Mitsubishi, Chevrolet, Citroën, Ford, Fiat та інших марок — детальніше про підбір,
+                      каталог і доставку читайте нижче.
                     </p>
-                    <p className="text-[14px] leading-relaxed text-slate-600 sm:text-[15px]">
-                      У каталозі <PartsOnLink /> — оригінальні автозапчастини та перевірені аналоги
-                      для щоденного ремонту й планового ТО. Забрати замовлення можна самовивозом у
-                      Львові або отримати доставкою по Україні: підкажемо наявність, терміни
-                      постачання та зручний спосіб оплати.
-                    </p>
+
+                    {googleRating.reviewCount && googleRating.reviewCount > 0 ? (
+                      <a
+                        href={STORE_MAPS_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200/80 bg-amber-50/90 px-3 py-1.5 text-[12px] font-bold text-amber-800 shadow-[0_6px_14px_rgba(245,158,11,0.14)] backdrop-blur-sm transition hover:border-amber-300 hover:bg-amber-50"
+                      >
+                        <Star className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+                        {(googleRating.ratingValue ?? 4.4).toFixed(1)}
+                        <span className="font-semibold text-amber-700/80">
+                          · {googleRating.reviewCount} відгуків Google
+                        </span>
+                      </a>
+                    ) : null}
                   </div>
                 </div>
-              </div>
-
-              <div className="relative mt-6 lg:mt-7">
-                <AdvantagesPhotoSlider
-                  ratingValue={googleRating.ratingValue}
-                  reviewCount={googleRating.reviewCount}
-                />
               </div>
             </div>
           </div>
@@ -231,40 +242,44 @@ const AdvantagesSection = ({
                 <>
                   <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(125,211,252,0.12),transparent_42%)]" />
 
-                  <div className="relative flex min-h-[5.8rem] items-start gap-4">
-                    <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center">
-                      <span
-                        className={`pointer-events-none absolute inset-0 rounded-[16px] blur-xl ${item.glowTone}`}
+                  <div className="relative">
+                    <div className="relative aspect-[16/10] overflow-hidden rounded-[16px] shadow-[0_10px_22px_rgba(15,23,42,0.12)] ring-1 ring-inset ring-white/60">
+                      <Image
+                        src={item.image.src}
+                        alt={item.image.alt}
+                        fill
+                        sizes="(min-width: 1024px) 33vw, 100vw"
+                        quality={62}
+                        className="object-cover transition-transform duration-500 ease-out group-hover/panel:scale-[1.05]"
                       />
-                      <span
-                        className={`relative inline-flex h-14 w-14 items-center justify-center rounded-[16px] border shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_22px_rgba(15,23,42,0.06)] ${item.iconTone}`}
-                      >
-                        <Icon className="h-6 w-6" />
-                      </span>
-                    </span>
-
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                        {item.eyebrow}
-                      </p>
-                      <h3 className="mt-1 text-[22px] font-black leading-[1.02] tracking-[-0.04em] text-slate-900">
-                        {item.title}
-                      </h3>
                     </div>
+                    <span
+                      className={`absolute -bottom-3 left-3 inline-flex h-10 w-10 items-center justify-center rounded-[12px] border bg-white/95 shadow-[0_8px_18px_rgba(15,23,42,0.16)] backdrop-blur-sm ${item.iconTone}`}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </span>
                   </div>
 
-                  <p className="relative mt-4 min-h-[5.3rem] text-[14px] leading-relaxed text-slate-700 sm:text-[15px]">
+                  <div className="relative mt-6 min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      {item.eyebrow}
+                    </p>
+                    <h3 className="mt-1 text-[22px] font-black leading-[1.02] tracking-[-0.04em] text-slate-900">
+                      {item.title}
+                    </h3>
+                  </div>
+
+                  <p className="relative mt-4 text-[14px] leading-relaxed text-slate-700 sm:text-[15px]">
                     {item.summary}
                   </p>
 
                   <ul className="relative mt-5 space-y-3">
                     {item.points.map((point) => (
-                      <li key={point} className="flex items-start gap-3">
+                      <li key={point} className="flex items-start gap-2.5">
                         <span
-                          className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${item.markerTone}`}
-                        >
-                          <CheckBadgeIcon className="h-3.5 w-3.5" />
-                        </span>
+                          className={`mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full ${item.dotTone}`}
+                          aria-hidden
+                        />
                         <span className="min-w-0 text-[13px] leading-relaxed text-slate-600">
                           {point}
                         </span>

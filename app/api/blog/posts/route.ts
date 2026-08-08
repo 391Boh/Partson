@@ -5,6 +5,11 @@ import { FieldValue } from "firebase-admin/firestore";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { getFirebaseAdminAuth, getFirebaseAdminDb } from "app/lib/firebase-admin";
 import { buildSeoSlug } from "app/lib/seo-slug";
+import {
+  isBlogImageValue,
+  isBlogVideoValue,
+  MAX_BLOG_MEDIA_URL_LENGTH,
+} from "app/lib/blog-media";
 
 export const runtime = "nodejs";
 
@@ -15,12 +20,12 @@ const ADMIN_EMAILS = new Set(
     .filter(Boolean)
 );
 
+// Images/video are now uploaded separately to Storage (see /api/blog/upload)
+// and only their short URL travels in this payload, so in practice this is
+// never close to being hit anymore — kept as an abuse guard, and generous
+// enough to still take a legacy inline data-URI image if one is ever resent.
 const MAX_PAYLOAD_BYTES = 1.1 * 1024 * 1024;
-const MAX_IMAGE_DATA_URL_LENGTH = 900 * 1024;
-const DATA_URI_REGEX =
-  /^data:image\/(?:jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/i;
-const VIDEO_URL_REGEX =
-  /^https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/|vimeo\.com\/)[\w?=&%-]{1,100}$/i;
+const MAX_LEGACY_IMAGE_DATA_URL_LENGTH = 900 * 1024;
 
 const json = (payload: unknown, status = 200) =>
   new NextResponse(JSON.stringify(payload), {
@@ -106,26 +111,26 @@ export async function POST(request: NextRequest) {
   const requestedSlug = readString(body.slug, { max: 120 });
   const imageAlt = readString(body.imageAlt, { max: 160 });
   const imageDataUrl = readString(body.imageDataUrl, {
-    max: MAX_IMAGE_DATA_URL_LENGTH,
+    max: MAX_LEGACY_IMAGE_DATA_URL_LENGTH,
   });
-  const rawVideoUrl = readString(body.videoUrl, { max: 300 });
-  const videoUrl = rawVideoUrl && VIDEO_URL_REGEX.test(rawVideoUrl) ? rawVideoUrl : "";
+  const rawVideoUrl = readString(body.videoUrl, { max: MAX_BLOG_MEDIA_URL_LENGTH });
+  const videoUrl = rawVideoUrl && isBlogVideoValue(rawVideoUrl) ? rawVideoUrl : "";
 
   if (!title) return json({ ok: false, error: "Title is required" }, 400);
   if (!excerpt) return json({ ok: false, error: "Excerpt is required" }, 400);
   if (!content) return json({ ok: false, error: "Content is required" }, 400);
-  if (imageDataUrl && !DATA_URI_REGEX.test(imageDataUrl)) {
+  if (imageDataUrl && !isBlogImageValue(imageDataUrl)) {
     return json({ ok: false, error: "Invalid image format" }, 400);
   }
   if (rawVideoUrl && !videoUrl) {
-    return json({ ok: false, error: "Invalid video URL (YouTube/Vimeo only)" }, 400);
+    return json({ ok: false, error: "Invalid video URL or file" }, 400);
   }
 
   const rawExtraImages = Array.isArray(body.extraImages) ? body.extraImages as unknown[] : [];
   const extraImages = rawExtraImages
     .filter((v): v is string => typeof v === "string")
     .map((v) => v.trim())
-    .filter((v) => v.length > 0 && v.length <= MAX_IMAGE_DATA_URL_LENGTH && DATA_URI_REGEX.test(v))
+    .filter((v) => v.length > 0 && v.length <= MAX_LEGACY_IMAGE_DATA_URL_LENGTH && isBlogImageValue(v))
     .slice(0, 6);
 
   const slug = await createUniqueSlug(buildSeoSlug(requestedSlug || title));

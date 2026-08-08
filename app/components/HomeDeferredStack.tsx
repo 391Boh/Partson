@@ -1,8 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 
 import SectionBoundary from "./SectionBoundary";
+import { scheduleIdle } from "app/lib/schedule-idle";
 
 // Keep the placeholders close to the rendered height at every layout
 // breakpoint. The sections become much taller in the one/two-column layouts;
@@ -61,6 +63,30 @@ export default function HomeDeferredStack({
   initialSyncedBrands?: InitialSyncedBrand[];
   initialProductTree?: unknown;
 }) {
+  // These three sections used to all start their dynamic import in the same
+  // render, immediately on mount. Each is a heavy client bundle (framer-motion
+  // + a few dozen DOM nodes), and having all three resolve and commit within
+  // the same task is what produced ~150ms main-thread blocks — measured via
+  // the Long Tasks API — landing right as a user scrolls past them on a fresh
+  // homepage load. Staggering by a short delay per section keeps every chunk
+  // requested almost immediately (still not scroll-triggered — the comment
+  // below explains why that matters) while spreading their commits across
+  // separate tasks so scroll input can interleave between them.
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    if (stage >= 2) return;
+    return scheduleIdle(() => setStage((prev) => Math.min(2, prev + 1)));
+  }, [stage]);
+
+  // Warm both chunks' network fetch immediately, independent of `stage` —
+  // only the render commit is deferred above. import() de-dupes against the
+  // in-flight promise dynamic() later awaits, so this loses no load time
+  // while still keeping the two commits apart.
+  useEffect(() => {
+    loadAutoSection();
+    loadBrandsSection();
+  }, []);
+
   return (
     <>
       {/* These sections deliberately render from the first pass. Deferring
@@ -80,15 +106,23 @@ export default function HomeDeferredStack({
       </section>
 
       <section className="section-reveal home-section-stage relative w-full">
-        <SectionBoundary title="Модуль підбору авто тимчасово недоступний">
-          <Auto playEntranceAnimations={false} showSummary />
-        </SectionBoundary>
+        {stage >= 1 ? (
+          <SectionBoundary title="Модуль підбору авто тимчасово недоступний">
+            <Auto playEntranceAnimations={false} showSummary />
+          </SectionBoundary>
+        ) : (
+          <AutoSectionFallback />
+        )}
       </section>
 
       <section className="section-reveal home-section-stage relative w-full">
-        <SectionBoundary title="Модуль брендів тимчасово недоступний">
-          <BrandCarousel playEntranceAnimations={false} initialSyncedBrands={initialSyncedBrands} />
-        </SectionBoundary>
+        {stage >= 2 ? (
+          <SectionBoundary title="Модуль брендів тимчасово недоступний">
+            <BrandCarousel playEntranceAnimations={false} initialSyncedBrands={initialSyncedBrands} />
+          </SectionBoundary>
+        ) : (
+          <BrandsSectionFallback />
+        )}
       </section>
     </>
   );

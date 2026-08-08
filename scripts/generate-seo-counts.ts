@@ -31,6 +31,8 @@ async function main() {
   const { buildCatalogSeoFacetsFromSitemapEntries } = await import(
     "app/lib/catalog-count-fallback"
   );
+  const { getProducerTotalCounts } = await import("app/lib/producer-total-counts");
+  const { brands } = await import("app/components/brandsData");
 
   const outputPath =
     process.env.SEO_COUNTS_SNAPSHOT_PATH ||
@@ -76,8 +78,25 @@ async function main() {
   );
   const facets = buildCatalogSeoFacetsFromSitemapEntries(publicEntries);
 
+  // Unfiltered per-producer totals (see app/lib/producer-total-counts.ts) —
+  // queried across every brand the manufacturer directory can show: the
+  // static brand list plus any producer 1C surfaced through the priced/
+  // photographed scan above but that isn't in that static list.
+  console.log("🚀 Опитування 1C для лічильників товарів по кожному виробнику...");
+  const producerLabelsToQuery = [
+    ...brands.map((brand) => brand.name),
+    ...facets.producers.map((producer) => producer.label),
+  ];
+  const producerTotalCounts = await getProducerTotalCounts(producerLabelsToQuery).catch(
+    (error) => {
+      console.warn("⚠️  Не вдалося опитати лічильники товарів по виробниках:", error);
+      return {} as Record<string, number>;
+    }
+  );
+  const facetsWithProducerTotals = { ...facets, producerTotalCounts };
+
   mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, `${JSON.stringify(facets)}\n`, "utf8");
+  writeFileSync(outputPath, `${JSON.stringify(facetsWithProducerTotals)}\n`, "utf8");
   mkdirSync(dirname(productSnapshotPath), { recursive: true });
   writeFileSync(
     productSnapshotPath,
@@ -103,6 +122,9 @@ async function main() {
   console.log(`✅ Товарів у SEO-індексі: ${facets.totalProductCount}`);
   console.log(`✅ Груп: ${facets.groups.length}`);
   console.log(`✅ Виробників: ${facets.producers.length}`);
+  console.log(
+    `✅ Неотфільтровані лічильники товарів по виробниках: ${Object.keys(producerTotalCounts).length}/${new Set(producerLabelsToQuery.map((label) => label.trim())).size}`
+  );
   console.log(`🎉 SEO-лічильники збережено: ${outputPath}`);
   console.log(`🎉 Product sitemap snapshot збережено: ${productSnapshotPath}`);
   console.log(

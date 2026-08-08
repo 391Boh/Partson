@@ -3,9 +3,22 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ImagePlus, Loader2, Pencil, Plus, Save, Trash2, Video, X } from "lucide-react";
+import {
+  AlertCircle,
+  FileVideo,
+  ImagePlus,
+  Loader2,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  Video,
+  X,
+} from "lucide-react";
 
 import { auth } from "../../../firebase";
+import { MAX_BLOG_IMAGE_BYTES, MAX_BLOG_VIDEO_BYTES } from "app/lib/blog-media";
+import { uploadBlogMedia } from "app/lib/blog-upload-client";
 
 interface BlogAdminActionsProps {
   slug: string;
@@ -18,8 +31,7 @@ interface BlogAdminActionsProps {
   initialVideoUrl?: string;
 }
 
-const MAX_IMAGE_BYTES = 650 * 1024;
-const DATA_URI_REGEX = /^data:image\/(?:jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/i;
+const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
 
 export default function BlogAdminActions({
   slug,
@@ -41,6 +53,9 @@ export default function BlogAdminActions({
   // Track which image fields were actually changed by the user
   const [imageChanged, setImageChanged] = useState(false);
   const [extraImagesChanged, setExtraImagesChanged] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingExtraIndex, setUploadingExtraIndex] = useState<number | null>(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
 
   const [form, setForm] = useState({
     title: initialTitle,
@@ -116,26 +131,58 @@ export default function BlogAdminActions({
     // No finally — on success we reload the page, so state updates are irrelevant
   };
 
-  const handleImageFile = (file: File | undefined, type: "main" | number) => {
+  const handleImageFile = async (file: File | undefined, type: "main" | number) => {
     if (!file) return;
-    if (file.size > MAX_IMAGE_BYTES) { setError("Зображення занадто велике (макс 650 KB)"); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      if (!DATA_URI_REGEX.test(result)) { setError("Невірний формат зображення"); return; }
+    if (!file.type.startsWith("image/")) { setError("Оберіть файл зображення."); return; }
+    if (file.size > MAX_BLOG_IMAGE_BYTES) {
+      setError(`Зображення завелике. Максимум ${formatMb(MAX_BLOG_IMAGE_BYTES)}.`);
+      return;
+    }
+
+    if (type === "main") setUploadingImage(true);
+    else setUploadingExtraIndex(type);
+    try {
+      const token = await getToken();
+      const url = await uploadBlogMedia(file, "image", token);
       if (type === "main") {
         setImageChanged(true);
-        setForm((prev) => ({ ...prev, imageDataUrl: result }));
+        setForm((prev) => ({ ...prev, imageDataUrl: url }));
       } else {
         setExtraImagesChanged(true);
         setForm((prev) => {
           const imgs = [...prev.extraImages];
-          imgs[type] = result;
+          imgs[type] = url;
           return { ...prev, extraImages: imgs };
         });
       }
-    };
-    reader.readAsDataURL(file);
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не вдалося завантажити зображення.");
+    } finally {
+      if (type === "main") setUploadingImage(false);
+      else setUploadingExtraIndex(null);
+    }
+  };
+
+  const handleVideoFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("video/")) { setError("Оберіть відеофайл."); return; }
+    if (file.size > MAX_BLOG_VIDEO_BYTES) {
+      setError(`Відео завелике. Максимум ${formatMb(MAX_BLOG_VIDEO_BYTES)}.`);
+      return;
+    }
+
+    setUploadingVideo(true);
+    try {
+      const token = await getToken();
+      const url = await uploadBlogMedia(file, "video", token);
+      setForm((prev) => ({ ...prev, videoUrl: url }));
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не вдалося завантажити відео.");
+    } finally {
+      setUploadingVideo(false);
+    }
   };
 
   return (
@@ -231,7 +278,7 @@ export default function BlogAdminActions({
               {/* main image */}
               <div>
                 <label className="mb-1 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Основне фото</label>
-                <label className="flex h-28 cursor-pointer items-center justify-center overflow-hidden rounded-[10px] border border-dashed border-sky-200 bg-sky-50/60 transition hover:border-sky-400">
+                <label className="relative flex h-28 cursor-pointer items-center justify-center overflow-hidden rounded-[10px] border border-dashed border-sky-200 bg-sky-50/60 transition hover:border-sky-400">
                   {form.imageDataUrl ? (
                     <Image
                       src={form.imageDataUrl}
@@ -244,14 +291,20 @@ export default function BlogAdminActions({
                   ) : (
                     <span className="flex flex-col items-center gap-1 text-sky-600">
                       <ImagePlus size={20} />
-                      <span className="text-[11px] font-semibold">Додати фото</span>
+                      <span className="text-[11px] font-semibold">Додати фото (до {formatMb(MAX_BLOG_IMAGE_BYTES)})</span>
+                    </span>
+                  )}
+                  {uploadingImage && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-white/80">
+                      <Loader2 className="h-5 w-5 animate-spin text-sky-600" aria-hidden="true" />
                     </span>
                   )}
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/gif"
                     className="sr-only"
-                    onChange={(e) => handleImageFile(e.target.files?.[0], "main")}
+                    disabled={uploadingImage}
+                    onChange={(e) => { void handleImageFile(e.target.files?.[0], "main"); e.target.value = ""; }}
                   />
                 </label>
                 {form.imageDataUrl && (
@@ -297,13 +350,18 @@ export default function BlogAdminActions({
                           </button>
                         </>
                       ) : (
-                        <label className="flex h-full w-full cursor-pointer items-center justify-center rounded-[8px] border border-dashed border-slate-200 bg-slate-50 transition hover:border-sky-300 hover:bg-sky-50">
-                          <Plus size={14} className="text-slate-400" />
+                        <label className="relative flex h-full w-full cursor-pointer items-center justify-center rounded-[8px] border border-dashed border-slate-200 bg-slate-50 transition hover:border-sky-300 hover:bg-sky-50">
+                          {uploadingExtraIndex === i ? (
+                            <Loader2 size={14} className="animate-spin text-sky-500" />
+                          ) : (
+                            <Plus size={14} className="text-slate-400" />
+                          )}
                           <input
                             type="file"
                             accept="image/jpeg,image/png,image/webp,image/gif"
                             className="sr-only"
-                            onChange={(e) => handleImageFile(e.target.files?.[0], i)}
+                            disabled={uploadingExtraIndex !== null}
+                            onChange={(e) => { void handleImageFile(e.target.files?.[0], i); e.target.value = ""; }}
                           />
                         </label>
                       )}
@@ -324,15 +382,35 @@ export default function BlogAdminActions({
 
               <div>
                 <label className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
-                  <Video size={11} strokeWidth={2.2} /> Відео (YouTube / Vimeo)
+                  <Video size={11} strokeWidth={2.2} /> Відео
                 </label>
                 <input
                   value={form.videoUrl}
                   onChange={(e) => setForm((p) => ({ ...p, videoUrl: e.target.value }))}
-                  placeholder="https://www.youtube.com/watch?v=..."
+                  placeholder="Посилання YouTube / Vimeo"
                   className="w-full rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
                   maxLength={300}
                 />
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="h-px flex-1 bg-slate-100" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">або</span>
+                  <div className="h-px flex-1 bg-slate-100" />
+                </div>
+                <label className="mt-1.5 flex cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-dashed border-sky-200 bg-sky-50/60 px-3 py-2 text-[12.5px] font-bold text-sky-700 transition hover:border-sky-400">
+                  {uploadingVideo ? (
+                    <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                  ) : (
+                    <FileVideo size={14} aria-hidden="true" />
+                  )}
+                  {uploadingVideo ? "Завантаження..." : `Завантажити файл (до ${formatMb(MAX_BLOG_VIDEO_BYTES)})`}
+                  <input
+                    type="file"
+                    accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                    className="sr-only"
+                    disabled={uploadingVideo}
+                    onChange={(e) => { void handleVideoFile(e.target.files?.[0]); e.target.value = ""; }}
+                  />
+                </label>
                 {form.videoUrl && (
                   <button
                     type="button"

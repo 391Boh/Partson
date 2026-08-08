@@ -71,6 +71,11 @@ export interface CatalogSeoFacets {
   producers: SeoProducerFacet[];
   totalProductCount: number;
   generatedAt: string;
+  // Optional, separate from the price+photo-gated counts above — see
+  // app/lib/producer-total-counts.ts. Keyed by producer slug. Only the
+  // manufacturer directory (app/lib/manufacturers-directory-data.ts) reads
+  // this; everything else keeps using the gated productCount per producer.
+  producerTotalCounts?: Record<string, number>;
 }
 
 export const EMPTY_CATALOG_SEO_FACETS: CatalogSeoFacets = {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getAnalogProducts } from "app/lib/product-related";
+import { getAnalogProducts, getStaticProductRecommendations } from "app/lib/product-related";
 
 const PRODUCT_ANALOGS_API_TIMEOUT_MS = 4200;
 const PRODUCT_ANALOGS_LIMIT = 6;
@@ -70,7 +70,24 @@ export async function GET(request: Request) {
       );
     }
 
-    const items = result.slice(0, PRODUCT_ANALOGS_LIMIT);
+    let items = result.slice(0, PRODUCT_ANALOGS_LIMIT);
+
+    // Live search can legitimately come back empty (no article cross-reference
+    // found in 1C names). Fall back to the static sitemap-based recommendations
+    // so the analogs block still has something to show alongside "схожі".
+    if (items.length === 0) {
+      const staticRecommendations = await getStaticProductRecommendations(
+        article,
+        code,
+        name,
+        producer,
+        group,
+        subGroup,
+        category
+      ).catch(() => ({ analogs: [], similar: [] }));
+      items = staticRecommendations.analogs.slice(0, PRODUCT_ANALOGS_LIMIT);
+    }
+
     return NextResponse.json(
       { items, retryable: false },
       {

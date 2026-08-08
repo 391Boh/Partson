@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 
 import { getFirebaseAdminAuth, getFirebaseAdminDb } from "app/lib/firebase-admin";
+import {
+  isBlogImageValue,
+  isBlogVideoValue,
+  MAX_BLOG_MEDIA_URL_LENGTH,
+} from "app/lib/blog-media";
 
 export const runtime = "nodejs";
 
@@ -13,11 +18,10 @@ const ADMIN_EMAILS = new Set(
     .filter(Boolean)
 );
 
+// See app/api/blog/posts/route.ts — images/video now travel as short Storage
+// URLs, this only stays generous for legacy inline data-URI images.
 const MAX_PAYLOAD_BYTES = 1.1 * 1024 * 1024;
-const MAX_IMAGE_DATA_URL_LENGTH = 900 * 1024;
-const DATA_URI_REGEX = /^data:image\/(?:jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/i;
-const VIDEO_URL_REGEX =
-  /^https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/|vimeo\.com\/)[\w?=&%-]{1,100}$/i;
+const MAX_LEGACY_IMAGE_DATA_URL_LENGTH = 900 * 1024;
 
 const json = (payload: unknown, status = 200) =>
   new NextResponse(JSON.stringify(payload), {
@@ -93,7 +97,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const img = body.imageDataUrl.trim();
     if (img === "") {
       updates.imageDataUrl = null;
-    } else if (img.length <= MAX_IMAGE_DATA_URL_LENGTH && DATA_URI_REGEX.test(img)) {
+    } else if (img.length <= MAX_LEGACY_IMAGE_DATA_URL_LENGTH && isBlogImageValue(img)) {
       updates.imageDataUrl = img;
     } else {
       return json({ ok: false, error: "Invalid image" }, 400);
@@ -104,7 +108,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     updates.extraImages = (body.extraImages as unknown[])
       .filter((v): v is string => typeof v === "string")
       .map((v) => v.trim())
-      .filter((v) => v.length > 0 && v.length <= MAX_IMAGE_DATA_URL_LENGTH && DATA_URI_REGEX.test(v))
+      .filter((v) => v.length > 0 && v.length <= MAX_LEGACY_IMAGE_DATA_URL_LENGTH && isBlogImageValue(v))
       .slice(0, 6);
   }
 
@@ -112,10 +116,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const v = body.videoUrl.trim();
     if (v === "") {
       updates.videoUrl = null;
-    } else if (v.length <= 300 && VIDEO_URL_REGEX.test(v)) {
+    } else if (v.length <= MAX_BLOG_MEDIA_URL_LENGTH && isBlogVideoValue(v)) {
       updates.videoUrl = v;
     } else {
-      return json({ ok: false, error: "Invalid video URL (YouTube/Vimeo only)" }, 400);
+      return json({ ok: false, error: "Invalid video URL or file" }, 400);
     }
   }
 

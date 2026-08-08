@@ -6,7 +6,7 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import type { ProductNode } from "./FlipCard";
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
-import { ArrowLeft, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Search, Layers3, X, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   fetchCatalogVersionHash,
   readCatalogBrowserCache,
@@ -18,6 +18,7 @@ import { PRODUCT_IMAGE_BATCH_MAX_ITEMS } from "app/lib/product-image-constants";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { safeSetStorageItem } from "app/lib/safe-storage";
 import { getCategoryIconPath } from "app/lib/category-icons";
+import { transliterateLatinToUkrainian, stripSoftSign, fixLayoutEnglishToUkrainian } from "app/lib/transliterate";
 import groupPreviewManifest from "app/generated/group-preview-manifest";
 
 interface CategoryRow {
@@ -292,9 +293,10 @@ const readFirstArray = (
 
 const treeKey = (value: string) => normalizeLabel(value).toLocaleLowerCase("uk-UA");
 
-const nodeMatchesSearch = (node: ProductNode, query: string): boolean => {
-  if (treeKey(node.name).includes(query)) return true;
-  return (node.children ?? []).some((child) => nodeMatchesSearch(child, query));
+const nodeMatchesSearch = (node: ProductNode, queries: string[]): boolean => {
+  const key = stripSoftSign(treeKey(node.name));
+  if (queries.some((query) => key.includes(stripSoftSign(query)))) return true;
+  return (node.children ?? []).some((child) => nodeMatchesSearch(child, queries));
 };
 
 const transformNode = (node: unknown, depth = 0): ProductNode => {
@@ -665,7 +667,7 @@ const ProductSearchInput = React.memo(
       const examples = suggestions.filter(Boolean).slice(0, 6);
       if (examples.length === 0) return;
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        setAnimatedPlaceholder(`Наприклад: ${examples[0]}`);
+        setAnimatedPlaceholder(examples[0]);
         return;
       }
 
@@ -677,7 +679,7 @@ const ProductSearchInput = React.memo(
       const tick = () => {
         const example = examples[exampleIndex];
         characterIndex += isDeleting ? -1 : 1;
-        setAnimatedPlaceholder(`Наприклад: ${example.slice(0, characterIndex)}`);
+        setAnimatedPlaceholder(example.slice(0, characterIndex));
 
         let delay = isDeleting ? 38 : 68;
         if (!isDeleting && characterIndex >= example.length) {
@@ -709,7 +711,7 @@ const ProductSearchInput = React.memo(
           }}
           placeholder={animatedPlaceholder}
           aria-label="\u0412\u0432\u0435\u0434\u0456\u0442\u044c \u043d\u0430\u0437\u0432\u0443 \u0433\u0440\u0443\u043f\u0438 \u0430\u0431\u043e \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u0457"
-          className="h-11 w-full rounded-[16px] border-0 bg-white pl-11 pr-11 text-[15px] font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,1)] outline-none transition-[background-color,box-shadow] duration-300 placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:text-slate-800 focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,1)] select-text sm:h-12"
+          className="h-11 w-full rounded-[16px] border-0 bg-white pl-11 pr-10 text-[15px] font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,1)] outline-none transition-[background-color,box-shadow] duration-300 placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:text-slate-800 focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,1)] select-text sm:h-12"
           data-search="true"
         />
         {searchTerm && (
@@ -879,14 +881,37 @@ const ProductFetcher: React.FC<Props> = ({
     });
   }, [normalizedProducts]);
 
-  const filteredRows = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    if (!query) return rows;
+  // Computed once per search-term change and shared by filteredRows (quick
+  // search suggestions) and browseNodes (group browser) below, instead of
+  // each running its own transliteration/layout-fix pass on every render.
+  const searchQueryVariants = useMemo(() => {
+    const rawTerm = searchTerm.trim();
+    if (!rawTerm) return null;
+    return {
+      rawTerm,
+      transliteratedRaw: transliterateLatinToUkrainian(rawTerm),
+      layoutFixedRaw: fixLayoutEnglishToUkrainian(rawTerm),
+    };
+  }, [searchTerm]);
 
-    return rows.filter((row) =>
-      `${row.group} ${row.path.join(" ")}`.toLowerCase().includes(query)
-    );
-  }, [rows, searchTerm]);
+  const filteredRows = useMemo(() => {
+    if (!searchQueryVariants) return rows;
+    const query = searchQueryVariants.rawTerm.toLowerCase();
+    const transliteratedQuery = stripSoftSign(searchQueryVariants.transliteratedRaw.toLowerCase());
+    // Also try recovering the query as if it was typed with English layout
+    // active by mistake (e.g. "ufkmvsdyf" meant to be "гальмівна").
+    const layoutFixedQuery = stripSoftSign(searchQueryVariants.layoutFixedRaw.toLowerCase());
+
+    return rows.filter((row) => {
+      const haystack = `${row.group} ${row.path.join(" ")}`.toLowerCase();
+      const strippedHaystack = stripSoftSign(haystack);
+      return (
+        haystack.includes(query) ||
+        (transliteratedQuery !== query && strippedHaystack.includes(transliteratedQuery)) ||
+        (layoutFixedQuery !== query && strippedHaystack.includes(layoutFixedQuery))
+      );
+    });
+  }, [rows, searchQueryVariants]);
 
   const displayedRows = useMemo(
     () => filteredRows.slice(0, QUICK_SEARCH_MAX_ROWS),
@@ -916,18 +941,28 @@ const ProductFetcher: React.FC<Props> = ({
   }, [filteredGroups]);
   const browseNodes = useMemo(
     () => {
-      const query = treeKey(searchTerm.trim());
-      if (!query) {
+      if (!searchQueryVariants) {
         return currentBrowseNode ? (currentBrowseNode.children ?? []) : filteredGroups;
       }
+      // The underlying data is Ukrainian, unlike car brands (Auto.tsx),
+      // which are Latin — so alongside the raw query we also match against
+      // it transliterated from Latin to Ukrainian, and as if English
+      // keyboard layout was active by mistake instead of Ukrainian (a
+      // QWERTY position remap, not a phonetic one).
+      const query = treeKey(searchQueryVariants.rawTerm);
+      const transliteratedQuery = treeKey(searchQueryVariants.transliteratedRaw);
+      const layoutFixedQuery = treeKey(searchQueryVariants.layoutFixedRaw);
+      const queries = Array.from(
+        new Set([query, transliteratedQuery, layoutFixedQuery].filter(Boolean))
+      );
       // A search always looks across every category, regardless of which one
       // (if any) is currently open — narrowing to just the active category
       // would hide matches the user is explicitly asking for.
       return filteredGroups.flatMap((category) =>
-        (category.children ?? []).filter((group) => nodeMatchesSearch(group, query))
+        (category.children ?? []).filter((group) => nodeMatchesSearch(group, queries))
       );
     },
-    [currentBrowseNode, filteredGroups, searchTerm]
+    [currentBrowseNode, filteredGroups, searchQueryVariants]
   );
   const browseItemsPerPage = itemsPerPage;
   const totalPages = Math.max(1, Math.ceil(browseNodes.length / browseItemsPerPage));
@@ -1246,8 +1281,19 @@ const ProductFetcher: React.FC<Props> = ({
       >
             <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-cyan-200/25 blur-3xl transition-opacity duration-300 group-hover/search:opacity-80" />
             <div className="relative">
-              <div className="flex w-full items-center justify-between gap-2.5 min-[480px]:gap-4 sm:gap-5">
-                <div className="w-[52%] min-w-[160px] max-w-[400px] shrink-0 border-r border-sky-200/80 pr-2.5 min-[480px]:pr-4 sm:w-[400px] sm:pr-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
+                <div className="order-1 min-w-0 sm:order-2 sm:flex-1 sm:pl-2 sm:text-right">
+                  <div className="flex items-center gap-2 sm:justify-end sm:gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500/90 to-cyan-400/90 text-white shadow-[0_8px_18px_rgba(14,165,233,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] sm:h-11 sm:w-11 sm:rounded-[18px] sm:order-2">
+                      <Layers3 size={17} strokeWidth={2.3} aria-hidden className="sm:h-5 sm:w-5" />
+                    </span>
+                    <h2 className="font-display text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:order-1 sm:text-[22px]">
+                      Швидкий пошук необхідної запчастини за декілька секунд!
+                    </h2>
+                  </div>
+                  <p className="mt-1 hidden text-[11px] leading-relaxed text-slate-500 sm:block">Введіть назву — результати з’являться одразу.</p>
+                </div>
+                <div className="order-2 w-full min-w-0 sm:order-1 sm:w-[400px] sm:max-w-[400px] sm:shrink-0 sm:border-r sm:border-sky-200/80 sm:pr-5">
                   <ProductSearchInput
                     searchTerm={searchTerm}
                     onSearchChange={setSearchTerm}
@@ -1260,12 +1306,6 @@ const ProductFetcher: React.FC<Props> = ({
                     </strong>
                     {!showSkeleton && <> {pluralWord(filteredRows.length, "група", "групи", "груп")}</>}
                   </span>
-                </div>
-                <div className="min-w-0 flex-1 pl-0.5 min-[480px]:pl-1 sm:pl-2">
-                  <h2 className="font-display text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:text-[22px]">
-                    Швидкий пошук необхідної запчастини за декілька секунд!
-                  </h2>
-                  <p className="mt-1 hidden text-[11px] leading-relaxed text-slate-500 sm:block">Введіть назву — результати з’являться одразу.</p>
                 </div>
               </div>
 
@@ -1497,7 +1537,6 @@ const ProductFetcher: React.FC<Props> = ({
                             <span className="pointer-events-none absolute inset-x-6 top-0 h-[3px] rounded-full bg-gradient-to-r from-transparent via-sky-500 to-cyan-400 opacity-55 transition-opacity duration-300 group-hover/category:opacity-100" />
                             <span className="pointer-events-none absolute inset-0 shadow-[inset_0_2px_6px_rgba(15,23,42,0.06)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.10),inset_0_0_0_1px_rgba(2,132,199,0.06)]" />
                             <span className="relative mb-2 flex h-[70px] w-full items-center justify-center sm:h-[82px]">
-                              <span className="pointer-events-none absolute h-16 w-16 rounded-full bg-cyan-400/0 blur-2xl transition-[background-color] duration-300 ease-out group-hover/category:bg-cyan-400/35 sm:h-20 sm:w-20" />
                               <Image
                                 src={getCategoryIconPath(label)}
                                 alt=""

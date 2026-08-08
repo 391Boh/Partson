@@ -730,6 +730,7 @@ const Category: React.FC<CategoryProps> = ({
     subgroup: "Знайти підгрупу товарів",
   };
 
+  const categoryCarouselScrollRafRef = useRef<number | null>(null);
   const updateCategoryCarouselState = () => {
     const carousel = categoryCarouselRef.current;
     if (!carousel) return;
@@ -738,6 +739,14 @@ const Category: React.FC<CategoryProps> = ({
     setCategoryCarouselState({
       canGoBack: carousel.scrollLeft > 4,
       canGoForward: maxScrollLeft - carousel.scrollLeft > 4,
+    });
+  };
+
+  const handleCategoryCarouselScroll = () => {
+    if (categoryCarouselScrollRafRef.current != null) return;
+    categoryCarouselScrollRafRef.current = window.requestAnimationFrame(() => {
+      categoryCarouselScrollRafRef.current = null;
+      updateCategoryCarouselState();
     });
   };
 
@@ -763,6 +772,9 @@ const Category: React.FC<CategoryProps> = ({
     return () => {
       window.cancelAnimationFrame(frame);
       resizeObserver.disconnect();
+      if (categoryCarouselScrollRafRef.current != null) {
+        window.cancelAnimationFrame(categoryCarouselScrollRafRef.current);
+      }
     };
   }, [filteredCategoryItems.length, isSearchMode, step]);
 
@@ -950,7 +962,7 @@ const Category: React.FC<CategoryProps> = ({
                     </button>
                     <div
                       ref={categoryCarouselRef}
-                      onScroll={updateCategoryCarouselState}
+                      onScroll={handleCategoryCarouselScroll}
                       className="flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-3"
                     >
                     {filteredCategoryItems.map((item, itemIndex) => {

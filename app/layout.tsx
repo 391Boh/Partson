@@ -10,7 +10,7 @@ import { WebVitalsReporter } from "./components/WebVitalsReporter";
 import AnalyticsRuntime from "./components/AnalyticsRuntime";
 import DeferredFooter from "./components/DeferredFooter";
 import {
-  STORE_PHONE_SEO_LABEL,
+  buildSeoContactLine,
   trimSeoDescription,
 } from "./lib/seo-metadata";
 import { getSiteUrl } from "./lib/site-url";
@@ -157,10 +157,10 @@ const analyticsConsentBootstrap = `
 `;
 
 const rootDescription = trimSeoDescription(
-  `PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні. ${STORE_PHONE_SEO_LABEL}.`
+  `${buildSeoContactLine()} PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні.`
 );
 const rootSocialDescription = trimSeoDescription(
-  `Автозапчастини у Львові — каталог PartsON з підбором за VIN, кодом та артикулом, великим асортиментом і доставкою по Україні. ${STORE_PHONE_SEO_LABEL}.`
+  `${buildSeoContactLine()} Автозапчастини у Львові — каталог PartsON з підбором за VIN, кодом та артикулом, великим асортиментом і доставкою по Україні.`
 );
 
 export const metadata: Metadata = {

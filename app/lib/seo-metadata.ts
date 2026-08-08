@@ -69,8 +69,11 @@ export const trimSeoDescription = (
 };
 
 export const buildSeoContactLine = () =>
-  `${STORE_PHONE_SEO_LABEL}. ${STORE_ADDRESS_SEO_LABEL}.`;
+  `${STORE_ADDRESS_SEO_LABEL}. ${STORE_PHONE_DISPLAY}.`;
 
+// Contact info leads every description (address, then a plain phone number
+// with no icon) so it's the first thing visible in a cut-off search snippet,
+// followed by the page-specific text.
 export const appendSeoContact = (
   value: string,
   maxLength = SEO_DESCRIPTION_MAX_LENGTH
@@ -80,7 +83,7 @@ export const appendSeoContact = (
   const baseMaxLength = Math.max(72, maxLength - contactLine.length - 1);
   const base = trimSeoDescription(normalizedValue, baseMaxLength);
 
-  return trimSeoDescription(`${base} ${contactLine}`, maxLength);
+  return trimSeoDescription(`${contactLine} ${base}`, maxLength);
 };
 
 type BuildPageMetadataOptions = {

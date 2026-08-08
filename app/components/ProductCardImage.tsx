@@ -19,6 +19,15 @@ import {
 
 const FINAL_RETRY_DELAY_MS = 60;
 const DEFERRED_DIRECT_LOAD_DELAY_MS = 90;
+// disableDirectLoad otherwise blocks a card indefinitely while it waits for
+// the shared page-level batch (see Data.tsx's directCatalogImageKey/
+// batchImageOnly). That batch is usually fast, but a cold first request
+// (fresh session, nothing warmed in 1C yet — most common on a catalog's very
+// first page) plus a slower "deep recovery" round for any misses can leave a
+// card stuck on its skeleton far longer than this timeout, with no fallback.
+// Release it to its own direct request once this elapses instead of waiting
+// forever for the shared pipeline to finish.
+const DISABLE_DIRECT_LOAD_RELEASE_MS = 1400;
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
@@ -278,6 +287,22 @@ const ProductCardImage: React.FC<Props> = ({
     return () => window.clearTimeout(timeoutId);
   }, [disableDirectLoad, finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
 
+  // Safety net: force this card off the shared batch and onto its own direct
+  // request if disableDirectLoad has kept it waiting too long.
+  useEffect(() => {
+    if (!hasKnownPhoto) return;
+    if (!disableDirectLoad) return;
+    if (!primarySrc) return;
+    if (requestSrc) return;
+
+    const timeoutId = window.setTimeout(() => {
+      if (statusRef.current === "loaded" || requestSrcRef.current) return;
+      setRequestSrc(primarySrc);
+      setStatus("retrying");
+    }, DISABLE_DIRECT_LOAD_RELEASE_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [disableDirectLoad, hasKnownPhoto, primarySrc, requestSrc]);
 
   const handleError = useCallback(() => {
     clearProductImageSuccess(normalizedCode, normalizedArticle || undefined);

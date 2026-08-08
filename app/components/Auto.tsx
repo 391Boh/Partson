@@ -2,14 +2,26 @@
 
 import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
-import { Car, Check, ChevronLeft, ChevronRight, HelpCircle, Plus, KeyRound, MessageCircle } from "lucide-react";
+import Link from "next/link";
+import { Car, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Info, Plus, Search, X } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { User } from "firebase/auth";
 import dynamic from "next/dynamic";
 import { carBrands, CarBrand } from "../components/carBrands";
+import { transliterateCyrillicToLatin, fixLayoutUkrainianToEnglish } from "../lib/transliterate";
+import type { YearMeta } from "./CarModels";
 
 const CarModels = dynamic(() => import("./CarModels"), { ssr: false });
 const CarModifications = dynamic(() => import("./CarModifications"), { ssr: false });
+
+const pluralWord = (n: number | null, one: string, few: string, many: string) => {
+  if (n === null) return many;
+  const m10 = n % 10, m100 = n % 100;
+  if (m100 >= 11 && m100 <= 19) return many;
+  if (m10 === 1) return one;
+  if (m10 >= 2 && m10 <= 4) return few;
+  return many;
+};
 
 type AutoFirebaseDeps = {
   auth: typeof import("../../firebase").auth;
@@ -115,37 +127,33 @@ const CarBrandButton = React.memo(function CarBrandButton({
   return (
     <button
       type="button"
-      aria-label={`Obрати ${brand.name}`}
+      aria-label={`Обрати ${brand.name}`}
       onClick={(event) => {
         event.currentTarget.blur();
         onSelect(brand);
       }}
       onMouseLeave={(event) => event.currentTarget.blur()}
-      className="group relative flex w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-[12px] border border-slate-200/70 bg-[image:linear-gradient(160deg,#ffffff_0%,#fbfeff_60%,#f0f9ff_100%)] px-1.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_2px_6px_rgba(15,23,42,0.07)] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:border-sky-400/80 hover:bg-[image:linear-gradient(160deg,#f0f9ff_0%,#e0f2fe_55%,#dbeafe_100%)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_22px_rgba(14,165,233,0.24)] active:scale-[0.96] active:shadow-[inset_0_1px_2px_rgba(15,23,42,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 min-h-[92px] sm:min-h-[104px] sm:gap-1.5 sm:py-3"
+      className="group/category relative flex h-[84px] w-full flex-col items-center justify-center overflow-hidden rounded-[16px] border border-sky-200/95 bg-[radial-gradient(circle_at_50%_-8%,rgba(125,211,252,0.44),transparent_48%),linear-gradient(150deg,#ffffff_0%,#f3faff_50%,#e9f8ff_100%)] px-2 shadow-[0_8px_18px_rgba(15,23,42,0.08),0_2px_7px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 transition-[border-color,background-color,box-shadow] duration-500 ease-out hover:border-sky-500 hover:bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] hover:shadow-[0_16px_30px_rgba(2,132,199,0.22),0_0_0_3px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,1)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:h-[96px]"
     >
-      <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-sky-50/0 to-sky-100/0 transition-all duration-300 group-hover:from-sky-100/80 group-hover:to-sky-200/50" />
-      <span className="pointer-events-none absolute inset-0 rounded-[12px] ring-1 ring-inset ring-transparent transition-all duration-300 group-hover:ring-sky-400/50" />
+      <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_22%,rgba(255,255,255,0.9),transparent_46%),linear-gradient(180deg,rgba(34,211,238,0.08),rgba(59,130,246,0.1))] opacity-0 transition-opacity duration-300 group-hover/category:opacity-100" />
+      <span className="pointer-events-none absolute inset-0 shadow-[inset_0_2px_6px_rgba(15,23,42,0.06)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.10),inset_0_0_0_1px_rgba(2,132,199,0.06)]" />
 
-      <span className="relative flex h-12 w-12 items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover:scale-[1.16] sm:h-14 sm:w-14">
+      <span className="relative flex h-11 w-11 items-center justify-center sm:h-[52px] sm:w-[52px]">
         <Image
           src={brand.logo}
           alt={`${brand.name} logo`}
-          width={140}
-          height={90}
+          width={120}
+          height={78}
           quality={75}
           draggable={false}
           priority={priority}
           loading={priority ? "eager" : "lazy"}
-          className="h-[44px] w-auto max-w-[48px] object-contain sm:h-[52px] sm:max-w-[58px]"
+          className="relative h-11 w-11 object-contain drop-shadow-[0_5px_9px_rgba(14,116,144,0.14)] transition-[filter,opacity,transform] duration-500 ease-out group-hover/category:scale-[1.1] group-hover/category:brightness-[1.06] group-hover/category:saturate-[1.12] group-hover/category:drop-shadow-[0_8px_14px_rgba(2,132,199,0.3)] sm:h-[52px] sm:w-[52px]"
           style={{ imageRendering: "auto" }}
-          sizes="(max-width: 640px) 48px, 58px"
+          sizes="(max-width: 640px) 44px, 52px"
           onError={handleBrandLogoLoadError}
           unoptimized={brand.logo.endsWith('.svg')}
         />
-      </span>
-
-      <span className="relative block w-full max-w-full truncate whitespace-nowrap text-center text-[10px] font-semibold tracking-[0.01em] text-slate-800 transition-colors duration-200 group-hover:text-sky-800 sm:text-[12px]">
-        {brand.name}
       </span>
     </button>
   );
@@ -242,26 +250,58 @@ const debounce = <TArgs extends unknown[]>(
 type AutoBrandSearchInputProps = {
   onChange: (value: string) => void;
   className?: string;
+  examples?: string[];
+  ariaLabel?: string;
 };
 
+const BRAND_SEARCH_EXAMPLES = ["Toyota", "Volkswagen", "BMW", "Renault", "Skoda", "Hyundai"];
+const MODEL_SEARCH_EXAMPLES = ["Golf", "Corolla", "Octavia", "X5", "A4", "Passat"];
+
 const AutoBrandSearchInput = React.memo(
-  ({ onChange, className }: AutoBrandSearchInputProps) => {
+  ({ onChange, className, examples = BRAND_SEARCH_EXAMPLES, ariaLabel = "Пошук марки" }: AutoBrandSearchInputProps) => {
     const [value, setValue] = useState("");
+    const [animatedPlaceholder, setAnimatedPlaceholder] = useState(examples[0] ?? "");
+
+    useEffect(() => {
+      if (value) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        setAnimatedPlaceholder(examples[0]);
+        return;
+      }
+
+      let exampleIndex = 0;
+      let characterIndex = 0;
+      let isDeleting = false;
+      let timeoutId: ReturnType<typeof setTimeout>;
+
+      const tick = () => {
+        const example = examples[exampleIndex];
+        characterIndex += isDeleting ? -1 : 1;
+        setAnimatedPlaceholder(example.slice(0, characterIndex));
+
+        let delay = isDeleting ? 38 : 68;
+        if (!isDeleting && characterIndex >= example.length) {
+          isDeleting = true;
+          delay = 1350;
+        } else if (isDeleting && characterIndex <= 0) {
+          isDeleting = false;
+          exampleIndex = (exampleIndex + 1) % examples.length;
+          delay = 280;
+        }
+        timeoutId = setTimeout(tick, delay);
+      };
+
+      timeoutId = setTimeout(tick, 350);
+      return () => clearTimeout(timeoutId);
+    }, [value, examples]);
+
     return (
-      <label className={`relative block ${className ?? ""}`}>
-        <svg
-          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sky-500/70"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-5-5" />
-        </svg>
+      <label
+        className={`relative block rounded-[18px] bg-[linear-gradient(135deg,#0284c7,#22d3ee)] p-[2px] shadow-[0_12px_28px_rgba(2,132,199,0.2),0_0_0_3px_rgba(255,255,255,0.78)] transition-[box-shadow,background-image] duration-300 focus-within:bg-[linear-gradient(135deg,#0ea5e9_0%,#38bdf8_48%,#2dd4bf_100%)] focus-within:shadow-[0_15px_34px_rgba(14,165,233,0.24),0_0_0_4px_rgba(125,211,252,0.14)] ${className ?? ""}`}
+      >
+        <span className="pointer-events-none absolute left-4 top-1/2 z-10 inline-flex -translate-y-1/2 items-center justify-center text-sky-700">
+          <Search size={19} strokeWidth={2.2} />
+        </span>
 
         <input
           type="text"
@@ -271,11 +311,12 @@ const AutoBrandSearchInput = React.memo(
             setValue(next);
             onChange(next);
           }}
-          placeholder="Пошук марки"
+          onTouchStart={(e) => { e.currentTarget.focus(); }}
+          placeholder={animatedPlaceholder}
           autoComplete="off"
           spellCheck={false}
-          className="w-full rounded-xl border border-slate-200/80 bg-white px-10 py-2.5 text-sm font-semibold text-slate-700 placeholder:text-slate-400 shadow-[0_2px_8px_rgba(15,23,42,0.06)] focus:outline-none focus:ring-4 focus:ring-sky-200/60 focus:border-sky-400 transition-all duration-200 hover:border-sky-300/70 hover:shadow-[0_4px_14px_rgba(14,165,233,0.14)] select-text"
-          aria-label="\u041f\u043e\u0448\u0443\u043a \u043c\u0430\u0440\u043a\u0438"
+          className="h-11 w-full rounded-[16px] border-0 bg-white pl-11 pr-10 text-[15px] font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,1)] outline-none transition-[background-color,box-shadow] duration-300 placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:text-slate-800 focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,1)] select-text sm:h-12"
+          aria-label={ariaLabel}
         />
 
         {value && (
@@ -285,21 +326,10 @@ const AutoBrandSearchInput = React.memo(
               setValue("");
               onChange("");
             }}
-            aria-label="\u041e\u0447\u0438\u0441\u0442\u0438\u0442\u0438 \u043f\u043e\u0448\u0443\u043a"
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-white text-slate-400 border border-slate-200 shadow-sm transition-all duration-200 hover:-translate-y-[1px] hover:bg-red-50 hover:text-red-500 hover:border-red-200 hover:shadow-[0_2px_8px_rgba(239,68,68,0.15)]"
+            aria-label="Очистити пошук"
+            className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
-            <svg
-              className="h-3.5 w-3.5 mx-auto"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
+            <X size={16} />
           </button>
         )}
       </label>
@@ -334,6 +364,7 @@ const AutoSection: React.FC<AutoProps> = ({
   const isCompact = Boolean(compact);
   const isFilterVariant = variant === "filter";
   const [searchTerm, setSearchTerm] = useState("");
+  const [modelSearchTerm, setModelSearchTerm] = useState("");
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>([]);
   const [internalSelection, setInternalSelection] =
@@ -586,9 +617,19 @@ const AutoSection: React.FC<AutoProps> = ({
 
   const filteredBrands = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    return carBrands.filter((brand) =>
-      brand.name.toLowerCase().includes(term)
-    );
+    if (!term) return carBrands;
+    const transliteratedTerm = transliterateCyrillicToLatin(term);
+    // Also try recovering the query as if it was typed with Ukrainian
+    // layout active by mistake (e.g. "фгвш" meant to be "audi").
+    const layoutFixedTerm = fixLayoutUkrainianToEnglish(term);
+    return carBrands.filter((brand) => {
+      const name = brand.name.toLowerCase();
+      return (
+        name.includes(term) ||
+        name.includes(transliteratedTerm) ||
+        (layoutFixedTerm !== term && name.includes(layoutFixedTerm))
+      );
+    });
   }, [searchTerm]);
 
   // Grid is 4 cols on mobile, 6 cols from sm: up — keep the page size a
@@ -625,6 +666,14 @@ const AutoSection: React.FC<AutoProps> = ({
   }, [filteredBrands, brandsPerPage]);
 
   const brandPagesRef = useRef<HTMLDivElement | null>(null);
+  const brandPagesScrollRafRef = useRef(0);
+  useEffect(() => {
+    return () => {
+      if (brandPagesScrollRafRef.current) {
+        window.cancelAnimationFrame(brandPagesScrollRafRef.current);
+      }
+    };
+  }, []);
   const getBrandPageWidth = useCallback(() => {
     const container = brandPagesRef.current;
     if (!container) return 0;
@@ -642,15 +691,19 @@ const AutoSection: React.FC<AutoProps> = ({
     [getBrandPageWidth]
   );
   const handleBrandPagesScroll = useCallback(() => {
-    const container = brandPagesRef.current;
-    if (!container) return;
-    const pageWidth = getBrandPageWidth();
-    if (!pageWidth) return;
-    const nextPage = Math.max(
-      0,
-      Math.min(totalBrandPages - 1, Math.round(container.scrollLeft / pageWidth))
-    );
-    setBrandPage((prev) => (prev === nextPage ? prev : nextPage));
+    if (brandPagesScrollRafRef.current) return;
+    brandPagesScrollRafRef.current = window.requestAnimationFrame(() => {
+      brandPagesScrollRafRef.current = 0;
+      const container = brandPagesRef.current;
+      if (!container) return;
+      const pageWidth = getBrandPageWidth();
+      if (!pageWidth) return;
+      const nextPage = Math.max(
+        0,
+        Math.min(totalBrandPages - 1, Math.round(container.scrollLeft / pageWidth))
+      );
+      setBrandPage((prev) => (prev === nextPage ? prev : nextPage));
+    });
   }, [totalBrandPages, getBrandPageWidth]);
 
   useEffect(() => {
@@ -693,6 +746,121 @@ const AutoSection: React.FC<AutoProps> = ({
     [selectedModel]
   );
 
+  // CarModels reports its fetched year bounds here so the year-picker
+  // controls can be rendered under the step navigation instead of inline
+  // above the model grid (see onYearMetaChange on <CarModels> below).
+  const [yearMeta, setYearMeta] = useState<YearMeta>({
+    bounds: null,
+    loading: false,
+    error: null,
+    hasOptions: false,
+  });
+
+  // Per-digit odometer-style stepper: place 0 is the thousands digit, place
+  // 3 is the units digit, so nudging place `p` changes the year by 10^(3-p).
+  // Typed-in-progress digits live in their own state (not derived fresh from
+  // selectedYear on every keystroke) so each digit shows immediately as it's
+  // typed and rapid keystrokes across the four inputs can't race a stale
+  // closure of selectedYear against each other.
+  const [yearDigits, setYearDigits] = useState<string[]>(["", "", "", ""]);
+
+  useEffect(() => {
+    setYearDigits(
+      selectedYear != null ? String(selectedYear).padStart(4, "0").split("") : ["", "", "", ""]
+    );
+  }, [selectedYear]);
+
+  // Shown as a greyed-out example (e.g. "2025") in each empty digit slot, so
+  // the control doesn't read as broken/empty before a year is picked.
+  const yearPlaceholderDigits = useMemo(
+    () => String(yearMeta.bounds?.max ?? 2025).padStart(4, "0").split(""),
+    [yearMeta.bounds]
+  );
+
+  const yearDigitRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  const handleYearDigitType = useCallback(
+    (place: number, raw: string) => {
+      const digit = raw.replace(/[^\d]/g, "").slice(-1);
+      if (!digit) {
+        setYearDigits((prev) => {
+          const next = prev.slice();
+          next[place] = "";
+          return next;
+        });
+        onYearSelect(null);
+        return;
+      }
+      setYearDigits((prev) => {
+        const next = prev.slice();
+        next[place] = digit;
+        // Only commit (and clamp) once every digit has been entered — an
+        // in-progress number like "1_ _ _" isn't meaningful to clamp yet.
+        if (next.every((d) => d !== "")) {
+          const numeric = Number(next.join(""));
+          const clamped = yearMeta.bounds
+            ? Math.min(yearMeta.bounds.max, Math.max(yearMeta.bounds.min, numeric))
+            : numeric;
+          onYearSelect(clamped);
+          return String(clamped).padStart(4, "0").split("");
+        }
+        return next;
+      });
+      yearDigitRefs.current[place + 1]?.focus();
+    },
+    [yearMeta.bounds, onYearSelect]
+  );
+
+  const handleYearDigitKeyDown = useCallback(
+    (place: number, event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Backspace" && !event.currentTarget.value) {
+        yearDigitRefs.current[place - 1]?.focus();
+      } else if (event.key === "ArrowLeft") {
+        yearDigitRefs.current[place - 1]?.focus();
+      } else if (event.key === "ArrowRight") {
+        yearDigitRefs.current[place + 1]?.focus();
+      }
+    },
+    []
+  );
+
+  const nextYearForDigit = useCallback(
+    (place: number, direction: 1 | -1) => {
+      if (!yearMeta.bounds) return null;
+      const step = 10 ** (3 - place);
+      const base =
+        typeof selectedYear === "number"
+          ? selectedYear
+          : direction > 0
+          ? yearMeta.bounds.min
+          : yearMeta.bounds.max;
+      const next = base + direction * step;
+      if (next < yearMeta.bounds.min || next > yearMeta.bounds.max) return null;
+      return next;
+    },
+    [selectedYear, yearMeta.bounds]
+  );
+
+  const canAdjustYearDigit = useCallback(
+    (place: number, direction: 1 | -1) =>
+      !yearMeta.loading && nextYearForDigit(place, direction) != null,
+    [yearMeta.loading, nextYearForDigit]
+  );
+
+  const adjustYearDigit = useCallback(
+    (place: number, direction: 1 | -1) => {
+      const next = nextYearForDigit(place, direction);
+      if (next == null) return;
+      onYearSelect(next);
+    },
+    [nextYearForDigit, onYearSelect]
+  );
+
+  const clearYearSelection = useCallback(() => {
+    setYearDigits(["", "", "", ""]);
+    onYearSelect(null);
+  }, [onYearSelect]);
+
   const canGoPrev = safeBrandPage > 0;
   const canGoNext = safeBrandPage < totalBrandPages - 1;
 
@@ -718,6 +886,7 @@ const AutoSection: React.FC<AutoProps> = ({
     setSelectedCarLabel(null);
     lastSelectedLabelRef.current = null;
     setActiveTab("model");
+    setModelSearchTerm("");
   }, []);
 
   const handleBackToBrands = useCallback(() => {
@@ -728,30 +897,27 @@ const AutoSection: React.FC<AutoProps> = ({
     setSelectedCarLabel(null);
     lastSelectedLabelRef.current = null;
     setActiveTab("brand");
+    setBrandPage(0);
+    setModelSearchTerm("");
   }, []);
 
   const canChooseModel = Boolean(selectedBrand);
   const canChooseMods = Boolean(selectedBrand && selectedModel);
   const modelBrandLogo = selectedBrand?.logo;
   const steps = [
-    { id: "brand", label: "\u041c\u0430\u0440\u043a\u0430", enabled: true },
-    { id: "model", label: "\u041c\u043e\u0434\u0435\u043b\u044c", enabled: canChooseModel },
+    { id: "brand", label: "\u041c\u0430\u0440\u043a\u0430", caption: "\u0432\u0438\u0440\u043e\u0431\u043d\u0438\u043a \u0430\u0432\u0442\u043e", enabled: true },
+    { id: "model", label: "\u041c\u043e\u0434\u0435\u043b\u044c", caption: "\u043c\u043e\u0434\u0435\u043b\u044c \u0430\u0432\u0442\u043e", enabled: canChooseModel },
     {
       id: "engine",
       label: "\u041c\u043e\u0434\u0438\u0444\u0456\u043a\u0430\u0446\u0456\u044f",
+      caption: "\u0440\u0456\u043a \u0456 \u0434\u0432\u0438\u0433\u0443\u043d",
       enabled: canChooseMods,
     },
   ] as const;
 
   const handleStepClick = (step: "brand" | "model" | "engine") => {
     if (step === "brand") {
-      setSelectedBrand(null);
-      setSelectedModel(null);
-      setSelectedYear(null);
-      setSelectedModDetails(null);
-      setSelectedCarLabel(null);
-      lastSelectedLabelRef.current = null;
-      setActiveTab("brand");
+      handleBackToBrands();
       return;
     }
 
@@ -1000,14 +1166,6 @@ const AutoSection: React.FC<AutoProps> = ({
       setVinLoading(false);
     }
   };
-  const handleMissingCar = () => {
-    if (typeof window === "undefined") return;
-    window.dispatchEvent(
-      new CustomEvent("openChatWithMessage", {
-        detail: "\u041d\u0435 \u0437\u043d\u0430\u0439\u0448\u043e\u0432 \u0441\u0432\u043e\u0454 \u0430\u0432\u0442\u043e. \u0414\u043e\u043f\u043e\u043c\u043e\u0436\u0456\u0442\u044c \u043f\u0456\u0434\u0456\u0431\u0440\u0430\u0442\u0438.",
-      })
-    );
-  };
 
   useEffect(() => {
     resetToBrandIfEmpty();
@@ -1021,58 +1179,72 @@ const AutoSection: React.FC<AutoProps> = ({
             className="pointer-events-none absolute inset-0 z-0 opacity-45 bg-[image:linear-gradient(120deg,#e0f2fe_0%,#7dd3fc_50%,#e0f2fe_100%)] transition-opacity duration-700 ease-out group-hover/auto:opacity-90"
           />
         )}
-      <div className={`relative z-10 ${isFilterVariant ? "" : "page-shell-inline"}`}>
-        <div
-          className={`relative border border-sky-300/55 transition-colors duration-700 ease-out group-hover/auto:border-sky-400/62 ${isFilterVariant ? "rounded-[18px]" : "rounded-[24px] sm:rounded-[28px]"}`}
-        >
-        <div
-          className={`relative overflow-hidden bg-[image:linear-gradient(120deg,#ffffff_0%,#eaf6ff_35%,#cfe9fc_65%,#ffffff_100%)] backdrop-blur-md ${isFilterVariant ? "rounded-[17px]" : "rounded-[23px] sm:rounded-[27px]"}`}
-        >
-          {/* decorative blobs */}
-          <div className="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-sky-400/16 blur-3xl transition-opacity duration-[900ms] group-hover/auto:bg-sky-400/22 sm:h-64 sm:w-64" />
-          <div className="pointer-events-none absolute -bottom-12 -left-12 h-36 w-36 rounded-full bg-blue-300/12 blur-2xl transition-opacity duration-[900ms] group-hover/auto:bg-blue-400/17 sm:h-44 sm:w-44" />
-          <div className="pointer-events-none absolute -left-16 -top-16 h-44 w-44 rounded-full bg-cyan-300/0 blur-3xl transition-opacity duration-[900ms] group-hover/auto:bg-cyan-300/11" />
-          {/* top bridge — connects from tovar's blue bottom */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-12 bg-[image:linear-gradient(to_bottom,rgba(186,230,253,0.14)_0%,transparent_100%)]" />
-          {/* persistent mesh glow — smooth, expressive color shift, intensifies on hover */}
-          <div className="pointer-events-none absolute inset-0 opacity-30 transition-opacity duration-[900ms] ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/auto:opacity-100 bg-[image:radial-gradient(ellipse_90%_70%_at_95%_5%,rgba(56,189,248,0.34)_0%,rgba(186,230,253,0.08)_44%,transparent_64%),radial-gradient(ellipse_80%_60%_at_5%_95%,rgba(59,130,246,0.26)_0%,rgba(186,230,253,0.06)_44%,transparent_62%),linear-gradient(135deg,rgba(255,255,255,0.24)_0%,transparent_55%)]" />
+      <div className={`relative z-10 ${isFilterVariant ? "" : "page-shell-inline flex flex-col gap-3 sm:gap-4"}`}>
+        {!isFilterVariant && (!selectedBrand || activeTab === "model") && (
+          <div className="group/search relative w-full min-w-0 overflow-hidden rounded-[22px] border border-sky-300/80 bg-[radial-gradient(circle_at_0%_0%,rgba(56,189,248,0.14),transparent_34%),linear-gradient(125deg,#ffffff_0%,#ffffff_55%,#f2f8fd_100%)] px-3 pb-3 pt-3 text-gray-800 shadow-[0_18px_40px_rgba(15,23,42,0.12),0_5px_14px_rgba(2,132,199,0.08),inset_0_-16px_28px_-20px_rgba(56,189,248,0.12),inset_0_1px_0_#fff] ring-1 ring-white transition-[border-color,box-shadow] duration-300 hover:border-sky-400 hover:shadow-[0_22px_48px_rgba(15,23,42,0.14),0_6px_16px_rgba(2,132,199,0.12),inset_0_-16px_28px_-20px_rgba(56,189,248,0.16),inset_0_1px_0_#fff] sm:px-4 sm:py-4">
+            <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-sky-200/20 blur-3xl transition-opacity duration-300 group-hover/search:opacity-80" />
+            <div className="relative flex flex-col gap-3 sm:flex-row sm:w-full sm:items-center sm:justify-between sm:gap-5">
+              <div className="min-w-0 sm:flex-1 sm:pr-2">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600/90 to-sky-400/90 text-white shadow-[0_8px_18px_rgba(37,99,235,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] sm:h-11 sm:w-11 sm:rounded-[18px]">
+                    <Car size={17} strokeWidth={2.3} aria-hidden className="sm:h-5 sm:w-5" />
+                  </span>
+                  <h2 className="font-display text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:text-[22px]">
+                    {selectedBrand
+                      ? `Оберіть модель ${selectedBrand.name} для підбору запчастин`
+                      : "Широкий асортимент товарів для усіх популярних автовиробників"}
+                  </h2>
+                </div>
+                <p className="mt-1 hidden text-[11px] leading-relaxed text-slate-500 sm:block">
+                  {selectedBrand
+                    ? "Знайдіть свою модель серед доступних варіантів."
+                    : "Уточніть параметри вашого авто для правильного підбору."}
+                </p>
+              </div>
+              <div className="w-full min-w-0 sm:w-[400px] sm:max-w-[400px] sm:shrink-0 sm:border-l sm:border-sky-200/80 sm:pl-5">
+                <AutoBrandSearchInput
+                  key={selectedBrand ? "model" : "brand"}
+                  onChange={selectedBrand ? setModelSearchTerm : handleSearchChange}
+                  examples={selectedBrand ? MODEL_SEARCH_EXAMPLES : undefined}
+                  ariaLabel={selectedBrand ? "Пошук моделі" : "Пошук марки"}
+                />
+                <span className="mt-1.5 block px-1 text-[10px] font-medium text-slate-500">
+                  {"Доступно для пошуку: "}
+                  <strong className="font-extrabold tabular-nums text-sky-700">
+                    {selectedBrand ? modelCount ?? 0 : filteredBrands.length}
+                  </strong>
+                  {" "}
+                  {selectedBrand
+                    ? pluralWord(modelCount ?? 0, "модель", "моделі", "моделей")
+                    : pluralWord(filteredBrands.length, "марка", "марки", "марок")}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+        <div>
           <div className={`relative z-10 ${isFilterVariant ? "px-3 pb-3 pt-2 sm:px-3.5 sm:pb-3.5 sm:pt-2.5" : "px-3 pb-3 pt-1.5 sm:px-4 sm:pb-4 sm:pt-1.5"}`}>
-
             {(() => {
-              const currentCount = !selectedBrand
-                ? filteredBrands.length
-                : activeTab === "engine"
-                ? (modCount ?? null)
-                : (modelCount ?? null);
-              const pluralWord = (n: number | null, one: string, few: string, many: string) => {
-                if (n === null) return many;
-                const m10 = n % 10, m100 = n % 100;
-                if (m100 >= 11 && m100 <= 19) return many;
-                if (m10 === 1) return one;
-                if (m10 >= 2 && m10 <= 4) return few;
-                return many;
-              };
-              const wordForm = !selectedBrand
-                ? pluralWord(currentCount, "автовиробник", "автовиробники", "автовиробників")
-                : activeTab === "engine"
+              if (!selectedBrand || activeTab === "model") return null;
+              const currentCount = activeTab === "engine" ? (modCount ?? null) : (modelCount ?? null);
+              const wordForm =
+                activeTab === "engine"
                 ? pluralWord(currentCount, "модифікація", "модифікації", "модифікацій")
                 : pluralWord(currentCount, "модель", "моделі", "моделей");
               return (
                 <div className="relative mb-2 sm:mb-2.5">
-                  <div className="flex min-h-[28px] items-center justify-between gap-2 px-2 py-2 sm:min-h-[34px] sm:gap-3 sm:px-2.5 sm:py-2.5">
+                  <div className="relative flex min-h-[28px] items-center justify-between gap-2 px-2 py-2 sm:min-h-[34px] sm:gap-3 sm:px-2.5 sm:py-2.5">
                     <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shadow-inner">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-indigo-200/80 bg-indigo-50 text-indigo-700 shadow-[0_6px_14px_rgba(99,102,241,0.09)] sm:h-10 sm:w-10 sm:rounded-[14px]">
                       <Car size={16} strokeWidth={2.1} aria-hidden />
                     </div>
                     <div className="min-w-0 flex-1 flex flex-col gap-0.5">
                       <h2 className="font-display relative min-w-0 text-[17px] tracking-[-0.045em] text-slate-700 sm:text-[22px] leading-tight">
                         <span className="relative inline-block max-w-full truncate align-bottom">
-                          {!selectedBrand
-                            ? "Виберіть марку автомобіля"
-                            : activeTab === "engine"
+                          {activeTab === "engine"
                             ? `Виберіть модифікацію ${selectedModel ?? ""}`
                             : `Виберіть модель ${selectedBrand.name}`}
-                          <span className="pointer-events-none absolute left-0 -bottom-0.5 h-[2px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400 origin-left scale-x-0 transition-transform duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/auto:scale-x-100 shadow-[0_4px_12px_rgba(37,99,235,0.3)]" />
+                          <span className="pointer-events-none absolute left-0 -bottom-0.5 h-[2px] w-full rounded-full bg-gradient-to-r from-indigo-500 via-blue-500 to-violet-400 origin-left scale-x-0 transition-transform duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/auto:scale-x-100 shadow-[0_4px_12px_rgba(99,102,241,0.3)]" />
                         </span>
                       </h2>
                       <span className="shrink-0 text-[12px] text-slate-400 leading-tight whitespace-nowrap min-h-[1em]">
@@ -1084,33 +1256,6 @@ const AutoSection: React.FC<AutoProps> = ({
                       </span>
                     </div>
                     </div>
-                    {selectedBrand && (
-                      <button
-                        type="button"
-                        onClick={handleBackToBrands}
-                        title="Вибір марки авто"
-                        aria-label="Вибір марки авто"
-                        className="group/other inline-flex h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-sky-200/80 bg-white py-1 pl-1 pr-3 text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:border-sky-400/90 hover:text-sky-700 hover:shadow-[0_6px_18px_rgba(8,145,178,0.22),inset_0_1px_0_rgba(255,255,255,0.95)]"
-                      >
-                        <ChevronLeft size={16} className="pointer-events-none shrink-0 transition-transform duration-300 group-hover/other:scale-125" />
-                        {modelBrandLogo && (
-                          <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-100 bg-white transition-transform duration-300 group-hover/other:scale-110">
-                            <Image
-                              src={modelBrandLogo}
-                              alt={selectedBrand.name}
-                              width={64}
-                              height={64}
-                              sizes="28px"
-                              quality={90}
-                              unoptimized={modelBrandLogo.endsWith(".svg")}
-                              className="h-5 w-5 object-contain"
-                              onError={handleBrandLogoLoadError}
-                            />
-                          </span>
-                        )}
-                        <span className="text-[12px] font-bold whitespace-nowrap">{"Інша марка"}</span>
-                      </button>
-                    )}
                   </div>
                 </div>
               );
@@ -1119,83 +1264,97 @@ const AutoSection: React.FC<AutoProps> = ({
         <div
           className={`grid w-full font-ui ${
             showLeftPanel && !(isFilterVariant && isCompact)
-              ? "grid-cols-1 items-stretch gap-3 lg:grid-cols-[1.55fr_0.9fr]"
+              ? "grid-cols-1 items-stretch gap-3 lg:grid-cols-[0.9fr_1.55fr]"
               : "grid-cols-1"
           }`}
         >
         {showLeftPanel && (
-          <div className="min-w-0 min-h-[300px]">
-            <AnimatePresence mode="wait">
+          <div className="relative min-w-0 min-h-[300px] lg:order-2">
+            <AnimatePresence mode="popLayout" initial={false}>
               {!selectedBrand ? (
                 <motion.div
                   key="brands"
                   initial={shouldAnimate ? { opacity: 0 } : false}
                   animate={shouldAnimate ? { opacity: 1 } : undefined}
                   exit={shouldAnimate ? { opacity: 0 } : undefined}
-                  transition={shouldAnimate ? { duration: 0.3, ease: [0.4, 0, 0.2, 1] } : undefined}
+                  transition={shouldAnimate ? { duration: 0.18, ease: [0.4, 0, 0.2, 1] } : undefined}
                   className="flex flex-col gap-0"
                 >
-                  <div className="flex items-center gap-1.5">
-                    <AutoBrandSearchInput
-                      className="flex-1"
-                      onChange={handleSearchChange}
-                    />
-                    {!showAllBrands && totalBrandPages > 1 && (
-                      <div className="flex items-center gap-1.5 rounded-xl border border-sky-200/70 bg-gradient-to-r from-white via-sky-50/70 to-white px-1.5 py-1.5 shadow-[0_6px_16px_rgba(8,145,178,0.12),0_2px_6px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.95)]">
+                  {filteredBrands.length === 0 ? (
+                    <div className="mt-4 py-8 text-center text-sm text-slate-400">
+                      За цим запитом марок не знайдено.
+                    </div>
+                  ) : (
+                    <div className="relative mt-5 px-7 sm:mt-6 sm:px-10">
+                      {!showAllBrands && totalBrandPages > 1 && (
                         <button
                           type="button"
                           onClick={handlePrevPage}
                           disabled={!canGoPrev}
-                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
-                          aria-label="\u041f\u043e\u043f\u0435\u0440\u0435\u0434\u043d\u044f \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
+                          className="absolute left-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
+                          aria-label="Попередня сторінка"
                         >
-                          <ChevronLeft size={15} />
+                          <ChevronLeft size={34} strokeWidth={2.6} />
                         </button>
-                        <div className="flex min-w-[42px] items-center justify-center gap-0.5 rounded-lg border border-sky-100/80 bg-white/90 px-2 py-1 shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)]">
-                          <span className="text-[12px] font-extrabold text-sky-600">{safeBrandPage + 1}</span>
-                          <span className="text-[10px] font-semibold text-slate-300">/</span>
-                          <span className="text-[12px] font-bold text-slate-400">{totalBrandPages}</span>
+                      )}
+                      <div
+                        ref={brandPagesRef}
+                        onScroll={handleBrandPagesScroll}
+                        className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
+                      >
+                        <div className="flex">
+                          {brandPages.map((page, pageIndex) => (
+                            <div key={pageIndex} data-brand-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
+                              <div className="grid grid-cols-4 gap-2.5 place-items-stretch sm:grid-cols-6 sm:gap-3">
+                                {page.map((brand) => (
+                                  <CarBrandButton
+                                    key={brand.id}
+                                    brand={brand}
+                                    priority={true}
+                                    onSelect={handleBrandSelect}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          ))}
                         </div>
+                      </div>
+                      {!showAllBrands && totalBrandPages > 1 && (
                         <button
                           type="button"
                           onClick={handleNextPage}
                           disabled={!canGoNext}
-                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
-                          aria-label="\u041d\u0430\u0441\u0442\u0443\u043f\u043d\u0430 \u0441\u0442\u043e\u0440\u0456\u043d\u043a\u0430"
+                          className="absolute right-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
+                          aria-label="Наступна сторінка"
                         >
-                          <ChevronRight size={15} />
+                          <ChevronRight size={34} strokeWidth={2.6} />
                         </button>
-                      </div>
-                    )}
-                  </div>
-                  {filteredBrands.length === 0 ? (
-                    <div className="mt-4 py-8 text-center text-sm text-slate-400">
-                      {"\u0417\u0430 \u0446\u0438\u043c \u0437\u0430\u043f\u0438\u0442\u043e\u043c \u043c\u0430\u0440\u043e\u043a \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e."}
-                    </div>
-                  ) : (
-                    <div
-                      ref={brandPagesRef}
-                      onScroll={handleBrandPagesScroll}
-                      className="no-scrollbar mt-5 overflow-x-auto overflow-y-hidden overscroll-x-contain sm:mt-6 [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
-                    >
-                      <div className="flex">
-                        {brandPages.map((page, pageIndex) => (
-                          <div key={pageIndex} data-brand-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
-                            <div className="grid grid-cols-4 gap-2.5 place-items-stretch sm:grid-cols-6 sm:gap-3">
-                              {page.map((brand) => (
-                                <CarBrandButton
-                                  key={brand.id}
-                                  brand={brand}
-                                  priority={true}
-                                  onSelect={handleBrandSelect}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                      )}
                     </div>
                   )}
+                  <div className="relative mt-3 flex min-h-9 items-center px-2 sm:px-3">
+                    {!showAllBrands && totalBrandPages > 1 ? (
+                      <div className="absolute left-1/2 top-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">
+                        <span className="h-px w-4 bg-gradient-to-r from-transparent to-cyan-500/75 sm:w-6" />
+                        <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
+                        <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(14,116,144,0.14)]">{safeBrandPage + 1}</span>
+                        <span className="font-semibold text-cyan-400">/</span>
+                        <span className="font-extrabold text-slate-500">{totalBrandPages}</span>
+                        <span className="h-px w-4 bg-gradient-to-l from-transparent to-cyan-500/75 sm:w-6" />
+                      </div>
+                    ) : null}
+                    <Link
+                      href="/auto"
+                      className="group/all-brands ml-auto inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-extrabold text-sky-700 transition-colors duration-300 hover:text-cyan-600 focus-visible:outline-none focus-visible:text-cyan-600 focus-visible:underline focus-visible:decoration-2 focus-visible:underline-offset-4"
+                    >
+                      Усі марки
+                      <ChevronRight
+                        size={15}
+                        strokeWidth={2.6}
+                        className="transition-transform duration-300 group-hover/all-brands:translate-x-0.5"
+                      />
+                    </Link>
+                  </div>
                 </motion.div>
               ) : activeTab === "engine" ? (
                 <motion.div
@@ -1205,7 +1364,7 @@ const AutoSection: React.FC<AutoProps> = ({
                   exit={shouldAnimate ? { opacity: 0 } : undefined}
                   transition={
                     shouldAnimate
-                      ? { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+                      ? { duration: 0.18, ease: [0.4, 0, 0.2, 1] }
                       : undefined
                   }
                 >
@@ -1229,7 +1388,7 @@ const AutoSection: React.FC<AutoProps> = ({
                   exit={shouldAnimate ? { opacity: 0 } : undefined}
                   transition={
                     shouldAnimate
-                      ? { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+                      ? { duration: 0.18, ease: [0.4, 0, 0.2, 1] }
                       : undefined
                   }
                 >
@@ -1241,6 +1400,9 @@ const AutoSection: React.FC<AutoProps> = ({
                     onYearSelect={onYearSelect}
                     onCountChange={setModelCount}
                     compact={isCompact}
+                    searchTerm={isFilterVariant ? undefined : modelSearchTerm}
+                    onSearchTermChange={isFilterVariant ? undefined : setModelSearchTerm}
+                    onYearMetaChange={isFilterVariant ? undefined : setYearMeta}
                   />
                 </motion.div>
               )}
@@ -1249,30 +1411,28 @@ const AutoSection: React.FC<AutoProps> = ({
         )}
 
           {shouldRenderSidePanel && (
-          <div className="group/panel relative overflow-hidden rounded-2xl border border-sky-100/75 bg-[image:linear-gradient(150deg,rgba(240,249,255,0.9)_0%,rgba(224,242,254,0.55)_45%,rgba(219,234,254,0.5)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_6px_18px_rgba(15,23,42,0.08)] backdrop-blur-sm transition-all duration-300 ease-out hover:border-sky-300/60 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_10px_24px_rgba(14,165,233,0.18)]">
-            {/* right panel hover glow */}
-            <div className="pointer-events-none absolute -right-8 -top-8 h-36 w-36 rounded-full bg-sky-300/0 blur-2xl transition-all duration-500 group-hover/panel:bg-sky-300/30" />
+          <div className="group/panel relative lg:order-1">
             <div
               className={`relative flex flex-col gap-2.5 ${
                 isCompact ? "px-3 py-3" : "px-3.5 py-3.5"
               }`}
             >
           {showSummaryTable ? (
-            <>
-              <div className="flex items-center gap-3 px-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shadow-inner">
-                  <Car size={16} strokeWidth={2.1} aria-hidden />
-                </div>
+            <div className="relative overflow-hidden rounded-[18px] border border-sky-100/80 bg-[radial-gradient(circle_at_12%_0%,rgba(103,232,249,0.16),transparent_38%),radial-gradient(circle_at_92%_100%,rgba(56,189,248,0.12),transparent_40%),linear-gradient(150deg,#ffffff_0%,#f7fcff_55%,#eef8ff_100%)] p-3 shadow-[0_14px_32px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-3.5">
+              <div className="flex items-center gap-3 px-1">
+                <span className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-sky-200/80 bg-white text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.95)]">
+                  <Car size={17} strokeWidth={2.1} aria-hidden />
+                </span>
                 <div className="text-[17px] font-extrabold tracking-[-0.01em] text-slate-800 sm:text-[20px]">
                   {"Автомобілі"}
                 </div>
               </div>
               {showVinTable ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="min-w-0 flex flex-col gap-1 rounded-md p-2">
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="min-w-0 flex flex-col gap-2 rounded-[14px] border border-blue-100/70 bg-white/70 p-2.5 shadow-[0_4px_14px_rgba(37,99,235,0.06)]">
                     <div className="flex flex-wrap items-center gap-2 text-[13px] font-bold uppercase tracking-widest text-slate-600">
                       <span className="min-w-0 flex items-center gap-2">
-                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-blue-200/80 bg-blue-50 text-blue-700 shadow-[0_4px_10px_rgba(37,99,235,0.12)]">
                           <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
                         </span>
                         {"Обрані авто"}
@@ -1298,7 +1458,7 @@ const AutoSection: React.FC<AutoProps> = ({
                         {"Немає вибраних авто"}
                       </div>
                     ) : (
-                      <div className="divide-y divide-slate-200/70 text-[12px] text-slate-700">
+                      <div className="flex flex-col gap-1.5 text-[12px] text-slate-700">
                         {selectedCarRows.map((car) => {
                           const isActive = car === selectedCarLabel;
                           return (
@@ -1316,10 +1476,10 @@ const AutoSection: React.FC<AutoProps> = ({
                                 lastSelectedLabelRef.current = car;
                                 setSelectedVin("");
                               }}
-                              className={`flex min-w-0 cursor-pointer items-center justify-between gap-2 px-2.5 py-2 text-left transition ${
+                              className={`flex min-w-0 cursor-pointer items-center justify-between gap-2 rounded-[12px] border px-3 py-2.5 text-left transition-all duration-300 ease-out ${
                                 isActive
-                                  ? "bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]"
-                                  : "hover:bg-gradient-to-r hover:from-blue-50 hover:via-sky-50 hover:to-white"
+                                  ? "border-blue-300/70 bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 text-white shadow-[0_10px_24px_rgba(37,99,235,0.28)]"
+                                  : "border-slate-200/90 bg-[radial-gradient(circle_at_50%_-25%,rgba(125,211,252,0.28),transparent_55%),linear-gradient(150deg,#ffffff_0%,#f8fbff_55%,#eef6ff_100%)] shadow-[0_3px_10px_rgba(15,23,42,0.05)] hover:border-blue-300 hover:shadow-[0_8px_18px_rgba(37,99,235,0.14)]"
                               }`}
                               aria-pressed={isActive}
                               role="button"
@@ -1369,10 +1529,10 @@ const AutoSection: React.FC<AutoProps> = ({
                     )}
                   </div>
 
-                  <div className="min-w-0 flex flex-col gap-1 rounded-md p-2">
+                  <div className="min-w-0 flex flex-col gap-2 rounded-[14px] border border-emerald-100/70 bg-white/70 p-2.5 shadow-[0_4px_14px_rgba(16,185,129,0.06)]">
                     <div className="flex flex-wrap items-center gap-2 text-[13px] font-bold uppercase tracking-widest text-slate-600">
                       <span className="min-w-0 flex items-center gap-2">
-                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-emerald-200/80 bg-emerald-50 text-emerald-700 shadow-[0_4px_10px_rgba(16,185,129,0.12)]">
                           <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M4 5v14" />
                             <path d="M8 5v14" />
@@ -1410,7 +1570,7 @@ const AutoSection: React.FC<AutoProps> = ({
                         {"Немає доданих VIN"}
                       </div>
                     ) : (
-                      <div className="divide-y divide-slate-200/70 text-[12px] text-slate-700">
+                      <div className="flex flex-col gap-1.5 text-[12px] text-slate-700">
                         {vinRows.map((vin) => {
                           const isActive = vin === selectedVin;
                           return (
@@ -1422,10 +1582,10 @@ const AutoSection: React.FC<AutoProps> = ({
                                 event.preventDefault();
                                 handleSelectVin(vin);
                               }}
-                              className={`flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 px-2.5 py-2 text-left font-semibold transition ${
+                              className={`flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-[12px] border px-3 py-2.5 text-left font-semibold transition-all duration-300 ease-out ${
                                 isActive
-                                  ? "bg-gradient-to-r from-emerald-500 via-emerald-400 to-sky-400 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]"
-                                  : "hover:bg-gradient-to-r hover:from-emerald-50 hover:via-sky-50 hover:to-white"
+                                  ? "border-emerald-300/70 bg-gradient-to-r from-emerald-500 via-emerald-400 to-sky-400 text-white shadow-[0_10px_24px_rgba(16,185,129,0.28)]"
+                                  : "border-slate-200/90 bg-[radial-gradient(circle_at_50%_-25%,rgba(110,231,183,0.26),transparent_55%),linear-gradient(150deg,#ffffff_0%,#f7fefb_55%,#ecfdf5_100%)] shadow-[0_3px_10px_rgba(15,23,42,0.05)] hover:border-emerald-300 hover:shadow-[0_8px_18px_rgba(16,185,129,0.14)]"
                               }`}
                               aria-pressed={isActive}
                               role="button"
@@ -1484,82 +1644,212 @@ const AutoSection: React.FC<AutoProps> = ({
                   {"Немає вибраних авто чи VIN"}
                 </div>
               )}
-            </>
+            </div>
           ) : (
             <>
-              <nav aria-label="Кроки підбору авто" className="grid grid-cols-3 gap-1.5">
-                {steps.map((step, index) => {
-                  const isActive = activeTab === step.id;
-                  const isEnabled = step.enabled;
-                  const value = stepValues[step.id];
-                  const isDone = isEnabled && !isActive && Boolean(value);
+              <nav aria-label="Кроки підбору авто" className="relative">
+                {(() => {
+                  const activeStepIndex = steps.findIndex((s) => s.id === activeTab);
                   return (
-                    <button
-                      key={step.id}
-                      type="button"
-                      onClick={() => handleStepClick(step.id)}
-                      disabled={!isEnabled}
-                      className={`relative flex flex-col items-center gap-1 rounded-xl border px-1.5 py-2.5 text-center transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-                        isActive
-                          ? "border-sky-400/60 bg-[image:linear-gradient(150deg,#f0f9ff_0%,#e0f2fe_60%,#dbeafe_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_5px_14px_rgba(14,165,233,0.20)] ring-1 ring-sky-300/50"
-                          : isDone
-                          ? "border-emerald-200/70 bg-[image:linear-gradient(150deg,#ecfdf5_0%,#ffffff_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_2px_6px_rgba(15,23,42,0.05)] hover:-translate-y-[1px] hover:border-emerald-400/80 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_6px_14px_rgba(52,211,153,0.20)] active:translate-y-0 active:shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)]"
-                          : "border-slate-200/60 bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_2px_6px_rgba(15,23,42,0.05)] hover:-translate-y-[1px] hover:border-sky-300/70 hover:bg-[image:linear-gradient(150deg,#f0f9ff_0%,#ffffff_100%)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_6px_14px_rgba(14,165,233,0.16)] active:translate-y-0 active:shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)]"
-                      } ${!isEnabled ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
-                    >
-                      <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-                        isActive
-                          ? "bg-gradient-to-br from-sky-400 to-blue-600 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.35),0_2px_8px_rgba(14,165,233,0.40)] scale-105"
-                          : isDone
-                          ? "bg-gradient-to-br from-emerald-400 to-emerald-500 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.35),0_2px_6px_rgba(52,211,153,0.32)]"
-                          : "bg-slate-100/80 text-slate-400 shadow-[inset_0_1px_1px_rgba(15,23,42,0.06)] group-hover:bg-slate-200/60"
-                      }`}>
-                        {index + 1}
-                      </span>
-                      <span className={`text-[10px] leading-tight transition-all duration-300 ${
-                        isActive ? "font-bold text-sky-700" : isDone ? "font-semibold text-emerald-700" : "font-semibold text-slate-500 group-hover:text-slate-700"
-                      }`}>
-                        {step.label}
-                      </span>
-                      <span className={`max-w-full truncate text-[9px] font-medium leading-tight transition-all duration-300 min-h-[11px] ${
-                        value ? "opacity-100" : "opacity-0"
-                      } ${isActive ? "text-sky-600" : isDone ? "text-emerald-600" : "text-slate-400 group-hover:text-slate-600"}`}>
-                        {value || "—"}
-                      </span>
-                    </button>
+                    <>
+                      <div className="pointer-events-none absolute left-[16%] top-[23px] z-0 h-[3px] w-[34%] rounded-full bg-white/70 shadow-[inset_0_1px_2px_rgba(15,23,42,0.08)]" aria-hidden />
+                      <div
+                        className={`pointer-events-none absolute left-[16%] top-[23px] z-0 h-[3px] w-[34%] origin-left rounded-full bg-gradient-to-r from-sky-500 to-emerald-400 shadow-[0_1px_4px_rgba(14,165,233,0.35)] transition-transform duration-500 ease-out ${
+                          activeStepIndex >= 1 ? "scale-x-100" : "scale-x-0"
+                        }`}
+                        aria-hidden
+                      />
+                      <div className="pointer-events-none absolute right-[16%] top-[23px] z-0 h-[3px] w-[34%] rounded-full bg-white/70 shadow-[inset_0_1px_2px_rgba(15,23,42,0.08)]" aria-hidden />
+                      <div
+                        className={`pointer-events-none absolute right-[16%] top-[23px] z-0 h-[3px] w-[34%] origin-left rounded-full bg-gradient-to-r from-sky-500 to-emerald-400 shadow-[0_1px_4px_rgba(14,165,233,0.35)] transition-transform duration-500 ease-out ${
+                          activeStepIndex >= 2 ? "scale-x-100" : "scale-x-0"
+                        }`}
+                        aria-hidden
+                      />
+                    </>
                   );
-                })}
+                })()}
+                <div className="relative z-10 grid grid-cols-3 gap-2">
+                  {steps.map((step, index) => {
+                    const isActive = activeTab === step.id;
+                    const isEnabled = step.enabled;
+                    const value = stepValues[step.id];
+                    const isDone = isEnabled && !isActive && Boolean(value);
+                    return (
+                      <button
+                        key={step.id}
+                        type="button"
+                        onClick={() => handleStepClick(step.id)}
+                        disabled={!isEnabled}
+                        className={`relative flex flex-col items-center gap-1 rounded-2xl border px-1 py-2.5 text-center shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+                          isActive
+                            ? "border-sky-300/80 bg-[linear-gradient(160deg,#ffffff_0%,#eef9ff_100%)] shadow-[0_8px_18px_rgba(14,165,233,0.18)]"
+                            : isDone
+                            ? "border-emerald-200/80 bg-[linear-gradient(160deg,#ffffff_0%,#f0fdf6_100%)] hover:border-emerald-300 hover:shadow-[0_6px_14px_rgba(16,185,129,0.14)]"
+                            : "border-white/70 bg-white/60 hover:border-sky-200 hover:bg-white/85"
+                        } ${!isEnabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                      >
+                        <span className={`flex h-7 w-7 items-center justify-center overflow-hidden rounded-full text-[11px] font-extrabold transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+                          isActive
+                            ? "bg-gradient-to-br from-sky-400 to-blue-600 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.35),0_3px_10px_rgba(14,165,233,0.45)] ring-2 ring-sky-200 scale-110"
+                            : isDone
+                            ? step.id === "brand" && modelBrandLogo
+                              ? "border border-emerald-200 bg-white shadow-[0_2px_6px_rgba(52,211,153,0.28)]"
+                              : "bg-gradient-to-br from-emerald-400 to-emerald-500 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.35),0_2px_6px_rgba(52,211,153,0.32)]"
+                            : "border border-slate-300 bg-white text-slate-500 shadow-[inset_0_1px_1px_rgba(15,23,42,0.04)]"
+                        }`}>
+                          {step.id === "brand" && isDone && modelBrandLogo ? (
+                            <Image
+                              src={modelBrandLogo}
+                              alt={selectedBrand?.name ?? ""}
+                              width={40}
+                              height={40}
+                              sizes="28px"
+                              quality={90}
+                              unoptimized={modelBrandLogo.endsWith(".svg")}
+                              className="h-5 w-5 object-contain"
+                              onError={handleBrandLogoLoadError}
+                            />
+                          ) : (
+                            index + 1
+                          )}
+                        </span>
+                        <span className={`text-[11px] leading-tight transition-all duration-300 ${
+                          isActive ? "font-extrabold text-sky-700" : isDone ? "font-bold text-emerald-700" : "font-bold text-slate-600"
+                        }`}>
+                          {step.label}
+                        </span>
+                        <span className={`max-w-full truncate text-[9px] font-semibold leading-tight transition-all duration-300 ${
+                          isActive ? "text-sky-600" : isDone ? "text-emerald-600" : "text-slate-400"
+                        }`}>
+                          {value || step.caption}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </nav>
 
-              <div className="overflow-hidden rounded-2xl border border-slate-200/50 bg-[image:linear-gradient(140deg,rgba(248,250,252,0.9)_0%,rgba(240,249,255,0.5)_50%,rgba(255,255,255,0.95)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_6px_16px_rgba(15,23,42,0.07)] transition-all duration-300 hover:border-sky-300/60 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_24px_rgba(14,165,233,0.16)]">
-                <div className="flex items-center gap-3 px-3.5 pt-3.5 pb-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600 shadow-inner">
-                    <HelpCircle size={16} strokeWidth={2.1} aria-hidden />
+              {selectedBrand && activeTab === "model" && (
+                <div className="mt-2.5 rounded-2xl border border-sky-100/80 bg-white/50 p-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+                  <div className="mb-1.5 flex items-center gap-1.5 px-0.5">
+                    <span className="h-px w-3 shrink-0 bg-gradient-to-r from-transparent to-sky-300" aria-hidden />
+                    <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                      {selectedYear != null ? `Рік випуску: ${selectedYear}` : "Рік випуску: будь-який"}
+                    </span>
+                    <span className="h-px flex-1 bg-gradient-to-r from-sky-300 to-transparent" aria-hidden />
+                    {yearMeta.bounds && (
+                      <span className="shrink-0 text-[10px] font-bold tabular-nums text-slate-500">
+                        {yearMeta.bounds.min}–{yearMeta.bounds.max}
+                      </span>
+                    )}
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[16px] font-extrabold tracking-[-0.015em] text-slate-900">{"\u041d\u0435 \u0437\u043d\u0430\u0439\u0448\u043b\u0438 \u0441\u0432\u043e\u0454 \u0430\u0432\u0442\u043e?"}</p>
-                    <p className="mt-1 text-[12.5px] font-medium leading-relaxed text-slate-600">{"\u0412\u0432\u0435\u0434\u0456\u0442\u044c VIN-\u043a\u043e\u0434 \u0430\u0432\u0442\u043e \u0434\u043b\u044f \u0442\u043e\u0447\u043d\u043e\u0433\u043e \u043f\u0456\u0434\u0431\u043e\u0440\u0443, \u0430\u0431\u043e \u043e\u043f\u0438\u0448\u0456\u0442\u044c \u043f\u0440\u043e\u0431\u043b\u0435\u043c\u0443 \u0432 \u043f\u043e\u0432\u0456\u0434\u043e\u043c\u043b\u0435\u043d\u043d\u0456 \u2014 \u043d\u0430\u0448\u0456 \u0444\u0430\u0445\u0456\u0432\u0446\u0456 \u043f\u0456\u0434\u0431\u0435\u0440\u0443\u0442\u044c \u043f\u043e\u0442\u0440\u0456\u0431\u043d\u0456 \u0434\u0435\u0442\u0430\u043b\u0456 \u0432\u0440\u0443\u0447\u043d\u0443."}</p>
+                  <div className="flex justify-center">
+                  <div className="inline-flex flex-wrap items-center gap-2 rounded-xl border border-sky-200 bg-[radial-gradient(circle_at_50%_-30%,rgba(125,211,252,0.35),transparent_60%),linear-gradient(150deg,#ffffff_0%,#f3faff_55%,#eaf7ff_100%)] px-2.5 py-2 shadow-[0_6px_16px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/80">
+                    <div className="flex items-center">
+                      {yearDigits.map((digit, place) => {
+                        const isSet = digit !== "";
+                        return (
+                          <div key={place} className="flex flex-col items-center">
+                            <button
+                              type="button"
+                              onClick={() => adjustYearDigit(place, 1)}
+                              disabled={!canAdjustYearDigit(place, 1)}
+                              aria-label="Збільшити розряд року"
+                              className="flex h-3.5 w-4 items-center justify-center text-slate-500 transition-colors duration-150 hover:text-sky-700 active:scale-90 disabled:opacity-25 disabled:hover:text-slate-500"
+                            >
+                              <ChevronUp size={12} strokeWidth={3} />
+                            </button>
+                            <input
+                              ref={(el) => {
+                                yearDigitRefs.current[place] = el;
+                              }}
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={1}
+                              value={digit}
+                              placeholder={yearPlaceholderDigits[place]}
+                              onChange={(e) => handleYearDigitType(place, e.target.value)}
+                              onKeyDown={(e) => handleYearDigitKeyDown(place, e)}
+                              onFocus={(e) => e.currentTarget.select()}
+                              aria-label={`Розряд року ${place + 1}`}
+                              className={`w-4 border-0 border-b-2 bg-transparent text-center text-[15px] font-black leading-none tabular-nums outline-none transition-colors duration-200 focus:border-sky-500 ${
+                                isSet ? "border-sky-300 text-sky-700" : "border-slate-300 text-slate-800 placeholder:font-bold placeholder:text-slate-400"
+                              }`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => adjustYearDigit(place, -1)}
+                              disabled={!canAdjustYearDigit(place, -1)}
+                              aria-label="Зменшити розряд року"
+                              className="flex h-3.5 w-4 items-center justify-center text-slate-500 transition-colors duration-150 hover:text-sky-700 active:scale-90 disabled:opacity-25 disabled:hover:text-slate-500"
+                            >
+                              <ChevronDown size={12} strokeWidth={3} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearYearSelection}
+                      disabled={selectedYear == null && yearDigits.every((d) => d === "")}
+                      aria-label="Скинути рік випуску"
+                      className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-bold text-slate-600 transition-colors duration-150 hover:text-sky-700 disabled:opacity-35"
+                    >
+                      <X size={12} strokeWidth={3} />
+                      Скинути
+                    </button>
                   </div>
+                  </div>
+                  <div className="mt-2 flex items-center justify-center gap-1.5">
+                    <Info size={12} strokeWidth={2.5} className="shrink-0 text-sky-500" aria-hidden />
+                    <p className="text-center text-[11px] font-semibold text-slate-600">
+                      {"Клікніть на цифру і введіть рік або скористайтесь стрілочками"}
+                    </p>
+                  </div>
+                  {!yearMeta.bounds && !yearMeta.loading && (
+                    <span className="mt-1 block text-center px-1 text-[11px] font-semibold text-slate-600">
+                      {yearMeta.error ?? "Роки випуску недоступні."}
+                    </span>
+                  )}
                 </div>
-                <div className="flex gap-2 border-t border-slate-100/80 px-3.5 py-3">
-                  <button
-                    type="button"
-                    onClick={handleOpenVinTab}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 py-2.5 text-[13px] font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_3px_10px_rgba(16,185,129,0.28)] transition-all duration-200 hover:-translate-y-[1px] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_6px_16px_rgba(16,185,129,0.36)] active:translate-y-0 active:scale-[0.97] active:shadow-[inset_0_1px_2px_rgba(6,95,70,0.25)]"
-                  >
-                    <KeyRound size={13} strokeWidth={2.2} />
-                    {"\u0414\u043e\u0434\u0430\u0442\u0438 VIN"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleMissingCar}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200/80 bg-white py-2.5 text-[13px] font-bold text-slate-600 shadow-[0_2px_6px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-[1px] hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 hover:shadow-[0_5px_14px_rgba(14,165,233,0.14)] active:translate-y-0 active:scale-[0.97] active:shadow-[inset_0_1px_2px_rgba(15,23,42,0.08)]"
-                  >
-                    <MessageCircle size={13} strokeWidth={2.2} />
-                    {"\u041d\u0430\u043f\u0438\u0441\u0430\u0442\u0438 \u043d\u0430\u043c"}
-                  </button>
+              )}
+
+              {(!selectedBrand || activeTab === "engine") && (
+                <div className="mt-3 flex flex-col gap-2.5">
+                  <div>
+                    <h3 className="relative inline-block text-[14.5px] font-black tracking-[-0.02em] text-slate-800 sm:text-[16px]">
+                      {!selectedBrand ? "Оберіть марку" : "Оберіть модифікацію"}
+                      <span className="pointer-events-none absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400" />
+                    </h3>
+                    <p className="mt-2 text-[11.5px] font-medium leading-[16px] text-slate-500 sm:text-[12.5px] sm:leading-[17px]">
+                      {!selectedBrand
+                        ? "Натисніть на логотип марки зі списку, щоб переглянути доступні моделі та підібрати запчастини для вашого авто."
+                        : "Вкажіть рік випуску, об'єм двигуна та інші параметри, щоб знайти запчастини, сумісні саме з вашою модифікацією."}
+                    </p>
+                  </div>
+                  <ul className="flex flex-col gap-2">
+                    {(!selectedBrand
+                      ? [
+                          `Понад ${carBrands.length} популярних марок авто`,
+                          "Точний підбір за маркою, моделлю і роком",
+                          "Сумісні запчастини для вашого авто",
+                        ]
+                      : [
+                          "Точна сумісність за модифікацією",
+                          "Перевірені запчастини для вашого двигуна",
+                          "Швидкий перехід до каталогу",
+                        ]
+                    ).map((item) => (
+                      <li key={item} className="flex items-start gap-2.5 text-[11px] font-medium leading-snug text-slate-600 sm:text-[12px]">
+                        <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              </div>
+              )}
             </>
           )}
           </div>
@@ -1567,7 +1857,6 @@ const AutoSection: React.FC<AutoProps> = ({
           )}
       </div>
           </div>
-        </div>
         </div>
       </div>
     </div>

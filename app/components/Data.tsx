@@ -475,11 +475,14 @@ const getProductPriceLookupKeys = (item: Pick<Product, "code" | "article">) =>
 
 const getResolvedProductPriceEuro = (
   item: Pick<Product, "code" | "article" | "priceEuro">,
-  prices: Record<string, number | null>
+  prices: Record<string, number | null>,
+  precomputedPriceKeys?: string[]
 ) => {
-  const priceKeys = Array.from(
-    new Set([getProductPriceStateKey(item), ...getProductPriceLookupKeys(item)].filter(Boolean))
-  );
+  const priceKeys =
+    precomputedPriceKeys ??
+    Array.from(
+      new Set([getProductPriceStateKey(item), ...getProductPriceLookupKeys(item)].filter(Boolean))
+    );
 
   for (const key of priceKeys) {
     const cachedEuro = prices[key];
@@ -505,7 +508,8 @@ const getResolvedProductPriceEuro = (
 
 const hasResolvedProductPriceState = (
   item: Pick<Product, "code" | "article" | "priceEuro" | "hasPrice">,
-  prices: Record<string, number | null>
+  prices: Record<string, number | null>,
+  precomputedPriceKeys?: string[]
 ) => {
   if (
     typeof item.priceEuro === "number" &&
@@ -519,19 +523,32 @@ const hasResolvedProductPriceState = (
     return true;
   }
 
-  const priceKeys = Array.from(
-    new Set([getProductPriceStateKey(item), ...getProductPriceLookupKeys(item)].filter(Boolean))
-  );
+  const priceKeys =
+    precomputedPriceKeys ??
+    Array.from(
+      new Set([getProductPriceStateKey(item), ...getProductPriceLookupKeys(item)].filter(Boolean))
+    );
 
   return priceKeys.some((key) => Object.prototype.hasOwnProperty.call(prices, key));
+};
+
+type CatalogSortedEntry = {
+  item: Product;
+  index: number;
+  code: string;
+  stableKey: string;
+  priceKey: string;
+  priceUAH: number | null;
+  priceResolved: boolean;
 };
 
 const getResolvedProductPriceUAH = (
   item: Pick<Product, "code" | "article" | "priceEuro">,
   prices: Record<string, number | null>,
-  euroRate: number
+  euroRate: number,
+  precomputedPriceKeys?: string[]
 ) => {
-  const resolvedEuro = getResolvedProductPriceEuro(item, prices);
+  const resolvedEuro = getResolvedProductPriceEuro(item, prices, precomputedPriceKeys);
   return toPriceUAH(resolvedEuro, euroRate);
 };
 
@@ -3836,7 +3853,7 @@ const Data: React.FC<DataProps> = ({
   useEffect(() => { selectedCarsRef.current = selectedCars; }, [selectedCars]);
   const softTransitionStartedAtRef = useRef(0);
   const softTransitionHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [lastStableSortedData, setLastStableSortedData] = useState<Product[]>([]);
+  const [lastStableSortedEntries, setLastStableSortedEntries] = useState<CatalogSortedEntry[]>([]);
   const [isSoftTransitioning, setIsSoftTransitioning] = useState(false);
   const [virtualWindowRange, setVirtualWindowRange] = useState({
     startIndex: 0,
@@ -4240,8 +4257,38 @@ const Data: React.FC<DataProps> = ({
     ]
   );
 
+  // Only depends on filteredData — building stableKey/priceKey is cheap
+  // string work, but resolving each item's price (see getResolvedProductPriceEuro)
+  // does Set construction + object lookups per item, and used to live in
+  // this same map. That made the combined list rebuild on every one of the
+  // many price-batch updates that resolve while scrolling, at a cost that
+  // grows with the accumulated list — measured causing 100ms+ main-thread
+  // blocks. Price resolution is now split out below, only when it's
+  // actually needed for a price sort.
+  const baseEntries = useMemo<CatalogSortedEntry[]>(
+    () =>
+      filteredData.map((item, index) => ({
+        item,
+        index,
+        code: item.code,
+        stableKey: getProductStableListKey(item),
+        priceKey: getProductPriceStateKey(item),
+        priceUAH: null,
+        priceResolved: false,
+      })),
+    [filteredData]
+  );
   const sortedEntries = useMemo(() => {
-    const entries = filteredData.map((item, index) => {
+    // For "none" sort: preserve server order (1C already returns priced items first via
+    // ORDER BY ЕстьЦена DESC). Sorting here would cause items to jump when new pages load.
+    // It also needs nothing from `prices`, so returning baseEntries directly skips the
+    // per-item price resolution entirely — each card resolves its own current price at
+    // render time instead (see the fallback in the render loop below).
+    if (sortOrder === "none") return baseEntries;
+
+    // For asc/desc: sort all accumulated items so the user sees a globally-sorted list.
+    const entries = baseEntries.map((entry) => {
+      const item = entry.item;
       const inlineEuro =
         typeof item.priceEuro === "number" &&
         Number.isFinite(item.priceEuro) &&
@@ -4250,19 +4297,15 @@ const Data: React.FC<DataProps> = ({
           : null;
       const euro = inlineEuro ?? getResolvedProductPriceEuro(item, prices);
       return {
-        item,
-        index,
-        code: item.code,
-        stableKey: getProductStableListKey(item),
-        priceKey: getProductPriceStateKey(item),
+        ...entry,
         priceUAH: toPriceUAH(euro, euroRate),
         priceResolved: hasResolvedProductPriceState(item, prices),
       };
     });
 
-    const priceSortFn = (a: (typeof entries)[0], b: (typeof entries)[0]) => {
+    const priceSortFn = (a: CatalogSortedEntry, b: CatalogSortedEntry) => {
       // 0 = confirmed has price, 1 = price status unknown (batch not loaded), 2 = confirmed no price
-      const priceGroup = (e: typeof a) => {
+      const priceGroup = (e: CatalogSortedEntry) => {
         if (e.priceUAH != null) return 0;
         return e.priceResolved ? 2 : 1;
       };
@@ -4275,11 +4318,8 @@ const Data: React.FC<DataProps> = ({
       return a.index - b.index;
     };
 
-    // For "none" sort: preserve server order (1C already returns priced items first via
-    // ORDER BY ЕстьЦена DESC). Sorting here would cause items to jump when new pages load.
-    // For asc/desc: sort all accumulated items so the user sees a globally-sorted list.
-    return sortOrder === "none" ? entries : [...entries].sort(priceSortFn);
-  }, [filteredData, prices, euroRate, sortOrder]);
+    return entries.sort(priceSortFn);
+  }, [baseEntries, prices, euroRate, sortOrder]);
   const sortedData = useMemo(
     () => sortedEntries.map(({ item }) => item),
     [sortedEntries]
@@ -4296,15 +4336,23 @@ const Data: React.FC<DataProps> = ({
     if (lastStableSortedSignatureRef.current === sortedDataSignature) return;
 
     lastStableSortedSignatureRef.current = sortedDataSignature;
-    setLastStableSortedData(sortedData);
-  }, [sortedData, sortedDataSignature]);
+    setLastStableSortedEntries(sortedEntries);
+  }, [sortedEntries, sortedDataSignature]);
   const shouldKeepStableGrid =
     isLoadingNextPage &&
-    lastStableSortedData.length > 0;
-  const visibleSortedData =
-    shouldKeepStableGrid && lastStableSortedData.length > 0
-      ? lastStableSortedData
-      : sortedData;
+    lastStableSortedEntries.length > 0;
+  // While the next page is loading, keep showing the previously captured
+  // entries as-is instead of re-deriving price/key metadata for the whole
+  // accumulated list from the latest `prices` state. That re-derive used to
+  // run as a second full-list pass on top of `sortedEntries` above, and
+  // since it's gated on `isLoadingNextPage` it fired on every page load
+  // triggered by scrolling — a real, measured 100ms+ main-thread block per
+  // page once the list grew past a couple hundred items.
+  const visibleSortedEntries = shouldKeepStableGrid ? lastStableSortedEntries : sortedEntries;
+  const visibleSortedData = useMemo(
+    () => (shouldKeepStableGrid ? visibleSortedEntries.map((entry) => entry.item) : sortedData),
+    [shouldKeepStableGrid, visibleSortedEntries, sortedData]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -4335,21 +4383,6 @@ const Data: React.FC<DataProps> = ({
       })
     );
   }, [catalogTotalCount, filterSignature, visibleSortedData.length, loading, filterLoading]);
-
-  const visibleSortedEntries = useMemo(() => {
-    if (visibleSortedData === sortedData) {
-      return sortedEntries;
-    }
-
-    return visibleSortedData.map((item, index) => ({
-      item,
-      index,
-      code: item.code,
-      stableKey: getProductStableListKey(item),
-      priceKey: getProductPriceStateKey(item),
-      priceUAH: getResolvedProductPriceUAH(item, prices, euroRate),
-    }));
-  }, [visibleSortedData, sortedData, sortedEntries, prices, euroRate]);
   const analyticsList = useMemo(() => {
     const safeSearch = sanitizeAnalyticsSearchTerm(rawSearchQuery);
 
@@ -4425,38 +4458,43 @@ const Data: React.FC<DataProps> = ({
       currency: "UAH",
       item_list_id: analyticsList.id,
       item_list_name: analyticsList.name,
-      items: newEntries.map(({ entry, displayIndex }) => ({
-        item_id: entry.item.code || entry.item.article,
-        item_name: entry.item.name || "Товар",
-        ...(entry.item.producer
-          ? { item_brand: entry.item.producer }
-          : {}),
-        ...(entry.item.category
-          ? { item_category: entry.item.category }
-          : {}),
-        ...(entry.item.group
-          ? { item_category2: entry.item.group }
-          : {}),
-        ...(entry.item.subGroup
-          ? { item_category3: entry.item.subGroup }
-          : {}),
-        ...(entry.item.article
-          ? { item_variant: entry.item.article }
-          : {}),
-        item_list_id: analyticsList.id,
-        item_list_name: analyticsList.name,
-        index: displayIndex,
-        ...(entry.priceUAH != null ? { price: entry.priceUAH } : {}),
-        quantity: 1,
-      })),
+      items: newEntries.map(({ entry, displayIndex }) => {
+        const resolvedPriceUAH = entry.priceUAH ?? getResolvedProductPriceUAH(entry.item, prices, euroRate);
+        return {
+          item_id: entry.item.code || entry.item.article,
+          item_name: entry.item.name || "Товар",
+          ...(entry.item.producer
+            ? { item_brand: entry.item.producer }
+            : {}),
+          ...(entry.item.category
+            ? { item_category: entry.item.category }
+            : {}),
+          ...(entry.item.group
+            ? { item_category2: entry.item.group }
+            : {}),
+          ...(entry.item.subGroup
+            ? { item_category3: entry.item.subGroup }
+            : {}),
+          ...(entry.item.article
+            ? { item_variant: entry.item.article }
+            : {}),
+          item_list_id: analyticsList.id,
+          item_list_name: analyticsList.name,
+          index: displayIndex,
+          ...(resolvedPriceUAH != null ? { price: resolvedPriceUAH } : {}),
+          quantity: 1,
+        };
+      }),
     });
   }, [
     analyticsList.id,
     analyticsList.name,
     catalogQuerySignature,
     catalogReadyQuerySignature,
+    euroRate,
     filterLoading,
     loading,
+    prices,
     visibleSortedEntries,
   ]);
 
@@ -4693,6 +4731,49 @@ const Data: React.FC<DataProps> = ({
   }, [loading, setFilterLoading]);
 
 
+  // Row height only changes when layout/content changes, not on every
+  // scroll tick — measure it via ResizeObserver instead of inside the
+  // scroll-driven loop below. getComputedStyle()/getBoundingClientRect()
+  // force a synchronous style/layout recalc, and running that on every
+  // animation frame during a fast scroll is what caused the scroll lag.
+  useEffect(() => {
+    if (typeof window === "undefined" || !shouldUseVirtualWindow) return;
+
+    const measure = () => {
+      const grid = catalogGridRef.current;
+      if (!grid) return;
+      const firstCard = grid.querySelector<HTMLElement>("[data-catalog-card='1']");
+      if (!firstCard) return;
+
+      const cardRect = firstCard.getBoundingClientRect();
+      const gridStyle = window.getComputedStyle(grid);
+      const rowGap = Number.parseFloat(gridStyle.rowGap || "0") || 0;
+      const measuredRowHeight = cardRect.height + rowGap;
+
+      if (
+        Number.isFinite(measuredRowHeight) &&
+        measuredRowHeight >= 220 &&
+        measuredRowHeight <= 520
+      ) {
+        setVirtualRowHeightPx((prev) =>
+          Math.abs(measuredRowHeight - prev) > 1 ? measuredRowHeight : prev
+        );
+      }
+    };
+
+    measure();
+
+    const grid = catalogGridRef.current;
+    if (!grid || typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure, { passive: true });
+      return () => window.removeEventListener("resize", measure);
+    }
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, [shouldUseVirtualWindow, gridColumnCount, visibleSortedEntries.length]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -4712,23 +4793,6 @@ const Data: React.FC<DataProps> = ({
     const updateRange = () => {
       const grid = catalogGridRef.current;
       if (!grid) return;
-
-      const firstCard = grid.querySelector<HTMLElement>("[data-catalog-card='1']");
-      if (firstCard) {
-        const cardRect = firstCard.getBoundingClientRect();
-        const gridStyle = window.getComputedStyle(grid);
-        const rowGap = Number.parseFloat(gridStyle.rowGap || "0") || 0;
-        const measuredRowHeight = cardRect.height + rowGap;
-
-        if (
-          Number.isFinite(measuredRowHeight) &&
-          measuredRowHeight >= 220 &&
-          measuredRowHeight <= 520 &&
-          Math.abs(measuredRowHeight - virtualRowHeightPx) > 1
-        ) {
-          setVirtualRowHeightPx(measuredRowHeight);
-        }
-      }
 
       const totalItems = visibleSortedEntries.length;
       const columns = Math.max(1, gridColumnCount);
@@ -4907,17 +4971,27 @@ const Data: React.FC<DataProps> = ({
 
               {entriesToRender.map((entry, index) => {
                 const { item, stableKey } = entry;
+                // Resolving a price against `prices` involves building this same
+                // key set (getResolvedProductPriceEuro / hasResolvedProductPriceState
+                // each build their own copy). Computing it once per card and passing
+                // it through avoids four redundant Set() constructions per item on
+                // every render — real, measurable cost multiplied across every
+                // visible card each time a price batch resolves during scroll.
+                const priceLookupKeysOnly = getProductPriceLookupKeys(item);
+                const priceLookupKeys = Array.from(
+                  new Set([entry.priceKey, ...priceLookupKeysOnly].filter(Boolean))
+                );
                 const priceUAH =
-                  entry.priceUAH ?? getResolvedProductPriceUAH(item, prices, euroRate);
+                  entry.priceUAH ?? getResolvedProductPriceUAH(item, prices, euroRate, priceLookupKeys);
                 if (!item?.code) return null;
 
                 const code = item.code;
                 const qty = quantities[code] ?? 1;
                 const cartQty = cartMap[code] ?? 0;
                 const absoluteIndex = effectiveVirtualWindowStartIndex + index;
-                const hasResolvedPriceState = hasResolvedProductPriceState(item, prices);
+                const hasResolvedPriceState = hasResolvedProductPriceState(item, prices, priceLookupKeys);
                 const isKnownNoPrice =
-                  hasResolvedPriceState && getResolvedProductPriceEuro(item, prices) === null;
+                  hasResolvedPriceState && getResolvedProductPriceEuro(item, prices, priceLookupKeys) === null;
                 const stateCostPriceEuro =
                   typeof item.costPriceEuro === "number" &&
                   Number.isFinite(item.costPriceEuro) &&
@@ -4933,7 +5007,7 @@ const Data: React.FC<DataProps> = ({
                           return stateCost;
                         }
 
-                        for (const lookupKey of getProductPriceLookupKeys(item)) {
+                        for (const lookupKey of priceLookupKeysOnly) {
                           const lookupCost = costPrices[lookupKey];
                           if (
                             typeof lookupCost === "number" &&

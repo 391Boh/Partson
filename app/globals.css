@@ -516,25 +516,41 @@ html[data-consent-preferences="complete"] .analytics-consent-banner {
     animation: none;
     opacity: 0.9;
   }
+
+  .catalog-image-loading,
+  .catalog-image-loading::after {
+    animation: none;
+  }
 }
 
 .catalog-image-loading {
-  background-size: 180% 180%;
-  animation: catalogImageLoading 1.4s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+  animation: catalogSkeletonBreathe 1.4s ease-in-out infinite;
 }
 
-@keyframes catalogImageLoading {
-  0% {
-    background-position: 0% 50%;
-    opacity: 0.88;
-  }
-  50% {
-    background-position: 100% 50%;
-    opacity: 1;
-  }
+/* A translateX sheen instead of an animated background-position: the
+   latter repaints every frame, which is expensive multiplied across every
+   simultaneously-loading card in a scrolling catalog grid. transform is
+   compositor-only, so this costs nothing extra during scroll. */
+.catalog-image-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.55),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: catalogImageShimmer 1.4s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes catalogImageShimmer {
   100% {
-    background-position: 0% 50%;
-    opacity: 0.88;
+    transform: translateX(100%);
   }
 }
 

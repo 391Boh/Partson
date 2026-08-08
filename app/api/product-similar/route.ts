@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getSimilarProducts } from "app/lib/product-related";
+import { getSimilarProducts, getStaticProductRecommendations } from "app/lib/product-related";
 
 const PRODUCT_SIMILAR_API_TIMEOUT_MS = 4800;
 const PRODUCT_SIMILAR_LIMIT = 6;
@@ -70,7 +70,24 @@ export async function GET(request: Request) {
       );
     }
 
-    const items = result.slice(0, PRODUCT_SIMILAR_LIMIT);
+    let items = result.slice(0, PRODUCT_SIMILAR_LIMIT);
+
+    // Live subgroup lookup can legitimately come back empty. Fall back to the
+    // static sitemap-based recommendations so "схожі товари" still has
+    // something to show alongside аналоги.
+    if (items.length === 0) {
+      const staticRecommendations = await getStaticProductRecommendations(
+        article,
+        code,
+        name,
+        producer,
+        group,
+        subGroup,
+        category
+      ).catch(() => ({ analogs: [], similar: [] }));
+      items = staticRecommendations.similar.slice(0, PRODUCT_SIMILAR_LIMIT);
+    }
+
     return NextResponse.json(
       { items, retryable: false },
       {

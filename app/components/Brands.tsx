@@ -2,15 +2,15 @@
 
 import Image from "next/image";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ChevronLeft, ChevronRight, Factory, Search, X } from "lucide-react";
 import SmartLink from "app/components/SmartLink";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { brands } from "./brandsData";
 
-const MOBILE_ITEMS_PER_PAGE = 2;
-const DESKTOP_ITEMS_PER_PAGE = 6;
+// 4 cols at every breakpoint, 2 rows per page.
+const ITEMS_PER_PAGE = 8;
 
 const pluralizeUk = (value: number, one: string, few: string, many: string) => {
   const mod10 = value % 10;
@@ -92,30 +92,76 @@ type BrandSearchInputProps = {
   className?: string;
 };
 
+// Same gradient-border, animated-placeholder search field as
+// AutoBrandSearchInput (Auto.tsx) / ProductSearchInput (tovar.tsx), so all
+// three "pick from a compact grid" components share one search language.
+const BRAND_SEARCH_EXAMPLES = ["Bosch", "Brembo", "Continental", "Castrol", "Febi", "Sachs"];
+
 const BrandSearchInput = memo(
   ({ value, onChange, className }: BrandSearchInputProps) => {
+    const [animatedPlaceholder, setAnimatedPlaceholder] = useState(BRAND_SEARCH_EXAMPLES[0] ?? "");
+
+    useEffect(() => {
+      if (value) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        setAnimatedPlaceholder(BRAND_SEARCH_EXAMPLES[0]);
+        return;
+      }
+
+      let exampleIndex = 0;
+      let characterIndex = 0;
+      let isDeleting = false;
+      let timeoutId: ReturnType<typeof setTimeout>;
+
+      const tick = () => {
+        const example = BRAND_SEARCH_EXAMPLES[exampleIndex];
+        characterIndex += isDeleting ? -1 : 1;
+        setAnimatedPlaceholder(example.slice(0, characterIndex));
+
+        let delay = isDeleting ? 38 : 68;
+        if (!isDeleting && characterIndex >= example.length) {
+          isDeleting = true;
+          delay = 1350;
+        } else if (isDeleting && characterIndex <= 0) {
+          isDeleting = false;
+          exampleIndex = (exampleIndex + 1) % BRAND_SEARCH_EXAMPLES.length;
+          delay = 280;
+        }
+        timeoutId = setTimeout(tick, delay);
+      };
+
+      timeoutId = setTimeout(tick, 350);
+      return () => clearTimeout(timeoutId);
+    }, [value]);
 
     return (
       <label
-        className={`group/search relative block rounded-xl transition-shadow duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] focus-within:shadow-[0_10px_26px_rgba(14,165,233,0.14)] ${className ?? ""}`}
+        className={`relative block rounded-[18px] bg-[linear-gradient(135deg,#0284c7,#22d3ee)] p-[2px] shadow-[0_12px_28px_rgba(2,132,199,0.2),0_0_0_3px_rgba(255,255,255,0.78)] transition-[box-shadow,background-image] duration-300 focus-within:bg-[linear-gradient(135deg,#0ea5e9_0%,#38bdf8_48%,#2dd4bf_100%)] focus-within:shadow-[0_15px_34px_rgba(14,165,233,0.24),0_0_0_4px_rgba(125,211,252,0.14)] ${className ?? ""}`}
       >
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-focus-within/search:text-sky-600" />
+        <span className="pointer-events-none absolute left-4 top-1/2 z-10 inline-flex -translate-y-1/2 items-center justify-center text-sky-700">
+          <Search size={19} strokeWidth={2.2} />
+        </span>
+
         <input
           type="text"
-          placeholder="Виробник"
-          aria-label="Пошук виробника"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="font-ui w-full rounded-xl border border-slate-200 bg-white px-10 py-2.5 text-sm font-semibold tracking-normal text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_2px_6px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] select-text placeholder:text-slate-400 focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-100"
+          onTouchStart={(e) => { e.currentTarget.focus(); }}
+          placeholder={animatedPlaceholder}
+          autoComplete="off"
+          spellCheck={false}
+          aria-label="Пошук виробника"
+          className="h-11 w-full rounded-[16px] border-0 bg-white pl-11 pr-10 text-[15px] font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,1)] outline-none transition-[background-color,box-shadow] duration-300 placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:text-slate-800 focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,1)] select-text sm:h-12"
         />
+
         {value && (
           <button
             type="button"
             onClick={() => onChange("")}
             aria-label="Очистити пошук"
-            className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+            className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
-            <X className="h-3.5 w-3.5 mx-auto" />
+            <X size={16} />
           </button>
         )}
       </label>
@@ -125,83 +171,177 @@ const BrandSearchInput = memo(
 
 BrandSearchInput.displayName = "BrandSearchInput";
 
-function BrandCard({
+// Compact logo-only tile — same visual language as CarBrandButton (Auto.tsx)
+// and the group cards (tovar.tsx): no name/description on the tile itself,
+// selecting one reveals the details in BrandInfoPanel to the left of the
+// grid instead of every card carrying its own description.
+function BrandTile({
   brand,
   priority = false,
+  isSelected,
+  onSelect,
 }: {
   brand: BrandItem;
   priority?: boolean;
+  isSelected: boolean;
+  onSelect: (brand: BrandItem) => void;
 }) {
   return (
     <SmartLink
       href={buildManufacturerPath(buildSeoSlug(brand.name))}
       prefetchOnIntent
+      title={brand.name}
+      aria-label={`Обрати ${brand.name}`}
       onClick={(event) => {
+        // Real crawlable href stays in the DOM for search engines, but a
+        // plain left-click selects in place instead of navigating — middle
+        // click / ctrl+click / shift+click still open it normally.
+        if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) {
+          return;
+        }
+        event.preventDefault();
         event.currentTarget.blur();
+        onSelect(brand);
       }}
       onMouseLeave={(event) => event.currentTarget.blur()}
-      className="group relative isolate flex h-[176px] w-full flex-col overflow-hidden rounded-2xl border border-slate-200/95 bg-[linear-gradient(148deg,#ffffff_0%,#fbfdff_34%,#f3f7fb_68%,#e6eef6_100%)] p-2.5 text-left shadow-[0_18px_36px_rgba(15,23,42,0.13),0_5px_13px_rgba(14,116,144,0.09),inset_0_1px_0_rgba(255,255,255,1),inset_0_-1px_0_rgba(30,64,175,0.07)] ring-1 ring-white/95 transition-[border-color,box-shadow,background] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-sky-300 hover:bg-[linear-gradient(148deg,#ffffff_0%,#f6fbff_34%,#eaf5fc_68%,#d8eaf6_100%)] hover:shadow-[0_24px_46px_rgba(14,165,233,0.24),0_8px_18px_rgba(30,64,175,0.13),inset_0_1px_0_rgba(255,255,255,1),inset_0_-1px_0_rgba(30,64,175,0.10),0_0_0_1px_rgba(56,189,248,0.20)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 sm:h-[196px] sm:rounded-[18px] sm:p-3 lg:h-[204px] lg:p-3.5"
+      className={`group/tile relative flex h-[92px] w-full flex-col items-center justify-center overflow-hidden rounded-[16px] border px-2 shadow-[0_8px_18px_rgba(15,23,42,0.08),0_2px_7px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 transition-[border-color,background-color,box-shadow] duration-500 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:h-[104px] ${
+        isSelected
+          ? "border-sky-500 bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] shadow-[0_16px_30px_rgba(2,132,199,0.22),0_0_0_3px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,1)]"
+          : "border-sky-200/95 bg-[radial-gradient(circle_at_50%_-8%,rgba(125,211,252,0.44),transparent_48%),linear-gradient(150deg,#ffffff_0%,#f3faff_50%,#e9f8ff_100%)] hover:border-sky-500 hover:bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] hover:shadow-[0_16px_30px_rgba(2,132,199,0.22),0_0_0_3px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,1)]"
+      }`}
     >
-      <span className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[3px] bg-[linear-gradient(90deg,#38bdf8,#0ea5e9,#6366f1)] opacity-90 transition-[height,opacity,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:h-1 group-hover:shadow-[0_0_16px_rgba(56,189,248,0.7)]" />
-      <span className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_100%_80%_at_0%_0%,rgba(255,255,255,0.9)_0%,rgba(224,242,254,0.15)_50%,transparent_75%)] opacity-90 transition-opacity duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100" />
-      <span className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_92%_72%_at_100%_100%,rgba(59,130,246,0.105)_0%,rgba(14,165,233,0.035)_42%,transparent_70%)]" />
-      <span className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100 bg-[radial-gradient(ellipse_90%_70%_at_100%_100%,rgba(99,102,241,0.16)_0%,transparent_65%)]" />
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 left-[-60%] z-0 w-1/3 -skew-x-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent)] opacity-0 transition-[transform,opacity] duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[280%] group-hover:opacity-100"
-      />
-
-      <span className="relative z-10 grid min-w-0 grid-cols-[68px_minmax(0,1fr)] items-center gap-2.5 sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3 lg:grid-cols-[96px_minmax(0,1fr)]">
-        <span className="flex h-[52px] w-[68px] shrink-0 items-center justify-center rounded-xl border border-white/85 bg-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.98),0_7px_16px_rgba(15,23,42,0.08)] ring-1 ring-sky-100/70 backdrop-blur-sm transition-[border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:border-white group-hover:bg-white/96 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.98),0_9px_20px_rgba(14,165,233,0.18)] sm:h-[62px] sm:w-[88px] sm:rounded-[14px] lg:h-[66px] lg:w-[96px]">
-          {brand.logo ? (
-            <Image
-              src={brand.logo}
-              alt={`${brand.name} logo`}
-              width={320}
-              height={200}
-              quality={75}
-              priority={priority}
-              // Cards only ever mount when their page is within the carousel's
-              // virtualization window (Math.abs(pageIndex - safePage) <= 2
-              // below) — that already caps how many images exist in the DOM
-              // at once, so native lazy-loading on top of it just adds a
-              // visible pop-in delay while swiping into a neighboring page
-              // instead of having it ready ahead of time.
-              loading={priority ? undefined : "eager"}
-              draggable={false}
-              className="h-[38px] w-[62px] object-contain drop-shadow-[0_4px_8px_rgba(15,23,42,0.09)] sm:h-[48px] sm:w-[80px] lg:h-[52px] lg:w-[88px]"
-              style={{ imageRendering: "auto" }}
-              sizes="(max-width: 640px) 64px, 80px"
-              onError={handleBrandLogoLoadError}
-            />
-          ) : (
-            <span className="text-[12px] font-black text-slate-600 tracking-tight leading-none text-center px-1">
-              {brand.name.split(" ").map((w) => w[0]).join("").slice(0, 3).toUpperCase()}
-            </span>
-          )}
-        </span>
-        <span className="flex min-w-0 flex-col items-end gap-0.5 text-right">
-          <span className="inline-flex self-end items-center justify-end gap-1 whitespace-nowrap text-[10px] font-black uppercase tracking-[0.045em] text-sky-700 transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[11px]">
-            До виробника
-            <ArrowRight size={11} strokeWidth={3} aria-hidden="true" />
+      <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_22%,rgba(255,255,255,0.9),transparent_46%),linear-gradient(180deg,rgba(34,211,238,0.08),rgba(59,130,246,0.1))] opacity-0 transition-opacity duration-300 group-hover/tile:opacity-100" />
+      <span className="relative flex h-11 w-11 items-center justify-center sm:h-[52px] sm:w-[52px]">
+        {brand.logo ? (
+          <Image
+            src={brand.logo}
+            alt={`${brand.name} logo`}
+            width={120}
+            height={78}
+            quality={75}
+            draggable={false}
+            priority={priority}
+            // Tiles only ever mount when their page is within the carousel's
+            // virtualization window (Math.abs(pageIndex - safePage) <= 1
+            // below) — that already caps how many images exist in the DOM
+            // at once, so native lazy-loading on top of it just adds a
+            // visible pop-in delay while swiping into a neighboring page
+            // instead of having it ready ahead of time.
+            loading={priority ? undefined : "eager"}
+            className="relative h-11 w-11 object-contain drop-shadow-[0_5px_9px_rgba(14,116,144,0.14)] transition-[filter,opacity,transform] duration-500 ease-out group-hover/tile:scale-[1.1] group-hover/tile:brightness-[1.06] group-hover/tile:saturate-[1.12] group-hover/tile:drop-shadow-[0_8px_14px_rgba(2,132,199,0.3)] sm:h-[52px] sm:w-[52px]"
+            style={{ imageRendering: "auto" }}
+            sizes="(max-width: 640px) 44px, 52px"
+            onError={handleBrandLogoLoadError}
+          />
+        ) : (
+          <span className="text-[11px] font-black text-slate-600 tracking-tight leading-none text-center px-1">
+            {brand.name.split(" ").map((w) => w[0]).join("").slice(0, 3).toUpperCase()}
           </span>
-          <span className="line-clamp-2 block max-w-full break-words text-right text-[17px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-sky-800 sm:text-[18px] lg:text-[19px]">
-            {brand.name}
-          </span>
-          {brand.productCount && brand.productCount > 0 ? (
-            <span className="hidden text-right text-[10.5px] font-bold text-emerald-700 sm:inline">
-              {brand.productCount.toLocaleString("uk-UA")} {pluralizeProductCount(brand.productCount)} у каталозі
-            </span>
-          ) : null}
-        </span>
+        )}
       </span>
-
-      <span className="relative z-10 mt-2 flex min-w-0 flex-1 flex-col justify-center rounded-xl border border-white/75 bg-white/62 px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] ring-1 ring-slate-100/70 backdrop-blur-sm transition-colors duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:bg-white/80 group-hover:ring-sky-100 sm:mt-2.5 sm:rounded-[14px] sm:px-2.5 sm:py-2">
-        <span className="font-ui line-clamp-4 block min-w-0 break-words text-center text-[11.5px] font-semibold leading-[15px] tracking-[-0.005em] text-slate-600 transition-colors duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-slate-800 sm:line-clamp-5 sm:text-[12.5px] sm:leading-[17px]">
-          {brand.description}
+      {brand.productCount && brand.productCount > 0 ? (
+        <span
+          className={`relative mt-1.5 whitespace-nowrap text-[11px] font-extrabold leading-none tabular-nums transition-colors duration-300 sm:text-[12px] ${
+            isSelected ? "text-sky-700" : "text-slate-600 group-hover/tile:text-sky-700"
+          }`}
+        >
+          {brand.productCount.toLocaleString("uk-UA")} {pluralizeProductCount(brand.productCount)}
         </span>
-      </span>
+      ) : null}
     </SmartLink>
+  );
+}
+
+// Revealed under the grid once a tile is selected — mirrors how Auto.tsx
+// shows the model list only after a brand is picked, instead of every card
+// carrying its own description inline.
+// Sits to the right of the grid (mirrors the nav panel next to the
+// brand/model grid in Auto.tsx): shows a neutral prompt until a manufacturer
+// is picked, then its heading, description and CTA appear here instead of in
+// the grid itself, keeping the tile grid compact and description-free. Pure
+// text, no card container or decorative icon.
+function BrandInfoPanel({
+  brand,
+  onClose,
+}: {
+  brand: BrandItem | null;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex h-full min-h-[220px] flex-col justify-center px-1 py-6 sm:px-2">
+      <AnimatePresence mode="wait">
+        {brand ? (
+          <motion.div
+            key={brand.name}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="flex flex-col gap-2"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="text-[20px] font-black leading-tight tracking-[-0.02em] text-slate-900 sm:text-[22px]">
+                {brand.name}
+              </h3>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Закрити опис виробника"
+                className="mt-1 shrink-0 text-slate-400 transition-colors duration-150 hover:text-slate-600"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            {brand.productCount && brand.productCount > 0 ? (
+              <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-emerald-700">
+                {brand.productCount.toLocaleString("uk-UA")} {pluralizeProductCount(brand.productCount)}
+              </span>
+            ) : null}
+            <p className="text-[13px] font-medium leading-[20px] text-slate-600 sm:text-[13.5px]">
+              {brand.description}
+            </p>
+            <SmartLink
+              href={buildManufacturerPath(buildSeoSlug(brand.name))}
+              className="group/cta mt-1 inline-flex w-fit items-center gap-1.5 self-end text-[13px] font-black text-sky-700 transition-colors duration-150 hover:text-cyan-600"
+            >
+              До виробника
+              <ArrowRight size={14} strokeWidth={3} aria-hidden="true" className="transition-transform duration-200 group-hover/cta:translate-x-0.5" />
+            </SmartLink>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="empty"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="flex flex-col gap-3"
+          >
+            <div>
+              <h3 className="relative inline-block text-[18px] font-black tracking-[-0.02em] text-slate-800 sm:text-[20px]">
+                Оберіть виробника
+                <span className="pointer-events-none absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400" />
+              </h3>
+              <p className="mt-2.5 text-[12.5px] font-medium leading-[18px] text-slate-500 sm:text-[13px] sm:leading-[19px]">
+                Натисніть на логотип виробника зі списку, щоб переглянути опис бренду та перейти до його каталогу запчастин.
+              </p>
+            </div>
+            <ul className="flex flex-col gap-2">
+              {[
+                "Оригінальні деталі та перевірені аналоги",
+                "Актуальна кількість товарів по кожному бренду",
+                "Прямий перехід до каталогу обраного виробника",
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-2.5 text-[12px] font-medium leading-snug text-slate-600 sm:text-[12.5px]">
+                  <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -218,28 +358,12 @@ export default function BrandCarousel({
   const shouldAnimate = !shouldReduceMotion && playEntranceAnimations;
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const [isSmUp, setIsSmUp] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches
-  );
+  const [selectedBrand, setSelectedBrand] = useState<BrandItem | null>(null);
   const [syncedBrands, setSyncedBrands] = useState<BrandItem[]>(
     initialSyncedBrands && initialSyncedBrands.length > 0 ? initialSyncedBrands : INITIAL_BRANDS
   );
-  const hasFetchedSyncedBrandsRef = useRef(false);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const media = window.matchMedia("(min-width: 640px)");
-    const handleChange = () => setIsSmUp(media.matches);
-    handleChange();
-    if (typeof media.addEventListener === "function") {
-      media.addEventListener("change", handleChange);
-      return () => media.removeEventListener("change", handleChange);
-    }
-    media.addListener(handleChange);
-    return () => media.removeListener(handleChange);
-  }, []);
-
-  const itemsPerPage = isSmUp ? DESKTOP_ITEMS_PER_PAGE : MOBILE_ITEMS_PER_PAGE;
+  const itemsPerPage = ITEMS_PER_PAGE;
   const filteredBrands = useMemo(
     () =>
       syncedBrands.filter(
@@ -312,6 +436,7 @@ export default function BrandCarousel({
 
   useEffect(() => {
     setPage(0);
+    setSelectedBrand(null);
     const container = brandPagesRef.current;
     if (!container) return;
     container.scrollTo({ left: 0, behavior: "auto" });
@@ -326,17 +451,21 @@ export default function BrandCarousel({
   }, [page, totalPages, scrollToBrandPage]);
 
   useEffect(() => {
-    // Server already provided the real, synced list (see app/page.tsx) —
-    // fetching again would just replace it with an equivalent copy a moment
-    // later, causing a visible reorder/flicker for no benefit. Only hit the
-    // API as a fallback when SSR data is missing, and only once.
-    if (
-      (initialSyncedBrands && initialSyncedBrands.length > 0) ||
-      hasFetchedSyncedBrandsRef.current
-    ) {
+    // Skip the fetch only when the server already provided the real, synced
+    // list as a prop — fetching again would just replace it with an
+    // equivalent copy a moment later, causing a visible reorder/flicker for
+    // no benefit. app/page.tsx currently never passes initialSyncedBrands, so
+    // this always falls through to the client fetch on the homepage today.
+    //
+    // Deliberately no ref-based "already fetched" guard here: under React's
+    // Strict Mode dev double-invoke (mount → cleanup → mount), a ref set by
+    // the first (torn-down) invocation would still read true on the second,
+    // real invocation and permanently block the fetch — the counts would
+    // just never load. `cancelled` below already makes a stale response's
+    // setState a no-op, which is all the de-duplication this needs.
+    if (initialSyncedBrands && initialSyncedBrands.length > 0) {
       return;
     }
-    hasFetchedSyncedBrandsRef.current = true;
 
     let cancelled = false;
 
@@ -391,64 +520,32 @@ export default function BrandCarousel({
         animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
         transition={shouldAnimate ? { duration: 0.32, ease: "easeOut" } : undefined}
       >
-        <div className="flex flex-col gap-3 group/brands sm:gap-4">
-          <div className="flex w-full flex-col gap-2.5 border-0 bg-transparent px-1 py-0 shadow-none ring-0 sm:px-2 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-sky-50 text-sky-700 shadow-[0_6px_14px_rgba(14,165,233,0.07)] sm:h-11 sm:w-11 sm:rounded-[14px]">
-                <Factory size={18} />
-              </span>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="font-display relative min-w-0 text-[22px] tracking-[-0.045em] text-slate-700 sm:text-[25px]">
-                    <span className="relative inline-block max-w-full break-words">
-                      Виробники запчастин
-                      <span className="pointer-events-none absolute -bottom-1 left-0 h-[3px] w-full origin-left scale-x-0 rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400 shadow-[0_4px_12px_rgba(37,99,235,0.3)] transition-transform duration-300 ease-out group-hover/brands:scale-x-100" />
-                    </span>
-                  </h2>
-                  <span className="inline-flex items-center gap-1 rounded-[10px] border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-sky-800">
-                    <span className="tabular-nums">{filteredBrands.length.toLocaleString("uk-UA")}</span>
-                    {pluralizeBrandCount(filteredBrands.length)}
+        <div className="flex flex-col gap-3 sm:gap-4">
+          <div className="group/search relative w-full min-w-0 overflow-hidden rounded-[22px] border border-sky-300 bg-[radial-gradient(circle_at_100%_0%,rgba(56,189,248,0.2),transparent_32%),radial-gradient(circle_at_0%_100%,rgba(45,212,191,0.12),transparent_28%),linear-gradient(125deg,#ffffff_0%,#f8fcff_48%,#edf7ff_100%)] px-3 pb-3 pt-3 text-gray-800 shadow-[0_18px_46px_rgba(14,116,144,0.18),0_4px_14px_rgba(15,23,42,0.06),inset_0_1px_0_#fff] ring-1 ring-white/90 transition-[border-color,box-shadow] duration-300 hover:border-sky-400 hover:shadow-[0_23px_54px_rgba(2,132,199,0.24),0_5px_16px_rgba(15,23,42,0.07),inset_0_1px_0_#fff] sm:px-4 sm:py-4">
+            <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-cyan-200/25 blur-3xl transition-opacity duration-300 group-hover/search:opacity-80" />
+            <div className="relative flex flex-col gap-3 sm:flex-row sm:w-full sm:items-center sm:justify-between sm:gap-5">
+              <div className="order-1 min-w-0 sm:order-2 sm:flex-1 sm:pl-2 sm:text-right">
+                <div className="flex items-center gap-2 sm:justify-end sm:gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500/90 to-cyan-400/90 text-white shadow-[0_8px_18px_rgba(14,165,233,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] sm:h-11 sm:w-11 sm:rounded-[18px] sm:order-2">
+                    <Factory size={17} strokeWidth={2.3} aria-hidden className="sm:h-5 sm:w-5" />
                   </span>
+                  <h2 className="font-display relative min-w-0 text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:order-1 sm:text-[22px]">
+                    Відомі бренди виробників автотоварів, а також якісні аналоги
+                  </h2>
                 </div>
-                <p className="mt-0.5 hidden text-xs font-semibold leading-5 text-slate-500 sm:block">
-                  Швидкий перехід до бренду, груп товарів і каталогу виробника
+                <p className="mt-1 hidden text-[11px] leading-relaxed text-slate-500 sm:block">
+                  Знайдіть оптимальне співвідношення ціна-якість для вас
                 </p>
               </div>
-            </div>
-
-            <div className="flex min-w-0 flex-row items-center gap-2 lg:w-[430px]">
-              <BrandSearchInput
-                className="relative min-w-0 flex-1"
-                value={search}
-                onChange={setSearch}
-              />
-
-              <div className="inline-flex w-fit shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50/90 px-1 py-1 shadow-inner sm:gap-1.5 sm:rounded-[13px] sm:px-1.5">
-                  <button
-                    type="button"
-                    onClick={handlePrevPage}
-                    disabled={!canGoPrev}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-sky-700 shadow-[0_4px_10px_rgba(15,23,42,0.05)] transition-[border-color,box-shadow,color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-sky-300 hover:text-sky-800 hover:shadow-[0_6px_16px_rgba(14,165,233,0.18)] active:scale-95 disabled:pointer-events-none disabled:opacity-35"
-                    aria-label="Попередня сторінка"
-                  >
-                    <ChevronLeft size={13} />
-                  </button>
-
-                  <div role="status" aria-live="polite" className="flex min-w-[42px] items-center justify-center gap-0.5 rounded-[9px] border border-slate-200 bg-white px-1.5 py-1.5 text-[10px] font-bold tabular-nums text-slate-600 shadow-sm sm:min-w-0 sm:gap-1 sm:rounded-full sm:px-2.5">
-                    <span className="text-sky-700">{safePage + 1}</span>
-                    <span className="text-slate-300">/</span>
-                    <span>{totalPages}</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleNextPage}
-                    disabled={!canGoNext}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-sky-700 shadow-[0_4px_10px_rgba(15,23,42,0.05)] transition-[border-color,box-shadow,color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-sky-300 hover:text-sky-800 hover:shadow-[0_6px_16px_rgba(14,165,233,0.18)] active:scale-95 disabled:pointer-events-none disabled:opacity-35"
-                    aria-label="Наступна сторінка"
-                  >
-                    <ChevronRight size={13} />
-                  </button>
+              <div className="order-2 w-full min-w-0 sm:order-1 sm:w-[400px] sm:max-w-[400px] sm:shrink-0 sm:border-r sm:border-sky-200/80 sm:pr-5">
+                <BrandSearchInput value={search} onChange={setSearch} />
+                <span className="mt-1.5 block px-1 text-[10px] font-medium text-slate-500">
+                  {"Доступно для пошуку: "}
+                  <strong className="font-extrabold tabular-nums text-sky-700">
+                    {filteredBrands.length.toLocaleString("uk-UA")}
+                  </strong>{" "}
+                  {pluralizeBrandCount(filteredBrands.length)}
+                </span>
               </div>
             </div>
           </div>
@@ -459,39 +556,99 @@ export default function BrandCarousel({
             {"За цим запитом виробників не знайдено."}
           </div>
         ) : (
-          <div
-            ref={brandPagesRef}
-            onScroll={handleBrandPagesScroll}
-            role="region"
-            aria-label="Сторінки виробників"
-            className="no-scrollbar mt-1 flex border-0 bg-transparent py-5 shadow-none ring-0 overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch] sm:mt-2 sm:py-6"
-          >
-            {brandPages.map((pageBrands, pageIndex) => (
-              <div
-                key={pageIndex}
-                data-brand-page
-                role="group"
-                aria-label={`Сторінка ${pageIndex + 1} з ${totalPages}`}
-                className="w-full min-w-0 shrink-0 snap-start bg-transparent px-1.5 [scroll-snap-stop:always] sm:px-2"
-              >
-                {Math.abs(pageIndex - safePage) <= 2 ? (
-                  <div className="grid grid-cols-1 grid-rows-2 gap-2 sm:grid-cols-3 sm:grid-rows-2 sm:gap-4 lg:gap-5">
-                    {pageBrands.map((brand, idx) => (
-                      <BrandCard
-                        key={`${brand.name}-${pageIndex}-${idx}`}
-                        brand={brand}
-                        priority={pageIndex === 0 && idx < 3}
-                      />
+          <div className="mt-5 grid grid-cols-1 items-stretch gap-3 sm:mt-6 sm:gap-4 lg:grid-cols-[1.55fr_0.9fr]">
+            <div>
+              <div className="relative px-7 sm:px-10">
+                {totalPages > 1 && (
+                  <button
+                    type="button"
+                    onClick={handlePrevPage}
+                    disabled={!canGoPrev}
+                    className="absolute left-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
+                    aria-label="Попередня сторінка"
+                  >
+                    <ChevronLeft size={34} strokeWidth={2.6} />
+                  </button>
+                )}
+                <div
+                  ref={brandPagesRef}
+                  onScroll={handleBrandPagesScroll}
+                  role="region"
+                  aria-label="Сторінки виробників"
+                  className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
+                >
+                  <div className="flex">
+                    {brandPages.map((pageBrands, pageIndex) => (
+                      <div
+                        key={pageIndex}
+                        data-brand-page
+                        role="group"
+                        aria-label={`Сторінка ${pageIndex + 1} з ${totalPages}`}
+                        className="w-full min-w-0 shrink-0 snap-start bg-transparent px-1.5 [scroll-snap-stop:always] sm:px-2"
+                      >
+                        {Math.abs(pageIndex - safePage) <= 1 ? (
+                          <div className="grid grid-cols-4 gap-2.5 place-items-stretch sm:gap-3">
+                            {pageBrands.map((brand, idx) => (
+                              <BrandTile
+                                key={`${brand.name}-${pageIndex}-${idx}`}
+                                brand={brand}
+                                priority={pageIndex === 0 && idx < 6}
+                                isSelected={selectedBrand?.name === brand.name}
+                                onSelect={setSelectedBrand}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <div
+                            className="h-[92px] bg-transparent sm:h-[104px]"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </div>
                     ))}
                   </div>
-                ) : (
-                  <div
-                    className="h-[360px] bg-transparent sm:h-[408px] lg:h-[428px]"
-                    aria-hidden="true"
-                  />
+                </div>
+                {totalPages > 1 && (
+                  <button
+                    type="button"
+                    onClick={handleNextPage}
+                    disabled={!canGoNext}
+                    className="absolute right-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
+                    aria-label="Наступна сторінка"
+                  >
+                    <ChevronRight size={34} strokeWidth={2.6} />
+                  </button>
                 )}
               </div>
-            ))}
+
+              <div className="relative mt-3 flex min-h-9 items-center px-2 sm:px-3">
+                {totalPages > 1 && (
+                  <div className="absolute left-1/2 top-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">
+                    <span className="h-px w-4 bg-gradient-to-r from-transparent to-cyan-500/75 sm:w-6" />
+                    <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
+                    <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(14,116,144,0.14)]">{safePage + 1}</span>
+                    <span className="font-semibold text-cyan-400">/</span>
+                    <span className="font-extrabold text-slate-500">{totalPages}</span>
+                    <span className="h-px w-4 bg-gradient-to-l from-transparent to-cyan-500/75 sm:w-6" />
+                  </div>
+                )}
+                <SmartLink
+                  href="/manufacturers"
+                  className="group/all-brands ml-auto inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-extrabold text-sky-700 transition-colors duration-300 hover:text-cyan-600 focus-visible:outline-none focus-visible:text-cyan-600 focus-visible:underline focus-visible:decoration-2 focus-visible:underline-offset-4"
+                >
+                  Усі виробники
+                  <ChevronRight
+                    size={15}
+                    strokeWidth={2.6}
+                    className="transition-transform duration-300 group-hover/all-brands:translate-x-0.5"
+                  />
+                </SmartLink>
+              </div>
+            </div>
+
+            <div>
+              <BrandInfoPanel brand={selectedBrand} onClose={() => setSelectedBrand(null)} />
+            </div>
           </div>
         )}
       </motion.div>

@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 
 import { getGoogleRating } from "app/lib/google-rating";
 import { getProductTreeNodes } from "app/lib/product-tree";
-import { STORE_PHONE_SEO_LABEL, buildPageMetadata } from "app/lib/seo-metadata";
+import { buildSeoContactLine, buildPageMetadata } from "app/lib/seo-metadata";
 import HomePageContent from "./components/HomePageContent";
 
 const homeTitle = "Інтернет-магазин автозапчастин у Львові";
-const homeDescription = `PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні. ${STORE_PHONE_SEO_LABEL}.`;
+const homeDescription = `${buildSeoContactLine()} PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні.`;
 
 export const revalidate = 86400;
 

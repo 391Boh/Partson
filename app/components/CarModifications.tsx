@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { CalendarRange, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Info, SlidersHorizontal, X } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
 
 interface ModDetails {
@@ -24,7 +24,7 @@ interface Props {
     year: number | null;
     details: ModDetails;
   }) => void;
-  onCountChange?: (count: number) => void;
+  onCountChange?: (count: number | null) => void;
   compact?: boolean;
 }
 
@@ -185,14 +185,22 @@ const CarModifications: React.FC<Props> = ({
   const [loadingMods, setLoadingMods] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | "">(initialYear ?? "");
+  // The digit stepper edits pendingYear, not selectedYear directly — nudging
+  // an arrow used to commit (and advance past the year step) instantly,
+  // which made it easy to land on the wrong year by one stray click.
+  // selectedYear (and the fetch/step it drives) only changes once the user
+  // presses "Підтвердити рік".
+  const [pendingYear, setPendingYear] = useState<number | "">(initialYear ?? "");
   const [optionPage, setOptionPage] = useState(0);
 
   useEffect(() => {
     if (initialYear == null) {
       setSelectedYear((prev) => (prev === "" ? prev : ""));
+      setPendingYear((prev) => (prev === "" ? prev : ""));
       return;
     }
     setSelectedYear((prev) => (prev === initialYear ? prev : initialYear));
+    setPendingYear((prev) => (prev === initialYear ? prev : initialYear));
   }, [initialYear]);
 
   // Fetch 1: years for brand+model
@@ -200,6 +208,7 @@ const CarModifications: React.FC<Props> = ({
     if (!selectedBrand || !selectedModel) {
       setYearOptions([]);
       setSelectedYear("");
+      setPendingYear("");
       setModifications([]);
       setFilters({ volume: "", power: "", gearbox: "", drive: "" });
       return;
@@ -209,6 +218,7 @@ const CarModifications: React.FC<Props> = ({
     if (yearCache.has(cacheKey)) {
       setYearOptions(yearCache.get(cacheKey) ?? []);
       setSelectedYear(initialYear ?? "");
+      setPendingYear(initialYear ?? "");
       setFilters({ volume: "", power: "", gearbox: "", drive: "" });
       setModifications([]);
       return;
@@ -219,6 +229,7 @@ const CarModifications: React.FC<Props> = ({
     setError(null);
     setYearOptions([]);
     setSelectedYear(initialYear ?? "");
+    setPendingYear(initialYear ?? "");
     setModifications([]);
     setFilters({ volume: "", power: "", gearbox: "", drive: "" });
 
@@ -323,6 +334,123 @@ const CarModifications: React.FC<Props> = ({
     onYearChange?.(value ? Number(value) : null);
   };
 
+  // Odometer-style year counter (matches the one under the brand/model step
+  // navigation in Auto.tsx): place 0 is the thousands digit, place 3 is the
+  // units digit, so nudging place `p` changes the year by 10^(3-p). Typed
+  // digits live in their own state (not derived fresh from selectedYear on
+  // every keystroke) so each digit shows immediately and rapid keystrokes
+  // across the four inputs can't race a stale closure against each other.
+  const yearBounds = useMemo(
+    () => (yearOptions.length > 0 ? { min: yearOptions[0], max: yearOptions[yearOptions.length - 1] } : null),
+    [yearOptions]
+  );
+
+  const [yearDigits, setYearDigits] = useState<string[]>(["", "", "", ""]);
+
+  useEffect(() => {
+    setYearDigits(
+      typeof pendingYear === "number" ? String(pendingYear).padStart(4, "0").split("") : ["", "", "", ""]
+    );
+  }, [pendingYear]);
+
+  const yearPlaceholderDigits = useMemo(
+    () => String(yearBounds?.max ?? new Date().getFullYear()).padStart(4, "0").split(""),
+    [yearBounds]
+  );
+
+  const yearDigitRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  // Digit edits only touch pendingYear — selectedYear (and the fetch/step it
+  // drives) changes only via commitYear, once the user presses "Підтвердити".
+  const handleYearDigitType = useCallback(
+    (place: number, raw: string) => {
+      const digit = raw.replace(/[^\d]/g, "").slice(-1);
+      if (!digit) {
+        setYearDigits((prev) => {
+          const next = prev.slice();
+          next[place] = "";
+          return next;
+        });
+        setPendingYear("");
+        return;
+      }
+      setYearDigits((prev) => {
+        const next = prev.slice();
+        next[place] = digit;
+        // Only commit (and clamp) once every digit has been entered — an
+        // in-progress number like "1_ _ _" isn't meaningful to clamp yet.
+        if (next.every((d) => d !== "")) {
+          const numeric = Number(next.join(""));
+          const clamped = yearBounds
+            ? Math.min(yearBounds.max, Math.max(yearBounds.min, numeric))
+            : numeric;
+          setPendingYear(clamped);
+          return String(clamped).padStart(4, "0").split("");
+        }
+        return next;
+      });
+      yearDigitRefs.current[place + 1]?.focus();
+    },
+    [yearBounds]
+  );
+
+  const handleYearDigitKeyDown = useCallback(
+    (place: number, event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Backspace" && !event.currentTarget.value) {
+        yearDigitRefs.current[place - 1]?.focus();
+      } else if (event.key === "ArrowLeft") {
+        yearDigitRefs.current[place - 1]?.focus();
+      } else if (event.key === "ArrowRight") {
+        yearDigitRefs.current[place + 1]?.focus();
+      }
+    },
+    []
+  );
+
+  const nextYearForDigit = useCallback(
+    (place: number, direction: 1 | -1) => {
+      if (!yearBounds) return null;
+      const step = 10 ** (3 - place);
+      const base =
+        typeof pendingYear === "number"
+          ? pendingYear
+          : direction > 0
+          ? yearBounds.min
+          : yearBounds.max;
+      const next = base + direction * step;
+      if (next < yearBounds.min || next > yearBounds.max) return null;
+      return next;
+    },
+    [pendingYear, yearBounds]
+  );
+
+  const canAdjustYearDigit = useCallback(
+    (place: number, direction: 1 | -1) => nextYearForDigit(place, direction) != null,
+    [nextYearForDigit]
+  );
+
+  const adjustYearDigit = useCallback(
+    (place: number, direction: 1 | -1) => {
+      const next = nextYearForDigit(place, direction);
+      if (next == null) return;
+      setPendingYear((prev) => (prev === next ? prev : next));
+    },
+    [nextYearForDigit]
+  );
+
+  const clearYearDigits = useCallback(() => {
+    setYearDigits(["", "", "", ""]);
+    setPendingYear("");
+    setSelectedYear("");
+    onYearChange?.(null);
+  }, [onYearChange]);
+
+  const commitYear = useCallback(() => {
+    if (typeof pendingYear !== "number") return;
+    setSelectedYear((prev) => (prev === pendingYear ? prev : pendingYear));
+    onYearChange?.(pendingYear);
+  }, [pendingYear, onYearChange]);
+
   const volumeOptions = useMemo(() => {
     const set = new Set<string>();
     modifications
@@ -370,7 +498,12 @@ const CarModifications: React.FC<Props> = ({
     });
   }, [filteredMods]);
 
-  useEffect(() => { onCountChange?.(uniqueMods.length); }, [uniqueMods.length, onCountChange]);
+  // Report null (not 0) until a year is actually confirmed — uniqueMods is
+  // legitimately empty before that, but showing "Доступно 0" to the parent
+  // reads as "no modifications exist" rather than "still picking a year".
+  useEffect(() => {
+    onCountChange?.(selectedYear ? uniqueMods.length : null);
+  }, [uniqueMods.length, onCountChange, selectedYear]);
 
   useEffect(() => {
     setFilters((prev) => {
@@ -417,7 +550,10 @@ const CarModifications: React.FC<Props> = ({
   ), [isSelectingYear, yearOptions, isSelectingVolume, volumeOptions, isSelectingPower, powerOptions, isSelectingGearbox, gearboxOptions, isSelectingDrive, driveOptions]);
 
   const yearPerPage = isCompact ? 15 : 24;
-  const filterPerPage = isCompact ? 8 : 12;
+  // Fixed column count (not responsive) so a page is always exactly two rows
+  // — matches the model grid in CarModels.tsx (grid-cols-4, 8 per page).
+  const filterColumns = isCompact ? 3 : 4;
+  const filterPerPage = filterColumns * 2;
   const optionsPerPage = isSelectingYear ? yearPerPage : filterPerPage;
   const totalOptionPages = Math.max(1, Math.ceil(currentStepValues.length / optionsPerPage));
   const safeOptionPage = Math.min(optionPage, totalOptionPages - 1);
@@ -432,6 +568,14 @@ const CarModifications: React.FC<Props> = ({
   const canGoNext = safeOptionPage < totalOptionPages - 1;
 
   const optionPagesRef = useRef<HTMLDivElement | null>(null);
+  const optionPagesScrollRafRef = useRef(0);
+  useEffect(() => {
+    return () => {
+      if (optionPagesScrollRafRef.current) {
+        window.cancelAnimationFrame(optionPagesScrollRafRef.current);
+      }
+    };
+  }, []);
   const getOptionPageWidth = useCallback(() => {
     const container = optionPagesRef.current;
     if (!container) return 0;
@@ -449,15 +593,19 @@ const CarModifications: React.FC<Props> = ({
     [getOptionPageWidth]
   );
   const handleOptionPagesScroll = useCallback(() => {
-    const container = optionPagesRef.current;
-    if (!container) return;
-    const pageWidth = getOptionPageWidth();
-    if (!pageWidth) return;
-    const nextPage = Math.max(
-      0,
-      Math.min(totalOptionPages - 1, Math.round(container.scrollLeft / pageWidth))
-    );
-    setOptionPage((prev) => (prev === nextPage ? prev : nextPage));
+    if (optionPagesScrollRafRef.current) return;
+    optionPagesScrollRafRef.current = window.requestAnimationFrame(() => {
+      optionPagesScrollRafRef.current = 0;
+      const container = optionPagesRef.current;
+      if (!container) return;
+      const pageWidth = getOptionPageWidth();
+      if (!pageWidth) return;
+      const nextPage = Math.max(
+        0,
+        Math.min(totalOptionPages - 1, Math.round(container.scrollLeft / pageWidth))
+      );
+      setOptionPage((prev) => (prev === nextPage ? prev : nextPage));
+    });
   }, [totalOptionPages, getOptionPageWidth]);
 
   useEffect(() => {
@@ -544,43 +692,24 @@ const CarModifications: React.FC<Props> = ({
 
   return (
     <div className={`w-full flex flex-col ${isCompact ? "gap-2" : "gap-2.5"}`}>
-      {/* Header */}
+      {/* Header — matches the "Вибір із N моделей автомобілів" row in
+          CarModels.tsx; pagination now lives as edge arrows around the grid
+          (below), the same as the model-selection step, instead of a
+          separate pill control up here. */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-col min-w-0">
-          <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 leading-none">
-            {LABEL_SELECT_FROM}
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-indigo-200/80 bg-indigo-50 text-indigo-700 shadow-[0_6px_14px_rgba(99,102,241,0.09)]">
+            <SlidersHorizontal size={14} strokeWidth={2.2} aria-hidden />
           </span>
-          <span className={`font-bold text-slate-800 leading-tight ${isCompact ? "text-[12px]" : "text-[13px]"}`}>
-            {headerCount} {LABEL_MODS}
-          </span>
-        </div>
-        {!isSelectingYear && totalOptionPages > 1 && (
-          <div className="flex items-center gap-1.5 rounded-xl border border-sky-200/70 bg-gradient-to-r from-white via-sky-50/70 to-white px-1.5 py-1.5 shadow-[0_6px_16px_rgba(8,145,178,0.12),0_2px_6px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.95)]">
-            <button
-              type="button"
-              onClick={() => { if (canGoPrev) { const next = safeOptionPage - 1; setOptionPage(next); scrollToOptionPage(next); } }}
-              disabled={!canGoPrev}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
-              aria-label={LABEL_PREV_PAGE}
-            >
-              <ChevronLeft size={15} />
-            </button>
-            <div className="flex min-w-[42px] items-center justify-center gap-0.5 rounded-lg border border-sky-100/80 bg-white/90 px-2 py-1 shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)]">
-              <span className="text-[12px] font-extrabold text-sky-600">{safeOptionPage + 1}</span>
-              <span className="text-[10px] font-semibold text-slate-300">/</span>
-              <span className="text-[12px] font-bold text-slate-400">{totalOptionPages}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => { if (canGoNext) { const next = safeOptionPage + 1; setOptionPage(next); scrollToOptionPage(next); } }}
-              disabled={!canGoNext}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
-              aria-label={LABEL_NEXT_PAGE}
-            >
-              <ChevronRight size={15} />
-            </button>
+          <div className="flex min-w-0 flex-col">
+            <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 leading-none">
+              {LABEL_SELECT_FROM}
+            </span>
+            <span className={`font-bold text-slate-800 leading-tight ${isCompact ? "text-[12px]" : "text-[13px]"}`}>
+              {headerCount} {LABEL_MODS}
+            </span>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Breadcrumb: selected values */}
@@ -589,7 +718,7 @@ const CarModifications: React.FC<Props> = ({
           {selectedYear && (
             <button
               type="button"
-              onClick={() => { setSelectedYear(""); onYearChange?.(null); setFilters({ volume: "", power: "", gearbox: "", drive: "" }); }}
+              onClick={() => { setSelectedYear(""); setPendingYear(""); onYearChange?.(null); setFilters({ volume: "", power: "", gearbox: "", drive: "" }); }}
               className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-[10px] font-semibold text-sky-700 transition-all duration-150 hover:bg-sky-100 hover:border-sky-300"
             >
               {LABEL_YEAR}: {selectedYear}
@@ -639,7 +768,9 @@ const CarModifications: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Main content */}
+      {/* Main content — flat, no enclosing card: matches the open grid layout
+          CarModels.tsx uses for the model-selection step instead of a
+          separately-boxed "window". */}
       {isLoading ? (
         <div className="flex items-center justify-center py-8">
           <div className="loader" />
@@ -649,121 +780,194 @@ const CarModifications: React.FC<Props> = ({
           {error}
         </p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-sky-100/80 bg-gradient-to-br from-white/92 via-sky-50/68 to-blue-50/60 shadow-[0_14px_32px_rgba(59,130,246,0.10)]">
-          <div className={isCompact ? "p-2" : "p-2.5 sm:p-3"}>
-            {/* Step label */}
-            {!showResults && currentStepLabel && (
-              <p className={`mb-2 font-semibold uppercase tracking-[0.10em] text-slate-400 ${isCompact ? "text-[9px]" : "text-[10px]"}`}>
-                {currentStepLabel}
-              </p>
-            )}
+        <div
+          className={`flex flex-col justify-center ${isCompact ? "min-h-[176px]" : "min-h-[212px]"}`}
+        >
+          {/* Step label */}
+          {!showResults && currentStepLabel && (
+            <p className={`mb-2 font-semibold uppercase tracking-[0.10em] text-slate-400 ${isCompact ? "text-[9px]" : "text-[10px]"}`}>
+              {currentStepLabel}
+            </p>
+          )}
 
-            {/* Year chip grid */}
-            {isSelectingYear && yearOptions.length > 0 && (
-              <>
-                <div
-                  ref={optionPagesRef}
-                  onScroll={handleOptionPagesScroll}
-                  className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
-                >
-                  <div className="flex">
-                    {stepPages.map((page, pageIndex) => (
-                      <div key={pageIndex} data-option-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
-                        <div className={`grid gap-1.5 ${isCompact ? "grid-cols-5 sm:grid-cols-6" : "grid-cols-5 sm:grid-cols-6 lg:grid-cols-8"}`}>
-                          {page.map((value) => (
-                            <button
-                              key={value}
-                              type="button"
-                              onClick={() => handleStepSelect(value)}
-                              className="rounded-lg border border-slate-200/70 bg-white px-1 py-2 text-center text-[11px] font-medium text-slate-700 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-[2px] hover:border-sky-300/70 hover:bg-sky-50 hover:shadow-[0_6px_18px_rgba(14,165,233,0.20)] active:scale-[0.95] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
-                            >
-                              {value}
-                            </button>
-                          ))}
-                        </div>
+          {/* Year counter — matches the digit stepper under the brand/model
+              step navigation in Auto.tsx, instead of a scrollable chip grid. */}
+          {isSelectingYear && yearOptions.length > 0 && (
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <CalendarRange size={13} strokeWidth={2.3} className="shrink-0 text-sky-500" aria-hidden />
+                <span className="min-w-0 truncate text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                  {typeof pendingYear === "number" ? `Рік випуску: ${pendingYear}` : "Рік випуску: будь-який"}
+                </span>
+                {yearBounds && (
+                  <span className="shrink-0 text-[10px] font-bold tabular-nums text-slate-400">
+                    ({yearBounds.min}–{yearBounds.max})
+                  </span>
+                )}
+              </div>
+              <div className="inline-flex flex-wrap items-center gap-2 rounded-xl border border-sky-200 bg-[radial-gradient(circle_at_50%_-30%,rgba(125,211,252,0.35),transparent_60%),linear-gradient(150deg,#ffffff_0%,#f3faff_55%,#eaf7ff_100%)] px-2.5 py-2 shadow-[0_6px_16px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/80">
+                <div className="flex items-center">
+                  {yearDigits.map((digit, place) => {
+                    const isSet = digit !== "";
+                    return (
+                      <div key={place} className="flex flex-col items-center">
+                        <button
+                          type="button"
+                          onClick={() => adjustYearDigit(place, 1)}
+                          disabled={!canAdjustYearDigit(place, 1)}
+                          aria-label="Збільшити розряд року"
+                          className="flex h-3.5 w-4 items-center justify-center text-slate-500 transition-colors duration-150 hover:text-sky-700 active:scale-90 disabled:opacity-25 disabled:hover:text-slate-500"
+                        >
+                          <ChevronUp size={12} strokeWidth={3} />
+                        </button>
+                        <input
+                          ref={(el) => {
+                            yearDigitRefs.current[place] = el;
+                          }}
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={1}
+                          value={digit}
+                          placeholder={yearPlaceholderDigits[place]}
+                          onChange={(e) => handleYearDigitType(place, e.target.value)}
+                          onKeyDown={(e) => handleYearDigitKeyDown(place, e)}
+                          onFocus={(e) => e.currentTarget.select()}
+                          aria-label={`Розряд року ${place + 1}`}
+                          className={`w-4 border-0 border-b-2 bg-transparent text-center text-[15px] font-black leading-none tabular-nums outline-none transition-colors duration-200 focus:border-sky-500 ${
+                            isSet ? "border-sky-300 text-sky-700" : "border-slate-300 text-slate-800 placeholder:font-bold placeholder:text-slate-400"
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => adjustYearDigit(place, -1)}
+                          disabled={!canAdjustYearDigit(place, -1)}
+                          aria-label="Зменшити розряд року"
+                          className="flex h-3.5 w-4 items-center justify-center text-slate-500 transition-colors duration-150 hover:text-sky-700 active:scale-90 disabled:opacity-25 disabled:hover:text-slate-500"
+                        >
+                          <ChevronDown size={12} strokeWidth={3} />
+                        </button>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-                {totalOptionPages > 1 && (
-                  <div className="mt-3 flex w-fit items-center justify-center gap-1.5 rounded-xl border border-sky-200/70 bg-gradient-to-r from-white via-sky-50/70 to-white px-1.5 py-1.5 shadow-[0_6px_16px_rgba(8,145,178,0.12),0_2px_6px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] mx-auto">
+                <button
+                  type="button"
+                  onClick={clearYearDigits}
+                  disabled={!selectedYear && yearDigits.every((d) => d === "")}
+                  aria-label="Скинути рік випуску"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-bold text-slate-600 transition-colors duration-150 hover:text-sky-700 disabled:opacity-35"
+                >
+                  <X size={12} strokeWidth={3} />
+                  Скинути
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={commitYear}
+                disabled={typeof pendingYear !== "number"}
+                className="w-full max-w-[220px] rounded-xl border border-blue-300/60 bg-gradient-to-r from-blue-500 to-sky-500 px-4 py-2 text-[12.5px] font-bold text-white shadow-[0_4px_16px_rgba(59,130,246,0.28)] transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-[1px] hover:shadow-[0_8px_24px_rgba(59,130,246,0.42)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {LABEL_CONFIRM} рік
+              </button>
+              <div className="flex items-center gap-1.5">
+                <Info size={12} strokeWidth={2.5} className="shrink-0 text-sky-500" aria-hidden />
+                <p className="text-center text-[11px] font-semibold text-slate-600">
+                  {"Клікніть на цифру і введіть рік або скористайтесь стрілочками, потім підтвердіть"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Filter step chips — edge-arrow pagination matches the model grid
+              in CarModels.tsx instead of the compact pill control. */}
+          {!isSelectingYear && !showResults && (
+            currentStepValues.length === 0 ? (
+              <div className="py-4 text-center text-xs text-slate-400">{LABEL_EMPTY_MODS}</div>
+            ) : (
+              <>
+                <div className="relative px-7 sm:px-10">
+                  {totalOptionPages > 1 && (
                     <button
                       type="button"
                       onClick={() => { if (canGoPrev) { const next = safeOptionPage - 1; setOptionPage(next); scrollToOptionPage(next); } }}
                       disabled={!canGoPrev}
-                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
+                      className="absolute left-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
                       aria-label={LABEL_PREV_PAGE}
                     >
-                      <ChevronLeft size={15} />
+                      <ChevronLeft size={34} strokeWidth={2.6} />
                     </button>
-                    <div className="flex min-w-[42px] items-center justify-center gap-0.5 rounded-lg border border-sky-100/80 bg-white/90 px-2 py-1 shadow-[0_1px_4px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)]">
-                      <span className="text-[12px] font-extrabold text-sky-600">{safeOptionPage + 1}</span>
-                      <span className="text-[10px] font-semibold text-slate-300">/</span>
-                      <span className="text-[12px] font-bold text-slate-400">{totalOptionPages}</span>
+                  )}
+                  <div
+                    ref={optionPagesRef}
+                    onScroll={handleOptionPagesScroll}
+                    className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
+                  >
+                    <div className="flex">
+                      {stepPages.map((page, pageIndex) => (
+                        <div key={pageIndex} data-option-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
+                          <div className={`grid gap-1.5 sm:gap-2 ${isCompact ? "grid-cols-3" : "grid-cols-4"}`}>
+                            {page.map((value) => (
+                              <button
+                                key={value}
+                                type="button"
+                                onClick={() => handleStepSelect(value)}
+                                className={`group/category relative flex min-h-[72px] flex-col items-center justify-center overflow-hidden rounded-[16px] border px-3 py-2.5 text-center transition-[border-color,background-color,box-shadow] duration-500 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:min-h-[86px] border-sky-200/95 bg-[radial-gradient(circle_at_50%_-8%,rgba(125,211,252,0.44),transparent_48%),linear-gradient(150deg,#ffffff_0%,#f3faff_50%,#e9f8ff_100%)] text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.09),0_3px_9px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 hover:border-sky-500 hover:bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] hover:shadow-[0_22px_40px_rgba(2,132,199,0.26),0_0_0_3px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,1)]`}
+                              >
+                                <span className="pointer-events-none absolute inset-0 shadow-[inset_0_2px_6px_rgba(15,23,42,0.06)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.10),inset_0_0_0_1px_rgba(2,132,199,0.06)]" />
+                                <span className="relative block w-full truncate text-[14px] font-semibold uppercase leading-tight tracking-[0.02em] text-slate-800 transition-colors duration-300 ease-out group-hover/category:text-sky-900 sm:text-[15px]">
+                                  {formatStepValue(value)}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
+                  </div>
+                  {totalOptionPages > 1 && (
                     <button
                       type="button"
                       onClick={() => { if (canGoNext) { const next = safeOptionPage + 1; setOptionPage(next); scrollToOptionPage(next); } }}
                       disabled={!canGoNext}
-                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white text-sky-600 shadow-[0_3px_8px_rgba(8,145,178,0.16),inset_0_1px_0_rgba(255,255,255,0.95)] transition-all duration-300 hover:-translate-y-[2px] hover:border-sky-300/80 hover:text-sky-700 hover:shadow-[0_8px_20px_rgba(8,145,178,0.26),0_2px_6px_rgba(8,145,178,0.14)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-30"
+                      className="absolute right-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
                       aria-label={LABEL_NEXT_PAGE}
                     >
-                      <ChevronRight size={15} />
+                      <ChevronRight size={34} strokeWidth={2.6} />
                     </button>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Filter step chips */}
-            {!isSelectingYear && !showResults && (
-              currentStepValues.length === 0 ? (
-                <div className="py-4 text-center text-xs text-slate-400">{LABEL_EMPTY_MODS}</div>
-              ) : (
-                <div
-                  ref={optionPagesRef}
-                  onScroll={handleOptionPagesScroll}
-                  className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
-                >
-                  <div className="flex">
-                    {stepPages.map((page, pageIndex) => (
-                      <div key={pageIndex} data-option-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
-                        <div className={`grid gap-1.5 sm:gap-2 ${isCompact ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"}`}>
-                          {page.map((value) => (
-                            <button
-                              key={value}
-                              type="button"
-                              onClick={() => handleStepSelect(value)}
-                              className="rounded-xl border border-slate-200/60 bg-white px-3 py-2.5 text-center text-[12px] font-medium text-slate-700 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-[2px] hover:border-sky-300/60 hover:bg-sky-50 hover:shadow-[0_6px_20px_rgba(14,165,233,0.20)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
-                            >
-                              <span className="block truncate uppercase tracking-[0.04em]">{formatStepValue(value)}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  )}
                 </div>
-              )
-            )}
-
-            {/* Confirm button */}
-            {showResults && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleConfirm}
-                  disabled={uniqueMods.length === 0}
-                  className="w-full rounded-xl border border-blue-300/60 bg-gradient-to-r from-blue-500 to-sky-500 px-4 py-3 text-[13px] font-bold text-white shadow-[0_4px_16px_rgba(59,130,246,0.28)] transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-[2px] hover:shadow-[0_8px_24px_rgba(59,130,246,0.42)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {LABEL_CONFIRM}
-                </button>
-                {uniqueMods.length === 0 && (
-                  <p className="mt-2 text-center text-xs text-slate-400">{LABEL_EMPTY_MODS}</p>
+                {totalOptionPages > 1 && (
+                  <div className="relative mt-3 flex min-h-9 items-center justify-center px-2 sm:px-3">
+                    <div className="inline-flex items-center gap-2 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">
+                      <span className="h-px w-4 bg-gradient-to-r from-transparent to-cyan-500/75 sm:w-6" />
+                      <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
+                      <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(14,116,144,0.14)]">{safeOptionPage + 1}</span>
+                      <span className="font-semibold text-cyan-400">/</span>
+                      <span className="font-extrabold text-slate-500">{totalOptionPages}</span>
+                      <span className="h-px w-4 bg-gradient-to-l from-transparent to-cyan-500/75 sm:w-6" />
+                    </div>
+                  </div>
                 )}
               </>
-            )}
-          </div>
+            )
+          )}
+
+          {/* Confirm button */}
+          {showResults && (
+            <>
+              <button
+                type="button"
+                onClick={handleConfirm}
+                disabled={uniqueMods.length === 0}
+                className="w-full rounded-xl border border-blue-300/60 bg-gradient-to-r from-blue-500 to-sky-500 px-4 py-3 text-[13px] font-bold text-white shadow-[0_4px_16px_rgba(59,130,246,0.28)] transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-[2px] hover:shadow-[0_8px_24px_rgba(59,130,246,0.42)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {LABEL_CONFIRM}
+              </button>
+              {uniqueMods.length === 0 && (
+                <p className="mt-2 text-center text-xs text-slate-400">{LABEL_EMPTY_MODS}</p>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>
