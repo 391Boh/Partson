@@ -10,13 +10,21 @@ const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
 // hasAnyModelProducts only needs a handful of cheap limit:1 lookups per model,
 // but there are ~60 brands x ~50-200 models each — bounded concurrency keeps
 // this from either overwhelming 1C or taking forever run sequentially.
+//
+// This was 12, but on a production 1C that's already serving live site
+// traffic, pushing more concurrent requests at it tends to make it answer
+// slower rather than faster — which pushes more of the up-to-3-tier
+// cascade below into its 4s timeout+retry path, *lowering* overall
+// throughput despite more parallelism. A gentler concurrency keeps
+// individual requests fast enough that most models resolve on the first
+// tier without ever hitting a timeout.
 const BRAND_FETCH_CONCURRENCY = parsePositiveInt(
   process.env.AUTO_MODEL_SITEMAP_BRAND_CONCURRENCY,
-  8
+  6
 );
 const MODEL_CHECK_CONCURRENCY = parsePositiveInt(
   process.env.AUTO_MODEL_SITEMAP_CHECK_CONCURRENCY,
-  12
+  6
 );
 
 // hasAnyModelProducts' per-request timeout (app/lib/auto-directory-data.ts)
@@ -35,11 +43,14 @@ const RUN_BUDGET_MS = parsePositiveInt(
 
 // oneC.js caps the "allgoods" endpoint at 4 concurrent requests by default —
 // a deliberate limit protecting 1C during normal site traffic. This script
-// runs as its own separate process (not the live site), so it's safe to ask
-// for more here specifically; don't override if the caller already set one
-// explicitly (e.g. a manual one-off run tuning it differently).
+// used to raise that to 10 on the theory that a separate one-off process can
+// safely ask for more; in practice this typically runs against a production
+// server that's also serving live site traffic, so the extra concurrency
+// just adds to 1C's existing load instead of getting a dedicated slice of
+// it (see MODEL_CHECK_CONCURRENCY above). Stick to the same cap normal
+// traffic uses. Don't override if the caller already set one explicitly.
 if (!process.env.ONEC_ALLGOODS_CONCURRENCY) {
-  process.env.ONEC_ALLGOODS_CONCURRENCY = "10";
+  process.env.ONEC_ALLGOODS_CONCURRENCY = "4";
 }
 
 async function mapWithConcurrency<T, R>(
