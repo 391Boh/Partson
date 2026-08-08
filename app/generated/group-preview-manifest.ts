@@ -45,7 +45,7 @@ const groupPreviewManifest: Record<string, string> = {
   "кузовні елементи::опори багажника(стійки)": "/group-previews/e1ed198a7a15f5.webp",
   "кузовні елементи::колісна арка (підкрильники/бризговики)": "/group-previews/97c10e63758844.webp",
   "кузовні елементи::елементи закривання (замок/ручка)": "/group-previews/6c97539357d613.webp",
-  "освітлення::задній ліхтар": "/group-previews/443d7110089b69.webp",
+  "освітлення::задній ліхтар": "/group-previews/a2eae0708a283c.webp",
   "освітлення::протитуманна фара(протитуманка)": "/group-previews/561926efe91fa2.webp",
   "паливна система::паливні насоси": "/group-previews/79476f0591187b.webp",
   "паливна система::трубки/ шланги": "/group-previews/de3db3a797cda8.webp",
