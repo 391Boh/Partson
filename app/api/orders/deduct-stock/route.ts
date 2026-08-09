@@ -71,11 +71,15 @@ export async function POST(req: NextRequest) {
 
   const results = await Promise.allSettled(
     items.map((item) => {
+      // Do NOT add an "article" key here — 1C's ОбновитьТовар treats its
+      // mere presence as "change НомерПоКаталогу" and throws "too many
+      // actual parameters" for a narrow quantity-only update like this one
+      // (same bug found and fixed for product-update.ts/product-upload-image.ts
+      // this session). Код alone resolves the product.
       const oneCBody: Record<string, unknown> = {
         Код: item.code,
         Реалізація: item.quantity,
       };
-      if (item.article) oneCBody["article"] = item.article;
 
       return oneCRequest(ONEC_PRODUCT_UPDATE_ENDPOINT, {
         method: "POST",

@@ -95,6 +95,11 @@ export async function POST(request: NextRequest) {
     await storageFile.save(buffer, {
       contentType: file.type,
       metadata: { cacheControl: "public, max-age=31536000, immutable" },
+      // Resumable uploads fail here with a cryptic "URL is required" error
+      // from gaxios during session creation (@google-cloud/storage 7.21.0 +
+      // google-auth-library 10.7.0) — same bug found and fixed for the
+      // product gallery upload; simple upload sidesteps it.
+      resumable: false,
     });
     await storageFile.makePublic();
 

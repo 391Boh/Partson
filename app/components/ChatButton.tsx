@@ -59,6 +59,12 @@ export default function ChatButton({
           hasUnread ? "bg-rose-400/32" : "bg-sky-400/24"
         }`}
       />
+      {hasUnread && (
+        <span
+          aria-hidden="true"
+          className="chat-unread-ping pointer-events-none absolute inset-0 animate-ping rounded-[22px] bg-rose-400/35 [animation-duration:1.8s]"
+        />
+      )}
       <span
         aria-hidden="true"
         className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -translate-x-[130%] skew-x-[-18deg] bg-[image:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent)] opacity-0 mix-blend-screen transition-[opacity,transform] duration-700 ease-out group-hover:translate-x-[250%] group-hover:opacity-95"

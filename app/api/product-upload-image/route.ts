@@ -102,8 +102,12 @@ export async function POST(request: NextRequest) {
       : `${code}.${ext || "png"}`;
 
   // 1C images endpoint: { Код, file_name, image_base64 }
-  // Passes the pure base64 string (without data URI prefix)
-  const oneCBody = {
+  // Passes the pure base64 string (without data URI prefix).
+  // ОбновитьФотоТовараПоКоду(Код, ИмяФайла, ImageBase64) only takes these
+  // three — an extra `article` key was tried here (mirroring product-update's
+  // combined-edit payload) but it triggers a "too many actual parameters"
+  // error on the 1C side, so it stays out of this dedicated photo-only body.
+  const oneCBody: Record<string, unknown> = {
     Код: code,
     file_name: fileName,
     image_base64: base64Data,
@@ -132,7 +136,8 @@ export async function POST(request: NextRequest) {
     success?: boolean;
     found?: boolean;
     message?: string;
-    photo_result?: { success?: boolean; message?: string };
+    error_message?: string;
+    photo_result?: { success?: boolean; message?: string; error_message?: string };
   } = {};
   try {
     oneCResult = JSON.parse(result.text) as typeof oneCResult;
@@ -140,19 +145,27 @@ export async function POST(request: NextRequest) {
     // non-JSON — treat as success if HTTP 2xx
   }
 
+  // ОбновитьФотоТовараПоКоду (1C) only fills `message` on success — on
+  // failure it sets `error_message` instead ("message" stays ""). Reading
+  // only `.message` here meant every real 1C failure reason (e.g. "Товар не
+  // знайдено: <Код>") was silently dropped in favor of our generic fallback.
   if (oneCResult.success === false) {
+    const oneCMessage = oneCResult.message || oneCResult.error_message;
     return json({
       ok: false,
-      error: oneCResult.message || "1C повернула помилку при завантаженні фото",
+      error: oneCMessage || "1C повернула помилку при завантаженні фото",
+      details: oneCMessage ? undefined : result.text?.slice(0, 300),
     }, 422);
   }
 
   // When image goes through the combined "edit" endpoint, photo result is nested
   const photoResult = oneCResult.photo_result;
   if (photoResult && photoResult.success === false) {
+    const photoMessage = photoResult.message || photoResult.error_message;
     return json({
       ok: false,
-      error: photoResult.message || "1C повернула помилку при завантаженні фото",
+      error: photoMessage || "1C повернула помилку при завантаженні фото",
+      details: photoMessage ? undefined : result.text?.slice(0, 300),
     }, 422);
   }
 

@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "1C returned an error", details: oneCError, status: result.status }, 502);
   }
 
-  let parsed: { success?: boolean; found?: boolean; updated?: boolean; message?: string } = {};
+  let parsed: { success?: boolean; found?: boolean; updated?: boolean; message?: string; error_message?: string } = {};
   try {
     parsed = JSON.parse(result.text) as typeof parsed;
   } catch {
@@ -112,7 +112,10 @@ export async function POST(request: NextRequest) {
   if (parsed.success === false || parsed.found === false) {
     return json({
       ok: false,
-      error: parsed.message || (parsed.found === false ? "Товар не знайдено в 1С" : "1C повернула помилку"),
+      error:
+        parsed.message ||
+        parsed.error_message ||
+        (parsed.found === false ? "Товар не знайдено в 1С" : "1C повернула помилку"),
     }, 422);
   }
 

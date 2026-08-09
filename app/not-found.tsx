@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PackageSearch } from "lucide-react";
 
 export const metadata = {
-  title: "Сторінку не знайдено | PartsON",
+  title: "Сторінку не знайдено",
   robots: { index: false, follow: true },
 };
 

@@ -161,6 +161,7 @@ export async function POST(request: NextRequest) {
     Код?: string;
     code?: string;
     message?: string;
+    error_message?: string;
     НомерПоКаталогу?: string;
     Наименование?: string;
   } = {};
@@ -170,8 +171,10 @@ export async function POST(request: NextRequest) {
     // Non-JSON 2xx treated as success
   }
 
+  // Same 1C convention as product-update/product-upload-image: `message` is
+  // only filled on success, `error_message` carries the real reason on failure.
   if (parsed.success === false) {
-    return json({ ok: false, error: parsed.message || "1C повернула помилку при створенні товару" }, 422);
+    return json({ ok: false, error: parsed.message || parsed.error_message || "1C повернула помилку при створенні товару" }, 422);
   }
 
   const newCode = parsed.Код || parsed.code || "";

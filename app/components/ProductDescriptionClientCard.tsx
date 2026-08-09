@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { MapPin, Phone } from "lucide-react";
 
 type ProductDescriptionClientCardProps = {
   initialText?: string | null;
@@ -316,8 +317,8 @@ export default function ProductDescriptionClientCard({
                   href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}
                   className="group flex min-w-0 items-center gap-2 rounded-[14px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.94))] px-3 py-2.5 text-emerald-900 shadow-[0_10px_20px_rgba(16,185,129,0.08)] transition hover:border-emerald-300 hover:bg-emerald-50"
                 >
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-500 text-[16px] text-white shadow-[0_8px_16px_rgba(16,185,129,0.24)]">
-                    ☎️
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-500 text-white shadow-[0_8px_16px_rgba(16,185,129,0.24)]">
+                    <Phone size={15} />
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[9px] font-black uppercase tracking-[0.12em] text-emerald-700">
@@ -331,8 +332,8 @@ export default function ProductDescriptionClientCard({
               ) : null}
               {contactAddress ? (
                 <div className="flex min-w-0 items-center gap-2 rounded-[14px] border border-sky-200 bg-[linear-gradient(135deg,rgba(240,249,255,0.98),rgba(255,255,255,0.94))] px-3 py-2.5 text-sky-950 shadow-[0_10px_20px_rgba(14,165,233,0.08)]">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sky-500 text-[16px] text-white shadow-[0_8px_16px_rgba(14,165,233,0.22)]">
-                    📍
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sky-500 text-white shadow-[0_8px_16px_rgba(14,165,233,0.22)]">
+                    <MapPin size={15} />
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[9px] font-black uppercase tracking-[0.12em] text-sky-700">

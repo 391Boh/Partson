@@ -153,6 +153,33 @@ html[data-consent-preferences="complete"] .analytics-consent-banner {
   z-index: 2;
 }
 
+/* Below-fold homepage sections mount as separate lazy chunks (see
+   HomeDeferredStack.tsx / HomeBelowFoldClient.tsx) — each swap from its
+   colored placeholder to real content used to be an instant, jarring pop.
+   This softens both the placeholder's own appearance and the real content's
+   arrival into a short fade, without adding any layout shift (placeholders
+   are already sized to match, so this is purely opacity/transform). */
+@keyframes homeFadeIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.home-fade-in {
+  animation: homeFadeIn 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-fade-in {
+    animation: none;
+  }
+}
+
 .home-glow-section {
   position: relative;
   isolation: isolate;
@@ -2033,6 +2060,10 @@ body::-webkit-scrollbar-corner,
   .app-panel-close-button:hover {
     transform: none;
   }
+
+  .chat-unread-ping {
+    animation: none;
+  }
 }
 
 .soft-segment {
@@ -2540,8 +2571,8 @@ body::-webkit-scrollbar-corner,
 
 .app-panel-enter {
   transform-origin: top right;
-  will-change: opacity, transform;
-  animation: appPanelEnter 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform, filter;
+  animation: appPanelEnter 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .app-panel-scroll {
@@ -2984,6 +3015,26 @@ body::-webkit-scrollbar-corner,
     transform 180ms ease;
 }
 
+.admin-panel-shell {
+  container-type: inline-size;
+}
+
+.admin-panel-shell :is(p, h2, h3, label, button, a, span) {
+  overflow-wrap: anywhere;
+}
+
+.admin-panel-shell input,
+.admin-panel-shell textarea,
+.admin-panel-shell select {
+  max-width: 100%;
+}
+
+@container (max-width: 420px) {
+  .admin-panel-shell .admin-chat-scroll > div > div {
+    max-width: calc(100% - 2.5rem);
+  }
+}
+
 .admin-panel-shell [data-admin-card="true"]:hover {
   transform: translateY(-1px);
 }
@@ -3010,16 +3061,29 @@ body::-webkit-scrollbar-corner,
 }
 
 @keyframes appPanelEnter {
-  from {
+  0% {
     opacity: 0;
-    transform: translate3d(12px, -4px, 0) scale(0.975);
-    filter: saturate(0.96) brightness(0.96);
+    transform: translate3d(30px, -16px, 0) scale(0.82) rotate(2.2deg);
+    filter: saturate(0.78) brightness(0.86) blur(5px);
   }
 
-  to {
+  45% {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-    filter: saturate(1) brightness(1);
+    filter: saturate(1.1) brightness(1.04) blur(0);
+  }
+
+  70% {
+    transform: translate3d(-4px, 3px, 0) scale(1.035) rotate(-0.6deg);
+  }
+
+  88% {
+    transform: translate3d(1px, -1px, 0) scale(0.99) rotate(0.15deg);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    filter: saturate(1) brightness(1) blur(0);
   }
 }
 
@@ -3078,28 +3142,31 @@ body::-webkit-scrollbar-corner,
    look pasted onto a dark surface, while the blue/teal accents match the site. */
 .customer-overlay-panel.app-overlay-panel.soft-modal-shell {
   color-scheme: light;
-  border-color: rgba(186, 230, 253, 0.78);
+  border-color: rgba(94, 194, 249, 0.56);
   background:
-    radial-gradient(circle at 8% 0%, rgba(125, 211, 252, 0.3), transparent 34%),
-    radial-gradient(circle at 96% 8%, rgba(94, 234, 212, 0.18), transparent 30%),
-    linear-gradient(155deg, rgba(255, 255, 255, 0.985) 0%, rgba(248, 252, 255, 0.98) 48%, rgba(240, 249, 255, 0.97) 100%);
-  color: #334155;
+    radial-gradient(circle at 6% -6%, rgba(56, 189, 248, 0.42), transparent 40%),
+    radial-gradient(circle at 100% 4%, rgba(45, 212, 191, 0.28), transparent 34%),
+    radial-gradient(circle at 50% 122%, rgba(99, 102, 241, 0.22), transparent 50%),
+    linear-gradient(160deg, #e3f0ff 0%, #c8e0fb 46%, #a9cdf3 100%);
+  color: #1e293b;
   box-shadow:
-    0 28px 72px rgba(15, 23, 42, 0.22),
-    0 10px 28px rgba(14, 116, 144, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.64);
-  backdrop-filter: blur(20px) saturate(150%);
+    0 36px 92px rgba(15, 23, 42, 0.32),
+    0 16px 38px rgba(14, 116, 144, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(22px) saturate(172%);
+  border-radius: 24px;
+  transition: box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .customer-overlay-panel.app-overlay-panel.soft-panel-glow::before {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.58), transparent 30%),
-    linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.08), transparent);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 32%),
+    linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.1), transparent);
 }
 
 .customer-overlay-panel.app-overlay-panel.soft-panel-glow::after {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.05), transparent 54%, rgba(20, 184, 166, 0.06));
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.09), transparent 52%, rgba(20, 184, 166, 0.09));
 }
 
 .customer-overlay-panel .soft-panel-accent {
@@ -3138,7 +3205,6 @@ body::-webkit-scrollbar-corner,
   box-shadow: 0 7px 18px rgba(14, 116, 144, 0.1), inset 0 1px 0 #fff;
 }
 
-.customer-overlay-panel.app-overlay-panel .app-panel-close-button,
 .customer-overlay-panel.app-overlay-panel .soft-icon-button {
   border-color: rgba(203, 213, 225, 0.78);
   background: rgba(255, 255, 255, 0.82);
@@ -3146,12 +3212,27 @@ body::-webkit-scrollbar-corner,
   box-shadow: 0 7px 16px rgba(15, 23, 42, 0.08), inset 0 1px 0 #fff;
 }
 
-.customer-overlay-panel.app-overlay-panel .app-panel-close-button:hover,
 .customer-overlay-panel.app-overlay-panel .soft-icon-button:hover {
   border-color: rgba(125, 211, 252, 0.9);
   background: #fff;
   color: #0369a1;
   transform: none;
+}
+
+/* Close (X) button: no box/border, just the glyph — a bold color shift plus a
+   playful spin-and-lift on hover instead of a container. */
+.customer-overlay-panel.app-overlay-panel .app-panel-close-button {
+  color: #64748b;
+}
+
+.customer-overlay-panel.app-overlay-panel .app-panel-close-button:hover {
+  color: #0284c7;
+  transform: rotate(90deg) scale(1.16);
+  filter: drop-shadow(0 8px 16px rgba(14, 165, 233, 0.4));
+}
+
+.customer-overlay-panel.app-overlay-panel .app-panel-close-button:active {
+  transform: rotate(90deg) scale(0.98);
 }
 
 .customer-overlay-panel.app-overlay-panel .soft-primary-button {
@@ -3190,9 +3271,12 @@ body::-webkit-scrollbar-corner,
     right: max(0.35rem, env(safe-area-inset-right));
     bottom: max(0.35rem, env(safe-area-inset-bottom));
     left: max(0.35rem, env(safe-area-inset-left));
-    border-radius: 20px;
-    backdrop-filter: blur(12px) saturate(135%);
-    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.94);
+    border-radius: 22px;
+    backdrop-filter: blur(14px) saturate(140%);
+    box-shadow:
+      0 20px 48px rgba(15, 23, 42, 0.24),
+      0 8px 20px rgba(14, 116, 144, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
   }
 
   .customer-overlay-panel--auth.auth-form-panel.app-overlay-panel {

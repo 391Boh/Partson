@@ -19,7 +19,7 @@ const groupPreviewManifest: Record<string, string> = {
   "омивання скла::двірник склоочисника": "/group-previews/3521f547e539e5.webp",
   "датчики та електроніка::перемикач поворотів/склоочисника(гітара)": "/group-previews/bea8b2db95664d.webp",
   "омивання скла::насос склоомивача": "/group-previews/1ce6f20058d38a.webp",
-  "датчики та електроніка::троси спідометра": "/group-previews/e9be0799a380a4.webp",
+  "датчики та електроніка::троси спідометра": "/group-previews/63e6921dbdd2c9.webp",
   "троси спідометра::троси спідометра": "/group-previews/c8fd8bf131c1f2.webp",
   "система запалення::високовольтні дроти": "/group-previews/da8a516096fe8f.webp",
   "система запалення::контактні групи.": "/group-previews/b140ef4c21feea.webp",
@@ -68,7 +68,8 @@ const groupPreviewManifest: Record<string, string> = {
   "система охолодження::радіатор двигуна": "/group-previews/1940cf651f4a04.webp",
   "система охолодження::термостат": "/group-previews/9a12d4c145408c.webp",
   "система охолодження::фланець": "/group-previews/fe6ebad7fe7601.webp",
-  "ступиці/ підшипники::підшипник ступиці": "/group-previews/70a95b82bb2174.webp"
+  "ступиці/ підшипники::підшипник ступиці": "/group-previews/70a95b82bb2174.webp",
+  "гальмівна система::датчик abs": "/group-previews/15160f14e48bfc.webp"
 };
 
 export default groupPreviewManifest;

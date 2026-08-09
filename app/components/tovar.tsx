@@ -1267,7 +1267,7 @@ const ProductFetcher: React.FC<Props> = ({
   return (
     <section
       ref={sectionRef}
-      className="group/selector home-glow-section home-glow-section-sky font-ui relative tovar-touch min-h-[390px] w-full overflow-hidden border-y border-sky-200/70 bg-[radial-gradient(circle_at_8%_12%,rgba(56,189,248,0.2),transparent_34%),radial-gradient(circle_at_92%_78%,rgba(99,102,241,0.12),transparent_32%),linear-gradient(180deg,#e5f5ff_0%,#f0f3ff_48%,#e4f8ff_100%)] pb-3 pt-4 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.98),inset_0_-1px_0_rgba(14,116,144,0.14),0_14px_36px_rgba(30,64,175,0.08)] transition-[border-color,box-shadow] duration-500 hover:border-sky-300 hover:shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(14,116,144,0.18),0_20px_48px_rgba(30,64,175,0.13)] sm:pb-0"
+      className="home-fade-in group/selector home-glow-section home-glow-section-sky font-ui relative tovar-touch min-h-[390px] w-full overflow-hidden border-y border-sky-200/70 bg-[radial-gradient(circle_at_8%_12%,rgba(56,189,248,0.2),transparent_34%),radial-gradient(circle_at_92%_78%,rgba(99,102,241,0.12),transparent_32%),linear-gradient(180deg,#e5f5ff_0%,#f0f3ff_48%,#e4f8ff_100%)] pb-3 pt-4 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.98),inset_0_-1px_0_rgba(14,116,144,0.14),0_14px_36px_rgba(30,64,175,0.08)] transition-[border-color,box-shadow] duration-500 hover:border-sky-300 hover:shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(14,116,144,0.18),0_20px_48px_rgba(30,64,175,0.13)] sm:pb-0"
     >
       {/* top bridge — receives hero's sky-blue fade */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[image:linear-gradient(to_bottom,rgba(186,230,253,0.22)_0%,rgba(186,230,253,0.06)_55%,transparent_100%)]" />

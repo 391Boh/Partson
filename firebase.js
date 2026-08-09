@@ -65,6 +65,9 @@ if (missingFirebaseVars.length > 0) {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+// Site is Ukrainian-only — send Auth emails (password reset, email
+// verification, etc.) in Ukrainian instead of Firebase's default/English.
+auth.languageCode = "uk";
 // Improve reliability on networks/proxies where WebChannel can timeout.
 const db = initializeFirestore(app, {
   experimentalAutoDetectLongPolling: true,

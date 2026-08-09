@@ -36,7 +36,7 @@ export default function StarRatingInput({
           onMouseEnter={() => !disabled && setHovered(star)}
           onMouseLeave={() => !disabled && setHovered(0)}
           onClick={() => !disabled && onChange(star)}
-          className="rounded p-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:cursor-not-allowed"
+          className="rounded p-0.5 transition-transform duration-150 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
           <Star
             size={size}

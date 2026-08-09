@@ -12,6 +12,17 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    // Role-based admin check (see app/api/_lib/admin-auth.ts for the server-side
+    // twin). NOTE: this only covers admins promoted via the Users tab (role:
+    // "admin" on their users/{uid} doc) — it cannot see the server-only
+    // NEXT_PUBLIC_ADMIN_EMAILS bootstrap list, since rules have no env access.
+    // An env-listed admin who has never been promoted will be denied here.
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // ── orders ────────────────────────────────────────────────────────────────
     // Guests and authenticated users may create orders.
     // Only the authenticated owner can read their own orders (matched by uid field).
@@ -73,6 +84,27 @@ service cloud.firestore {
     // detection. Move that check to a server API route using the Admin SDK.
     match /users/{userId} {
       allow read, write: if isOwner(userId);
+    }
+
+    // ── productGallery (extra product photos, separate from the 1C photo) ────
+    // Writes only happen server-side via the Admin SDK (app/api/product-gallery
+    // route, already admin-gated there) — the client is read-only.
+    match /productGallery/{code}/images/{imageId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ── messageTemplates (admin canned replies) ──────────────────────────────
+    match /messageTemplates/{templateId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── chatSettings (e.g. chatSettings/autoReply) ───────────────────────────
+    // Read is public so the "is auto-reply enabled" check could be done
+    // client-side too if ever needed; only admins may change settings.
+    match /chatSettings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // ── deny everything else ──────────────────────────────────────────────────

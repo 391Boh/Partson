@@ -318,6 +318,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isAdminPanelPinned, setIsAdminPanelPinned] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminCheckReady, setAdminCheckReady] = useState(false);
   const [authUserUid, setAuthUserUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -333,6 +334,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const router = useRouter();
   const pathnameValue = usePathname();
   const pathname = pathnameValue ?? "";
+  const isAdminEmailRef = useRef(false);
   const warmupStartedRef = useRef(false);
   const primaryRoutePrefetchStartedRef = useRef(false);
   const previousPathnameRef = useRef(pathname);
@@ -1071,6 +1073,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        setAdminCheckReady(false);
         setAuthUserUid(user.uid);
         if (readRememberedAdminAccess(user.uid)) {
           setIsAdmin(true);
@@ -1110,6 +1113,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           hasAdminRole(claims.permissions);
 
         const isAdminEmail = idToken ? await checkIsAdminOnServer(idToken) : false;
+        isAdminEmailRef.current = isAdminEmail;
 
         const lastAuthenticatedUid = normalizeStoredId(
           localStorage.getItem("user_id")
@@ -1128,6 +1132,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         const resolvedIsAdmin = isAdminRole || isAdminEmail;
 
         setIsAdmin(resolvedIsAdmin);
+        setAdminCheckReady(true);
 
         if (resolvedIsAdmin) {
           localStorage.setItem(adminStorageKey, "1");
@@ -1164,6 +1169,8 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       } else {
         setAuthUserUid(null);
         setIsAdmin(false);
+        setAdminCheckReady(false);
+        isAdminEmailRef.current = false;
         try { localStorage.removeItem("user_id"); } catch {}
         window.dispatchEvent(
           new CustomEvent("partson:adminStateChange", {
@@ -1187,6 +1194,42 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     return () => unsubscribe();
   }, [firebaseDeps]);
+
+  // Promoting/demoting a user's role from the admin panel writes straight to
+  // their users/{uid} Firestore doc. Without a live listener, the affected
+  // browser only re-checks admin access on its next login or Firebase's
+  // ~1hr ID token refresh — this makes a role change take effect immediately.
+  useEffect(() => {
+    if (!firebaseDeps || !authUserUid || !adminCheckReady) return;
+
+    const { db, doc, onSnapshot } = firebaseDeps;
+    const userRef = doc(db, "users", authUserUid);
+
+    const unsubscribe = onSnapshot(userRef, (snap) => {
+      if (!snap.exists()) return;
+      const isAdminRole = hasAdminAccess(snap.data() as Record<string, unknown>);
+      const resolvedIsAdmin = isAdminRole || isAdminEmailRef.current;
+
+      setIsAdmin((prev) => (prev === resolvedIsAdmin ? prev : resolvedIsAdmin));
+
+      const adminStorageKey = getAdminStorageKey(authUserUid);
+      try {
+        if (resolvedIsAdmin) {
+          localStorage.setItem(adminStorageKey, "1");
+        } else {
+          localStorage.removeItem(adminStorageKey);
+        }
+      } catch {}
+
+      window.dispatchEvent(
+        new CustomEvent("partson:adminStateChange", {
+          detail: { isAdmin: resolvedIsAdmin, uid: authUserUid },
+        })
+      );
+    });
+
+    return () => unsubscribe();
+  }, [firebaseDeps, authUserUid, adminCheckReady]);
 
   useEffect(() => {
     if (!userId || typeof window === "undefined") return;
@@ -1452,11 +1495,38 @@ export default function LayoutHost({ children }: LayoutHostProps) {
               </button>
               <button
                 onClick={() => setIsAdminPanelOpen((prev) => !prev)}
-                className="relative z-[60] mr-2 inline-flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border border-white/18 bg-sky-800 text-white shadow-[0_18px_38px_rgba(8,47,73,0.26)] transition hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
                 aria-label="Адмін панель"
                 title="Адмін панель"
+                className="group relative isolate z-[60] mr-2 flex h-[62px] w-[62px] items-center justify-center overflow-visible rounded-[22px] border border-white/18 shadow-[0_18px_38px_rgba(8,47,73,0.26)] transition-[box-shadow,border-color,filter,transform] duration-300 ease-out hover:-translate-y-1 hover:scale-[1.018] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
               >
-                <Shield className="h-[30px] w-[30px]" strokeWidth={2.2} aria-hidden="true" />
+                <span
+                  aria-hidden="true"
+                  style={{ backgroundSize: "180% 180%" }}
+                  className="pointer-events-none absolute inset-0 rounded-[22px] bg-[image:linear-gradient(145deg,rgba(15,23,42,0.98)_0%,rgba(67,56,202,0.92)_48%,rgba(14,165,233,0.88)_100%)] bg-[position:0%_50%] transition-[background-position] duration-700 ease-out group-hover:bg-[position:100%_50%]"
+                />
+                <span className="pointer-events-none absolute inset-0 rounded-[22px] border border-white/10 bg-[image:radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_82%)]" />
+                <span className="pointer-events-none absolute inset-[1px] rounded-[21px] bg-[image:linear-gradient(165deg,rgba(255,255,255,0.14),rgba(255,255,255,0.04)_38%,rgba(255,255,255,0.06)_100%)]" />
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -inset-4 scale-[0.94] rounded-[30px] bg-indigo-400/26 opacity-25 blur-2xl transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.04] group-hover:opacity-55"
+                />
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -translate-x-[130%] skew-x-[-18deg] bg-[image:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent)] opacity-0 mix-blend-screen transition-[opacity,transform] duration-700 ease-out group-hover:translate-x-[250%] group-hover:opacity-95"
+                />
+                <span className="pointer-events-none absolute inset-x-4 top-2.5 h-6 rounded-full bg-[image:linear-gradient(180deg,rgba(255,255,255,0.22),transparent)] blur-md" />
+                <span className="relative z-10 flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.06]">
+                  <Shield
+                    className="text-white drop-shadow-[0_8px_18px_rgba(15,23,42,0.32)]"
+                    size={28}
+                    strokeWidth={2.2}
+                    aria-hidden="true"
+                  />
+                </span>
+                <span className="pointer-events-none absolute left-1/2 -top-[3.6rem] -translate-x-1/2 translate-y-1.5 whitespace-nowrap rounded-[15px] border border-white/65 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_58%,rgba(224,242,254,0.94)_100%)] px-3.5 py-2 text-[11px] font-semibold tracking-[0.05em] text-slate-800 opacity-0 shadow-[0_18px_36px_rgba(15,23,42,0.16)] backdrop-blur-xl transition-all duration-[250ms] ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+                  Адмін панель
+                </span>
+                <span className="pointer-events-none absolute left-1/2 -top-[9px] h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-r border-b border-white/60 bg-sky-50/95 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
                 {renderBadge(totalNotifications)}
               </button>
             </div>
@@ -1473,7 +1543,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
                 "hover:-translate-y-1 hover:scale-[1.018] active:scale-[0.97]",
                 "md:h-[70px] md:w-[70px]",
                 "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45",
-                "border-white/22 shadow-[0_16px_38px_rgba(8,47,73,0.18)] hover:border-white/36 hover:shadow-[0_22px_46px_rgba(14,116,144,0.22)]",
+                "border-cyan-100/25 shadow-[0_16px_38px_rgba(8,47,73,0.22)] hover:border-cyan-100/45 hover:shadow-[0_22px_46px_rgba(14,116,144,0.28)]",
                 showScrollTop
                   ? "opacity-100 translate-y-0 pointer-events-auto"
                   : "opacity-0 translate-y-3 pointer-events-none",
@@ -1482,13 +1552,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
               <span
                 aria-hidden="true"
                 style={{ backgroundSize: "180% 180%" }}
-                className="pointer-events-none absolute inset-0 rounded-[22px] bg-[position:0%_50%] transition-[background-position] duration-700 ease-out group-hover:bg-[position:100%_50%] bg-[image:linear-gradient(145deg,rgba(51,65,85,0.78)_0%,rgba(71,85,105,0.72)_46%,rgba(100,116,139,0.64)_100%)]"
+                className="pointer-events-none absolute inset-0 rounded-[22px] bg-[position:0%_50%] transition-[background-position] duration-700 ease-out group-hover:bg-[position:100%_50%] bg-[image:linear-gradient(145deg,rgba(15,23,42,0.92)_0%,rgba(3,105,161,0.86)_48%,rgba(45,212,191,0.78)_100%)]"
               />
               <span className="pointer-events-none absolute inset-0 rounded-[22px] border border-white/14 bg-[image:radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.22),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.10),transparent_82%)]" />
               <span className="pointer-events-none absolute inset-[1px] rounded-[21px] bg-[image:linear-gradient(165deg,rgba(255,255,255,0.18),rgba(255,255,255,0.05)_38%,rgba(255,255,255,0.08)_100%)]" />
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute -inset-4 scale-[0.94] rounded-[30px] bg-slate-300/12 opacity-15 blur-2xl transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.04] group-hover:opacity-40"
+                className="pointer-events-none absolute -inset-4 scale-[0.94] rounded-[30px] bg-cyan-300/20 opacity-20 blur-2xl transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.04] group-hover:opacity-50"
               />
               <span
                 aria-hidden="true"
@@ -1516,7 +1586,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
                 type="button"
                 onClick={openChat}
                 aria-label="Відкрити чат"
-                className="relative z-20 mr-2 inline-flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border border-white/18 bg-sky-800 text-white shadow-[0_18px_38px_rgba(8,47,73,0.26)] transition hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
+                className="relative z-20 mr-2 inline-flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border border-white/18 bg-[image:linear-gradient(145deg,rgba(15,23,42,0.98)_0%,rgba(30,64,175,0.94)_46%,rgba(14,165,233,0.88)_100%)] text-white shadow-[0_18px_38px_rgba(8,47,73,0.28)] transition-[filter,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:brightness-[1.06] hover:shadow-[0_22px_44px_rgba(14,116,144,0.32)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
               >
                 <MessageCircle size={30} strokeWidth={2.2} aria-hidden="true" />
                 {renderBadge(userUnreadCount)}

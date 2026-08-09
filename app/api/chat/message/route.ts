@@ -19,6 +19,52 @@ const readMessageType = (source: Record<string, unknown>): ChatMessageType | nul
   return null;
 };
 
+// A customer's first message after a gap this long starts a "fresh session" —
+// only fresh sessions get the automatic reply, so it doesn't repeat on every
+// message in an ongoing conversation.
+const AUTO_REPLY_SESSION_GAP_MS = 20 * 60 * 1000;
+
+const sendAutoReplyIfDue = async (userId: string) => {
+  try {
+    const db = getFirebaseAdminDb();
+    const settingsSnap = await db.collection("chatSettings").doc("autoReply").get();
+    const settings = settingsSnap.exists ? settingsSnap.data() : null;
+    const text = typeof settings?.text === "string" ? settings.text.trim() : "";
+    if (!settings?.enabled || !text) return;
+
+    const recentSnap = await db
+      .collection("messages")
+      .where("userId", "==", userId)
+      .orderBy("createdAt", "desc")
+      .limit(2)
+      .get();
+
+    // Most recent doc is the message that was just written by this request;
+    // the one before it (if any) tells us whether this is a fresh session.
+    const previous = recentSnap.docs[1];
+    const previousCreatedAt = previous?.get("createdAt") as
+      | FirebaseFirestore.Timestamp
+      | undefined;
+    const isFreshSession =
+      !previousCreatedAt ||
+      Date.now() - previousCreatedAt.toMillis() > AUTO_REPLY_SESSION_GAP_MS;
+    if (!isFreshSession) return;
+
+    await db.collection("messages").add({
+      text,
+      sender: "manager",
+      userId,
+      createdAt: FieldValue.serverTimestamp(),
+      textRead: false,
+      readByUser: false,
+      type: "text",
+      autoReply: true,
+    });
+  } catch (error) {
+    console.error("Auto-reply failed:", error);
+  }
+};
+
 const buildTelegramMessage = ({
   userId,
   text,
@@ -118,6 +164,8 @@ export async function POST(req: NextRequest) {
         console.error("Telegram chat notification failed:", notification.error);
       }
     });
+
+    after(() => sendAutoReplyIfDue(userId));
 
     const response = NextResponse.json({
       success: true,

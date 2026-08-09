@@ -48,6 +48,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   const [producerSugg, setProducerSugg] = useState<string[]>([]);
   const [producerActive, setProducerActive] = useState(-1);
   const producerAbort = useRef<AbortController | null>(null);
+  const producerDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Hierarchy suggestions
   const [catSugg, setCatSugg] = useState<string[]>([]);
@@ -57,6 +58,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   const [grpActive, setGrpActive] = useState(-1);
   const [subActive, setSubActive] = useState(-1);
   const metaAbort = useRef<Record<SuggestType, AbortController | null>>({ category: null, group: null, subGroup: null });
+  const metaDebounce = useRef<Record<SuggestType, ReturnType<typeof setTimeout> | null>>({ category: null, group: null, subGroup: null });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
@@ -89,7 +91,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   const set = (key: keyof typeof EMPTY, val: string) =>
     setFields((prev) => ({ ...prev, [key]: val }));
 
-  const fetchProducerSugg = (q: string) => {
+  const fetchProducerSuggNow = (q: string) => {
     producerAbort.current?.abort();
     const ctrl = new AbortController();
     producerAbort.current = ctrl;
@@ -99,7 +101,15 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       .catch(() => {});
   };
 
-  const fetchMetaSugg = (type: SuggestType, q: string, parent?: string) => {
+  // Debounced: typing fires this on every keystroke, and without a delay each
+  // keystroke sent its own request (aborting the previous one) — wasted
+  // round-trips and a flickering dropdown while the user is still typing.
+  const fetchProducerSugg = (q: string) => {
+    if (producerDebounce.current) clearTimeout(producerDebounce.current);
+    producerDebounce.current = setTimeout(() => fetchProducerSuggNow(q), 200);
+  };
+
+  const fetchMetaSuggNow = (type: SuggestType, q: string, parent?: string) => {
     metaAbort.current[type]?.abort();
     const ctrl = new AbortController();
     metaAbort.current[type] = ctrl;
@@ -115,6 +125,12 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
         else { setSubSugg(s); setSubActive(-1); }
       })
       .catch(() => {});
+  };
+
+  // Debounced counterpart of fetchMetaSuggNow, same rationale as producer above.
+  const fetchMetaSugg = (type: SuggestType, q: string, parent?: string) => {
+    if (metaDebounce.current[type]) clearTimeout(metaDebounce.current[type]!);
+    metaDebounce.current[type] = setTimeout(() => fetchMetaSuggNow(type, q, parent), 200);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -332,7 +348,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                       type="text"
                       value={fields.producer}
                       onChange={(e) => { set("producer", e.target.value); fetchProducerSugg(e.target.value); }}
-                      onFocus={() => fetchProducerSugg(fields.producer)}
+                      onFocus={() => fetchProducerSuggNow(fields.producer)}
                       onKeyDown={(e) => {
                         if (e.key === "ArrowDown") { e.preventDefault(); setProducerActive((p) => Math.min(p + 1, producerSugg.length - 1)); }
                         else if (e.key === "ArrowUp") { e.preventDefault(); setProducerActive((p) => Math.max(p - 1, -1)); }
@@ -371,7 +387,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                         setGrpSugg([]); setSubSugg([]);
                         fetchMetaSugg("category", e.target.value);
                       }}
-                      onFocus={() => fetchMetaSugg("category", fields.category)}
+                      onFocus={() => fetchMetaSuggNow("category", fields.category)}
                       onKeyDown={(e) => {
                         if (e.key === "ArrowDown") { e.preventDefault(); setCatActive((p) => Math.min(p + 1, catSugg.length - 1)); }
                         else if (e.key === "ArrowUp") { e.preventDefault(); setCatActive((p) => Math.max(p - 1, -1)); }
@@ -380,7 +396,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                           const v = catSugg[catActive];
                           set("category", v); setCatSugg([]); setCatActive(-1);
                           set("group", ""); set("subGroup", "");
-                          fetchMetaSugg("group", "", v);
+                          fetchMetaSuggNow("group", "", v);
                         }
                         else if (e.key === "Escape") { setCatSugg([]); }
                       }}
@@ -394,7 +410,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                             onMouseDown={(e) => {
                               e.preventDefault(); set("category", s); setCatSugg([]); setCatActive(-1);
                               set("group", ""); set("subGroup", "");
-                              fetchMetaSugg("group", "", s);
+                              fetchMetaSuggNow("group", "", s);
                             }}
                             className={`block w-full px-2.5 py-1.5 text-left text-[11px] font-medium transition ${i === catActive ? "bg-teal-50 text-teal-800" : "text-slate-700 hover:bg-slate-50"}`}>
                             {s}
@@ -414,7 +430,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                         set("subGroup", ""); setSubSugg([]);
                         fetchMetaSugg("group", e.target.value, fields.category);
                       }}
-                      onFocus={() => fetchMetaSugg("group", fields.group, fields.category)}
+                      onFocus={() => fetchMetaSuggNow("group", fields.group, fields.category)}
                       onKeyDown={(e) => {
                         if (e.key === "ArrowDown") { e.preventDefault(); setGrpActive((p) => Math.min(p + 1, grpSugg.length - 1)); }
                         else if (e.key === "ArrowUp") { e.preventDefault(); setGrpActive((p) => Math.max(p - 1, -1)); }
@@ -422,7 +438,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                           e.preventDefault();
                           const v = grpSugg[grpActive];
                           set("group", v); setGrpSugg([]); setGrpActive(-1);
-                          set("subGroup", ""); fetchMetaSugg("subGroup", "", v);
+                          set("subGroup", ""); fetchMetaSuggNow("subGroup", "", v);
                         }
                         else if (e.key === "Escape") { setGrpSugg([]); }
                       }}
@@ -435,7 +451,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                           <button key={s} type="button"
                             onMouseDown={(e) => {
                               e.preventDefault(); set("group", s); setGrpSugg([]); setGrpActive(-1);
-                              set("subGroup", ""); fetchMetaSugg("subGroup", "", s);
+                              set("subGroup", ""); fetchMetaSuggNow("subGroup", "", s);
                             }}
                             className={`block w-full px-2.5 py-1.5 text-left text-[11px] font-medium transition ${i === grpActive ? "bg-violet-50 text-violet-800" : "text-slate-700 hover:bg-slate-50"}`}>
                             {s}
@@ -454,7 +470,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                         set("subGroup", e.target.value);
                         fetchMetaSugg("subGroup", e.target.value, fields.group);
                       }}
-                      onFocus={() => fetchMetaSugg("subGroup", fields.subGroup, fields.group)}
+                      onFocus={() => fetchMetaSuggNow("subGroup", fields.subGroup, fields.group)}
                       onKeyDown={(e) => {
                         if (e.key === "ArrowDown") { e.preventDefault(); setSubActive((p) => Math.min(p + 1, subSugg.length - 1)); }
                         else if (e.key === "ArrowUp") { e.preventDefault(); setSubActive((p) => Math.max(p - 1, -1)); }

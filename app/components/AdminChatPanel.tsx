@@ -10,9 +10,11 @@ import {
   EyeIcon,
   TruckIcon,
   UsersIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import {
   ArrowLeft,
+  Bookmark,
   Check,
   ChevronDown,
   ChevronUp,
@@ -21,8 +23,10 @@ import {
   Mail,
   MessageCircle,
   PackagePlus,
+  Pencil,
   Pin,
   PhoneCall,
+  Plus,
   Search,
   SendHorizontal,
   ShieldCheck,
@@ -60,6 +64,14 @@ interface Message {
   product?: ProductCard;
   imageUrl?: string;
   imageName?: string;
+  autoReply?: boolean;
+}
+
+interface MessageTemplate {
+  id: string;
+  title: string;
+  text: string;
+  createdAt?: unknown;
 }
 
 interface ProductCard {
@@ -224,6 +236,19 @@ export default function AdminChatPanel({
     'messages'
   );
   const [messages, setMessages] = useState<Message[]>([]);
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
+  const [autoReplyText, setAutoReplyText] = useState('');
+  const [autoReplySaving, setAutoReplySaving] = useState(false);
+  const [autoReplySaved, setAutoReplySaved] = useState(false);
+  const [newTemplateTitle, setNewTemplateTitle] = useState('');
+  const [newTemplateText, setNewTemplateText] = useState('');
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editingTemplateTitle, setEditingTemplateTitle] = useState('');
+  const [editingTemplateText, setEditingTemplateText] = useState('');
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [calls, setCalls] = useState<CallRequest[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -261,6 +286,24 @@ export default function AdminChatPanel({
           snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Message, "id">) }))
         )
     );
+  }, []);
+
+  useEffect(() => {
+    return onSnapshot(
+      query(collection(db, 'messageTemplates'), orderBy('createdAt', 'asc')),
+      (snap) =>
+        setTemplates(
+          snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<MessageTemplate, "id">) }))
+        )
+    );
+  }, []);
+
+  useEffect(() => {
+    return onSnapshot(doc(db, 'chatSettings', 'autoReply'), (snap) => {
+      const data = snap.data() as { enabled?: boolean; text?: string } | undefined;
+      setAutoReplyEnabled(Boolean(data?.enabled));
+      setAutoReplyText(typeof data?.text === 'string' ? data.text : '');
+    });
   }, []);
 
   useEffect(() => {
@@ -609,6 +652,59 @@ export default function AdminChatPanel({
       type: 'text',
     });
     setReplyText('');
+  };
+
+  const insertTemplate = (template: MessageTemplate) => {
+    setReplyText(template.text);
+    setShowTemplatePicker(false);
+  };
+
+  const saveAutoReplySettings = async () => {
+    setAutoReplySaving(true);
+    try {
+      await setDoc(
+        doc(db, 'chatSettings', 'autoReply'),
+        { enabled: autoReplyEnabled, text: autoReplyText.trim(), updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+      setAutoReplySaved(true);
+      setTimeout(() => setAutoReplySaved(false), 2500);
+    } finally {
+      setAutoReplySaving(false);
+    }
+  };
+
+  const addTemplate = async () => {
+    const title = newTemplateTitle.trim();
+    const text = newTemplateText.trim();
+    if (!title || !text) return;
+    setTemplateSaving(true);
+    try {
+      await addDoc(collection(db, 'messageTemplates'), { title, text, createdAt: serverTimestamp() });
+      setNewTemplateTitle('');
+      setNewTemplateText('');
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
+
+  const startEditTemplate = (template: MessageTemplate) => {
+    setEditingTemplateId(template.id);
+    setEditingTemplateTitle(template.title);
+    setEditingTemplateText(template.text);
+  };
+
+  const saveEditTemplate = async () => {
+    if (!editingTemplateId) return;
+    const title = editingTemplateTitle.trim();
+    const text = editingTemplateText.trim();
+    if (!title || !text) return;
+    await updateDoc(doc(db, 'messageTemplates', editingTemplateId), { title, text });
+    setEditingTemplateId(null);
+  };
+
+  const removeTemplate = async (id: string) => {
+    await deleteDoc(doc(db, 'messageTemplates', id));
   };
 
   const fetchProductByArticle = async (
@@ -1019,7 +1115,7 @@ export default function AdminChatPanel({
   return (
     <div
       ref={panelRef}
-      className="admin-panel-shell admin-density-compact app-overlay-panel fixed inset-x-2 bottom-2 top-[4.25rem] z-50 flex max-h-[calc(100dvh-4.75rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-sky-100/20 bg-[image:linear-gradient(145deg,rgba(3,7,18,0.98),rgba(15,23,42,0.96)_42%,rgba(12,74,110,0.92))] shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:inset-x-3 sm:bottom-3 sm:top-[4.75rem] sm:max-h-[calc(100dvh-5.5rem)] md:left-auto md:right-4 md:bottom-auto md:top-[4.5rem] md:h-[min(860px,calc(100dvh-4.75rem))] md:w-[min(940px,calc(100vw-2rem))] md:max-h-none md:rounded-[28px] lg:right-6 lg:w-[min(1020px,calc(100vw-3rem))] xl:w-[1080px]"
+      className="admin-panel-shell admin-density-compact app-overlay-panel fixed inset-x-2 bottom-2 top-[4.25rem] z-50 flex max-h-[calc(100dvh-4.75rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-sky-100/20 bg-[image:linear-gradient(145deg,rgba(3,7,18,0.98),rgba(15,23,42,0.96)_42%,rgba(12,74,110,0.92))] shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:inset-x-3 sm:bottom-3 sm:top-[4.75rem] sm:max-h-[calc(100dvh-5.5rem)] md:left-auto md:right-4 md:bottom-auto md:top-[4.5rem] md:h-[min(960px,calc(100dvh-4rem))] md:w-[min(1560px,calc(100vw-2rem))] md:max-h-none md:rounded-[28px] lg:right-4 lg:w-[min(1960px,calc(100vw-2.5rem))] xl:w-[min(2280px,calc(100vw-3rem))] 2xl:w-[min(2600px,calc(100vw-4rem))]"
       style={{
         backgroundSize: '200% 200%',
         animation: 'adminGradient 12s ease infinite',
@@ -1035,7 +1131,7 @@ export default function AdminChatPanel({
               <p className="text-[8px] font-semibold uppercase tracking-[0.12em] text-sky-200/80 sm:text-[9px] sm:tracking-[0.15em]">
                 Керування магазином
               </p>
-              <h2 className="mt-0.5 truncate text-[15px] font-black tracking-[-0.03em] text-white sm:text-xl">
+              <h2 className="mt-0.5 text-[15px] font-black leading-tight tracking-[-0.03em] text-white [overflow-wrap:anywhere] sm:text-xl">
                 Панель адміністратора
               </h2>
             </div>
@@ -1120,7 +1216,7 @@ export default function AdminChatPanel({
                         <p className="text-[9px] font-black uppercase tracking-[0.12em] text-sky-200/80">
                           Центр повідомлень
                         </p>
-                        <h3 className="mt-0.5 truncate text-sm font-black text-white">
+                        <h3 className="mt-0.5 text-sm font-black leading-tight text-white [overflow-wrap:anywhere]">
                           Діалоги з клієнтами
                         </h3>
                       </div>
@@ -1141,6 +1237,186 @@ export default function AdminChatPanel({
                     </div>
                   </div>
                 </SearchDock>
+
+                <div className="rounded-[16px] border border-white/10 bg-white/[0.04]">
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplateManager((p) => !p)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <DocumentTextIcon className="h-4 w-4 shrink-0 text-violet-300" />
+                      <span className="min-w-0 text-[11px] font-black uppercase leading-snug tracking-[0.08em] text-violet-200 [overflow-wrap:anywhere]">
+                        Шаблони та автовідповідь
+                      </span>
+                      {templates.length > 0 && (
+                        <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-slate-300">
+                          {templates.length}
+                        </span>
+                      )}
+                    </span>
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${showTemplateManager ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {showTemplateManager && (
+                    <div className="space-y-2 border-t border-white/10 p-2.5">
+                      <div className="rounded-[14px] border border-white/10 bg-slate-950/30 p-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-sky-300">
+                              Автоматична відповідь
+                            </p>
+                            <p className="mt-0.5 text-[11px] leading-snug text-slate-400">
+                              Надсилається одразу після першого повідомлення клієнта в новій розмові
+                              (якщо перерва з попереднього діалогу більша за 20 хв).
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setAutoReplyEnabled((p) => !p)}
+                            className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-bold transition ${
+                              autoReplyEnabled
+                                ? 'border-emerald-400/30 bg-emerald-500/20 text-emerald-300'
+                                : 'border-white/10 bg-white/10 text-slate-300'
+                            }`}
+                          >
+                            {autoReplyEnabled ? 'Увімкнено' : 'Вимкнено'}
+                          </button>
+                        </div>
+                        <textarea
+                          value={autoReplyText}
+                          onChange={(e) => setAutoReplyText(e.target.value)}
+                          rows={3}
+                          placeholder="Текст автоматичної відповіді..."
+                          className="mt-2 w-full rounded-[12px] border border-white/10 bg-slate-950/40 px-3 py-2 text-[13px] text-white placeholder-slate-500 focus:border-sky-400 focus:outline-none"
+                        />
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void saveAutoReplySettings()}
+                            disabled={autoReplySaving}
+                            className="inline-flex items-center gap-1.5 rounded-[10px] bg-sky-600 px-3 py-2 text-[11px] font-bold text-white transition hover:bg-sky-700 disabled:opacity-60"
+                          >
+                            {autoReplySaving ? 'Збереження...' : 'Зберегти'}
+                          </button>
+                          {autoReplySaved && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300">
+                              <Check className="h-3.5 w-3.5" /> Збережено
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-[14px] border border-white/10 bg-slate-950/30 p-2.5">
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-violet-300">
+                          Шаблони повідомлень
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-slate-400">
+                          Швидко вставляйте готові відповіді під час листування з клієнтом (кнопка
+                          «Шаблон» у полі відповіді).
+                        </p>
+
+                        <div className="mt-2 space-y-1.5">
+                          <input
+                            value={newTemplateTitle}
+                            onChange={(e) => setNewTemplateTitle(e.target.value)}
+                            placeholder="Назва шаблону (наприклад, «Графік роботи»)"
+                            className="w-full rounded-[10px] border border-white/10 bg-slate-950/40 px-3 py-2 text-[12px] text-white placeholder-slate-500 focus:border-violet-400 focus:outline-none"
+                          />
+                          <textarea
+                            value={newTemplateText}
+                            onChange={(e) => setNewTemplateText(e.target.value)}
+                            rows={2}
+                            placeholder="Текст повідомлення..."
+                            className="w-full rounded-[10px] border border-white/10 bg-slate-950/40 px-3 py-2 text-[12px] text-white placeholder-slate-500 focus:border-violet-400 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void addTemplate()}
+                            disabled={templateSaving || !newTemplateTitle.trim() || !newTemplateText.trim()}
+                            className="inline-flex items-center gap-1.5 rounded-[10px] bg-violet-600 px-3 py-2 text-[11px] font-bold text-white transition hover:bg-violet-700 disabled:opacity-40"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Додати шаблон
+                          </button>
+                        </div>
+
+                        {templates.length === 0 ? (
+                          <p className="mt-3 text-[12px] text-slate-500">
+                            Шаблонів ще немає — додайте перший вище.
+                          </p>
+                        ) : (
+                          <div className="mt-3 space-y-1.5">
+                            {templates.map((template) => (
+                              <div
+                                key={template.id}
+                                className="rounded-[12px] border border-white/8 bg-slate-950/30 p-2.5"
+                              >
+                                {editingTemplateId === template.id ? (
+                                  <div className="space-y-1.5">
+                                    <input
+                                      value={editingTemplateTitle}
+                                      onChange={(e) => setEditingTemplateTitle(e.target.value)}
+                                      className="w-full rounded-[8px] border border-violet-300/30 bg-slate-950/50 px-2.5 py-1.5 text-[12px] text-white focus:outline-none"
+                                    />
+                                    <textarea
+                                      value={editingTemplateText}
+                                      onChange={(e) => setEditingTemplateText(e.target.value)}
+                                      rows={2}
+                                      className="w-full rounded-[8px] border border-violet-300/30 bg-slate-950/50 px-2.5 py-1.5 text-[12px] text-white focus:outline-none"
+                                    />
+                                    <div className="flex gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => void saveEditTemplate()}
+                                        className="rounded-[8px] bg-emerald-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-700"
+                                      >
+                                        Зберегти
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingTemplateId(null)}
+                                        className="rounded-[8px] border border-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300 hover:bg-white/10"
+                                      >
+                                        Скасувати
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="line-clamp-2 text-[12px] font-bold leading-snug text-white [overflow-wrap:anywhere]">{template.title}</p>
+                                      <p className="mt-0.5 line-clamp-2 text-[11px] text-slate-400">{template.text}</p>
+                                    </div>
+                                    <div className="flex shrink-0 gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => startEditTemplate(template)}
+                                        title="Редагувати"
+                                        className="rounded-[8px] border border-white/10 p-1.5 text-slate-300 hover:bg-white/10"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void removeTemplate(template.id)}
+                                        title="Видалити"
+                                        className="rounded-[8px] border border-rose-400/20 p-1.5 text-rose-300 hover:bg-rose-500/10"
+                                      >
+                                        <TrashIcon className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {visibleMessageThreads.length === 0 && (
                   <EmptyPanelState
@@ -1175,11 +1451,11 @@ export default function AdminChatPanel({
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="truncate text-[13px] font-semibold text-white sm:text-[15px]">
+                            <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-white [overflow-wrap:anywhere] sm:text-[15px]">
                               {thread.label}
                             </p>
                           </div>
-                          <p className="mt-0.5 truncate text-xs text-slate-300 sm:text-[13px]">
+                          <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-slate-300 [overflow-wrap:anywhere] sm:text-[13px]">
                             {thread.preview || 'Поки що без повідомлень'}
                           </p>
                           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -1221,7 +1497,7 @@ export default function AdminChatPanel({
                 })}
               </div>
             ) : (
-                <div className="flex h-full min-h-0 flex-col">
+                <div className="mx-auto flex h-full min-h-0 w-full max-w-[900px] flex-col">
                   <div className="mb-2 rounded-[18px] border border-white/10 bg-[image:linear-gradient(135deg,rgba(30,41,59,0.9),rgba(15,23,42,0.88))] p-2 shadow-[0_18px_34px_rgba(2,6,23,0.2)]">
                     <div className="flex items-center gap-2.5">
                       <button
@@ -1239,7 +1515,7 @@ export default function AdminChatPanel({
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 items-center gap-2">
-                          <p className="truncate text-sm font-black text-white">
+                          <p className="line-clamp-2 text-sm font-black leading-snug text-white [overflow-wrap:anywhere]">
                             {selectedDisplayName}
                           </p>
                           <span className="shrink-0 rounded-full border border-white/10 bg-white/6 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-slate-300">
@@ -1320,7 +1596,7 @@ export default function AdminChatPanel({
                         }`}
                       >
                         <div
-                          className={`max-w-[82%] ${
+                          className={`max-w-[min(82%,600px)] ${
                             isRichCard
                               ? 'bg-transparent p-0 shadow-none'
                               : `rounded-[18px] px-3 py-2 text-[13px] leading-5 shadow-[0_12px_24px_rgba(2,6,23,0.16)] sm:text-sm ${
@@ -1424,6 +1700,45 @@ export default function AdminChatPanel({
                     className="min-h-10 flex-1 rounded-[15px] border border-white/10 bg-slate-950/36 px-3 py-2 text-[16px] text-white placeholder-slate-300 focus:border-sky-400 focus:outline-none sm:text-sm"
                     placeholder="Написати повідомлення..."
                   />
+                  <div className="relative shrink-0">
+                    <button
+                      onClick={() => setShowTemplatePicker((p) => !p)}
+                      className={`inline-flex h-10 w-10 items-center justify-center gap-2 rounded-[15px] border px-0 py-0 text-white transition sm:w-auto sm:px-3 ${
+                        showTemplatePicker
+                          ? 'border-violet-300/30 bg-violet-500/20'
+                          : 'border-white/10 bg-white/10 hover:bg-white/20'
+                      }`}
+                      title="Вставити шаблон"
+                    >
+                      <Bookmark className="h-5 w-5" />
+                      <span className="hidden text-xs font-semibold sm:inline">Шаблон</span>
+                    </button>
+                    {showTemplatePicker && (
+                      <div className="absolute bottom-full right-0 z-50 mb-2 max-h-56 w-64 overflow-y-auto rounded-[14px] border border-white/10 bg-slate-900 p-1.5 shadow-[0_16px_36px_rgba(2,6,23,0.4)]">
+                        {templates.length === 0 ? (
+                          <p className="px-2.5 py-2 text-[11px] text-slate-400">
+                            Немає шаблонів. Додайте у вкладці «Шаблони».
+                          </p>
+                        ) : (
+                          templates.map((template) => (
+                            <button
+                              key={template.id}
+                              type="button"
+                              onClick={() => insertTemplate(template)}
+                              className="block w-full rounded-[10px] px-2.5 py-2 text-left transition hover:bg-white/10"
+                            >
+                              <span className="block line-clamp-2 text-[12px] font-bold leading-snug text-white [overflow-wrap:anywhere]">
+                                {template.title}
+                              </span>
+                              <span className="block line-clamp-2 text-[11px] leading-snug text-slate-400 [overflow-wrap:anywhere]">
+                                {template.text}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={() => setShowProductForm((p) => !p)}
                     className={`inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-[15px] border px-0 py-0 text-white transition sm:w-auto sm:px-3 ${
@@ -1503,28 +1818,80 @@ export default function AdminChatPanel({
                 <div
                   key={userRowKey}
                   data-admin-card="true"
-                  className="mb-1.5 grid w-full grid-cols-1 gap-2 rounded-[16px] border border-white/7 bg-[image:linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.64))] p-2 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] transition-colors hover:border-sky-300/20 hover:bg-white/[0.05] sm:mb-2 sm:grid-cols-[minmax(180px,0.9fr)_minmax(220px,1.1fr)_auto] sm:items-center sm:gap-3 sm:rounded-[20px] sm:p-3"
+                  className="mb-1.5 flex w-full flex-col gap-2 rounded-[16px] border border-white/7 bg-[image:linear-gradient(180deg,rgba(15,23,42,0.78),rgba(15,23,42,0.64))] p-2 text-left text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] transition-colors hover:border-sky-300/20 hover:bg-white/[0.05] sm:mb-2 sm:rounded-[20px] sm:p-3"
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                          online
-                            ? 'bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]'
-                            : 'bg-slate-500/70'
-                        }`}
-                      />
-                      <p className="truncate text-[13px] font-semibold sm:text-sm">
-                        {userItem.name || userItem.phone || 'Користувач'}
-                      </p>
+                  <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                            online
+                              ? 'bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]'
+                              : 'bg-slate-500/70'
+                          }`}
+                        />
+                        <p className="line-clamp-2 text-[13px] font-semibold leading-snug [overflow-wrap:anywhere] sm:text-sm">
+                          {userItem.name || userItem.phone || 'Користувач'}
+                        </p>
+                      </div>
+                      <div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-300">
+                          {userItem.phone && <span className="break-all">{userItem.phone}</span>}
+                        {userItem.email && (
+                          <span className="max-w-full break-all text-slate-400">
+                            {userItem.email}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-300">
-                      {userItem.phone && <span className="truncate">{userItem.phone}</span>}
-                      {userItem.email && (
-                        <span className="hidden max-w-full truncate text-slate-400 sm:inline">
-                          {userItem.email}
+
+                    <div className="flex min-w-0 items-center justify-end gap-1.5 border-t border-white/8 pt-1.5 sm:border-t-0 sm:pt-0">
+                      {unreadFromUser > 0 && (
+                        <span className="mr-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] leading-none text-white sm:mr-0">
+                          {unreadFromUser}
                         </span>
                       )}
+
+                      <button
+                        onClick={() =>
+                          handleRoleToggle(
+                            userItem.id,
+                            userItem.role === 'admin' ? 'user' : 'admin'
+                          )
+                        }
+                        disabled={roleUpdatingUid === userItem.id}
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-[16px] border p-2 transition disabled:cursor-wait disabled:opacity-60 sm:h-10 sm:w-10 sm:rounded-2xl ${
+                          userItem.role === 'admin'
+                            ? 'border-amber-300/30 bg-amber-400/15 text-amber-100 hover:bg-amber-400/25'
+                            : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/15'
+                        }`}
+                        title={
+                          userItem.role === 'admin'
+                            ? 'Забрати права адміністратора'
+                            : 'Надати права адміністратора'
+                        }
+                      >
+                        {userItem.role === 'admin' ? (
+                          <ShieldCheck size={16} />
+                        ) : (
+                          <ShieldOff size={16} />
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => openUserOrders(userItem.id)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 p-2 text-sky-200 transition hover:bg-white/15 sm:h-10 sm:w-10 sm:rounded-2xl"
+                        title="Відкрити замовлення користувача"
+                      >
+                        <ShoppingBag size={16} />
+                      </button>
+
+                      <button
+                        onClick={() => openUserChat(userItem.id)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 p-2 text-sky-300 transition hover:bg-white/15 sm:h-10 sm:w-10 sm:rounded-2xl"
+                        title="Відкрити чат з користувачем"
+                      >
+                        <MessageCircle size={16} />
+                      </button>
                     </div>
                   </div>
 
@@ -1565,59 +1932,6 @@ export default function AdminChatPanel({
                       </span>
                     )}
                   </div>
-
-                  <div className="flex min-w-0 items-center justify-end gap-1.5 border-t border-white/8 pt-1.5 sm:border-t-0 sm:pt-0">
-                    {unreadFromUser > 0 && (
-                      <span className="mr-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] leading-none text-white sm:mr-0">
-                        {unreadFromUser}
-                      </span>
-                    )}
-
-                    <button
-                      onClick={() =>
-                        handleRoleToggle(
-                          userItem.id,
-                          userItem.role === 'admin' ? 'user' : 'admin'
-                        )
-                      }
-                      disabled={roleUpdatingUid === userItem.id}
-                      className={`inline-flex h-9 items-center gap-1.5 rounded-[16px] border px-2.5 text-[11px] font-semibold transition disabled:cursor-wait disabled:opacity-60 sm:h-10 sm:rounded-2xl ${
-                        userItem.role === 'admin'
-                          ? 'border-amber-300/30 bg-amber-400/15 text-amber-100 hover:bg-amber-400/25'
-                          : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/15'
-                      }`}
-                      title={
-                        userItem.role === 'admin'
-                          ? 'Забрати права адміністратора'
-                          : 'Надати права адміністратора'
-                      }
-                    >
-                      {userItem.role === 'admin' ? (
-                        <ShieldCheck size={15} />
-                      ) : (
-                        <ShieldOff size={15} />
-                      )}
-                      <span className="hidden sm:inline">
-                        {userItem.role === 'admin' ? 'Адмін' : 'Користувач'}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => openUserOrders(userItem.id)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 p-2 text-sky-200 transition hover:bg-white/15 sm:h-10 sm:w-10 sm:rounded-2xl"
-                      title="Відкрити замовлення користувача"
-                    >
-                      <ShoppingBag size={16} />
-                    </button>
-
-                    <button
-                      onClick={() => openUserChat(userItem.id)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 p-2 text-sky-300 transition hover:bg-white/15 sm:h-10 sm:w-10 sm:rounded-2xl"
-                      title="Відкрити чат з користувачем"
-                    >
-                      <MessageCircle size={16} />
-                    </button>
-                  </div>
                 </div>
               );
             })}
@@ -1630,7 +1944,7 @@ export default function AdminChatPanel({
               <div className="space-y-2">
                 {filteredOrderUserName && (
                   <div className="flex items-center justify-between gap-2 rounded-[16px] border border-sky-200/30 bg-white/5 px-2.5 py-1.5 text-[11px] text-slate-100 sm:rounded-[18px] sm:text-xs">
-                    <span className="truncate">Показано замовлення: {filteredOrderUserName}</span>
+                    <span className="min-w-0 leading-snug [overflow-wrap:anywhere]">Показано замовлення: {filteredOrderUserName}</span>
                     <button
                       onClick={clearOrderUserFilter}
                       className="shrink-0 rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/90 hover:bg-white/10"
@@ -1876,10 +2190,10 @@ function Tab({
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-1.5">
           <div className="min-w-0 flex-1">
-            <div className="truncate whitespace-nowrap text-[8.5px] font-bold leading-tight text-slate-100 sm:text-[10px]">
+            <div className="text-[8.5px] font-bold leading-[1.15] text-slate-100 [overflow-wrap:anywhere] sm:text-[10px]">
               {label}
             </div>
-            <div className="mt-0.5 hidden truncate whitespace-nowrap text-[8px] font-medium leading-tight text-slate-300 lg:block">
+            <div className="mt-0.5 hidden text-[8px] font-medium leading-tight text-slate-300 [overflow-wrap:anywhere] lg:block">
               {meta}
             </div>
           </div>
@@ -1952,7 +2266,7 @@ function AdminMetric({
     <div
       className={`flex min-w-0 items-center justify-between gap-2 rounded-[11px] border bg-[image:linear-gradient(135deg,var(--tw-gradient-stops))] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:px-2.5 ${toneClass}`}
     >
-      <p className="min-w-0 truncate text-[8px] font-bold uppercase tracking-[0.08em] opacity-75 sm:text-[9px]">
+      <p className="min-w-0 text-[8px] font-bold uppercase leading-[1.15] tracking-[0.06em] opacity-75 [overflow-wrap:anywhere] sm:text-[9px]">
         {label}
       </p>
       <p className="shrink-0 text-sm font-black leading-none tracking-[-0.04em] sm:text-base">
@@ -2069,11 +2383,11 @@ function EmptyPanelState({
 
 function ChatProductCard({ product }: { product: ProductCard }) {
   return (
-    <div className="min-w-[220px] max-w-[320px] rounded-xl border border-white/10 bg-slate-900/40 p-3 text-left text-slate-100">
+    <div className="w-full min-w-0 max-w-[320px] rounded-xl border border-white/10 bg-slate-900/40 p-3 text-left text-slate-100 sm:min-w-[220px]">
       <div className="text-[10px] uppercase tracking-wide text-slate-400">
         Товар
       </div>
-      <div className="text-sm font-semibold">{product.name}</div>
+      <div className="text-sm font-semibold leading-snug [overflow-wrap:anywhere]">{product.name}</div>
       {product.article && (
         <div className="mt-1 text-xs text-slate-300">Артикул: {product.article}</div>
       )}
@@ -2123,7 +2437,7 @@ function ChatImageCard({
       href={imageUrl}
       target="_blank"
       rel="noreferrer"
-      className={`group block min-w-[220px] max-w-[320px] overflow-hidden rounded-xl border ${
+      className={`group block w-full min-w-0 max-w-[320px] overflow-hidden rounded-xl border sm:min-w-[220px] ${
         isUser
           ? 'border-white/10 bg-white/5'
           : 'border-sky-300/25 bg-sky-950/40'
@@ -2139,7 +2453,7 @@ function ChatImageCard({
         />
       </div>
       <div className="px-3 py-2 text-[11px] text-slate-100">
-        <span className="block truncate">{imageName || 'Фото'}</span>
+        <span className="block leading-snug [overflow-wrap:anywhere]">{imageName || 'Фото'}</span>
       </div>
     </a>
   );

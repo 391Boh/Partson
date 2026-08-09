@@ -15,7 +15,7 @@ import { scheduleIdle } from "app/lib/schedule-idle";
 // resolves.
 const AdvantagesSectionFallback = () => (
   <div
-    className="h-[2450px] bg-cyan-50/60 sm:h-[1850px] lg:h-[1280px] xl:h-[1220px]"
+    className="home-fade-in h-[2450px] bg-cyan-50/60 sm:h-[1850px] lg:h-[1280px] xl:h-[1220px]"
     aria-hidden="true"
   />
 );
@@ -70,12 +70,14 @@ export default function HomeBelowFoldClient({
       />
       <div className="home-section-stage">
         {ready ? (
-          <SectionBoundary title="Інформаційний блок тимчасово недоступний">
-            <AdvantagesSection
-              googleRatingValue={googleRatingValue}
-              googleReviewCount={googleReviewCount}
-            />
-          </SectionBoundary>
+          <div className="home-fade-in">
+            <SectionBoundary title="Інформаційний блок тимчасово недоступний">
+              <AdvantagesSection
+                googleRatingValue={googleRatingValue}
+                googleReviewCount={googleReviewCount}
+              />
+            </SectionBoundary>
+          </div>
         ) : (
           <AdvantagesSectionFallback />
         )}

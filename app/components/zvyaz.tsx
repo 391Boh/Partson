@@ -92,7 +92,7 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, onBack, userData }) => {
 
           <button
             onClick={onClose}
-            className="soft-icon-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
+            className="app-panel-close-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
             aria-label="Закрити"
           >
             <X size={18} />

@@ -176,18 +176,6 @@ export async function POST(request: NextRequest) {
   const receipt = readQuantity("receipt") ?? readQuantity("Поступлення");
   const sale = readQuantity("sale") ?? readQuantity("Реалізація");
   const hasPriceUpdate = priceEuro !== undefined || costPriceEuro !== undefined;
-  const hasNonPriceArticleLookup =
-    catalogNumber !== undefined ||
-    productName !== undefined ||
-    producer !== undefined ||
-    group !== undefined ||
-    subGroup !== undefined ||
-    category !== undefined ||
-    description !== undefined ||
-    quantity !== undefined ||
-    receipt !== undefined ||
-    sale !== undefined ||
-    Boolean(image.fileName || image.imageBase64);
 
   const oneCBody: Record<string, unknown> = { Код: code };
   if (priceEuro !== undefined) oneCBody["ЦінаПрод"] = priceEuro;
@@ -212,10 +200,16 @@ export async function POST(request: NextRequest) {
     oneCBody["артикул_ціни"] = article;
   }
 
-  // Product/quantity/article edits still need the current catalog number.
-  if (article && hasNonPriceArticleLookup) {
-    oneCBody["article"] = article;
-  }
+  // Do NOT send a top-level `article`/"артикул" key here. 1C's ОбновитьТовар
+  // treats its mere presence as "user wants to change НомерПоКаталогу" —
+  // ЕстьНомерПоКаталогу = ЕстьПараметр(..,"НомерПоКаталогу") ИЛИ
+  // ЕстьПараметр(..,"Артикул") ИЛИ ЕстьПараметр(..,"article") — which routes
+  // into ОбновитьРеквизитыТовара even for unrelated edits (quantity, photo,
+  // category) and throws "too many actual parameters" there. `Код` alone
+  // already resolves the product at the very top of ОбновитьТовар, before any
+  // field-specific section, so this key was never actually needed — an
+  // intentional catalog-number change already goes through the dedicated
+  // `НомерПоКаталогу` key above.
   if (quantity !== undefined) oneCBody["Кількість"] = quantity;
   if (receipt !== undefined) oneCBody["Поступлення"] = receipt;
   if (sale !== undefined) oneCBody["Реалізація"] = sale;
@@ -256,9 +250,9 @@ export async function POST(request: NextRequest) {
     has_more?: boolean;
     next_cursor?: string;
     product_result?: { success?: boolean; message?: string; error_message?: string; Наименование?: string; НомерПоКаталогу?: string; ПроизводительНаименование?: string };
-    price_result?: { success?: boolean; message?: string; ЦінаПрод?: number | null; ЦінаЗакуп?: number | null; Артикул?: string };
-    photo_result?: { success?: boolean; message?: string; file_name?: string };
-    quantity_result?: { success?: boolean; message?: string; Кількість?: number; КількістьДо?: number };
+    price_result?: { success?: boolean; message?: string; error_message?: string; ЦінаПрод?: number | null; ЦінаЗакуп?: number | null; Артикул?: string };
+    photo_result?: { success?: boolean; message?: string; error_message?: string; file_name?: string };
+    quantity_result?: { success?: boolean; message?: string; error_message?: string; Кількість?: number; КількістьДо?: number };
   } = {};
   try {
     parsed = JSON.parse(result.text) as typeof parsed;
@@ -305,11 +299,14 @@ export async function POST(request: NextRequest) {
   const photoOk = !parsed.photo_result || parsed.photo_result.success !== false;
   const quantityOk = !parsed.quantity_result || parsed.quantity_result.success !== false;
   if (!productOk || !priceOk || !photoOk || !quantityOk) {
+    // Each sub-result follows the same 1C convention as the top-level
+    // success:false case above: `message` is only filled on success,
+    // `error_message` carries the actual reason on failure.
     const errors: string[] = [];
-    if (!productOk) errors.push(parsed.product_result?.message || "Помилка оновлення реквізитів");
-    if (!priceOk) errors.push(parsed.price_result?.message || "Помилка оновлення ціни");
-    if (!photoOk) errors.push(parsed.photo_result?.message || "Помилка оновлення фото");
-    if (!quantityOk) errors.push(parsed.quantity_result?.message || "Помилка оновлення кількості");
+    if (!productOk) errors.push(parsed.product_result?.message || parsed.product_result?.error_message || "Помилка оновлення реквізитів");
+    if (!priceOk) errors.push(parsed.price_result?.message || parsed.price_result?.error_message || "Помилка оновлення ціни");
+    if (!photoOk) errors.push(parsed.photo_result?.message || parsed.photo_result?.error_message || "Помилка оновлення фото");
+    if (!quantityOk) errors.push(parsed.quantity_result?.message || parsed.quantity_result?.error_message || "Помилка оновлення кількості");
     return json({ ok: false, error: errors.join("; ") }, 422);
   }
 

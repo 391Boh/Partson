@@ -34,15 +34,25 @@ const BASE_KEYWORDS = [
   "доставка автозапчастин україна",
 ];
 
-const mergeKeywords = (...groups: Array<Array<string | null | undefined> | undefined>) =>
-  Array.from(
-    new Set(
-      groups
-        .flatMap((group) => group ?? [])
-        .map((item) => (item || "").trim())
-        .filter(Boolean)
-    )
-  );
+const mergeKeywords = (...groups: Array<Array<string | null | undefined> | undefined>) => {
+  const seen = new Set<string>();
+
+  return groups
+    .flatMap((group) => group ?? [])
+    .map((item) => (item || "").replace(/\s+/g, " ").trim())
+    .filter((item) => {
+      if (!item) return false;
+      const key = item.toLocaleLowerCase("uk-UA");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
+const titleIncludesBrand = (title: string) => /(^|\W)partson(\W|$)/iu.test(title);
+
+const buildSocialTitle = (title: string) =>
+  titleIncludesBrand(title) ? title : `${title} | PartsON`;
 
 export const trimSeoDescription = (
   value: string,
@@ -69,7 +79,7 @@ export const trimSeoDescription = (
 };
 
 export const buildSeoContactLine = () =>
-  `${STORE_ADDRESS_SEO_LABEL}. ${STORE_PHONE_DISPLAY}.`;
+  `${STORE_ADDRESS}. Телефон: ${STORE_PHONE_DISPLAY}.`;
 
 // Contact info leads every description (address, then a plain phone number
 // with no icon) so it's the first thing visible in a cut-off search snippet,
@@ -131,7 +141,10 @@ export const buildPageMetadata = ({
     : normalizedOpenGraphDescription;
 
   return {
-    title,
+    // The root layout appends "| PartsON" through its title template. Pages
+    // that already name the brand need an absolute title to avoid output such
+    // as "PartsON ... | PartsON" in search results.
+    title: titleIncludesBrand(title) ? { absolute: title } : title,
     description: normalizedDescription,
     category: "auto parts",
     authors: [{ name: "PartsON" }],
@@ -150,7 +163,7 @@ export const buildPageMetadata = ({
       locale: "uk_UA",
       url: canonicalPath,
       siteName: "PartsON",
-      title: openGraphTitle ?? `${title} | PartsON`,
+      title: openGraphTitle ?? buildSocialTitle(title),
       description: normalizedOpenGraphDescription,
       images: [
         {
@@ -163,7 +176,7 @@ export const buildPageMetadata = ({
     },
     twitter: {
       card: "summary_large_image",
-      title: twitterTitle ?? openGraphTitle ?? `${title} | PartsON`,
+      title: twitterTitle ?? openGraphTitle ?? buildSocialTitle(title),
       description: normalizedTwitterDescription,
       images: [{ url: image.url, alt: image.alt ?? DEFAULT_IMAGE.alt }],
     },

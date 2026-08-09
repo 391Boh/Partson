@@ -214,17 +214,48 @@ export default function ProductPageAdminEditPanel({
   const [imageUploaded, setImageUploaded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [galleryFile, setGalleryFile] = useState<File | null>(null);
+  const [galleryPreview, setGalleryPreview] = useState<string | null>(null);
+  const [galleryUploadSize, setGalleryUploadSize] = useState(0);
+  const [galleryProcessing, setGalleryProcessing] = useState(false);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
+  const [galleryUploaded, setGalleryUploaded] = useState(false);
+  const galleryFileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
-    try {
-      const uid = localStorage.getItem("user_id");
-      if (uid && localStorage.getItem(`partson:isAdmin:${uid}`) === "1") setIsAdmin(true);
-    } catch {}
+    const checkStoredAdminFlag = () => {
+      try {
+        const uid = localStorage.getItem("user_id");
+        if (uid && localStorage.getItem(`partson:isAdmin:${uid}`) === "1") {
+          setIsAdmin(true);
+          return true;
+        }
+      } catch {}
+      return false;
+    };
+
+    const alreadyAdmin = checkStoredAdminFlag();
+
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ isAdmin: boolean }>).detail;
       setIsAdmin(Boolean(detail?.isAdmin));
     };
     window.addEventListener("partson:adminStateChange", handler);
-    return () => window.removeEventListener("partson:adminStateChange", handler);
+
+    // This panel is dynamically imported (ssr:false via ProductPageAdminEditGate),
+    // which usually delays its mount past LayoutHost's async admin-role check
+    // (Firestore role lookup + /api/is-admin) — but on a slow connection it can
+    // still mount first and miss both the stored flag and the one-shot event.
+    // Poll briefly as a fallback (same fix as ProductGallery.tsx / ProducerInlineEdit.tsx).
+    const retryTimers = alreadyAdmin
+      ? []
+      : [400, 1000, 2000, 4000].map((delay) => window.setTimeout(checkStoredAdminFlag, delay));
+
+    return () => {
+      window.removeEventListener("partson:adminStateChange", handler);
+      retryTimers.forEach((id) => window.clearTimeout(id));
+    };
   }, []);
 
   useEffect(() => {
@@ -278,6 +309,32 @@ export default function ProductPageAdminEditPanel({
       .then((r) => r.json() as Promise<{ suggestions?: string[] }>)
       .then((d) => { setMetaSubGroupSugg(d.suggestions ?? []); setMetaSubGroupActive(-1); })
       .catch(() => {});
+  };
+
+  // Debounced wrappers for typing — the *Now versions above stay undebounced
+  // for onFocus/select actions, which are single deliberate triggers.
+  const suggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchSuggestionsDebounced = (q: string) => {
+    if (suggestDebounceRef.current) clearTimeout(suggestDebounceRef.current);
+    suggestDebounceRef.current = setTimeout(() => fetchSuggestions(q), 200);
+  };
+
+  const metaDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchMetaSuggDebounced = (type: "category" | "group" | "subGroup", q: string, parent?: string) => {
+    if (metaDebounceRef.current) clearTimeout(metaDebounceRef.current);
+    metaDebounceRef.current = setTimeout(() => fetchMetaSugg(type, q, parent), 200);
+  };
+
+  const metaGroupDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchMetaGroupSuggDebounced = (q: string, parent?: string) => {
+    if (metaGroupDebounceRef.current) clearTimeout(metaGroupDebounceRef.current);
+    metaGroupDebounceRef.current = setTimeout(() => fetchMetaGroupSugg(q, parent), 200);
+  };
+
+  const metaSubGroupDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchMetaSubGroupSuggDebounced = (q: string, parent?: string) => {
+    if (metaSubGroupDebounceRef.current) clearTimeout(metaSubGroupDebounceRef.current);
+    metaSubGroupDebounceRef.current = setTimeout(() => fetchMetaSubGroupSugg(q, parent), 200);
   };
 
   const openEdit = (field: FieldKey) => {
@@ -449,6 +506,51 @@ export default function ProductPageAdminEditPanel({
     } catch { setImageError("Помилка мережі"); } finally { setImageUploading(false); }
   };
 
+  const handleGalleryFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setGalleryError(null);
+    setGalleryUploaded(false);
+    setGalleryProcessing(true);
+    try {
+      const prepared = await prepareProductImage(file);
+      setGalleryFile(file);
+      setGalleryPreview(prepared.dataUrl);
+      setGalleryUploadSize(prepared.outputBytes);
+    } catch (error) {
+      setGalleryFile(null);
+      setGalleryPreview(null);
+      setGalleryUploadSize(0);
+      setGalleryError(error instanceof Error ? error.message : "Не вдалося обробити зображення");
+    } finally {
+      setGalleryProcessing(false);
+    }
+  };
+
+  const uploadGalleryImage = async () => {
+    if (!galleryPreview) return;
+    const token = await getToken();
+    if (!token) { setGalleryError("Не авторизовано"); return; }
+    setGalleryUploading(true);
+    setGalleryError(null);
+    try {
+      const res = await fetch("/api/product-gallery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code, imageDataUrl: galleryPreview }),
+      });
+      const data = (await res.json()) as { ok: boolean; error?: string; details?: string };
+      if (!data.ok) { setGalleryError([data.error, data.details].filter(Boolean).join(": ") || "Помилка завантаження"); return; }
+      setGalleryUploaded(true);
+      setGalleryFile(null);
+      setGalleryPreview(null);
+      setGalleryUploadSize(0);
+      // Gallery thumbnails on the page update live via Firestore onSnapshot —
+      // no page refresh needed here.
+    } catch { setGalleryError("Помилка мережі"); } finally { setGalleryUploading(false); }
+  };
+
   const saveDescription = async () => {
     const token = await getToken();
     if (!token) { setDescError("Не авторизовано"); return; }
@@ -517,14 +619,14 @@ export default function ProductPageAdminEditPanel({
     if (isEditing && key === "category") {
       // Combined classification form: category + group + subGroup together
       return (
-        <div key={key} className="relative col-span-2 py-0.5">
-          <div className="space-y-1.5">
+        <div key={key} className="relative col-span-2 py-1">
+          <div className="space-y-2">
             {/* Category */}
-            <div className="flex items-center gap-1.5">
-              <span className="w-14 shrink-0 text-[9px] font-bold uppercase tracking-wide text-teal-500">Категорія</span>
+            <div className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-[10px] font-bold uppercase tracking-wide text-teal-500">Категорія</span>
               <div className="relative min-w-0 flex-1">
                 <input ref={inputRef} type="text" value={editVal}
-                  onChange={(e) => { setEditVal(e.target.value); fetchMetaSugg("category", e.target.value); setMetaGroupEdit(""); setMetaSubGroupEdit(""); setMetaGroupSugg([]); setMetaSubGroupSugg([]); }}
+                  onChange={(e) => { setEditVal(e.target.value); fetchMetaSuggDebounced("category", e.target.value); setMetaGroupEdit(""); setMetaSubGroupEdit(""); setMetaGroupSugg([]); setMetaSubGroupSugg([]); }}
                   onKeyDown={(e) => {
                     if (e.key === "ArrowDown") { e.preventDefault(); setMetaActive((p) => Math.min(p + 1, metaSugg.length - 1)); }
                     else if (e.key === "ArrowUp") { e.preventDefault(); setMetaActive((p) => Math.max(p - 1, -1)); }
@@ -533,24 +635,24 @@ export default function ProductPageAdminEditPanel({
                   }}
                   onBlur={() => setTimeout(() => setMetaSugg([]), 150)}
                   disabled={saving} placeholder="Категорія"
-                  className="w-full rounded-[8px] border border-teal-300 px-2.5 py-1.5 text-[12px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-200/60 disabled:opacity-60"
+                  className="w-full rounded-[10px] border border-teal-300 px-3 py-2 text-[13px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-200/60 disabled:opacity-60"
                 />
                 {metaSugg.length > 0 && (
-                  <div className="absolute left-0 top-full z-50 mt-0.5 max-h-40 w-full overflow-y-auto rounded-[10px] border border-teal-200 bg-white shadow-[0_6px_20px_rgba(20,184,166,0.14)]">
+                  <div className="absolute left-0 top-full z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-[10px] border border-teal-200 bg-white shadow-[0_6px_20px_rgba(20,184,166,0.14)]">
                     {metaSugg.map((s, i) => (
                       <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); setEditVal(s); setMetaSugg([]); setMetaActive(-1); setMetaGroupEdit(""); setMetaSubGroupEdit(""); fetchMetaGroupSugg("", s); }}
-                        className={`block w-full px-3 py-1.5 text-left text-[11px] font-medium transition ${i === metaActive ? "bg-teal-50 text-teal-800" : "text-slate-700 hover:bg-slate-50"}`}>{s}</button>
+                        className={`block w-full px-3 py-2 text-left text-[12px] font-medium transition ${i === metaActive ? "bg-teal-50 text-teal-800" : "text-slate-700 hover:bg-slate-50"}`}>{s}</button>
                     ))}
                   </div>
                 )}
               </div>
             </div>
             {/* Group */}
-            <div className="flex items-center gap-1.5">
-              <span className="w-14 shrink-0 text-[9px] font-bold uppercase tracking-wide text-violet-500">Група</span>
+            <div className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-[10px] font-bold uppercase tracking-wide text-violet-500">Група</span>
               <div className="relative min-w-0 flex-1">
                 <input ref={metaGroupInputRef} type="text" value={metaGroupEdit}
-                  onChange={(e) => { setMetaGroupEdit(e.target.value); fetchMetaGroupSugg(e.target.value, editVal); setMetaSubGroupEdit(""); setMetaSubGroupSugg([]); }}
+                  onChange={(e) => { setMetaGroupEdit(e.target.value); fetchMetaGroupSuggDebounced(e.target.value, editVal); setMetaSubGroupEdit(""); setMetaSubGroupSugg([]); }}
                   onKeyDown={(e) => {
                     if (e.key === "ArrowDown") { e.preventDefault(); setMetaGroupActive((p) => Math.min(p + 1, metaGroupSugg.length - 1)); }
                     else if (e.key === "ArrowUp") { e.preventDefault(); setMetaGroupActive((p) => Math.max(p - 1, -1)); }
@@ -559,24 +661,24 @@ export default function ProductPageAdminEditPanel({
                   }}
                   onBlur={() => setTimeout(() => setMetaGroupSugg([]), 150)}
                   disabled={saving} placeholder="Група"
-                  className="w-full rounded-[8px] border border-violet-300 px-2.5 py-1.5 text-[12px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/60 disabled:opacity-60"
+                  className="w-full rounded-[10px] border border-violet-300 px-3 py-2 text-[13px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/60 disabled:opacity-60"
                 />
                 {metaGroupSugg.length > 0 && (
-                  <div className="absolute left-0 top-full z-50 mt-0.5 max-h-40 w-full overflow-y-auto rounded-[10px] border border-violet-200 bg-white shadow-[0_6px_20px_rgba(109,40,217,0.14)]">
+                  <div className="absolute left-0 top-full z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-[10px] border border-violet-200 bg-white shadow-[0_6px_20px_rgba(109,40,217,0.14)]">
                     {metaGroupSugg.map((s, i) => (
                       <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); setMetaGroupEdit(s); setMetaGroupSugg([]); setMetaGroupActive(-1); setMetaSubGroupEdit(""); fetchMetaSubGroupSugg("", s); }}
-                        className={`block w-full px-3 py-1.5 text-left text-[11px] font-medium transition ${i === metaGroupActive ? "bg-violet-50 text-violet-800" : "text-slate-700 hover:bg-slate-50"}`}>{s}</button>
+                        className={`block w-full px-3 py-2 text-left text-[12px] font-medium transition ${i === metaGroupActive ? "bg-violet-50 text-violet-800" : "text-slate-700 hover:bg-slate-50"}`}>{s}</button>
                     ))}
                   </div>
                 )}
               </div>
             </div>
             {/* SubGroup */}
-            <div className="flex items-center gap-1.5">
-              <span className="w-14 shrink-0 text-[9px] font-bold uppercase tracking-wide text-sky-500">Підгрупа</span>
+            <div className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-[10px] font-bold uppercase tracking-wide text-sky-500">Підгрупа</span>
               <div className="relative min-w-0 flex-1">
                 <input ref={metaSubGroupInputRef} type="text" value={metaSubGroupEdit}
-                  onChange={(e) => { setMetaSubGroupEdit(e.target.value); fetchMetaSubGroupSugg(e.target.value, metaGroupEdit); }}
+                  onChange={(e) => { setMetaSubGroupEdit(e.target.value); fetchMetaSubGroupSuggDebounced(e.target.value, metaGroupEdit); }}
                   onKeyDown={(e) => {
                     if (e.key === "ArrowDown") { e.preventDefault(); setMetaSubGroupActive((p) => Math.min(p + 1, metaSubGroupSugg.length - 1)); }
                     else if (e.key === "ArrowUp") { e.preventDefault(); setMetaSubGroupActive((p) => Math.max(p - 1, -1)); }
@@ -585,42 +687,42 @@ export default function ProductPageAdminEditPanel({
                   }}
                   onBlur={() => setTimeout(() => setMetaSubGroupSugg([]), 150)}
                   disabled={saving} placeholder="Підгрупа"
-                  className="w-full rounded-[8px] border border-sky-300 px-2.5 py-1.5 text-[12px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-200/60 disabled:opacity-60"
+                  className="w-full rounded-[10px] border border-sky-300 px-3 py-2 text-[13px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-200/60 disabled:opacity-60"
                 />
                 {metaSubGroupSugg.length > 0 && (
-                  <div className="absolute left-0 top-full z-50 mt-0.5 max-h-40 w-full overflow-y-auto rounded-[10px] border border-sky-200 bg-white shadow-[0_6px_20px_rgba(14,165,233,0.14)]">
+                  <div className="absolute left-0 top-full z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-[10px] border border-sky-200 bg-white shadow-[0_6px_20px_rgba(14,165,233,0.14)]">
                     {metaSubGroupSugg.map((s, i) => (
                       <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); setMetaSubGroupEdit(s); setMetaSubGroupSugg([]); setMetaSubGroupActive(-1); }}
-                        className={`block w-full px-3 py-1.5 text-left text-[11px] font-medium transition ${i === metaSubGroupActive ? "bg-sky-50 text-sky-800" : "text-slate-700 hover:bg-slate-50"}`}>{s}</button>
+                        className={`block w-full px-3 py-2 text-left text-[12px] font-medium transition ${i === metaSubGroupActive ? "bg-sky-50 text-sky-800" : "text-slate-700 hover:bg-slate-50"}`}>{s}</button>
                     ))}
                   </div>
                 )}
               </div>
             </div>
           </div>
-          <div className="mt-1.5 flex gap-1">
+          <div className="mt-2 flex gap-1.5">
             <button type="button" onClick={() => void save()} disabled={saving}
-              className="inline-flex h-7 items-center gap-1 rounded-[7px] border border-emerald-200 bg-emerald-50 px-2.5 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100 active:scale-95 disabled:opacity-40">
+              className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 text-[12px] font-bold text-emerald-700 transition hover:bg-emerald-100 active:scale-95 disabled:opacity-40">
               {saving
-                ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
-                : <Check size={11} />}
+                ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
+                : <Check size={13} />}
               Зберегти
             </button>
             <button type="button" onClick={closeEdit} disabled={saving}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 active:scale-95 disabled:opacity-40">
-              <X size={11} />
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 active:scale-95 disabled:opacity-40">
+              <X size={13} />
             </button>
           </div>
-          {error && <p className="mt-0.5 text-[10px] font-semibold text-red-500">{error}</p>}
+          {error && <p className="mt-1 text-[11px] font-semibold text-red-500">{error}</p>}
         </div>
       );
     }
 
     if (isEditing) {
       return (
-        <div key={key} className="relative col-span-2 py-0.5">
-          <div className="flex items-center gap-1.5">
-            <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide ${
+        <div key={key} className="relative col-span-2 py-1">
+          <div className="flex items-center gap-2">
+            <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide ${
               key === "costPriceEuro" ? "text-amber-500" : "text-slate-400"
             }`}>{label}</span>
             <div className="relative min-w-0 flex-1">
@@ -631,51 +733,51 @@ export default function ProductPageAdminEditPanel({
                 value={editVal}
                 onChange={(e) => {
                   setEditVal(e.target.value);
-                  if (key === "producer") fetchSuggestions(e.target.value);
+                  if (key === "producer") fetchSuggestionsDebounced(e.target.value);
                 }}
                 onKeyDown={onKeyDown}
                 onBlur={() => setTimeout(() => { setSuggestions([]); setActiveSug(-1); }, 150)}
                 disabled={saving}
                 placeholder={label}
-                className="w-full rounded-[8px] border border-violet-300 px-2.5 py-1.5 text-[12px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/60 disabled:opacity-60"
+                className="w-full rounded-[10px] border border-violet-300 px-3 py-2 text-[13px] text-slate-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/60 disabled:opacity-60"
               />
               {key === "producer" && suggestions.length > 0 && (
-                <div className="absolute left-0 top-full z-50 mt-0.5 max-h-40 w-full overflow-y-auto rounded-[10px] border border-violet-200 bg-white shadow-[0_6px_20px_rgba(109,40,217,0.14)]">
+                <div className="absolute left-0 top-full z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-[10px] border border-violet-200 bg-white shadow-[0_6px_20px_rgba(109,40,217,0.14)]">
                   {suggestions.map((s, i) => (
                     <button key={s} type="button" onMouseDown={(e) => { e.preventDefault(); void save(s); }}
-                      className={`block w-full px-3 py-1.5 text-left text-[11px] font-medium transition ${i === activeSug ? "bg-violet-50 text-violet-800" : "text-slate-700 hover:bg-slate-50"}`}>{s}</button>
+                      className={`block w-full px-3 py-2 text-left text-[12px] font-medium transition ${i === activeSug ? "bg-violet-50 text-violet-800" : "text-slate-700 hover:bg-slate-50"}`}>{s}</button>
                   ))}
                 </div>
               )}
             </div>
             <button type="button" onClick={() => void save()}
               disabled={saving || !editVal.trim()}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 active:scale-95 disabled:opacity-40">
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-emerald-200 bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100 active:scale-95 disabled:opacity-40">
               {saving
-                ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
-                : <Check size={11} />}
+                ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
+                : <Check size={13} />}
             </button>
             <button type="button" onClick={closeEdit} disabled={saving}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 active:scale-95 disabled:opacity-40">
-              <X size={11} />
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 active:scale-95 disabled:opacity-40">
+              <X size={13} />
             </button>
           </div>
-          {error && <p className="mt-0.5 text-[10px] font-semibold text-red-500">{error}</p>}
+          {error && <p className="mt-1 text-[11px] font-semibold text-red-500">{error}</p>}
         </div>
       );
     }
 
     return (
       <button key={key} type="button" onClick={() => openEdit(key)}
-        className="group/row flex w-full items-center gap-1.5 rounded-[8px] px-1.5 py-1.5 text-left transition hover:bg-slate-50/80 active:bg-slate-100/80">
+        className="group/row flex w-full items-center gap-2 rounded-[10px] px-2 py-2 text-left transition hover:bg-slate-50/80 active:bg-slate-100/80">
         <div className="min-w-0 flex-1 overflow-hidden">
-          <p className={`mb-0.5 text-[8px] font-bold uppercase tracking-wide leading-none ${
+          <p className={`mb-0.5 text-[10px] font-bold uppercase tracking-wide leading-none ${
             isMeta
               ? key === "category" ? "text-teal-500" : key === "group" ? "text-violet-500" : "text-sky-500"
               : key === "costPriceEuro" ? "text-amber-500"
               : "text-slate-400"
           }`}>{label}</p>
-          <p className={`truncate text-[12px] font-semibold leading-tight ${
+          <p className={`truncate text-[13px] font-semibold leading-tight ${
             key === "costPriceEuro" ? "text-amber-700"
             : isMeta ? (cur ? "text-slate-700" : "text-slate-300")
             : "text-slate-800"
@@ -684,41 +786,41 @@ export default function ProductPageAdminEditPanel({
           </p>
         </div>
         {wasSaved
-          ? <span className="inline-flex shrink-0 items-center gap-0.5 rounded-[5px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600"><Check size={8} />OK</span>
-          : <Pencil size={9} className="shrink-0 text-slate-300 opacity-0 transition group-hover/row:opacity-100 group-hover/row:text-violet-400" />
+          ? <span className="inline-flex shrink-0 items-center gap-1 rounded-[6px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600"><Check size={9} />OK</span>
+          : <Pencil size={11} className="shrink-0 text-slate-300 opacity-0 transition group-hover/row:opacity-100 group-hover/row:text-violet-400" />
         }
       </button>
     );
   };
 
   return (
-    <div className="border-b border-slate-100 px-3 py-2.5 sm:px-4">
+    <div className="border-b border-slate-100 px-3 py-3 sm:px-4">
       {/* Collapse toggle */}
       <button
         type="button"
         onClick={() => setExpanded((p) => !p)}
-        className="flex w-full items-center gap-2 rounded-[12px] border border-violet-200/60 bg-gradient-to-br from-violet-50/70 via-white to-white px-3 py-2 text-left shadow-[0_1px_4px_rgba(109,40,217,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all hover:border-violet-300/80 hover:shadow-[0_2px_8px_rgba(109,40,217,0.1)]"
+        className="flex w-full items-center gap-2.5 rounded-[14px] border border-violet-200/60 bg-gradient-to-br from-violet-50/70 via-white to-white px-3.5 py-2.5 text-left shadow-[0_1px_4px_rgba(109,40,217,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all hover:border-violet-300/80 hover:shadow-[0_2px_10px_rgba(109,40,217,0.12)]"
       >
-        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] bg-violet-100 text-violet-600">
-          <Settings2 size={9} />
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-violet-100 text-violet-600">
+          <Settings2 size={12} />
         </span>
-        <span className="text-[9px] font-black uppercase tracking-[0.14em] text-violet-500">Адмін-панель</span>
+        <span className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-500">Адмін-панель</span>
         <ChevronDown
-          size={11}
+          size={14}
           className={`ml-auto text-violet-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
         />
       </button>
 
       {expanded && (
-        <div className="mt-1.5 overflow-hidden rounded-[14px] border border-violet-100 bg-white shadow-[0_2px_12px_rgba(109,40,217,0.08),inset_0_1px_0_rgba(255,255,255,1)]">
+        <div className="mt-2 overflow-hidden rounded-[18px] border border-violet-100 bg-white shadow-[0_4px_20px_rgba(109,40,217,0.1),inset_0_1px_0_rgba(255,255,255,1)]">
 
           {SECTIONS.map((section, si) => (
             <div key={section.title} className={si > 0 ? "border-t border-slate-100" : ""}>
-              <div className="px-3 pt-2.5 pb-1.5">
-                <p className={`mb-1 text-[8px] font-black uppercase tracking-[0.12em] ${section.titleColor}`}>
+              <div className="px-3.5 pt-3 pb-2">
+                <p className={`mb-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${section.titleColor}`}>
                   {section.title}
                 </p>
-                <div className="grid grid-cols-2 gap-x-1 gap-y-0">
+                <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
                   {section.fields.map(({ key, label, isNum }) => renderField(key, label, isNum))}
                 </div>
               </div>
@@ -726,21 +828,21 @@ export default function ProductPageAdminEditPanel({
           ))}
 
           {/* Quantity management */}
-          <div className="border-t border-slate-100 px-3 py-2.5">
-            <div className="mb-1.5 flex items-center gap-1.5">
-              <p className="text-[8px] font-black uppercase tracking-[0.12em] text-orange-500">Залишки</p>
-              <span className="flex items-center gap-1 rounded-[6px] border border-orange-200 bg-orange-50 px-1.5 py-0.5">
-                <Package size={9} className="text-orange-500" />
-                <span className="text-[10px] font-bold text-orange-700">{quantity} шт.</span>
+          <div className="border-t border-slate-100 px-3.5 py-3">
+            <div className="mb-2 flex items-center gap-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-500">Залишки</p>
+              <span className="flex items-center gap-1 rounded-[7px] border border-orange-200 bg-orange-50 px-2 py-0.5">
+                <Package size={10} className="text-orange-500" />
+                <span className="text-[11px] font-bold text-orange-700">{quantity} шт.</span>
               </span>
               {qtySavedType && (
-                <span className="inline-flex items-center gap-0.5 rounded-[5px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600">
-                  <Check size={8} />
+                <span className="inline-flex items-center gap-1 rounded-[6px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                  <Check size={9} />
                   {qtySavedType === "receipt" ? "+Поступлення" : "−Продаж"}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <input
                 type="number"
                 min="0"
@@ -753,18 +855,18 @@ export default function ProductPageAdminEditPanel({
                 }}
                 disabled={qtySaving}
                 placeholder="Кількість"
-                className="w-28 rounded-[8px] border border-slate-200 px-2.5 py-1.5 text-[12px] text-slate-900 outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-200/60 disabled:opacity-60"
+                className="w-32 rounded-[10px] border border-slate-200 px-3 py-2 text-[13px] text-slate-900 outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-200/60 disabled:opacity-60"
               />
               <button
                 type="button"
                 onClick={() => void changeQuantity("receipt")}
                 disabled={qtySaving || !qtyInput.trim()}
                 title="Поступлення (додати)"
-                className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-emerald-200 bg-emerald-50 px-2.5 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100 active:scale-95 disabled:opacity-40"
+                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 text-[12px] font-bold text-emerald-700 transition hover:bg-emerald-100 active:scale-95 disabled:opacity-40"
               >
                 {qtySaving
-                  ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
-                  : <Plus size={11} />}
+                  ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
+                  : <Plus size={13} />}
                 Прихід
               </button>
               <button
@@ -772,20 +874,20 @@ export default function ProductPageAdminEditPanel({
                 onClick={() => void changeQuantity("sale")}
                 disabled={qtySaving || !qtyInput.trim()}
                 title="Продаж (відняти)"
-                className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-red-200 bg-red-50 px-2.5 text-[11px] font-bold text-red-600 transition hover:bg-red-100 active:scale-95 disabled:opacity-40"
+                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-red-200 bg-red-50 px-3 text-[12px] font-bold text-red-600 transition hover:bg-red-100 active:scale-95 disabled:opacity-40"
               >
                 {qtySaving
-                  ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-red-300 border-t-red-500" />
-                  : <Minus size={11} />}
+                  ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-300 border-t-red-500" />
+                  : <Minus size={13} />}
                 Продаж
               </button>
             </div>
-            {qtyError && <p className="mt-1 text-[10px] font-semibold text-red-500">{qtyError}</p>}
+            {qtyError && <p className="mt-1.5 text-[11px] font-semibold text-red-500">{qtyError}</p>}
           </div>
 
           {/* Image upload */}
-          <div className="border-t border-slate-100 px-3 py-2.5">
-            <p className="mb-1.5 text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">Фото</p>
+          <div className="border-t border-slate-100 px-3.5 py-3">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Фото</p>
             <input
               ref={fileInputRef}
               type="file"
@@ -793,106 +895,179 @@ export default function ProductPageAdminEditPanel({
               className="hidden"
               onChange={handleFileChange}
             />
-            {!imagePreview ? (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={imageProcessing}
-                className="flex w-full items-center gap-2 rounded-[10px] border border-dashed border-violet-200 bg-violet-50/30 px-3 py-2 text-[11px] font-semibold text-violet-500 transition hover:border-violet-300 hover:bg-violet-50/60"
-              >
-                {imageProcessing
-                  ? <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
-                  : <ImagePlus size={13} className="shrink-0" />}
-                <span>{imageProcessing ? "Обробка фото..." : "Замінити фото товару"}</span>
-                {imageUploaded && (
-                  <span className="ml-auto inline-flex items-center gap-0.5 rounded-[5px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600">
-                    <Check size={8} /> Завантажено
-                  </span>
-                )}
-              </button>
-            ) : (
-              <div className="space-y-1.5">
-                <div className="flex items-start gap-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imagePreview}
-                    alt="Попередній перегляд"
-                    className="h-12 w-12 shrink-0 rounded-[8px] border border-slate-200 bg-white object-contain"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="mb-1.5 truncate text-[10px] font-medium text-slate-500">
-                      {imageFile?.name}{imageUploadSize ? ` · ${formatProductImageSize(imageUploadSize)}` : ""}
-                    </p>
-                    <div className="flex gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => void uploadImage()}
-                        disabled={imageUploading}
-                        className="inline-flex items-center gap-1 rounded-[8px] border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
-                      >
-                        {imageUploading
-                          ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
-                          : <Check size={10} />}
-                        {imageUploading ? "Завантаження..." : "Зберегти"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setImageFile(null); setImagePreview(null); setImageUploadName(""); setImageUploadSize(0); setImageError(null); }}
-                        disabled={imageUploading}
-                        className="inline-flex items-center gap-1 rounded-[8px] border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
-                      >
-                        <X size={10} /> Скасувати
-                      </button>
+            <input
+              ref={galleryFileInputRef}
+              type="file"
+              accept={PRODUCT_IMAGE_ACCEPT}
+              className="hidden"
+              onChange={handleGalleryFileChange}
+            />
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex-1">
+                {!imagePreview ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={imageProcessing}
+                    className="flex w-full items-center gap-2.5 rounded-[12px] border border-dashed border-violet-200 bg-violet-50/30 px-3.5 py-2.5 text-[12px] font-semibold text-violet-500 transition hover:border-violet-300 hover:bg-violet-50/60"
+                  >
+                    {imageProcessing
+                      ? <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
+                      : <ImagePlus size={15} className="shrink-0" />}
+                    <span>{imageProcessing ? "Обробка фото..." : "Замінити фото товару"}</span>
+                    {imageUploaded && (
+                      <span className="ml-auto inline-flex items-center gap-1 rounded-[6px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                        <Check size={9} /> Завантажено
+                      </span>
+                    )}
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imagePreview}
+                        alt="Попередній перегляд"
+                        className="h-14 w-14 shrink-0 rounded-[10px] border border-slate-200 bg-white object-contain"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="mb-2 truncate text-[11px] font-medium text-slate-500">
+                          {imageFile?.name}{imageUploadSize ? ` · ${formatProductImageSize(imageUploadSize)}` : ""}
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void uploadImage()}
+                            disabled={imageUploading}
+                            className="inline-flex items-center gap-1.5 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+                          >
+                            {imageUploading
+                              ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
+                              : <Check size={12} />}
+                            {imageUploading ? "Завантаження..." : "Зберегти"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setImageFile(null); setImagePreview(null); setImageUploadName(""); setImageUploadSize(0); setImageError(null); }}
+                            disabled={imageUploading}
+                            className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
+                          >
+                            <X size={12} /> Скасувати
+                          </button>
+                        </div>
+                      </div>
                     </div>
+                    {imageError && <p className="text-[11px] font-semibold text-red-500">{imageError}</p>}
                   </div>
-                </div>
-                {imageError && <p className="text-[10px] font-semibold text-red-500">{imageError}</p>}
+                )}
+                {imageError && !imagePreview && (
+                  <p className="mt-1.5 text-[11px] font-semibold text-red-500">{imageError}</p>
+                )}
               </div>
-            )}
-            {imageError && !imagePreview && (
-              <p className="mt-1 text-[10px] font-semibold text-red-500">{imageError}</p>
-            )}
+
+              <div className="flex-1">
+                {!galleryPreview ? (
+                  <button
+                    type="button"
+                    onClick={() => galleryFileInputRef.current?.click()}
+                    disabled={galleryProcessing}
+                    className="flex w-full items-center gap-2.5 rounded-[12px] border border-dashed border-sky-200 bg-sky-50/30 px-3.5 py-2.5 text-[12px] font-semibold text-sky-600 transition hover:border-sky-300 hover:bg-sky-50/60"
+                  >
+                    {galleryProcessing
+                      ? <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-sky-200 border-t-sky-600" />
+                      : <ImagePlus size={15} className="shrink-0" />}
+                    <span>{galleryProcessing ? "Обробка фото..." : "Додати фото в галерею"}</span>
+                    {galleryUploaded && (
+                      <span className="ml-auto inline-flex items-center gap-1 rounded-[6px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                        <Check size={9} /> Додано
+                      </span>
+                    )}
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={galleryPreview}
+                        alt="Попередній перегляд"
+                        className="h-14 w-14 shrink-0 rounded-[10px] border border-slate-200 bg-white object-contain"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="mb-2 truncate text-[11px] font-medium text-slate-500">
+                          {galleryFile?.name}{galleryUploadSize ? ` · ${formatProductImageSize(galleryUploadSize)}` : ""}
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void uploadGalleryImage()}
+                            disabled={galleryUploading}
+                            className="inline-flex items-center gap-1.5 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+                          >
+                            {galleryUploading
+                              ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
+                              : <Check size={12} />}
+                            {galleryUploading ? "Завантаження..." : "Додати"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setGalleryFile(null); setGalleryPreview(null); setGalleryUploadSize(0); setGalleryError(null); }}
+                            disabled={galleryUploading}
+                            className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
+                          >
+                            <X size={12} /> Скасувати
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    {galleryError && <p className="text-[11px] font-semibold text-red-500">{galleryError}</p>}
+                  </div>
+                )}
+                {galleryError && !galleryPreview && (
+                  <p className="mt-1.5 text-[11px] font-semibold text-red-500">{galleryError}</p>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Description edit */}
-          <div className="border-t border-slate-100 px-3 py-2.5">
-            <div className="mb-1.5 flex items-center gap-1.5">
-              <p className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">Опис</p>
+          <div className="border-t border-slate-100 px-3.5 py-3">
+            <div className="mb-2 flex items-center gap-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Опис</p>
               {descSaved && (
-                <span className="inline-flex items-center gap-0.5 rounded-[5px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600">
-                  <Check size={8} /> Збережено
+                <span className="inline-flex items-center gap-1 rounded-[6px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                  <Check size={9} /> Збережено
                 </span>
               )}
             </div>
             {descEditing ? (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <textarea
                   value={descVal}
                   onChange={(e) => setDescVal(e.target.value)}
                   rows={5}
                   disabled={descSaving}
-                  className="w-full rounded-[8px] border border-violet-200 px-2.5 py-1.5 text-[12px] text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/60 disabled:opacity-60 resize-none"
+                  className="w-full rounded-[10px] border border-violet-200 px-3 py-2 text-[13px] text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/60 disabled:opacity-60 resize-none"
                 />
-                {descError && <p className="text-[10px] font-semibold text-red-500">{descError}</p>}
-                <div className="flex gap-1.5">
+                {descError && <p className="text-[11px] font-semibold text-red-500">{descError}</p>}
+                <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => void saveDescription()}
                     disabled={descSaving}
-                    className="inline-flex items-center gap-1 rounded-[8px] border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+                    className="inline-flex items-center gap-1.5 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
                   >
                     {descSaving
-                      ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
-                      : <Check size={10} />}
+                      ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
+                      : <Check size={12} />}
                     {descSaving ? "Збереження..." : "Зберегти"}
                   </button>
                   <button
                     type="button"
                     onClick={() => { setDescEditing(false); setDescVal(initialDescription); setDescError(null); }}
                     disabled={descSaving}
-                    className="inline-flex items-center gap-1 rounded-[8px] border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
+                    className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
                   >
-                    <X size={10} /> Скасувати
+                    <X size={12} /> Скасувати
                   </button>
                 </div>
               </div>
@@ -902,14 +1077,14 @@ export default function ProductPageAdminEditPanel({
                 tabIndex={0}
                 onClick={() => setDescEditing(true)}
                 onKeyDown={(e) => e.key === "Enter" && setDescEditing(true)}
-                className="group/desc min-h-[36px] cursor-pointer rounded-[8px] border border-dashed border-slate-200 bg-slate-50/40 px-2.5 py-2 transition hover:border-violet-200 hover:bg-violet-50/30"
+                className="group/desc min-h-[44px] cursor-pointer rounded-[10px] border border-dashed border-slate-200 bg-slate-50/40 px-3 py-2.5 transition hover:border-violet-200 hover:bg-violet-50/30"
               >
                 {descVal ? (
-                  <p className="text-[11px] leading-relaxed text-slate-600 line-clamp-3 whitespace-pre-line">{descVal}</p>
+                  <p className="text-[12px] leading-relaxed text-slate-600 line-clamp-3 whitespace-pre-line">{descVal}</p>
                 ) : (
-                  <p className="text-[11px] italic text-slate-400">Опис відсутній — натисніть для редагування</p>
+                  <p className="text-[12px] italic text-slate-400">Опис відсутній — натисніть для редагування</p>
                 )}
-                <p className="mt-1 text-[9px] text-violet-400 opacity-0 group-hover/desc:opacity-100 transition">Редагувати</p>
+                <p className="mt-1 text-[10px] text-violet-400 opacity-0 group-hover/desc:opacity-100 transition">Редагувати</p>
               </div>
             )}
           </div>

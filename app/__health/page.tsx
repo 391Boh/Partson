@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Стан сервісу PartsON",
+  title: "Стан сервісу",
   description: "Службова сторінка перевірки доступності сайту PartsON.",
   robots: {
     index: false,

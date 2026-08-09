@@ -3868,12 +3868,28 @@ const Data: React.FC<DataProps> = ({
 
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
-    try {
-      const uid = localStorage.getItem("user_id");
-      if (uid && localStorage.getItem(`partson:isAdmin:${uid}`) === "1") {
-        setIsAdmin(true);
-      }
-    } catch {}
+    const checkStoredAdminFlag = () => {
+      try {
+        const uid = localStorage.getItem("user_id");
+        if (uid && localStorage.getItem(`partson:isAdmin:${uid}`) === "1") {
+          setIsAdmin(true);
+          return true;
+        }
+      } catch {}
+      return false;
+    };
+
+    if (checkStoredAdminFlag()) return;
+
+    // This component mounts immediately on page load, so it can mount before
+    // LayoutHost's async admin-role check (Firestore role lookup +
+    // /api/is-admin) finishes and writes localStorage / fires the event
+    // below — missing both. Poll briefly as a fallback so it still picks up
+    // admin status once that resolves (same fix as ProductGallery.tsx).
+    const retryTimers = [400, 1000, 2000, 4000].map((delay) =>
+      window.setTimeout(checkStoredAdminFlag, delay)
+    );
+    return () => retryTimers.forEach((id) => window.clearTimeout(id));
   }, []);
   useEffect(() => {
     const handleAdminChange = (e: Event) => {
@@ -4295,11 +4311,22 @@ const Data: React.FC<DataProps> = ({
         item.priceEuro > 0
           ? item.priceEuro
           : null;
-      const euro = inlineEuro ?? getResolvedProductPriceEuro(item, prices);
+      // hasResolvedProductPriceState() short-circuits on item.priceEuro/hasPrice before
+      // touching lookup keys, same as the inlineEuro case below — only build them when a
+      // prices-state lookup is actually needed. Previously this called
+      // getResolvedProductPriceEuro() and hasResolvedProductPriceState() with no
+      // precomputed keys, so each one independently rebuilt the same lookup-key Set —
+      // duplicate work on every item, on every prices-batch update, across the whole
+      // accumulated (unpaginated) list.
+      const priceLookupKeys =
+        inlineEuro == null && item.priceEuro !== null && item.hasPrice !== false
+          ? Array.from(new Set([entry.priceKey, ...getProductPriceLookupKeys(item)].filter(Boolean)))
+          : undefined;
+      const euro = inlineEuro ?? getResolvedProductPriceEuro(item, prices, priceLookupKeys);
       return {
         ...entry,
         priceUAH: toPriceUAH(euro, euroRate),
-        priceResolved: hasResolvedProductPriceState(item, prices),
+        priceResolved: hasResolvedProductPriceState(item, prices, priceLookupKeys),
       };
     });
 

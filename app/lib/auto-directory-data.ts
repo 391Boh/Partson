@@ -497,9 +497,15 @@ export const hasAnyModelProducts = async (brand: string, model: string): Promise
   return false;
 };
 
+// turbopackIgnore: process.cwd() isn't a literal, so Turbopack's file tracer
+// can't resolve this statically and conservatively traces the entire project
+// into every route that imports this module (build warning: "Encountered
+// unexpected file in NFT list"). The ignore comment tells it this dynamic
+// join is safe — it only ever reads a small local cache file, not something
+// that should pull in unrelated project files.
 const AUTO_MODEL_SITEMAP_SNAPSHOT_PATH =
   process.env.AUTO_MODEL_SITEMAP_SNAPSHOT_PATH ||
-  join(process.cwd(), ".cache", "auto-model-sitemap.json");
+  join(/* turbopackIgnore: true */ process.cwd(), ".cache", "auto-model-sitemap.json");
 
 export const buildAutoModelKey = (brand: string, model: string) => `${brand}::${model}`;
 

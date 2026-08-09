@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import {
-  STORE_ADDRESS_SEO_LABEL,
+  STORE_ADDRESS,
   appendSeoContact,
   buildPageMetadata,
   trimSeoDescription,
@@ -200,7 +200,7 @@ export const informationSections: InformationSection[] = [
     intro: "Комп’ютерна OBD-діагностика авто у Львові: зчитування помилок, перевірка електронних систем і рекомендації щодо ремонту.",
     seoTitle: "Комп'ютерна діагностика авто у Львові | OBD та Check Engine",
     seoDescription: trimSeoDescription(
-      `Комп'ютерна OBD-II діагностика авто у Львові: Check Engine, ECU, ABS, ESP, SRS, АКПП, розшифрування помилок і підбір запчастин. Запис: +38 (093) 480-42-61. ${STORE_ADDRESS_SEO_LABEL}.`
+      `Комп'ютерна OBD-II діагностика авто у Львові: Check Engine, ECU, ABS, ESP, SRS, АКПП, розшифрування помилок і підбір запчастин. Запис: +38 (093) 480-42-61. Адреса: ${STORE_ADDRESS}.`
     ),
     keywords: [
       "комп'ютерна діагностика авто львів",

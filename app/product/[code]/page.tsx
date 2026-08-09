@@ -14,6 +14,7 @@ import {
   toPriceUah,
 } from "app/lib/catalog-server";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
+import ProductGallery from "app/components/ProductGallery";
 import ProductPageAdminEditGate from "app/components/ProductPageAdminEditGate";
 import ProductRelatedItemsSection from "app/components/ProductRelatedItemsSection";
 import {
@@ -42,6 +43,7 @@ import { safeJsonLd } from "app/lib/safe-json-ld";
 import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import {
   getAllPricedProductSitemapEntries,
   getAllProductSitemapEntries,
@@ -64,6 +66,25 @@ const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 280;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 80;
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 520;
 const PRODUCT_PAGE_REVIEWS_TIMEOUT_MS = 220;
+const PRODUCT_PAGE_GALLERY_TIMEOUT_MS = 250;
+
+// Extra photos live in Firestore (see app/components/ProductGallery.tsx,
+// which reads the same collection client-side for the live-updating strip
+// under the hero photo) — separate from the single 1C-sourced photo. Pulled
+// in here too so the Product JSON-LD's image array isn't limited to one
+// photo when a product actually has more.
+const fetchProductGalleryImageUrls = async (code: string): Promise<string[]> => {
+  if (!code) return [];
+  const snap = await getFirebaseAdminDb()
+    .collection("productGallery")
+    .doc(code)
+    .collection("images")
+    .orderBy("uploadedAt", "asc")
+    .get();
+  return snap.docs
+    .map((doc) => doc.data().url as string)
+    .filter((url): url is string => typeof url === "string" && url.length > 0);
+};
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_PHONE_TEL = "+380634211851";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
@@ -1680,7 +1701,11 @@ export async function generateMetadata({
     },
     category: "auto parts",
     openGraph: {
-      type: "article",
+      // "article" is for blog/news content — wrong type for a product page,
+      // and Next.js's OpenGraphType union has no "product" option (that
+      // needs the OG product namespace declared on <html>, which isn't set
+      // up here). "website" is the correct safe default for product pages.
+      type: "website",
       url: canonicalUrl,
       title: seoTitle,
       description,
@@ -1931,6 +1956,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         getProductReviews(resolvedCode),
       ]).catch(() => [null, null] as const)
     : Promise.resolve([null, []]);
+  const galleryImagesPromise = fetchProductGalleryImageUrls(resolvedCode).catch(() => []);
   const [pagePrice, brandLogoMap] = await Promise.all([
     resolveProductSeoPrice(inlineInitialPriceEuro),
     getBrandLogoMap().catch(() => new Map<string, string>()),
@@ -2006,6 +2032,11 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     [null, null],
     PRODUCT_PAGE_REVIEWS_TIMEOUT_MS
   );
+  const galleryImageUrls = await resolveWithTimeout(
+    () => galleryImagesPromise,
+    [],
+    PRODUCT_PAGE_GALLERY_TIMEOUT_MS
+  );
   // Google's Product rich-result eligibility requires at least one of
   // offers/review/aggregateRating. A price-on-request product with no
   // reviews yet would otherwise ship a Product block with none of the
@@ -2028,7 +2059,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         quantity: product.quantity,
         priceUah: initialPriceUah,
         canonicalUrl,
-        imageUrls: [productSeoImageUrl],
+        imageUrls: [productSeoImageUrl, ...galleryImageUrls],
         aggregateRating: reviewStats ?? undefined,
         reviews: initialReviews ?? undefined,
       })
@@ -2244,22 +2275,25 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               )}
               <div className="grid gap-3 xl:grid-cols-[minmax(190px,224px)_minmax(0,1fr)_296px] xl:items-stretch 2xl:grid-cols-[minmax(204px,240px)_minmax(0,1fr)_312px]">
                 <div className="order-2 min-w-0 self-stretch xl:order-1">
-                  <div className="flex h-full min-h-[220px] items-center justify-center overflow-hidden rounded-[20px] border border-white/90 bg-white/95 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_14px_30px_rgba(14,165,233,0.1)] transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-200 hover:bg-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,1),0_18px_38px_rgba(14,165,233,0.15)] sm:min-h-[260px] xl:min-h-0">
-                    <ProductImageWithFallback
-                      alt={`Фото товару ${product.name}`}
-                      width={640}
-                      height={640}
-                      loading="eager"
-                      decoding="async"
-                      fetchPriority="high"
-                      zoomEnabled
-                      productCode={product.code || resolvedCode}
-                      articleHint={product.article}
-                      hasKnownPhoto={productHasKnownPhoto}
-                      preferCachedPreview
-                      unoptimized
-                      className={heroProductImageClass}
-                    />
+                  <div className="flex h-full flex-col overflow-hidden rounded-[20px] border border-white/90 bg-white/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_14px_30px_rgba(14,165,233,0.1)] transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-200 hover:bg-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,1),0_18px_38px_rgba(14,165,233,0.15)]">
+                    <div className="flex min-h-[220px] flex-1 items-center justify-center p-1.5 sm:min-h-[260px] xl:min-h-0">
+                      <ProductImageWithFallback
+                        alt={`Фото товару ${product.name}`}
+                        width={640}
+                        height={640}
+                        loading="eager"
+                        decoding="async"
+                        fetchPriority="high"
+                        zoomEnabled
+                        productCode={product.code || resolvedCode}
+                        articleHint={product.article}
+                        hasKnownPhoto={productHasKnownPhoto}
+                        preferCachedPreview
+                        unoptimized
+                        className={heroProductImageClass}
+                      />
+                    </div>
+                    <ProductGallery code={product.code || resolvedCode} />
                   </div>
                 </div>
 

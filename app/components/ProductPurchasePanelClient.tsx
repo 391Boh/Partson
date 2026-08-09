@@ -54,16 +54,38 @@ export default function ProductPurchasePanelClient(
   const [showCostPrice, setShowCostPrice] = useState(false);
 
   useEffect(() => {
-    try {
-      const uid = localStorage.getItem("user_id");
-      if (uid && localStorage.getItem(`partson:isAdmin:${uid}`) === "1") setIsAdmin(true);
-    } catch {}
+    const checkStoredAdminFlag = () => {
+      try {
+        const uid = localStorage.getItem("user_id");
+        if (uid && localStorage.getItem(`partson:isAdmin:${uid}`) === "1") {
+          setIsAdmin(true);
+          return true;
+        }
+      } catch {}
+      return false;
+    };
+
+    const alreadyAdmin = checkStoredAdminFlag();
+
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ isAdmin: boolean }>).detail;
       setIsAdmin(Boolean(detail?.isAdmin));
     };
     window.addEventListener("partson:adminStateChange", handler);
-    return () => window.removeEventListener("partson:adminStateChange", handler);
+
+    // This component mounts immediately, so it can mount before LayoutHost's
+    // async admin-role check (Firestore role lookup + /api/is-admin)
+    // finishes and writes localStorage / fires the event above — missing
+    // both. Poll briefly as a fallback so it still picks up admin status
+    // once that resolves (same fix as ProductGallery.tsx).
+    const retryTimers = alreadyAdmin
+      ? []
+      : [400, 1000, 2000, 4000].map((delay) => window.setTimeout(checkStoredAdminFlag, delay));
+
+    return () => {
+      window.removeEventListener("partson:adminStateChange", handler);
+      retryTimers.forEach((id) => window.clearTimeout(id));
+    };
   }, []);
 
   const hasCostPrice =

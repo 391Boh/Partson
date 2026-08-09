@@ -784,9 +784,10 @@ export default function TelegramChat({
   return (
     <motion.div
       ref={chatRef}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="fixed z-50 flex flex-col overflow-hidden border border-white/14 bg-[image:linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(241,245,249,0.98)_100%)] shadow-[0_36px_88px_rgba(2,6,23,0.32)] backdrop-blur-2xl"
+      initial={{ opacity: 0, y: 24, scale: 0.94 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: "spring", stiffness: 320, damping: 26, mass: 0.9 }}
+      className="fixed z-50 flex flex-col overflow-hidden border border-sky-200/50 bg-[image:linear-gradient(160deg,#eef6ff_0%,#dcedfd_46%,#c9e2fa_100%)] shadow-[0_36px_88px_rgba(2,6,23,0.32)] backdrop-blur-2xl"
       style={
         isDesktop
           ? {
@@ -805,8 +806,8 @@ export default function TelegramChat({
             }
       }
     >
-      <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(37,99,235,0.12),transparent_34%)]" />
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.5),transparent)]" />
+      <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_6%_-6%,rgba(56,189,248,0.3),transparent_38%),radial-gradient(circle_at_100%_4%,rgba(45,212,191,0.18),transparent_32%),radial-gradient(circle_at_50%_120%,rgba(99,102,241,0.14),transparent_48%)]" />
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.55),transparent)]" />
 
       <div className="relative overflow-hidden border-b border-white/10 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.98)_0%,rgba(30,41,59,0.96)_42%,rgba(14,165,233,0.84)_100%)] px-4 py-3 text-white">
         <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_18%_16%,rgba(255,255,255,0.12),transparent_34%),radial-gradient(circle_at_84%_14%,rgba(125,211,252,0.2),transparent_28%)]" />
@@ -834,9 +835,10 @@ export default function TelegramChat({
           </div>
           <button
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] border border-white/14 bg-white/10 text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] transition-[background-color,border-color,color,box-shadow] duration-300 ease-out hover:border-white/20 hover:bg-white/14 hover:text-white hover:shadow-[0_10px_20px_rgba(2,6,23,0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35"
+            aria-label="Закрити"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/80 transition-[color,transform] duration-300 ease-out hover:rotate-90 hover:text-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35"
           >
-            <X size={17} />
+            <X size={18} />
           </button>
         </div>
         <AnimatePresence initial={false}>
@@ -879,7 +881,7 @@ export default function TelegramChat({
       </div>
 
       <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain brand-scroll px-2.5 py-2.5 sm:px-3 sm:py-3">
-        <div className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.65),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(56,189,248,0.12),transparent_26%),linear-gradient(180deg,rgba(248,250,252,0.46),rgba(241,245,249,0.2))]" />
+        <div className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.6),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(56,189,248,0.14),transparent_26%),linear-gradient(180deg,rgba(238,246,255,0.4),rgba(220,237,253,0.16))]" />
         <div className="relative space-y-3 pb-1">
           <div className="flex max-w-[96%] items-start gap-2.5 rounded-[18px] border border-sky-100/70 bg-white/90 px-3 py-2.5 text-[13px] text-slate-700 shadow-[0_10px_22px_rgba(15,23,42,0.07)] backdrop-blur sm:max-w-[92%] sm:gap-3 sm:rounded-[22px] sm:px-4 sm:py-3 sm:text-sm">
             <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border border-sky-100/80 bg-[image:linear-gradient(135deg,rgba(239,246,255,0.95),rgba(224,242,254,0.92))] text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.12)]">
