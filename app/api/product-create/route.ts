@@ -4,19 +4,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
-import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
+import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 
 export const runtime = "nodejs";
 
 const ONEC_CREATE_ENDPOINT =
   (process.env.ONEC_PRODUCT_CREATE_ENDPOINT || "createproduct").trim();
-
-const ADMIN_EMAILS = new Set(
-  (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
-);
 
 const MAX_PAYLOAD_BYTES = 3 * 1024 * 1024;
 const DATA_URI_REGEX =
@@ -30,20 +23,6 @@ const json = (payload: unknown, status = 200) =>
       "cache-control": "no-store",
     },
   });
-
-const verifyAdminToken = async (request: NextRequest): Promise<string | null> => {
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  if (!token) return null;
-  try {
-    const auth = getFirebaseAdminAuth();
-    const decoded = await auth.verifyIdToken(token);
-    const email = (decoded.email || "").toLowerCase();
-    return email && ADMIN_EMAILS.has(email) ? email : null;
-  } catch {
-    return null;
-  }
-};
 
 export async function POST(request: NextRequest) {
   const rl = checkRateLimit({
@@ -61,8 +40,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const adminEmail = await verifyAdminToken(request);
-  if (!adminEmail) return json({ ok: false, error: "Unauthorized" }, 401);
+  const admin = await verifyAdminRequest(request);
+  if (!admin) return json({ ok: false, error: "Unauthorized" }, 401);
+  const adminEmail = admin.email;
 
   const rawBody = await request.text().catch(() => "");
   if (rawBody.length > MAX_PAYLOAD_BYTES) {

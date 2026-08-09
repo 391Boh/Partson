@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
-import { getFirebaseAdminAuth, getFirebaseAdminBucket } from "app/lib/firebase-admin";
+import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { getFirebaseAdminBucket } from "app/lib/firebase-admin";
 import {
   ALLOWED_BLOG_IMAGE_TYPES,
   ALLOWED_BLOG_VIDEO_TYPES,
@@ -12,13 +13,6 @@ import {
 
 export const runtime = "nodejs";
 
-const ADMIN_EMAILS = new Set(
-  (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean)
-);
-
 const json = (payload: unknown, status = 200) =>
   new NextResponse(JSON.stringify(payload), {
     status,
@@ -27,20 +21,6 @@ const json = (payload: unknown, status = 200) =>
       "cache-control": "no-store",
     },
   });
-
-const verifyAdminToken = async (request: NextRequest): Promise<string | null> => {
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  if (!token) return null;
-
-  try {
-    const decoded = await getFirebaseAdminAuth().verifyIdToken(token);
-    const email = (decoded.email || "").toLowerCase();
-    return email && ADMIN_EMAILS.has(email) ? email : null;
-  } catch {
-    return null;
-  }
-};
 
 const EXTENSION_BY_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -69,8 +49,8 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const adminEmail = await verifyAdminToken(request);
-  if (!adminEmail) return json({ ok: false, error: "Unauthorized" }, 401);
+  const admin = await verifyAdminRequest(request);
+  if (!admin) return json({ ok: false, error: "Unauthorized" }, 401);
 
   let formData: FormData;
   try {

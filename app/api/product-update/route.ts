@@ -5,7 +5,7 @@ import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
-import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
+import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearProductImageCacheForProduct } from "app/lib/product-image";
 import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
 
@@ -13,13 +13,6 @@ export const runtime = "nodejs";
 
 const ONEC_PRODUCT_UPDATE_ENDPOINT =
   (process.env.ONEC_PRODUCT_UPDATE_ENDPOINT || "edit").trim();
-
-const ADMIN_EMAILS = new Set(
-  (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean)
-);
 
 const MAX_PAYLOAD_BYTES = 3 * 1024 * 1024;
 const DATA_URI_REGEX =
@@ -33,21 +26,6 @@ const json = (payload: unknown, status = 200) =>
       "cache-control": "no-store",
     },
   });
-
-const verifyAdminToken = async (request: NextRequest): Promise<string | null> => {
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  if (!token) return null;
-
-  try {
-    const auth = getFirebaseAdminAuth();
-    const decoded = await auth.verifyIdToken(token);
-    const email = (decoded.email || "").toLowerCase();
-    return email && ADMIN_EMAILS.has(email) ? email : null;
-  } catch {
-    return null;
-  }
-};
 
 const readCode = (value: Record<string, unknown>) =>
   typeof value.code === "string" && value.code.trim()
@@ -117,8 +95,9 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const adminEmail = await verifyAdminToken(request);
-  if (!adminEmail) return json({ ok: false, error: "Unauthorized" }, 401);
+  const admin = await verifyAdminRequest(request);
+  if (!admin) return json({ ok: false, error: "Unauthorized" }, 401);
+  const adminEmail = admin.email;
 
   const rawBody = await request.text().catch(() => "");
   if (rawBody.length > MAX_PAYLOAD_BYTES) {

@@ -2,7 +2,8 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 
-import { getFirebaseAdminAuth, getFirebaseAdminDb } from "app/lib/firebase-admin";
+import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import {
   isBlogImageValue,
   isBlogVideoValue,
@@ -10,13 +11,6 @@ import {
 } from "app/lib/blog-media";
 
 export const runtime = "nodejs";
-
-const ADMIN_EMAILS = new Set(
-  (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
-);
 
 // See app/api/blog/posts/route.ts — images/video now travel as short Storage
 // URLs, this only stays generous for legacy inline data-URI images.
@@ -29,22 +23,10 @@ const json = (payload: unknown, status = 200) =>
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
   });
 
-const verifyAdmin = async (request: NextRequest): Promise<string | null> => {
-  const token = (request.headers.get("authorization") || "").replace("Bearer ", "").trim();
-  if (!token) return null;
-  try {
-    const decoded = await getFirebaseAdminAuth().verifyIdToken(token);
-    const email = (decoded.email || "").toLowerCase();
-    return email && ADMIN_EMAILS.has(email) ? email : null;
-  } catch {
-    return null;
-  }
-};
-
 type RouteContext = { params: Promise<{ slug: string }> };
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
-  const admin = await verifyAdmin(request);
+  const admin = await verifyAdminRequest(request);
   if (!admin) return json({ ok: false, error: "Unauthorized" }, 401);
 
   const { slug } = await context.params;
@@ -60,7 +42,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  const admin = await verifyAdmin(request);
+  const admin = await verifyAdminRequest(request);
   if (!admin) return json({ ok: false, error: "Unauthorized" }, 401);
 
   const { slug } = await context.params;

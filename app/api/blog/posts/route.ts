@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
-import { getFirebaseAdminAuth, getFirebaseAdminDb } from "app/lib/firebase-admin";
+import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import {
   isBlogImageValue,
@@ -12,13 +13,6 @@ import {
 } from "app/lib/blog-media";
 
 export const runtime = "nodejs";
-
-const ADMIN_EMAILS = new Set(
-  (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean)
-);
 
 // Images/video are now uploaded separately to Storage (see /api/blog/upload)
 // and only their short URL travels in this payload, so in practice this is
@@ -35,20 +29,6 @@ const json = (payload: unknown, status = 200) =>
       "cache-control": "no-store",
     },
   });
-
-const verifyAdminToken = async (request: NextRequest): Promise<string | null> => {
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  if (!token) return null;
-
-  try {
-    const decoded = await getFirebaseAdminAuth().verifyIdToken(token);
-    const email = (decoded.email || "").toLowerCase();
-    return email && ADMIN_EMAILS.has(email) ? email : null;
-  } catch {
-    return null;
-  }
-};
 
 const readString = (
   value: unknown,
@@ -90,8 +70,9 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const adminEmail = await verifyAdminToken(request);
-  if (!adminEmail) return json({ ok: false, error: "Unauthorized" }, 401);
+  const admin = await verifyAdminRequest(request);
+  if (!admin) return json({ ok: false, error: "Unauthorized" }, 401);
+  const adminEmail = admin.email;
 
   const rawBody = await request.text().catch(() => "");
   if (rawBody.length > MAX_PAYLOAD_BYTES) {

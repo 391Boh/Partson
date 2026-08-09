@@ -26,6 +26,7 @@ import {
   Search,
   SendHorizontal,
   ShieldCheck,
+  ShieldOff,
   ShoppingBag,
   Users2,
   X,
@@ -45,6 +46,7 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { waitForFirebaseAuthReady } from 'app/lib/firebase-auth-state';
 
 interface Message {
   id: string;
@@ -117,6 +119,7 @@ interface UserRecord {
   vins: string[];
   isOnline?: boolean;
   lastSeenAt?: unknown;
+  role?: string;
 }
 
 interface Props {
@@ -224,6 +227,8 @@ export default function AdminChatPanel({
   const [orders, setOrders] = useState<Order[]>([]);
   const [calls, setCalls] = useState<CallRequest[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
+  const [roleUpdatingUid, setRoleUpdatingUid] = useState<string | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
   const [chatPresenceMap, setChatPresenceMap] = useState<
     Record<string, { userIsOnline: boolean; userLastSeenAt?: unknown }>
   >({});
@@ -310,6 +315,7 @@ export default function AdminChatPanel({
           vins,
           isOnline: data?.isOnline === true,
           lastSeenAt: data?.lastSeenAt,
+          role: data?.role === 'admin' ? 'admin' : 'user',
         });
       });
       setUserPhoneMap(nextMap);
@@ -543,6 +549,47 @@ export default function AdminChatPanel({
     const targetChatId = userRecord ? getUserChatId(userRecord) : uid;
     setTab('messages');
     void openChat(targetChatId);
+  };
+
+  const handleRoleToggle = async (uid: string, nextRole: 'admin' | 'user') => {
+    if (roleUpdatingUid) return;
+    setRoleUpdatingUid(uid);
+    setRoleError(null);
+    try {
+      const snapshot = await waitForFirebaseAuthReady();
+      const authUser = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
+      if (!authUser) {
+        setRoleError('Не авторизовано');
+        return;
+      }
+      const token = await authUser.getIdToken().catch(() => null);
+      if (!token) {
+        setRoleError('Не авторизовано');
+        return;
+      }
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(uid)}/role`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ role: nextRole }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { ok: boolean; error?: string }
+        | null;
+      if (!res.ok || !data?.ok) {
+        setRoleError(data?.error || 'Не вдалося змінити роль');
+        return;
+      }
+      // The users list is fed by a live onSnapshot subscription (see the
+      // effect above), so it will pick up this change on its own — no local
+      // state patch needed here.
+    } catch {
+      setRoleError('Не вдалося змінити роль');
+    } finally {
+      setRoleUpdatingUid(null);
+    }
   };
 
   const clearOrderUserFilter = () => {
@@ -1413,6 +1460,19 @@ export default function AdminChatPanel({
               />
             </SearchDock>
 
+            {roleError && (
+              <div className="flex items-center justify-between gap-2 rounded-[14px] border border-rose-400/30 bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-rose-100 sm:rounded-[16px] sm:px-3 sm:py-2">
+                <span>{roleError}</span>
+                <button
+                  onClick={() => setRoleError(null)}
+                  className="shrink-0 rounded-full p-0.5 text-rose-200 hover:bg-rose-400/20"
+                  aria-label="Закрити"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
             {sortedUsers.length === 0 && (
               <EmptyPanelState
                 icon={<Users2 className="h-10 w-10" />}
@@ -1512,6 +1572,35 @@ export default function AdminChatPanel({
                         {unreadFromUser}
                       </span>
                     )}
+
+                    <button
+                      onClick={() =>
+                        handleRoleToggle(
+                          userItem.id,
+                          userItem.role === 'admin' ? 'user' : 'admin'
+                        )
+                      }
+                      disabled={roleUpdatingUid === userItem.id}
+                      className={`inline-flex h-9 items-center gap-1.5 rounded-[16px] border px-2.5 text-[11px] font-semibold transition disabled:cursor-wait disabled:opacity-60 sm:h-10 sm:rounded-2xl ${
+                        userItem.role === 'admin'
+                          ? 'border-amber-300/30 bg-amber-400/15 text-amber-100 hover:bg-amber-400/25'
+                          : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/15'
+                      }`}
+                      title={
+                        userItem.role === 'admin'
+                          ? 'Забрати права адміністратора'
+                          : 'Надати права адміністратора'
+                      }
+                    >
+                      {userItem.role === 'admin' ? (
+                        <ShieldCheck size={15} />
+                      ) : (
+                        <ShieldOff size={15} />
+                      )}
+                      <span className="hidden sm:inline">
+                        {userItem.role === 'admin' ? 'Адмін' : 'Користувач'}
+                      </span>
+                    </button>
 
                     <button
                       onClick={() => openUserOrders(userItem.id)}
