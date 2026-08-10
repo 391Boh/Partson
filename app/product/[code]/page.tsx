@@ -58,11 +58,22 @@ import {
   type ProductReview,
 } from "app/lib/reviews-server";
 
-const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 420;
-const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 480;
-const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 280;
+// 1C itself is documented (see ProductCard.tsx's DESCRIPTION_REQUEST_TIMEOUT_MS)
+// to take 1.9-3.7s per call, even back-to-back, and oneC.js additionally
+// queues requests past its per-endpoint concurrency limit (getEndpointConcurrencyLimit
+// in app/api/_lib/oneC.js) — under real traffic a lookup can sit queued before
+// it even starts. Every timeout below that gates whether a product is treated
+// as "found" was previously tighter than that documented worst case, so any
+// product could intermittently render as not-found under normal 1C latency —
+// not just ones missing a price (which merely made it more likely by adding
+// an extra round trip, see the enrichLookupCandidate fix in catalog-server.ts).
+// ISR caches a successful render for an hour, so paying this cost occasionally
+// is far cheaper than wrongly 404ing a real product.
+const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 4000;
+const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 4000;
+const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 4000;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 80;
-const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 520;
+const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 4000;
 const PRODUCT_PAGE_REVIEWS_TIMEOUT_MS = 220;
 const PRODUCT_PAGE_GALLERY_TIMEOUT_MS = 250;
 
@@ -1825,7 +1836,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     const directFallbackProduct = await resolveWithTimeout(
       () => directCodeProductPromise || getCatalogProduct(fallbackCodeFromRoute),
       null,
-      1200
+      PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
     );
     if (directFallbackProduct) {
       product = directFallbackProduct;

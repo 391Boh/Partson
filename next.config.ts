@@ -73,6 +73,20 @@ const nextConfig: NextConfig = {
     // function"), reproducing on every load, not just a stale dev cache.
     // The tree-shaking win isn't worth breaking firebase init.
     optimizePackageImports: ["lucide-react", "react-icons", "framer-motion"],
+    // Next.js auto-detects CPU count and spawns that many static-generation
+    // workers (each rendering pages concurrently, each making its own live
+    // 1C calls). The production VPS has only 1-2GB RAM total, and the live
+    // PM2 processes (800MB + 200MB caps, see ecosystem.config.js) keep
+    // running and serving traffic during a build — there's very little
+    // headroom left for parallel render workers on top of that. Serializing
+    // to one worker trades a longer build for not starving the box (this is
+    // what dropped the SSH session mid-deploy at the default worker count).
+    // Only forced on the production server (set BUILD_CPUS=1 there) — capping
+    // it unconditionally made local builds (many more cores available)
+    // dramatically slower for no benefit, some pages taking 60s+ each.
+    ...(process.env.BUILD_CPUS
+      ? { cpus: Math.max(1, Number(process.env.BUILD_CPUS) || 1) }
+      : {}),
   },
   webpack(config, { dev }) {
     // Native filesystem events are considerably cheaper on a local disk.

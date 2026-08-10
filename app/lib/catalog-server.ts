@@ -2030,8 +2030,19 @@ export const findCatalogProductByCode = async (
       return candidate;
     }
 
+    // This enrichment is a best-effort bonus, not required for a valid
+    // result (falls back to the unenriched candidate below either way) — so
+    // it must never consume the caller's full lookup budget. Passing
+    // options.timeoutMs straight through used to let it run up to 820ms,
+    // on top of whatever the initial candidate search already took. Callers
+    // with a tighter outer timeout (e.g. the product page's 480ms) would
+    // then time out the whole lookup specifically for priceless products,
+    // which never hit this branch's fast-path return above and always paid
+    // this cost — surfacing as "product not found" only when there's no
+    // price. Capping it short keeps that cost bounded regardless of what
+    // timeout budget the caller passed in for the outer search.
     const enriched = await enrichProductsWithAllgoodsPrices([candidate], {
-      timeoutMs: options?.timeoutMs,
+      timeoutMs: Math.min(options?.timeoutMs ?? 250, 250),
       cacheTtlMs: options?.cacheTtlMs ?? 1000 * 30,
       maxKeys: 2,
     }).catch(() => [candidate]);
