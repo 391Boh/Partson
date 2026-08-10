@@ -75,27 +75,19 @@ export default function HomeDeferredStack({
   const [stage, setStage] = useState(0);
   useEffect(() => {
     if (stage >= 2) return;
-    return scheduleIdle(() => setStage((prev) => Math.min(2, prev + 1)));
+    // Keep expensive chunk evaluation away from the first scroll gesture.
+    // The first step runs after the initial page has settled; the next one is
+    // spaced out further so two large client trees never commit back-to-back.
+    const delay = stage === 0 ? 650 : 850;
+    return scheduleIdle(() => setStage((prev) => Math.min(2, prev + 1)), delay);
   }, [stage]);
-
-  // Warm both chunks' network fetch immediately, independent of `stage` —
-  // only the render commit is deferred above. import() de-dupes against the
-  // in-flight promise dynamic() later awaits, so this loses no load time
-  // while still keeping the two commits apart.
-  useEffect(() => {
-    loadAutoSection();
-    loadBrandsSection();
-  }, []);
 
   return (
     <>
-      {/* These sections deliberately render from the first pass. Deferring
-          their mount until a scroll observer fires made fast vertical scroll
-          depend on observer timing, chunk download and API startup. Dynamic
-          imports still keep separate chunks, while rendering them here makes
-          the browser request every chunk immediately and removes scroll as a
-          loading trigger. Responsive fallbacks keep the document stable until
-          each chunk is ready. */}
+      {/* The product section renders from the first pass because it is closest
+          to the hero. Lower sections keep responsive placeholders and mount in
+          spaced browser-idle slices, so layout stays stable without evaluating
+          every heavy client chunk during the first scroll gesture. */}
       <section className="section-reveal home-section-stage relative w-full">
         <SectionBoundary title="Модуль товарів тимчасово недоступний">
           <ProductFetcher

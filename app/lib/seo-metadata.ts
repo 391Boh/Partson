@@ -61,7 +61,10 @@ export const trimSeoDescription = (
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length <= maxLength) return normalized;
 
-  const truncated = normalized.slice(0, maxLength + 1);
+  // Reserve one character for the ellipsis. Previously the text itself could
+  // reach maxLength and then `…` made the final meta description 161 chars.
+  const contentMaxLength = Math.max(1, maxLength - 1);
+  const truncated = normalized.slice(0, contentMaxLength + 1);
   const lastSentenceBreak = Math.max(
     truncated.lastIndexOf(". "),
     truncated.lastIndexOf("! "),
@@ -69,13 +72,18 @@ export const trimSeoDescription = (
   );
   const lastSpace = truncated.lastIndexOf(" ");
   const cutAt =
-    lastSentenceBreak >= Math.floor(maxLength * 0.58)
+    lastSentenceBreak >= Math.floor(contentMaxLength * 0.58)
       ? lastSentenceBreak + 1
-      : lastSpace >= Math.floor(maxLength * 0.7)
+      : lastSpace >= Math.floor(contentMaxLength * 0.7)
         ? lastSpace
-        : maxLength;
+        : contentMaxLength;
 
-  return `${normalized.slice(0, cutAt).replace(/[,:;\s]+$/u, "").trim()}…`;
+  const content = normalized
+    .slice(0, Math.min(cutAt, contentMaxLength))
+    .replace(/[,:;\s]+$/u, "")
+    .trim();
+
+  return `${content}…`;
 };
 
 export const buildSeoContactLine = () =>

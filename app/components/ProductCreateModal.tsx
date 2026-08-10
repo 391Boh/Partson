@@ -234,7 +234,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
         clearBrowserCatalogCache();
         setTimeout(() => {
           onClose();
-          router.push(`/product/${encodeURIComponent(navParam)}?_refresh=${Date.now()}`);
+          router.push(`/product/${encodeURIComponent(navParam)}`);
         }, 300);
       }
     } catch { setError("Помилка мережі"); } finally { setSaving(false); }
@@ -295,7 +295,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                   const navParam = primary ? `${primary}~${secondary}` : "";
                   onClose();
                   if (navParam) {
-                    router.push(`/product/${encodeURIComponent(navParam)}?_refresh=${Date.now()}`);
+                    router.push(`/product/${encodeURIComponent(navParam)}`);
                   } else {
                     router.push("/katalog");
                   }

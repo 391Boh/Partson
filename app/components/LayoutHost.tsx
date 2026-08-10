@@ -339,6 +339,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const primaryRoutePrefetchStartedRef = useRef(false);
   const previousPathnameRef = useRef(pathname);
   const adminPanelPathnameRef = useRef(pathname);
+  const scrollTopSentinelRef = useRef<HTMLSpanElement | null>(null);
   const isDevelopment = process.env.NODE_ENV !== "production";
   const enableAggressiveWarmup =
     process.env.NEXT_PUBLIC_ENABLE_AGGRESSIVE_WARMUP === "1";
@@ -354,27 +355,15 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const sentinel = scrollTopSentinelRef.current;
+    if (!sentinel || typeof IntersectionObserver === "undefined") return;
 
-    // Raw scroll events can fire many times per frame during a fast wheel/
-    // trackpad scroll — batch to one check per animation frame instead of
-    // running setState on every single one.
-    let rafId = 0;
-    const applyScrollState = () => {
-      rafId = 0;
-      setShowScrollTop((prev) => {
-        const next = window.scrollY > 300;
-        return prev === next ? prev : next;
-      });
-    };
-    const onScroll = () => {
-      if (rafId) return;
-      rafId = window.requestAnimationFrame(applyScrollState);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      if (rafId) window.cancelAnimationFrame(rafId);
-      window.removeEventListener("scroll", onScroll);
-    };
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowScrollTop(!entry?.isIntersecting),
+      { rootMargin: "300px 0px 0px 0px", threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -1449,6 +1438,11 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
   return (
     <div style={{ ["--header-height" as string]: "4rem" }}>
+      <span
+        ref={scrollTopSentinelRef}
+        className="pointer-events-none absolute left-0 top-0 h-px w-px"
+        aria-hidden="true"
+      />
       <Suspense fallback={null}>
         <RouteViewStateSync pathname={pathname} onChange={syncRouteViewState} />
       </Suspense>

@@ -1,12 +1,29 @@
-// Schedules `callback` after a short, fixed delay. Deliberately not built on
-// requestIdleCallback: idle callbacks are tied to the browser's internal idle
-// scheduler, which in a backgrounded/hidden tab can stall for seconds and
-// then fire several pending callbacks in the same burst — defeating the
-// whole point of staggering below-the-fold section mounts apart. A fixed
-// timeout is predictable regardless of tab visibility state.
-// Returns a cleanup function that cancels the pending callback.
+// Waits for the requested minimum delay, then lets the browser choose an idle
+// slice for expensive below-fold React work. The timeout keeps hidden tabs or
+// continuously busy browsers from postponing the section forever. This keeps
+// chunk evaluation out of active wheel/touch-scroll frames while preserving a
+// predictable upper bound.
 export const scheduleIdle = (callback: () => void, delayMs = 60): (() => void) => {
   if (typeof window === "undefined") return () => {};
-  const id = window.setTimeout(callback, delayMs);
-  return () => window.clearTimeout(id);
+
+  let idleId: number | null = null;
+  let cancelled = false;
+  const timeoutId = window.setTimeout(() => {
+    if (cancelled) return;
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(callback, {
+        timeout: Math.max(500, delayMs),
+      });
+      return;
+    }
+    callback();
+  }, delayMs);
+
+  return () => {
+    cancelled = true;
+    window.clearTimeout(timeoutId);
+    if (idleId !== null && typeof window.cancelIdleCallback === "function") {
+      window.cancelIdleCallback(idleId);
+    }
+  };
 };

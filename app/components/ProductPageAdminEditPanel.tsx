@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, ImagePlus, Minus, Package, Pencil, Plus, Settings2, X } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
@@ -147,10 +147,11 @@ export default function ProductPageAdminEditPanel({
   description: initialDescription = "",
 }: ProductPageAdminEditPanelProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  // Use _refresh param to bypass staleTimes.dynamic router cache and trigger
-  // noStore() + clearAllOneCCache() on the server for a guaranteed fresh render.
-  const refreshPage = () => router.push(`${pathname}?_refresh=${Date.now()}`);
+  // The mutation API routes revalidatePath() the product page server-side
+  // (see e.g. app/api/product-update/route.ts) right after clearing the 1C
+  // cache, so by the time this runs the ISR cache is already fresh —
+  // router.refresh() just needs to re-fetch this route's RSC payload.
+  const refreshPage = () => router.refresh();
   const [isAdmin, setIsAdmin] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState<FieldKey | null>(null);
@@ -439,7 +440,7 @@ export default function ProductPageAdminEditPanel({
       }
       if (field === "article") {
         const newNavParam = raw + (code ? `~${code}` : "");
-        router.push(`/product/${encodeURIComponent(newNavParam)}?_refresh=${Date.now()}`);
+        router.push(`/product/${encodeURIComponent(newNavParam)}`);
       } else {
         refreshPage();
       }

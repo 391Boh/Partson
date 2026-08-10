@@ -1201,9 +1201,10 @@ useEffect(() => {
 
                             {hasPrice ? (
                             <div
-                                className={`flex items-center rounded-full border border-slate-200 bg-white px-1.5 py-0.5 shadow-xs transition-[border-color,box-shadow] duration-300 hover:border-slate-300 hover:shadow-sm ${
+                                className={`flex items-center rounded-full border border-slate-200 bg-white shadow-xs transition-[border-color,box-shadow] duration-300 hover:border-slate-300 hover:shadow-sm ${
                                     isCounterDisabled ? "pointer-events-none opacity-50" : ""
                                 }`}
+                                style={{ padding: "2px 6px" }}
                             >
                                 <button
                                     type="button"
@@ -1211,13 +1212,22 @@ useEffect(() => {
                                         e.stopPropagation();
                                         onQtyChange(code, -1);
                                     }}
-                                    className="flex w-8 h-8 sm:w-7 sm:h-7 min-h-0 min-w-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 shadow-[0_3px_8px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
+                                    // Fixed px (not w-8/h-8's rem) so this stays immune to a
+                                    // device's larger system font-size setting — otherwise the
+                                    // stepper balloons past the space the fixed 44px cart/info
+                                    // buttons leave it, and the row overflows the card's fixed
+                                    // flip-height instead of fitting on one line (see catalog-card-actions).
+                                    className="flex min-h-0 min-w-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 shadow-[0_3px_8px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
+                                    style={{ width: 28, height: 28 }}
                                     disabled={isCounterDisabled || qty <= 1}
                                     aria-label="Зменшити кількість"
                                 >
                                     <Minus size={14} strokeWidth={2.5} />
                                 </button>
-                                <span className="w-8 text-center font-semibold text-gray-800 text-xs mx-1 sm:mx-0.5">
+                                <span
+                                    className="text-center font-semibold text-gray-800 text-xs"
+                                    style={{ width: 28, margin: "0 2px" }}
+                                >
                                     {qty}
                                 </span>
                                 <button
@@ -1226,7 +1236,8 @@ useEffect(() => {
                                         e.stopPropagation();
                                         onQtyChange(code, 1);
                                     }}
-                                    className="flex w-8 h-8 sm:w-7 sm:h-7 min-h-0 min-w-0 items-center justify-center rounded-full border border-blue-400/70 bg-[linear-gradient(135deg,#2563eb,#0284c7)] text-white shadow-[0_6px_12px_rgba(37,99,235,0.22)] hover:brightness-105 transition-all duration-150 disabled:opacity-30"
+                                    className="flex min-h-0 min-w-0 items-center justify-center rounded-full border border-blue-400/70 bg-[linear-gradient(135deg,#2563eb,#0284c7)] text-white shadow-[0_6px_12px_rgba(37,99,235,0.22)] hover:brightness-105 transition-all duration-150 disabled:opacity-30"
+                                    style={{ width: 28, height: 28 }}
                                     disabled={isPlusDisabled}
                                     aria-label="Збільшити кількість"
                                 >

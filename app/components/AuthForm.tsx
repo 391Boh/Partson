@@ -124,7 +124,6 @@ const AuthForm: React.FC<AuthFormProps> = ({
   onRegisterSuccess,
 }) => {
   const [isClosing, setIsClosing] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
   const [loginData, setLoginData] = useState({ email: "", password: "" });
@@ -179,14 +178,6 @@ const AuthForm: React.FC<AuthFormProps> = ({
     document.addEventListener("keydown", handleEscapeKey);
     return () => document.removeEventListener("keydown", handleEscapeKey);
   }, [closeModal]);
-
-  useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
-      setIsVisible(true);
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, []);
 
   useEffect(() => {
     setIsGoogleRedirectPending(true);
@@ -550,9 +541,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
   return (
     <div
       className={`fixed inset-0 z-[90] bg-transparent transition-opacity pointer-events-none ${
-        isClosing
-          ? "duration-300 ease-in opacity-0"
-          : "duration-[600ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] opacity-100"
+        isClosing ? "duration-300 ease-in opacity-0" : "duration-300 ease-out opacity-100"
       }`}
     >
       <div
@@ -560,12 +549,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-form-modal-title"
-        className={`customer-overlay-panel customer-overlay-panel--auth auth-form-panel soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto text-slate-700 transform-gpu transition-all pointer-events-auto ${
+        className={`customer-overlay-panel customer-overlay-panel--auth auth-form-panel soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto text-slate-700 transform-gpu pointer-events-auto ${
           isClosing
-            ? "duration-300 ease-in translate-x-4 -translate-y-1 scale-[0.94] rotate-1 opacity-0 blur-[4px]"
-            : isVisible
-            ? "duration-[600ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] translate-x-0 translate-y-0 scale-100 rotate-0 opacity-100 blur-none"
-            : "duration-[600ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] translate-x-6 -translate-y-3 scale-[0.82] rotate-2 opacity-0 blur-[6px]"
+            ? "transition-all duration-300 ease-in translate-x-4 -translate-y-1 scale-[0.94] rotate-1 opacity-0 blur-[4px]"
+            : "app-panel-enter"
         }`}
       >
         <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-3 p-3.5 sm:p-4">

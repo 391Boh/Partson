@@ -29,7 +29,7 @@ html[data-consent-preferences="complete"] .analytics-consent-banner {
 
   html {
     scroll-behavior: auto;
-    overflow-x: hidden;
+    overflow-x: clip;
     width: 100%;
     min-height: 100%;
     height: auto;
@@ -41,11 +41,14 @@ html[data-consent-preferences="complete"] .analytics-consent-banner {
 
   body {
     font-family: var(--font-geist-sans);
-    overflow-x: hidden;
+    overflow-x: clip;
     width: 100%;
     min-height: 100%;
     height: auto;
-    overflow-y: auto;
+    /* Keep one document scroller. Making both html and body scroll containers
+       forces extra hit-testing/compositing work and produces noticeably
+       uneven wheel and trackpad scrolling in WebKit/Chromium. */
+    overflow-y: visible;
     -webkit-overflow-scrolling: touch;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: auto;
@@ -128,6 +131,22 @@ html[data-consent-preferences="complete"] .analytics-consent-banner {
   li:has(> [role='button']):hover {
     cursor: pointer;
   }
+}
+
+/* The header sits on an opaque fixed shell, so blurring the page behind every
+   button has no visible benefit. Backdrop filters on fixed descendants are
+   recomputed while the document scrolls and are a common source of dropped
+   frames, especially on integrated/mobile GPUs. */
+.site-header-shell :is(button, a) {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Closed dropdowns remain mounted for fast interaction. Do not keep an
+   invisible backdrop-filter layer alive while they are closed. */
+.site-header-shell .app-header-dropdown.opacity-0 {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
 

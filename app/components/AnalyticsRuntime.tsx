@@ -296,7 +296,7 @@ function AnalyticsConsentBanner({
     <aside
       role="region"
       aria-labelledby="analytics-consent-title"
-      className="analytics-consent-banner fixed inset-x-3 bottom-3 z-[120] mx-auto max-w-3xl overflow-hidden rounded-[20px] border border-slate-200/90 bg-white/95 p-3.5 shadow-[0_24px_70px_rgba(15,23,42,0.24)] ring-1 ring-white backdrop-blur-xl sm:bottom-5 sm:p-4"
+      className="analytics-consent-banner fixed inset-x-3 bottom-3 z-[120] mx-auto max-w-3xl overflow-hidden rounded-[20px] border border-slate-200/90 bg-white p-3.5 shadow-[0_20px_54px_rgba(15,23,42,0.2)] ring-1 ring-white sm:bottom-5 sm:p-4"
     >
       <div className="grid gap-3">
         <div className="min-w-0">

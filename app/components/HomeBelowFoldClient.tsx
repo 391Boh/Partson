@@ -46,21 +46,14 @@ export default function HomeBelowFoldClient({
   googleRatingValue?: number;
   googleReviewCount?: number;
 }) {
-  // Deferred behind HomeDeferredStack's own three sections (see the comment
-  // there) — this is the fourth heavy client bundle that used to commit in
-  // the same burst as the others on a fresh homepage load. 180ms lands after
-  // Auto's (~60ms) and Brands' (~120ms) staggered commits.
+  // This is the fourth heavy client bundle. Keep it away from the initial
+  // input window and from the Auto/Brands commits so a quick vertical scroll
+  // never competes with several React trees mounting at once.
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (ready) return;
-    return scheduleIdle(() => setReady(true), 180);
+    return scheduleIdle(() => setReady(true), 1900);
   }, [ready]);
-
-  // Warm the chunk's network fetch immediately — only the render commit
-  // above is deferred. See the matching comment in HomeDeferredStack.tsx.
-  useEffect(() => {
-    loadAdvantagesSection();
-  }, []);
 
   return (
     <>

@@ -19,6 +19,14 @@ import {
 
 const FINAL_RETRY_DELAY_MS = 60;
 const DEFERRED_DIRECT_LOAD_DELAY_MS = 90;
+// Native `loading="lazy"` picks its own lookahead distance (varies with the
+// browser's guess at connection speed) and can't be tuned — on a fast flick
+// scroll through the catalog it's regularly outrun, so images visibly pop in
+// instead of already being decoded. Watching each card with a fixed, generous
+// rootMargin gives every image the same, longer head start regardless of
+// scroll speed (matches the 900px lead already used for page-load prefetch
+// in Data.tsx).
+const NEAR_VIEWPORT_ROOT_MARGIN = "1200px";
 // disableDirectLoad otherwise blocks a card indefinitely while it waits for
 // the shared page-level batch (see Data.tsx's directCatalogImageKey/
 // batchImageOnly). That batch is usually fast, but a cold first request
@@ -114,6 +122,29 @@ const ProductCardImage: React.FC<Props> = ({
   const requestSrcRef = useRef("");
   const statusRef = useRef<ImageStatus>(status);
   const directFallbackQueuedRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isNearViewport, setIsNearViewport] = useState(loadingMode === "eager");
+
+  useEffect(() => {
+    if (loadingMode === "eager" || isNearViewport) return;
+    const node = containerRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      setIsNearViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setIsNearViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: NEAR_VIEWPORT_ROOT_MARGIN }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadingMode, isNearViewport]);
 
   useEffect(() => {
     requestSrcRef.current = requestSrc;
@@ -389,9 +420,11 @@ const ProductCardImage: React.FC<Props> = ({
   const showPlaceholder = status === "missing";
   const imageDecodingMode = fetchPriority === "high" ? "sync" : "async";
   const imageFadeClass = "duration-0";
+  const effectiveLoadingMode = isNearViewport ? "eager" : loadingMode;
 
   return (
     <div
+      ref={containerRef}
       role={canOpen ? "button" : "img"}
       tabIndex={canOpen ? 0 : undefined}
       aria-label={canOpen ? `Відкрити ${imageAlt}` : imageAlt}
@@ -445,7 +478,7 @@ const ProductCardImage: React.FC<Props> = ({
               alt={imageAlt}
               fill
               sizes="(max-width: 639px) 33vw, (max-width: 767px) 18vw, (max-width: 1023px) 13vw, 10vw"
-              loading={loadingMode}
+              loading={effectiveLoadingMode}
               fetchPriority={fetchPriority}
               unoptimized={
                 requestSrc.startsWith("data:image/") ||

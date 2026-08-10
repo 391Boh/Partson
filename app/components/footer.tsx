@@ -4,38 +4,38 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import SmartLink from "app/components/SmartLink";
 import {
-  FaAngleRight,
-  FaBoxes,
-  FaCarSide,
-  FaClock,
-  FaEnvelope,
-  FaInfoCircle,
-  FaIndustry,
-  FaMapMarkerAlt,
-  FaNewspaper,
-  FaPhoneAlt,
-  FaShieldAlt,
-  FaTools,
-  FaTruck,
-  FaUndoAlt,
-  FaWallet,
-} from "react-icons/fa";
+  ChevronRight,
+  Boxes,
+  Car,
+  Clock,
+  Mail,
+  Info,
+  Factory,
+  MapPin,
+  Newspaper,
+  Phone,
+  ShieldCheck,
+  Wrench,
+  Truck,
+  Undo2,
+  Wallet,
+} from "lucide-react";
 import { SiFacebook, SiInstagram, SiTelegram } from "react-icons/si";
 import React from "react";
 import AnalyticsConsentSettingsButton from "app/components/AnalyticsConsentSettingsButton";
 
 const infoLinks = [
-  { href: "/inform/about",       icon: FaInfoCircle, label: "Про нас" },
-  { href: "/inform/delivery",    icon: FaTruck,      label: "Доставка" },
-  { href: "/inform/location",    icon: FaMapMarkerAlt, label: "Локація" },
-  { href: "/inform/payment",     icon: FaWallet,     label: "Оплата" },
-  { href: "/inform/returns",     icon: FaUndoAlt,    label: "Повернення" },
-  { href: "/inform/privacy",     icon: FaShieldAlt,  label: "Конфіденційність" },
-  { href: "/auto",               icon: FaCarSide,    label: "Марки і моделі" },
-  { href: "/inform/diagnostics", icon: FaTools,      label: "Діагностика" },
-  { href: "/blog",               icon: FaNewspaper,  label: "Блог" },
-  { href: "/groups",             icon: FaBoxes,      label: "Групи товарів" },
-  { href: "/manufacturers",      icon: FaIndustry,   label: "Виробники" },
+  { href: "/inform/about",       icon: Info,        label: "Про нас" },
+  { href: "/inform/delivery",    icon: Truck,       label: "Доставка" },
+  { href: "/inform/location",    icon: MapPin,      label: "Локація" },
+  { href: "/inform/payment",     icon: Wallet,      label: "Оплата" },
+  { href: "/inform/returns",     icon: Undo2,       label: "Повернення" },
+  { href: "/inform/privacy",     icon: ShieldCheck, label: "Конфіденційність" },
+  { href: "/auto",               icon: Car,         label: "Марки і моделі" },
+  { href: "/inform/diagnostics", icon: Wrench,      label: "Діагностика" },
+  { href: "/blog",               icon: Newspaper,   label: "Блог" },
+  { href: "/groups",             icon: Boxes,       label: "Групи товарів" },
+  { href: "/manufacturers",      icon: Factory,     label: "Виробники" },
 ];
 
 export default function Footer() {
@@ -217,7 +217,7 @@ export default function Footer() {
               {infoLinks.map(({ href, icon: Icon, label }) => (
                 <li key={href}>
                   <SmartLink className={infoLinkClass} href={href}>
-                    <Icon className={infoIconClass} />
+                    <Icon size={14} className={infoIconClass} />
                     <span className="min-w-0 leading-snug">{label}</span>
                   </SmartLink>
                 </li>
@@ -242,13 +242,13 @@ export default function Footer() {
                 className="group/ph flex items-center gap-3 rounded-xl px-1 py-2.5 text-slate-800 no-underline transition-[background-color] duration-150 hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100/80 text-sky-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-[background-color,color] duration-150 group-hover/ph:bg-sky-200/80 group-hover/ph:text-sky-900">
-                  <FaPhoneAlt className="text-[12px]" />
+                  <Phone size={13} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-slate-400">Телефон</p>
                   <p className="text-sm font-semibold tracking-[-0.01em] text-slate-800">+38 (063) 421-18-51</p>
                 </div>
-                <FaAngleRight className="shrink-0 text-[11px] text-slate-300 transition-colors duration-150 group-hover/ph:text-sky-400" />
+                <ChevronRight size={12} className="shrink-0 text-slate-300 transition-colors duration-150 group-hover/ph:text-sky-400" />
               </a>
 
               {/* Email */}
@@ -257,13 +257,13 @@ export default function Footer() {
                 className="group/em flex items-center gap-3 rounded-xl px-1 py-2.5 text-slate-800 no-underline transition-[background-color] duration-150 hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100/80 text-sky-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-[background-color,color] duration-150 group-hover/em:bg-sky-200/80 group-hover/em:text-sky-900">
-                  <FaEnvelope className="text-[12px]" />
+                  <Mail size={13} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-slate-400">Email</p>
                   <p className="min-w-0 break-all text-sm font-semibold tracking-[-0.01em] text-slate-800">romaniukbboogg@gmail.com</p>
                 </div>
-                <FaAngleRight className="shrink-0 text-[11px] text-slate-300 transition-colors duration-150 group-hover/em:text-sky-400" />
+                <ChevronRight size={12} className="shrink-0 text-slate-300 transition-colors duration-150 group-hover/em:text-sky-400" />
               </a>
 
               {/* Address */}
@@ -272,20 +272,20 @@ export default function Footer() {
                 className="group/addr flex items-center gap-3 rounded-xl px-1 py-2.5 text-slate-800 no-underline transition-[background-color] duration-150 hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-100/80 text-emerald-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-[background-color,color] duration-150 group-hover/addr:bg-emerald-200/80 group-hover/addr:text-emerald-900">
-                  <FaMapMarkerAlt className="text-[12px]" />
+                  <MapPin size={13} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-slate-400">Адреса</p>
                   <p className="text-sm font-semibold tracking-[-0.01em] text-slate-800">вул. Перфецького, 8</p>
                   <p className="text-xs text-slate-500">Львів, Україна</p>
                 </div>
-                <FaAngleRight className="shrink-0 text-[11px] text-slate-300 transition-colors duration-150 group-hover/addr:text-emerald-400" />
+                <ChevronRight size={12} className="shrink-0 text-slate-300 transition-colors duration-150 group-hover/addr:text-emerald-400" />
               </SmartLink>
 
               {/* Hours */}
               <div className="flex items-start gap-3 rounded-xl px-1 py-2.5">
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100/80 text-amber-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-                  <FaClock className="text-[12px]" />
+                  <Clock size={13} />
                 </span>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">

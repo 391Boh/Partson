@@ -42,7 +42,14 @@ export default function DeferredFooter() {
   }, [FooterComponent]);
 
   return (
-    <div ref={anchorRef} className="min-h-px">
+    <div
+      ref={anchorRef}
+      // Reserves roughly the real footer's height so it doesn't pop in from
+      // ~0px and jolt the page/scroll position the moment the lazy chunk
+      // resolves — sized per breakpoint since the footer's columns stack on
+      // narrow screens (measured against the real footer at each width).
+      className={FooterComponent ? undefined : "h-[900px] sm:h-[700px] lg:h-[600px] xl:h-[560px]"}
+    >
       {FooterComponent ? <FooterComponent /> : null}
     </div>
   );

@@ -519,7 +519,7 @@ export const buildAutoModelKey = (brand: string, model: string) => `${brand}::${
 // covers the same verified set the sitemap advertises to Google — never more.
 // Returns null if the snapshot is missing (script never run) or empty.
 export const getVerifiedAutoModelKeys = async (): Promise<Set<string> | null> => {
-  const text = await readFile(AUTO_MODEL_SITEMAP_SNAPSHOT_PATH, "utf8").catch(() => "");
+  const text = await readFile(/* turbopackIgnore: true */ AUTO_MODEL_SITEMAP_SNAPSHOT_PATH, "utf8").catch(() => "");
   if (!text) return null;
 
   try {

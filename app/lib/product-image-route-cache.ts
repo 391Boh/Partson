@@ -33,7 +33,7 @@ const persistentRouteWrites = new Map<string, Promise<void>>();
 
 const ensurePersistentRouteCacheDir = () => {
   if (!persistentRouteCacheReady) {
-    persistentRouteCacheReady = mkdir(PERSISTENT_ROUTE_CACHE_DIR, {
+    persistentRouteCacheReady = mkdir(/* turbopackIgnore: true */ PERSISTENT_ROUTE_CACHE_DIR, {
       recursive: true,
     }).then(() => undefined);
   }
@@ -83,7 +83,7 @@ const removePersistentRouteCacheFiles = async (
   bufferPath: string,
   metaPath: string
 ) => {
-  await Promise.allSettled([unlink(bufferPath), unlink(metaPath)]);
+  await Promise.allSettled([unlink(/* turbopackIgnore: true */ bufferPath), unlink(/* turbopackIgnore: true */ metaPath)]);
 };
 
 type PersistentRouteCacheMeta = {
@@ -103,7 +103,7 @@ const schedulePersistentRouteCachePrune = () => {
 
   lastPersistentRouteCachePruneAt = now;
   persistentRouteCachePruneInFlight = (async () => {
-    const entries = await readdir(PERSISTENT_ROUTE_CACHE_DIR).catch(() => []);
+    const entries = await readdir(/* turbopackIgnore: true */ PERSISTENT_ROUTE_CACHE_DIR).catch(() => []);
     const metadataFiles = entries.filter((entry) => entry.endsWith(".json"));
     const validEntries: Array<{
       expiresAt: number;
@@ -120,7 +120,7 @@ const schedulePersistentRouteCachePrune = () => {
             PERSISTENT_ROUTE_CACHE_DIR,
             `${entry.slice(0, -".json".length)}.bin`
           );
-          const metaRaw = await readFile(metaPath, "utf8").catch(() => null);
+          const metaRaw = await readFile(/* turbopackIgnore: true */ metaPath, "utf8").catch(() => null);
           if (!metaRaw) return null;
 
           try {
@@ -180,8 +180,8 @@ const readPersistentRouteCacheMeta = async (cacheKey: string) => {
   await writeBeforeRead?.catch(() => undefined);
   const paths = getPersistentRouteCachePaths(cacheKey);
   const [metaRaw, bufferStat] = await Promise.all([
-    readFile(paths.metaPath, "utf8").catch(() => null),
-    stat(paths.bufferPath).catch(() => null),
+    readFile(/* turbopackIgnore: true */ paths.metaPath, "utf8").catch(() => null),
+    stat(/* turbopackIgnore: true */ paths.bufferPath).catch(() => null),
   ]);
 
   // A writer may have registered after the initial check but before both files
@@ -234,7 +234,7 @@ export const readPersistentRouteImage = async (
     const cachedMeta = await readPersistentRouteCacheMeta(cacheKey);
     if (!cachedMeta) return null;
 
-    const buffer = await readFile(cachedMeta.bufferPath).catch(() => null);
+    const buffer = await readFile(/* turbopackIgnore: true */ cachedMeta.bufferPath).catch(() => null);
     if (!buffer) return null;
     const bufferHash = createHash("sha1").update(buffer).digest("hex");
     if (
@@ -283,19 +283,19 @@ export const writePersistentRouteImage = (
       };
 
       await Promise.all([
-        writeFile(temporaryBufferPath, value.buffer),
-        writeFile(temporaryMetaPath, JSON.stringify(meta)),
+        writeFile(/* turbopackIgnore: true */ temporaryBufferPath, value.buffer),
+        writeFile(/* turbopackIgnore: true */ temporaryMetaPath, JSON.stringify(meta)),
       ]);
-      await rename(temporaryBufferPath, bufferPath);
+      await rename(/* turbopackIgnore: true */ temporaryBufferPath, bufferPath);
       temporaryBufferPath = "";
-      await rename(temporaryMetaPath, metaPath);
+      await rename(/* turbopackIgnore: true */ temporaryMetaPath, metaPath);
       temporaryMetaPath = "";
     } catch {
       // A disk cache failure must never block the image response.
     } finally {
       await Promise.allSettled([
-        temporaryBufferPath ? unlink(temporaryBufferPath) : Promise.resolve(),
-        temporaryMetaPath ? unlink(temporaryMetaPath) : Promise.resolve(),
+        temporaryBufferPath ? unlink(/* turbopackIgnore: true */ temporaryBufferPath) : Promise.resolve(),
+        temporaryMetaPath ? unlink(/* turbopackIgnore: true */ temporaryMetaPath) : Promise.resolve(),
       ]);
     }
   });

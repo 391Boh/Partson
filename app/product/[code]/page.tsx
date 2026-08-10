@@ -52,8 +52,6 @@ import {
 } from "app/lib/product-sitemap";
 import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
 import { producerDescriptions } from "app/lib/producer-descriptions";
-import { unstable_noStore as noStore } from "next/cache";
-import { clearAllOneCCache } from "app/api/_lib/oneC";
 import {
   getProductReviews,
   getProductReviewStats,
@@ -236,7 +234,6 @@ interface ProductPageParams {
 
 interface ProductPageProps {
   params: Promise<ProductPageParams>;
-  searchParams?: Promise<Record<string, string>>;
 }
 
 const pageBackground: CSSProperties = {
@@ -1751,12 +1748,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function ProductPage({ params, searchParams }: ProductPageProps) {
-  const sp = searchParams ? await searchParams : {} as Record<string, string>;
-  if (sp._refresh) {
-    noStore();
-    clearAllOneCCache();
-  }
+export default async function ProductPage({ params }: ProductPageProps) {
   const { code: rawCode } = await params;
   const routeSlugs = extractProductRouteSlugsFromParam(rawCode || "");
   const fallbackCodeFromRoute = extractProductCodeFromParam(rawCode || "");
