@@ -2,32 +2,16 @@ import { NextResponse } from "next/server";
 
 import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
 import type { CatalogProduct } from "app/lib/catalog-server";
-
-type CatalogPageApiPayload = {
-  items: CatalogProduct[];
-  prices: Record<string, number | null>;
-  images: Record<string, string>;
-  hasMore: boolean;
-  nextCursor: string;
-  cursorField?: string;
-  totalCount?: number | null;
-  serviceUnavailable?: boolean;
-  message?: string;
-  stale?: boolean;
-};
+import {
+  routeSuccessCache,
+  type CatalogPageApiPayload,
+} from "app/lib/catalog-page-route-cache";
 
 const ROUTE_SUCCESS_CACHE_TTL_MS = 1000 * 60 * 10;
 const ROUTE_SUCCESS_STALE_TTL_MS = 1000 * 60 * 240;
 const ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS = 1000 * 60 * 90;
 const CATALOG_ROUTE_RESPONSE_TIMEOUT_MS = 9000;
 
-type RouteSuccessCacheEntry = {
-  freshUntil: number;
-  staleUntil: number;
-  value: CatalogPageApiPayload;
-};
-
-const routeSuccessCache = new Map<string, RouteSuccessCacheEntry>();
 const routeInFlightRequests = new Map<string, Promise<CatalogPageApiPayload>>();
 
 const toTrimmedString = (value: unknown) =>

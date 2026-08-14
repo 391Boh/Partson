@@ -42,6 +42,21 @@ export const buildVisibleProductName = (value: string) => {
   return cleaned || source;
 };
 
+// Same parenthetical-stripping cleanup as buildVisibleProductName, but for
+// category/group/subgroup labels — these must stay genuinely empty when
+// there's no value so callers can fall back to a parent level (subgroup ->
+// group -> category). buildVisibleProductName's "Товар" placeholder is only
+// right for a missing product *name*; reusing it here made an absent
+// subgroup evaluate as truthy, so the page always showed "Підкатегорія:
+// Товар" instead of falling back to the group.
+export const buildVisibleCategoryLabel = (value: string) => {
+  const source = (value || "").trim();
+  if (!source) return "";
+
+  const cleaned = source.replace(/\s*\([^)]*\)/g, "").replace(/\s{2,}/g, " ").trim();
+  return cleaned || source;
+};
+
 export const extractProductCodeFromParam = (value: string) => {
   const decoded = safeDecodeURIComponent(value || "").trim();
   if (!decoded) return "";

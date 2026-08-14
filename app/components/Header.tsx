@@ -56,7 +56,7 @@ const SearchBar = dynamic<SearchBarComponentProps>(() => import('./Search'), {
 
 const Header: React.FC = () => {
   const { cartItems } = useCart();
-  const logoFallbackPath = '/favicon-192x192.png';
+  const logoFallbackPath = '/favicon-partson-v2-192.png';
   const [hasMounted, setHasMounted] = useState(false);
   const { user } = useFirebaseAuthState();
 
@@ -336,13 +336,13 @@ const Header: React.FC = () => {
     'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.20] bg-white/[0.11] text-[10px] font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-sm transition-all duration-200 whitespace-nowrap hover:border-sky-300/50 hover:bg-sky-400/[0.18] hover:text-sky-100 hover:shadow-[0_6px_18px_rgba(14,165,233,0.22),0_2px_8px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(125,211,252,0.22)] active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[13px] touch-manipulation';
 
   const rightActionBaseClass =
-    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.20] bg-white/[0.11] text-[10px] font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-sm transition-all duration-200 whitespace-nowrap hover:border-sky-300/50 hover:bg-sky-400/[0.18] hover:text-sky-100 hover:shadow-[0_6px_18px_rgba(14,165,233,0.22),0_2px_8px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(125,211,252,0.22)] active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-[13px] touch-manipulation';
+    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.20] bg-white/[0.11] text-[10px] font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-sm transition-[background-color,border-color,color,box-shadow,filter,transform] duration-[420ms] ease-[cubic-bezier(0.16,1,0.3,1)] whitespace-nowrap hover:border-sky-300/40 hover:bg-sky-400/[0.15] hover:text-sky-100 hover:shadow-[0_5px_15px_rgba(14,165,233,0.17),0_2px_7px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(125,211,252,0.20)] active:scale-[0.97] active:duration-150 active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-[13px] touch-manipulation';
 
   const rightActionActiveClass =
     '!border-sky-300/55 !bg-sky-500/[0.22] !text-sky-100 !shadow-[0_4px_14px_rgba(14,165,233,0.24),inset_0_1px_0_rgba(125,211,252,0.24)] !-translate-y-0';
 
   const contactActionClass =
-    'border-rose-200/50 bg-[image:linear-gradient(145deg,rgba(190,18,60,0.96),rgba(225,29,72,0.94)_54%,rgba(244,63,94,0.90))] text-white shadow-[0_4px_14px_rgba(190,18,60,0.28),0_2px_6px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] hover:border-rose-100/70 hover:bg-[image:linear-gradient(145deg,rgba(225,29,72,0.99),rgba(244,63,94,0.96)_52%,rgba(251,113,133,0.92))] hover:shadow-[0_8px_22px_rgba(225,29,72,0.36),0_2px_8px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.28)]';
+    'border-rose-200/50 bg-[image:linear-gradient(145deg,rgba(190,18,60,0.94),rgba(225,29,72,0.92)_54%,rgba(244,63,94,0.88))] text-white shadow-[0_4px_14px_rgba(190,18,60,0.26),0_2px_6px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] hover:border-rose-100/60 hover:brightness-[1.035] hover:shadow-[0_6px_18px_rgba(225,29,72,0.28),0_2px_7px_rgba(0,0,0,0.17),inset_0_1px_0_rgba(255,255,255,0.25)]';
 
   const contactActionActiveClass =
     '!border-rose-100/80 !bg-[image:linear-gradient(145deg,rgba(225,29,72,0.99),rgba(244,63,94,0.97)_50%,rgba(251,113,133,0.94))] !text-white !shadow-[0_10px_24px_rgba(225,29,72,0.30),inset_0_1px_0_rgba(255,255,255,0.28)] !translate-y-0';
@@ -414,7 +414,7 @@ const Header: React.FC = () => {
             draggable={false}
           >
             <Image
-              src="/Car-parts.png"
+              src="/partson-logo-v2.webp"
               alt="PartsOn Logo"
               width={98}
               height={49}

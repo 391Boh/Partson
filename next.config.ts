@@ -58,7 +58,6 @@ const nextConfig: NextConfig = {
     // path, not the App Router this whole app uses, so it would be a no-op.
     // The global stylesheet is instead built standalone and loaded via
     // preload+async-apply — see scripts/build-static-css.mjs and app/layout.tsx.
-    viewTransition: true,
     staleTimes: {
       dynamic: 1800,
       static: 7200,
@@ -107,7 +106,7 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 31536000,
-    qualities: [60, 70, 75, 85],
+    qualities: [60, 62, 70, 72, 75, 85, 90],
     deviceSizes: [360, 420, 512, 640, 768, 1024, 1280, 1536, 1920],
     imageSizes: [32, 48, 64, 96, 128, 192, 256, 320],
     localPatterns: [

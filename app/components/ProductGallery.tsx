@@ -1,11 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { ImagePlus, Loader2, Maximize2, X } from "lucide-react";
 
-import { db } from "../../firebase";
-import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
 import { prepareProductImage, PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
 
 interface GalleryImage {
@@ -13,8 +10,16 @@ interface GalleryImage {
   url: string;
 }
 
-export default function ProductGallery({ code }: { code: string }) {
-  const [images, setImages] = useState<GalleryImage[]>([]);
+export default function ProductGallery({
+  code,
+  initialImages = [],
+}: {
+  code: string;
+  initialImages?: string[];
+}) {
+  const [images, setImages] = useState<GalleryImage[]>(() =>
+    initialImages.map((url, index) => ({ id: `server-${index}`, url }))
+  );
   const [isAdmin, setIsAdmin] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,15 +64,52 @@ export default function ProductGallery({ code }: { code: string }) {
   }, []);
 
   useEffect(() => {
-    if (!code) return;
-    return onSnapshot(
-      query(collection(db, "productGallery", code, "images"), orderBy("uploadedAt", "asc")),
-      (snap) =>
-        setImages(snap.docs.map((d) => ({ id: d.id, url: d.data().url as string })))
+    if (!code || initialImages.length > 0) return;
+    const controller = new AbortController();
+    void fetch(`/api/product-gallery?code=${encodeURIComponent(code)}`, {
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.json() : { images: [] }))
+      .then((payload: { images?: GalleryImage[] }) => {
+        if (Array.isArray(payload.images) && payload.images.length > 0) {
+          setImages(payload.images.filter((image) => Boolean(image?.url)));
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [code, initialImages.length]);
+
+  useEffect(() => {
+    if (!code || !isAdmin) return;
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+
+    void Promise.all([import("firebase/firestore"), import("../../firebase")]).then(
+      ([firestore, firebaseModule]) => {
+        if (cancelled) return;
+        unsubscribe = firestore.onSnapshot(
+          firestore.query(
+            firestore.collection(firebaseModule.db, "productGallery", code, "images"),
+            firestore.orderBy("uploadedAt", "asc")
+          ),
+          (snap) =>
+            setImages(
+              snap.docs
+                .map((doc) => ({ id: doc.id, url: doc.data().url as string }))
+                .filter((image) => Boolean(image.url))
+            )
+        );
+      }
     );
-  }, [code]);
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [code, isAdmin]);
 
   const getToken = async (): Promise<string | null> => {
+    const { waitForFirebaseAuthReady } = await import("app/lib/firebase-auth-state");
     const snapshot = await waitForFirebaseAuthReady();
     const user = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
     if (!user) return null;
@@ -155,7 +197,11 @@ export default function ProductGallery({ code }: { code: string }) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={image.url}
-                alt="Додаткове фото товару"
+                alt={`Додаткове фото товару ${code}`}
+                width={64}
+                height={64}
+                loading="lazy"
+                decoding="async"
                 className="h-full w-full object-contain p-1"
               />
               <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/0 opacity-0 transition group-hover:bg-slate-950/15 group-hover:opacity-100">
@@ -231,7 +277,8 @@ export default function ProductGallery({ code }: { code: string }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={lightboxUrl}
-            alt="Фото товару"
+            alt={`Збільшене фото товару ${code}`}
+            decoding="async"
             className={`max-h-[85vh] max-w-[92vw] rounded-[16px] object-contain shadow-[0_30px_80px_rgba(0,0,0,0.5)] transition-transform duration-200 ${
               lightboxVisible ? "scale-100" : "scale-95"
             }`}

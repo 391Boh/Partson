@@ -11,6 +11,7 @@ import {
   type ProductSitemapEntry,
 } from "app/lib/product-sitemap";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
+import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 
 type GoogleMerchantFeedItem = {
   id: string;
@@ -18,6 +19,7 @@ type GoogleMerchantFeedItem = {
   description: string;
   link: string;
   imageLink: string;
+  additionalImageLinks: string[];
   availability: string;
   condition: string;
   price: string;
@@ -134,6 +136,26 @@ const buildProductDescription = (entry: ProductSitemapEntry) => {
   ]
     .filter(Boolean)
     .join(" ");
+};
+
+const getMerchantGalleryImages = async () => {
+  const imagesByCode = new Map<string, string[]>();
+  try {
+    const snapshot = await getFirebaseAdminDb().collectionGroup("images").get();
+    for (const document of snapshot.docs) {
+      if (document.ref.parent.parent?.parent?.id !== "productGallery") continue;
+      const code = document.ref.parent.parent?.id?.trim() || "";
+      const url = document.data().url;
+      if (!code || typeof url !== "string" || !url.trim()) continue;
+      const current = imagesByCode.get(code) ?? [];
+      if (current.length >= 10 || current.includes(url.trim())) continue;
+      current.push(url.trim());
+      imagesByCode.set(code, current);
+    }
+  } catch {
+    // The primary feed remains valid when Firestore is temporarily unavailable.
+  }
+  return imagesByCode;
 };
 
 const hasPositivePriceEuro = (entry: ProductSitemapEntry) =>
@@ -292,7 +314,8 @@ const enrichMerchantFeedPrices = async (
 const toGoogleMerchantFeedItem = (
   entry: ProductSitemapEntry,
   siteUrl: string,
-  euroRate: number
+  euroRate: number,
+  galleryImages: Map<string, string[]>
 ): GoogleMerchantFeedItem | null => {
   const code = (entry.code || "").trim();
   if (!code) return null;
@@ -302,7 +325,7 @@ const toGoogleMerchantFeedItem = (
 
   // Google Merchant Center policy requires the image to depict the actual
   // product. Photo-less items used to fall back to one shared generic photo
-  // (/Car-parts-fullwidth.webp) — hundreds of different SKUs pointing at the
+  // (/partson-logo-v2.webp) — hundreds of different SKUs pointing at the
   // exact same image, which reads as exactly the kind of generic/stock
   // image the policy prohibits and risks item- or account-level
   // disapprovals. Drop them from the ads feed instead; that same fallback
@@ -332,6 +355,12 @@ const toGoogleMerchantFeedItem = (
       category: entry.category,
     })}`,
     imageLink: `${siteUrl}${imagePath}`,
+    additionalImageLinks: (galleryImages.get(code) ?? [])
+      .map((url) =>
+        url.startsWith("/") ? `${siteUrl}${url}` : /^https:\/\//i.test(url) ? url : ""
+      )
+      .filter(Boolean)
+      .slice(0, 10),
     availability: entry.quantity > 0 ? "in stock" : "out of stock",
     condition: "new",
     price: `${priceUah.toFixed(2)} UAH`,
@@ -354,6 +383,9 @@ const buildGoogleMerchantFeedXml = (
         `      <description>${escapeXml(item.description)}</description>`,
         `      <link>${escapeXml(item.link)}</link>`,
         `      <g:image_link>${escapeXml(item.imageLink)}</g:image_link>`,
+        ...item.additionalImageLinks.map(
+          (url) => `      <g:additional_image_link>${escapeXml(url)}</g:additional_image_link>`
+        ),
         `      <g:availability>${escapeXml(item.availability)}</g:availability>`,
         `      <g:condition>${escapeXml(item.condition)}</g:condition>`,
         `      <g:price>${escapeXml(item.price)}</g:price>`,
@@ -387,9 +419,10 @@ export const getGoogleMerchantFeedSnapshot = async (options?: {
   const siteUrl = normalizeSiteUrl(options?.siteUrl || process.env.NEXT_PUBLIC_SITE_URL);
   const requestedMaxItems =
     options?.maxItems === undefined ? MERCHANT_FEED_MAX_ITEMS : options.maxItems;
-  const [euroRate, entries] = await Promise.all([
+  const [euroRate, entries, galleryImages] = await Promise.all([
     fetchEuroRate(),
     getAllProductSitemapEntries(),
+    getMerchantGalleryImages(),
   ]);
 
   const maxItems =
@@ -416,7 +449,7 @@ export const getGoogleMerchantFeedSnapshot = async (options?: {
 
     const pricedEntries = await enrichMerchantFeedPrices(sourceChunk);
     for (const entry of pricedEntries) {
-      const item = toGoogleMerchantFeedItem(entry, siteUrl, euroRate);
+      const item = toGoogleMerchantFeedItem(entry, siteUrl, euroRate, galleryImages);
       if (!item) {
         continue;
       }

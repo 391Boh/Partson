@@ -1,4 +1,4 @@
-export const PRODUCT_IMAGE_FALLBACK_PATH = "/Car-parts-fullwidth.webp";
+export const PRODUCT_IMAGE_FALLBACK_PATH = "/partson-logo-v2.webp";
 
 // Shared by the client batch fetcher (product-image-batch-client.ts), the
 // batch API route (api/catalog-image-batch/route.ts), and the server-side

@@ -1,24 +1,10 @@
-import HomeBelowFoldClient from "./HomeBelowFoldClient";
+import type { ReactNode } from "react";
 import Hero from "./hero";
 
-type InitialSyncedBrand = {
-  name: string;
-  logo: string | null;
-  description: string;
-  productCount?: number;
-  groupsCount?: number;
-};
-
 export default function HomePageContent({
-  initialSyncedBrands,
-  initialProductTree,
-  googleRatingValue,
-  googleReviewCount,
+  children,
 }: {
-  initialSyncedBrands?: InitialSyncedBrand[];
-  initialProductTree?: unknown;
-  googleRatingValue?: number;
-  googleReviewCount?: number;
+  children: ReactNode;
 }) {
   return (
     <div className="home-static relative min-h-screen overflow-hidden text-white">
@@ -26,12 +12,7 @@ export default function HomePageContent({
         <Hero />
       </div>
 
-      <HomeBelowFoldClient
-        initialSyncedBrands={initialSyncedBrands}
-        initialProductTree={initialProductTree}
-        googleRatingValue={googleRatingValue}
-        googleReviewCount={googleReviewCount}
-      />
+      {children}
     </div>
   );
 }

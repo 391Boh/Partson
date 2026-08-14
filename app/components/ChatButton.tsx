@@ -17,84 +17,50 @@ export default function ChatButton({
       suppressHydrationWarning
       type="button"
       className={`
-        group relative isolate z-20 mr-2 flex h-[62px] w-[62px]
-        items-center justify-center overflow-visible rounded-[22px]
+        group relative isolate z-20 flex h-14 w-14
+        items-center justify-center overflow-visible rounded-[18px]
         border transition-[box-shadow,border-color,filter,transform]
-        duration-300 ease-out hover:-translate-y-1 hover:scale-[1.018]
-        active:scale-[0.97] md:mr-2.5 md:h-[70px] md:w-[70px]
+        duration-300 ease-out hover:scale-[1.018]
+        active:scale-[0.95] sm:h-[60px] sm:w-[60px] sm:rounded-[20px]
         focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45
         ${
           hasUnread
-            ? "border-rose-200/35 shadow-[0_22px_48px_rgba(190,24,93,0.3)] hover:border-rose-100/60 hover:shadow-[0_28px_56px_rgba(244,63,94,0.36)]"
-            : "border-white/18 shadow-[0_22px_48px_rgba(8,47,73,0.28)] hover:border-sky-100/50 hover:shadow-[0_28px_58px_rgba(14,116,144,0.32)]"
+            ? "border-rose-200/40 shadow-[0_14px_30px_rgba(190,24,93,0.30)] hover:border-rose-100/70 hover:shadow-[0_20px_38px_rgba(244,63,94,0.38)]"
+            : "border-sky-200/30 shadow-[0_14px_30px_rgba(8,47,73,0.28)] hover:border-sky-100/60 hover:shadow-[0_20px_38px_rgba(14,116,144,0.38)]"
         }
       `}
     >
       <span
         aria-hidden="true"
-        style={{ backgroundSize: "180% 180%" }}
-        className={`pointer-events-none absolute inset-0 rounded-[22px] bg-[position:0%_50%] transition-[background-position] duration-700 ease-out group-hover:bg-[position:100%_50%] ${
+        className={`pointer-events-none absolute inset-0 rounded-[18px] transition-[filter] duration-200 group-hover:brightness-110 sm:rounded-[20px] ${
           hasUnread
             ? "bg-[image:linear-gradient(145deg,rgba(159,18,57,0.98)_0%,rgba(244,63,94,0.95)_48%,rgba(251,146,60,0.92)_100%)]"
             : "bg-[image:linear-gradient(145deg,rgba(15,23,42,0.98)_0%,rgba(30,64,175,0.94)_46%,rgba(14,165,233,0.88)_100%)]"
         }`}
       />
       <span
-        className={`pointer-events-none absolute inset-0 rounded-[22px] border border-white/10 ${
+        className={`pointer-events-none absolute inset-0 rounded-[18px] border border-white/10 sm:rounded-[20px] ${
           hasUnread
             ? "bg-[image:radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.2),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.1),transparent_82%)]"
             : "bg-[image:radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_82%)]"
         }`}
       />
-      <span
-        className={`pointer-events-none absolute inset-[1px] rounded-[21px] ${
-          hasUnread
-            ? "bg-[image:linear-gradient(165deg,rgba(255,255,255,0.16),rgba(255,255,255,0.04)_38%,rgba(255,255,255,0.07)_100%)]"
-            : "bg-[image:linear-gradient(165deg,rgba(255,255,255,0.14),rgba(255,255,255,0.04)_38%,rgba(255,255,255,0.06)_100%)]"
-        }`}
-      />
-      <span
-        aria-hidden="true"
-        className={`pointer-events-none absolute -inset-4 scale-[0.94] rounded-[30px] opacity-25 blur-2xl transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.04] group-hover:opacity-55 ${
-          hasUnread ? "bg-rose-400/32" : "bg-sky-400/24"
-        }`}
-      />
       {hasUnread && (
         <span
           aria-hidden="true"
-          className="chat-unread-ping pointer-events-none absolute inset-0 animate-ping rounded-[22px] bg-rose-400/35 [animation-duration:1.8s]"
+          className="chat-unread-ping pointer-events-none absolute inset-0 animate-ping rounded-[18px] bg-rose-400/30 [animation-duration:1.8s] sm:rounded-[20px]"
         />
       )}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -translate-x-[130%] skew-x-[-18deg] bg-[image:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent)] opacity-0 mix-blend-screen transition-[opacity,transform] duration-700 ease-out group-hover:translate-x-[250%] group-hover:opacity-95"
-      />
-      <span className="pointer-events-none absolute inset-x-4 top-2.5 h-6 rounded-full bg-[image:linear-gradient(180deg,rgba(255,255,255,0.22),transparent)] blur-md" />
+      <span className="pointer-events-none absolute inset-x-2 top-1 h-5 rounded-full bg-gradient-to-b from-white/22 to-transparent" />
 
       <span className="relative z-10 flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.06]">
         <MessageCircle
           className="text-white drop-shadow-[0_8px_18px_rgba(15,23,42,0.32)]"
-          size={30}
+          size={26}
           strokeWidth={2.2}
           aria-hidden="true"
         />
       </span>
-
-      <span
-        className="
-          pointer-events-none absolute left-1/2 -top-[3.6rem]
-          -translate-x-1/2 translate-y-1.5 whitespace-nowrap
-          rounded-[15px] border border-white/65 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_58%,rgba(224,242,254,0.94)_100%)]
-          px-3.5 py-2 text-[11px] font-semibold tracking-[0.05em] text-slate-800
-          opacity-0 shadow-[0_18px_36px_rgba(15,23,42,0.16)] backdrop-blur-xl
-          transition-all duration-250 ease-out
-          group-hover:translate-y-0 group-hover:opacity-100
-          group-focus-visible:translate-y-0 group-focus-visible:opacity-100
-        "
-      >
-        Підтримка
-      </span>
-      <span className="pointer-events-none absolute left-1/2 -top-[9px] h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-r border-b border-white/60 bg-sky-50/95 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
 
       {hasUnread ? (
         <span

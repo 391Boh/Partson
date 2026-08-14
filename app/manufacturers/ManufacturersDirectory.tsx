@@ -25,6 +25,7 @@ import {
   directoryTitleClass,
 } from "app/components/catalog-directory-styles";
 import SmartLink from "app/components/SmartLink";
+import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 
 type ManufacturerItem = {
@@ -56,9 +57,6 @@ type ManufacturerCardProps = {
   priorityLogo?: boolean;
 };
 
-const INITIAL_VISIBLE_MANUFACTURERS = 32;
-const MANUFACTURERS_PAGE_SIZE = 32;
-
 const collapseWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
 
 const normalize = (value: string) => collapseWhitespace(value).toLowerCase();
@@ -70,46 +68,6 @@ const pluralize = (value: number, one: string, few: string, many: string) => {
   if (mod10 === 1) return one;
   if (mod10 >= 2 && mod10 <= 4) return few;
   return many;
-};
-
-const escapeRegExp = (value: string) =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const stripLeadingManufacturerName = (label: string, description: string) => {
-  const normalizedLabel = collapseWhitespace(label);
-  const normalizedDescription = collapseWhitespace(description);
-
-  if (!normalizedLabel || !normalizedDescription) {
-    return normalizedDescription;
-  }
-
-  return normalizedDescription
-    .replace(
-      new RegExp(`^${escapeRegExp(normalizedLabel)}\\s*[-–—:,.|/]*\\s*`, "i"),
-      ""
-    )
-    .trim();
-};
-
-const capitalizeSentence = (value: string) =>
-  value ? `${value.charAt(0).toLocaleUpperCase("uk-UA")}${value.slice(1)}` : value;
-
-const buildManufacturerCardDescription = (item: ManufacturerItem) => {
-  const productSummary =
-    item.productCount > 0
-      ? `${item.productCount.toLocaleString("uk-UA")} товарних позицій`
-      : "товари бренду";
-  const groupSummary =
-    item.groupsCount > 0
-      ? `${item.groupsCount.toLocaleString("uk-UA")} груп`
-      : "групи каталогу";
-  const baseDescription = stripLeadingManufacturerName(item.label, item.description ?? "");
-
-  if (baseDescription) {
-    return capitalizeSentence(baseDescription);
-  }
-
-  return `Асортимент бренду в PartsON: ${productSummary} та ${groupSummary}. Відкрийте сторінку, щоб переглянути доступні позиції й перейти до каталогу.`;
 };
 
 const formatDirectoryCount = (value: number, fallback: string) =>
@@ -128,7 +86,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
     <SmartLink
       href={manufacturerHref}
       prefetchOnViewport={prefetchOnViewport}
-      className={`${directoryCardClass} h-[350px] animate-fadeIn`}
+      className={`${directoryCardClass} h-[166px] animate-fadeIn`}
       itemScope
       itemType="https://schema.org/Brand"
       itemProp="item"
@@ -158,7 +116,9 @@ const ManufacturerCard = memo(function ManufacturerCard({
                   className="h-9 w-11 object-contain"
                 />
               ) : (
-                <span className="directory-card-title text-sm text-slate-700">{item.initials}</span>
+                <span className="directory-card-title line-clamp-2 px-1 text-center text-[9px] font-black uppercase leading-tight tracking-[-0.02em] text-slate-700">
+                  {item.label}
+                </span>
               )}
             </span>
 
@@ -193,13 +153,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
           </span>
         </div>
 
-        <div className="mt-3 flex h-[8.25rem] items-start rounded-xl border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(250,252,254,0.98)_0%,rgba(245,250,252,0.95)_56%,rgba(241,248,246,0.91)_100%)] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.98)]">
-          <p itemProp="description" className="line-clamp-6 text-[12.5px] font-medium leading-[1.48] text-slate-600">
-            {buildManufacturerCardDescription(item)}
-          </p>
-        </div>
-
-        <div className="mt-auto grid grid-cols-3 gap-1.5 border-t border-slate-100 pt-3">
+        <div className="mt-auto grid grid-cols-3 gap-1.5 border-t border-slate-100 pt-2.5">
           <span className="rounded-[12px] border border-sky-200/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(231,245,252,0.78))] px-2 py-1.5 text-center shadow-[inset_0_1px_0_white]">
             <PackageSearch className="mx-auto h-3.5 w-3.5 text-sky-700 drop-shadow-[0_2px_4px_rgba(14,165,233,0.18)]" aria-hidden="true" />
             <span className="directory-counter mt-1 block text-[11px] leading-none text-slate-900">
@@ -243,9 +197,6 @@ export default function ManufacturersDirectory({
     items,
     hasIndexedCounts,
   });
-  const [visibleCount, setVisibleCount] = useState(
-    INITIAL_VISIBLE_MANUFACTURERS
-  );
   const [isLoadingFullDirectory, setIsLoadingFullDirectory] = useState(false);
   const fullDirectoryPromiseRef = useRef<Promise<ManufacturerCountsApiPayload | null> | null>(
     null
@@ -286,11 +237,15 @@ export default function ManufacturersDirectory({
     }
   }, [directoryData.items.length, totalItems]);
 
+  // The server only ships the first 32 manufacturers for a fast first paint
+  // (see manufacturers/page.tsx). Always fetch the rest right away — the
+  // directory shows every manufacturer at once now, paged only by the rail's
+  // own arrows/scroll, with no separate "load more" step for the user.
   useEffect(() => {
-    if (directoryData.hasIndexedCounts || autoLoadAttemptedRef.current) return;
+    if (autoLoadAttemptedRef.current) return;
     autoLoadAttemptedRef.current = true;
     void loadFullDirectory();
-  }, [directoryData.hasIndexedCounts, loadFullDirectory]);
+  }, [loadFullDirectory]);
 
   const filteredItems = useMemo(
     () =>
@@ -302,15 +257,7 @@ export default function ManufacturersDirectory({
         : directoryItems,
     [directoryItems, normalizedQuery]
   );
-  const visibleItems = filteredItems.slice(0, visibleCount);
   const advertisedTotalItems = Math.max(totalItems, directoryItems.length);
-  const hasMoreItems =
-    visibleItems.length < filteredItems.length ||
-    (!normalizedQuery && directoryItems.length < advertisedTotalItems);
-
-  useEffect(() => {
-    setVisibleCount(INITIAL_VISIBLE_MANUFACTURERS);
-  }, [normalizedQuery]);
 
   return (
     <section
@@ -334,10 +281,10 @@ export default function ManufacturersDirectory({
                     Каталог брендів
                   </div>
                   <h2 className={directoryTitleClass}>
-                    Бренди автозапчастин у каталозі PartsON
+                    Виробники автозапчастин у каталозі PartsON
                   </h2>
                   <p className={directoryDescriptionClass}>
-                    Введіть <strong className="font-bold text-slate-800">назву бренду</strong>, відкрийте його сторінку та перегляньте <strong className="font-bold text-slate-800">товари, групи й категорії</strong> без повторного налаштування фільтрів.
+                    Введіть <strong className="font-bold text-slate-800">назву бренду</strong> або оберіть виробника зі списку — перейдіть на його сторінку й перегляньте <strong className="font-bold text-slate-800">товари, групи й категорії</strong> без повторного налаштування фільтрів каталогу.
                   </p>
                 </div>
               </div>
@@ -350,7 +297,6 @@ export default function ManufacturersDirectory({
                     value={query}
                     onFocus={() => void loadFullDirectory()}
                     onChange={(event) => {
-                      setVisibleCount(INITIAL_VISIBLE_MANUFACTURERS);
                       setQuery(event.target.value);
                       void loadFullDirectory();
                     }}
@@ -387,6 +333,12 @@ export default function ManufacturersDirectory({
                       Лічильники товарів оновлюються
                     </span>
                   )}
+                  {isLoadingFullDirectory ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-sky-200/70 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-800 shadow-[0_8px_18px_rgba(14,165,233,0.06)]">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-500" />
+                      Довантажуємо виробників…
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -394,39 +346,27 @@ export default function ManufacturersDirectory({
 
           <div className="px-4 py-4 sm:px-5 sm:py-5">
             {filteredItems.length > 0 ? (
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-3" itemScope itemType="https://schema.org/ItemList">
+              <div itemScope itemType="https://schema.org/ItemList">
                 <meta itemProp="numberOfItems" content={String(filteredItems.length)} />
-                {visibleItems.map((item, index) => (
-                  <div key={item.slug} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                    <meta itemProp="position" content={String(index + 1)} />
-                    <ManufacturerCard
-                      item={item}
-                      showCounts={directoryData.hasIndexedCounts}
-                      priorityLogo={index < 3}
-                    />
-                  </div>
-                ))}
+                <HorizontalDirectoryRail ariaLabel="Виробники автозапчастин" rows={2}>
+                  {filteredItems.map((item, index) => (
+                    <div key={item.slug} className="w-[84vw] max-w-[350px] shrink-0 snap-start" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                      <meta itemProp="position" content={String(index + 1)} />
+                      <ManufacturerCard
+                        item={item}
+                        showCounts={directoryData.hasIndexedCounts}
+                        priorityLogo={index < 3}
+                        prefetchOnViewport={index < 8}
+                      />
+                    </div>
+                  ))}
+                </HorizontalDirectoryRail>
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">
                 За цим запитом виробників не знайдено.
               </div>
             )}
-            {hasMoreItems ? (
-              <div className="mt-4 flex justify-center border-t border-slate-100 pt-4">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await loadFullDirectory();
-                    setVisibleCount((current) => current + MANUFACTURERS_PAGE_SIZE);
-                  }}
-                  disabled={isLoadingFullDirectory}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-5 text-sm font-bold text-sky-800 shadow-[0_8px_18px_rgba(14,165,233,0.08)] transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-wait disabled:opacity-70"
-                >
-                  {isLoadingFullDirectory ? "Завантажую виробників…" : "Показати ще виробників"}
-                </button>
-              </div>
-            ) : null}
           </div>
         </div>
       </div>

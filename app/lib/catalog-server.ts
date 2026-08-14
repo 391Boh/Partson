@@ -1292,10 +1292,14 @@ const fetchCatalogProductsByQueryInner = async (options: {
   const forceAllgoodsSource = options.forceAllgoodsSource === true;
   const expandHierarchy = options.expandHierarchy === true;
   const compactSearchQuery = searchQuery.replace(/\s+/g, "");
+  // Real article/code values never contain spaces, so a stray one (e.g.
+  // "AD 330248" typed or pasted with a space) must not disqualify this from
+  // being recognized as an identifier search — only the digit/separator shape
+  // of the compact form matters. A genuine multi-word name query like "трос
+  // гальма" still correctly falls through: its compact form has no digits or
+  // separators, so the regex below stays false regardless of the space.
   const looksLikeIdentifierSearch =
-    Boolean(searchQuery) &&
-    !searchQuery.includes(" ") &&
-    /\d|[-_/\\.]/.test(compactSearchQuery);
+    Boolean(compactSearchQuery) && /\d|[-_/\\.]/.test(compactSearchQuery);
   const hasPriceRangeFilter =
     (typeof options.priceFrom === "number" && Number.isFinite(options.priceFrom) && options.priceFrom > 0) ||
     (typeof options.priceTo === "number" && Number.isFinite(options.priceTo) && options.priceTo > 0);
@@ -1415,12 +1419,19 @@ const fetchCatalogProductsByQueryInner = async (options: {
 
   let primaryKeys: string[] | null = null;
   let fallbackKeys: string[] | null = null;
+  // Article/code fields never contain spaces in 1C, so those lookups must use
+  // the compact (space-stripped) query — sending "AD 330248" against a code
+  // field that holds "AD330248" simply never matches. Name-field lookups keep
+  // the spaced query since multi-word product names are legitimate there.
+  let primaryQuery = searchQuery;
+  let fallbackQuery = searchQuery;
 
   if (searchQuery) {
     if (searchFilter === "name" || searchFilter === "article") {
       primaryKeys = [...NAME_FIELDS];
     } else if (searchFilter === "code") {
       primaryKeys = [...CODE_FIELDS];
+      primaryQuery = compactSearchQuery;
     } else if (searchFilter === "producer") {
       primaryKeys = [...PRODUCER_FIELDS];
     } else if (searchFilter === "description") {
@@ -1432,6 +1443,17 @@ const fetchCatalogProductsByQueryInner = async (options: {
       fallbackKeys = looksLikeIdentifierSearch
         ? [...NAME_FIELDS]
         : [...ARTICLE_FIELDS, ...CODE_FIELDS];
+      primaryQuery = looksLikeIdentifierSearch ? compactSearchQuery : searchQuery;
+      // The name-field fallback isn't a genuine "search by product name"
+      // attempt — names commonly embed cross-reference codes verbatim in
+      // parentheses (e.g. "...(LIN321011/AD330143)"), so this is really
+      // still an identifier lookup, just against a field that happens to
+      // hold it as a substring. Those embedded codes never contain spaces
+      // either, so this must stay compact in both directions: whether
+      // fallback is the name field (identifier search primary) or the
+      // article/code fields (name search primary), a spaced query would
+      // fail to match the space-free text 1C actually stores.
+      fallbackQuery = compactSearchQuery;
     }
   }
 
@@ -1718,7 +1740,19 @@ const fetchCatalogProductsByQueryInner = async (options: {
       }
 
       for (const searchKey of effectiveAllgoodsSearchKeys) {
-        const pageResult = await runAllgoods(searchKey);
+        // Same reasoning as the legacy getdata path above: article/code
+        // fields never contain spaces in 1C, and even the name field commonly
+        // embeds a cross-reference code as a space-free substring — so a
+        // spaced query (e.g. "AD 330143" typed with a stray space) can fail
+        // every field in this loop and return no results, even though the
+        // product genuinely exists and the compact form would have matched.
+        const keyQuery =
+          searchKey === ALLGOODS_ARTICLE_FIELD || searchKey === ALLGOODS_CODE_FIELD
+            ? compactSearchQuery
+            : looksLikeIdentifierSearch
+              ? compactSearchQuery
+              : searchQuery;
+        const pageResult = await runAllgoods(searchKey, keyQuery);
         if (pageResult.items.length > 0 || cursor) {
           return {
             ...pageResult,
@@ -1870,8 +1904,8 @@ const fetchCatalogProductsByQueryInner = async (options: {
 
   // Run primary and fallback in parallel to eliminate sequential latency
   const [primaryResult, fallbackResult] = await Promise.allSettled([
-    runRequest(primaryKeys),
-    fallbackKeys ? runRequest(fallbackKeys) : Promise.resolve(null),
+    runRequest(primaryKeys, primaryQuery),
+    fallbackKeys ? runRequest(fallbackKeys, fallbackQuery) : Promise.resolve(null),
   ]);
 
   const primary =
@@ -3041,16 +3075,22 @@ export const fetchCatalogProductsByHeaderSearchQuery = async (
     [LIMIT_FIELD]: limit,
   };
 
-  const makeBody = (keys: string[]) => {
+  // Article/code values never contain spaces in 1C — searching those fields
+  // with a stray space (e.g. "AD 330248") never matches, so lookup-field
+  // queries always use the compact form. Name fields keep the spaced query
+  // since multi-word product names are legitimate there.
+  const compactQuery = normalizedQuery.replace(/\s+/g, "");
+
+  const makeBody = (keys: string[], value: string) => {
     const body: Record<string, unknown> = { ...baseBody };
-    for (const key of keys) body[key] = normalizedQuery;
+    for (const key of keys) body[key] = value;
     return body;
   };
 
-  const run = async (keys: string[]) => {
+  const run = async (keys: string[], value: string) => {
     const response = await oneCRequest("getdata", {
       method: "POST",
-      body: makeBody(keys),
+      body: makeBody(keys, value),
       timeoutMs: options?.timeoutMs,
       retries: options?.retries ?? 1,
       retryDelayMs: options?.retryDelayMs ?? 200,
@@ -3063,16 +3103,16 @@ export const fetchCatalogProductsByHeaderSearchQuery = async (
   const lookupFields = [...ARTICLE_FIELDS, ...CODE_FIELDS];
 
   if (options?.preferLookupFields) {
-    const primary = await run(lookupFields);
+    const primary = await run(lookupFields, compactQuery);
     if (primary.length > 0) return primary.slice(0, limit);
 
-    const fallback = await run([...NAME_FIELDS]);
+    const fallback = await run([...NAME_FIELDS], normalizedQuery);
     return fallback.slice(0, limit);
   }
 
-  const primary = await run([...NAME_FIELDS]);
+  const primary = await run([...NAME_FIELDS], normalizedQuery);
   if (primary.length > 0) return primary.slice(0, limit);
 
-  const fallback = await run(lookupFields);
+  const fallback = await run(lookupFields, compactQuery);
   return fallback.slice(0, limit);
 };

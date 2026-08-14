@@ -17,6 +17,55 @@ const normalizeBrandKey = (value: string) =>
 const stripCompanySuffix = (value: string) =>
   value.replace(COMPANY_SUFFIX_PATTERN, " ").replace(/\s+/g, " ").trim();
 
+const PRODUCER_LOGO_ALIASES = new Map<string, string>([
+  ["abakus", "/Brands/ABAKUS.jpg"],
+  ["alco", "/Brands/ALCO.png"],
+  ["alpha", "/Brands/ALPHA.svg"],
+  ["aslyx", "/Brands/ASLYX.png"],
+  ["bogap", "/Brands/BOGAP.webp"],
+  ["bosal", "/Brands/BOSAL.svg"],
+  ["blic", "/Brands/BLIC.png"],
+  ["cifam", "/Brands/CIFAM.png"],
+  ["engitech", "/Brands/ENGITECH.svg"],
+  ["fast", "/Brands/FAST.png"],
+  ["fortune", "/Brands/FORTUNE-LINE.svg"],
+  ["fortuneline", "/Brands/FORTUNE-LINE.svg"],
+  ["fisher", "/Brands/FISCHER.png"],
+  ["fischer", "/Brands/FISCHER.png"],
+  ["gazo", "/Brands/GAZO.svg"],
+  ["gmb", "/Brands/GMB.png"],
+  ["guarnitauto", "/Brands/GUARNITAUTO.svg"],
+  ["japko", "/Brands/JAPKO.png"],
+  ["jpn", "/Brands/JPN.png"],
+  ["kk", "/Brands/K-and-K.svg"],
+  ["korea", "/Brands/KOREA.svg"],
+  ["krosno", "/Brands/KROSNO.svg"],
+  ["fakrosno", "/Brands/KROSNO.svg"],
+  ["lcc", "/Brands/LCC.svg"],
+  ["lesjofors", "/Brands/LESJOFORS.jpg"],
+  ["mars", "/Brands/MARS.svg"],
+  ["mercedes", "/Carlogo/Mercedes.svg"],
+  ["mercedesbenz", "/Carlogo/Mercedes.svg"],
+  ["metelli", "/Brands/METELLI.png"],
+  ["nfceurope", "/Brands/NFCEUROPE.png"],
+  ["originalbirth", "/Brands/ORIGINALBIRTH.jpg"],
+  ["payen", "/Brands/PAYEN-AUTO.svg"],
+  ["raiso", "/Brands/RAISO.jpg"],
+  ["remsa", "/Brands/REMSA.png"],
+  ["rider", "/Brands/RIDER.webp"],
+  ["sofima", "/Brands/SOFIMA.jpg"],
+  ["tenacity", "/Brands/TENACITY.jpg"],
+  ["termotec", "/Brands/TERMOTEC.png"],
+  ["thermotec", "/Brands/TERMOTEC.png"],
+  ["vag", "/Brands/VOLKSWAGEN.svg"],
+  ["vika", "/Brands/VIKA.png"],
+]);
+
+// These legacy files were visually audited and belong to unrelated brands.
+// Returning no image is safer than showing a false trademark; the directory
+// card renders the full producer wordmark until a verified asset is supplied.
+const REJECTED_PRODUCER_LOGOS = new Set<string>();
+
 const loadBrandLogoMap = cache(async () => {
   const map = new Map<string, string>();
 
@@ -56,6 +105,9 @@ export const resolveProducerLogo = (label: string, logoMap: Map<string, string>)
   if (!label) return null;
 
   const directKey = normalizeBrandKey(label);
+  if (REJECTED_PRODUCER_LOGOS.has(directKey)) return null;
+  const aliasedLogo = PRODUCER_LOGO_ALIASES.get(directKey);
+  if (aliasedLogo) return aliasedLogo;
   if (directKey && logoMap.has(directKey)) return logoMap.get(directKey) || null;
 
   const trimmedCompanyKey = normalizeBrandKey(stripCompanySuffix(label));
@@ -63,11 +115,25 @@ export const resolveProducerLogo = (label: string, logoMap: Map<string, string>)
     return logoMap.get(trimmedCompanyKey) || null;
   }
 
+  // Prefix/suffix matching only (e.g. "mahle" ~ "mahleknecht", "knecht" ~
+  // "mahleknecht") — NOT arbitrary substring-anywhere matching. A plain
+  // `.includes()` check previously matched producer "original" (a genuine
+  // literal/generic-parts label, not a brand) to INA.png, because normalized
+  // "original" happens to contain the letters "ina" mid-string. Requiring a
+  // shared prefix/suffix of meaningful length avoids that class of false
+  // positive while still resolving real brand/sub-brand relationships.
+  const MIN_FUZZY_MATCH_LENGTH = 4;
   for (const [logoKey, logoPath] of logoMap.entries()) {
-    if (!directKey) continue;
-    if (directKey.includes(logoKey) || logoKey.includes(directKey)) {
-      return logoPath;
-    }
+    if (!directKey || logoKey.length < MIN_FUZZY_MATCH_LENGTH) continue;
+    if (directKey.length < MIN_FUZZY_MATCH_LENGTH) continue;
+
+    const isPrefixOrSuffixMatch =
+      directKey.startsWith(logoKey) ||
+      directKey.endsWith(logoKey) ||
+      logoKey.startsWith(directKey) ||
+      logoKey.endsWith(directKey);
+
+    if (isPrefixOrSuffixMatch) return logoPath;
   }
 
   return null;

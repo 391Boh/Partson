@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   CheckCircle,
   CreditCard,
+  ExternalLink,
   PackageCheck,
   Percent,
   Phone,
@@ -14,6 +15,12 @@ import {
 } from "lucide-react";
 import { getFirestore, doc, updateDoc, Timestamp } from "firebase/firestore";
 import GoogleCustomerReviewsOptIn from "./GoogleCustomerReviewsOptIn";
+import OrderProductReviews, { type OrderReviewItem } from "./OrderProductReviews";
+
+// Same PartsON Google Business Profile link used across the site (Contact.tsx,
+// AdvantagesSection.tsx, DeliveryMethod.tsx) — opens straight to the place
+// page, where "Write a review" is the primary action Google surfaces.
+const GOOGLE_REVIEW_URL = "https://www.google.com/maps?cid=11517394092669341405";
 
 interface OrderConfirmationProps {
   name: string;
@@ -28,10 +35,22 @@ interface OrderConfirmationProps {
   isFirstOrderDiscountApplied?: boolean;
   paymentMethod: string;
   paymentStatus: string;
+  items?: OrderReviewItem[];
   onClose: () => void;
 }
 
 const STAR_LABELS = ["", "Погано", "Нижче середнього", "Нормально", "Добре", "Відмінно"];
+
+// Official Google "G" mark — standard multi-color logo, as provided in
+// Google's own branding assets for "Sign in with Google" / review buttons.
+const GoogleGIcon = ({ size = 20 }: { size?: number }) => (
+  <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden="true">
+    <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.6 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.9 5.1 29.7 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.3-.1-2.7-.4-3.5z" />
+    <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.8 16 19 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.9 5.1 29.7 3 24 3 16.3 3 9.7 7.3 6.3 14.7z" />
+    <path fill="#4CAF50" d="M24 45c5.2 0 9.9-1.7 13.6-4.7l-6.3-5.3C29.2 36.7 26.7 37.5 24 37.5c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 40.4 16.3 45 24 45z" />
+    <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.3 5.3C40.9 36 44 30.6 44 24c0-1.3-.1-2.7-.4-3.5z" />
+  </svg>
+);
 
 const saveRating = async (orderId: string, rating: number, comment: string) => {
   try {
@@ -60,6 +79,7 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
   isFirstOrderDiscountApplied = false,
   paymentMethod,
   paymentStatus,
+  items = [],
   onClose,
 }) => {
   const [hovered, setHovered] = useState(0);
@@ -273,6 +293,32 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
           </>
         )}
       </div>
+
+      <a
+        href={GOOGLE_REVIEW_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group flex items-center gap-3 rounded-[16px] border border-slate-200 bg-white px-4 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.05)] transition-[border-color,box-shadow] duration-200 hover:border-blue-200 hover:shadow-[0_14px_28px_rgba(37,99,235,0.1)]"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-slate-200 bg-white shadow-[0_4px_10px_rgba(15,23,42,0.06)]">
+          <GoogleGIcon size={20} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-slate-900">
+            Залишити відгук у Google
+          </span>
+          <span className="block text-xs font-medium text-slate-500">
+            Оцініть нас на карті — це займе хвилину
+          </span>
+        </span>
+        <ExternalLink
+          size={16}
+          className="shrink-0 text-slate-400 transition-colors duration-200 group-hover:text-blue-500"
+          aria-hidden="true"
+        />
+      </a>
+
+      {items.length > 0 && <OrderProductReviews items={items} />}
 
       <div className="flex justify-center">
         <button

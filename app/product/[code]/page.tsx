@@ -29,6 +29,7 @@ import {
   buildLegacyProductNameSlug,
   buildProductPath,
   buildProductNameSlug,
+  buildVisibleCategoryLabel,
   buildVisibleProductName,
   extractProductCodeFromParam,
   extractProductRouteSlugsFromParam,
@@ -546,14 +547,14 @@ const buildProductJsonLd = (options: {
     url: canonicalUrl,
     mainEntityOfPage: canonicalUrl,
     category: [group, subGroup].filter(Boolean).join(" / ") || "Автозапчастини",
-    image: imageUrls.map((url) => ({
+    image: Array.from(new Set(imageUrls.filter(Boolean))).map((url) => ({
       "@type": "ImageObject",
       url,
       contentUrl: url,
       caption: `${visibleName || name}${article ? ` — артикул ${article}` : ""}`,
     })),
-    sku: article || undefined,
-    mpn: code || undefined,
+    sku: code || article || undefined,
+    mpn: article || code || undefined,
     brand: producer ? { "@type": "Brand", name: producer } : undefined,
     manufacturer: producer ? { "@type": "Organization", name: producer } : undefined,
     identifier: [
@@ -865,7 +866,8 @@ const buildProductMetaDescription = (options: {
   group?: string;
   subGroup?: string;
 }) => {
-  const { category, group, subGroup } = options;
+  const { name, article, code, category, group, subGroup } = options;
+  const productLabel = buildVisibleProductName(name || article || code || "Автозапчастина");
   const categoryLabel = buildVisibleProductName(category || "автозапчастин");
   const groupLabel =
     group && buildVisibleProductName(group).toLowerCase() !== categoryLabel.toLowerCase()
@@ -878,8 +880,9 @@ const buildProductMetaDescription = (options: {
 
   return trimSeoDescription(
     [
-      `Купити автозапчастини з категорії ${categoryLabel}${groupLabel ? `, група ${groupLabel}` : ""}${subGroupLabel ? `, ${subGroupLabel}` : ""}.`,
-      "Онлайн замовлення на сайті.",
+      `Купити ${productLabel}${article ? `, артикул ${article}` : ""}.`,
+      `Категорія: ${categoryLabel}${groupLabel ? `, ${groupLabel}` : ""}${subGroupLabel ? `, ${subGroupLabel}` : ""}.`,
+      "Ціна, наявність, фото та швидке онлайн-замовлення.",
       `${STORE_PHONE_DISPLAY}, ${STORE_ADDRESS}.`,
     ].join(" ")
   );
@@ -1945,8 +1948,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     group: productGroup,
     subGroup: productSubgroup,
   });
-  const visibleProductGroup = buildVisibleProductName(productGroup);
-  const visibleProductSubgroup = buildVisibleProductName(productSubgroup);
+  const visibleProductGroup = buildVisibleCategoryLabel(productGroup);
+  const visibleProductSubgroup = buildVisibleCategoryLabel(productSubgroup);
   const siteUrl = getSiteUrl();
   const reviewsPromise: Promise<
     readonly [
@@ -2257,7 +2260,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             <div className="pointer-events-none absolute inset-y-6 left-0 w-[3px] rounded-full bg-gradient-to-b from-sky-400 via-cyan-200 to-red-400/70" />
             <div className="pointer-events-none absolute left-6 right-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-red-200/70" />
             <div className="pointer-events-none absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-sky-200/30 via-white to-transparent" />
-            <div className="pointer-events-none absolute right-8 top-6 h-20 w-20 rounded-full border border-white/50 bg-white/50 blur-xl" />
+            <div className="pointer-events-none absolute right-8 top-6 h-20 w-20 rounded-full border border-white/50 bg-[radial-gradient(circle,rgba(255,255,255,0.82)_0%,rgba(224,242,254,0.4)_52%,transparent_74%)]" />
             <div className="relative">
               {!isModalView && (
                 <nav aria-label="Навігаційні хлібні крихти">
@@ -2296,7 +2299,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         className={heroProductImageClass}
                       />
                     </div>
-                    <ProductGallery code={product.code || resolvedCode} />
+                    <ProductGallery
+                      code={product.code || resolvedCode}
+                      initialImages={galleryImageUrls}
+                    />
                   </div>
                 </div>
 

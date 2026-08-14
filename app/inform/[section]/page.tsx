@@ -201,7 +201,7 @@ export default async function InformationSectionPage({
                 name: "PartsON",
                 url: siteUrl,
                 image: `${siteUrl}/storefront/photos/partson-store-1.jpg`,
-                logo: `${siteUrl}/Car-parts-fullwidth.png`,
+                logo: `${siteUrl}/google-logo-partson-v2.png`,
                 telephone: "+380634211851",
                 email: "romaniukbboogg@gmail.com",
                 address: {

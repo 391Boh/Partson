@@ -8,6 +8,7 @@ import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-re
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearProductImageCacheForProduct } from "app/lib/product-image";
 import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
+import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
 
 export const runtime = "nodejs";
 
@@ -171,6 +172,7 @@ export async function POST(request: NextRequest) {
 
   const article = typeof parsed.article === "string" ? parsed.article.trim() : "";
   clearAllOneCCache();
+  clearCatalogPageRouteCache();
   clearProductImageCacheForProduct(code);
   clearCatalogImageResultCacheForProduct(code, article || undefined);
   // See product-update/route.ts for why this is needed separately from

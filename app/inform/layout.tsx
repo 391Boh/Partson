@@ -26,7 +26,7 @@ export const metadata: Metadata = buildPageMetadata({
   ],
   openGraphTitle: "Інформація для клієнтів | PartsON",
   image: {
-    url: "/Car-parts-fullwidth.png",
+    url: "/opengraph-partson-v2.png",
     alt: "Інформація PartsON",
   },
 });

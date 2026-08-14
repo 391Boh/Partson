@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 
 import HomeDeferredStack from "./HomeDeferredStack";
 import SectionBoundary from "./SectionBoundary";
@@ -52,7 +52,15 @@ export default function HomeBelowFoldClient({
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (ready) return;
-    return scheduleIdle(() => setReady(true), 1900);
+    // startTransition: see the matching comment in HomeDeferredStack.tsx —
+    // without it this commit still blocks the main thread outright if it
+    // lands mid-scroll, regardless of how well its timing is spaced out.
+    return scheduleIdle(() => {
+      const revealAdvantages = () => {
+        startTransition(() => setReady(true));
+      };
+      void loadAdvantagesSection().then(revealAdvantages, revealAdvantages);
+    }, 360);
   }, [ready]);
 
   return (

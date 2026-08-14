@@ -1,7 +1,7 @@
 ﻿
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { ImageOff } from "lucide-react";
 
@@ -15,6 +15,7 @@ import {
   clearProductImageSuccess,
   clearProductImageMissing
 } from "app/lib/product-image-client";
+import { observeNearViewport } from "app/lib/shared-intersection-observer";
 
 
 const FINAL_RETRY_DELAY_MS = 60;
@@ -133,17 +134,12 @@ const ProductCardImage: React.FC<Props> = ({
       return;
     }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setIsNearViewport(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: NEAR_VIEWPORT_ROOT_MARGIN }
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
+    // A fast scroll can cross the 1200px lookahead for many cards within the
+    // same shared-observer callback invocation — startTransition keeps that
+    // batch of state updates interruptible instead of blocking the scroll.
+    return observeNearViewport(node, NEAR_VIEWPORT_ROOT_MARGIN, () => {
+      startTransition(() => setIsNearViewport(true));
+    });
   }, [loadingMode, isNearViewport]);
 
   useEffect(() => {

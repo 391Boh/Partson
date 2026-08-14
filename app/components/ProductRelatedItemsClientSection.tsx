@@ -193,6 +193,7 @@ const RecommendationBlock = ({
   euroRate,
   resolvedPrices,
   resolvedImages,
+  tone = "sky",
 }: {
   eyebrow: string;
   title: string;
@@ -203,14 +204,16 @@ const RecommendationBlock = ({
   euroRate: number;
   resolvedPrices: Record<string, number | null>;
   resolvedImages: Record<string, string>;
+  tone?: "sky" | "indigo";
 }) => {
   if (items.length === 0) return null;
 
   return (
-    <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(248,250,252,0.98))] p-3 text-left shadow-[0_16px_36px_rgba(15,23,42,0.065)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
+    <section className={`relative overflow-hidden rounded-[22px] border p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.075)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4 ${tone === "indigo" ? "border-indigo-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(238,242,255,0.92),rgba(248,250,252,0.98))]" : "border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(248,250,252,0.98))]"}`}>
+      <div className={`absolute inset-x-6 top-0 h-px ${tone === "indigo" ? "bg-gradient-to-r from-transparent via-indigo-400/70 to-transparent" : "bg-gradient-to-r from-transparent via-sky-400/70 to-transparent"}`} />
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/8 pb-3">
         <div className="min-w-0 max-w-3xl">
-          <p className="mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
+          <p className={`mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${tone === "indigo" ? "text-indigo-800" : "text-sky-800"}`}>
             {eyebrow}
           </p>
           <h2 className="font-display-italic mt-0.5 break-words text-[1.05rem] font-black leading-tight text-slate-950 sm:text-[1.18rem]">
@@ -220,7 +223,7 @@ const RecommendationBlock = ({
             {description}
           </p>
         </div>
-        <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] text-sky-800">
+        <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] ${tone === "indigo" ? "border-indigo-200 bg-indigo-50 text-indigo-800" : "border-sky-200 bg-sky-50 text-sky-800"}`}>
           {badgeLabel}
         </span>
       </div>
@@ -793,6 +796,7 @@ export default function ProductRelatedItemsClientSection({
           euroRate={euroRate}
           resolvedPrices={resolvedPrices}
           resolvedImages={resolvedImages}
+          tone="indigo"
         />
       ) : null}
       {hasSimilar ? (

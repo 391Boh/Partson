@@ -72,9 +72,10 @@ export default async function ProductRelatedItemsSection({
   const subGroup = (product.subGroup || "").trim();
   const category = (product.category || "").trim();
 
-  let [initialRelatedItems, initialSimilarItems] = isProductionBuildPhase
-    ? [null, null]
-    : await Promise.all([
+  const [initialRelatedResult, initialSimilarResult, staticRecommendations] =
+    isProductionBuildPhase
+      ? [null, null, { analogs: [], similar: [] }]
+      : await Promise.all([
         resolveWithTimeout<RelatedProductCardItem[] | null>(
           () => getAnalogProducts(article, code, name, producer, group, subGroup, category),
           null,
@@ -85,26 +86,30 @@ export default async function ProductRelatedItemsSection({
           null,
           RELATED_SSR_TIMEOUT_MS
         ).then((items) => (items && items.length > 0 ? items : null)),
+        resolveWithTimeout(
+          () =>
+            getStaticProductRecommendations(
+              article,
+              code,
+              name,
+              producer,
+              group,
+              subGroup,
+              category
+            ),
+          { analogs: [], similar: [] },
+          RELATED_SSR_TIMEOUT_MS
+        ),
       ]);
-
-  // Same static-sitemap fallback as /api/product-analogs and /api/product-similar
-  // (see app/lib/product-related.ts) so the first paint already has both blocks
-  // instead of one popping in after a client-side refetch.
-  if (!isProductionBuildPhase && (initialRelatedItems === null || initialSimilarItems === null)) {
-    const staticRecommendations = await resolveWithTimeout(
-      () =>
-        getStaticProductRecommendations(article, code, name, producer, group, subGroup, category),
-      { analogs: [], similar: [] },
-      RELATED_SSR_TIMEOUT_MS
-    );
-
-    if (initialRelatedItems === null && staticRecommendations.analogs.length > 0) {
-      initialRelatedItems = staticRecommendations.analogs;
-    }
-    if (initialSimilarItems === null && staticRecommendations.similar.length > 0) {
-      initialSimilarItems = staticRecommendations.similar;
-    }
-  }
+  // Static fallback now runs in parallel with both live lookups. Previously it
+  // started only after their 280ms timeout, making the Suspense block wait up
+  // to ~560ms before it could render useful cards.
+  const initialRelatedItems =
+    initialRelatedResult ??
+    (staticRecommendations.analogs.length > 0 ? staticRecommendations.analogs : null);
+  const initialSimilarItems =
+    initialSimilarResult ??
+    (staticRecommendations.similar.length > 0 ? staticRecommendations.similar : null);
 
   const recommendationItemListJsonLd = buildRecommendationItemListJsonLd(
     initialRelatedItems ?? [],

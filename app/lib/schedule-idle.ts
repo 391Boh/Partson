@@ -12,7 +12,7 @@ export const scheduleIdle = (callback: () => void, delayMs = 60): (() => void) =
     if (cancelled) return;
     if (typeof window.requestIdleCallback === "function") {
       idleId = window.requestIdleCallback(callback, {
-        timeout: Math.max(500, delayMs),
+        timeout: Math.max(2500, delayMs * 4),
       });
       return;
     }

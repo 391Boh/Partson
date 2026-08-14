@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">PartsON</title>
+  <defs>
+    <linearGradient id="letters" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b9baf0"/>
+      <stop offset="1" stop-color="#6669ad"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#b73758"/>
+      <stop offset="1" stop-color="#ff443c"/>
+    </linearGradient>
+  </defs>
+  <g transform="rotate(-8 256 256)">
+    <text x="256" y="330" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-size="280" font-style="italic" font-weight="900" letter-spacing="-30" fill="url(#letters)" stroke="#080b2c" stroke-width="22" stroke-linejoin="round" paint-order="stroke fill">ON</text>
+    <path d="M92 382 426 338 448 374 70 424Z" fill="url(#accent)"/>
+  </g>
+</svg>

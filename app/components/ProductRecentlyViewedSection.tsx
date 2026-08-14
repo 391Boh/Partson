@@ -337,17 +337,18 @@ export default function ProductRecentlyViewedSection({
       : "mt-3 grid grid-flow-col grid-rows-1 auto-cols-[minmax(286px,92%)] gap-2 overflow-x-auto overscroll-x-contain pb-1 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(330px,70%)] sm:gap-2.5 lg:auto-cols-[minmax(292px,31%)] lg:gap-2.5";
 
   return (
-    <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(248,250,252,0.98))] p-3 text-left shadow-[0_16px_36px_rgba(15,23,42,0.065)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
+    <section className="relative overflow-hidden rounded-[22px] border border-amber-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(255,251,235,0.88),rgba(248,250,252,0.98))] p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.075)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
+      <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/70 to-transparent" />
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/8 pb-3">
         <div className="min-w-0 max-w-3xl">
-          <p className="mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
+          <p className="mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-amber-800">
             Нещодавні
           </p>
           <h2 className="font-display-italic mt-0.5 break-words text-[1.05rem] font-black leading-tight text-slate-950 sm:text-[1.18rem]">
             Останні переглянуті позиції
           </h2>
         </div>
-        <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] text-sky-800">
+        <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] text-amber-800">
           {visibleItems.length} позицій
         </span>
       </div>

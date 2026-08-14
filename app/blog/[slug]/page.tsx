@@ -3,7 +3,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, Clock } from "lucide-react";
+import { ArrowLeft, CalendarDays, Clock, ShieldCheck } from "lucide-react";
 
 import { getPublishedBlogPostBySlug, getPublishedBlogPosts } from "app/lib/blog";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
@@ -165,7 +165,7 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
     canonicalPath: `/blog/${post.slug}`,
     type: "article",
     keywords: ["блог PartsON", "автозапчастини Львів", post.title, ...contentWords],
-    image: { url: "/Car-parts-fullwidth.png", alt: post.imageAlt || post.title },
+    image: { url: "/opengraph-partson-v2.png", alt: post.imageAlt || post.title },
     openGraphTitle: `${post.title} | Блог PartsON`,
   });
 }
@@ -192,17 +192,24 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     "@type": "BlogPosting",
     headline: post.title,
     description: post.excerpt,
-    image: `${siteUrl.replace(/\/$/, "")}/Car-parts-fullwidth.png`,
+    image: `${siteUrl.replace(/\/$/, "")}/opengraph-partson-v2.png`,
     datePublished: published,
     dateModified: updated,
     wordCount: Math.round(post.content.split(/\s+/).length / 10) * 10,
     articleSection: "Автозапчастини",
     inLanguage: "uk",
-    author: { "@type": "Organization", name: "PartsON" },
+    author: {
+      "@type": "Organization",
+      "@id": `${siteUrl.replace(/\/$/, "")}/authors/partson#author`,
+      name: "Редакція PartsON",
+      url: `${siteUrl.replace(/\/$/, "")}/authors/partson`,
+      description:
+        "Команда фахівців PartsON з практичним досвідом підбору автозапчастин, перевірки сумісності та обслуговування клієнтів.",
+    },
     publisher: {
       "@type": "Organization",
       name: "PartsON",
-      logo: { "@type": "ImageObject", url: `${siteUrl.replace(/\/$/, "")}/favicon-512x512.png` },
+      logo: { "@type": "ImageObject", url: `${siteUrl.replace(/\/$/, "")}/google-logo-partson-v2.png` },
     },
     mainEntityOfPage: canonicalUrl,
   };
@@ -274,9 +281,12 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                   >
                     <ArrowLeft size={10} strokeWidth={2.5} /> Блог
                   </Link>
-                  <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-sky-300/70">
-                    <CalendarDays size={10} /> {formatDate(published)}
-                  </span>
+                  <time dateTime={published} className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-sky-300/70">
+                    <CalendarDays size={10} /> Опубліковано: {formatDate(published)}
+                  </time>
+                  <time dateTime={updated} className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-sky-200/65">
+                    Оновлено: {formatDate(updated)}
+                  </time>
                   <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-white/45">
                     <Clock size={10} /> {timeAgo(published)}
                   </span>
@@ -335,6 +345,26 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             <span className="text-[10px] font-black uppercase tracking-[0.24em] text-sky-500/70">Матеріал</span>
             <div className="h-px flex-1 bg-gradient-to-r from-sky-200/50 to-transparent" />
           </div>
+
+          <aside className="mb-8 flex flex-col gap-3 rounded-[18px] border border-sky-100 bg-white/90 p-4 shadow-[0_12px_32px_rgba(14,116,184,0.08)] sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-sky-600 to-blue-800 text-white shadow-md">
+                <ShieldCheck size={21} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-600">Автор і перевірка матеріалу</p>
+                <Link href="/authors/partson" rel="author" className="mt-0.5 inline-block text-[15px] font-black text-slate-950 hover:text-sky-700">
+                  Редакція PartsON
+                </Link>
+                <p className="mt-1 max-w-3xl text-[12.5px] font-medium leading-5 text-slate-600">
+                  Фахівці з практичним досвідом підбору автозапчастин, перевірки OEM-кодів і сумісності за VIN у магазині PartsON у Львові.
+                </p>
+              </div>
+            </div>
+            <Link href="/editorial-policy" className="shrink-0 text-xs font-bold text-sky-700 underline decoration-sky-200 underline-offset-4 hover:text-sky-900">
+              Редакційна політика
+            </Link>
+          </aside>
 
           {/* article content */}
           <div className="space-y-6">

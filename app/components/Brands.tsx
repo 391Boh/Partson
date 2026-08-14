@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type Synthetic
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ChevronLeft, ChevronRight, Factory, Search, X } from "lucide-react";
 import SmartLink from "app/components/SmartLink";
-import { buildManufacturerPath } from "app/lib/catalog-links";
+import { buildCatalogProducerPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { brands } from "./brandsData";
 
@@ -44,7 +44,7 @@ type ManufacturerCountsApiItem = {
 type ManufacturerCountsApiPayload = {
   clientProducers?: ManufacturerCountsApiItem[];
 };
-const BRAND_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
+const BRAND_LOGO_FALLBACK_PATH = "/favicon-partson-v2-192.png";
 const INITIAL_BRANDS: BrandItem[] = brands.map((brand) => ({
   name: brand.name,
   logo: brand.logo,
@@ -204,7 +204,7 @@ function BrandTile({
         onSelect(brand);
       }}
       onMouseLeave={(event) => event.currentTarget.blur()}
-      className={`group/tile relative flex h-[92px] w-full flex-col items-center justify-center overflow-hidden rounded-[16px] border px-2 shadow-[0_8px_18px_rgba(15,23,42,0.08),0_2px_7px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 transition-[border-color,background-color,box-shadow] duration-500 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:h-[104px] ${
+      className={`group/tile relative flex h-[92px] w-full flex-col items-center justify-center overflow-hidden rounded-[16px] border px-2 shadow-[0_8px_18px_rgba(15,23,42,0.08),0_2px_7px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out hover:scale-[1.025] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:h-[104px] ${
         isSelected
           ? "border-sky-500 bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] shadow-[0_16px_30px_rgba(2,132,199,0.22),0_0_0_3px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,1)]"
           : "border-sky-200/95 bg-[radial-gradient(circle_at_50%_-8%,rgba(125,211,252,0.44),transparent_48%),linear-gradient(150deg,#ffffff_0%,#f3faff_50%,#e9f8ff_100%)] hover:border-sky-500 hover:bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] hover:shadow-[0_16px_30px_rgba(2,132,199,0.22),0_0_0_3px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,1)]"
@@ -227,7 +227,7 @@ function BrandTile({
             // at once, so native lazy-loading on top of it just adds a
             // visible pop-in delay while swiping into a neighboring page
             // instead of having it ready ahead of time.
-            loading={priority ? undefined : "eager"}
+            loading={priority ? undefined : "lazy"}
             className="relative h-11 w-11 object-contain drop-shadow-[0_5px_9px_rgba(14,116,144,0.14)] transition-[filter,opacity,transform] duration-500 ease-out group-hover/tile:scale-[1.1] group-hover/tile:brightness-[1.06] group-hover/tile:saturate-[1.12] group-hover/tile:drop-shadow-[0_8px_14px_rgba(2,132,199,0.3)] sm:h-[52px] sm:w-[52px]"
             style={{ imageRendering: "auto" }}
             sizes="(max-width: 640px) 44px, 52px"
@@ -268,7 +268,14 @@ function BrandInfoPanel({
   onClose: () => void;
 }) {
   return (
-    <div className="flex h-full min-h-[220px] flex-col justify-center px-1 py-6 sm:px-2">
+    <div className="group/choice relative flex h-full min-h-[150px] flex-col justify-center overflow-hidden rounded-[20px] border border-white/90 bg-[radial-gradient(circle_at_100%_0%,rgba(103,232,249,0.22),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.94),rgba(240,249,255,0.9))] px-4 py-4 shadow-[0_14px_30px_rgba(14,116,144,0.1),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-sky-100/70 transition-[background-image,border-color,box-shadow] duration-300 hover:border-cyan-300 hover:bg-[radial-gradient(circle_at_12%_0%,rgba(45,212,191,0.24),transparent_42%),radial-gradient(circle_at_100%_10%,rgba(56,189,248,0.30),transparent_45%),linear-gradient(145deg,#ffffff,#e5f8ff_55%,#e5fbf5)] hover:shadow-[0_20px_42px_rgba(2,132,199,0.17),inset_0_1px_0_white] focus-within:border-cyan-300 sm:px-5">
+      {!brand ? (
+        <SmartLink
+          href="/manufacturers"
+          aria-label="Переглянути всіх виробників"
+          className="absolute inset-0 z-10 cursor-pointer rounded-[20px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400"
+        />
+      ) : null}
       <AnimatePresence mode="wait">
         {brand ? (
           <motion.div
@@ -277,12 +284,15 @@ function BrandInfoPanel({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="flex flex-col gap-2"
+            className="flex flex-col gap-2.5"
           >
             <div className="flex items-start justify-between gap-3">
-              <h3 className="text-[20px] font-black leading-tight tracking-[-0.02em] text-slate-900 sm:text-[22px]">
-                {brand.name}
-              </h3>
+              <div className="min-w-0">
+                  <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-sky-600 sm:text-[11px]">Виробник</span>
+                  <h3 className="mt-0.5 truncate text-[21px] font-black leading-tight tracking-[-0.03em] text-slate-900 sm:text-[24px]">
+                    {brand.name}
+                  </h3>
+              </div>
               <button
                 type="button"
                 onClick={onClose}
@@ -292,21 +302,39 @@ function BrandInfoPanel({
                 <X size={16} />
               </button>
             </div>
-            {brand.productCount && brand.productCount > 0 ? (
-              <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-emerald-700">
-                {brand.productCount.toLocaleString("uk-UA")} {pluralizeProductCount(brand.productCount)}
-              </span>
-            ) : null}
-            <p className="text-[13px] font-medium leading-[20px] text-slate-600 sm:text-[13.5px]">
+            <div className="flex flex-wrap gap-1.5">
+              {brand.productCount && brand.productCount > 0 ? (
+                <span className="rounded-full border border-emerald-200/80 bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-700">
+                  {brand.productCount.toLocaleString("uk-UA")} {pluralizeProductCount(brand.productCount)}
+                </span>
+              ) : null}
+              {brand.groupsCount && brand.groupsCount > 0 ? (
+                <span className="rounded-full border border-sky-200/80 bg-sky-50 px-2.5 py-1 text-[10px] font-extrabold text-sky-700">
+                  {brand.groupsCount.toLocaleString("uk-UA")} {pluralizeUk(brand.groupsCount, "група", "групи", "груп")}
+                </span>
+              ) : null}
+            </div>
+            <p className="line-clamp-3 text-[14px] font-medium leading-[22px] text-slate-600 sm:text-[15px] sm:leading-[23px]">
               {brand.description}
             </p>
-            <SmartLink
-              href={buildManufacturerPath(buildSeoSlug(brand.name))}
-              className="group/cta mt-1 inline-flex w-fit items-center gap-1.5 self-end text-[13px] font-black text-sky-700 transition-colors duration-150 hover:text-cyan-600"
-            >
-              До виробника
-              <ArrowRight size={14} strokeWidth={3} aria-hidden="true" className="transition-transform duration-200 group-hover/cta:translate-x-0.5" />
-            </SmartLink>
+            <div className="mt-0.5 grid gap-2 sm:grid-cols-2">
+              <SmartLink
+                href={buildCatalogProducerPath(brand.name)}
+                prefetchOnIntent
+                className="group/catalog inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-white px-3 text-[11px] font-black text-sky-800 shadow-[0_7px_16px_rgba(14,116,144,0.1)] transition-[border-color,background-color,box-shadow] hover:border-sky-300 hover:bg-sky-50 hover:shadow-[0_9px_20px_rgba(14,116,144,0.15)] sm:text-[12px]"
+              >
+                Товари бренду
+                <ArrowRight size={14} strokeWidth={3} aria-hidden="true" className="transition-transform duration-200 group-hover/catalog:translate-x-0.5" />
+              </SmartLink>
+              <SmartLink
+                href={buildManufacturerPath(buildSeoSlug(brand.name))}
+                prefetchOnIntent
+                className="group/producer inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-cyan-500 px-3 text-[11px] font-black text-white shadow-[0_8px_18px_rgba(14,165,233,0.22)] transition-[filter,box-shadow] hover:brightness-105 hover:shadow-[0_10px_22px_rgba(14,165,233,0.3)] sm:text-[12px]"
+              >
+                Сторінка виробника
+                <ArrowRight size={14} strokeWidth={3} aria-hidden="true" className="transition-transform duration-200 group-hover/producer:translate-x-0.5" />
+              </SmartLink>
+            </div>
           </motion.div>
         ) : (
           <motion.div
@@ -318,26 +346,18 @@ function BrandInfoPanel({
             className="flex flex-col gap-3"
           >
             <div>
-              <h3 className="relative inline-block text-[18px] font-black tracking-[-0.02em] text-slate-800 sm:text-[20px]">
-                Оберіть виробника
-                <span className="pointer-events-none absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400" />
-              </h3>
-              <p className="mt-2.5 text-[12.5px] font-medium leading-[18px] text-slate-500 sm:text-[13px] sm:leading-[19px]">
-                Натисніть на логотип виробника зі списку, щоб переглянути опис бренду та перейти до його каталогу запчастин.
-              </p>
+              <div>
+                <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-sky-600 sm:text-[11px]">Швидкий вибір</span>
+                <h3 className="mt-0.5 text-[20px] font-black tracking-[-0.03em] text-slate-900 sm:text-[23px]">Оберіть виробника</h3>
+              </div>
             </div>
-            <ul className="flex flex-col gap-2">
-              {[
-                "Оригінальні деталі та перевірені аналоги",
-                "Актуальна кількість товарів по кожному бренду",
-                "Прямий перехід до каталогу обраного виробника",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-2.5 text-[12px] font-medium leading-snug text-slate-600 sm:text-[12.5px]">
-                  <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden />
-                  {item}
-                </li>
-              ))}
-            </ul>
+            <p className="max-w-sm text-[14px] font-medium leading-[22px] text-slate-600 sm:text-[15px] sm:leading-[23px]">
+              Натисніть логотип, щоб побачити коротку інформацію, кількість товарів і перейти до каталогу бренду.
+            </p>
+            <span className="group/cta inline-flex items-center gap-1.5 self-end text-[12px] font-black text-sky-700 transition-colors duration-200 group-hover/choice:text-cyan-600">
+              Усі виробники
+              <ArrowRight size={13} strokeWidth={3} className="transition-transform group-hover/cta:translate-x-0.5" aria-hidden />
+            </span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -502,7 +522,7 @@ export default function BrandCarousel({
 
   return (
     <section
-      className="home-glow-section home-glow-section-sky font-ui group/brandcars relative min-h-[280px] w-full select-none overflow-hidden bg-[linear-gradient(180deg,#e2f0f7_0%,#c8e1ee_48%,#d8eaec_100%)] pb-4 pt-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-1px_0_rgba(15,23,42,0.08)] transition-[filter,box-shadow] duration-500 ease-out hover:brightness-[1.025] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.96),inset_0_-1px_0_rgba(15,23,42,0.10),0_8px_32px_rgba(14,165,233,0.11)] sm:min-h-[320px] sm:pb-6 sm:pt-6"
+      className="home-glow-section home-glow-section-sky font-ui group/brandcars relative min-h-[280px] w-full select-none overflow-hidden bg-[radial-gradient(ellipse_at_8%_0%,rgba(56,189,248,0.26),transparent_36%),radial-gradient(ellipse_at_94%_12%,rgba(45,212,191,0.20),transparent_34%),linear-gradient(145deg,#d7eaf4_0%,#bdddea_48%,#d6edf0_100%)] pb-4 pt-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-1px_0_rgba(15,23,42,0.10)] transition-[box-shadow] duration-500 ease-out hover:shadow-[inset_0_1px_0_white,inset_0_-1px_0_rgba(15,23,42,0.12),0_14px_42px_rgba(2,132,199,0.16)] sm:min-h-[320px] sm:pb-6 sm:pt-6"
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
     >
@@ -511,7 +531,7 @@ export default function BrandCarousel({
       {/* static depth — light source top-left */}
       <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_125%_82%_at_-4%_-8%,rgba(255,255,255,0.48)_0%,rgba(186,230,253,0.14)_38%,transparent_61%),radial-gradient(ellipse_82%_66%_at_108%_-5%,rgba(56,189,248,0.22)_0%,rgba(125,211,252,0.07)_42%,transparent_62%),radial-gradient(ellipse_92%_52%_at_52%_108%,rgba(45,212,191,0.11)_0%,transparent_68%),linear-gradient(to_bottom,rgba(255,255,255,0.24)_0%,rgba(255,255,255,0.05)_5%,transparent_14%)]" />
       {/* hover bloom — vivid sky sweep on hover */}
-      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-[700ms] ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/brandcars:opacity-100 bg-[image:radial-gradient(ellipse_180%_100%_at_-4%_2%,rgba(56,189,248,0.24)_0%,rgba(125,211,252,0.08)_38%,transparent_60%),radial-gradient(ellipse_120%_80%_at_110%_5%,rgba(56,189,248,0.14)_0%,rgba(147,197,253,0.05)_42%,transparent_62%),linear-gradient(to_bottom,rgba(255,255,255,0.10)_0%,transparent_30%)]" />
+      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/brandcars:opacity-100 bg-[image:radial-gradient(ellipse_180%_100%_at_-4%_2%,rgba(14,165,233,0.38)_0%,rgba(125,211,252,0.12)_38%,transparent_60%),radial-gradient(ellipse_120%_80%_at_110%_5%,rgba(20,184,166,0.28)_0%,rgba(94,234,212,0.08)_42%,transparent_62%),linear-gradient(120deg,rgba(255,255,255,0.22)_0%,transparent_45%)]" />
       {/* bottom bridge — eases into AdvantagesSection's cyan-50 */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-12 bg-[image:linear-gradient(to_bottom,transparent_0%,rgba(207,250,254,0.24)_100%)]" />
       <motion.div
@@ -530,11 +550,11 @@ export default function BrandCarousel({
                     <Factory size={17} strokeWidth={2.3} aria-hidden className="sm:h-5 sm:w-5" />
                   </span>
                   <h2 className="font-display relative min-w-0 text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:order-1 sm:text-[22px]">
-                    Відомі бренди виробників автотоварів, а також якісні аналоги
+                    Відомі бренди виробників автозапчастин та якісні аналоги
                   </h2>
                 </div>
                 <p className="mt-1 hidden text-[11px] leading-relaxed text-slate-500 sm:block">
-                  Знайдіть оптимальне співвідношення ціна-якість для вас
+                  Оберіть оптимальний варіант зі списку
                 </p>
               </div>
               <div className="order-2 w-full min-w-0 sm:order-1 sm:w-[400px] sm:max-w-[400px] sm:shrink-0 sm:border-r sm:border-sky-200/80 sm:pr-5">
@@ -632,17 +652,6 @@ export default function BrandCarousel({
                     <span className="h-px w-4 bg-gradient-to-l from-transparent to-cyan-500/75 sm:w-6" />
                   </div>
                 )}
-                <SmartLink
-                  href="/manufacturers"
-                  className="group/all-brands ml-auto inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-extrabold text-sky-700 transition-colors duration-300 hover:text-cyan-600 focus-visible:outline-none focus-visible:text-cyan-600 focus-visible:underline focus-visible:decoration-2 focus-visible:underline-offset-4"
-                >
-                  Усі виробники
-                  <ChevronRight
-                    size={15}
-                    strokeWidth={2.6}
-                    className="transition-transform duration-300 group-hover/all-brands:translate-x-0.5"
-                  />
-                </SmartLink>
               </div>
             </div>
 

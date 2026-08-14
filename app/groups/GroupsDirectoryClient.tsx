@@ -5,6 +5,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { ChevronRight, FolderTree, Search, X } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
+import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
 import {
   directoryBadgeClass,
   directoryCardClass,
@@ -177,6 +178,59 @@ function GroupCategoryCard({
     : buildGroupDirectoryLead(group);
 
   return (
+    <SmartLink
+      href={buildGroupPath(group.slug)}
+      prefetchOnViewport={prefetchOnViewport}
+      className={`${directoryCardClass} group flex min-h-[132px] flex-col p-3.5`}
+      itemScope
+      itemType="https://schema.org/DefinedTerm"
+      itemProp="item"
+    >
+      <meta itemProp="url" content={buildGroupPath(group.slug)} />
+      <div className="flex min-w-0 items-start gap-3">
+        <div className={directoryIconTileClass}>
+          <Image
+            src={getCategoryIconPath(visibleGroupLabel)}
+            alt={visibleGroupLabel}
+            width={44}
+            height={44}
+            sizes="36px"
+            className="relative z-[1] h-9 w-9 object-contain"
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="directory-kicker inline-flex rounded-[9px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] uppercase text-sky-800">
+            Група каталогу
+          </span>
+          <h3 itemProp="name" className="directory-card-title mt-1.5 line-clamp-2 text-[16px] leading-tight text-slate-950 transition group-hover:text-sky-700">
+            {visibleGroupLabel}
+          </h3>
+        </div>
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200 bg-white text-sky-700 shadow-[0_7px_16px_rgba(14,165,233,0.1)] transition group-hover:border-sky-300 group-hover:bg-sky-50">
+          <ChevronRight size={17} strokeWidth={2.4} />
+        </span>
+      </div>
+
+      <div className="mt-auto flex flex-wrap gap-1.5 border-t border-slate-100 pt-2.5">
+        {group.productCount > 0 ? (
+          <span className={directoryCompactMetricClass}>
+            {formatCount(group.productCount, "товар", "товари", "товарів")}
+          </span>
+        ) : null}
+        <span className={directoryCompactMetricAccentClass}>
+          {hasSubgroups
+            ? formatCount(group.subgroupsCount, "підгрупа", "підгрупи", "підгруп")
+            : "відкрити каталог"}
+        </span>
+      </div>
+    </SmartLink>
+  );
+
+  /* The expanded hierarchy is intentionally retained below for future detail
+     views, while the directory uses the compact, faster card above. */
+  /* c8 ignore start */
+
+  return (
     <article
       className={`${directoryCardClass} p-3`}
       itemScope
@@ -332,6 +386,7 @@ function GroupCategoryCard({
       )}
     </article>
   );
+  /* c8 ignore stop */
 }
 
 export default function GroupsDirectoryClient({
@@ -421,13 +476,13 @@ export default function GroupsDirectoryClient({
               <div className="max-w-3xl">
                 <div className={directoryBadgeClass}>
                   <FolderTree size={14} strokeWidth={2.1} />
-                  Пошук по групах
+                  Категорії каталогу
                 </div>
                 <h2 className={directoryTitleClass}>
-                  Єдина сітка груп і категорій каталогу
+                  Групи та категорії автозапчастин
                 </h2>
                 <p className={directoryDescriptionClass}>
-                  Оберіть групу або кінцеву категорію, щоб перейти в каталог із готовим фільтром запчастин.
+                  Оберіть <strong className="font-bold text-slate-800">групу або кінцеву категорію запчастин</strong> — від підвіски й гальмівної системи до двигуна, охолодження та електрики — і перейдіть у каталог із готовим фільтром.
                 </p>
               </div>
 
@@ -500,14 +555,16 @@ export default function GroupsDirectoryClient({
 
           {filteredGroups.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 gap-3" itemScope itemType="https://schema.org/ItemList">
+              <div itemScope itemType="https://schema.org/ItemList">
                 <meta itemProp="numberOfItems" content={String(filteredGroups.length)} />
-                {filteredGroups.map((group, index) => (
-                  <div key={group.slug} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                    <meta itemProp="position" content={String(index + 1)} />
-                    <GroupCategoryCard group={group} />
-                  </div>
-                ))}
+                <HorizontalDirectoryRail ariaLabel="Групи та категорії каталогу" rows={2}>
+                  {filteredGroups.map((group, index) => (
+                    <div key={group.slug} className="w-[82vw] max-w-[380px] shrink-0 snap-start" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                      <meta itemProp="position" content={String(index + 1)} />
+                      <GroupCategoryCard group={group} prefetchOnViewport={index < 6} />
+                    </div>
+                  ))}
+                </HorizontalDirectoryRail>
               </div>
             </>
           ) : (

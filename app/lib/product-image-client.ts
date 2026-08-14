@@ -7,6 +7,9 @@ export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_TTL_MS = 1000 * 60 * 60;
 const PRODUCT_IMAGE_MEMORY_CACHE_MAX_ENTRIES = 512;
 const PRODUCT_IMAGE_PERSISTED_SRC_MAX_LENGTH = 4096;
 let persistedImageCachePruned = false;
+const pendingPersistedImageWrites = new Map<string, string>();
+const pendingPersistedImageRemovals = new Set<string>();
+let persistedImageFlushScheduled = false;
 
 export type ProductImageCacheRecord = {
   src: string;
@@ -77,8 +80,43 @@ const prunePersistedImageCache = (storage: Storage | null | undefined) => {
 const ensurePersistedImageCachePruned = () => {
   if (persistedImageCachePruned || typeof window === "undefined") return;
   persistedImageCachePruned = true;
-  prunePersistedImageCache(window.sessionStorage);
-  prunePersistedImageCache(window.localStorage);
+  const prune = () => {
+    prunePersistedImageCache(window.sessionStorage);
+    prunePersistedImageCache(window.localStorage);
+  };
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(prune, { timeout: 5000 });
+  } else {
+    window.setTimeout(prune, 500);
+  }
+};
+
+const schedulePersistedImageFlush = () => {
+  if (persistedImageFlushScheduled || typeof window === "undefined") return;
+  persistedImageFlushScheduled = true;
+
+  const flush = () => {
+    persistedImageFlushScheduled = false;
+    const writes = Array.from(pendingPersistedImageWrites.entries());
+    const removals = Array.from(pendingPersistedImageRemovals);
+    pendingPersistedImageWrites.clear();
+    pendingPersistedImageRemovals.clear();
+
+    for (const storage of [window.sessionStorage, window.localStorage]) {
+      try {
+        for (const key of removals) storage.removeItem(key);
+        for (const [key, payload] of writes) storage.setItem(key, payload);
+      } catch {
+        prunePersistedImageCache(storage);
+      }
+    }
+  };
+
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(flush, { timeout: 3000 });
+  } else {
+    window.setTimeout(flush, 250);
+  }
 };
 
 export const getProductImageClientCacheKey = (
@@ -213,6 +251,7 @@ export const readProductImageMissing = (
 
   const cacheKey = getProductImageClientMissingCacheKey(productCode, articleHint);
   if (!cacheKey) return false;
+  if (pendingPersistedImageRemovals.has(cacheKey)) return false;
 
   return (
     readProductImageMissingFromStorage(window.sessionStorage, cacheKey) ||
@@ -251,18 +290,13 @@ export const writeProductImageSuccess = (
     src: normalizedSrc,
     t: Date.now(),
   } satisfies ProductImageCacheRecord);
-
-  try {
-    window.sessionStorage.setItem(cacheKey, payload);
-  } catch {
-    prunePersistedImageCache(window.sessionStorage);
-  }
-
-  try {
-    window.localStorage.setItem(cacheKey, payload);
-  } catch {
-    prunePersistedImageCache(window.localStorage);
-  }
+  const missingCacheKey = getProductImageClientMissingCacheKey(
+    productCode,
+    articleHint
+  );
+  pendingPersistedImageWrites.set(cacheKey, payload);
+  if (missingCacheKey) pendingPersistedImageRemovals.add(missingCacheKey);
+  schedulePersistedImageFlush();
 };
 
 export const writeProductImageMissing = (
@@ -325,16 +359,6 @@ export const clearProductImageMissing = (
 
   const cacheKey = getProductImageClientMissingCacheKey(productCode, articleHint);
   if (!cacheKey) return;
-
-  try {
-    window.sessionStorage.removeItem(cacheKey);
-  } catch {
-    // Ignore storage errors.
-  }
-
-  try {
-    window.localStorage.removeItem(cacheKey);
-  } catch {
-    // Ignore storage errors.
-  }
+  pendingPersistedImageRemovals.add(cacheKey);
+  schedulePersistedImageFlush();
 };

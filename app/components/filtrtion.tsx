@@ -461,45 +461,35 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   }, [emitLayoutHeight, onLayoutChange]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || collapsed) return;
 
-    let lastKnownScrollY = window.scrollY;
-    let frameId = 0;
-
-    const handleScroll = () => {
-      if (frameId !== 0) return;
-
-      frameId = window.requestAnimationFrame(() => {
-        frameId = 0;
-        const nextScrollY = window.scrollY;
-        // Signed delta: positive = scrolling down, negative = scrolling up.
-        const delta = nextScrollY - lastKnownScrollY;
-        lastKnownScrollY = nextScrollY;
-
-        if (!collapsed) {
-          const activeElement = document.activeElement as HTMLElement | null;
-          const isEditingField =
-            activeElement != null &&
-            (activeElement.matches("input, textarea, select, [contenteditable='true']") ||
-              activeElement.closest("[data-search='true']") != null);
-
-          if (isEditingField) return;
-          // Only collapse on deliberate downward scroll past 60px from top.
-          if (nextScrollY < 60) return;
-          if (delta < 24) return;
-          setCollapsed(true);
-        }
-      });
-    };
+    // One scroll event is enough. Keeping the listener mounted only while the
+    // panel is open avoids frame-by-frame work and makes both scroll directions
+    // close it immediately, including short trackpad gestures near page top.
+    const handleScroll = () => setCollapsed(true);
 
     window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [collapsed]);
 
-    return () => {
-      if (frameId !== 0) {
-        window.cancelAnimationFrame(frameId);
-      }
-      window.removeEventListener('scroll', handleScroll);
+  useEffect(() => {
+    if (typeof document === 'undefined' || collapsed) return;
+
+    const handleOutsidePointer = (event: PointerEvent) => {
+      const root = rootRef.current;
+      const target = event.target;
+      if (!root || !(target instanceof Node) || root.contains(target)) return;
+      setCollapsed(true);
     };
+
+    document.addEventListener('pointerdown', handleOutsidePointer, {
+      capture: true,
+      passive: true,
+    });
+    return () =>
+      document.removeEventListener('pointerdown', handleOutsidePointer, {
+        capture: true,
+      });
   }, [collapsed]);
 
   const handleAutoPicked = useCallback(() => {
@@ -771,7 +761,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                             const image = event.currentTarget;
                             if (image.dataset.fallbackApplied === '1') return;
                             image.dataset.fallbackApplied = '1';
-                            image.src = '/favicon-48x48.png';
+                            image.src = '/favicon-partson-v2-48.png';
                           }}
                         />
                       ) : (
@@ -915,22 +905,29 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   return (
     <section
       ref={rootRef}
-        className={`w-full select-none overflow-hidden rounded-[18px] border border-sky-200/75 bg-[image:radial-gradient(circle_at_8%_0%,rgba(14,165,233,0.16),transparent_32%),radial-gradient(circle_at_88%_12%,rgba(45,212,191,0.12),transparent_30%),linear-gradient(145deg,rgba(255,255,255,0.985)_0%,rgba(239,246,255,0.965)_48%,rgba(224,242,254,0.94)_100%)] text-slate-800 ring-1 ring-white/85 backdrop-blur-2xl transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out sm:rounded-[20px] ${
+        className={`catalog-filter-card ${collapsed ? 'is-collapsed' : 'is-expanded'} w-full select-none overflow-hidden rounded-[18px] border border-sky-300/80 bg-[image:radial-gradient(circle_at_8%_0%,rgba(14,165,233,0.19),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(45,212,191,0.14),transparent_31%),linear-gradient(145deg,#ffffff_0%,#eff8ff_48%,#dff3fc_100%)] text-slate-800 ring-1 ring-white/90 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out sm:rounded-[20px] ${
         collapsed
-          ? '-translate-y-1 shadow-[0_2px_4px_rgba(14,116,144,0.06),0_8px_22px_rgba(14,116,144,0.10),0_18px_36px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.96)]'
-          : 'translate-y-0 border-sky-300/70 shadow-[0_2px_6px_rgba(14,116,144,0.08),0_12px_32px_rgba(14,116,144,0.16),0_32px_64px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.98),inset_0_-1px_0_rgba(14,116,144,0.04)]'
+          ? '-translate-y-1 shadow-[0_3px_0_rgba(255,255,255,0.95)_inset,0_8px_18px_rgba(14,116,144,0.13),0_18px_38px_rgba(15,23,42,0.10)]'
+          : 'translate-y-0 border-sky-400/80 shadow-[0_3px_0_rgba(255,255,255,0.98)_inset,0_12px_28px_rgba(14,116,144,0.20),0_34px_70px_rgba(15,23,42,0.17)]'
       }`}
     >
       <div
         ref={headerRef}
         onClick={handleHeaderToggle}
-        className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-[image:linear-gradient(135deg,rgba(239,246,255,0.88)_0%,rgba(236,254,255,0.72)_54%,rgba(255,255,255,0.72)_100%)] px-2 py-2 sm:flex sm:flex-wrap sm:px-4 sm:py-3 ${
+        className={`catalog-filter-card__header grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-[image:linear-gradient(135deg,#e0f2fe_0%,#ecfeff_48%,#f8fafc_100%)] px-2 py-2 sm:flex sm:flex-wrap sm:px-4 sm:py-3 ${
           collapsed ? '' : 'border-b border-sky-200/65'
         }`}
       >
-          <div className="flex shrink-0 items-center gap-2 text-[12px] font-semibold tracking-wide text-slate-700 sm:text-[13px]">
-            <Filter size={16} className="text-blue-500" />
-            <span className="hidden sm:inline">Фільтрація</span>
+          <div className="flex shrink-0 items-center gap-2 text-[12px] font-extrabold tracking-wide text-slate-800 sm:text-[13px]">
+            <span className="flex h-8 w-8 items-center justify-center rounded-[11px] bg-[linear-gradient(145deg,#0ea5e9,#2563eb)] text-white shadow-[0_7px_16px_rgba(37,99,235,0.28),inset_0_1px_0_rgba(255,255,255,0.34)] ring-1 ring-sky-300/60">
+              <Filter size={15} />
+            </span>
+            <span className="hidden sm:block">
+              <span className="block leading-none">Фільтри</span>
+              <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.16em] text-sky-700/70">
+                Підбір деталей
+              </span>
+            </span>
           </div>
           <div className="catalog-filter-mini-bar flex min-w-0 flex-1 items-center justify-center gap-1.5 overflow-x-auto py-1.5 -my-1.5 px-0.5 sm:flex-wrap sm:gap-2.5 sm:overflow-visible sm:py-0 sm:-my-0 sm:px-0">
             {showSearchInfo && (
@@ -1078,7 +1075,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       </div>
 
       <div
-        className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${
+        className={`grid transition-[grid-template-rows,opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
           collapsed
             ? 'grid-rows-[0fr] opacity-0 -translate-y-2'
             : 'grid-rows-[1fr] opacity-100 translate-y-0'
@@ -1088,7 +1085,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
         <div className="min-h-0 overflow-hidden">
           <div ref={panelContentRef} className="p-2 sm:p-3">
             <div
-              className="catalog-filter-scroll overflow-y-auto rounded-[16px] border border-sky-100/80 bg-white/82 p-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_14px_30px_rgba(14,116,144,0.07)] ring-1 ring-white/85 backdrop-blur-2xl sm:p-3 sm:pr-2"
+              className="catalog-filter-scroll overflow-y-auto rounded-[16px] border border-sky-200/90 bg-[linear-gradient(155deg,#ffffff_0%,#f8fcff_52%,#edf8fd_100%)] p-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-1px_0_rgba(14,116,144,0.08),0_16px_34px_rgba(14,116,144,0.11)] ring-1 ring-white sm:p-3 sm:pr-2"
               style={{ maxHeight: overlayPanelHeight }}
             >
               {renderActivePanel()}

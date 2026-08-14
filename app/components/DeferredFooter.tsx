@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ComponentType } from "react";
+import { startTransition, useEffect, useRef, useState, type ComponentType } from "react";
 
 export default function DeferredFooter() {
   const anchorRef = useRef<HTMLDivElement | null>(null);
@@ -14,7 +14,12 @@ export default function DeferredFooter() {
     let cancelled = false;
     const loadFooter = () => {
       void import("./footer").then((module) => {
-        if (!cancelled) setFooterComponent(() => module.default);
+        // This mount is triggered by the user scrolling the footer into
+        // view — by construction it always lands mid-scroll, on every page
+        // (the footer is universal). startTransition lets React yield this
+        // commit to scroll-driven paint/input instead of blocking it, so the
+        // gesture that revealed the footer doesn't itself cause the freeze.
+        if (!cancelled) startTransition(() => setFooterComponent(() => module.default));
       });
     };
 

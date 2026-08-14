@@ -27,10 +27,11 @@ import AnalyticsConsentSettingsButton from "app/components/AnalyticsConsentSetti
 const infoLinks = [
   { href: "/inform/about",       icon: Info,        label: "Про нас" },
   { href: "/inform/delivery",    icon: Truck,       label: "Доставка" },
-  { href: "/inform/location",    icon: MapPin,      label: "Локація" },
+  { href: "/inform/location",    icon: MapPin,      label: "Контакти" },
   { href: "/inform/payment",     icon: Wallet,      label: "Оплата" },
   { href: "/inform/returns",     icon: Undo2,       label: "Повернення" },
   { href: "/inform/privacy",     icon: ShieldCheck, label: "Конфіденційність" },
+  { href: "/editorial-policy",   icon: ShieldCheck, label: "Редакційна політика" },
   { href: "/auto",               icon: Car,         label: "Марки і моделі" },
   { href: "/inform/diagnostics", icon: Wrench,      label: "Діагностика" },
   { href: "/blog",               icon: Newspaper,   label: "Блог" },
@@ -40,6 +41,7 @@ const infoLinks = [
 
 export default function Footer() {
   const footerRef = useRef<HTMLElement>(null);
+  const bottomSentinelRef = useRef<HTMLSpanElement>(null);
   const [visible, setVisible] = useState(false);
   const [atPageBottom, setAtPageBottom] = useState(false);
   const [isOpen, setIsOpen] = useState<boolean | null>(null);
@@ -71,30 +73,14 @@ export default function Footer() {
   }, []);
 
   useEffect(() => {
-    let rafId = 0;
-
-    const updateBottomState = () => {
-      rafId = 0;
-      const doc = document.documentElement;
-      const scrollBottom = window.scrollY + window.innerHeight;
-      const pageHeight = Math.max(doc.scrollHeight, document.body.scrollHeight);
-      setAtPageBottom(scrollBottom >= pageHeight - 260);
-    };
-
-    const scheduleUpdate = () => {
-      if (rafId) return;
-      rafId = window.requestAnimationFrame(updateBottomState);
-    };
-
-    scheduleUpdate();
-    window.addEventListener("scroll", scheduleUpdate, { passive: true });
-    window.addEventListener("resize", scheduleUpdate);
-
-    return () => {
-      if (rafId) window.cancelAnimationFrame(rafId);
-      window.removeEventListener("scroll", scheduleUpdate);
-      window.removeEventListener("resize", scheduleUpdate);
-    };
+    const sentinel = bottomSentinelRef.current;
+    if (!sentinel || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setAtPageBottom(Boolean(entry?.isIntersecting)),
+      { rootMargin: "260px 0px 0px", threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
   }, []);
 
   const baseGradient =
@@ -163,7 +149,7 @@ export default function Footer() {
               className={`mx-auto flex max-w-[240px] flex-col items-center gap-1.5 text-center transition-opacity duration-700 ease-out ${bottomReveal}`}
             >
               <Image
-                src="/Car-parts.png"
+                src="/partson-logo-v2.png"
                 alt="PartsON"
                 width={96}
                 height={60}
@@ -172,7 +158,7 @@ export default function Footer() {
                   const img = e.currentTarget;
                   if (img.dataset.fallbackApplied === "1") return;
                   img.dataset.fallbackApplied = "1";
-                  img.src = "/favicon-192x192.png";
+                  img.src = "/favicon-partson-v2-192.png";
                 }}
               />
               <span className="text-xl font-bold tracking-tight text-slate-900">PartsON</span>
@@ -354,6 +340,11 @@ export default function Footer() {
           </p>
         </div>
       </div>
+      <span
+        ref={bottomSentinelRef}
+        className="pointer-events-none absolute bottom-0 left-0 h-px w-px"
+        aria-hidden="true"
+      />
     </footer>
   );
 }

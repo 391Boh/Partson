@@ -26,6 +26,38 @@ const json = (payload: unknown, status = 200) =>
     },
   });
 
+export async function GET(request: NextRequest) {
+  const code = (request.nextUrl.searchParams.get("code") || "").trim();
+  if (!isNonEmptyString(code, { minLength: 1, maxLength: 200 })) {
+    return json({ images: [] }, 400);
+  }
+
+  try {
+    const snapshot = await getFirebaseAdminDb()
+      .collection("productGallery")
+      .doc(code)
+      .collection("images")
+      .orderBy("uploadedAt", "asc")
+      .limit(MAX_IMAGES_PER_PRODUCT)
+      .get();
+    const images = snapshot.docs
+      .map((document) => ({
+        id: document.id,
+        url: document.data().url as string,
+      }))
+      .filter((image) => typeof image.url === "string" && image.url.length > 0);
+
+    return new NextResponse(JSON.stringify({ images }), {
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "public, s-maxage=60, stale-while-revalidate=600",
+      },
+    });
+  } catch {
+    return json({ images: [] });
+  }
+}
+
 export async function POST(request: NextRequest) {
   const rl = checkRateLimit({
     req: request,

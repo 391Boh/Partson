@@ -70,7 +70,7 @@ export default async function BlogPage() {
     publisher: {
       "@type": "Organization",
       name: "PartsON",
-      logo: { "@type": "ImageObject", url: `${siteUrl.replace(/\/$/, "")}/favicon-512x512.png` },
+      logo: { "@type": "ImageObject", url: `${siteUrl.replace(/\/$/, "")}/google-logo-partson-v2.png` },
     },
     blogPost: posts.slice(0, 10).map((p) => ({
       "@type": "BlogPosting",

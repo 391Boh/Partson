@@ -8,6 +8,7 @@ import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-re
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearProductImageCacheForProduct } from "app/lib/product-image";
 import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
+import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
 
 export const runtime = "nodejs";
 
@@ -315,6 +316,7 @@ export async function POST(request: NextRequest) {
   // are also evicted. Without this, router.refresh() on the catalog page would
   // still return stale data even after the product was updated in 1C.
   clearAllOneCCache();
+  clearCatalogPageRouteCache();
   clearProductImageCacheForProduct(code);
   if (article) clearProductImageCacheForProduct(article);
   if (productCode) clearProductImageCacheForProduct(productCode);

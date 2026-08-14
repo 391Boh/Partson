@@ -36,7 +36,7 @@ const SmartLink = forwardRef<HTMLAnchorElement, SmartLinkProps>(function SmartLi
     onTouchStart,
     prefetchOnIntent = true,
     prefetchOnViewport = false,
-    prefetchOnTouch = false,
+    prefetchOnTouch = true,
     ...props
   },
   ref

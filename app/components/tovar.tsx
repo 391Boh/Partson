@@ -1288,10 +1288,10 @@ const ProductFetcher: React.FC<Props> = ({
                       <Layers3 size={17} strokeWidth={2.3} aria-hidden className="sm:h-5 sm:w-5" />
                     </span>
                     <h2 className="font-display text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:order-1 sm:text-[22px]">
-                      Швидкий пошук необхідної запчастини за декілька секунд!
+                      Великий асортимент товарів поділений на категорії
                     </h2>
                   </div>
-                  <p className="mt-1 hidden text-[11px] leading-relaxed text-slate-500 sm:block">Введіть назву — результати з’являться одразу.</p>
+                  <p className="mt-1 hidden text-[11px] leading-relaxed text-slate-500 sm:block">Швидкий пошук групи та перехід в каталог</p>
                 </div>
                 <div className="order-2 w-full min-w-0 sm:order-1 sm:w-[400px] sm:max-w-[400px] sm:shrink-0 sm:border-r sm:border-sky-200/80 sm:pr-5">
                   <ProductSearchInput
@@ -1642,9 +1642,6 @@ const ProductFetcher: React.FC<Props> = ({
                   <p className="truncate text-sm font-extrabold text-slate-700 sm:text-base">
                     {buildVisibleProductName(currentBrowseNode?.name || activeCategory.name)}
                   </p>
-                  <p className="truncate text-[11px] font-medium text-slate-500">
-                    {browseTrail.length > 0 ? "Оберіть потрібну підгрупу" : "Оберіть потрібну групу"}
-                  </p>
                 </div>
                 {totalPages > 1 ? (
                   <div className="absolute left-1/2 top-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">
@@ -1666,9 +1663,6 @@ const ProductFetcher: React.FC<Props> = ({
                       ? pluralWord(browseNodes.length, "група", "групи", "груп")
                       : `${pluralWord(browseNodes.length, "категорія", "категорії", "категорій")} товарів`}
                   </h3>
-                  <p className="text-[11px] font-medium text-slate-500 sm:text-xs">
-                    {searchTerm.trim() ? "Оберіть потрібну групу товарів" : "Оберіть категорію, щоб переглянути її групи"}
-                  </p>
                 </div>
                 {totalPages > 1 ? (
                   <div className="absolute left-1/2 top-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">

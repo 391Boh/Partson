@@ -5,7 +5,10 @@
   src: url("/fonts/exo2-variable.woff2") format("woff2-variations");
   font-style: normal;
   font-weight: 400 900;
-  font-display: swap;
+  /* Avoid a late metric-changing font swap after the hero has painted. The
+     font is preloaded in layout.tsx, so it is still used on normal loads; on
+     a very slow connection the stable system fallback wins for this visit. */
+  font-display: optional;
 }
 
 html[data-consent-preferences="complete"] .analytics-consent-banner {
@@ -22,9 +25,14 @@ html[data-consent-preferences="complete"] .analytics-consent-banner {
     --font-display-stack: "Exo 2", "Montserrat", "Segoe UI Variable", "Segoe UI", sans-serif;
     --font-geist-sans: var(--font-ui-stack);
     --font-geist-mono: "Geist Mono", "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
-    --scrollbar-track: linear-gradient(180deg, rgba(226, 238, 252, 0.72), rgba(241, 245, 249, 0.58));
-    --scrollbar-thumb: linear-gradient(180deg, rgba(14, 165, 233, 0.72), rgba(37, 99, 235, 0.78));
-    --scrollbar-thumb-hover: linear-gradient(180deg, rgba(2, 132, 199, 0.88), rgba(29, 78, 216, 0.9));
+    /* Solid colors, not gradients — the thumb repaints every scroll tick
+       (its track position changes with scroll offset), and a gradient fill
+       is measurably more expensive to repaint on that hot path than a flat
+       color. This scrollbar is on html/body, so it's live on every page for
+       the entire length of any vertical scroll. */
+    --scrollbar-track: rgba(234, 242, 252, 0.65);
+    --scrollbar-thumb: rgba(20, 137, 214, 0.75);
+    --scrollbar-thumb-hover: rgba(11, 106, 178, 0.88);
   }
 
   html {
@@ -149,10 +157,66 @@ html[data-consent-preferences="complete"] .analytics-consent-banner {
   backdrop-filter: none !important;
 }
 
+/* Persistent floating actions are composited on every page. Large blurred
+   glow children and blend modes force an oversized GPU texture to be
+   recomposited throughout a scroll. Their solid gradients and shadows retain
+   the same visual hierarchy without those continuously expensive layers. */
+.site-floating-actions :is(.blur-xl, .blur-2xl, .blur-md, .blur-sm) {
+  display: none !important;
+}
+
+.site-floating-actions .mix-blend-screen {
+  mix-blend-mode: normal !important;
+}
+
+.site-floating-actions {
+  contain: none;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
 
 .section-reveal {
   position: relative;
   will-change: auto;
+}
+
+/* Keep wheel/touch scrolling on the compositor. A stationary pointer would
+   otherwise trigger each full-width homepage section's hover glow as it
+   passes underneath, starting overlapping gradient and shadow animations. */
+html.is-scrolling .home-glow-section::before,
+html.is-scrolling .home-glow-section::after,
+html.is-scrolling .home-glass-card::before,
+html.is-scrolling .home-panel-hover::before,
+html.is-scrolling .home-card-hover::before {
+  transition: none !important;
+  transform: none !important;
+}
+
+html.is-scrolling .home-glow-section::after,
+html.is-scrolling .home-glass-card::before,
+html.is-scrolling .home-panel-hover::before,
+html.is-scrolling .home-card-hover::before {
+  opacity: 0 !important;
+}
+
+html.is-scrolling .home-glow-section,
+html.is-scrolling .home-section-surface,
+html.is-scrolling .home-glass-card,
+html.is-scrolling .home-panel-hover,
+html.is-scrolling .home-card-hover {
+  filter: none !important;
+  transition-property: none !important;
+}
+
+/* These large blurred circles sit behind already layered radial gradients.
+   Rasterizing them again adds GPU work during scroll without a meaningful
+   visual difference. */
+.home-section-stage .blur-3xl {
+  display: none;
 }
 
 .home-static {
@@ -572,7 +636,10 @@ html[data-consent-preferences="complete"] .analytics-consent-banner {
 .catalog-image-loading {
   position: relative;
   overflow: hidden;
-  animation: catalogSkeletonBreathe 1.4s ease-in-out infinite;
+  /* A static placeholder keeps image loading visible without maintaining one
+     compositor animation per pending card during a fast catalog scroll. */
+  animation: none;
+  opacity: 0.9;
 }
 
 /* A translateX sheen instead of an animated background-position: the
@@ -580,18 +647,7 @@ html[data-consent-preferences="complete"] .analytics-consent-banner {
    simultaneously-loading card in a scrolling catalog grid. transform is
    compositor-only, so this costs nothing extra during scroll. */
 .catalog-image-loading::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.55),
-    transparent
-  );
-  transform: translateX(-100%);
-  animation: catalogImageShimmer 1.4s ease-in-out infinite;
-  will-change: transform;
+  content: none;
 }
 
 @keyframes catalogImageShimmer {
@@ -648,6 +704,45 @@ html[data-consent-preferences="complete"] .analytics-consent-banner {
 
 .catalog-filter-shell {
   transition: opacity 180ms ease, transform 180ms ease, visibility 180ms ease;
+}
+
+.catalog-filter-card {
+  position: relative;
+  isolation: isolate;
+}
+
+.catalog-filter-card::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0 1.1rem auto;
+  height: 2px;
+  border-radius: 0 0 999px 999px;
+  background: linear-gradient(90deg, transparent, #38bdf8 24%, #2563eb 52%, #2dd4bf 78%, transparent);
+  opacity: 0.78;
+  pointer-events: none;
+}
+
+.catalog-filter-card::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, #38bdf8, #2563eb 50%, #2dd4bf);
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 180ms ease, width 180ms ease;
+}
+
+.catalog-filter-card.is-expanded::after {
+  width: 4px;
+  opacity: 1;
+}
+
+.catalog-filter-card__header {
+  position: relative;
+  z-index: 1;
 }
 
 @keyframes routeFadeIn {
@@ -1284,7 +1379,7 @@ h4, h5, h6 {
   top: 2px;
   left: 50%;
   transform: translateX(-50%);
-  background-image: url("/Car-parts.png");
+  background-image: url("/partson-logo-v2.webp");
   background-repeat: no-repeat;
   background-size: contain;
   background-position: center;
@@ -1322,7 +1417,7 @@ h4, h5, h6 {
   width: 42px;
   height: 18px;
   top: 12px;
-  background-image: url("/Car-parts-fullwidth.webp");
+  background-image: url("/partson-logo-v2.webp");
   filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.4));
   animation: loaderOrbitWide 1.35s ease-in-out infinite;
 }
@@ -1460,7 +1555,6 @@ body::-webkit-scrollbar-thumb,
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
-  box-shadow: inset 0 0 0 1px rgba(12, 74, 110, 0.18);
 }
 
 html::-webkit-scrollbar-thumb:hover,
@@ -2646,22 +2740,13 @@ body::-webkit-scrollbar-corner,
     transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Each catalog card carries its own 3D perspective/backface flip context
-   plus layered gradients and shadows — cheap for one card, expensive for
-   the dozens visible on a catalog page. content-visibility: auto tells the
-   browser to skip layout/paint entirely for cards currently off-screen, so
-   scrolling a long grid only has to composite what's actually on screen
-   instead of every mounted card, which is what read as page-wide scroll
-   jank/stutter on desktop. contain-intrinsic-size reserves the known card
-   height so skipped cards don't collapse and shift the layout underneath
-   them before they're measured.
-*/
+/* Each catalog card has a 3D flip context, gradients and shadows. React's
+   row virtualization controls how many exist; containment prevents their
+   paint/layout changes from invalidating neighbouring cards. */
 .catalog-product-card {
-  content-visibility: auto;
-  /* Matches the .catalog-product-card height override below (23.75rem,
-     mobile-only !important) — the inline h-[360px] Tailwind class is
-     overridden there, so 380px is what mobile actually renders at. */
-  contain-intrinsic-size: 100% 380px;
+  /* React already keeps only a small overscanned row window mounted. Adding
+     content-visibility here made the browser independently skip/reveal those
+     same cards, causing extra layout activation on rapid reverse scrolling. */
   contain: layout paint style;
 }
 
@@ -2669,13 +2754,6 @@ body::-webkit-scrollbar-corner,
    then be laid out without invalidating decorative sections above it. */
 #catalog-results {
   contain: layout style;
-}
-
-@media (min-width: 640px) {
-  .catalog-product-card {
-    /* Matches ProductCard.tsx's inline sm:h-[340px]. */
-    contain-intrinsic-size: 100% 340px;
-  }
 }
 
 .catalog-admin-price-editor {
@@ -3163,17 +3241,18 @@ body::-webkit-scrollbar-corner,
   color-scheme: light;
   border-color: rgba(94, 194, 249, 0.56);
   background:
-    radial-gradient(circle at 6% -6%, rgba(56, 189, 248, 0.42), transparent 40%),
-    radial-gradient(circle at 100% 4%, rgba(45, 212, 191, 0.28), transparent 34%),
-    radial-gradient(circle at 50% 122%, rgba(99, 102, 241, 0.22), transparent 50%),
-    linear-gradient(160deg, #e3f0ff 0%, #c8e0fb 46%, #a9cdf3 100%);
+    radial-gradient(circle at 6% -6%, rgba(56, 189, 248, 0.34), transparent 40%),
+    radial-gradient(circle at 100% 4%, rgba(45, 212, 191, 0.22), transparent 34%),
+    radial-gradient(circle at 50% 122%, rgba(99, 102, 241, 0.17), transparent 50%),
+    linear-gradient(160deg, rgba(227, 240, 255, 0.92) 0%, rgba(200, 224, 251, 0.89) 46%, rgba(169, 205, 243, 0.87) 100%);
   color: #1e293b;
   box-shadow:
     0 36px 92px rgba(15, 23, 42, 0.32),
     0 16px 38px rgba(14, 116, 144, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.85),
     inset 0 0 0 1px rgba(255, 255, 255, 0.42);
-  backdrop-filter: blur(22px) saturate(172%);
+  backdrop-filter: blur(24px) saturate(158%);
+  -webkit-backdrop-filter: blur(24px) saturate(158%);
   border-radius: 24px;
   transition: box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }

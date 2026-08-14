@@ -64,7 +64,10 @@ export interface Product {
 
 // --- Constants ---
 // Keep pages small to avoid overloading 1C and shorten perceived waits.
-const ITEMS_PER_PAGE = 12;
+// Keep the client page boundary identical to the server-rendered catalog
+// snapshot. A 12/16 mismatch made the first response and the next cursor refer
+// to different windows, while also leaving the last SSR row to appear late.
+const ITEMS_PER_PAGE = 16;
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
 const CATALOG_PRICE_BATCH_ROUTE = "/api/catalog-prices";
 const PRICE_CACHE_PREFIX = "partson:v12:price:";
@@ -103,6 +106,9 @@ const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
 // for old pages from competing with the browser's scroll frame.
 const VIRTUALIZATION_MIN_ITEMS = ITEMS_PER_PAGE * 3;
 const VIRTUAL_OVERSCAN_ROWS = 3;
+// Shift the mounted window in small row groups instead of reconciling the
+// product grid every time a single row crosses the viewport boundary.
+const VIRTUAL_WINDOW_STEP_ROWS = 2;
 const SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT = 2;
 const SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS = 520;
 const DEFAULT_EURO_RATE = 50;
@@ -1318,10 +1324,19 @@ function useCatalogData(params: {
   const effectiveServerSortOrder = sortOrder;
   const canUseCursorPagination = selectedCars.length === 0;
   const shouldAllowCatalogDirectPriceLookup = true;
-  const [data, setData] = useState<Product[]>([]);
-  const [prices, setPrices] = useState<Record<string, number | null>>({});
+  // Paint the complete server-rendered first page on the initial client render.
+  // Priming it only from the reset effect caused an avoidable empty/partial
+  // frame before all cards from the first response became visible.
+  const initialItems = initialPagePayload?.items ?? [];
+  const hasInitialPage = initialItems.length > 0 && Boolean(initialQuerySignature);
+  const [data, setData] = useState<Product[]>(initialItems);
+  const [prices, setPrices] = useState<Record<string, number | null>>(
+    initialPagePayload?.prices ?? {}
+  );
   const [costPrices, setCostPrices] = useState<Record<string, number | null>>({});
-  const [pageImages, setPageImages] = useState<Record<string, string>>({});
+  const [pageImages, setPageImages] = useState<Record<string, string>>(
+    initialPagePayload?.images ?? {}
+  );
   const [pageImagePending, setPageImagePending] = useState<Record<string, true>>({});
   const [pageImageMissing, setPageImageMissing] = useState<Record<string, true>>({});
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -1330,14 +1345,20 @@ function useCatalogData(params: {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(
+    typeof initialPagePayload?.hasMore === "boolean" ? initialPagePayload.hasMore : true
+  );
+  const [loading, setLoading] = useState(!hasInitialPage);
   const [error, setError] = useState<string | null>(null);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(hasInitialPage);
   const [filterLoading, setFilterLoading] = useState(false);
-  const [catalogReadyQuerySignature, setCatalogReadyQuerySignature] = useState("");
+  const [catalogReadyQuerySignature, setCatalogReadyQuerySignature] = useState(
+    hasInitialPage ? initialQuerySignature ?? "" : ""
+  );
   const [isLoadingNextPage, setIsLoadingNextPage] = useState(false);
-  const [firstPageResolvedItemCount, setFirstPageResolvedItemCount] = useState(0);
+  const [firstPageResolvedItemCount, setFirstPageResolvedItemCount] = useState(
+    initialItems.length
+  );
   const [catalogTotalCount, setCatalogTotalCount] = useState<number | null>(
     typeof initialTotalCount === "number" && initialTotalCount > 0 ? initialTotalCount : null
   );
@@ -1397,17 +1418,31 @@ function useCatalogData(params: {
     ]
   );
   const activeQuerySignatureRef = useRef(querySignature);
-  const primedInitialPayloadSignatureRef = useRef<string | null>(null);
-  const firstPageReadySignatureRef = useRef<string | null>(null);
+  const primedInitialPayloadSignatureRef = useRef<string | null>(
+    hasInitialPage ? initialQuerySignature ?? null : null
+  );
+  const firstPageReadySignatureRef = useRef<string | null>(
+    hasInitialPage ? initialQuerySignature ?? null : null
+  );
   const pagingRequestedRef = useRef(false);
   const duplicatePageStreakRef = useRef(0);
   const cursorDuplicateStreakRef = useRef(0);
-  const nextCursorByPageRef = useRef<Record<number, string>>({ 1: "" });
-  const nextCursorFieldByPageRef = useRef<Record<number, string>>({ 1: "" });
-  const dataRef = useRef<Product[]>([]);
-  const pricesRef = useRef<Record<string, number | null>>({});
+  const nextCursorByPageRef = useRef<Record<number, string>>({
+    1: "",
+    2: initialPagePayload?.nextCursor || "",
+  });
+  const nextCursorFieldByPageRef = useRef<Record<number, string>>({
+    1: "",
+    2: initialPagePayload?.cursorField || "",
+  });
+  const dataRef = useRef<Product[]>(initialItems);
+  const pricesRef = useRef<Record<string, number | null>>(
+    initialPagePayload?.prices ?? {}
+  );
   const costPricesRef = useRef<Record<string, number | null>>({});
-  const pageImagesRef = useRef<Record<string, string>>({});
+  const pageImagesRef = useRef<Record<string, string>>(
+    initialPagePayload?.images ?? {}
+  );
   const pageImagePendingRef = useRef<Record<string, true>>({});
   const pageImageMissingRef = useRef<Record<string, true>>({});
   const pageImagePendingOwnerRef = useRef<Record<string, number>>({});
@@ -4817,15 +4852,18 @@ const Data: React.FC<DataProps> = ({
     }
 
     let rafId = 0;
-    const updateRange = () => {
-      const grid = catalogGridRef.current;
-      if (!grid) return;
+    const grid = catalogGridRef.current;
+    if (!grid) return;
+    let gridTop = window.scrollY + grid.getBoundingClientRect().top;
 
+    const refreshGridTop = () => {
+      gridTop = window.scrollY + grid.getBoundingClientRect().top;
+    };
+
+    const updateRange = () => {
       const totalItems = visibleSortedEntries.length;
       const columns = Math.max(1, gridColumnCount);
       const totalRows = Math.ceil(totalItems / columns);
-      const rect = grid.getBoundingClientRect();
-      const gridTop = window.scrollY + rect.top;
       const viewportTop = window.scrollY;
       const viewportBottom = viewportTop + window.innerHeight;
       const rowHeight = Math.max(1, virtualRowHeightPx);
@@ -4838,8 +4876,28 @@ const Data: React.FC<DataProps> = ({
         (viewportBottom - gridTop + overscanPx) / rowHeight
       );
 
-      const startRow = Math.max(0, Math.min(totalRows, rawStartRow));
-      const endRow = Math.max(startRow + 1, Math.min(totalRows, rawEndRow));
+      // Keep at least the final row mounted after the viewport passes below
+      // the grid. Clamping to `totalRows` produced an empty slice; the safety
+      // fallback then mounted the *entire* catalog at once near the footer,
+      // causing a severe pause on fast downward and reverse scrolling.
+      const clampedStartRow = Math.max(
+        0,
+        Math.min(Math.max(0, totalRows - 1), rawStartRow)
+      );
+      const clampedEndRow = Math.max(
+        clampedStartRow + 1,
+        Math.min(totalRows, rawEndRow)
+      );
+      const startRow = Math.max(
+        0,
+        Math.floor(clampedStartRow / VIRTUAL_WINDOW_STEP_ROWS) *
+          VIRTUAL_WINDOW_STEP_ROWS
+      );
+      const endRow = Math.min(
+        totalRows,
+        Math.ceil(clampedEndRow / VIRTUAL_WINDOW_STEP_ROWS) *
+          VIRTUAL_WINDOW_STEP_ROWS
+      );
 
       const startIndex = Math.max(0, Math.min(totalItems, startRow * columns));
       const endIndex = Math.max(startIndex, Math.min(totalItems, endRow * columns));
@@ -4873,14 +4931,18 @@ const Data: React.FC<DataProps> = ({
 
     updateRange();
     window.addEventListener("scroll", scheduleUpdate, { passive: true });
-    window.addEventListener("resize", scheduleUpdate, { passive: true });
+    const handleResize = () => {
+      refreshGridTop();
+      scheduleUpdate();
+    };
+    window.addEventListener("resize", handleResize, { passive: true });
 
     return () => {
       if (rafId) {
         window.cancelAnimationFrame(rafId);
       }
       window.removeEventListener("scroll", scheduleUpdate);
-      window.removeEventListener("resize", scheduleUpdate);
+      window.removeEventListener("resize", handleResize);
     };
   }, [
     gridColumnCount,

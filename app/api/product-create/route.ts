@@ -5,6 +5,7 @@ import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
 
 export const runtime = "nodejs";
 
@@ -182,6 +183,7 @@ export async function POST(request: NextRequest) {
   const newName = parsed.Наименование || name;
 
   clearAllOneCCache();
+  clearCatalogPageRouteCache();
   try {
     revalidateTag("product-page-data", "max");
     revalidatePath("/product/[code]", "page");

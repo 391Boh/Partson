@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { startTransition, useEffect, useRef, useState, type ReactNode } from "react";
 
 interface DeferredSectionProps {
   children: ReactNode;
@@ -51,7 +51,7 @@ const DeferredSection = ({
     if (isCloseEnoughToReveal()) {
       // Already within the reveal buffer on mount — no reason to wait for an
       // idle slot, that only adds visible pop-in lag once the user scrolls here.
-      setIsVisible(true);
+      startTransition(() => setIsVisible(true));
       return;
     }
 
@@ -60,28 +60,16 @@ const DeferredSection = ({
       return;
     }
 
-    let proximityFrameId = 0;
-    const checkProximity = () => {
-      if (proximityFrameId) return;
-      proximityFrameId = window.requestAnimationFrame(() => {
-        proximityFrameId = 0;
-        if (isCloseEnoughToReveal()) setIsVisible(true);
-      });
-    };
-
-    // IntersectionObserver callbacks may be coalesced while the main thread is
-    // busy resolving a dynamic chunk. A passive, frame-batched scroll check
-    // closes that gap and also handles a gesture that skips the observer area
-    // entirely. It is removed as soon as this section mounts.
-    window.addEventListener("scroll", checkProximity, { passive: true });
-    window.addEventListener("resize", checkProximity, { passive: true });
-
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
         if (!entry?.isIntersecting) return;
         observer.disconnect();
-        setIsVisible(true);
+        // All three setIsVisible calls in this effect are triggered by
+        // scroll proximity, so they land mid-gesture by construction —
+        // startTransition lets React yield the commit to scroll-driven
+        // paint/input instead of blocking it outright.
+        startTransition(() => setIsVisible(true));
       },
       { rootMargin, threshold: 0.01 }
     );
@@ -90,9 +78,6 @@ const DeferredSection = ({
 
     return () => {
       observer.disconnect();
-      window.removeEventListener("scroll", checkProximity);
-      window.removeEventListener("resize", checkProximity);
-      if (proximityFrameId) window.cancelAnimationFrame(proximityFrameId);
     };
   }, [initiallyVisible, isVisible, rootMargin]);
 

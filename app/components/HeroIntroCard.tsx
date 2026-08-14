@@ -53,8 +53,7 @@ export default function HeroIntroCard() {
               </svg>
             </span>
             <h1 className="font-display min-w-0 flex-1 text-[15px] font-extrabold italic leading-[1.12] tracking-[0.01em] text-sky-50 min-[380px]:text-[16px] sm:text-[18px] md:text-[19px]">
-              <span className="block whitespace-nowrap">Автозапчастини у Львові</span>{" "}
-              <span className="block whitespace-nowrap text-sky-100/92">підбір за VIN і доставка</span>
+              <span className="block whitespace-nowrap">Магазин автозапчастин у Львові</span>
             </h1>
           </div>
 

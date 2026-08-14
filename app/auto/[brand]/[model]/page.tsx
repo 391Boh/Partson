@@ -180,7 +180,7 @@ export async function generateMetadata({ params }: AutoModelPageProps): Promise<
     openGraphTitle: `${title} | PartsON`,
     image: brandImage
       ? { url: brandImage.url, alt: brandImage.alt }
-      : { url: "/Car-parts-fullwidth.png", alt: `${brand} ${model} — запчастини | PartsON` },
+      : { url: "/opengraph-partson-v2.png", alt: `${brand} ${model} — запчастини | PartsON` },
   });
 }
 

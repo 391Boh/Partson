@@ -105,7 +105,7 @@ export async function generateMetadata({ params }: AutoBrandPageProps): Promise<
     openGraphTitle: `${title} | PartsON`,
     image: brandImage
       ? { url: brandImage.url, alt: brandImage.alt }
-      : { url: "/Car-parts-fullwidth.png", alt: `${brand.name} — моделі авто | PartsON` },
+      : { url: "/opengraph-partson-v2.png", alt: `${brand.name} — моделі авто | PartsON` },
   });
 }
 

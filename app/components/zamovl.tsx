@@ -470,6 +470,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
             isFirstOrderDiscountApplied={isFirstOrderDiscountApplied}
             paymentMethod={confirmedPaymentMethod || paymentMethod}
             paymentStatus={confirmedPaymentStatus}
+            items={cartItems}
             onClose={onCloseAll}
           />
         );

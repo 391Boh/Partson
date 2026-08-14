@@ -20,7 +20,7 @@ export async function GET() {
       priority: 0.78,
       images: [
         {
-          loc: "/Car-parts-fullwidth.png",
+          loc: "/opengraph-partson-v2.png",
           title: "Блог PartsON про автозапчастини та сервіс",
           caption: "Поради PartsON щодо підбору запчастин, діагностики і догляду за авто",
         },

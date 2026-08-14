@@ -93,7 +93,7 @@ type Debounced<TArgs extends unknown[]> = ((...args: TArgs) => void) & {
   cancel: () => void;
 };
 
-const BRAND_LOGO_FALLBACK_PATH = "/favicon-192x192.png";
+const BRAND_LOGO_FALLBACK_PATH = "/favicon-partson-v2-192.png";
 const AUTO_STORAGE_KEYS = {
   cars: "partson:selectedCars",
   selection: "partson:selectedCarSelection",
@@ -1191,14 +1191,12 @@ const AutoSection: React.FC<AutoProps> = ({
                   </span>
                   <h2 className="font-display text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:text-[22px]">
                     {selectedBrand
-                      ? `Оберіть модель ${selectedBrand.name} для підбору запчастин`
-                      : "Широкий асортимент товарів для усіх популярних автовиробників"}
+                      ? `Модель ${selectedBrand.name}`
+                      : "Усі популярні марки виробників авто"}
                   </h2>
                 </div>
                 <p className="mt-1 hidden text-[11px] leading-relaxed text-slate-500 sm:block">
-                  {selectedBrand
-                    ? "Знайдіть свою модель серед доступних варіантів."
-                    : "Уточніть параметри вашого авто для правильного підбору."}
+                  Оберіть модель вашого авто для точного підбору
                 </p>
               </div>
               <div className="w-full min-w-0 sm:w-[400px] sm:max-w-[400px] sm:shrink-0 sm:border-l sm:border-sky-200/80 sm:pl-5">
@@ -1350,17 +1348,6 @@ const AutoSection: React.FC<AutoProps> = ({
                         <span className="h-px w-4 bg-gradient-to-l from-transparent to-cyan-500/75 sm:w-6" />
                       </div>
                     ) : null}
-                    <Link
-                      href="/auto"
-                      className="group/all-brands ml-auto inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-extrabold text-sky-700 transition-colors duration-300 hover:text-cyan-600 focus-visible:outline-none focus-visible:text-cyan-600 focus-visible:underline focus-visible:decoration-2 focus-visible:underline-offset-4"
-                    >
-                      Усі марки
-                      <ChevronRight
-                        size={15}
-                        strokeWidth={2.6}
-                        className="transition-transform duration-300 group-hover/all-brands:translate-x-0.5"
-                      />
-                    </Link>
                   </div>
                 </motion.div>
               ) : activeTab === "engine" ? (
@@ -1824,38 +1811,32 @@ const AutoSection: React.FC<AutoProps> = ({
               )}
 
               {(!selectedBrand || activeTab === "engine") && (
-                <div className="mt-3 flex flex-col gap-2.5">
-                  <div>
-                    <h3 className="relative inline-block text-[14.5px] font-black tracking-[-0.02em] text-slate-800 sm:text-[16px]">
-                      {!selectedBrand ? "Оберіть марку" : "Оберіть модифікацію"}
-                      <span className="pointer-events-none absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-cyan-400" />
-                    </h3>
-                    <p className="mt-2 text-[11.5px] font-medium leading-[16px] text-slate-500 sm:text-[12.5px] sm:leading-[17px]">
-                      {!selectedBrand
-                        ? "Натисніть на логотип марки зі списку, щоб переглянути доступні моделі та підібрати запчастини для вашого авто."
-                        : "Вкажіть рік випуску, об'єм двигуна та інші параметри, щоб знайти запчастини, сумісні саме з вашою модифікацією."}
+                !selectedBrand ? (
+                  <Link href="/auto" aria-label="Переглянути всі марки автомобілів" className="group/choice mt-3 block cursor-pointer overflow-hidden rounded-[18px] border border-white/90 bg-[radial-gradient(circle_at_100%_0%,rgba(103,232,249,0.2),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.92),rgba(240,249,255,0.86))] p-3.5 shadow-[0_12px_26px_rgba(14,116,144,0.09),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-sky-100/70 transition-[background-image,border-color,box-shadow] duration-300 hover:border-cyan-300 hover:bg-[radial-gradient(circle_at_8%_0%,rgba(45,212,191,0.24),transparent_40%),radial-gradient(circle_at_100%_10%,rgba(56,189,248,0.30),transparent_44%),linear-gradient(145deg,#ffffff,#e4f7ff_56%,#e3fbf4)] hover:shadow-[0_20px_42px_rgba(2,132,199,0.16),inset_0_1px_0_white] focus-visible:border-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">
+                    <div>
+                      <div className="min-w-0">
+                        <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-sky-600 sm:text-[11px]">Точний підбір</span>
+                        <h3 className="mt-0.5 text-[20px] font-black leading-tight tracking-[-0.03em] text-slate-900 sm:text-[23px]">
+                          Оберіть марку авто
+                        </h3>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-[14px] font-medium leading-[22px] text-slate-600 sm:text-[15px] sm:leading-[23px]">
+                      Оберіть марку, модель і модифікацію — каталог покаже запчастини саме для вашого автомобіля.
                     </p>
+                    <div className="mt-3 flex justify-end border-t border-sky-100/80 pt-2.5">
+                      <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-black text-sky-700 transition-colors duration-200 group-hover/choice:text-cyan-600 sm:text-[13px]">
+                        Усі марки
+                        <ChevronRight size={13} strokeWidth={3} className="transition-transform duration-200 group-hover/choice:translate-x-1" aria-hidden />
+                      </span>
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="mt-3 rounded-[16px] border border-sky-100/80 bg-white/70 px-3 py-3 shadow-sm">
+                    <h3 className="text-[14.5px] font-black tracking-[-0.02em] text-slate-800 sm:text-[16px]">Оберіть модифікацію</h3>
+                    <p className="mt-1 text-[11px] font-medium leading-relaxed text-slate-500">Уточніть двигун і параметри, щоб завершити підбір.</p>
                   </div>
-                  <ul className="flex flex-col gap-2">
-                    {(!selectedBrand
-                      ? [
-                          `Понад ${carBrands.length} популярних марок авто`,
-                          "Точний підбір за маркою, моделлю і роком",
-                          "Сумісні запчастини для вашого авто",
-                        ]
-                      : [
-                          "Точна сумісність за модифікацією",
-                          "Перевірені запчастини для вашого двигуна",
-                          "Швидкий перехід до каталогу",
-                        ]
-                    ).map((item) => (
-                      <li key={item} className="flex items-start gap-2.5 text-[11px] font-medium leading-snug text-slate-600 sm:text-[12px]">
-                        <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                )
               )}
             </>
           )}

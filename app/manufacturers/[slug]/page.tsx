@@ -1191,7 +1191,7 @@ export async function generateMetadata({
     keywords: buildManufacturerKeywords(producer.label),
     openGraphTitle: `${title} | PartsON`,
     image: producerImage ?? {
-      url: "/Car-parts-fullwidth.png",
+      url: "/opengraph-partson-v2.png",
       alt: `${producer.label} — автозапчастини | PartsON`,
     },
   });

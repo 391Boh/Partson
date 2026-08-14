@@ -70,7 +70,7 @@ export default function ProductDeferredRecommendations({
   return (
     <div className="space-y-2.5">
       <DeferredSection
-        rootMargin="720px"
+        rootMargin="1400px"
         fallback={<RecommendationSkeleton titleWidth="w-52" cards={3} />}
         minHeight="172px"
         className="min-w-0"

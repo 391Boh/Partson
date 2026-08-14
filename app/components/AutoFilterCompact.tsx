@@ -38,7 +38,7 @@ const normalizeRows = (rows: string[]) => {
   return cleaned.filter((item, index) => cleaned.indexOf(item) === index);
 };
 
-const BRAND_LOGO_FALLBACK_PATH = '/favicon-48x48.png';
+const BRAND_LOGO_FALLBACK_PATH = '/favicon-partson-v2-48.png';
 
 const handleBrandLogoLoadError = (event: React.SyntheticEvent<HTMLImageElement>) => {
   const image = event.currentTarget;

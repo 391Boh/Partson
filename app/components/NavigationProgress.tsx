@@ -28,17 +28,14 @@ function RouteWatcher({ onComplete }: { onComplete: () => void }) {
 export default function NavigationProgress() {
   const router = useRouter();
   const barRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number | null>(null);
   const startTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timer1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const startTimeRef = useRef<number>(0);
   const isRunningRef = useRef(false);
   const prefetchedRoutesRef = useRef<Set<string>>(new Set());
 
   const clearPending = useCallback(() => {
     if (startTimerRef.current !== null) { clearTimeout(startTimerRef.current); startTimerRef.current = null; }
-    if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     if (timer1Ref.current !== null) { clearTimeout(timer1Ref.current); timer1Ref.current = null; }
     if (timer2Ref.current !== null) { clearTimeout(timer2Ref.current); timer2Ref.current = null; }
   }, []);
@@ -85,20 +82,12 @@ export default function NavigationProgress() {
     bar.style.opacity = '1';
     bar.style.transition = 'none';
     bar.style.transform = 'scaleX(0)';
-    startTimeRef.current = performance.now();
-
-    const animate = (now: number) => {
-      if (!isRunningRef.current || !barRef.current) return;
-      const t = Math.min((now - startTimeRef.current) / 1400, 1);
-      const scale = (1 - Math.pow(1 - t, 3)) * 0.88;
-      barRef.current.style.transform = `scaleX(${scale.toFixed(4)})`;
-      rafRef.current = requestAnimationFrame(animate);
-    };
-
-    // One-frame delay so the scaleX(0) reset is committed before animation starts
-    rafRef.current = requestAnimationFrame(() => {
-      rafRef.current = requestAnimationFrame(animate);
-    });
+    // Let the compositor animate the bar. The previous requestAnimationFrame
+    // loop ran JavaScript (including toFixed/string allocation) on every frame
+    // while React was also rendering the destination route.
+    void bar.offsetWidth;
+    bar.style.transition = 'transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)';
+    bar.style.transform = 'scaleX(0.88)';
   }, [clearPending]);
 
   const start = useCallback(() => {
@@ -144,6 +133,14 @@ export default function NavigationProgress() {
       warmRoute(event);
     };
 
+    const warmRouteOnPointerDown = (event: PointerEvent) => {
+      // On touch screens there is no hover window. Starting the RSC request
+      // on pointerdown gives it the whole press/release interval before Link's
+      // click navigation; the Set keeps mouse pointerdown from duplicating a
+      // route already warmed on hover.
+      warmRoute(event);
+    };
+
     const handleClick = (e: MouseEvent) => {
       if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
       if (!getInternalNavigationHref(e)) return;
@@ -184,6 +181,7 @@ export default function NavigationProgress() {
     };
 
     document.addEventListener('pointerover', warmRouteOnHover, { capture: true, passive: true });
+    document.addEventListener('pointerdown', warmRouteOnPointerDown, { capture: true, passive: true });
     document.addEventListener('focusin', warmRoute, { capture: true, passive: true });
     document.addEventListener('click', handleClick, { capture: true, passive: true });
     window.addEventListener('popstate', handlePopState);
@@ -192,6 +190,7 @@ export default function NavigationProgress() {
       window.history.pushState = origPushState;
       window.history.replaceState = origReplaceState;
       document.removeEventListener('pointerover', warmRouteOnHover, { capture: true });
+      document.removeEventListener('pointerdown', warmRouteOnPointerDown, { capture: true });
       document.removeEventListener('focusin', warmRoute, { capture: true });
       document.removeEventListener('click', handleClick, { capture: true });
       window.removeEventListener('popstate', handlePopState);

@@ -245,7 +245,7 @@ export const getInformationMetadata = (key: InformationSectionKey): Metadata => 
       url:
         resolvedKey === "diagnostics"
           ? "/Katlogo/datchyky_ta_elektronika.png"
-          : "/Car-parts-fullwidth.png",
+          : "/opengraph-partson-v2.png",
       width: resolvedKey === "diagnostics" ? 512 : 1200,
       height: resolvedKey === "diagnostics" ? 512 : 630,
       alt: `${title} | PartsON`,

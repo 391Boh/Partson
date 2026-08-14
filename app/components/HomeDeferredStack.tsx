@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 
 import SectionBoundary from "./SectionBoundary";
 import { scheduleIdle } from "app/lib/schedule-idle";
@@ -36,6 +36,12 @@ const loadAutoSection = () => import("./Auto");
 const loadBrandsSection = () => import("./Brands");
 
 const ProductFetcher = dynamic(loadProductSection, {
+  // ProductFetcher derives parts of its first state from sessionStorage and
+  // responsive media queries. Rendering it on the server can therefore
+  // produce markup that differs from the first browser render on another
+  // device or with a populated catalog cache, causing React hydration errors.
+  // Keep only this interactive catalog browser client-only; the SEO section
+  // below it is rendered as server HTML in app/page.tsx.
   ssr: false,
   loading: ProductSectionFallback,
 });
@@ -75,11 +81,17 @@ export default function HomeDeferredStack({
   const [stage, setStage] = useState(0);
   useEffect(() => {
     if (stage >= 2) return;
-    // Keep expensive chunk evaluation away from the first scroll gesture.
-    // The first step runs after the initial page has settled; the next one is
-    // spaced out further so two large client trees never commit back-to-back.
-    const delay = stage === 0 ? 650 : 850;
-    return scheduleIdle(() => setStage((prev) => Math.min(2, prev + 1)), delay);
+    // Fetch/evaluate each following chunk in the first available idle slice,
+    // then commit it as a transition. This keeps input responsive without the
+    // former 1.5s artificial waterfall between Auto and Brands.
+    const delay = stage === 0 ? 120 : 220;
+    const preload = stage === 0 ? loadAutoSection : loadBrandsSection;
+    return scheduleIdle(() => {
+      const revealNextStage = () => {
+        startTransition(() => setStage((prev) => Math.min(2, prev + 1)));
+      };
+      void preload().then(revealNextStage, revealNextStage);
+    }, delay);
   }, [stage]);
 
   return (

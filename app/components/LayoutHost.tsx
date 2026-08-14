@@ -8,7 +8,7 @@ import type { Firestore } from "firebase/firestore";
 import Header from "./Header";
 import NavigationProgress from "./NavigationProgress";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronUp, MessageCircle, Shield } from "lucide-react";
+import { ChevronUp, MessageCircle, Plus, Shield } from "lucide-react";
 import {
   CATALOG_PAGE_CACHE_VERSION,
   CATALOG_PRODUCTS_CACHE_KEY,
@@ -16,13 +16,14 @@ import {
 } from "app/lib/catalog-client-cache";
 import { GOOGLE_REDIRECT_PENDING_KEY } from "app/lib/auth-storage";
 
+const ProductCreateModal = dynamic(() => import("./ProductCreateModal"), {
+  ssr: false,
+});
+
 interface LayoutHostProps {
   children: ReactNode;
 }
 
-const ProductCreateModal = dynamic(() => import("./ProductCreateModal"), {
-  ssr: false,
-});
 
 type AdminChatPanelComponentProps = {
   isOpen: boolean;
@@ -324,12 +325,12 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const [userId, setUserId] = useState<string | null>(null);
   const [userUnreadCount, setUserUnreadCount] = useState(0);
   const [totalNotifications, setTotalNotifications] = useState(0);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [prefillMessage, setPrefillMessage] = useState<string | null>(null);
   const [routeViewState, setRouteViewState] = useState<RouteViewState>({
     isEmbeddedProductView: false,
   });
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const router = useRouter();
   const pathnameValue = usePathname();
@@ -364,6 +365,39 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
+  }, []);
+
+  // Large homepage sections have decorative hover gradients and shadows. As
+  // the page moves underneath a stationary pointer, those hovers can fire in
+  // sequence and trigger expensive full-width paints during the wheel/touch
+  // gesture. Expose a short-lived scrolling state so CSS can suspend only the
+  // decorative effects while native scrolling remains entirely compositor-led.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const root = document.documentElement;
+    let endTimer: number | null = null;
+    let scrolling = false;
+
+    const handleScroll = () => {
+      if (!scrolling) {
+        scrolling = true;
+        root.classList.add("is-scrolling");
+      }
+      if (endTimer !== null) window.clearTimeout(endTimer);
+      endTimer = window.setTimeout(() => {
+        scrolling = false;
+        root.classList.remove("is-scrolling");
+        endTimer = null;
+      }, 140);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (endTimer !== null) window.clearTimeout(endTimer);
+      root.classList.remove("is-scrolling");
+    };
   }, []);
 
   useEffect(() => {
@@ -533,8 +567,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   // product-to-product navigation, so every other transition (e.g. groups ->
   // group, auto -> brand, manufacturers -> producer, anything -> katalog)
   // relied on the browser's/Next's own scroll restoration, which doesn't
-  // reliably reset to top with experimental.viewTransition enabled — that's
-  // what the "always start at the top" complaint was about. Same-page
+  // reliably reset to top after every streamed route update. Same-page
   // updates (router.replace with only searchParams changing, e.g. filter
   // selection) correctly leave scroll position alone since pathname itself
   // doesn't change for those. The double rAF guards against a layout shift
@@ -638,6 +671,12 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       return target.closest(overlaySelector);
     };
 
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!getOverlayRoot(event.target)) {
+        event.preventDefault();
+      }
+    };
+
     const restoreBodyScroll = () => {
       if (!isLocked) return;
 
@@ -645,6 +684,14 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       root.style.overscrollBehavior = previousStyles.htmlOverscroll;
       body.style.overflow = previousStyles.bodyOverflow;
       body.style.overscrollBehavior = previousStyles.bodyOverscroll;
+      // Only ever attached while actually locked (see lockBodyScroll) — a
+      // non-passive touchmove listener disables the browser's scroll
+      // fast-path for every touch gesture on the page while it's registered,
+      // not just ones inside the locked overlay. Previously this stayed
+      // attached for the component's whole lifetime on any mobile viewport,
+      // degrading touch-scroll smoothness on every page even with no modal
+      // open at all.
+      document.removeEventListener("touchmove", handleTouchMove);
       isLocked = false;
     };
 
@@ -655,15 +702,8 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       root.style.overscrollBehavior = "none";
       body.style.overflow = "hidden";
       body.style.overscrollBehavior = "none";
+      document.addEventListener("touchmove", handleTouchMove, { passive: false });
       isLocked = true;
-    };
-
-    const handleTouchMove = (event: TouchEvent) => {
-      if (!isLocked || !mediaQuery.matches) return;
-
-      if (!getOverlayRoot(event.target)) {
-        event.preventDefault();
-      }
     };
 
     const syncOverlayScrollLock = () => {
@@ -702,13 +742,11 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     }
 
     window.addEventListener("resize", handleViewportChange);
-    document.addEventListener("touchmove", handleTouchMove, { passive: false });
     syncOverlayScrollLock();
 
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", handleViewportChange);
-      document.removeEventListener("touchmove", handleTouchMove);
       if (typeof mediaQuery.removeEventListener === "function") {
         mediaQuery.removeEventListener("change", handleViewportChange);
       } else {
@@ -726,20 +764,39 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (primaryRoutePrefetchStartedRef.current) return;
-    // The homepage already loads its interactive sections as they approach
-    // the viewport; prefetching every primary route here would compete with
-    // the hero, fonts and category data during the first paint.
-    if (pathname === "/") return;
     primaryRoutePrefetchStartedRef.current = true;
 
-    const frameId = window.requestAnimationFrame(() => {
-      const routes = shouldUseLightNetworkWarmup()
-        ? PRIMARY_WARMUP_ROUTES.slice(0, 4)
-        : PRIMARY_WARMUP_ROUTES;
-      routes.forEach((route) => router.prefetch(route));
-    });
+    let idleId: number | null = null;
+    let didWarmRoutes = false;
+    const delayId = window.setTimeout(() => {
+      const warmRoutes = () => {
+        didWarmRoutes = true;
+        const routeLimit = shouldUseLightNetworkWarmup() ? 3 : 5;
+        PRIMARY_WARMUP_ROUTES
+          .filter((route) => route !== pathname)
+          .slice(0, routeLimit)
+          .forEach((route) => router.prefetch(route));
+      };
 
-    return () => window.cancelAnimationFrame(frameId);
+      // Homepage prefetch used to be skipped completely, leaving its most
+      // common first navigation cold. Start it only after initial content has
+      // settled, so it improves the next click without competing with LCP.
+      if (typeof window.requestIdleCallback === "function") {
+        idleId = window.requestIdleCallback(warmRoutes, { timeout: 4000 });
+      } else {
+        warmRoutes();
+      }
+    }, pathname === "/" ? 1800 : 350);
+
+    return () => {
+      window.clearTimeout(delayId);
+      if (idleId !== null && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+      }
+      if (!didWarmRoutes) {
+        primaryRoutePrefetchStartedRef.current = false;
+      }
+    };
   }, [pathname, router]);
 
   useEffect(() => {
@@ -1466,76 +1523,16 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       </main>
 
       {!isEmbeddedProductView && (
-        <div className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] z-50 flex flex-col items-end gap-2 sm:bottom-6 sm:right-6 sm:gap-4 lg:right-7">
-          {isAdmin && !isAdminPanelOpen && (
-            <div className="flex flex-col items-end gap-1.5">
-              <button
-                onClick={() => setIsCreateModalOpen(true)}
-                aria-label="Новий товар"
-                title="Створити новий товар"
-                className="group relative isolate z-[60] mr-2 flex h-11 w-11 items-center justify-center overflow-visible rounded-[16px] border border-white/18 shadow-[0_14px_32px_rgba(109,40,217,0.32)] transition-[box-shadow,border-color,filter,transform] duration-300 ease-out hover:-translate-y-0.5 hover:scale-[1.018] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-violet-300/45 md:mr-2.5"
-              >
-                <span aria-hidden="true" style={{ backgroundSize: "180% 180%" }} className="pointer-events-none absolute inset-0 rounded-[16px] bg-[image:linear-gradient(145deg,rgba(88,28,135,0.98)_0%,rgba(124,58,237,0.95)_48%,rgba(167,139,250,0.88)_100%)] bg-[position:0%_50%] transition-[background-position] duration-700 ease-out group-hover:bg-[position:100%_50%]" />
-                <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[16px] border border-white/10 bg-[image:radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_82%)]" />
-                <span aria-hidden="true" className="pointer-events-none absolute inset-[1px] rounded-[15px] bg-[image:linear-gradient(165deg,rgba(255,255,255,0.14),rgba(255,255,255,0.04)_38%,rgba(255,255,255,0.06)_100%)]" />
-                <span aria-hidden="true" className="pointer-events-none absolute -inset-3 scale-[0.94] rounded-[22px] bg-violet-400/24 opacity-25 blur-xl transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.04] group-hover:opacity-55" />
-                <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -translate-x-[130%] skew-x-[-18deg] bg-[image:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent)] opacity-0 mix-blend-screen transition-[opacity,transform] duration-700 ease-out group-hover:translate-x-[250%] group-hover:opacity-95" />
-                <span className="pointer-events-none absolute inset-x-3 top-1.5 h-4 rounded-full bg-[image:linear-gradient(180deg,rgba(255,255,255,0.22),transparent)] blur-sm" />
-                <span className="relative z-10 flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.08]">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-white drop-shadow-[0_4px_10px_rgba(109,40,217,0.4)]" aria-hidden="true">
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                </span>
-              </button>
-              <button
-                onClick={() => setIsAdminPanelOpen((prev) => !prev)}
-                aria-label="Адмін панель"
-                title="Адмін панель"
-                className="group relative isolate z-[60] mr-2 flex h-[62px] w-[62px] items-center justify-center overflow-visible rounded-[22px] border border-white/18 shadow-[0_18px_38px_rgba(8,47,73,0.26)] transition-[box-shadow,border-color,filter,transform] duration-300 ease-out hover:-translate-y-1 hover:scale-[1.018] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
-              >
-                <span
-                  aria-hidden="true"
-                  style={{ backgroundSize: "180% 180%" }}
-                  className="pointer-events-none absolute inset-0 rounded-[22px] bg-[image:linear-gradient(145deg,rgba(15,23,42,0.98)_0%,rgba(67,56,202,0.92)_48%,rgba(14,165,233,0.88)_100%)] bg-[position:0%_50%] transition-[background-position] duration-700 ease-out group-hover:bg-[position:100%_50%]"
-                />
-                <span className="pointer-events-none absolute inset-0 rounded-[22px] border border-white/10 bg-[image:radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_82%)]" />
-                <span className="pointer-events-none absolute inset-[1px] rounded-[21px] bg-[image:linear-gradient(165deg,rgba(255,255,255,0.14),rgba(255,255,255,0.04)_38%,rgba(255,255,255,0.06)_100%)]" />
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute -inset-4 scale-[0.94] rounded-[30px] bg-indigo-400/26 opacity-25 blur-2xl transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.04] group-hover:opacity-55"
-                />
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -translate-x-[130%] skew-x-[-18deg] bg-[image:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent)] opacity-0 mix-blend-screen transition-[opacity,transform] duration-700 ease-out group-hover:translate-x-[250%] group-hover:opacity-95"
-                />
-                <span className="pointer-events-none absolute inset-x-4 top-2.5 h-6 rounded-full bg-[image:linear-gradient(180deg,rgba(255,255,255,0.22),transparent)] blur-md" />
-                <span className="relative z-10 flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.06]">
-                  <Shield
-                    className="text-white drop-shadow-[0_8px_18px_rgba(15,23,42,0.32)]"
-                    size={28}
-                    strokeWidth={2.2}
-                    aria-hidden="true"
-                  />
-                </span>
-                <span className="pointer-events-none absolute left-1/2 -top-[3.6rem] -translate-x-1/2 translate-y-1.5 whitespace-nowrap rounded-[15px] border border-white/65 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_58%,rgba(224,242,254,0.94)_100%)] px-3.5 py-2 text-[11px] font-semibold tracking-[0.05em] text-slate-800 opacity-0 shadow-[0_18px_36px_rgba(15,23,42,0.16)] backdrop-blur-xl transition-all duration-[250ms] ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
-                  Адмін панель
-                </span>
-                <span className="pointer-events-none absolute left-1/2 -top-[9px] h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-r border-b border-white/60 bg-sky-50/95 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
-                {renderBadge(totalNotifications)}
-              </button>
-            </div>
-          )}
-
+        <div className="site-floating-actions fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] z-50 flex flex-col items-end gap-2 sm:bottom-6 sm:right-6 sm:gap-4 lg:right-7">
           <div className="flex items-end gap-2 sm:gap-3">
             <button
               type="button"
               aria-label="Вгору"
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
               className={[
-                "group relative isolate z-20 flex h-[62px] w-[62px] items-center justify-center overflow-visible rounded-[22px]",
+                "group relative isolate z-20 flex h-14 w-14 items-center justify-center overflow-hidden rounded-[18px] sm:h-[60px] sm:w-[60px] sm:rounded-[20px]",
                 "border transition-[box-shadow,border-color,transform,opacity] duration-300 ease-out",
-                "hover:-translate-y-1 hover:scale-[1.018] active:scale-[0.97]",
-                "md:h-[70px] md:w-[70px]",
+                "hover:scale-[1.018] active:scale-[0.97]",
                 "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45",
                 "border-cyan-100/25 shadow-[0_16px_38px_rgba(8,47,73,0.22)] hover:border-cyan-100/45 hover:shadow-[0_22px_46px_rgba(14,116,144,0.28)]",
                 showScrollTop
@@ -1543,23 +1540,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
                   : "opacity-0 translate-y-3 pointer-events-none",
               ].join(" ")}
             >
-              <span
-                aria-hidden="true"
-                style={{ backgroundSize: "180% 180%" }}
-                className="pointer-events-none absolute inset-0 rounded-[22px] bg-[position:0%_50%] transition-[background-position] duration-700 ease-out group-hover:bg-[position:100%_50%] bg-[image:linear-gradient(145deg,rgba(15,23,42,0.92)_0%,rgba(3,105,161,0.86)_48%,rgba(45,212,191,0.78)_100%)]"
-              />
-              <span className="pointer-events-none absolute inset-0 rounded-[22px] border border-white/14 bg-[image:radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.22),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.10),transparent_82%)]" />
-              <span className="pointer-events-none absolute inset-[1px] rounded-[21px] bg-[image:linear-gradient(165deg,rgba(255,255,255,0.18),rgba(255,255,255,0.05)_38%,rgba(255,255,255,0.08)_100%)]" />
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute -inset-4 scale-[0.94] rounded-[30px] bg-cyan-300/20 opacity-20 blur-2xl transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.04] group-hover:opacity-50"
-              />
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -translate-x-[130%] skew-x-[-18deg] bg-[image:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent)] opacity-0 mix-blend-screen transition-[opacity,transform] duration-700 ease-out group-hover:translate-x-[250%] group-hover:opacity-95"
-              />
-              <span className="pointer-events-none absolute inset-x-4 top-2.5 h-6 rounded-full bg-[image:linear-gradient(180deg,rgba(255,255,255,0.20),transparent)] blur-md" />
-              <span className="relative z-10 flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.08] group-hover:-translate-y-0.5">
+              <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(145deg,#0f172a,#0369a1_52%,#14b8a6)]" />
+              <span className="pointer-events-none absolute inset-x-2 top-1 h-5 rounded-full bg-gradient-to-b from-white/22 to-transparent" />
+              <span className="relative z-10 flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.08]">
                 <ChevronUp
                   className="text-white drop-shadow-[0_8px_18px_rgba(15,23,42,0.32)]"
                   size={30}
@@ -1567,25 +1550,49 @@ export default function LayoutHost({ children }: LayoutHostProps) {
                   aria-hidden="true"
                 />
               </span>
-              <span className="pointer-events-none absolute left-1/2 -top-[3.6rem] -translate-x-1/2 translate-y-1.5 whitespace-nowrap rounded-[15px] border border-white/65 bg-[image:linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.96)_58%,rgba(224,242,254,0.94)_100%)] px-3.5 py-2 text-[11px] font-semibold tracking-[0.05em] text-slate-800 opacity-0 shadow-[0_18px_36px_rgba(15,23,42,0.16)] backdrop-blur-xl transition-all duration-[250ms] ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
-                Вгору
-              </span>
-              <span className="pointer-events-none absolute left-1/2 -top-[9px] h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-r border-b border-white/60 bg-sky-50/95 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
             </button>
 
-            {!isChatOpen && ChatButtonComponent ? (
-              <ChatButtonComponent onClick={openChat} unreadCount={userUnreadCount} />
-            ) : !isChatOpen ? (
-              <button
-                type="button"
-                onClick={openChat}
-                aria-label="Відкрити чат"
-                className="relative z-20 mr-2 inline-flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border border-white/18 bg-[image:linear-gradient(145deg,rgba(15,23,42,0.98)_0%,rgba(30,64,175,0.94)_46%,rgba(14,165,233,0.88)_100%)] text-white shadow-[0_18px_38px_rgba(8,47,73,0.28)] transition-[filter,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:brightness-[1.06] hover:shadow-[0_22px_44px_rgba(14,116,144,0.32)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 md:mr-2.5 md:h-[70px] md:w-[70px]"
-              >
-                <MessageCircle size={30} strokeWidth={2.2} aria-hidden="true" />
-                {renderBadge(userUnreadCount)}
-              </button>
-            ) : null}
+            <div className="flex flex-col items-center gap-2 sm:gap-3">
+              {isAdmin && !isAdminPanelOpen && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateModalOpen(true)}
+                    aria-label="Додати товар"
+                    title="Додати товар"
+                    className="group relative isolate z-20 flex h-11 w-11 items-center justify-center overflow-hidden rounded-[15px] border border-violet-200/40 bg-[linear-gradient(145deg,#581c87,#7c3aed_55%,#a855f7)] text-white shadow-[0_12px_26px_rgba(124,58,237,0.30)] transition-[transform,border-color,box-shadow,filter] duration-200 hover:border-violet-100/75 hover:brightness-110 hover:shadow-[0_17px_34px_rgba(124,58,237,0.40)] active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-violet-300/45 sm:h-12 sm:w-12 sm:rounded-[16px]"
+                  >
+                    <span className="pointer-events-none absolute inset-x-2 top-1 h-4 rounded-full bg-gradient-to-b from-white/25 to-transparent" />
+                    <Plus size={23} strokeWidth={2.6} className="relative transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAdminPanelOpen(true)}
+                    aria-label="Відкрити адмін-панель"
+                    title="Адмін-панель"
+                    className="group relative isolate z-20 flex h-14 w-14 items-center justify-center overflow-visible rounded-[18px] border border-indigo-200/35 bg-[linear-gradient(145deg,#312e81,#4f46e5_55%,#0ea5e9)] text-white shadow-[0_14px_30px_rgba(67,56,202,0.28)] transition-[transform,border-color,box-shadow,filter] duration-200 hover:border-indigo-100/70 hover:brightness-110 hover:shadow-[0_20px_38px_rgba(67,56,202,0.38)] active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-300/45 sm:h-[60px] sm:w-[60px] sm:rounded-[20px]"
+                  >
+                    <span className="pointer-events-none absolute inset-x-2 top-1 h-5 rounded-full bg-gradient-to-b from-white/22 to-transparent" />
+                    <Shield size={25} strokeWidth={2.2} className="relative transition-transform duration-200 group-hover:scale-110" aria-hidden="true" />
+                    {renderBadge(totalNotifications)}
+                  </button>
+                </>
+              )}
+
+              {!isChatOpen && ChatButtonComponent ? (
+                <ChatButtonComponent onClick={openChat} unreadCount={userUnreadCount} />
+              ) : !isChatOpen ? (
+                <button
+                  type="button"
+                  onClick={openChat}
+                  aria-label="Відкрити чат"
+                  className="relative z-20 inline-flex h-14 w-14 items-center justify-center rounded-[18px] border border-sky-200/30 bg-[linear-gradient(145deg,#0f172a,#1d4ed8_52%,#0ea5e9)] text-white shadow-[0_14px_30px_rgba(14,116,144,0.28)] transition-[filter,box-shadow,transform] duration-200 ease-out hover:brightness-110 hover:shadow-[0_20px_38px_rgba(14,116,144,0.38)] active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45 sm:h-[60px] sm:w-[60px] sm:rounded-[20px]"
+                >
+                  <MessageCircle size={27} strokeWidth={2.2} aria-hidden="true" />
+                  {renderBadge(userUnreadCount)}
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {isAdmin && AdminChatPanelComponent && (
@@ -1615,6 +1622,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           onClose={() => setIsCreateModalOpen(false)}
         />
       )}
+
     </div>
   );
 }

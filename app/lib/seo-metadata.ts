@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 const DEFAULT_IMAGE = {
-  url: "/og-image.png",
+  url: "/opengraph-partson-v2.png",
   width: 1200,
   height: 630,
   alt: "PartsON - автозапчастини",

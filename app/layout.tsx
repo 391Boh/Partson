@@ -5,7 +5,6 @@ import { Suspense, type ReactNode } from "react";
 import Script from "next/script";
 import ClientWrapper from "./client-wrapper";
 import LayoutHost from "./components/LayoutHost";
-import PageLoadingShell from "./components/PageLoadingShell";
 import { WebVitalsReporter } from "./components/WebVitalsReporter";
 import AnalyticsRuntime from "./components/AnalyticsRuntime";
 import DeferredFooter from "./components/DeferredFooter";
@@ -62,7 +61,7 @@ const siteUrlObject = (() => {
 
 const organizationId = `${siteUrl}#organization`;
 const localBusinessId = `${siteUrl}#local-business`;
-const organizationLogoUrl = `${siteUrl}/Car-parts-fullwidth.png`;
+const organizationLogoUrl = `${siteUrl}/google-logo-partson-v2.png`;
 
 const parseNumericEnv = (value: string | undefined) => {
   if (!value) return null;
@@ -203,11 +202,11 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: "/favicon-48x48.png", type: "image/png", sizes: "48x48" },
-      { url: "/favicon-192x192.png", type: "image/png", sizes: "192x192" },
-      { url: "/favicon-512x512.png", type: "image/png", sizes: "512x512" },
+      { url: "/favicon-partson-v2-48.png", type: "image/png", sizes: "48x48" },
+      { url: "/favicon-partson-v2-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/favicon-partson-v2-512.png", type: "image/png", sizes: "512x512" },
     ],
-    apple: [{ url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
+    apple: [{ url: "/apple-touch-partson-v2.png", type: "image/png", sizes: "180x180" }],
   },
   openGraph: {
     type: "website",
@@ -218,7 +217,7 @@ export const metadata: Metadata = {
     description: rootSocialDescription,
     images: [
       {
-        url: "/og-image.png",
+        url: "/opengraph-partson-v2.png",
         width: 1200,
         height: 630,
         alt: "PartsON - автозапчастини",
@@ -229,7 +228,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PartsON - Магазин автозапчастин",
     description: rootSocialDescription,
-    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "PartsON - автозапчастини" }],
+    images: [{ url: "/opengraph-partson-v2.png", width: 1200, height: 630, alt: "PartsON - автозапчастини" }],
   },
 };
 
@@ -312,8 +311,8 @@ const organizationJsonLd = {
   logo: {
     "@type": "ImageObject",
     url: `${organizationLogoUrl}`,
-    width: 512,
-    height: 512,
+    width: 1024,
+    height: 1024,
   },
   image: [`${organizationLogoUrl}`],
   sameAs: sameAsLinks.length > 0 ? sameAsLinks : undefined,
@@ -414,8 +413,6 @@ const localBusinessJsonLd = {
   ],
 };
 
-const layoutFallback = <PageLoadingShell label="Завантаження сторінки..." cardsCount={4} />;
-
 async function LocalBusinessJsonLdWithRating() {
   const googleRating = await getGoogleRating();
   const localBusinessWithRating = {
@@ -494,9 +491,7 @@ export default function RootLayout({
         <WebVitalsReporter />
         <div className="page-scale-root">
           <ClientWrapper>
-            <Suspense fallback={layoutFallback}>
-              <LayoutHost>{children}</LayoutHost>
-            </Suspense>
+            <LayoutHost>{children}</LayoutHost>
           </ClientWrapper>
           <DeferredFooter />
         </div>
