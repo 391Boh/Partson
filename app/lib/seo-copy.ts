@@ -1,4 +1,5 @@
 import { buildVisibleProductName } from "app/lib/product-url";
+import { pluralizeManufacturers, pluralizeProducts, pluralizeUk } from "app/lib/pluralize-uk";
 
 type HomeSeoContent = {
   title: string;
@@ -2296,7 +2297,7 @@ export const getGroupSeoCopy = (label: string, productCount: number): GroupSeoCo
   const entry = GROUP_COPY_MAP[normalized];
   const productCountLabel =
     productCount > 0
-      ? `${productCount.toLocaleString("uk-UA")} товарів`
+      ? `${productCount.toLocaleString("uk-UA")} ${pluralizeProducts(productCount)}`
       : "актуальні товари";
 
   if (entry) {
@@ -2335,7 +2336,7 @@ export const getGroupSeoCopy = (label: string, productCount: number): GroupSeoCo
 };
 
 export const getGroupMetaDescription = (label: string, productCount: number) =>
-  `${label} у PartsON: ${productCount.toLocaleString("uk-UA")} товарів, підгрупи, пошук за кодом і артикулом, ціни, наявність, самовивіз у Львові та доставка по Україні.`;
+  `${label} у PartsON: ${productCount.toLocaleString("uk-UA")} ${pluralizeProducts(productCount)}, підгрупи, пошук за кодом і артикулом, ціни, наявність, самовивіз у Львові та доставка по Україні.`;
 
 export const getGroupItemSeoCopy = (options: {
   label: string;
@@ -2364,11 +2365,11 @@ export const getGroupItemSeoCopy = (options: {
     : "";
   const productCountLabel =
     options.productCount > 0
-      ? `${options.productCount.toLocaleString("uk-UA")} товарів`
+      ? `${options.productCount.toLocaleString("uk-UA")} ${pluralizeProducts(options.productCount)}`
       : "актуальні товарні позиції каталогу";
   const producersCountLabel =
     options.producersCount > 0
-      ? `${options.producersCount.toLocaleString("uk-UA")} виробників`
+      ? `${options.producersCount.toLocaleString("uk-UA")} ${pluralizeManufacturers(options.producersCount)}`
       : "різні бренди та виробники";
 
   if (parentSubgroupLabel) {
@@ -2401,7 +2402,7 @@ export const getGroupItemSeoCopy = (options: {
     paragraphs: [
       `У підгрупі можна знайти ${productCountLabel}, перейти до пов'язаних категорій і відкрити каталог без зайвих кроків.`,
       options.childrenCount > 0
-        ? `Сторінка містить ${options.childrenCount.toLocaleString("uk-UA")} кінцевих підкатегорій, тому пошук можна звузити до конкретного типу деталей.`
+        ? `Сторінка містить ${options.childrenCount.toLocaleString("uk-UA")} ${pluralizeUk(options.childrenCount, "кінцеву підкатегорію", "кінцеві підкатегорії", "кінцевих підкатегорій")}, тому пошук можна звузити до конкретного типу деталей.`
         : `Сторінка веде безпосередньо у каталог цієї підгрупи з фільтрами за назвою, артикулом і виробником.`,
       `Розподіл за ${producersCountLabel} допомагає перейти до конкретного бренду, перевірити доступні товари та порівняти аналоги.`,
       `Назви підкатегорій і суміжних напрямків подані повністю, щоб структура каталогу читалась природно і не виглядала набором лічильників.`,
@@ -2412,7 +2413,7 @@ export const getGroupItemSeoCopy = (options: {
     highlights: [
       `${label} у структурі групи ${groupLabel};`,
       options.childrenCount > 0
-        ? `${options.childrenCount.toLocaleString("uk-UA")} кінцевих підкатегорій для точнішого підбору;`
+        ? `${options.childrenCount.toLocaleString("uk-UA")} ${pluralizeUk(options.childrenCount, "кінцева підкатегорія", "кінцеві підкатегорії", "кінцевих підкатегорій")} для точнішого підбору;`
         : "прямий перехід у каталог підгрупи;",
       `${producersCountLabel} у доступному розподілі;`,
       "підбір, замовлення і доставка автозапчастин по Україні;",
@@ -3555,7 +3556,7 @@ export const getProducerSeoCopy = (
 ): ProducerSeoCopy => {
   const productCountLabel =
     productCount > 0
-      ? `${productCount.toLocaleString("uk-UA")} товарів`
+      ? `${productCount.toLocaleString("uk-UA")} ${pluralizeProducts(productCount)}`
       : "актуальні товари бренду";
 
   const mapKey = label.trim().toLowerCase();
@@ -3595,4 +3596,4 @@ export const getProducerSeoCopy = (
 };
 
 export const getProducerMetaDescription = (label: string, productCount: number) =>
-  `${label} у PartsON: ${productCount.toLocaleString("uk-UA")} товарів бренду, групи, категорії, ціни, наявність, підбір за кодом і артикулом, доставка по Україні.`;
+  `${label} у PartsON: ${productCount.toLocaleString("uk-UA")} ${pluralizeProducts(productCount)} бренду, групи, категорії, ціни, наявність, підбір за кодом і артикулом, доставка по Україні.`;

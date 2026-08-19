@@ -296,8 +296,20 @@ const siteNavigationJsonLd = [
   {
     "@context": "https://schema.org",
     "@type": "SiteNavigationElement",
+    name: "Підбір за автомобілем",
+    url: `${siteUrl}/auto`,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SiteNavigationElement",
     name: "Інформація",
     url: `${siteUrl}/inform`,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SiteNavigationElement",
+    name: "Контакти",
+    url: `${siteUrl}/inform/location`,
   },
 ];
 

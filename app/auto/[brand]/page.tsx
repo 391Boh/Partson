@@ -9,9 +9,11 @@ import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import { carBrands } from "app/components/carBrands";
 import { findCarBrandBySlug, getModelsForBrand } from "app/lib/auto-directory-data";
+import { buildCarBrandInfoParagraph } from "app/lib/car-brand-info";
 import { resolveCarBrandSocialImage } from "app/lib/car-brand-social-image";
 import { buildAutoBrandPath, buildAutoModelPath } from "app/lib/catalog-links";
-import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
+import { pluralizeModels } from "app/lib/pluralize-uk";
+import { appendSeoContact, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { getSiteUrl } from "app/lib/site-url";
@@ -75,10 +77,15 @@ export async function generateMetadata({ params }: AutoBrandPageProps): Promise<
   // filters the sitemap to only verified-in-stock models) instead of the
   // generic "запчастини за роком випуску" every brand page used to share —
   // no metaphor to clash with any brand name, works the same for every one.
+  // buildAdaptiveSeoTitle drops the suffix rather than risk a
+  // Google-truncated title for a long brand name + large model count.
   const title =
     modelsCount > 0
-      ? `${brand.name}: ${modelsCount.toLocaleString("uk-UA")} моделей із перевіреною наявністю запчастин`
-      : `${brand.name}: моделі з перевіреною наявністю запчастин`;
+      ? buildAdaptiveSeoTitle(
+          `${brand.name}: ${modelsCount.toLocaleString("uk-UA")} ${pluralizeModels(modelsCount)}`,
+          ", перевірена наявність"
+        )
+      : buildAdaptiveSeoTitle(`${brand.name}: моделі`, ", перевірена наявність");
   const description = appendSeoContact(buildBrandModelsDescription(brand.name));
   // Google/Facebook/Twitter link-preview crawlers don't reliably render SVG —
   // most car logos in /public/Carlogo are .svg, so this resolves a raster
@@ -119,6 +126,7 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
 
   const modelsData = await getModelsForBrand(brand.name);
   const models = modelsData?.models ?? [];
+  const brandInfoParagraph = buildCarBrandInfoParagraph(brand.name);
 
   const siteUrl = getSiteUrl();
   const title = `Моделі ${brand.name}`;
@@ -227,6 +235,7 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
           },
         ]}
         paragraphs={[
+          ...(brandInfoParagraph ? [brandInfoParagraph] : []),
           `Сторінка марки ${brand.name} допомагає почати підбір із конкретної моделі, а не переглядати весь каталог автозапчастин. Після вибору моделі відкриються доступні групи товарів і прямі переходи до результатів пошуку.`,
           "Рік випуску, модифікація двигуна й комплектація можуть впливати на сумісність. Дані сторінки зручно використовувати для первинного відбору, а остаточний вибір варто підтвердити за каталоговим номером або VIN-кодом автомобіля.",
         ]}

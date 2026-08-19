@@ -38,6 +38,7 @@ import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { getSiteUrl } from "app/lib/site-url";
+import { pluralizeUk as pluralize } from "app/lib/pluralize-uk";
 
 export const revalidate = 21600;
 export const dynamicParams = true;
@@ -96,15 +97,6 @@ interface AutoModelPageParams {
 interface AutoModelPageProps {
   params: Promise<AutoModelPageParams>;
 }
-
-const pluralize = (value: number, one: string, few: string, many: string) => {
-  const mod10 = value % 10;
-  const mod100 = value % 100;
-  if (mod100 >= 11 && mod100 <= 19) return many;
-  if (mod10 === 1) return one;
-  if (mod10 >= 2 && mod10 <= 4) return few;
-  return many;
-};
 
 const formatCount = (value: number) => value.toLocaleString("uk-UA");
 

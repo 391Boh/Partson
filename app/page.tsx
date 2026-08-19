@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { buildSeoContactLine, buildPageMetadata } from "app/lib/seo-metadata";
 import HomePageContent from "./components/HomePageContent";
 import AdvantagesSection from "./components/AdvantagesSection";
@@ -41,7 +42,26 @@ export const metadata: Metadata = {
   }),
 };
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Same cached lookup already used by /manufacturers and the
+  // /api/manufacturer-counts route (unstable_cache-backed, reads the
+  // pre-generated SEO snapshot — not a live 1C call), so this doesn't add a
+  // slow request to the page. Feeding it in as initialSyncedBrands lets
+  // Brands.tsx skip its own client-side fetch to that same endpoint, which
+  // previously left every brand tile showing zero counts until that request
+  // resolved after hydration — the "manufacturers load slowly the first
+  // time" symptom.
+  const { clientProducers } = await getFullManufacturersDirectoryData().catch(
+    () => ({ clientProducers: [] })
+  );
+  const initialSyncedBrands = clientProducers.map((producer) => ({
+    name: producer.label,
+    logo: producer.logoPath,
+    description: producer.description || `${producer.label} у каталозі PartsON.`,
+    productCount: producer.productCount,
+    groupsCount: producer.groupsCount,
+  }));
+
   // Keep the complete page structure stable from the first HTML response.
   // A streamed, page-sized fallback previously got replaced after first paint;
   // its estimated heights diverged from the real responsive sections and was
@@ -49,7 +69,7 @@ export default function HomePage() {
   // fetch their data lazily through their existing client caches.
   return (
     <HomePageContent>
-      <HomeDeferredStack />
+      <HomeDeferredStack initialSyncedBrands={initialSyncedBrands} />
       <div className="home-section-stage">
         <AdvantagesSection />
       </div>

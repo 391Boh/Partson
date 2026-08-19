@@ -28,11 +28,18 @@ import { getBrandLogoMap, getProducerInitials, resolveProducerLogo } from "app/l
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
+import {
+  pluralizeCategories,
+  pluralizeManufacturers,
+  pluralizeProducts,
+  pluralizeSubgroups,
+  pluralizeUk,
+} from "app/lib/pluralize-uk";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { getGroupSeoCopy } from "app/lib/seo-copy";
-import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
@@ -160,8 +167,12 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
   };
 });
 
+// Some category labels run long even after buildVisibleProductName strips
+// the parenthetical alt-name (e.g. "Підвіска двигуна і коробки передач") —
+// buildAdaptiveSeoTitle drops the decorative suffix rather than risk a
+// Google-truncated title once the layout's " | PartsON" template is added.
 const buildGroupTitle = (label: string) =>
-  `${buildVisibleProductName(label)} — купити у Львові`;
+  buildAdaptiveSeoTitle(buildVisibleProductName(label), " — купити у Львові");
 
 const buildGroupDescription = (
   label: string,
@@ -171,11 +182,11 @@ const buildGroupDescription = (
   const visibleLabel = buildVisibleProductName(label);
   const productLabel =
     productCount > 0
-      ? `${productCount.toLocaleString("uk-UA")} товарних позицій`
+      ? `${productCount.toLocaleString("uk-UA")} ${pluralizeUk(productCount, "товарну позицію", "товарні позиції", "товарних позицій")}`
       : "товари групи";
   const subgroupLabel =
     subgroupsCount > 0
-      ? ` і ${subgroupsCount.toLocaleString("uk-UA")} підгруп каталогу`
+      ? ` і ${subgroupsCount.toLocaleString("uk-UA")} ${pluralizeSubgroups(subgroupsCount)} каталогу`
       : "";
 
   return appendSeoContact(
@@ -192,11 +203,11 @@ const buildGroupHeroDescription = (
   const visibleLabel = buildVisibleProductName(label);
 
   if (hasSubgroups) {
-    return `У групі ${visibleLabel} зібрано ${productCount.toLocaleString("uk-UA")} товарів і ${subgroupsCount.toLocaleString("uk-UA")} підгруп каталогу. Оберіть напрямок, щоб перейти до запчастин з актуальною ціною, брендами й доставкою по Україні.`;
+    return `У групі ${visibleLabel} зібрано ${productCount.toLocaleString("uk-UA")} ${pluralizeProducts(productCount)} і ${subgroupsCount.toLocaleString("uk-UA")} ${pluralizeSubgroups(subgroupsCount)} каталогу. Оберіть напрямок, щоб перейти до запчастин з актуальною ціною, брендами й доставкою по Україні.`;
   }
 
   if (productCount > 0) {
-    return `У групі ${visibleLabel} доступний прямий перехід до каталогу з ${productCount.toLocaleString("uk-UA")} товарними позиціями, підбором за артикулом і перевіркою сумісності.`;
+    return `У групі ${visibleLabel} доступний прямий перехід до каталогу з ${productCount.toLocaleString("uk-UA")} ${pluralizeUk(productCount, "товарною позицією", "товарними позиціями", "товарними позиціями")}, підбором за артикулом і перевіркою сумісності.`;
   }
 
   return `Сторінка групи ${visibleLabel} веде у відповідний розділ каталогу PartsON і допомагає швидко знайти потрібні автозапчастини у Львові з доставкою по Україні.`;
@@ -233,11 +244,11 @@ const buildSubgroupLead = (options: {
   const visibleGroupLabel = buildVisibleProductName(options.groupLabel);
   const productCountLabel =
     options.productCount > 0
-      ? `${options.productCount.toLocaleString("uk-UA")} товарів`
+      ? `${options.productCount.toLocaleString("uk-UA")} ${pluralizeProducts(options.productCount)}`
       : "актуальні позиції каталогу";
 
   if (options.childCount > 0) {
-    return `Підгрупа ${visibleSubgroupLabel} у групі ${visibleGroupLabel} об'єднує ${productCountLabel} і ${options.childCount.toLocaleString("uk-UA")} кінцевих категорій для точнішого підбору автозапчастин.`;
+    return `Підгрупа ${visibleSubgroupLabel} у групі ${visibleGroupLabel} об'єднує ${productCountLabel} і ${options.childCount.toLocaleString("uk-UA")} ${pluralizeUk(options.childCount, "кінцеву категорію", "кінцеві категорії", "кінцевих категорій")} для точнішого підбору автозапчастин.`;
   }
 
   return `Розділ ${visibleSubgroupLabel} веде прямо до каталогу товарів групи ${visibleGroupLabel} і допомагає швидко знайти потрібні автозапчастини за назвою, артикулом або брендом.`;
@@ -592,7 +603,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
               </h2>
             </div>
             <span className={directoryCompactMetricAccentClass}>
-              {producersWithLogos.length} виробників
+              {producersWithLogos.length} {pluralizeManufacturers(producersWithLogos.length)}
             </span>
           </div>
           <div className="flex flex-wrap gap-2 p-4 sm:p-5">
@@ -639,7 +650,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
           {
             title: "Структура групи",
             text: hasSubgroups
-              ? `Оберіть потрібний напрям серед ${group.subgroupsCount.toLocaleString("uk-UA")} підгруп, щоб звузити каталог.`
+              ? `Оберіть потрібний напрям серед ${group.subgroupsCount.toLocaleString("uk-UA")} ${pluralizeUk(group.subgroupsCount, "підгрупи", "підгруп", "підгруп")}, щоб звузити каталог.`
               : "Перейдіть безпосередньо до товарів цієї групи та уточніть параметри у каталозі.",
             icon: FolderTree,
           },
@@ -690,11 +701,11 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                     {subgroup.productCount > 0 ? (
                       <span className={directoryCompactMetricClass}>
                         <span>{formatCount(subgroup.productCount)}</span>
-                        <span className="font-semibold text-slate-500">товарів</span>
+                        <span className="font-semibold text-slate-500">{pluralizeProducts(subgroup.productCount)}</span>
                       </span>
                     ) : null}
                     <span className={directoryCompactMetricAccentClass}>
-                      {formatCount(subgroup.children.length)} категорій
+                      {formatCount(subgroup.children.length)} {pluralizeCategories(subgroup.children.length)}
                     </span>
                   </div>
                 </div>
@@ -712,7 +723,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                           {child.productCount > 0 ? (
                             <span className={directoryCompactMetricClass}>
                               <span>{formatCount(child.productCount)}</span>
-                              <span className="font-semibold text-slate-500">товарів</span>
+                              <span className="font-semibold text-slate-500">{pluralizeProducts(child.productCount)}</span>
                             </span>
                           ) : null}
                           <span className="text-teal-700">&rarr;</span>
@@ -745,7 +756,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                     {subgroup.productCount > 0 ? (
                       <span className={directoryCompactMetricClass}>
                         <span>{formatCount(subgroup.productCount)}</span>
-                        <span className="font-semibold text-slate-500">товарів</span>
+                        <span className="font-semibold text-slate-500">{pluralizeProducts(subgroup.productCount)}</span>
                       </span>
                     ) : null}
                     <span className="text-teal-700">&rarr;</span>

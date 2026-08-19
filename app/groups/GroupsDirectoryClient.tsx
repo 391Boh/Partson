@@ -25,6 +25,7 @@ import SmartLink from "app/components/SmartLink";
 import { buildGroupItemPath, buildGroupPath } from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildVisibleProductName } from "app/lib/product-url";
+import { pluralizeUk as pluralize } from "app/lib/pluralize-uk";
 
 export type GroupsDirectoryItem = {
   label: string;
@@ -59,15 +60,6 @@ type GroupCountsApiPayload = {
 
 const normalize = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
-
-const pluralize = (value: number, one: string, few: string, many: string) => {
-  const mod10 = value % 10;
-  const mod100 = value % 100;
-  if (mod100 >= 11 && mod100 <= 19) return many;
-  if (mod10 === 1) return one;
-  if (mod10 >= 2 && mod10 <= 4) return few;
-  return many;
-};
 
 const formatCount = (value: number, one: string, few: string, many: string) =>
   `${value.toLocaleString("uk-UA")} ${pluralize(value, one, few, many)}`;
@@ -557,9 +549,13 @@ export default function GroupsDirectoryClient({
             <>
               <div itemScope itemType="https://schema.org/ItemList">
                 <meta itemProp="numberOfItems" content={String(filteredGroups.length)} />
-                <HorizontalDirectoryRail ariaLabel="Групи та категорії каталогу" rows={2}>
+                <HorizontalDirectoryRail
+                  ariaLabel="Групи та категорії каталогу"
+                  rows={2}
+                  className="[grid-auto-columns:100%] sm:[grid-auto-columns:380px]"
+                >
                   {filteredGroups.map((group, index) => (
-                    <div key={group.slug} className="w-[82vw] max-w-[380px] shrink-0 snap-start" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                    <div key={group.slug} className="w-full shrink-0 snap-start snap-always" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                       <meta itemProp="position" content={String(index + 1)} />
                       <GroupCategoryCard group={group} prefetchOnViewport={index < 6} />
                     </div>

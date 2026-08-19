@@ -212,6 +212,19 @@ html.is-scrolling .home-card-hover {
   transition-property: none !important;
 }
 
+/* Same stationary-pointer problem as above, but for the catalog/manufacturer/
+   group product grids: a page can render 50-150+ .catalog-product-card
+   instances at once, each with its own hover:shadow/hover:border-color
+   transition. Scrolling that grid under a still cursor fires every card's
+   transition as it passes underneath — many overlapping shadow repaints per
+   frame instead of one. Disabling transitions grid-wide during a scroll
+   still lets :hover apply instantly (no animation), just without the
+   per-card repaint cost. */
+html.is-scrolling .catalog-product-card,
+html.is-scrolling .catalog-product-card * {
+  transition-property: none !important;
+}
+
 /* These large blurred circles sit behind already layered radial gradients.
    Rasterizing them again adds GPU work during scroll without a meaningful
    visual difference. */

@@ -361,9 +361,6 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 </p>
               </div>
             </div>
-            <Link href="/editorial-policy" className="shrink-0 text-xs font-bold text-sky-700 underline decoration-sky-200 underline-offset-4 hover:text-sky-900">
-              Редакційна політика
-            </Link>
           </aside>
 
           {/* article content */}
@@ -485,15 +482,22 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             </div>
           )}
 
-          {/* bottom rule + back link */}
-          <div className="mt-10 flex items-center gap-4">
-            <div className="h-px flex-1 bg-gradient-to-r from-slate-200/70 to-transparent" />
-            <Link
-              href="/blog"
-              className="inline-flex items-center gap-2 rounded-[7px] border border-slate-200/80 bg-white px-3.5 py-2 text-[12.5px] font-bold text-slate-600 shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition hover:border-sky-200 hover:text-sky-700"
-            >
-              <ArrowLeft size={12} strokeWidth={2.2} /> Усі статті
-            </Link>
+          {/* bottom rule + editorial policy + back link */}
+          <div className="mt-10 border-t border-slate-200/70 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Link
+                href="/editorial-policy"
+                className="text-xs font-bold text-sky-700 underline decoration-sky-200 underline-offset-4 hover:text-sky-900"
+              >
+                Редакційна політика
+              </Link>
+              <Link
+                href="/blog"
+                className="inline-flex items-center gap-2 rounded-[7px] border border-slate-200/80 bg-white px-3.5 py-2 text-[12.5px] font-bold text-slate-600 shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition hover:border-sky-200 hover:text-sky-700"
+              >
+                <ArrowLeft size={12} strokeWidth={2.2} /> Усі статті
+              </Link>
+            </div>
           </div>
         </div>
       </article>

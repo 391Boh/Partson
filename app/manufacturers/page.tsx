@@ -11,6 +11,7 @@ import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import ManufacturersDirectory from "app/manufacturers/ManufacturersDirectory";
+import { pluralizeBrandsWord, pluralizeManufacturers, pluralizeUk } from "app/lib/pluralize-uk";
 
 export const revalidate = 21600;
 
@@ -27,13 +28,13 @@ const buildManufacturersPageDescription = (
 ) => {
   const brandSummary =
     totalBrands > 0
-      ? `${totalBrands.toLocaleString("uk-UA")} брендів`
+      ? `${totalBrands.toLocaleString("uk-UA")} ${pluralizeBrandsWord(totalBrands)}`
       : "бренди та виробники автозапчастин";
   const coverageSummary =
     indexedBrands > 0
-      ? ` Окремими сторінками вже охоплено ${indexedBrands.toLocaleString("uk-UA")} виробників${
+      ? ` Окремими сторінками вже охоплено ${indexedBrands.toLocaleString("uk-UA")} ${pluralizeManufacturers(indexedBrands)}${
           indexedProducts > 0
-            ? ` і щонайменше ${indexedProducts.toLocaleString("uk-UA")} товарних позицій за брендами`
+            ? ` і щонайменше ${indexedProducts.toLocaleString("uk-UA")} ${pluralizeUk(indexedProducts, "товарну позицію", "товарні позиції", "товарних позицій")} за брендами`
             : ""
         }.`
       : ".";
@@ -67,6 +68,8 @@ export async function generateMetadata(): Promise<Metadata> {
       "каталог брендів запчастин",
       "купити запчастини виробника",
       "автозапчастини львів",
+      "запчастини bosch trw febi lemforder sachs",
+      "оригінальні запчастини та аналоги",
     ],
     openGraphTitle: "Виробники автозапчастин і бренди | PartsON",
     image: {

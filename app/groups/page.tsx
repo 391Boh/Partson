@@ -11,6 +11,7 @@ import { buildVisibleProductName } from "app/lib/product-url";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
+import { pluralizeGroups, pluralizeSubgroups, pluralizeUk } from "app/lib/pluralize-uk";
 
 export const revalidate = 21600;
 
@@ -28,12 +29,12 @@ const buildGroupsPageDescription = (
 ) => {
   const countSummary =
     groupCount > 0 && subgroupCount > 0 && leafCount > 0
-      ? `${groupCount.toLocaleString("uk-UA")} груп, ${subgroupCount.toLocaleString("uk-UA")} підгруп і ${leafCount.toLocaleString("uk-UA")} кінцевих категорій`
+      ? `${groupCount.toLocaleString("uk-UA")} ${pluralizeGroups(groupCount)}, ${subgroupCount.toLocaleString("uk-UA")} ${pluralizeSubgroups(subgroupCount)} і ${leafCount.toLocaleString("uk-UA")} ${pluralizeUk(leafCount, "кінцева категорія", "кінцеві категорії", "кінцевих категорій")}`
       : "групи, підгрупи та кінцеві категорії";
 
   const indexedSummary =
     indexedProductCount > 0
-      ? ` Каталог охоплює щонайменше ${indexedProductCount.toLocaleString("uk-UA")} проіндексованих товарних позицій.`
+      ? ` Каталог охоплює щонайменше ${indexedProductCount.toLocaleString("uk-UA")} ${pluralizeUk(indexedProductCount, "проіндексовану товарну позицію", "проіндексовані товарні позиції", "проіндексованих товарних позицій")}.`
       : "";
 
   return appendSeoContact(
@@ -71,6 +72,9 @@ export async function generateMetadata(): Promise<Metadata> {
       "гальмівна система",
       "паливна система",
       "кузовні елементи",
+      "гальмівні колодки",
+      "оливний фільтр",
+      "амортизатори",
       "автозапчастини львів",
     ],
     openGraphTitle: "Категорії автозапчастин і групи товарів | PartsON",

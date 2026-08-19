@@ -27,6 +27,7 @@ import {
 import SmartLink from "app/components/SmartLink";
 import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
 import { buildManufacturerPath } from "app/lib/catalog-links";
+import { pluralizeUk as pluralize } from "app/lib/pluralize-uk";
 
 type ManufacturerItem = {
   label: string;
@@ -60,15 +61,6 @@ type ManufacturerCardProps = {
 const collapseWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
 
 const normalize = (value: string) => collapseWhitespace(value).toLowerCase();
-
-const pluralize = (value: number, one: string, few: string, many: string) => {
-  const mod10 = value % 10;
-  const mod100 = value % 100;
-  if (mod100 >= 11 && mod100 <= 19) return many;
-  if (mod10 === 1) return one;
-  if (mod10 >= 2 && mod10 <= 4) return few;
-  return many;
-};
 
 const formatDirectoryCount = (value: number, fallback: string) =>
   value > 0 ? value.toLocaleString("uk-UA") : fallback;
@@ -127,12 +119,6 @@ const ManufacturerCard = memo(function ManufacturerCard({
                 <span className="directory-kicker inline-flex shrink-0 rounded-[9px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] uppercase text-sky-800">
                   Виробник
                 </span>
-                {item.productCount > 0 ? (
-                  <span className="directory-counter-label inline-flex shrink-0 truncate rounded-[9px] border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] uppercase text-emerald-800 tabular-nums">
-                    {item.productCount.toLocaleString("uk-UA")}{" "}
-                    {pluralize(item.productCount, "товар", "товари", "товарів")}
-                  </span>
-                ) : null}
               </div>
 
               <p
@@ -197,7 +183,6 @@ export default function ManufacturersDirectory({
     items,
     hasIndexedCounts,
   });
-  const [isLoadingFullDirectory, setIsLoadingFullDirectory] = useState(false);
   const fullDirectoryPromiseRef = useRef<Promise<ManufacturerCountsApiPayload | null> | null>(
     null
   );
@@ -212,7 +197,6 @@ export default function ManufacturersDirectory({
     }
 
     if (!fullDirectoryPromiseRef.current) {
-      setIsLoadingFullDirectory(true);
       fullDirectoryPromiseRef.current = fetch("/api/manufacturer-counts", {
         headers: { Accept: "application/json" },
       })
@@ -233,7 +217,6 @@ export default function ManufacturersDirectory({
       });
     } finally {
       fullDirectoryPromiseRef.current = null;
-      setIsLoadingFullDirectory(false);
     }
   }, [directoryData.items.length, totalItems]);
 
@@ -333,12 +316,6 @@ export default function ManufacturersDirectory({
                       Лічильники товарів оновлюються
                     </span>
                   )}
-                  {isLoadingFullDirectory ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-md border border-sky-200/70 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-800 shadow-[0_8px_18px_rgba(14,165,233,0.06)]">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-500" />
-                      Довантажуємо виробників…
-                    </span>
-                  ) : null}
                 </div>
               </div>
             </div>
@@ -348,9 +325,13 @@ export default function ManufacturersDirectory({
             {filteredItems.length > 0 ? (
               <div itemScope itemType="https://schema.org/ItemList">
                 <meta itemProp="numberOfItems" content={String(filteredItems.length)} />
-                <HorizontalDirectoryRail ariaLabel="Виробники автозапчастин" rows={2}>
+                <HorizontalDirectoryRail
+                  ariaLabel="Виробники автозапчастин"
+                  rows={2}
+                  className="[grid-auto-columns:100%] sm:[grid-auto-columns:350px]"
+                >
                   {filteredItems.map((item, index) => (
-                    <div key={item.slug} className="w-[84vw] max-w-[350px] shrink-0 snap-start" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                    <div key={item.slug} className="w-full shrink-0 snap-start snap-always" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                       <meta itemProp="position" content={String(index + 1)} />
                       <ManufacturerCard
                         item={item}

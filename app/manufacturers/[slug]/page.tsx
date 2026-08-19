@@ -55,12 +55,13 @@ import {
 } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getProducerSeoCopy } from "app/lib/seo-copy";
-import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import ManufacturerGroupSampleImage from "app/manufacturers/[slug]/ManufacturerGroupSampleImage";
 import { getCategoryIconPath } from "app/lib/category-icons";
+import { pluralizeProducts, pluralizeUk } from "app/lib/pluralize-uk";
 
 export const revalidate = 21600;
 export const dynamicParams = true;
@@ -161,18 +162,8 @@ const normalizeValue = (value: string | null | undefined) =>
 const formatCount = (value: number) =>
   Number.isFinite(value) && value > 0 ? value.toLocaleString("uk-UA") : "0";
 
-const pluralWord = (value: number, one: string, few: string, many: string) => {
-  const n = Math.abs(Math.trunc(value));
-  const m10 = n % 10;
-  const m100 = n % 100;
-  if (m100 >= 11 && m100 <= 19) return many;
-  if (m10 === 1) return one;
-  if (m10 >= 2 && m10 <= 4) return few;
-  return many;
-};
-
 const formatCountedWord = (value: number, one: string, few: string, many: string) =>
-  `${formatCount(value)} ${pluralWord(value, one, few, many)}`;
+  `${formatCount(value)} ${pluralizeUk(value, one, few, many)}`;
 
 const buildManufacturerGroupSampleKey = (value: string | null | undefined) =>
   normalizeValue(value).toLowerCase();
@@ -311,8 +302,11 @@ const pushGroupSampleCandidate = (
   candidates.push(product);
 };
 
+// Some producer labels run long (e.g. "INTERNATIONAL RADIATORS", 23 chars)
+// — buildAdaptiveSeoTitle drops the decorative suffix rather than risk a
+// Google-truncated title once the layout's " | PartsON" template is added.
 const buildManufacturerTitle = (label: string) =>
-  `${normalizeValue(label)} — купити запчастини у Львові`;
+  buildAdaptiveSeoTitle(normalizeValue(label), " — запчастини у Львові");
 
 const buildManufacturerDescription = (
   label: string,
@@ -1667,12 +1661,12 @@ export default async function ManufacturerDetailPage({
           topics={[
             {
               title: "Асортимент бренду",
-              text: seoHighlights[0] || `Переглядайте ${formatCount(producer.productCount)} товарів ${producer.label} у каталозі.`,
+              text: seoHighlights[0] || `Переглядайте ${formatCount(producer.productCount)} ${pluralizeProducts(producer.productCount)} ${producer.label} у каталозі.`,
               icon: PackageSearch,
             },
             {
               title: "Групи й підгрупи",
-              text: seoHighlights[1] || `Асортимент розподілено на ${formatCount(producer.groupsCount)} груп для зручної навігації.`,
+              text: seoHighlights[1] || `Асортимент розподілено на ${formatCount(producer.groupsCount)} ${pluralizeUk(producer.groupsCount, "групу", "групи", "груп")} для зручної навігації.`,
               icon: Layers3,
             },
             {

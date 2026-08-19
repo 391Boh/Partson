@@ -7,25 +7,15 @@ import { ArrowRight, ChevronLeft, ChevronRight, Factory, Search, X } from "lucid
 import SmartLink from "app/components/SmartLink";
 import { buildCatalogProducerPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { buildSeoSlug } from "app/lib/seo-slug";
+import { pluralizeManufacturers, pluralizeProducts, pluralizeUk } from "app/lib/pluralize-uk";
 import { brands } from "./brandsData";
 
 // 4 cols at every breakpoint, 2 rows per page.
 const ITEMS_PER_PAGE = 8;
 
-const pluralizeUk = (value: number, one: string, few: string, many: string) => {
-  const mod10 = value % 10;
-  const mod100 = value % 100;
-  if (mod100 >= 11 && mod100 <= 19) return many;
-  if (mod10 === 1) return one;
-  if (mod10 >= 2 && mod10 <= 4) return few;
-  return many;
-};
+const pluralizeBrandCount = pluralizeManufacturers;
 
-const pluralizeBrandCount = (value: number) =>
-  pluralizeUk(value, "виробник", "виробники", "виробників");
-
-const pluralizeProductCount = (value: number) =>
-  pluralizeUk(value, "товар", "товари", "товарів");
+const pluralizeProductCount = pluralizeProducts;
 
 type BrandItem = {
   name: string;

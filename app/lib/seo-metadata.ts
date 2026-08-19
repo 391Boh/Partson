@@ -13,6 +13,13 @@ export const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
 export const STORE_PHONE_SEO_LABEL = `☎️ ${STORE_PHONE_DISPLAY}`;
 export const STORE_ADDRESS_SEO_LABEL = `📍 ${STORE_ADDRESS}`;
 export const SEO_DESCRIPTION_MAX_LENGTH = 160;
+// Google truncates around ~60 chars in search results. The root layout's
+// title template ("%s | PartsON", see app/layout.tsx) tacks on 10 more
+// characters after every page title, so that has to come out of the budget
+// too — otherwise a title that reads fine on its own (e.g. a long producer
+// or category name plus a short suffix) still gets cut off once rendered.
+export const SEO_TITLE_MAX_LENGTH = 60;
+const TITLE_TEMPLATE_SUFFIX_LENGTH = " | PartsON".length;
 
 const BASE_KEYWORDS = [
   "PartsON",
@@ -50,6 +57,22 @@ const mergeKeywords = (...groups: Array<Array<string | null | undefined> | undef
 };
 
 const titleIncludesBrand = (title: string) => /(^|\W)partson(\W|$)/iu.test(title);
+
+// Appends `suffix` to `base` only if the result still clears the title
+// budget once the layout's " | PartsON" template is applied — otherwise
+// falls back to the bare base rather than risk a Google-truncated title.
+// Use for any title built from a variable-length name (brand, producer,
+// category) plus a fixed decorative tail, since the tail is the part that's
+// safe to drop and the name is the part search results actually need.
+export const buildAdaptiveSeoTitle = (
+  base: string,
+  suffix: string,
+  maxLength: number = SEO_TITLE_MAX_LENGTH
+) => {
+  const budget = maxLength - TITLE_TEMPLATE_SUFFIX_LENGTH;
+  const full = `${base}${suffix}`;
+  return full.length <= budget ? full : base;
+};
 
 const buildSocialTitle = (title: string) =>
   titleIncludesBrand(title) ? title : `${title} | PartsON`;

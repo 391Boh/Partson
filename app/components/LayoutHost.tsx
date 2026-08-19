@@ -720,8 +720,23 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       restoreBodyScroll();
     };
 
+    // Coalesce into at most one check per animation frame. Catalog pages
+    // mount a virtualized product grid whose rows (and their images'
+    // class/style attributes) mutate continuously while scrolling; without
+    // this, every single mutation record ran a synchronous querySelector
+    // over the whole document mid-gesture, adding a small but perceptible
+    // stutter to vertical scrolling on mobile.
+    let syncRaf = 0;
+    const scheduleSync = () => {
+      if (syncRaf) return;
+      syncRaf = window.requestAnimationFrame(() => {
+        syncRaf = 0;
+        syncOverlayScrollLock();
+      });
+    };
+
     const observer = new MutationObserver(() => {
-      syncOverlayScrollLock();
+      scheduleSync();
     });
 
     observer.observe(body, {
@@ -746,6 +761,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     return () => {
       observer.disconnect();
+      if (syncRaf) window.cancelAnimationFrame(syncRaf);
       window.removeEventListener("resize", handleViewportChange);
       if (typeof mediaQuery.removeEventListener === "function") {
         mediaQuery.removeEventListener("change", handleViewportChange);

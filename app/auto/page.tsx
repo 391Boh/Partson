@@ -9,6 +9,7 @@ import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import { carBrands } from "app/components/carBrands";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
+import { pluralizeCarBrands } from "app/lib/pluralize-uk";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 
@@ -126,7 +127,7 @@ export default function AutoPage() {
           title={title}
           description="Оберіть марку, перейдіть до моделей і відкрийте каталог із підготовленим авто-фільтром."
           highlights={[
-            `${carBrands.length.toLocaleString("uk-UA")} марок`,
+            `${carBrands.length.toLocaleString("uk-UA")} ${pluralizeCarBrands(carBrands.length)}`,
             "Швидкий перехід у каталог",
             "Зручно з телефона і десктопа",
           ]}

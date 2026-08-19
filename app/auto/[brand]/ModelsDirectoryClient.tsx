@@ -15,9 +15,11 @@ import {
   directorySearchInputClass,
   directoryTitleClass,
 } from "app/components/catalog-directory-styles";
+import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
 import SmartLink from "app/components/SmartLink";
 import { buildAutoModelPath } from "app/lib/catalog-links";
 import type { AutoModelListEntry } from "app/lib/auto-directory-data";
+import { pluralizeUk as pluralize } from "app/lib/pluralize-uk";
 
 interface ModelsDirectoryClientProps {
   brand: string;
@@ -40,15 +42,6 @@ const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
 const YEAR_FETCH_CHUNK_SIZE = 24;
 
 const normalize = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
-
-const pluralize = (value: number, one: string, few: string, many: string) => {
-  const mod10 = value % 10;
-  const mod100 = value % 100;
-  if (mod100 >= 11 && mod100 <= 19) return many;
-  if (mod10 === 1) return one;
-  if (mod10 >= 2 && mod10 <= 4) return few;
-  return many;
-};
 
 const formatYearRange = (model: AutoModelListEntry) => {
   const { yearFrom, yearTo } = model;
@@ -86,20 +79,20 @@ const ModelCard = memo(function ModelCard({
       href={modelHref}
       aria-label={`Відкрити групи запчастин для ${brand} ${model.name}`}
       prefetchOnViewport={prefetchOnViewport}
-      className={`${directoryCardClass} min-h-[104px] animate-fadeIn`}
+      className={`${directoryCardClass} min-h-[124px] animate-fadeIn`}
     >
       <span
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-4 top-0 z-[2] h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
       />
 
-      <div className="relative z-[1] flex h-full items-center gap-3 p-4">
+      <div className="relative z-[1] flex h-full items-start gap-3 p-4">
         <span className="relative inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-cyan-200/75 bg-[radial-gradient(circle_at_24%_16%,#ffffff,transparent_35%),linear-gradient(145deg,#fbfdff_0%,#e6f5fb_52%,#def7f0_100%)] text-sky-700 shadow-[0_10px_24px_rgba(14,165,233,0.09),inset_0_1px_0_white] transition-[border-color,box-shadow,color] duration-300 group-hover:border-teal-300 group-hover:text-teal-700 group-hover:shadow-[0_13px_28px_rgba(13,148,136,0.14)]">
           <Car size={21} strokeWidth={2} />
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="directory-card-title break-words text-[17px] leading-snug text-slate-900">
+          <p className="directory-card-title line-clamp-2 break-words text-[16px] leading-snug text-slate-900">
             {model.name}
           </p>
           {yearLabel ? (
@@ -292,11 +285,17 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
 
           <div className="px-4 py-4 sm:px-5 sm:py-5">
             {sortedModels.length > 0 ? (
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-3">
-                {sortedModels.map((model) => (
-                  <ModelCard key={model.name} brand={brand} model={model} />
+              <HorizontalDirectoryRail
+                ariaLabel={`Моделі ${brand}`}
+                rows={2}
+                className="[grid-auto-columns:100%] sm:[grid-auto-columns:340px]"
+              >
+                {sortedModels.map((model, index) => (
+                  <div key={model.name} className="w-full shrink-0 snap-start snap-always">
+                    <ModelCard brand={brand} model={model} prefetchOnViewport={index < 10} />
+                  </div>
                 ))}
-              </div>
+              </HorizontalDirectoryRail>
             ) : (
               <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">
                 За цим запитом моделей не знайдено.

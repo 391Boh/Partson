@@ -6,7 +6,6 @@ import { ArrowRight, CarFront, Search, X } from "lucide-react";
 
 import type { CarBrand } from "app/components/carBrands";
 import {
-  directoryActionIconClass,
   directoryBadgeClass,
   directoryCardClass,
   directoryDescriptionClass,
@@ -21,6 +20,7 @@ import {
 import SmartLink from "app/components/SmartLink";
 import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
 import { buildAutoBrandPath } from "app/lib/catalog-links";
+import { pluralizeCarBrands as pluralizeBrands } from "app/lib/pluralize-uk";
 
 interface AutoBrandsDirectoryClientProps {
   items: CarBrand[];
@@ -28,15 +28,6 @@ interface AutoBrandsDirectoryClientProps {
 
 const normalize = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
-
-const pluralizeBrands = (value: number) => {
-  const mod10 = value % 10;
-  const mod100 = value % 100;
-  if (mod100 >= 11 && mod100 <= 19) return "марок";
-  if (mod10 === 1) return "марка";
-  if (mod10 >= 2 && mod10 <= 4) return "марки";
-  return "марок";
-};
 
 const buildBrandHref = (name: string) => buildAutoBrandPath(name);
 
@@ -52,49 +43,36 @@ function AutoBrandCard({
   return (
     <SmartLink
       href={brandHref}
-      className={directoryCardClass}
+      className={`${directoryCardClass} group flex min-h-[96px] flex-col justify-center p-3.5`}
       prefetchOnViewport={prefetchOnViewport}
       itemScope
       itemType="https://schema.org/Brand"
       itemProp="item"
     >
       <meta itemProp="url" content={brandHref} />
-      <div className="flex h-full min-h-[96px] flex-col p-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="flex w-12 shrink-0 flex-col items-center gap-1.5">
-            <div className={directoryIconTileClass}>
-              <Image
-                src={brand.logo}
-                alt={brand.name}
-                width={48}
-                height={48}
-                sizes="36px"
-                className="relative z-[1] h-9 w-9 object-contain"
-                unoptimized={brand.logo.endsWith('.svg')}
-              />
-            </div>
-            <span className="directory-kicker inline-flex rounded-[9px] border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[8px] uppercase leading-none text-sky-800">
-              Марка
-            </span>
-          </div>
-
-          <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
-            <div className="flex min-w-0 items-center justify-between gap-2">
-              <p itemProp="name" className="directory-card-title min-w-0 truncate text-[16px] leading-tight text-slate-900">
-                {brand.name}
-              </p>
-              <span className={`${directoryActionIconClass} h-8 !w-auto gap-1.5 rounded-md px-2.5`}>
-                <span className="directory-kicker text-[10px] uppercase text-sky-800">
-                  Моделі
-                </span>
-                <ArrowRight size={16} strokeWidth={2.3} />
-              </span>
-            </div>
-            <span className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-sky-700">
-              Відкрити каталог <ArrowRight size={13} strokeWidth={2.4} />
-            </span>
-          </div>
+      <div className="flex min-w-0 items-start gap-3">
+        <div className={directoryIconTileClass}>
+          <Image
+            src={brand.logo}
+            alt={brand.name}
+            width={48}
+            height={48}
+            sizes="36px"
+            className="relative z-[1] h-9 w-9 object-contain"
+            unoptimized={brand.logo.endsWith('.svg')}
+          />
         </div>
+        <div className="min-w-0 flex-1">
+          <span className="directory-kicker inline-flex rounded-[9px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] uppercase text-sky-800">
+            Марка авто
+          </span>
+          <p itemProp="name" className="directory-card-title mt-1.5 line-clamp-2 text-[16px] leading-tight text-slate-950 transition group-hover:text-sky-700">
+            {brand.name}
+          </p>
+        </div>
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200 bg-white text-sky-700 shadow-[0_7px_16px_rgba(14,165,233,0.1)] transition group-hover:border-sky-300 group-hover:bg-sky-50">
+          <ArrowRight size={17} strokeWidth={2.4} />
+        </span>
       </div>
     </SmartLink>
   );
@@ -194,9 +172,13 @@ export default function AutoBrandsDirectoryClient({
             {filteredItems.length > 0 ? (
               <div itemScope itemType="https://schema.org/ItemList">
                 <meta itemProp="numberOfItems" content={String(filteredItems.length)} />
-                <HorizontalDirectoryRail ariaLabel="Марки автомобілів" rows={2}>
+                <HorizontalDirectoryRail
+                  ariaLabel="Марки автомобілів"
+                  rows={2}
+                  className="[grid-auto-columns:100%] sm:[grid-auto-columns:360px]"
+                >
                   {filteredItems.map((brand, index) => (
-                    <div key={brand.id} className="w-[82vw] max-w-[360px] shrink-0 snap-start" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                    <div key={brand.id} className="w-full shrink-0 snap-start snap-always" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                       <meta itemProp="position" content={String(index + 1)} />
                       <AutoBrandCard brand={brand} prefetchOnViewport={index < 10} />
                     </div>

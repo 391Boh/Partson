@@ -38,6 +38,7 @@ import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallb
 import { getBrandLogoMap, getProducerInitials, resolveProducerLogo } from "app/lib/brand-logo";
 import { producerDescriptions } from "app/lib/producer-descriptions";
 import { getCategoryIconPath } from "app/lib/category-icons";
+import { pluralizeCategories, pluralizeManufacturers, pluralizeProducts } from "app/lib/pluralize-uk";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getProductTreeDataset } from "app/lib/product-tree";
@@ -45,7 +46,7 @@ import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getGroupItemSeoCopy } from "app/lib/seo-copy";
-import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
@@ -605,11 +606,11 @@ const buildGroupItemDescription = (item: GroupItemPageData) => {
   const visibleParentLabel = buildVisibleProductName(item.parentSubgroupLabel);
   const productCountLabel =
     item.productCount > 0
-      ? `${item.productCount.toLocaleString("uk-UA")} товарів`
+      ? `${item.productCount.toLocaleString("uk-UA")} ${pluralizeProducts(item.productCount)}`
       : "актуальні товари";
   const producersLabel =
     item.producersCount > 0
-      ? `${item.producersCount.toLocaleString("uk-UA")} виробників`
+      ? `${item.producersCount.toLocaleString("uk-UA")} ${pluralizeManufacturers(item.producersCount)}`
       : "бренди й аналоги";
 
   if (item.parentSubgroupLabel) {
@@ -644,9 +645,13 @@ const buildStaticSlugCandidates = (
     new Set(values.map((value) => normalizeValue(value)).filter(Boolean))
   );
 
+// Some category labels run long even after buildVisibleProductName strips
+// the parenthetical alt-name — buildAdaptiveSeoTitle drops the decorative
+// suffix rather than risk a Google-truncated title once the layout's
+// " | PartsON" template is added.
 const buildGroupItemTitle = (item: GroupItemPageData) => {
   const visibleLabel = buildVisibleProductName(item.label);
-  return `${visibleLabel} — купити у Львові`;
+  return buildAdaptiveSeoTitle(visibleLabel, " — купити у Львові");
 };
 
 const buildChildCategoryLead = (options: {
@@ -660,7 +665,7 @@ const buildChildCategoryLead = (options: {
   const visibleGroupLabel = buildVisibleProductName(options.groupLabel);
   const productCountLabel =
     options.productCount > 0
-      ? `${options.productCount.toLocaleString("uk-UA")} товарів`
+      ? `${options.productCount.toLocaleString("uk-UA")} ${pluralizeProducts(options.productCount)}`
       : "товари каталогу";
 
   return `Категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel} відкриває ${productCountLabel} і веде до точнішого підбору автозапчастин за брендом, назвою або артикулом.`;
@@ -1075,12 +1080,12 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         topics={[
           {
             title: "Товари категорії",
-            text: `У каталозі для цієї категорії зібрано ${item.productCount.toLocaleString("uk-UA")} товарів із цінами та актуальними характеристиками.`,
+            text: `У каталозі для цієї категорії зібрано ${item.productCount.toLocaleString("uk-UA")} ${pluralizeProducts(item.productCount)} із цінами та актуальними характеристиками.`,
             icon: PackageSearch,
           },
           {
             title: "Виробники й аналоги",
-            text: `Порівнюйте пропозиції ${item.producersCount.toLocaleString("uk-UA")} виробників і переходьте одразу до відфільтрованого асортименту.`,
+            text: `Порівнюйте пропозиції ${item.producersCount.toLocaleString("uk-UA")} ${pluralizeManufacturers(item.producersCount)} і переходьте одразу до відфільтрованого асортименту.`,
             icon: Factory,
           },
           {
@@ -1114,11 +1119,11 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
             <div className="flex flex-wrap gap-1.5">
               <span className={directoryCompactMetricAccentClass}>
                 <span>{item.producersCount.toLocaleString("uk-UA")}</span>
-                <span className="font-semibold text-teal-700">виробників</span>
+                <span className="font-semibold text-teal-700">{pluralizeManufacturers(item.producersCount)}</span>
               </span>
               <span className={directoryCompactMetricClass}>
                 <span>{(producerProductsTotal || item.productCount).toLocaleString("uk-UA")}</span>
-                <span className="font-semibold text-slate-500">товарів</span>
+                <span className="font-semibold text-slate-500">{pluralizeProducts(producerProductsTotal || item.productCount)}</span>
               </span>
             </div>
           </div>
@@ -1146,7 +1151,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                 </h2>
               </div>
               <span className={directoryCompactMetricAccentClass}>
-                {formatCount(item.children.length)} категорій
+                {formatCount(item.children.length)} {pluralizeCategories(item.children.length)}
               </span>
             </div>
           </div>
@@ -1174,7 +1179,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                     {child.productCount > 0 ? (
                       <span className={directoryCompactMetricClass}>
                         <span>{formatCount(child.productCount)}</span>
-                        <span className="font-semibold text-slate-500">товарів</span>
+                        <span className="font-semibold text-slate-500">{pluralizeProducts(child.productCount)}</span>
                       </span>
                     ) : null}
                     <span className="text-teal-700">&rarr;</span>

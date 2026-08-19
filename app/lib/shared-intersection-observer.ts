@@ -9,9 +9,39 @@
 type SharedObserverEntry = {
   observer: IntersectionObserver;
   callbacks: Map<Element, () => void>;
+  queue: Element[];
+  rafId: number;
 };
 
 const sharedObservers = new Map<string, SharedObserverEntry>();
+
+// A fast flick can cross dozens of cards' thresholds within the same
+// IntersectionObserver callback invocation. Each crossing flips a card from
+// skeleton to <img>, and calling all of those onIntersect callbacks
+// synchronously lets React queue 50+ component updates for the same commit.
+// Render work is interruptible, but React's commit phase (the part that
+// actually mounts the new <img> elements) is not — a LoAF trace showed that
+// single commit as one ~600ms blocking task during a fast scroll. Draining
+// the queue in small batches across animation frames caps how many cards can
+// land in any one commit, regardless of how many crossed at once.
+const DRAIN_BATCH_SIZE = 6;
+
+const drainQueue = (rootMargin: string) => {
+  const entry = sharedObservers.get(rootMargin);
+  if (!entry) return;
+  entry.rafId = 0;
+
+  const batch = entry.queue.splice(0, DRAIN_BATCH_SIZE);
+  for (const element of batch) {
+    const callback = entry.callbacks.get(element);
+    entry.callbacks.delete(element);
+    callback?.();
+  }
+
+  if (entry.queue.length > 0) {
+    entry.rafId = requestAnimationFrame(() => drainQueue(rootMargin));
+  }
+};
 
 export const observeNearViewport = (
   element: Element,
@@ -23,18 +53,23 @@ export const observeNearViewport = (
     const callbacks = new Map<Element, () => void>();
     const observer = new IntersectionObserver(
       (observerEntries) => {
+        const current = sharedObservers.get(rootMargin);
+        if (!current) return;
+
         for (const observerEntry of observerEntries) {
           if (!observerEntry.isIntersecting) continue;
-          const callback = callbacks.get(observerEntry.target);
-          if (!callback) continue;
-          callbacks.delete(observerEntry.target);
-          observer.unobserve(observerEntry.target);
-          callback();
+          if (!current.callbacks.has(observerEntry.target)) continue;
+          current.observer.unobserve(observerEntry.target);
+          current.queue.push(observerEntry.target);
+        }
+
+        if (current.queue.length > 0 && !current.rafId) {
+          current.rafId = requestAnimationFrame(() => drainQueue(rootMargin));
         }
       },
       { rootMargin }
     );
-    entry = { observer, callbacks };
+    entry = { observer, callbacks, queue: [], rafId: 0 };
     sharedObservers.set(rootMargin, entry);
   }
 
@@ -44,5 +79,7 @@ export const observeNearViewport = (
   return () => {
     entry!.callbacks.delete(element);
     entry!.observer.unobserve(element);
+    const queueIndex = entry!.queue.indexOf(element);
+    if (queueIndex !== -1) entry!.queue.splice(queueIndex, 1);
   };
 };

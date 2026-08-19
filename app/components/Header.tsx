@@ -332,11 +332,20 @@ const Header: React.FC = () => {
   const hasOverlayPortalOpen =
     Boolean(activeMenu) || showSearchModal || modals.contact || modals.order || modals.auth;
 
+  // No backdrop-blur here: these buttons sit in the always-visible fixed
+  // header, so backdrop-filter would run on every compositor frame the
+  // header participates in for the entire time the page is scrollable —
+  // not just while something is actually open. Chromium's macOS backend
+  // handles that far worse than WebKit's native compositor (well-documented
+  // Chrome-on-Mac backdrop-filter cost, not present in Safari), which is
+  // exactly the "laggy in Chrome, fine in Safari" split reported for this
+  // header. A flat, slightly more opaque fill reads the same visually
+  // without needing a live blur.
   const buttonBaseClass =
-    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.20] bg-white/[0.11] text-[10px] font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-sm transition-all duration-200 whitespace-nowrap hover:border-sky-300/50 hover:bg-sky-400/[0.18] hover:text-sky-100 hover:shadow-[0_6px_18px_rgba(14,165,233,0.22),0_2px_8px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(125,211,252,0.22)] active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[13px] touch-manipulation';
+    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.20] bg-white/[0.16] text-[10px] font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.16)] transition-all duration-200 whitespace-nowrap hover:border-sky-300/50 hover:bg-sky-400/[0.18] hover:text-sky-100 hover:shadow-[0_6px_18px_rgba(14,165,233,0.22),0_2px_8px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(125,211,252,0.22)] active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[13px] touch-manipulation';
 
   const rightActionBaseClass =
-    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.20] bg-white/[0.11] text-[10px] font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-sm transition-[background-color,border-color,color,box-shadow,filter,transform] duration-[420ms] ease-[cubic-bezier(0.16,1,0.3,1)] whitespace-nowrap hover:border-sky-300/40 hover:bg-sky-400/[0.15] hover:text-sky-100 hover:shadow-[0_5px_15px_rgba(14,165,233,0.17),0_2px_7px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(125,211,252,0.20)] active:scale-[0.97] active:duration-150 active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-[13px] touch-manipulation';
+    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.20] bg-white/[0.16] text-[10px] font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.16)] transition-[background-color,border-color,color,box-shadow,filter,transform] duration-[420ms] ease-[cubic-bezier(0.16,1,0.3,1)] whitespace-nowrap hover:border-sky-300/40 hover:bg-sky-400/[0.15] hover:text-sky-100 hover:shadow-[0_5px_15px_rgba(14,165,233,0.17),0_2px_7px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(125,211,252,0.20)] active:scale-[0.97] active:duration-150 active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-[13px] touch-manipulation';
 
   const rightActionActiveClass =
     '!border-sky-300/55 !bg-sky-500/[0.22] !text-sky-100 !shadow-[0_4px_14px_rgba(14,165,233,0.24),inset_0_1px_0_rgba(125,211,252,0.24)] !-translate-y-0';
@@ -538,7 +547,7 @@ const Header: React.FC = () => {
 
           <button
             aria-label="Пошук"
-            className={`group lg:hidden !h-12 !w-12 !rounded-[16px] font-ui relative inline-flex shrink-0 cursor-pointer select-none items-center justify-center backdrop-blur-sm transition-all duration-200 touch-manipulation ${
+            className={`group lg:hidden !h-12 !w-12 !rounded-[16px] font-ui relative inline-flex shrink-0 cursor-pointer select-none items-center justify-center transition-all duration-200 touch-manipulation ${
               showSearchModal
                 ? 'border border-sky-300/65 bg-sky-500/[0.22] text-sky-100 shadow-[0_4px_16px_rgba(14,165,233,0.26),inset_0_1px_0_rgba(125,211,252,0.26)]'
                 : 'border border-sky-400/[0.30] bg-[image:linear-gradient(145deg,rgba(12,74,110,0.38),rgba(7,89,133,0.32))] text-sky-100 shadow-[0_2px_10px_rgba(14,165,233,0.14),inset_0_1px_0_rgba(125,211,252,0.18)] hover:border-sky-300/55 hover:bg-[image:linear-gradient(145deg,rgba(12,74,110,0.52),rgba(7,89,133,0.46))] hover:shadow-[0_6px_20px_rgba(14,165,233,0.28),inset_0_1px_0_rgba(125,211,252,0.24)] active:scale-[0.96]'
