@@ -190,27 +190,47 @@ async function run(outputPath: string, startedAt: number) {
   let skippedForBudget = 0;
   const runDeadline = startedAt + RUN_BUDGET_MS;
 
-  await mapWithConcurrency(pairs, MODEL_CHECK_CONCURRENCY, async (pair) => {
-    if (Date.now() >= runDeadline) {
-      skippedForBudget += 1;
-      return;
-    }
+  // On a degraded/unreachable 1C, every single lookup can burn its full
+  // timeout+retry budget (up to ~3 tiers x 4s x 2 tries each — see
+  // HAS_ANY_PRODUCT_TIMEOUT_MS in auto-directory-data.ts), so the count-based
+  // log below can go many minutes without printing anything even though the
+  // process is alive and the hard timeout further down will still cut it
+  // off. That silence is indistinguishable from a real hang from the
+  // outside. A time-based heartbeat guarantees visible output on a fixed
+  // cadence regardless of how slow 1C is responding.
+  const heartbeat = setInterval(() => {
+    const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
+    console.log(
+      `   … живий: ${checked}/${pairs.length} перевірено, ${elapsedSeconds}с минуло (бюджет ${Math.round(RUN_BUDGET_MS / 1000)}с)`
+    );
+  }, 15_000);
+  heartbeat.unref();
 
-    const hasProducts = await hasAnyModelProducts(pair.brand, pair.model).catch(() => false);
-    checked += 1;
-    const key = `${pair.brand}::${pair.model}`;
-    if (hasProducts) {
-      verifiedKeys.add(key);
-    } else {
-      // An explicit re-check that came back empty overrides a stale "had
-      // products" from an earlier run (e.g. the model was delisted) — only
-      // pairs skipped by the budget below keep their prior status untouched.
-      verifiedKeys.delete(key);
-    }
-    if (checked % 200 === 0) {
-      console.log(`   … перевірено ${checked}/${pairs.length}`);
-    }
-  });
+  try {
+    await mapWithConcurrency(pairs, MODEL_CHECK_CONCURRENCY, async (pair) => {
+      if (Date.now() >= runDeadline) {
+        skippedForBudget += 1;
+        return;
+      }
+
+      const hasProducts = await hasAnyModelProducts(pair.brand, pair.model).catch(() => false);
+      checked += 1;
+      const key = `${pair.brand}::${pair.model}`;
+      if (hasProducts) {
+        verifiedKeys.add(key);
+      } else {
+        // An explicit re-check that came back empty overrides a stale "had
+        // products" from an earlier run (e.g. the model was delisted) — only
+        // pairs skipped by the budget below keep their prior status untouched.
+        verifiedKeys.delete(key);
+      }
+      if (checked % 20 === 0) {
+        console.log(`   … перевірено ${checked}/${pairs.length}`);
+      }
+    });
+  } finally {
+    clearInterval(heartbeat);
+  }
 
   if (skippedForBudget > 0) {
     console.warn(
