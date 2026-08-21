@@ -376,8 +376,36 @@ const handleProfile = async (from: TelegramUser, chatId: string) => {
 };
 
 const FIND_RESULT_LIMIT = 5;
+const FIND_CALLBACK_PREFIX = "fp:";
 
-const handleFind = async (chatId: string, rawQuery: string) => {
+// callback_data has a hard 64-byte cap, and unlike the gp:/pp:/mp: catalog
+// callbacks (which only ever need to carry short slugs/indices re-resolved
+// server-side), a /find search has no slug to fall back on — the query text
+// itself has to travel in the button. Truncated to whatever fits after the
+// "fp:<page>:" prefix; a truncated re-search on page 2+ is a acceptable
+// edge case for unusually long queries, not a correctness issue for the
+// overwhelming majority of real searches (article codes, short phrases).
+const encodeFindCallback = (page: number, query: string) => {
+  const prefix = `${FIND_CALLBACK_PREFIX}${page}:`;
+  const maxQueryBytes = Math.max(0, 64 - Buffer.byteLength(prefix, "utf8"));
+  let truncated = query;
+  while (Buffer.byteLength(truncated, "utf8") > maxQueryBytes && truncated.length > 0) {
+    truncated = truncated.slice(0, -1);
+  }
+  return `${prefix}${truncated}`;
+};
+
+const decodeFindCallback = (data: string): { page: number; query: string } | null => {
+  const rest = data.slice(FIND_CALLBACK_PREFIX.length);
+  const separatorIndex = rest.indexOf(":");
+  if (separatorIndex === -1) return null;
+  const page = Number(rest.slice(0, separatorIndex));
+  const query = rest.slice(separatorIndex + 1);
+  if (!query) return null;
+  return { page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1, query };
+};
+
+const handleFind = async (chatId: string, rawQuery: string, page = 1) => {
   const query = normalizeText(rawQuery, 200);
   const siteUrl = getSiteUrl();
 
@@ -392,7 +420,7 @@ const handleFind = async (chatId: string, rawQuery: string) => {
 
   const [result, euroRate] = await Promise.all([
     fetchCatalogProductsByQuery({
-      page: 1,
+      page,
       limit: FIND_RESULT_LIMIT,
       searchQuery: query,
       searchFilter: "all",
@@ -411,7 +439,9 @@ const handleFind = async (chatId: string, rawQuery: string) => {
   if (result.items.length === 0) {
     await sendTelegramMessage(
       chatId,
-      `😕 Нічого не знайдено за запитом «<b>${escapeTelegramHtml(query)}</b>». Спробуйте іншу назву або артикул.`,
+      page > 1
+        ? "😕 Більше товарів немає."
+        : `😕 Нічого не знайдено за запитом «<b>${escapeTelegramHtml(query)}</b>». Спробуйте іншу назву або артикул.`,
       { parseMode: "HTML", replyMarkup: buildCatalogKeyboard(siteUrl) }
     );
     return;
@@ -419,10 +449,16 @@ const handleFind = async (chatId: string, rawQuery: string) => {
 
   await sendTelegramMessage(
     chatId,
-    `🔍 Знайдено <b>${result.items.length}</b> ${result.items.length === 1 ? "товар" : "товари"} за запитом «${escapeTelegramHtml(query)}»:`,
+    page > 1
+      ? `🔍 Сторінка <b>${page}</b> за запитом «${escapeTelegramHtml(query)}»:`
+      : `🔍 Знайдено за запитом «${escapeTelegramHtml(query)}»:`,
     { parseMode: "HTML" }
   );
-  await sendProductResults(chatId, result.items, euroRate, siteUrl);
+  await sendProductResults(chatId, result.items, euroRate, siteUrl, {
+    page,
+    hasMore: result.hasMore,
+    buildCallbackData: (nextPage) => encodeFindCallback(nextPage, query),
+  });
 };
 
 const handleHelp = (chatId: string) =>
@@ -562,18 +598,23 @@ const PRODUCTS_CALLBACK_LIMIT = 5;
 // "gp:"/"pp:"/"mp:" don't resolve to a NavMenu edit like the browse levels
 // do — they trigger a fresh batch of product cards (same rendering as
 // /find, via the shared sendProductResults helper) sent below the leaf card.
+// The page number always rides as the last callback_data segment (appended
+// after whatever slugs/indices that prefix already carries), so parsing
+// pops it off first and applies the existing per-prefix logic to what's left.
 const handleProductsCallback = async (chatId: string, data: string) => {
   const siteUrl = getSiteUrl();
   const [prefix, ...rest] = data.split(":");
+  const page = Math.max(1, Number(rest[rest.length - 1]) || 1);
+  const params = rest.slice(0, -1);
 
   let query: { searchQuery?: string; group?: string; subcategory?: string; producer?: string } | null = null;
   if (prefix === "gp") {
-    const childIndex = rest.length > 2 ? Number(rest[2]) : undefined;
-    query = await resolveGroupProductFilter(rest[0], Number(rest[1]), childIndex);
+    const childIndex = params.length > 2 ? Number(params[2]) : undefined;
+    query = await resolveGroupProductFilter(params[0], Number(params[1]), childIndex);
   } else if (prefix === "pp") {
-    query = await resolveProducerProductFilter(rest[0]);
+    query = await resolveProducerProductFilter(params[0]);
   } else if (prefix === "mp") {
-    query = await resolveModelProductQuery(rest[0], Number(rest[1]));
+    query = await resolveModelProductQuery(params[0], Number(params[1]));
   }
 
   if (!query) {
@@ -583,7 +624,7 @@ const handleProductsCallback = async (chatId: string, data: string) => {
 
   const [result, euroRate] = await Promise.all([
     fetchCatalogProductsByQuery({
-      page: 1,
+      page,
       limit: PRODUCTS_CALLBACK_LIMIT,
       searchQuery: query.searchQuery,
       searchFilter: query.searchQuery ? "description" : "all",
@@ -604,16 +645,25 @@ const handleProductsCallback = async (chatId: string, data: string) => {
   ]);
 
   if (result.items.length === 0) {
-    await sendTelegramMessage(chatId, "😕 Товарів у цьому розділі поки не знайдено.");
+    await sendTelegramMessage(
+      chatId,
+      page > 1 ? "😕 Більше товарів немає." : "😕 Товарів у цьому розділі поки не знайдено."
+    );
     return;
   }
 
   await sendTelegramMessage(
     chatId,
-    `🛒 Знайдено <b>${result.items.length}</b> ${result.items.length === 1 ? "товар" : "товари"}:`,
+    page > 1
+      ? `🛒 Сторінка <b>${page}</b>:`
+      : `🛒 Знайдено <b>${result.items.length}</b> ${result.items.length === 1 ? "товар" : "товари"}:`,
     { parseMode: "HTML" }
   );
-  await sendProductResults(chatId, result.items, euroRate, siteUrl);
+  await sendProductResults(chatId, result.items, euroRate, siteUrl, {
+    page,
+    hasMore: result.hasMore,
+    buildCallbackData: (nextPage) => `${prefix}:${params.join(":")}:${nextPage}`,
+  });
 };
 
 // Gated behind onboarding, same as /orders and /support — the watch has to
@@ -690,6 +740,17 @@ const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
     await handleProductsCallback(chatId, data).catch((error) => {
       console.error("Products callback failed:", error);
     });
+    return;
+  }
+
+  if (data.startsWith(FIND_CALLBACK_PREFIX)) {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    const decoded = decodeFindCallback(data);
+    if (decoded) {
+      await handleFind(chatId, decoded.query, decoded.page).catch((error) => {
+        console.error("Find pagination callback failed:", error);
+      });
+    }
     return;
   }
 

@@ -75,6 +75,42 @@ export const getCategoryIconPath = (label: string) => {
   return `/Katlogo/${resolved || "rul.png"}`;
 };
 
+// Emoji equivalent of the same 13-category taxonomy above — Telegram inline
+// buttons can only carry text, not the real PNG icons/logos this file maps
+// groups to, so this is the closest honest substitute: a distinct, on-theme
+// emoji per category instead of one generic icon repeated on every button.
+const CATEGORY_EMOJI: Record<string, string> = {
+  "Паливна система": "⛽",
+  "Гальмівна система": "🛑",
+  "Деталі двигуна": "⚙️",
+  "Деталі підвіски": "🔩",
+  "Амортизація": "🌀",
+  "Деталі для ТО": "🧰",
+  "Привід та коробка передач": "🔗",
+  "Система охолодження": "❄️",
+  "Освітлення": "💡",
+  "Інше": "🧩",
+  "Електроніка": "🔌",
+  "Датчики та електроніка": "🔌",
+  "Кузовні елементи": "🚙",
+  "Рідини та мастила": "🧴",
+  "Рідина та мастило": "🧴",
+};
+const DEFAULT_CATEGORY_EMOJI = "🧩";
+
+// Tries the label as a canonical category name first (most top-level groups
+// literally are one), then falls back to the same keyword inference used
+// for icon paths above (covers subgroups like "Гальмівні колодки" that
+// have no direct category of their own).
+export const getCategoryEmoji = (label: string): string => {
+  if (CATEGORY_EMOJI[label]) return CATEGORY_EMOJI[label];
+
+  const inferred = inferCategoryForGroupLabel(label);
+  if (inferred && CATEGORY_EMOJI[inferred]) return CATEGORY_EMOJI[inferred];
+
+  return DEFAULT_CATEGORY_EMOJI;
+};
+
 // Best-effort keyword classifier for groups that have no real "Категорія" in
 // 1C (only Група/Підгруппа) — used so the /auto/[brand]/[model] and
 // manufacturer category breakdowns can place a recognizable group like
@@ -131,7 +167,7 @@ const CATEGORY_INFERENCE_RULES: Array<{ category: string; keywords: string[] }> 
     category: "Кузовні елементи",
     keywords: ["кузов", "багажник", "капот", "замок", "ручка", "дзеркал", "бризговик", "підкрильник"],
   },
-  { category: "Освітлення", keywords: ["фара", "ліхтар", "освітлен", "поворотник", "повороту"] },
+  { category: "Освітлення", keywords: ["фара", "фари", "фарі", "ліхтар", "освітлен", "поворотник", "повороту"] },
   { category: "Паливна система", keywords: ["паливн", "бензонасос", "форсунк", "інжектор"] },
   {
     category: "Датчики та електроніка",

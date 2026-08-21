@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getProductTreeDataset } from "app/lib/product-tree";
-import { getCategoryIconPath } from "app/lib/category-icons";
+import { getCategoryEmoji, getCategoryIconPath } from "app/lib/category-icons";
 import { getGroupSeoCopy, getGroupItemSeoCopy } from "app/lib/seo-copy";
 import { carBrands, type CarBrand } from "app/components/carBrands";
 import { resolveCarBrandSocialImage } from "app/lib/car-brand-social-image";
@@ -99,7 +99,10 @@ const chunkIntoPairs = <T,>(items: T[]): T[][] =>
 export const buildGroupsListMenu = async (): Promise<NavMenu> => {
   const dataset = await getProductTreeDataset();
   const rows: NavButton[][] = chunkIntoPairs(dataset.groups).map((pair) =>
-    pair.map((group) => ({ text: group.label, callback_data: `g:${group.slug}` }))
+    pair.map((group) => ({
+      text: `${getCategoryEmoji(group.label)} ${group.label}`,
+      callback_data: `g:${group.slug}`,
+    }))
   );
   rows.push(backRow("m"));
 
@@ -128,7 +131,7 @@ export const buildGroupMenu = async (siteUrl: string, groupSlug: string): Promis
   }
 
   const rows: NavButton[][] = group.subgroups.map((sub, idx) => [
-    { text: sub.label, callback_data: `gs:${group.slug}:${idx}` },
+    { text: `${getCategoryEmoji(sub.label)} ${sub.label}`, callback_data: `gs:${group.slug}:${idx}` },
   ]);
   rows.push([siteLinkButton(siteUrl, buildGroupPath(group.slug), "🔗 Уся група на сайті")]);
   rows.push(backRow("g"));
@@ -162,7 +165,7 @@ export const buildSubgroupMenu = async (
       caption: `${header}\n\n${escapeTelegramHtml(copy.intro)}`,
       imageUrl,
       keyboard: [
-        [{ text: "📦 Показати товари", callback_data: `gp:${group.slug}:${subIndex}` }],
+        [{ text: "📦 Показати товари", callback_data: `gp:${group.slug}:${subIndex}:1` }],
         [siteLinkButton(siteUrl, buildGroupItemPath(group.slug, sub.slug))],
         backRow(backCallback),
       ],
@@ -170,7 +173,10 @@ export const buildSubgroupMenu = async (
   }
 
   const rows: NavButton[][] = sub.children.map((child, idx) => [
-    { text: child.label, callback_data: `gc:${group.slug}:${subIndex}:${idx}` },
+    {
+      text: `${getCategoryEmoji(child.label)} ${child.label}`,
+      callback_data: `gc:${group.slug}:${subIndex}:${idx}`,
+    },
   ]);
   rows.push([siteLinkButton(siteUrl, buildGroupItemPath(group.slug, sub.slug), "🔗 Уся підгрупа на сайті")]);
   rows.push(backRow(backCallback));
@@ -215,7 +221,7 @@ export const buildChildMenu = async (
       [
         {
           text: "📦 Показати товари",
-          callback_data: `gp:${group.slug}:${subIndex}:${childIndex}`,
+          callback_data: `gp:${group.slug}:${subIndex}:${childIndex}:1`,
         },
       ],
       [siteLinkButton(siteUrl, buildGroupItemPath(group.slug, child.slug))],
@@ -253,7 +259,7 @@ export const buildBrandListMenu = (page: number): NavMenu => {
   const { pageItems, page: clampedPage, totalPages } = paginate(carBrands, page);
   const rows: NavButton[][] = chunkIntoPairs(pageItems).map((pair) =>
     pair.map((brand) => ({
-      text: brand.name,
+      text: `🚗 ${brand.name}`,
       callback_data: `ab:${buildPlainSeoSlug(brand.name)}:0`,
     }))
   );
@@ -289,7 +295,7 @@ export const buildBrandModelsMenu = async (
   const startIndex = clampedPage * PAGE_SIZE;
 
   const rows: NavButton[][] = pageItems.map((model, i) => [
-    { text: model.name, callback_data: `am:${brandSlug}:${startIndex + i}` },
+    { text: `🚘 ${model.name}`, callback_data: `am:${brandSlug}:${startIndex + i}` },
   ]);
   const pagerRow = buildPagerRow(`ab:${brandSlug}`, clampedPage, totalPages);
   if (pagerRow.length) rows.push(pagerRow);
@@ -339,7 +345,7 @@ export const buildModelMenu = async (
     imageUrl: social?.url ?? null,
     keyboard: [
       ...(breakdown.totalProducts > 0
-        ? [[{ text: "📦 Показати товари", callback_data: `mp:${brandSlug}:${modelIndex}` }]]
+        ? [[{ text: "📦 Показати товари", callback_data: `mp:${brandSlug}:${modelIndex}:1` }]]
         : []),
       [siteLinkButton(siteUrl, buildAutoModelPath(brand.name, model.name))],
       backRow(`ab:${brandSlug}:0`),
@@ -368,7 +374,7 @@ export const buildProducersListMenu = async (page: number): Promise<NavMenu> => 
   const { pageItems, page: clampedPage, totalPages } = paginate(clientProducers, page);
 
   const rows: NavButton[][] = chunkIntoPairs(pageItems).map((pair) =>
-    pair.map((producer) => ({ text: producer.label, callback_data: `pd:${producer.slug}` }))
+    pair.map((producer) => ({ text: `🏭 ${producer.label}`, callback_data: `pd:${producer.slug}` }))
   );
   const pagerRow = buildPagerRow("p", clampedPage, totalPages);
   if (pagerRow.length) rows.push(pagerRow);
@@ -402,7 +408,7 @@ export const buildProducerMenu = async (
     imageUrl: isRasterImagePath(producer.logoPath) ? `${siteUrl}${producer.logoPath}` : null,
     keyboard: [
       ...(producer.productCount > 0
-        ? [[{ text: "📦 Показати товари", callback_data: `pp:${producer.slug}` }]]
+        ? [[{ text: "📦 Показати товари", callback_data: `pp:${producer.slug}:1` }]]
         : []),
       [siteLinkButton(siteUrl, buildManufacturerPath(producer.slug))],
       backRow("p:0"),

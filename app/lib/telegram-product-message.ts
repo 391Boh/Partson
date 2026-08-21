@@ -76,22 +76,42 @@ const buildListEntry = (
   ].join("\n");
 };
 
+export type ProductResultsPagination = {
+  page: number;
+  hasMore: boolean;
+  buildCallbackData: (page: number) => string;
+};
+
+const buildPagerRow = (pagination?: ProductResultsPagination) => {
+  if (!pagination) return null;
+  const { page, hasMore, buildCallbackData } = pagination;
+  const row: { text: string; callback_data: string }[] = [];
+  if (page > 1) row.push({ text: "⬅️ Попередні", callback_data: buildCallbackData(page - 1) });
+  row.push({ text: `Стор. ${page}`, callback_data: "noop" });
+  if (hasMore) row.push({ text: "➡️ Ще товари", callback_data: buildCallbackData(page + 1) });
+  return row.length > 1 ? row : null;
+};
+
 // Shared by /find and the catalog-navigation "🛒 Показати товари" buttons.
 //
 // A single result keeps the original full card (photo + details + buy
 // button) — there's nothing to "flood" with just one message. Multiple
 // results used to each get their own photo message, which for 5 results
 // meant 5 back-to-back messages landing in the chat at once; now photos go
-// out as one compact album (sendMediaGroup) and the details/links land in
-// one consolidated list right after, so N results is 2 messages instead of
-// N. Photos are always attempted regardless of the catalog's own hasPhoto
-// flag — that flag comes from 1C and isn't reliably populated on every
-// query path, so trusting Telegram's own fetch result is more accurate.
+// out as one compact, captioned album (sendMediaGroup — each photo labeled
+// with its own number/name so it's still clear which photo is which product)
+// and the details/links land in one consolidated list right after, so N
+// results is 2 messages instead of N. Photos are always attempted regardless
+// of the catalog's own hasPhoto flag — that flag comes from 1C and isn't
+// reliably populated on every query path, so trusting Telegram's own fetch
+// result is more accurate. `pagination`, when given, adds a Prev/Next row to
+// the last message sent, so a 5-per-page result set doesn't dead-end there.
 export const sendProductResults = async (
   chatId: string,
   products: CatalogProduct[],
   euroRate: number | null,
-  siteUrl: string
+  siteUrl: string,
+  pagination?: ProductResultsPagination
 ) => {
   if (products.length === 0) return;
 
@@ -99,11 +119,13 @@ export const sendProductResults = async (
     product,
     priceUah: euroRate != null ? toPriceUah(product.priceEuro ?? null, euroRate) : null,
   }));
+  const pagerRow = buildPagerRow(pagination);
 
   if (priced.length === 1) {
     const { product, priceUah } = priced[0];
     const caption = formatProductCaption(product, priceUah);
     const keyboard = buildProductKeyboard(siteUrl, product);
+    if (pagerRow) keyboard.inline_keyboard.push(pagerRow);
     const photoResult = await sendTelegramPhoto(
       chatId,
       buildProductImageUrl(siteUrl, product),
@@ -116,24 +138,34 @@ export const sendProductResults = async (
     return;
   }
 
-  const listText = priced
-    .map(({ product, priceUah }, index) => buildListEntry(index, product, priceUah, siteUrl))
-    .join("\n\n");
-  await sendTelegramMessage(chatId, listText, { parseMode: "HTML" });
-
   const photoUrls = products.map((product) => buildProductImageUrl(siteUrl, product));
   if (photoUrls.length >= 2) {
-    const grouped = await sendTelegramMediaGroup(chatId, photoUrls);
+    const mediaItems = priced.map(({ product }, index) => ({
+      url: buildProductImageUrl(siteUrl, product),
+      caption: `${index + 1}. ${escapeTelegramHtml(buildVisibleProductName(product.name))}`,
+    }));
+    const grouped = await sendTelegramMediaGroup(chatId, mediaItems);
     if (!grouped.ok) {
       // One bad URL fails the whole album atomically — fall back to sending
-      // each photo on its own so a single stale image doesn't hide the rest.
-      for (const url of photoUrls) {
-        await sendTelegramPhoto(chatId, url, "").catch(() => undefined);
+      // each photo on its own (still captioned/numbered) so a single stale
+      // image doesn't hide the rest.
+      for (const item of mediaItems) {
+        await sendTelegramPhoto(chatId, item.url, item.caption, { parseMode: "HTML" }).catch(
+          () => undefined
+        );
       }
     }
   } else if (photoUrls.length === 1) {
-    await sendTelegramPhoto(chatId, photoUrls[0], "").catch(() => undefined);
+    await sendTelegramPhoto(chatId, photoUrls[0], "1.").catch(() => undefined);
   }
+
+  const listText = priced
+    .map(({ product, priceUah }, index) => buildListEntry(index, product, priceUah, siteUrl))
+    .join("\n\n");
+  await sendTelegramMessage(chatId, listText, {
+    parseMode: "HTML",
+    ...(pagerRow ? { replyMarkup: { inline_keyboard: [pagerRow] } } : {}),
+  });
 
   for (const { product } of priced) {
     if (product.quantity > 0 || !product.code) continue;
