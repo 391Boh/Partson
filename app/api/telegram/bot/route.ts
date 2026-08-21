@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 
 import { readJsonObject } from "../../_lib/requestValidation";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import {
   ensureBotCommandsRegistered,
+  ensureBotMenuButtonConfigured,
+  sendTelegramLocation,
   sendTelegramMessage,
   sendTelegramPhoto,
 } from "app/lib/telegram-bot";
@@ -15,12 +17,8 @@ import {
   type OrderFields,
 } from "app/lib/telegram-order-message";
 import { getSiteUrl } from "app/lib/site-url";
-import { fetchCatalogProductsByQuery, toPriceUah, fetchEuroRate } from "app/lib/catalog-server";
-import {
-  buildProductImageUrl,
-  buildProductKeyboard,
-  formatProductCaption,
-} from "app/lib/telegram-product-message";
+import { fetchCatalogProductsByQuery, fetchEuroRate } from "app/lib/catalog-server";
+import { sendProductResults } from "app/lib/telegram-product-message";
 import {
   answerTelegramCallback,
   deleteTelegramMessage,
@@ -38,9 +36,18 @@ import {
   buildProducersListMenu,
   buildSubgroupMenu,
   buildTopMenu,
+  resolveGroupProductFilter,
+  resolveModelProductQuery,
+  resolveProducerProductFilter,
   type NavButton,
   type NavMenu,
 } from "app/lib/telegram-catalog-nav";
+import { createChatMessageServer } from "app/lib/chat-message";
+import { downloadTelegramPhotoToStorage } from "app/lib/telegram-file";
+import { buildContactsCard, getShopCoordinates } from "app/lib/telegram-shop-info";
+import { createStockWatch, findProductForWatch } from "app/lib/telegram-stock-watch";
+
+export const runtime = "nodejs";
 
 type TelegramUser = {
   id?: number | string;
@@ -57,6 +64,8 @@ type TelegramMessage = {
     type?: string;
   };
   text?: string;
+  caption?: string;
+  photo?: { file_id: string; file_unique_id: string; width: number; height: number; file_size?: number }[];
   contact?: {
     phone_number?: string;
     user_id?: number | string;
@@ -117,10 +126,22 @@ const removeKeyboard = () => ({
   remove_keyboard: true,
 });
 
+// web_app buttons open inside Telegram's own in-app browser instead of
+// switching to an external one — a nicer, more "native app" feel for the
+// main site CTA. Telegram rejects (and drops the whole keyboard for) a
+// web_app button whose url isn't https — falls back to a plain link button
+// in local/dev environments where getSiteUrl() may be http://localhost.
+const buildSiteButton = (text: string, url: string) =>
+  url.startsWith("https://") ? { text, web_app: { url } } : { text, url };
+
 const buildCatalogKeyboard = (siteUrl: string) => ({
   inline_keyboard: [
     [{ text: "📂 Каталог у боті", callback_data: "m" }],
-    [{ text: "🛍 Перейти на сайт", url: `${siteUrl}/katalog` }],
+    [
+      { text: "💬 Написати менеджеру", callback_data: "support:start" },
+      { text: "📍 Контакти", callback_data: "contacts" },
+    ],
+    [buildSiteButton("🛍 Перейти на сайт", `${siteUrl}/katalog`)],
   ],
 });
 
@@ -182,48 +203,49 @@ const findUserByProfileToken = async (token: string) => {
 };
 
 const NOT_LINKED_MESSAGE =
-  "Спочатку увійдіть через Telegram на сайті PartsON, а потім спробуйте ще раз.";
+  "🔒 Спочатку увійдіть через Telegram на сайті PartsON, а потім спробуйте ще раз.";
 
 const askPhone = (chatId: string | number) =>
   sendTelegramMessage(
     chatId,
     [
-      "Щоб завершити профіль PartsON, поділіться телефоном.",
-      "Натисніть кнопку нижче або напишіть номер у форматі +380XXXXXXXXX.",
+      "📱 Щоб завершити профіль PartsON, поділіться телефоном.",
+      "Натисніть кнопку нижче або напишіть номер у форматі <code>+380XXXXXXXXX</code>.",
     ].join("\n"),
-    { replyMarkup: buildContactKeyboard() }
+    { parseMode: "HTML", replyMarkup: buildContactKeyboard() }
   );
 
 const askEmail = (chatId: string | number) =>
   sendTelegramMessage(
     chatId,
-    "Дякую. Тепер напишіть ваш email для профілю PartsON.",
-    { replyMarkup: removeKeyboard() }
+    "✅ Дякую! Тепер напишіть ваш <b>email</b> для профілю PartsON.",
+    { parseMode: "HTML", replyMarkup: removeKeyboard() }
   );
 
 const finishProfile = (chatId: string | number) =>
   sendTelegramMessage(
     chatId,
-    "Готово. Телефон і email збережені в профілі PartsON.",
-    { replyMarkup: removeKeyboard() }
+    "🎉 <b>Готово!</b> Телефон і email збережені в профілі PartsON.",
+    { parseMode: "HTML", replyMarkup: removeKeyboard() }
   );
 
 const sendWelcomeBack = (chatId: string | number, from: TelegramUser) =>
   sendTelegramMessage(
     chatId,
     [
-      `Привіт, ${getDisplayName(from)}! 👋`,
-      "",
+      `<b>Привіт, ${escapeTelegramHtml(getDisplayName(from))}! 👋</b>`,
       "Просто напишіть назву чи артикул деталі — я знайду її в каталозі.",
       "",
-      "Команди:",
-      "/catalog — групи, марки авто, виробники",
-      "/find — пошук товару",
-      "/orders — ваші замовлення в PartsON",
-      "/profile — ваш профіль",
-      "/help — довідка",
+      "<b>Команди:</b>",
+      "<code>/catalog</code> — групи, марки авто, виробники",
+      "<code>/find</code> — пошук товару",
+      "<code>/orders</code> — ваші замовлення в PartsON",
+      "<code>/profile</code> — ваш профіль",
+      "<code>/support</code> — написати менеджеру",
+      "<code>/contacts</code> — контакти й адреса магазину",
+      "<code>/help</code> — довідка",
     ].join("\n"),
-    { replyMarkup: buildCatalogKeyboard(getSiteUrl()) }
+    { parseMode: "HTML", replyMarkup: buildCatalogKeyboard(getSiteUrl()) }
   );
 
 const handleStart = async (
@@ -291,7 +313,7 @@ const handleOrders = async (from: TelegramUser, chatId: string) => {
     .get();
 
   if (ordersSnap.empty) {
-    await sendTelegramMessage(chatId, "У вас ще немає замовлень.", {
+    await sendTelegramMessage(chatId, "📦 У вас ще немає замовлень.\nОберіть щось у каталозі:", {
       replyMarkup: buildCatalogKeyboard(siteUrl),
     });
     return;
@@ -337,18 +359,19 @@ const handleProfile = async (from: TelegramUser, chatId: string) => {
   const snap = await userRef.get();
   const data = snap.exists ? snap.data() : null;
   const name = escapeTelegramHtml(normalizeText(data?.name, 120) || getDisplayName(from));
-  const phone = escapeTelegramHtml(normalizeText(data?.phone, 40)) || "не вказано";
-  const email = escapeTelegramHtml(normalizeText(data?.email, 120)) || "не вказано";
+  const phone = normalizeText(data?.phone, 40);
+  const email = normalizeText(data?.email, 120);
 
   await sendTelegramMessage(
     chatId,
     [
-      `<b>Профіль PartsON</b>`,
-      `Ім'я: ${name}`,
-      `Телефон: ${phone}`,
-      `Email: ${email}`,
+      `<b>👤 Профіль PartsON</b>`,
+      "",
+      `Ім'я: <b>${name}</b>`,
+      `📞 Телефон: ${phone ? `<code>${escapeTelegramHtml(phone)}</code>` : "не вказано"}`,
+      `✉️ Email: ${email ? `<code>${escapeTelegramHtml(email)}</code>` : "не вказано"}`,
     ].join("\n"),
-    { parseMode: "HTML" }
+    { parseMode: "HTML", replyMarkup: buildCatalogKeyboard(getSiteUrl()) }
   );
 };
 
@@ -361,7 +384,7 @@ const handleFind = async (chatId: string, rawQuery: string) => {
   if (!query) {
     await sendTelegramMessage(
       chatId,
-      "Напишіть, що шукаємо — наприклад: <code>/find гальмівні колодки</code> або <code>/find AD030213</code>.",
+      "🔍 Напишіть, що шукаємо — наприклад: <code>/find гальмівні колодки</code> або <code>/find AD030213</code>.",
       { parseMode: "HTML" }
     );
     return;
@@ -388,54 +411,109 @@ const handleFind = async (chatId: string, rawQuery: string) => {
   if (result.items.length === 0) {
     await sendTelegramMessage(
       chatId,
-      `Нічого не знайдено за запитом «${escapeTelegramHtml(query)}». Спробуйте іншу назву або артикул.`,
-      { replyMarkup: buildCatalogKeyboard(siteUrl) }
+      `😕 Нічого не знайдено за запитом «<b>${escapeTelegramHtml(query)}</b>». Спробуйте іншу назву або артикул.`,
+      { parseMode: "HTML", replyMarkup: buildCatalogKeyboard(siteUrl) }
     );
     return;
   }
 
   await sendTelegramMessage(
     chatId,
-    `🔍 Знайдено ${result.items.length} ${result.items.length === 1 ? "товар" : "товари"} за запитом «${escapeTelegramHtml(query)}»:`
+    `🔍 Знайдено <b>${result.items.length}</b> ${result.items.length === 1 ? "товар" : "товари"} за запитом «${escapeTelegramHtml(query)}»:`,
+    { parseMode: "HTML" }
   );
-
-  for (const product of result.items) {
-    const priceUah = euroRate != null ? toPriceUah(product.priceEuro ?? null, euroRate) : null;
-    const caption = formatProductCaption(product, priceUah);
-    const keyboard = buildProductKeyboard(siteUrl, product);
-
-    if (product.hasPhoto !== false) {
-      const photoResult = await sendTelegramPhoto(
-        chatId,
-        buildProductImageUrl(siteUrl, product),
-        caption,
-        { parseMode: "HTML", replyMarkup: keyboard }
-      );
-      if (photoResult.ok) continue;
-      // Telegram couldn't fetch/decode this particular image (e.g. a stale
-      // catalog entry) — fall through to a text-only card instead of
-      // silently dropping the result.
-    }
-
-    await sendTelegramMessage(chatId, caption, { parseMode: "HTML", replyMarkup: keyboard });
-  }
+  await sendProductResults(chatId, result.items, euroRate, siteUrl);
 };
 
 const handleHelp = (chatId: string) =>
   sendTelegramMessage(
     chatId,
     [
-      "Команди PartsON:",
-      "/catalog — групи, марки авто, виробники",
-      "/find <назва або артикул> — пошук товару в каталозі",
-      "/orders — ваші замовлення",
-      "/profile — ваш профіль (телефон, email)",
-      "/help — ця довідка",
+      "<b>ℹ️ Команди PartsON</b>",
+      "",
+      "<code>/catalog</code> — групи, марки авто, виробники",
+      "<code>/find</code> &lt;назва або артикул&gt; — пошук товару",
+      "<code>/orders</code> — ваші замовлення",
+      "<code>/profile</code> — ваш профіль (телефон, email)",
+      "<code>/support</code> — написати менеджеру",
+      "<code>/contacts</code> — контакти й адреса магазину",
+      "<code>/help</code> — ця довідка",
       "",
       "Або просто напишіть назву чи артикул деталі — знайду без команди.",
     ].join("\n"),
-    { replyMarkup: buildCatalogKeyboard(getSiteUrl()) }
+    { parseMode: "HTML", replyMarkup: buildCatalogKeyboard(getSiteUrl()) }
   );
+
+const SUPPORT_END_KEYBOARD = { inline_keyboard: [[{ text: "✅ Завершити", callback_data: "support:end" }]] };
+
+const startSupportMode = async (
+  userRef: FirebaseFirestore.DocumentReference,
+  chatId: string
+) => {
+  await userRef.set({ supportMode: true }, { merge: true });
+  await sendTelegramMessage(
+    chatId,
+    [
+      "💬 Ви на зв'язку з менеджером PartsON.",
+      "Напишіть повідомлення (можна кілька) або надішліть фото — я одразу передам це менеджеру.",
+      "Коли завершите розмову, натисніть «✅ Завершити».",
+    ].join("\n"),
+    { replyMarkup: SUPPORT_END_KEYBOARD }
+  );
+};
+
+const handleSupport = async (from: TelegramUser, chatId: string) => {
+  const telegramId = normalizeId(from.id);
+  const userRef = await findUserByTelegramId(telegramId);
+  if (!userRef) {
+    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    return;
+  }
+  await startSupportMode(userRef, chatId);
+};
+
+const endSupportMode = async (from: TelegramUser, chatId: string) => {
+  const telegramId = normalizeId(from.id);
+  const userRef = await findUserByTelegramId(telegramId);
+  if (userRef) await userRef.set({ supportMode: false }, { merge: true }).catch(() => undefined);
+  await sendTelegramMessage(chatId, "👋 <b>Чат з менеджером завершено.</b> Дякуємо!", {
+    parseMode: "HTML",
+    replyMarkup: buildCatalogKeyboard(getSiteUrl()),
+  });
+};
+
+const relaySupportText = async (userId: string, chatId: string, text: string) => {
+  const result = await createChatMessageServer({ userId, text, type: "text" });
+  await sendTelegramMessage(
+    chatId,
+    result.ok
+      ? "✅ <b>Надіслано менеджеру.</b> Очікуйте відповідь тут."
+      : "⚠️ Не вдалося надіслати повідомлення. Спробуйте ще раз.",
+    { parseMode: "HTML" }
+  );
+};
+
+const relaySupportPhoto = async (userId: string, chatId: string, fileId: string, caption: string) => {
+  const imageUrl = await downloadTelegramPhotoToStorage(fileId, userId);
+  if (!imageUrl) {
+    await sendTelegramMessage(chatId, "⚠️ Не вдалося завантажити фото. Спробуйте ще раз.");
+    return;
+  }
+  const result = await createChatMessageServer({
+    userId,
+    text: caption || "Фото",
+    type: "image",
+    imageUrl,
+    imageName: "Фото",
+  });
+  await sendTelegramMessage(
+    chatId,
+    result.ok
+      ? "✅ <b>Фото надіслано менеджеру.</b> Очікуйте відповідь тут."
+      : "⚠️ Не вдалося надіслати фото. Спробуйте ще раз.",
+    { parseMode: "HTML" }
+  );
+};
 
 const handleCatalog = async (chatId: string) => {
   const menu = buildTopMenu();
@@ -443,6 +521,18 @@ const handleCatalog = async (chatId: string) => {
     parseMode: "HTML",
     replyMarkup: { inline_keyboard: menu.keyboard },
   });
+};
+
+// Sends a native map pin first (Telegram renders it as a real, pannable
+// map right in the chat) followed by the address/hours/phone card — the
+// pin alone has no room for text, so the two together are what make this
+// actually useful rather than just a dot on a map.
+const handleContacts = async (chatId: string) => {
+  const { lat, lng } = getShopCoordinates();
+  await sendTelegramLocation(chatId, lat, lng).catch(() => undefined);
+
+  const { text, keyboard } = buildContactsCard(getSiteUrl());
+  await sendTelegramMessage(chatId, text, { parseMode: "HTML", replyMarkup: keyboard });
 };
 
 // callback_data prefixes match app/lib/telegram-catalog-nav.ts's scheme —
@@ -467,13 +557,151 @@ const resolveNavMenu = async (siteUrl: string, data: string): Promise<NavMenu | 
   return null;
 };
 
+const PRODUCTS_CALLBACK_LIMIT = 5;
+
+// "gp:"/"pp:"/"mp:" don't resolve to a NavMenu edit like the browse levels
+// do — they trigger a fresh batch of product cards (same rendering as
+// /find, via the shared sendProductResults helper) sent below the leaf card.
+const handleProductsCallback = async (chatId: string, data: string) => {
+  const siteUrl = getSiteUrl();
+  const [prefix, ...rest] = data.split(":");
+
+  let query: { searchQuery?: string; group?: string; subcategory?: string; producer?: string } | null = null;
+  if (prefix === "gp") {
+    const childIndex = rest.length > 2 ? Number(rest[2]) : undefined;
+    query = await resolveGroupProductFilter(rest[0], Number(rest[1]), childIndex);
+  } else if (prefix === "pp") {
+    query = await resolveProducerProductFilter(rest[0]);
+  } else if (prefix === "mp") {
+    query = await resolveModelProductQuery(rest[0], Number(rest[1]));
+  }
+
+  if (!query) {
+    await sendTelegramMessage(chatId, "⚠️ Не вдалося знайти товари для цього розділу.");
+    return;
+  }
+
+  const [result, euroRate] = await Promise.all([
+    fetchCatalogProductsByQuery({
+      page: 1,
+      limit: PRODUCTS_CALLBACK_LIMIT,
+      searchQuery: query.searchQuery,
+      searchFilter: query.searchQuery ? "description" : "all",
+      group: query.group ?? null,
+      subcategory: query.subcategory ?? null,
+      producer: query.producer ?? null,
+      expandHierarchy: true,
+      forceAllgoodsSource: true,
+      sortOrder: "none",
+      includePriceEnrichment: false,
+      preferLegacySource: false,
+      timeoutMs: 4500,
+      retries: 1,
+      retryDelayMs: 200,
+      cacheTtlMs: 1000 * 60 * 5,
+    }).catch(() => ({ items: [], hasMore: false, nextCursor: "", cursorField: null })),
+    fetchEuroRate().catch(() => null),
+  ]);
+
+  if (result.items.length === 0) {
+    await sendTelegramMessage(chatId, "😕 Товарів у цьому розділі поки не знайдено.");
+    return;
+  }
+
+  await sendTelegramMessage(
+    chatId,
+    `🛒 Знайдено <b>${result.items.length}</b> ${result.items.length === 1 ? "товар" : "товари"}:`,
+    { parseMode: "HTML" }
+  );
+  await sendProductResults(chatId, result.items, euroRate, siteUrl);
+};
+
+// Gated behind onboarding, same as /orders and /support — the watch has to
+// be tied to a real linked account so the periodic checker knows where to
+// send the notification later.
+const handleWatchCallback = async (chatId: string, code: string, from?: TelegramUser) => {
+  if (!code || !from) return;
+
+  const userRef = await findUserByTelegramId(normalizeId(from.id));
+  if (!userRef) {
+    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    return;
+  }
+
+  const product = await findProductForWatch(code);
+  if (!product) {
+    await sendTelegramMessage(chatId, "⚠️ Не вдалося знайти цей товар.");
+    return;
+  }
+
+  await createStockWatch({
+    uid: userRef.id,
+    telegramChatId: chatId,
+    code: product.code,
+    article: product.article,
+    name: product.name,
+  });
+
+  await sendTelegramMessage(
+    chatId,
+    `🔔 Готово! Повідомимо вас тут, щойно <b>${escapeTelegramHtml(product.name)}</b> з'явиться в наявності.`,
+    { parseMode: "HTML" }
+  );
+};
+
 const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
   const data = (callback.data || "").trim();
   const message = callback.message;
   const chatId = normalizeId(message?.chat?.id);
   const messageId = message?.message_id;
 
-  if (!data || !chatId || !messageId) {
+  if (!data || !chatId) {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    return;
+  }
+
+  if (data === "support:start") {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    const from = callback.from;
+    if (!from) return;
+    const userRef = await findUserByTelegramId(normalizeId(from.id));
+    if (!userRef) {
+      await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+      return;
+    }
+    await startSupportMode(userRef, chatId);
+    return;
+  }
+
+  if (data === "support:end") {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    if (callback.from) await endSupportMode(callback.from, chatId);
+    return;
+  }
+
+  if (data === "contacts") {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    await handleContacts(chatId);
+    return;
+  }
+
+  if (data.startsWith("gp:") || data.startsWith("pp:") || data.startsWith("mp:")) {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    await handleProductsCallback(chatId, data).catch((error) => {
+      console.error("Products callback failed:", error);
+    });
+    return;
+  }
+
+  if (data.startsWith("watch:")) {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    await handleWatchCallback(chatId, data.slice("watch:".length), callback.from).catch((error) => {
+      console.error("Stock watch callback failed:", error);
+    });
+    return;
+  }
+
+  if (!messageId) {
     await answerTelegramCallback(callback.id).catch(() => undefined);
     return;
   }
@@ -532,11 +760,7 @@ const handlePhone = async (
   const userRef = await findUserByTelegramId(telegramId);
 
   if (!userRef) {
-    await sendTelegramMessage(
-      chatId,
-      "Не знайшов профіль PartsON. Спочатку увійдіть через Telegram на сайті.",
-      { replyMarkup: removeKeyboard() }
-    );
+    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
     return;
   }
 
@@ -560,11 +784,7 @@ const handleEmail = async (
   const userRef = await findUserByTelegramId(telegramId);
 
   if (!userRef) {
-    await sendTelegramMessage(
-      chatId,
-      "Не знайшов профіль PartsON. Спочатку увійдіть через Telegram на сайті.",
-      { replyMarkup: removeKeyboard() }
-    );
+    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
     return;
   }
 
@@ -596,9 +816,26 @@ export async function POST(req: NextRequest) {
 
   const update = bodyResult.value as TelegramUpdate;
 
+  // Telegram expects a fast HTTP response and retries the same update if it
+  // doesn't get one promptly — 1C-backed lookups (product search, category
+  // product listings) have been observed taking 30-60s+ under load, which
+  // would otherwise both stall this response and risk Telegram redelivering
+  // the identical update (double-processing: a duplicate reply, or the
+  // same support message relayed twice). Acknowledge immediately and do the
+  // actual work in the background via after() instead.
+  after(() =>
+    processUpdate(update).catch((error) => {
+      console.error("Telegram update processing failed:", error);
+    })
+  );
+
+  return NextResponse.json({ ok: true });
+}
+
+const processUpdate = async (update: TelegramUpdate) => {
   if (update.callback_query) {
     await handleCallbackQuery(update.callback_query);
-    return NextResponse.json({ ok: true });
+    return;
   }
 
   const message = update.message;
@@ -607,44 +844,83 @@ export async function POST(req: NextRequest) {
   const fromId = normalizeId(from?.id);
 
   if (!message || !from || !chatId || !fromId) {
-    return NextResponse.json({ ok: true });
+    return;
   }
 
-  // Fire-and-forget — Telegram only cares that the webhook responds quickly,
-  // and this is a no-op after the first call in this process (see
-  // ensureBotCommandsRegistered).
   ensureBotCommandsRegistered();
+  ensureBotMenuButtonConfigured(getSiteUrl());
 
   const text = normalizeText(message.text, 1200);
 
+  // Any recognized command exits support mode, so a fresh /find or /catalog
+  // isn't accidentally swallowed as a message to the manager on the next
+  // stray-text message. Best-effort, never blocks the command itself.
+  if (text.startsWith("/") && !text.startsWith("/support")) {
+    void findUserByTelegramId(fromId)
+      .then((ref) => ref?.set({ supportMode: false }, { merge: true }))
+      .catch(() => undefined);
+  }
+
   if (text.startsWith("/start")) {
     await handleStart(message, from, chatId, text);
-    return NextResponse.json({ ok: true });
+    return;
   }
 
   if (text.startsWith("/catalog")) {
     await handleCatalog(chatId);
-    return NextResponse.json({ ok: true });
+    return;
   }
 
   if (text.startsWith("/orders")) {
     await handleOrders(from, chatId);
-    return NextResponse.json({ ok: true });
+    return;
   }
 
   if (text.startsWith("/profile")) {
     await handleProfile(from, chatId);
-    return NextResponse.json({ ok: true });
+    return;
   }
 
   if (text.startsWith("/find")) {
     await handleFind(chatId, text.slice("/find".length).trim());
-    return NextResponse.json({ ok: true });
+    return;
   }
 
   if (text.startsWith("/help")) {
     await handleHelp(chatId);
-    return NextResponse.json({ ok: true });
+    return;
+  }
+
+  if (text.startsWith("/support")) {
+    await handleSupport(from, chatId);
+    return;
+  }
+
+  if (text.startsWith("/contacts")) {
+    await handleContacts(chatId);
+    return;
+  }
+
+  // A photo has no other meaning in the bot (unlike stray text, which needs
+  // supportMode to disambiguate from /find) — so any photo from an
+  // onboarded user goes straight to the manager, no /support step needed
+  // first. Only the account link itself is required, same gate as
+  // /orders, /profile, /support.
+  const photos = message.photo;
+  if (photos?.length) {
+    const telegramId = normalizeId(from.id);
+    const userRef = await findUserByTelegramId(telegramId);
+    const snap = userRef ? await userRef.get() : null;
+    const data = snap?.exists ? snap.data() : null;
+
+    if (!userRef || !data?.phone || !data?.email) {
+      await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+      return;
+    }
+
+    const largest = photos[photos.length - 1];
+    await relaySupportPhoto(userRef.id, chatId, largest.file_id, normalizeText(message.caption, 1200));
+    return;
   }
 
   const contact = message.contact;
@@ -653,52 +929,56 @@ export async function POST(req: NextRequest) {
     if (contactUserId && contactUserId !== fromId) {
       await sendTelegramMessage(
         chatId,
-        "Будь ласка, поділіться саме своїм номером телефону.",
+        "⚠️ Будь ласка, поділіться саме своїм номером телефону.",
         { replyMarkup: buildContactKeyboard() }
       );
-      return NextResponse.json({ ok: true });
+      return;
     }
 
     const phone = normalizePhone(contact.phone_number);
     if (!isValidPhone(phone)) {
       await askPhone(chatId);
-      return NextResponse.json({ ok: true });
+      return;
     }
 
     await handlePhone(message, from, chatId, phone);
-    return NextResponse.json({ ok: true });
+    return;
   }
 
   if (text) {
     const phone = normalizePhone(text);
     if (isValidPhone(phone)) {
       await handlePhone(message, from, chatId, phone);
-      return NextResponse.json({ ok: true });
+      return;
     }
 
     if (isValidEmail(text)) {
       await handleEmail(from, chatId, text.trim());
-      return NextResponse.json({ ok: true });
+      return;
     }
   }
 
   // Stray text from an already-onboarded user (profile complete) — treat it
   // as a product search instead of re-demanding phone/email they've already
   // given. This is what makes /find optional in practice: just typing a
-  // part name or article works.
+  // part name or article works. Unless they're mid support-conversation, in
+  // which case the same stray text goes to the manager instead.
   const telegramId = normalizeId(from.id);
   const existingUserRef = await findUserByTelegramId(telegramId);
   const existingSnap = existingUserRef ? await existingUserRef.get() : null;
   const existingData = existingSnap?.exists ? existingSnap.data() : null;
+  if (existingUserRef && existingData?.supportMode && text) {
+    await relaySupportText(existingUserRef.id, chatId, text);
+    return;
+  }
   if (existingData?.phone && existingData?.email) {
     await handleFind(chatId, text);
-    return NextResponse.json({ ok: true });
+    return;
   }
 
   await sendTelegramMessage(
     chatId,
-    "Для завершення профілю поділіться телефоном, а потім напишіть email.",
+    "📱 Для завершення профілю поділіться телефоном, а потім напишіть email.",
     { replyMarkup: buildContactKeyboard() }
   );
-  return NextResponse.json({ ok: true });
-}
+};

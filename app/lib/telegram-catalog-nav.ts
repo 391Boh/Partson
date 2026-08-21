@@ -66,24 +66,45 @@ const siteLinkButton = (siteUrl: string, path: string, label = "🔗 Перег�
 });
 
 export const buildTopMenu = (): NavMenu => ({
-  caption: "<b>🗂 Каталог PartsON</b>\n\nОберіть, що шукаємо:",
+  caption: [
+    "<b>🗂 Каталог PartsON</b>",
+    "Автозапчастини за категорією, маркою авто або виробником.",
+    "",
+    "Оберіть розділ:",
+  ].join("\n"),
   imageUrl: null,
   keyboard: [
     [{ text: "📂 Групи товарів", callback_data: "g" }],
-    [{ text: "🚗 Марки авто", callback_data: "a:0" }],
-    [{ text: "🏭 Виробники", callback_data: "p:0" }],
+    [
+      { text: "🚗 Марки авто", callback_data: "a:0" },
+      { text: "🏭 Виробники", callback_data: "p:0" },
+    ],
+    [
+      { text: "💬 Написати менеджеру", callback_data: "support:start" },
+      { text: "📍 Контакти", callback_data: "contacts" },
+    ],
   ],
 });
 
+// Two columns keep a ~14-item list on one screen instead of a long single
+// column the user has to scroll through — same grid style already used for
+// the brand and producer lists below.
+const chunkIntoPairs = <T,>(items: T[]): T[][] =>
+  items.reduce<T[][]>((rows, item, i) => {
+    if (i % 2 === 0) rows.push([item]);
+    else rows[rows.length - 1].push(item);
+    return rows;
+  }, []);
+
 export const buildGroupsListMenu = async (): Promise<NavMenu> => {
   const dataset = await getProductTreeDataset();
-  const rows: NavButton[][] = dataset.groups.map((group) => [
-    { text: group.label, callback_data: `g:${group.slug}` },
-  ]);
+  const rows: NavButton[][] = chunkIntoPairs(dataset.groups).map((pair) =>
+    pair.map((group) => ({ text: group.label, callback_data: `g:${group.slug}` }))
+  );
   rows.push(backRow("m"));
 
   return {
-    caption: "<b>📂 Групи товарів</b>\n\nОберіть категорію:",
+    caption: `<b>📂 Групи товарів</b> (${dataset.groups.length})\n\nОберіть категорію:`,
     imageUrl: null,
     keyboard: rows,
   };
@@ -96,7 +117,7 @@ export const buildGroupMenu = async (siteUrl: string, groupSlug: string): Promis
 
   const copy = getGroupSeoCopy(group.label, 0);
   const imageUrl = `${siteUrl}${getCategoryIconPath(group.label)}`;
-  const caption = `<b>${escapeTelegramHtml(group.label)}</b>\n\n${escapeTelegramHtml(copy.intro)}`;
+  const caption = `<b>📂 ${escapeTelegramHtml(group.label)}</b>\n\n${escapeTelegramHtml(copy.intro)}`;
 
   if (group.subgroups.length === 0) {
     return {
@@ -141,6 +162,7 @@ export const buildSubgroupMenu = async (
       caption: `${header}\n\n${escapeTelegramHtml(copy.intro)}`,
       imageUrl,
       keyboard: [
+        [{ text: "🛒 Показати товари", callback_data: `gp:${group.slug}:${subIndex}` }],
         [siteLinkButton(siteUrl, buildGroupItemPath(group.slug, sub.slug))],
         backRow(backCallback),
       ],
@@ -153,7 +175,11 @@ export const buildSubgroupMenu = async (
   rows.push([siteLinkButton(siteUrl, buildGroupItemPath(group.slug, sub.slug), "🔗 Уся підгрупа на сайті")]);
   rows.push(backRow(backCallback));
 
-  return { caption: header, imageUrl, keyboard: rows };
+  return {
+    caption: `${header}\n\nОберіть категорію (${sub.children.length}):`,
+    imageUrl,
+    keyboard: rows,
+  };
 };
 
 export const buildChildMenu = async (
@@ -186,28 +212,60 @@ export const buildChildMenu = async (
     ].join("\n"),
     imageUrl: `${siteUrl}${getCategoryIconPath(child.label)}`,
     keyboard: [
+      [
+        {
+          text: "🛒 Показати товари",
+          callback_data: `gp:${group.slug}:${subIndex}:${childIndex}`,
+        },
+      ],
       [siteLinkButton(siteUrl, buildGroupItemPath(group.slug, child.slug))],
       backRow(`gs:${group.slug}:${subIndex}`),
     ],
   };
 };
 
+// Resolves a "gp:<groupSlug>:<subIndex>[:<childIndex>]" leaf back to the
+// exact (group, subcategory) pair fetchCatalogProductsByQuery expects —
+// mirrors the site's own resolution in groups/[slug]/[itemSlug]/page.tsx:
+// `catalogGroupLabel = item.parentSubgroupLabel || item.groupLabel`,
+// `subcategory = item.label`. Kept here since it needs the same
+// getProductTreeDataset() lookup the menu builders above already do.
+export const resolveGroupProductFilter = async (
+  groupSlug: string,
+  subIndex: number,
+  childIndex?: number
+): Promise<{ group: string; subcategory: string } | null> => {
+  const dataset = await getProductTreeDataset();
+  const group = dataset.groups.find((entry) => entry.slug === groupSlug);
+  const sub = group?.subgroups[subIndex];
+  if (!group || !sub) return null;
+
+  if (typeof childIndex === "number" && Number.isFinite(childIndex)) {
+    const child = sub.children[childIndex];
+    if (!child) return null;
+    return { group: sub.label, subcategory: child.label };
+  }
+
+  return { group: group.label, subcategory: sub.label };
+};
+
 export const buildBrandListMenu = (page: number): NavMenu => {
   const { pageItems, page: clampedPage, totalPages } = paginate(carBrands, page);
-  const rows: NavButton[][] = [];
-  for (let i = 0; i < pageItems.length; i += 2) {
-    rows.push(
-      pageItems.slice(i, i + 2).map((brand) => ({
-        text: brand.name,
-        callback_data: `ab:${buildPlainSeoSlug(brand.name)}:0`,
-      }))
-    );
-  }
+  const rows: NavButton[][] = chunkIntoPairs(pageItems).map((pair) =>
+    pair.map((brand) => ({
+      text: brand.name,
+      callback_data: `ab:${buildPlainSeoSlug(brand.name)}:0`,
+    }))
+  );
   const pagerRow = buildPagerRow("a", clampedPage, totalPages);
   if (pagerRow.length) rows.push(pagerRow);
   rows.push(backRow("m"));
 
-  return { caption: "<b>🚗 Марки авто</b>\n\nОберіть марку:", imageUrl: null, keyboard: rows };
+  return {
+    caption: `<b>🚗 Марки авто</b> (${carBrands.length})\n\nОберіть марку:`,
+    imageUrl: null,
+    keyboard: rows,
+  };
 };
 
 const resolveBrandModels = async (brandSlug: string) => {
@@ -240,8 +298,8 @@ export const buildBrandModelsMenu = async (
 
   const caption =
     models.length > 0
-      ? `<b>${escapeTelegramHtml(brand.name)}</b>\n\nОберіть модель (${models.length}):`
-      : `<b>${escapeTelegramHtml(brand.name)}</b>\n\nМоделі тимчасово недоступні — спробуйте на сайті.`;
+      ? `<b>🚗 ${escapeTelegramHtml(brand.name)}</b>\n\nОберіть модель (${models.length}):`
+      : `<b>🚗 ${escapeTelegramHtml(brand.name)}</b>\n\nМоделі тимчасово недоступні — спробуйте на сайті.`;
 
   return { caption, imageUrl: social?.url ?? null, keyboard: rows };
 };
@@ -267,11 +325,11 @@ export const buildModelMenu = async (
     .join("\n");
 
   const caption = [
-    `<b>${escapeTelegramHtml(brand.name)} ${escapeTelegramHtml(model.name)}</b>`,
+    `<b>🚗 ${escapeTelegramHtml(brand.name)} ${escapeTelegramHtml(model.name)}</b>`,
     breakdown.totalProducts > 0
-      ? `Знайдено товарів: <b>${breakdown.totalProducts}</b>`
+      ? `📦 Знайдено товарів: <b>${breakdown.totalProducts}</b>`
       : "Товари для цієї моделі підбираються індивідуально — перевірте на сайті.",
-    groupsList ? `\nГрупи запчастин:\n${groupsList}` : "",
+    groupsList ? `\n<b>Групи запчастин:</b>\n${groupsList}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -280,25 +338,38 @@ export const buildModelMenu = async (
     caption,
     imageUrl: social?.url ?? null,
     keyboard: [
+      ...(breakdown.totalProducts > 0
+        ? [[{ text: "🛒 Показати товари", callback_data: `mp:${brandSlug}:${modelIndex}` }]]
+        : []),
       [siteLinkButton(siteUrl, buildAutoModelPath(brand.name, model.name))],
       backRow(`ab:${brandSlug}:0`),
     ],
   };
 };
 
+// Reuses getModelGroupBreakdown's own effectiveQuery (the tiered-fallback
+// search string it already validated against real results) so the product
+// fetch below is guaranteed to match what the model card counted.
+export const resolveModelProductQuery = async (
+  brandSlug: string,
+  modelIndex: number
+): Promise<{ searchQuery: string } | null> => {
+  const resolved = await resolveBrandModels(brandSlug);
+  const model = resolved?.models[modelIndex];
+  if (!resolved || !model) return null;
+
+  const breakdown = await getModelGroupBreakdown(resolved.brand.name, model.name);
+  if (!breakdown.effectiveQuery) return null;
+  return { searchQuery: breakdown.effectiveQuery };
+};
+
 export const buildProducersListMenu = async (page: number): Promise<NavMenu> => {
   const { clientProducers } = await getFullManufacturersDirectoryData();
   const { pageItems, page: clampedPage, totalPages } = paginate(clientProducers, page);
 
-  const rows: NavButton[][] = [];
-  for (let i = 0; i < pageItems.length; i += 2) {
-    rows.push(
-      pageItems.slice(i, i + 2).map((producer) => ({
-        text: producer.label,
-        callback_data: `pd:${producer.slug}`,
-      }))
-    );
-  }
+  const rows: NavButton[][] = chunkIntoPairs(pageItems).map((pair) =>
+    pair.map((producer) => ({ text: producer.label, callback_data: `pd:${producer.slug}` }))
+  );
   const pagerRow = buildPagerRow("p", clampedPage, totalPages);
   if (pagerRow.length) rows.push(pagerRow);
   rows.push(backRow("m"));
@@ -319,9 +390,9 @@ export const buildProducerMenu = async (
   if (!producer) return null;
 
   const caption = [
-    `<b>${escapeTelegramHtml(producer.label)}</b>`,
-    producer.description ? escapeTelegramHtml(producer.description) : "",
-    producer.productCount > 0 ? `Товарів у каталозі: <b>${producer.productCount}</b>` : "",
+    `<b>🏭 ${escapeTelegramHtml(producer.label)}</b>`,
+    producer.description ? `<i>${escapeTelegramHtml(producer.description)}</i>` : "",
+    producer.productCount > 0 ? `📦 Товарів у каталозі: <b>${producer.productCount}</b>` : "",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -330,8 +401,19 @@ export const buildProducerMenu = async (
     caption,
     imageUrl: isRasterImagePath(producer.logoPath) ? `${siteUrl}${producer.logoPath}` : null,
     keyboard: [
+      ...(producer.productCount > 0
+        ? [[{ text: "🛒 Показати товари", callback_data: `pp:${producer.slug}` }]]
+        : []),
       [siteLinkButton(siteUrl, buildManufacturerPath(producer.slug))],
       backRow("p:0"),
     ],
   };
+};
+
+export const resolveProducerProductFilter = async (
+  producerSlug: string
+): Promise<{ producer: string } | null> => {
+  const { clientProducers } = await getFullManufacturersDirectoryData();
+  const producer = clientProducers.find((entry) => entry.slug === producerSlug);
+  return producer ? { producer: producer.label } : null;
 };

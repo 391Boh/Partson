@@ -123,10 +123,10 @@ export const formatOrderBlock = (docId: string, order: OrderFields, siteUrl?: st
   const items = formatOrderItemsList(order.cartItems, siteUrl);
 
   return [
-    `<b>Замовлення №${number}</b>${date ? ` від ${date}` : ""}`,
-    status,
-    items,
-    `Сума: <b>${total}</b>`,
+    `<b>📦 Замовлення №${number}</b>`,
+    `${status}${date ? ` · від ${date}` : ""}`,
+    items ? `\n${items}` : "",
+    `\nСума: <b>${total}</b>`,
   ]
     .filter(Boolean)
     .join("\n");

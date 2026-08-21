@@ -105,6 +105,11 @@ export const sendTelegramPhoto = (
     ...(options?.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
   });
 
+// Renders a native, pannable map pin right in the chat — distinct from a
+// "🗺 Маршрут" link button, which only opens Google Maps externally.
+export const sendTelegramLocation = (chatId: string | number, lat: number, lng: number) =>
+  callTelegramBotApi("sendLocation", { chat_id: chatId, latitude: lat, longitude: lng });
+
 // Registers the "/" command autocomplete menu in Telegram clients. Cheap and
 // idempotent on Telegram's side, but there's no need to hit their API on
 // every single webhook update — the module-level flag limits it to once per
@@ -120,7 +125,24 @@ export const ensureBotCommandsRegistered = () => {
       { command: "find", description: "Пошук товару" },
       { command: "orders", description: "Мої замовлення" },
       { command: "profile", description: "Мій профіль" },
+      { command: "support", description: "Написати менеджеру" },
+      { command: "contacts", description: "Контакти і локація магазину" },
       { command: "help", description: "Довідка" },
     ],
+  }).catch(() => undefined);
+};
+
+// Sets the persistent button next to the message input (bottom-left in
+// Telegram clients) to open the real site as a Web App — i.e. inside
+// Telegram's own in-app browser instead of switching to an external one.
+// Idempotent + rate-limited the same way as ensureBotCommandsRegistered.
+let menuButtonConfigured = false;
+export const ensureBotMenuButtonConfigured = (siteUrl: string) => {
+  // Telegram rejects non-HTTPS web_app URLs outright — skip silently in
+  // local/dev environments where getSiteUrl() may resolve to http://localhost.
+  if (menuButtonConfigured || !siteUrl.startsWith("https://")) return;
+  menuButtonConfigured = true;
+  void callTelegramBotApi("setChatMenuButton", {
+    menu_button: { type: "web_app", text: "PartsON", web_app: { url: siteUrl } },
   }).catch(() => undefined);
 };

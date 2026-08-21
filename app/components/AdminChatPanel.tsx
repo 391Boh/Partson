@@ -20,7 +20,9 @@ import {
   ChevronUp,
   Clock3,
   Copy,
+  ImagePlus,
   Mail,
+  Megaphone,
   MessageCircle,
   PackagePlus,
   Pencil,
@@ -225,6 +227,42 @@ const formatTimestampLabel = (raw: unknown) => {
   }).format(value);
 };
 
+const BROADCAST_IMAGE_MAX_DIMENSION = 1600;
+const BROADCAST_IMAGE_MAX_INPUT_BYTES = 15 * 1024 * 1024;
+
+// Simpler, single-pass version of the resize pipeline TelegramChat.tsx uses
+// for customer uploads — this is an occasional admin action, not a
+// high-frequency chat feature, so one canvas pass at a fixed quality is
+// enough to keep the broadcast payload well under the API route's cap.
+const resizeImageForBroadcast = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new window.Image();
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const scale = Math.min(
+        1,
+        BROADCAST_IMAGE_MAX_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight)
+      );
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('CANVAS_UNAVAILABLE'));
+        return;
+      }
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('IMAGE_LOAD_FAILED'));
+    };
+    image.src = objectUrl;
+  });
+
 export default function AdminChatPanel({
   isOpen,
   isPinned = false,
@@ -249,6 +287,15 @@ export default function AdminChatPanel({
   const [editingTemplateText, setEditingTemplateText] = useState('');
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [showBroadcastPanel, setShowBroadcastPanel] = useState(false);
+  const [broadcastText, setBroadcastText] = useState('');
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<
+    { sent: number; total: number } | { error: string } | null
+  >(null);
+  const [broadcastImageDataUrl, setBroadcastImageDataUrl] = useState<string | null>(null);
+  const [broadcastImageProcessing, setBroadcastImageProcessing] = useState(false);
+  const [broadcastImageError, setBroadcastImageError] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [calls, setCalls] = useState<CallRequest[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -639,11 +686,35 @@ export default function AdminChatPanel({
     setOrderUserFilterId(null);
   };
 
+  // Fire-and-forget: the Firestore write above is the action that actually
+  // matters and has already succeeded by the time this runs. A customer
+  // without a linked Telegram chat is the common case, not an error, and the
+  // route itself never returns a hard failure for that.
+  const notifyChatTelegram = async (
+    userId: string,
+    payload: Record<string, unknown>
+  ) => {
+    try {
+      const snapshot = await waitForFirebaseAuthReady();
+      const authUser = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
+      const token = await authUser?.getIdToken().catch(() => null);
+      if (!token) return;
+      await fetch('/api/chat/notify-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId, ...payload }),
+      });
+    } catch {
+      // Best-effort notification — nothing to surface here.
+    }
+  };
+
   const sendReply = async () => {
     if (!replyText.trim() || !selectedUserId) return;
+    const text = replyText.trim();
     await addDoc(collection(db, 'messages'), {
       userId: selectedUserId,
-      text: replyText.trim(),
+      text,
       sender: 'manager',
       createdAt: new Date(),
       readByAdmin: true,
@@ -652,6 +723,7 @@ export default function AdminChatPanel({
       type: 'text',
     });
     setReplyText('');
+    void notifyChatTelegram(selectedUserId, { type: 'text', text });
   };
 
   const insertTemplate = (template: MessageTemplate) => {
@@ -671,6 +743,66 @@ export default function AdminChatPanel({
       setTimeout(() => setAutoReplySaved(false), 2500);
     } finally {
       setAutoReplySaving(false);
+    }
+  };
+
+  const sendBroadcast = async () => {
+    const text = broadcastText.trim();
+    if (!text || broadcastSending) return;
+    setBroadcastSending(true);
+    setBroadcastResult(null);
+    try {
+      const snapshot = await waitForFirebaseAuthReady();
+      const authUser = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
+      const token = await authUser?.getIdToken().catch(() => null);
+      if (!token) {
+        setBroadcastResult({ error: 'Не авторизовано' });
+        return;
+      }
+      const res = await fetch('/api/telegram/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          text,
+          ...(broadcastImageDataUrl ? { imageDataUrl: broadcastImageDataUrl } : {}),
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { ok: boolean; sent?: number; total?: number; error?: string }
+        | null;
+      if (!res.ok || !data?.ok) {
+        setBroadcastResult({ error: data?.error || 'Не вдалося надіслати розсилку' });
+        return;
+      }
+      setBroadcastResult({ sent: data.sent ?? 0, total: data.total ?? 0 });
+      setBroadcastText('');
+      setBroadcastImageDataUrl(null);
+    } catch {
+      setBroadcastResult({ error: 'Не вдалося надіслати розсилку' });
+    } finally {
+      setBroadcastSending(false);
+    }
+  };
+
+  const handleBroadcastImagePick = async (file: File | undefined) => {
+    setBroadcastImageError(null);
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setBroadcastImageError('Файл має бути зображенням');
+      return;
+    }
+    if (file.size > BROADCAST_IMAGE_MAX_INPUT_BYTES) {
+      setBroadcastImageError('Файл завеликий (максимум 15 МБ)');
+      return;
+    }
+    setBroadcastImageProcessing(true);
+    try {
+      const dataUrl = await resizeImageForBroadcast(file);
+      setBroadcastImageDataUrl(dataUrl);
+    } catch {
+      setBroadcastImageError('Не вдалося обробити зображення');
+    } finally {
+      setBroadcastImageProcessing(false);
     }
   };
 
@@ -886,6 +1018,7 @@ export default function AdminChatPanel({
         type: 'product',
         product,
       });
+      void notifyChatTelegram(selectedUserId, { type: 'product', product });
 
       setProductArticle('');
       setShowProductForm(false);
@@ -1139,7 +1272,7 @@ export default function AdminChatPanel({
   return (
     <div
       ref={panelRef}
-      className="admin-panel-shell admin-density-compact app-overlay-panel fixed inset-x-2 bottom-2 top-[4.25rem] z-50 flex max-h-[calc(100dvh-4.75rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-sky-100/20 bg-[image:linear-gradient(145deg,rgba(3,7,18,0.98),rgba(15,23,42,0.96)_42%,rgba(12,74,110,0.92))] shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:inset-x-3 sm:bottom-3 sm:top-[4.75rem] sm:max-h-[calc(100dvh-5.5rem)] md:left-auto md:right-4 md:bottom-auto md:top-[4.5rem] md:h-[min(960px,calc(100dvh-4rem))] md:w-[min(1560px,calc(100vw-2rem))] md:max-h-none md:rounded-[28px] lg:right-4 lg:w-[min(1960px,calc(100vw-2.5rem))] xl:w-[min(2280px,calc(100vw-3rem))] 2xl:w-[min(2600px,calc(100vw-4rem))]"
+      className="admin-panel-shell admin-density-compact app-overlay-panel fixed inset-x-2 bottom-2 top-[4.25rem] z-50 flex max-h-[calc(100dvh-4.75rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-sky-100/20 bg-[image:linear-gradient(145deg,rgba(3,7,18,0.98),rgba(15,23,42,0.96)_42%,rgba(12,74,110,0.92))] shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:inset-x-3 sm:bottom-3 sm:top-[4.75rem] sm:max-h-[calc(100dvh-5.5rem)] md:left-auto md:right-4 md:bottom-auto md:top-[4.5rem] md:h-[min(1000px,calc(100dvh-3.5rem))] md:w-[min(1760px,calc(100vw-1.5rem))] md:max-h-none md:rounded-[28px] lg:right-4 lg:w-[min(2160px,calc(100vw-2rem))] xl:w-[min(2480px,calc(100vw-2.5rem))] 2xl:w-[min(2800px,calc(100vw-3rem))]"
       style={{
         backgroundSize: '200% 200%',
         animation: 'adminGradient 12s ease infinite',
@@ -1316,7 +1449,7 @@ export default function AdminChatPanel({
                           placeholder="Текст автоматичної відповіді..."
                           className="mt-2 w-full rounded-[12px] border border-white/10 bg-slate-950/40 px-3 py-2 text-[13px] text-white placeholder-slate-500 focus:border-sky-400 focus:outline-none"
                         />
-                        <div className="mt-2 flex items-center gap-2">
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
                           <button
                             type="button"
                             onClick={() => void saveAutoReplySettings()}
@@ -1442,6 +1575,103 @@ export default function AdminChatPanel({
                   )}
                 </div>
 
+                <div className="rounded-[16px] border border-white/10 bg-white/[0.04]">
+                  <button
+                    type="button"
+                    onClick={() => setShowBroadcastPanel((p) => !p)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <Megaphone className="h-4 w-4 shrink-0 text-amber-300" />
+                      <span className="min-w-0 text-[11px] font-black uppercase leading-snug tracking-[0.08em] text-amber-200 [overflow-wrap:anywhere]">
+                        Розсилка в Telegram
+                      </span>
+                    </span>
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${showBroadcastPanel ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {showBroadcastPanel && (
+                    <div className="space-y-2 border-t border-white/10 p-2.5">
+                      <div className="rounded-[14px] border border-white/10 bg-slate-950/30 p-2.5">
+                        <p className="text-[11px] leading-snug text-slate-400">
+                          Надішле повідомлення в Telegram усім клієнтам, які прив&apos;язали бота
+                          (натискали /start). Використовуйте для акцій і новин — не занадто часто.
+                        </p>
+                        <textarea
+                          value={broadcastText}
+                          onChange={(e) => setBroadcastText(e.target.value)}
+                          rows={3}
+                          placeholder="Текст розсилки..."
+                          className="mt-2 w-full rounded-[12px] border border-white/10 bg-slate-950/40 px-3 py-2 text-[13px] text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                        />
+
+                        {broadcastImageDataUrl ? (
+                          <div className="relative mt-2 inline-block">
+                            {/* Locally-picked preview (not remote), so a plain img is fine here. */}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={broadcastImageDataUrl}
+                              alt="Фото розсилки"
+                              className="h-28 w-auto rounded-[10px] border border-white/10 object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setBroadcastImageDataUrl(null)}
+                              className="absolute -right-2 -top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-slate-900 text-slate-300 hover:text-rose-300"
+                              title="Прибрати фото"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-bold text-slate-300 transition hover:bg-white/10">
+                            <ImagePlus className="h-3.5 w-3.5" />
+                            {broadcastImageProcessing ? 'Обробка...' : 'Додати фото'}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={broadcastImageProcessing}
+                              onChange={(e) => {
+                                void handleBroadcastImagePick(e.target.files?.[0]);
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                        )}
+                        {broadcastImageError && (
+                          <p className="mt-1 text-[11px] font-bold text-rose-300">{broadcastImageError}</p>
+                        )}
+
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void sendBroadcast()}
+                            disabled={broadcastSending || !broadcastText.trim() || broadcastImageProcessing}
+                            className="inline-flex items-center gap-1.5 rounded-[10px] bg-amber-600 px-3 py-2 text-[11px] font-bold text-white transition hover:bg-amber-700 disabled:opacity-60"
+                          >
+                            <Megaphone className="h-3.5 w-3.5" />
+                            {broadcastSending ? 'Надсилання...' : 'Надіслати всім'}
+                          </button>
+                          {broadcastResult && 'error' in broadcastResult && (
+                            <span className="text-[11px] font-bold text-rose-300">
+                              {broadcastResult.error}
+                            </span>
+                          )}
+                          {broadcastResult && 'sent' in broadcastResult && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300">
+                              <Check className="h-3.5 w-3.5" />
+                              Надіслано {broadcastResult.sent} з {broadcastResult.total}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {visibleMessageThreads.length === 0 && (
                   <EmptyPanelState
                     icon={<ChatBubbleBottomCenterTextIcon className="h-10 w-10" />}
@@ -1521,7 +1751,7 @@ export default function AdminChatPanel({
                 })}
               </div>
             ) : (
-                <div className="mx-auto flex h-full min-h-0 w-full max-w-[900px] flex-col">
+                <div className="mx-auto flex h-full min-h-0 w-full max-w-[1180px] flex-col">
                   <div className="mb-2 rounded-[18px] border border-white/10 bg-[image:linear-gradient(135deg,rgba(30,41,59,0.9),rgba(15,23,42,0.88))] p-2 shadow-[0_18px_34px_rgba(2,6,23,0.2)]">
                     <div className="flex items-center gap-2.5">
                       <button
@@ -1620,7 +1850,7 @@ export default function AdminChatPanel({
                         }`}
                       >
                         <div
-                          className={`max-w-[min(82%,600px)] ${
+                          className={`max-w-[min(82%,720px)] ${
                             isRichCard
                               ? 'bg-transparent p-0 shadow-none'
                               : `rounded-[18px] px-3 py-2 text-[13px] leading-5 shadow-[0_12px_24px_rgba(2,6,23,0.16)] sm:text-sm ${
@@ -1727,15 +1957,15 @@ export default function AdminChatPanel({
                   <div className="relative shrink-0">
                     <button
                       onClick={() => setShowTemplatePicker((p) => !p)}
-                      className={`inline-flex h-10 w-10 items-center justify-center gap-2 rounded-[15px] border px-0 py-0 text-white transition sm:w-auto sm:px-3 ${
+                      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border text-white transition ${
                         showTemplatePicker
                           ? 'border-violet-300/30 bg-violet-500/20'
                           : 'border-white/10 bg-white/10 hover:bg-white/20'
                       }`}
                       title="Вставити шаблон"
+                      aria-label="Вставити шаблон"
                     >
                       <Bookmark className="h-5 w-5" />
-                      <span className="hidden text-xs font-semibold sm:inline">Шаблон</span>
                     </button>
                     {showTemplatePicker && (
                       <div className="absolute bottom-full right-0 z-50 mb-2 max-h-56 w-64 overflow-y-auto rounded-[14px] border border-white/10 bg-slate-900 p-1.5 shadow-[0_16px_36px_rgba(2,6,23,0.4)]">
@@ -1765,15 +1995,15 @@ export default function AdminChatPanel({
                   </div>
                   <button
                     onClick={() => setShowProductForm((p) => !p)}
-                    className={`inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-[15px] border px-0 py-0 text-white transition sm:w-auto sm:px-3 ${
+                    className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border text-white transition ${
                       showProductForm
                         ? 'border-emerald-300/30 bg-emerald-500/20'
                         : 'border-white/10 bg-white/10 hover:bg-white/20'
                     }`}
                     title="Надіслати картку товару"
+                    aria-label="Надіслати картку товару"
                   >
                     <PackagePlus className="h-5 w-5" />
-                    <span className="hidden text-xs font-semibold sm:inline">Товар</span>
                   </button>
                   <button
                     onClick={sendReply}
@@ -2015,15 +2245,15 @@ export default function AdminChatPanel({
 
               return (
                 <div key={o.id} data-admin-card="true" className="mb-1.5 rounded-[16px] border border-white/6 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:mb-2 sm:rounded-[20px] sm:p-3">
-                  <div className="flex justify-between items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div
-                      className="flex-1 cursor-pointer"
+                      className="min-w-0 flex-1 cursor-pointer"
                       onClick={() => toggleOrderExpand(o.id, o.read)}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{o.name}</span>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="min-w-0 truncate font-medium">{o.name}</span>
                         <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full ${statusClass}`}
+                          className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full ${statusClass}`}
                         >
                           {statusLabel}
                         </span>
@@ -2032,7 +2262,7 @@ export default function AdminChatPanel({
                         {formatTimestampLabel(o.createdAt)}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       <button
                         onClick={() => markOrderViewed(o.id)}
                         className={`inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-amber-300 hover:text-amber-200 sm:h-10 sm:w-10 sm:rounded-2xl ${
