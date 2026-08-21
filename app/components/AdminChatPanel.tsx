@@ -288,6 +288,7 @@ export default function AdminChatPanel({
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [showBroadcastPanel, setShowBroadcastPanel] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastText, setBroadcastText] = useState('');
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [broadcastResult, setBroadcastResult] = useState<
@@ -764,6 +765,7 @@ export default function AdminChatPanel({
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           text,
+          ...(broadcastTitle.trim() ? { title: broadcastTitle.trim() } : {}),
           ...(broadcastImageDataUrl ? { imageDataUrl: broadcastImageDataUrl } : {}),
         }),
       });
@@ -775,6 +777,7 @@ export default function AdminChatPanel({
         return;
       }
       setBroadcastResult({ sent: data.sent ?? 0, total: data.total ?? 0 });
+      setBroadcastTitle('');
       setBroadcastText('');
       setBroadcastImageDataUrl(null);
     } catch {
@@ -1599,6 +1602,13 @@ export default function AdminChatPanel({
                           Надішле повідомлення в Telegram усім клієнтам, які прив&apos;язали бота
                           (натискали /start). Використовуйте для акцій і новин — не занадто часто.
                         </p>
+                        <input
+                          value={broadcastTitle}
+                          onChange={(e) => setBroadcastTitle(e.target.value)}
+                          maxLength={100}
+                          placeholder="Заголовок (за замовчуванням — PartsON)"
+                          className="mt-2 w-full rounded-[12px] border border-white/10 bg-slate-950/40 px-3 py-2 text-[13px] font-bold text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                        />
                         <textarea
                           value={broadcastText}
                           onChange={(e) => setBroadcastText(e.target.value)}

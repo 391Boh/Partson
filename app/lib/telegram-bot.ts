@@ -132,17 +132,33 @@ export const ensureBotCommandsRegistered = () => {
   }).catch(() => undefined);
 };
 
-// Sets the persistent button next to the message input (bottom-left in
-// Telegram clients) to open the real site as a Web App — i.e. inside
-// Telegram's own in-app browser instead of switching to an external one.
-// Idempotent + rate-limited the same way as ensureBotCommandsRegistered.
+// The persistent button next to the message input has exactly one slot —
+// Telegram doesn't support two. Setting it to type "web_app" (opening the
+// site) replaces the native "commands" button, which is what actually
+// showed the quick /catalog, /find, /support, etc. list — losing that felt
+// broken. Reverted to "commands" so that list is back; opening the site as
+// a Web App is still one tap away via the inline "🌍 Сайт"/"🛍 Перейти на
+// сайт" buttons already on most bot replies — two separate, always-visible
+// entry points instead of fighting over the one menu-button slot.
 let menuButtonConfigured = false;
-export const ensureBotMenuButtonConfigured = (siteUrl: string) => {
-  // Telegram rejects non-HTTPS web_app URLs outright — skip silently in
-  // local/dev environments where getSiteUrl() may resolve to http://localhost.
-  if (menuButtonConfigured || !siteUrl.startsWith("https://")) return;
+export const ensureBotMenuButtonConfigured = () => {
+  if (menuButtonConfigured) return;
   menuButtonConfigured = true;
   void callTelegramBotApi("setChatMenuButton", {
-    menu_button: { type: "web_app", text: "PartsON", web_app: { url: siteUrl } },
+    menu_button: { type: "commands" },
   }).catch(() => undefined);
 };
+
+// Media groups render as one compact, swipeable album in the chat instead
+// of N separate photo messages — the fix for a product listing "flooding"
+// the chat. Telegram requires 2-10 items and does NOT support reply_markup
+// on a media group message, so any buttons for these items have to be sent
+// separately (see sendProductResults in telegram-product-message.ts).
+export const sendTelegramMediaGroup = (
+  chatId: string | number,
+  photoUrls: string[]
+) =>
+  callTelegramBotApi("sendMediaGroup", {
+    chat_id: chatId,
+    media: photoUrls.slice(0, 10).map((url) => ({ type: "photo", media: url })),
+  });

@@ -67,8 +67,8 @@ export const buildContactsCard = (siteUrl: string) => {
   // non-https web_app url outright, so this falls back to a plain link in
   // local/dev environments.
   const siteButton = siteUrl.startsWith("https://")
-    ? { text: "🌍 Сайт", web_app: { url: siteUrl } }
-    : { text: "🌍 Сайт", url: siteUrl };
+    ? { text: "🌐 Сайт", web_app: { url: siteUrl } }
+    : { text: "🌐 Сайт", url: siteUrl };
 
   const keyboard = {
     inline_keyboard: [

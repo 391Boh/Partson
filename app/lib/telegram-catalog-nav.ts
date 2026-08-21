@@ -162,7 +162,7 @@ export const buildSubgroupMenu = async (
       caption: `${header}\n\n${escapeTelegramHtml(copy.intro)}`,
       imageUrl,
       keyboard: [
-        [{ text: "🛒 Показати товари", callback_data: `gp:${group.slug}:${subIndex}` }],
+        [{ text: "📦 Показати товари", callback_data: `gp:${group.slug}:${subIndex}` }],
         [siteLinkButton(siteUrl, buildGroupItemPath(group.slug, sub.slug))],
         backRow(backCallback),
       ],
@@ -214,7 +214,7 @@ export const buildChildMenu = async (
     keyboard: [
       [
         {
-          text: "🛒 Показати товари",
+          text: "📦 Показати товари",
           callback_data: `gp:${group.slug}:${subIndex}:${childIndex}`,
         },
       ],
@@ -339,7 +339,7 @@ export const buildModelMenu = async (
     imageUrl: social?.url ?? null,
     keyboard: [
       ...(breakdown.totalProducts > 0
-        ? [[{ text: "🛒 Показати товари", callback_data: `mp:${brandSlug}:${modelIndex}` }]]
+        ? [[{ text: "📦 Показати товари", callback_data: `mp:${brandSlug}:${modelIndex}` }]]
         : []),
       [siteLinkButton(siteUrl, buildAutoModelPath(brand.name, model.name))],
       backRow(`ab:${brandSlug}:0`),
@@ -402,7 +402,7 @@ export const buildProducerMenu = async (
     imageUrl: isRasterImagePath(producer.logoPath) ? `${siteUrl}${producer.logoPath}` : null,
     keyboard: [
       ...(producer.productCount > 0
-        ? [[{ text: "🛒 Показати товари", callback_data: `pp:${producer.slug}` }]]
+        ? [[{ text: "📦 Показати товари", callback_data: `pp:${producer.slug}` }]]
         : []),
       [siteLinkButton(siteUrl, buildManufacturerPath(producer.slug))],
       backRow("p:0"),

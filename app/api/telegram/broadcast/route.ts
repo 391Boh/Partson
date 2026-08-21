@@ -19,6 +19,8 @@ const BATCH_DELAY_MS = 1100;
 const MAX_TEXT_LENGTH = 3500;
 // Telegram's photo caption cap is much shorter than a plain message's.
 const MAX_CAPTION_LENGTH = 1000;
+const MAX_TITLE_LENGTH = 100;
+const DEFAULT_TITLE = "PartsON";
 const MAX_PAYLOAD_BYTES = 3 * 1024 * 1024;
 const DATA_URI_REGEX =
   /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/\r\n=]+)$/i;
@@ -91,6 +93,9 @@ export async function POST(req: NextRequest) {
   const rawText = typeof parsed.text === "string" ? parsed.text.trim() : "";
   if (!rawText) return json({ ok: false, error: "text is required" }, 400);
 
+  const rawTitle = typeof parsed.title === "string" ? parsed.title.trim() : "";
+  const title = (rawTitle || DEFAULT_TITLE).slice(0, MAX_TITLE_LENGTH);
+
   const imageDataUrl = typeof parsed.imageDataUrl === "string" ? parsed.imageDataUrl.trim() : "";
 
   try {
@@ -106,7 +111,7 @@ export async function POST(req: NextRequest) {
     }
 
     const maxLength = imageUrl ? MAX_CAPTION_LENGTH : MAX_TEXT_LENGTH;
-    const body = `<b>📢 PartsON</b>\n\n${escapeTelegramHtml(rawText.slice(0, maxLength))}`;
+    const body = `<b>📢 ${escapeTelegramHtml(title)}</b>\n\n${escapeTelegramHtml(rawText.slice(0, maxLength))}`;
 
     const db = getFirebaseAdminDb();
     const snap = await db

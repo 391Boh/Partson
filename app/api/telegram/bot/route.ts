@@ -113,7 +113,7 @@ const buildContactKeyboard = () => ({
   keyboard: [
     [
       {
-        text: "Поділитися телефоном",
+        text: "📱 Поділитися телефоном",
         request_contact: true,
       },
     ],
@@ -141,7 +141,7 @@ const buildCatalogKeyboard = (siteUrl: string) => ({
       { text: "💬 Написати менеджеру", callback_data: "support:start" },
       { text: "📍 Контакти", callback_data: "contacts" },
     ],
-    [buildSiteButton("🛍 Перейти на сайт", `${siteUrl}/katalog`)],
+    [buildSiteButton("🌐 Перейти на сайт", `${siteUrl}/katalog`)],
   ],
 });
 
@@ -848,7 +848,7 @@ const processUpdate = async (update: TelegramUpdate) => {
   }
 
   ensureBotCommandsRegistered();
-  ensureBotMenuButtonConfigured(getSiteUrl());
+  ensureBotMenuButtonConfigured();
 
   const text = normalizeText(message.text, 1200);
 
