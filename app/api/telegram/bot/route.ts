@@ -3,7 +3,8 @@ import { FieldValue } from "firebase-admin/firestore";
 
 import { readJsonObject } from "../../_lib/requestValidation";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
-import { sendTelegramMessage } from "app/lib/telegram-bot";
+import { ensureBotCommandsRegistered, sendTelegramMessage } from "app/lib/telegram-bot";
+import { formatOrderBlock, type OrderFields } from "app/lib/telegram-order-message";
 
 type TelegramUser = {
   id?: number | string;
@@ -129,6 +130,9 @@ const findUserByProfileToken = async (token: string) => {
   return docSnap.ref;
 };
 
+const NOT_LINKED_MESSAGE =
+  "Спочатку увійдіть через Telegram на сайті PartsON, а потім спробуйте ще раз.";
+
 const askPhone = (chatId: string | number) =>
   sendTelegramMessage(
     chatId,
@@ -153,6 +157,19 @@ const finishProfile = (chatId: string | number) =>
     { replyMarkup: removeKeyboard() }
   );
 
+const sendWelcomeBack = (chatId: string | number, from: TelegramUser) =>
+  sendTelegramMessage(
+    chatId,
+    [
+      `Привіт, ${getDisplayName(from)}! 👋`,
+      "",
+      "Команди:",
+      "/orders — ваші замовлення в PartsON",
+      "/help — довідка",
+    ].join("\n"),
+    { replyMarkup: removeKeyboard() }
+  );
+
 const handleStart = async (
   message: TelegramMessage,
   from: TelegramUser,
@@ -169,11 +186,21 @@ const handleStart = async (
     : await findUserByTelegramId(telegramId);
 
   if (!userRef) {
-    await sendTelegramMessage(
-      chatId,
-      "Спочатку увійдіть через Telegram на сайті PartsON, а потім відкрийте це посилання ще раз.",
-      { replyMarkup: removeKeyboard() }
-    );
+    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    return;
+  }
+
+  // Every /start used to unconditionally kick off the phone → email
+  // questionnaire again, even for a returning user whose profile is already
+  // complete — annoying on every single re-open of the bot. Skip straight to
+  // a greeting once both are already on file.
+  const existingSnap = await userRef.get();
+  const existingData = existingSnap.exists ? existingSnap.data() : null;
+  const alreadyComplete = Boolean(existingData?.phone && existingData?.email);
+
+  if (alreadyComplete && !token) {
+    await userRef.set(getTelegramUserPatch(from, chatId), { merge: true });
+    await sendWelcomeBack(message.chat?.id || chatId, from);
     return;
   }
 
@@ -188,6 +215,46 @@ const handleStart = async (
   );
   await askPhone(message.chat?.id || chatId);
 };
+
+const handleOrders = async (from: TelegramUser, chatId: string) => {
+  const telegramId = normalizeId(from.id);
+  const userRef = await findUserByTelegramId(telegramId);
+
+  if (!userRef) {
+    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    return;
+  }
+
+  const db = getFirebaseAdminDb();
+  const ordersSnap = await db
+    .collection("orders")
+    .where("uid", "==", userRef.id)
+    .orderBy("createdAt", "desc")
+    .limit(5)
+    .get();
+
+  if (ordersSnap.empty) {
+    await sendTelegramMessage(
+      chatId,
+      "У вас ще немає замовлень. Каталог: https://partson.com.ua/katalog"
+    );
+    return;
+  }
+
+  const blocks = ordersSnap.docs.map((doc) =>
+    formatOrderBlock(doc.id, doc.data() as OrderFields)
+  );
+
+  await sendTelegramMessage(chatId, `<b>Ваші останні замовлення</b>\n\n${blocks.join("\n\n")}`, {
+    parseMode: "HTML",
+  });
+};
+
+const handleHelp = (chatId: string) =>
+  sendTelegramMessage(
+    chatId,
+    ["Команди PartsON:", "/orders — ваші замовлення", "/help — ця довідка"].join("\n")
+  );
 
 const handlePhone = async (
   message: TelegramMessage,
@@ -271,10 +338,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  // Fire-and-forget — Telegram only cares that the webhook responds quickly,
+  // and this is a no-op after the first call in this process (see
+  // ensureBotCommandsRegistered).
+  ensureBotCommandsRegistered();
+
   const text = normalizeText(message.text, 1200);
 
   if (text.startsWith("/start")) {
     await handleStart(message, from, chatId, text);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (text.startsWith("/orders")) {
+    await handleOrders(from, chatId);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (text.startsWith("/help")) {
+    await handleHelp(chatId);
     return NextResponse.json({ ok: true });
   }
 
@@ -311,6 +393,18 @@ export async function POST(req: NextRequest) {
       await handleEmail(from, chatId, text.trim());
       return NextResponse.json({ ok: true });
     }
+  }
+
+  // Stray text from an already-onboarded user (profile complete) — point
+  // them at the command list instead of re-demanding phone/email they've
+  // already given.
+  const telegramId = normalizeId(from.id);
+  const existingUserRef = await findUserByTelegramId(telegramId);
+  const existingSnap = existingUserRef ? await existingUserRef.get() : null;
+  const existingData = existingSnap?.exists ? existingSnap.data() : null;
+  if (existingData?.phone && existingData?.email) {
+    await handleHelp(chatId);
+    return NextResponse.json({ ok: true });
   }
 
   await sendTelegramMessage(

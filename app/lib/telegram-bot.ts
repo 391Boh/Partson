@@ -10,6 +10,7 @@ type TelegramBotResult<T = unknown> = {
 type TelegramSendMessageOptions = {
   replyMarkup?: Record<string, unknown>;
   disableWebPagePreview?: boolean;
+  parseMode?: "HTML" | "MarkdownV2";
 };
 
 const getTelegramBotToken = () =>
@@ -82,5 +83,23 @@ export const sendTelegramMessage = (
     chat_id: chatId,
     text: text.trim().slice(0, 3900),
     disable_web_page_preview: options?.disableWebPagePreview ?? true,
+    ...(options?.parseMode ? { parse_mode: options.parseMode } : {}),
     ...(options?.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
   });
+
+// Registers the "/" command autocomplete menu in Telegram clients. Cheap and
+// idempotent on Telegram's side, but there's no need to hit their API on
+// every single webhook update — the module-level flag limits it to once per
+// server process (a fresh deploy/restart re-registers, which is exactly when
+// it'd need to change anyway).
+let commandsRegistered = false;
+export const ensureBotCommandsRegistered = () => {
+  if (commandsRegistered) return;
+  commandsRegistered = true;
+  void callTelegramBotApi("setMyCommands", {
+    commands: [
+      { command: "orders", description: "Мої замовлення" },
+      { command: "help", description: "Довідка" },
+    ],
+  }).catch(() => undefined);
+};

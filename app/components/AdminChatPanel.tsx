@@ -912,12 +912,36 @@ export default function AdminChatPanel({
     await updateDoc(doc(db, 'orders', orderId), { read: true });
   };
 
+  // Fire-and-forget: the Firestore status update above is the action that
+  // actually matters and has already succeeded by the time this runs. A
+  // customer without a linked Telegram chat is the common case, not an
+  // error, and the route itself never returns a hard failure for that — this
+  // just guards against a network hiccup so it can never surface in the
+  // admin UI or block the status change.
+  const notifyOrderStatus = async (orderId: string, status: 'shipped' | 'completed') => {
+    try {
+      const snapshot = await waitForFirebaseAuthReady();
+      const authUser = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
+      const token = await authUser?.getIdToken().catch(() => null);
+      if (!token) return;
+      await fetch('/api/orders/notify-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orderId, status }),
+      });
+    } catch {
+      // Best-effort notification — nothing to surface here.
+    }
+  };
+
   const markOrderShipped = async (orderId: string) => {
     await updateDoc(doc(db, 'orders', orderId), { shipped: true, read: true });
+    void notifyOrderStatus(orderId, 'shipped');
   };
 
   const markOrderCompleted = async (orderId: string) => {
     await updateDoc(doc(db, 'orders', orderId), { completed: true, shipped: true, read: true });
+    void notifyOrderStatus(orderId, 'completed');
   };
 
   const toggleOrderExpand = async (orderId: string, isRead?: boolean) => {
