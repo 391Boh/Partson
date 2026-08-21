@@ -149,23 +149,3 @@ export const ensureBotMenuButtonConfigured = () => {
   }).catch(() => undefined);
 };
 
-// Media groups render as one compact, swipeable album in the chat instead
-// of N separate photo messages — the fix for a product listing "flooding"
-// the chat. Telegram requires 2-10 items and does NOT support reply_markup
-// on a media group message, so any buttons for these items have to be sent
-// separately (see sendProductResults in telegram-product-message.ts). Each
-// item can carry its own caption — used to label which photo belongs to
-// which product in the numbered list sent alongside the album, since a bare
-// album of unlabeled photos otherwise gives no way to tell them apart.
-export const sendTelegramMediaGroup = (
-  chatId: string | number,
-  items: { url: string; caption?: string }[]
-) =>
-  callTelegramBotApi("sendMediaGroup", {
-    chat_id: chatId,
-    media: items.slice(0, 10).map(({ url, caption }) => ({
-      type: "photo",
-      media: url,
-      ...(caption ? { caption: caption.slice(0, 1024), parse_mode: "HTML" } : {}),
-    })),
-  });

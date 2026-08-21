@@ -4,7 +4,7 @@ import type { CatalogProduct } from "app/lib/catalog-server";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { buildProductSeoImagePath } from "app/lib/product-image-path";
 import { escapeTelegramHtml, formatOrderMoney } from "app/lib/telegram-order-message";
-import { sendTelegramMediaGroup, sendTelegramMessage, sendTelegramPhoto } from "app/lib/telegram-bot";
+import { sendTelegramMessage, sendTelegramPhoto } from "app/lib/telegram-bot";
 import { toPriceUah } from "app/lib/catalog-server";
 
 // Same in-stock/on-order language the catalog product card
@@ -60,22 +60,6 @@ export const buildProductKeyboard = (siteUrl: string, product: CatalogProduct) =
   ],
 });
 
-const buildListEntry = (
-  index: number,
-  product: CatalogProduct,
-  priceUah: number | null,
-  siteUrl: string
-) => {
-  const name = escapeTelegramHtml(buildVisibleProductName(product.name));
-  const price = priceUah != null ? formatOrderMoney(priceUah) : "ціна за запитом";
-  const article = escapeTelegramHtml(product.article || product.code);
-
-  return [
-    `${index + 1}. <a href="${buildProductUrl(siteUrl, product)}"><b>${name}</b></a>`,
-    `<code>${article}</code> · ${formatAvailability(product.quantity)} · <b>${price}</b>`,
-  ].join("\n");
-};
-
 export type ProductResultsPagination = {
   page: number;
   hasMore: boolean;
@@ -94,18 +78,18 @@ const buildPagerRow = (pagination?: ProductResultsPagination) => {
 
 // Shared by /find and the catalog-navigation "🛒 Показати товари" buttons.
 //
-// A single result keeps the original full card (photo + details + buy
-// button) — there's nothing to "flood" with just one message. Multiple
-// results used to each get their own photo message, which for 5 results
-// meant 5 back-to-back messages landing in the chat at once; now photos go
-// out as one compact, captioned album (sendMediaGroup — each photo labeled
-// with its own number/name so it's still clear which photo is which product)
-// and the details/links land in one consolidated list right after, so N
-// results is 2 messages instead of N. Photos are always attempted regardless
-// of the catalog's own hasPhoto flag — that flag comes from 1C and isn't
-// reliably populated on every query path, so trusting Telegram's own fetch
-// result is more accurate. `pagination`, when given, adds a Prev/Next row to
-// the last message sent, so a 5-per-page result set doesn't dead-end there.
+// Each product is its own photo+caption message — a Telegram album
+// (sendMediaGroup) plus a separate consolidated text list was tried here,
+// but Telegram doesn't show per-photo captions in an album's compact chat
+// view, so the photos and their details read as two disconnected things
+// with no way to tell which picture belongs to which product. A plain
+// photo message keeps the image and its own name/price/button bound
+// together as one bubble, which is what actually stays "matched" per
+// product. Flooding is bounded instead by pagination (5 per page, via
+// `pagination` below) rather than by cramming everything into one album.
+// Photos are always attempted regardless of the catalog's own hasPhoto
+// flag — that flag comes from 1C and isn't reliably populated on every
+// query path, so trusting Telegram's own fetch result is more accurate.
 export const sendProductResults = async (
   chatId: string,
   products: CatalogProduct[],
@@ -121,11 +105,12 @@ export const sendProductResults = async (
   }));
   const pagerRow = buildPagerRow(pagination);
 
-  if (priced.length === 1) {
-    const { product, priceUah } = priced[0];
+  for (const [index, { product, priceUah }] of priced.entries()) {
     const caption = formatProductCaption(product, priceUah);
     const keyboard = buildProductKeyboard(siteUrl, product);
-    if (pagerRow) keyboard.inline_keyboard.push(pagerRow);
+    const isLast = index === priced.length - 1;
+    if (isLast && pagerRow) keyboard.inline_keyboard.push(pagerRow);
+
     const photoResult = await sendTelegramPhoto(
       chatId,
       buildProductImageUrl(siteUrl, product),
@@ -135,51 +120,5 @@ export const sendProductResults = async (
     if (!photoResult.ok) {
       await sendTelegramMessage(chatId, caption, { parseMode: "HTML", replyMarkup: keyboard });
     }
-    return;
-  }
-
-  const photoUrls = products.map((product) => buildProductImageUrl(siteUrl, product));
-  if (photoUrls.length >= 2) {
-    const mediaItems = priced.map(({ product }, index) => ({
-      url: buildProductImageUrl(siteUrl, product),
-      caption: `${index + 1}. ${escapeTelegramHtml(buildVisibleProductName(product.name))}`,
-    }));
-    const grouped = await sendTelegramMediaGroup(chatId, mediaItems);
-    if (!grouped.ok) {
-      // One bad URL fails the whole album atomically — fall back to sending
-      // each photo on its own (still captioned/numbered) so a single stale
-      // image doesn't hide the rest.
-      for (const item of mediaItems) {
-        await sendTelegramPhoto(chatId, item.url, item.caption, { parseMode: "HTML" }).catch(
-          () => undefined
-        );
-      }
-    }
-  } else if (photoUrls.length === 1) {
-    await sendTelegramPhoto(chatId, photoUrls[0], "1.").catch(() => undefined);
-  }
-
-  const listText = priced
-    .map(({ product, priceUah }, index) => buildListEntry(index, product, priceUah, siteUrl))
-    .join("\n\n");
-  await sendTelegramMessage(chatId, listText, {
-    parseMode: "HTML",
-    ...(pagerRow ? { replyMarkup: { inline_keyboard: [pagerRow] } } : {}),
-  });
-
-  for (const { product } of priced) {
-    if (product.quantity > 0 || !product.code) continue;
-    await sendTelegramMessage(
-      chatId,
-      `🔔 ${escapeTelegramHtml(buildVisibleProductName(product.name))}`,
-      {
-        parseMode: "HTML",
-        replyMarkup: {
-          inline_keyboard: [
-            [{ text: "🔔 Повідомити, коли з'явиться", callback_data: `watch:${product.code}` }],
-          ],
-        },
-      }
-    );
   }
 };
