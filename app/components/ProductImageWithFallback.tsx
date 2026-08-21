@@ -94,6 +94,7 @@ export default function ProductImageWithFallback({
       hasKnownPhoto && normalizedProductCode
         ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
             catalog: variant === "catalog",
+            noFallback: true,
             cacheBust: cacheBustToken || undefined,
           })
         : "",

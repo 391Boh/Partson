@@ -69,3 +69,19 @@ export const buildProductImagePath = (
     ? `/product-image/${encodeURIComponent(normalizedCode)}?${serialized}`
     : `/product-image/${encodeURIComponent(normalizedCode)}`;
 };
+
+/**
+ * One stable, crawlable URL for the primary product image.
+ *
+ * Retry parameters are deliberately excluded: they are a browser recovery
+ * mechanism, not a separate image. Using them in Open Graph, JSON-LD and
+ * sitemaps made the same photo appear under multiple URLs and split the
+ * indexing signals Google uses when choosing a result thumbnail.
+ */
+export const buildProductSeoImagePath = (
+  productCode: string,
+  articleHint?: string
+) =>
+  buildProductImagePath(productCode, articleHint, {
+    noFallback: true,
+  });

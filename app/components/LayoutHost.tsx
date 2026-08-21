@@ -720,12 +720,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       restoreBodyScroll();
     };
 
-    // Coalesce into at most one check per animation frame. Catalog pages
-    // mount a virtualized product grid whose rows (and their images'
-    // class/style attributes) mutate continuously while scrolling; without
-    // this, every single mutation record ran a synchronous querySelector
-    // over the whole document mid-gesture, adding a small but perceptible
-    // stutter to vertical scrolling on mobile.
+    // Coalesce into at most one check per animation frame. Only DOM additions
+    // and removals can mount/unmount an overlay. Observing class/style changes
+    // here also watched every virtualized catalog row and every image fade,
+    // scheduling full-document querySelector calls during active scrolling.
     let syncRaf = 0;
     const scheduleSync = () => {
       if (syncRaf) return;
@@ -742,8 +740,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     observer.observe(body, {
       childList: true,
       subtree: true,
-      attributes: true,
-      attributeFilter: ["class", "style"],
     });
 
     const handleViewportChange = () => {

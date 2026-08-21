@@ -24,7 +24,9 @@ import {
   buildManufacturerPath,
 } from "app/lib/catalog-links";
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
-import { buildProductImagePath } from "app/lib/product-image-path";
+import {
+  buildProductSeoImagePath,
+} from "app/lib/product-image-path";
 import {
   buildLegacyProductNameSlug,
   buildProductPath,
@@ -1661,10 +1663,7 @@ export async function generateMetadata({
     : `/product/${encodeURIComponent(decodedParam || resolvedCode || fallbackCode || "")}`;
 
   const productImagePath = routeProduct && routeProduct.hasPhoto !== false
-    ? buildProductImagePath(routeProduct.code || resolvedCode, routeProduct.article, {
-        noFallback: true,
-        retryToken: 1,
-      })
+    ? buildProductSeoImagePath(routeProduct.code || resolvedCode, routeProduct.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const siteUrl = getSiteUrl();
   const productImageUrl = `${siteUrl}${productImagePath}`;
@@ -2025,10 +2024,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
   const productHasKnownPhoto = product.hasPhoto !== false;
   const productSeoImagePath = productHasKnownPhoto
-    ? buildProductImagePath(product.code || resolvedCode, product.article, {
-        noFallback: true,
-        retryToken: 1,
-      })
+    ? buildProductSeoImagePath(product.code || resolvedCode, product.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const productSeoImageUrl = `${siteUrl}${productSeoImagePath}`;
   const [reviewStats, initialReviews] = await resolveWithTimeout<

@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-import { buildProductImagePath } from "app/lib/product-image-path";
+import { buildProductSeoImagePath } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
 import {
   getPricedProductEntriesBySitemapId,
@@ -24,9 +24,8 @@ function normalize(value?: string | null): string {
   return (value ?? "").trim();
 }
 
-// Next's built-in sitemap serializer does not XML-escape `images[].url`,
-// unlike the hand-rolled builder in app/lib/sitemap-xml.ts used by the other
-// sitemaps — so a raw `&` in the image URL's query string breaks the XML.
+// Next's metadata sitemap serializer writes image URLs verbatim, so escape
+// query separators here to keep the generated image sitemap valid XML.
 function escapeXmlUrl(value: string): string {
   return value.replace(/&/g, "&amp;");
 }
@@ -69,10 +68,10 @@ export default async function sitemap(props: {
           ? undefined
           : [
               escapeXmlUrl(
-                `${siteUrl}${buildProductImagePath(normalizedCode, entry.article ?? undefined, {
-                  noFallback: true,
-                  retryToken: 1,
-                })}`
+                `${siteUrl}${buildProductSeoImagePath(
+                  normalizedCode,
+                  entry.article ?? undefined
+                )}`
               ),
             ];
 

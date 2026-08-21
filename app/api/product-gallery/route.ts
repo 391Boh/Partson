@@ -125,28 +125,46 @@ export async function POST(request: NextRequest) {
 
     const bucket = getFirebaseAdminBucket();
     const storageFile = bucket.file(objectPath);
+    // A download token (not makePublic()/an ACL) is what actually grants
+    // read access to this URL — makePublic() throws on any bucket with
+    // Uniform Bucket-Level Access enabled ("Cannot use ACL API"), which is
+    // the default for Storage buckets created since 2021. This is the same
+    // token-based URL scheme the client SDK's getDownloadURL() produces, so
+    // it works regardless of the bucket's UBLA setting or read rules.
+    const downloadToken = randomUUID();
     await storageFile.save(buffer, {
       contentType: mimeType,
-      metadata: { cacheControl: "public, max-age=31536000, immutable" },
+      metadata: {
+        cacheControl: "public, max-age=31536000, immutable",
+        metadata: { firebaseStorageDownloadTokens: downloadToken },
+      },
       // Resumable uploads fail here with a cryptic "URL is required" error
       // from gaxios during session creation (@google-cloud/storage 7.21.0 +
       // google-auth-library 10.7.0) — simple upload works fine for images
       // this small (a few MB at most).
       resumable: false,
     });
-    await storageFile.makePublic();
+
+    const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(objectPath)}?alt=media&token=${downloadToken}`;
 
     const docRef = await imagesRef.add({
-      url: storageFile.publicUrl(),
+      url: publicUrl,
       path: objectPath,
       uploadedAt: FieldValue.serverTimestamp(),
       uploadedBy: admin.email,
     });
 
-    return json({ ok: true, id: docRef.id, url: storageFile.publicUrl() });
+    return json({ ok: true, id: docRef.id, url: publicUrl });
   } catch (error) {
     console.error("Product gallery upload failed:", error);
-    return json({ ok: false, error: "Не вдалося завантажити фото. Спробуйте ще раз." }, 500);
+    // This route is admin-only (verifyAdminRequest above), so it's safe to
+    // surface the real cause — a generic message here was hiding config
+    // issues (e.g. Storage bucket permissions) behind a dead end.
+    const detail = error instanceof Error ? error.message : String(error);
+    return json(
+      { ok: false, error: `Не вдалося завантажити фото: ${detail}` },
+      500
+    );
   }
 }
 
