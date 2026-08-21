@@ -87,6 +87,24 @@ export const sendTelegramMessage = (
     ...(options?.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
   });
 
+// Telegram fetches the photo URL itself (server-side), so this only works
+// for a publicly reachable image URL — exactly what /product-image/{code}
+// already is. Caption has its own, shorter 1024-char limit (vs 4096 for a
+// plain message).
+export const sendTelegramPhoto = (
+  chatId: string | number,
+  photoUrl: string,
+  caption: string,
+  options?: { replyMarkup?: Record<string, unknown>; parseMode?: "HTML" | "MarkdownV2" }
+) =>
+  callTelegramBotApi("sendPhoto", {
+    chat_id: chatId,
+    photo: photoUrl,
+    caption: caption.trim().slice(0, 1024),
+    ...(options?.parseMode ? { parse_mode: options.parseMode } : {}),
+    ...(options?.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
+  });
+
 // Registers the "/" command autocomplete menu in Telegram clients. Cheap and
 // idempotent on Telegram's side, but there's no need to hit their API on
 // every single webhook update — the module-level flag limits it to once per
@@ -98,7 +116,9 @@ export const ensureBotCommandsRegistered = () => {
   commandsRegistered = true;
   void callTelegramBotApi("setMyCommands", {
     commands: [
+      { command: "find", description: "Пошук товару" },
       { command: "orders", description: "Мої замовлення" },
+      { command: "profile", description: "Мій профіль" },
       { command: "help", description: "Довідка" },
     ],
   }).catch(() => undefined);

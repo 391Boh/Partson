@@ -68,16 +68,28 @@ export const formatOrderDate = (createdAt: OrderFields["createdAt"]) => {
   }).format(date);
 };
 
-export const formatOrderItemsList = (items: OrderItemFields[] | undefined) => {
+export const formatOrderItemsList = (
+  items: OrderItemFields[] | undefined,
+  siteUrl?: string
+) => {
   const list = Array.isArray(items) ? items : [];
   if (list.length === 0) return "";
 
   const lines = list.slice(0, MAX_ITEMS_SHOWN).map((item) => {
-    const name = escapeTelegramHtml(item.name || item.article || item.code || "Товар");
+    const rawName = item.name || item.article || item.code || "Товар";
+    const name = escapeTelegramHtml(rawName);
+    // The order snapshot only ever has a bare product code (no group/
+    // category), so this links to the canonical /product/{code} route
+    // rather than trying to reconstruct the SEO slug variant — both resolve
+    // to the same page.
+    const label =
+      siteUrl && item.code
+        ? `<a href="${siteUrl}/product/${encodeURIComponent(item.code)}">${name}</a>`
+        : name;
     const quantity = item.quantity ?? 1;
     const priceText =
       typeof item.price === "number" ? `, ${formatOrderMoney(item.price)}` : "";
-    return `• ${name} x${quantity}${priceText}`;
+    return `• ${label} x${quantity}${priceText}`;
   });
 
   const remaining = list.length - lines.length;
@@ -90,12 +102,12 @@ export const formatOrderItemsList = (items: OrderItemFields[] | undefined) => {
 // notify-status route (a single order right after its status changes) —
 // keeping the formatting in one place is the actual "sync" between what the
 // bot shows and what the site's own order view shows.
-export const formatOrderBlock = (docId: string, order: OrderFields) => {
+export const formatOrderBlock = (docId: string, order: OrderFields, siteUrl?: string) => {
   const number = escapeTelegramHtml(order.orderId || docId);
   const date = formatOrderDate(order.createdAt);
   const status = getOrderStatusLabel(order);
   const total = formatOrderMoney(order.totalAmount ?? order.total);
-  const items = formatOrderItemsList(order.cartItems);
+  const items = formatOrderItemsList(order.cartItems, siteUrl);
 
   return [
     `<b>Замовлення №${number}</b>${date ? ` від ${date}` : ""}`,

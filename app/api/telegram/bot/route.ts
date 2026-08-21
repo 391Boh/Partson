@@ -3,8 +3,23 @@ import { FieldValue } from "firebase-admin/firestore";
 
 import { readJsonObject } from "../../_lib/requestValidation";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
-import { ensureBotCommandsRegistered, sendTelegramMessage } from "app/lib/telegram-bot";
-import { formatOrderBlock, type OrderFields } from "app/lib/telegram-order-message";
+import {
+  ensureBotCommandsRegistered,
+  sendTelegramMessage,
+  sendTelegramPhoto,
+} from "app/lib/telegram-bot";
+import {
+  escapeTelegramHtml,
+  formatOrderBlock,
+  type OrderFields,
+} from "app/lib/telegram-order-message";
+import { getSiteUrl } from "app/lib/site-url";
+import { fetchCatalogProductsByQuery, toPriceUah, fetchEuroRate } from "app/lib/catalog-server";
+import {
+  buildProductImageUrl,
+  buildProductKeyboard,
+  formatProductCaption,
+} from "app/lib/telegram-product-message";
 
 type TelegramUser = {
   id?: number | string;
@@ -71,6 +86,10 @@ const buildContactKeyboard = () => ({
 
 const removeKeyboard = () => ({
   remove_keyboard: true,
+});
+
+const buildCatalogKeyboard = (siteUrl: string) => ({
+  inline_keyboard: [[{ text: "🛍 Перейти в каталог", url: `${siteUrl}/katalog` }]],
 });
 
 const getDisplayName = (user?: TelegramUser) =>
@@ -163,11 +182,15 @@ const sendWelcomeBack = (chatId: string | number, from: TelegramUser) =>
     [
       `Привіт, ${getDisplayName(from)}! 👋`,
       "",
+      "Просто напишіть назву чи артикул деталі — я знайду її в каталозі.",
+      "",
       "Команди:",
+      "/find — пошук товару",
       "/orders — ваші замовлення в PartsON",
+      "/profile — ваш профіль",
       "/help — довідка",
     ].join("\n"),
-    { replyMarkup: removeKeyboard() }
+    { replyMarkup: buildCatalogKeyboard(getSiteUrl()) }
   );
 
 const handleStart = async (
@@ -219,6 +242,7 @@ const handleStart = async (
 const handleOrders = async (from: TelegramUser, chatId: string) => {
   const telegramId = normalizeId(from.id);
   const userRef = await findUserByTelegramId(telegramId);
+  const siteUrl = getSiteUrl();
 
   if (!userRef) {
     await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
@@ -234,26 +258,131 @@ const handleOrders = async (from: TelegramUser, chatId: string) => {
     .get();
 
   if (ordersSnap.empty) {
-    await sendTelegramMessage(
-      chatId,
-      "У вас ще немає замовлень. Каталог: https://partson.com.ua/katalog"
-    );
+    await sendTelegramMessage(chatId, "У вас ще немає замовлень.", {
+      replyMarkup: buildCatalogKeyboard(siteUrl),
+    });
     return;
   }
 
   const blocks = ordersSnap.docs.map((doc) =>
-    formatOrderBlock(doc.id, doc.data() as OrderFields)
+    formatOrderBlock(doc.id, doc.data() as OrderFields, siteUrl)
   );
 
   await sendTelegramMessage(chatId, `<b>Ваші останні замовлення</b>\n\n${blocks.join("\n\n")}`, {
     parseMode: "HTML",
+    replyMarkup: buildCatalogKeyboard(siteUrl),
   });
+};
+
+const handleProfile = async (from: TelegramUser, chatId: string) => {
+  const telegramId = normalizeId(from.id);
+  const userRef = await findUserByTelegramId(telegramId);
+
+  if (!userRef) {
+    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    return;
+  }
+
+  const snap = await userRef.get();
+  const data = snap.exists ? snap.data() : null;
+  const name = escapeTelegramHtml(normalizeText(data?.name, 120) || getDisplayName(from));
+  const phone = escapeTelegramHtml(normalizeText(data?.phone, 40)) || "не вказано";
+  const email = escapeTelegramHtml(normalizeText(data?.email, 120)) || "не вказано";
+
+  await sendTelegramMessage(
+    chatId,
+    [
+      `<b>Профіль PartsON</b>`,
+      `Ім'я: ${name}`,
+      `Телефон: ${phone}`,
+      `Email: ${email}`,
+    ].join("\n"),
+    { parseMode: "HTML" }
+  );
+};
+
+const FIND_RESULT_LIMIT = 5;
+
+const handleFind = async (chatId: string, rawQuery: string) => {
+  const query = normalizeText(rawQuery, 200);
+  const siteUrl = getSiteUrl();
+
+  if (!query) {
+    await sendTelegramMessage(
+      chatId,
+      "Напишіть, що шукаємо — наприклад: <code>/find гальмівні колодки</code> або <code>/find AD030213</code>.",
+      { parseMode: "HTML" }
+    );
+    return;
+  }
+
+  const [result, euroRate] = await Promise.all([
+    fetchCatalogProductsByQuery({
+      page: 1,
+      limit: FIND_RESULT_LIMIT,
+      searchQuery: query,
+      searchFilter: "all",
+      sortOrder: "none",
+      forceAllgoodsSource: true,
+      includePriceEnrichment: false,
+      preferLegacySource: false,
+      timeoutMs: 4500,
+      retries: 1,
+      retryDelayMs: 200,
+      cacheTtlMs: 1000 * 60 * 5,
+    }).catch(() => ({ items: [], hasMore: false, nextCursor: "", cursorField: null })),
+    fetchEuroRate().catch(() => null),
+  ]);
+
+  if (result.items.length === 0) {
+    await sendTelegramMessage(
+      chatId,
+      `Нічого не знайдено за запитом «${escapeTelegramHtml(query)}». Спробуйте іншу назву або артикул.`,
+      { replyMarkup: buildCatalogKeyboard(siteUrl) }
+    );
+    return;
+  }
+
+  await sendTelegramMessage(
+    chatId,
+    `🔍 Знайдено ${result.items.length} ${result.items.length === 1 ? "товар" : "товари"} за запитом «${escapeTelegramHtml(query)}»:`
+  );
+
+  for (const product of result.items) {
+    const priceUah = euroRate != null ? toPriceUah(product.priceEuro ?? null, euroRate) : null;
+    const caption = formatProductCaption(product, priceUah);
+    const keyboard = buildProductKeyboard(siteUrl, product);
+
+    if (product.hasPhoto !== false) {
+      const photoResult = await sendTelegramPhoto(
+        chatId,
+        buildProductImageUrl(siteUrl, product),
+        caption,
+        { parseMode: "HTML", replyMarkup: keyboard }
+      );
+      if (photoResult.ok) continue;
+      // Telegram couldn't fetch/decode this particular image (e.g. a stale
+      // catalog entry) — fall through to a text-only card instead of
+      // silently dropping the result.
+    }
+
+    await sendTelegramMessage(chatId, caption, { parseMode: "HTML", replyMarkup: keyboard });
+  }
 };
 
 const handleHelp = (chatId: string) =>
   sendTelegramMessage(
     chatId,
-    ["Команди PartsON:", "/orders — ваші замовлення", "/help — ця довідка"].join("\n")
+    [
+      "Команди PartsON:",
+      "/find <назва або артикул> — пошук товару в каталозі",
+      "/orders — ваші замовлення",
+      "/profile — ваш профіль (телефон, email)",
+      "/help — ця довідка",
+      "",
+      "Або просто напишіть назву чи артикул деталі — знайду без команди.",
+    ].join("\n"),
+    { replyMarkup: buildCatalogKeyboard(getSiteUrl()) }
   );
 
 const handlePhone = async (
@@ -355,6 +484,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  if (text.startsWith("/profile")) {
+    await handleProfile(from, chatId);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (text.startsWith("/find")) {
+    await handleFind(chatId, text.slice("/find".length).trim());
+    return NextResponse.json({ ok: true });
+  }
+
   if (text.startsWith("/help")) {
     await handleHelp(chatId);
     return NextResponse.json({ ok: true });
@@ -395,15 +534,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Stray text from an already-onboarded user (profile complete) — point
-  // them at the command list instead of re-demanding phone/email they've
-  // already given.
+  // Stray text from an already-onboarded user (profile complete) — treat it
+  // as a product search instead of re-demanding phone/email they've already
+  // given. This is what makes /find optional in practice: just typing a
+  // part name or article works.
   const telegramId = normalizeId(from.id);
   const existingUserRef = await findUserByTelegramId(telegramId);
   const existingSnap = existingUserRef ? await existingUserRef.get() : null;
   const existingData = existingSnap?.exists ? existingSnap.data() : null;
   if (existingData?.phone && existingData?.email) {
-    await handleHelp(chatId);
+    await handleFind(chatId, text);
     return NextResponse.json({ ok: true });
   }
 

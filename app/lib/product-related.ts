@@ -738,7 +738,12 @@ const getStaticProductRecommendationsUncached = async (
   const targetCode = normalizeLookupValue(targetProduct.code);
   const analogCandidates = candidates.filter((item) => {
     if (!targetArticle && !targetCode) return false;
-    const itemName = normalizeLookupValue(buildVisibleProductName(item.name));
+    // Cross-reference numbers in 1C names are normally stored inside the
+    // trailing parentheses, e.g. "...(LIN473008/AD551514/1170600700)".
+    // buildVisibleProductName intentionally removes that whole suffix for UI
+    // copy, so using it here made the static analog fallback discard the very
+    // identifiers it was meant to match.
+    const itemName = normalizeLookupValue(item.name);
     return (
       (targetArticle.length >= 3 && itemName.includes(targetArticle)) ||
       (targetCode.length >= 3 && itemName.includes(targetCode))
@@ -779,7 +784,7 @@ const getStaticProductRecommendationsUncached = async (
 
 const getStaticProductRecommendationsCached = unstable_cache(
   getStaticProductRecommendationsUncached,
-  ["product-recommendations:static-sitemap-v1"],
+  ["product-recommendations:static-sitemap-v2"],
   { revalidate: 60 * 60 }
 );
 

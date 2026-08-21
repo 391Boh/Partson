@@ -6,6 +6,7 @@ import { isNonEmptyString, readJsonObject } from "app/api/_lib/requestValidation
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import { sendTelegramMessage } from "app/lib/telegram-bot";
 import { formatOrderBlock, type OrderFields } from "app/lib/telegram-order-message";
+import { getSiteUrl } from "app/lib/site-url";
 
 export const runtime = "nodejs";
 
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
     const chatId = userSnap.exists ? (userSnap.data()?.telegramChatId as string | undefined) : undefined;
     if (!chatId) return json({ ok: true, skipped: true });
 
-    const text = `<b>${STATUS_LABEL[status]}</b>\n\n${formatOrderBlock(orderId, order)}`;
+    const text = `<b>${STATUS_LABEL[status]}</b>\n\n${formatOrderBlock(orderId, order, getSiteUrl())}`;
     const result = await sendTelegramMessage(chatId, text, { parseMode: "HTML" });
     if (!result.ok) return json({ ok: true, skipped: true, error: result.error });
 

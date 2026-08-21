@@ -26,6 +26,28 @@ const loadAnalogs = async (
   }
 };
 
+const loadStaticAnalogs = async (
+  article: string,
+  code: string,
+  name: string,
+  producer: string,
+  group: string,
+  subGroup: string,
+  category: string
+) => {
+  const recommendations = await getStaticProductRecommendations(
+    article,
+    code,
+    name,
+    producer,
+    group,
+    subGroup,
+    category
+  ).catch(() => ({ analogs: [], similar: [] }));
+
+  return recommendations.analogs.slice(0, PRODUCT_ANALOGS_LIMIT);
+};
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const article = (url.searchParams.get("article") || "").trim();
@@ -58,6 +80,22 @@ export async function GET(request: Request) {
     );
 
     if (!Array.isArray(result)) {
+      const fallbackItems = await loadStaticAnalogs(
+        article,
+        code,
+        name,
+        producer,
+        group,
+        subGroup,
+        category
+      );
+      if (fallbackItems.length > 0) {
+        return NextResponse.json(
+          { items: fallbackItems, retryable: false, source: "snapshot" },
+          { headers: { "cache-control": PRODUCT_ANALOGS_CACHE_CONTROL } }
+        );
+      }
+
       return NextResponse.json(
         { items: [], retryable: true, reason: "timeout" },
         {
@@ -76,7 +114,7 @@ export async function GET(request: Request) {
     // found in 1C names). Fall back to the static sitemap-based recommendations
     // so the analogs block still has something to show alongside "схожі".
     if (items.length === 0) {
-      const staticRecommendations = await getStaticProductRecommendations(
+      items = await loadStaticAnalogs(
         article,
         code,
         name,
@@ -84,8 +122,7 @@ export async function GET(request: Request) {
         group,
         subGroup,
         category
-      ).catch(() => ({ analogs: [], similar: [] }));
-      items = staticRecommendations.analogs.slice(0, PRODUCT_ANALOGS_LIMIT);
+      );
     }
 
     return NextResponse.json(
@@ -98,6 +135,22 @@ export async function GET(request: Request) {
       }
     );
   } catch {
+    const fallbackItems = await loadStaticAnalogs(
+      article,
+      code,
+      name,
+      producer,
+      group,
+      subGroup,
+      category
+    );
+    if (fallbackItems.length > 0) {
+      return NextResponse.json(
+        { items: fallbackItems, retryable: false, source: "snapshot" },
+        { headers: { "cache-control": PRODUCT_ANALOGS_CACHE_CONTROL } }
+      );
+    }
+
     return NextResponse.json(
       { items: [], retryable: true, reason: "upstream" },
       {
