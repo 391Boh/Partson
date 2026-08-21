@@ -24,6 +24,13 @@ import { SiFacebook, SiInstagram, SiTelegram } from "react-icons/si";
 import React from "react";
 import AnalyticsConsentSettingsButton from "app/components/AnalyticsConsentSettingsButton";
 
+const telegramBotName = (
+  process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME || "StormStoreAvto_bot"
+)
+  .replace(/^@/u, "")
+  .trim();
+const telegramBotUrl = `https://t.me/${encodeURIComponent(telegramBotName)}`;
+
 const infoLinks = [
   { href: "/inform/about",       icon: Info,        label: "Про нас" },
   { href: "/inform/delivery",    icon: Truck,       label: "Доставка" },
@@ -171,10 +178,25 @@ export default function Footer() {
               </p>
               <div className="flex items-center justify-center gap-3">
                 {[
-                  { label: "Facebook",  Icon: SiFacebook,  color: "#1877F2", border: "border-blue-200/70",  bg: "hover:bg-blue-50/60",  hoverBorder: "hover:border-[#1877F2]" },
-                  { label: "Instagram", Icon: SiInstagram, color: "#E4405F", border: "border-rose-200/70",  bg: "hover:bg-rose-50/60",  hoverBorder: "hover:border-[#E4405F]" },
-                  { label: "Telegram",  Icon: SiTelegram,  color: "#229ED9", border: "border-cyan-200/70",  bg: "hover:bg-sky-50/60",   hoverBorder: "hover:border-[#229ED9]" },
-                ].map(({ label, Icon, color, border, bg, hoverBorder }) => (
+                  { label: "Facebook",  Icon: SiFacebook,  color: "#1877F2", border: "border-blue-200/70",  bg: "hover:bg-blue-50/60",  hoverBorder: "hover:border-[#1877F2]", href: "" },
+                  { label: "Instagram", Icon: SiInstagram, color: "#E4405F", border: "border-rose-200/70",  bg: "hover:bg-rose-50/60",  hoverBorder: "hover:border-[#E4405F]", href: "" },
+                  { label: "Telegram",  Icon: SiTelegram,  color: "#229ED9", border: "border-cyan-200/70",  bg: "hover:bg-sky-50/60",   hoverBorder: "hover:border-[#229ED9]", href: telegramBotUrl },
+                ].map(({ label, Icon, color, border, bg, hoverBorder, href }) => href ? (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Відкрити Telegram-бот PartsON"
+                    title="Telegram-бот PartsON"
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border ${border} bg-white/60 transition-[border-color,background-color,box-shadow] duration-200 ${bg} ${hoverBorder} hover:shadow-[0_8px_18px_rgba(15,23,42,0.10),inset_0_1px_0_rgba(255,255,255,0.84)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300`}
+                    style={{ color }}
+                  >
+                    <span>
+                      <Icon size={22} aria-hidden="true" />
+                    </span>
+                  </a>
+                ) : (
                   <button
                     key={label}
                     type="button"

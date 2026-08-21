@@ -1,5 +1,7 @@
 import "server-only";
 
+import { buildProductSeoImagePath } from "app/lib/product-image-path";
+
 // Mirrors the read/shipped/completed boolean model Order.tsx and
 // AdminChatPanel.tsx already use for orders — there is no separate status
 // string field, so this derives the same three-state label the site shows.
@@ -96,6 +98,17 @@ export const formatOrderItemsList = (
   if (remaining > 0) lines.push(`… і ще ${remaining}`);
 
   return lines.join("\n");
+};
+
+// A thumbnail for the order card — the first line item's photo. Orders don't
+// snapshot whether that item currently has a photo (only name/article/code/
+// price/quantity at checkout time), so this is a best-effort URL: the caller
+// sends it and falls back to a text-only card if Telegram can't fetch it
+// (product photo removed/changed since the order was placed).
+export const getOrderPrimaryImageUrl = (order: OrderFields, siteUrl: string) => {
+  const firstItem = order.cartItems?.[0];
+  if (!firstItem?.code) return null;
+  return `${siteUrl}${buildProductSeoImagePath(firstItem.code, firstItem.article)}`;
 };
 
 // Used both by /orders (a list of these, one per order) and by the

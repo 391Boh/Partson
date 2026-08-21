@@ -116,6 +116,7 @@ export const ensureBotCommandsRegistered = () => {
   commandsRegistered = true;
   void callTelegramBotApi("setMyCommands", {
     commands: [
+      { command: "catalog", description: "Каталог: групи, марки, виробники" },
       { command: "find", description: "Пошук товару" },
       { command: "orders", description: "Мої замовлення" },
       { command: "profile", description: "Мій профіль" },

@@ -11,6 +11,7 @@ import {
 import {
   escapeTelegramHtml,
   formatOrderBlock,
+  getOrderPrimaryImageUrl,
   type OrderFields,
 } from "app/lib/telegram-order-message";
 import { getSiteUrl } from "app/lib/site-url";
@@ -20,6 +21,26 @@ import {
   buildProductKeyboard,
   formatProductCaption,
 } from "app/lib/telegram-product-message";
+import {
+  answerTelegramCallback,
+  deleteTelegramMessage,
+  editTelegramMessageMedia,
+  editTelegramMessageText,
+} from "app/lib/telegram-callback";
+import {
+  buildBrandListMenu,
+  buildBrandModelsMenu,
+  buildChildMenu,
+  buildGroupMenu,
+  buildGroupsListMenu,
+  buildModelMenu,
+  buildProducerMenu,
+  buildProducersListMenu,
+  buildSubgroupMenu,
+  buildTopMenu,
+  type NavButton,
+  type NavMenu,
+} from "app/lib/telegram-catalog-nav";
 
 type TelegramUser = {
   id?: number | string;
@@ -44,9 +65,17 @@ type TelegramMessage = {
   };
 };
 
+type TelegramCallbackQuery = {
+  id: string;
+  from?: TelegramUser;
+  data?: string;
+  message?: TelegramMessage & { photo?: unknown[] };
+};
+
 type TelegramUpdate = {
   update_id?: number;
   message?: TelegramMessage;
+  callback_query?: TelegramCallbackQuery;
 };
 
 const PROFILE_TOKEN_PREFIX = "profile_";
@@ -89,7 +118,10 @@ const removeKeyboard = () => ({
 });
 
 const buildCatalogKeyboard = (siteUrl: string) => ({
-  inline_keyboard: [[{ text: "🛍 Перейти в каталог", url: `${siteUrl}/katalog` }]],
+  inline_keyboard: [
+    [{ text: "📂 Каталог у боті", callback_data: "m" }],
+    [{ text: "🛍 Перейти на сайт", url: `${siteUrl}/katalog` }],
+  ],
 });
 
 const getDisplayName = (user?: TelegramUser) =>
@@ -185,6 +217,7 @@ const sendWelcomeBack = (chatId: string | number, from: TelegramUser) =>
       "Просто напишіть назву чи артикул деталі — я знайду її в каталозі.",
       "",
       "Команди:",
+      "/catalog — групи, марки авто, виробники",
       "/find — пошук товару",
       "/orders — ваші замовлення в PartsON",
       "/profile — ваш профіль",
@@ -264,14 +297,32 @@ const handleOrders = async (from: TelegramUser, chatId: string) => {
     return;
   }
 
-  const blocks = ordersSnap.docs.map((doc) =>
-    formatOrderBlock(doc.id, doc.data() as OrderFields, siteUrl)
+  await sendTelegramMessage(
+    chatId,
+    `<b>📦 Ваші останні замовлення</b> (${ordersSnap.size})`,
+    { parseMode: "HTML" }
   );
 
-  await sendTelegramMessage(chatId, `<b>Ваші останні замовлення</b>\n\n${blocks.join("\n\n")}`, {
-    parseMode: "HTML",
-    replyMarkup: buildCatalogKeyboard(siteUrl),
-  });
+  const docs = ordersSnap.docs;
+  for (const [index, doc] of docs.entries()) {
+    const order = doc.data() as OrderFields;
+    const caption = formatOrderBlock(doc.id, order, siteUrl);
+    const imageUrl = getOrderPrimaryImageUrl(order, siteUrl);
+    // Only the last card carries the "browse more" button — repeating it on
+    // every order would just be noise.
+    const isLast = index === docs.length - 1;
+    const keyboard = isLast ? buildCatalogKeyboard(siteUrl) : undefined;
+
+    if (imageUrl) {
+      const photoResult = await sendTelegramPhoto(chatId, imageUrl, caption, {
+        parseMode: "HTML",
+        replyMarkup: keyboard,
+      });
+      if (photoResult.ok) continue;
+    }
+
+    await sendTelegramMessage(chatId, caption, { parseMode: "HTML", replyMarkup: keyboard });
+  }
 };
 
 const handleProfile = async (from: TelegramUser, chatId: string) => {
@@ -375,6 +426,7 @@ const handleHelp = (chatId: string) =>
     chatId,
     [
       "Команди PartsON:",
+      "/catalog — групи, марки авто, виробники",
       "/find <назва або артикул> — пошук товару в каталозі",
       "/orders — ваші замовлення",
       "/profile — ваш профіль (телефон, email)",
@@ -384,6 +436,91 @@ const handleHelp = (chatId: string) =>
     ].join("\n"),
     { replyMarkup: buildCatalogKeyboard(getSiteUrl()) }
   );
+
+const handleCatalog = async (chatId: string) => {
+  const menu = buildTopMenu();
+  await sendTelegramMessage(chatId, menu.caption, {
+    parseMode: "HTML",
+    replyMarkup: { inline_keyboard: menu.keyboard },
+  });
+};
+
+// callback_data prefixes match app/lib/telegram-catalog-nav.ts's scheme —
+// see the plan doc for the full table. "noop" is the non-actionable page
+// indicator button (e.g. "2/5").
+const resolveNavMenu = async (siteUrl: string, data: string): Promise<NavMenu | null> => {
+  if (data === "noop") return null;
+  if (data === "m") return buildTopMenu();
+  if (data === "g") return buildGroupsListMenu();
+
+  const [prefix, ...rest] = data.split(":");
+
+  if (prefix === "g") return buildGroupMenu(siteUrl, rest[0]);
+  if (prefix === "gs") return buildSubgroupMenu(siteUrl, rest[0], Number(rest[1]));
+  if (prefix === "gc") return buildChildMenu(siteUrl, rest[0], Number(rest[1]), Number(rest[2]));
+  if (prefix === "a") return buildBrandListMenu(Number(rest[0]));
+  if (prefix === "ab") return buildBrandModelsMenu(siteUrl, rest[0], Number(rest[1]));
+  if (prefix === "am") return buildModelMenu(siteUrl, rest[0], Number(rest[1]));
+  if (prefix === "p") return buildProducersListMenu(Number(rest[0]));
+  if (prefix === "pd") return buildProducerMenu(siteUrl, rest[0]);
+
+  return null;
+};
+
+const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
+  const data = (callback.data || "").trim();
+  const message = callback.message;
+  const chatId = normalizeId(message?.chat?.id);
+  const messageId = message?.message_id;
+
+  if (!data || !chatId || !messageId) {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    return;
+  }
+
+  const siteUrl = getSiteUrl();
+  const menu = await resolveNavMenu(siteUrl, data).catch(() => null);
+
+  if (!menu) {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    return;
+  }
+
+  await answerTelegramCallback(callback.id).catch(() => undefined);
+
+  const replyMarkup = { inline_keyboard: menu.keyboard as NavButton[][] };
+  const hadPhoto = Boolean(message?.photo?.length);
+
+  // Telegram can't turn a text message into a photo message (or back) via
+  // edit — only same-kind-to-same-kind edits work. Falling outside that,
+  // replace the message instead of erroring out.
+  if (hadPhoto && menu.imageUrl) {
+    const result = await editTelegramMessageMedia(chatId, messageId, menu.imageUrl, menu.caption, {
+      parseMode: "HTML",
+      replyMarkup,
+    });
+    if (result.ok) return;
+  } else if (!hadPhoto && !menu.imageUrl) {
+    const result = await editTelegramMessageText(chatId, messageId, menu.caption, {
+      parseMode: "HTML",
+      replyMarkup,
+    });
+    if (result.ok) return;
+  }
+
+  // Mixed transition (text→photo, photo→text) or the same-kind edit above
+  // failed (e.g. the image URL Telegram had cached became unreachable) —
+  // replace the message outright.
+  await deleteTelegramMessage(chatId, messageId).catch(() => undefined);
+  if (menu.imageUrl) {
+    const sent = await sendTelegramPhoto(chatId, menu.imageUrl, menu.caption, {
+      parseMode: "HTML",
+      replyMarkup,
+    });
+    if (sent.ok) return;
+  }
+  await sendTelegramMessage(chatId, menu.caption, { parseMode: "HTML", replyMarkup });
+};
 
 const handlePhone = async (
   message: TelegramMessage,
@@ -458,6 +595,12 @@ export async function POST(req: NextRequest) {
   }
 
   const update = bodyResult.value as TelegramUpdate;
+
+  if (update.callback_query) {
+    await handleCallbackQuery(update.callback_query);
+    return NextResponse.json({ ok: true });
+  }
+
   const message = update.message;
   const from = message?.from;
   const chatId = normalizeId(message?.chat?.id);
@@ -476,6 +619,11 @@ export async function POST(req: NextRequest) {
 
   if (text.startsWith("/start")) {
     await handleStart(message, from, chatId, text);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (text.startsWith("/catalog")) {
+    await handleCatalog(chatId);
     return NextResponse.json({ ok: true });
   }
 
