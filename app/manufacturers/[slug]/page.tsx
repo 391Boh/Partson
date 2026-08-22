@@ -36,7 +36,12 @@ import {
   findSeoProducerBySlug,
   type SeoProducerFacet,
 } from "app/lib/catalog-seo";
-import { fetchCatalogProductsByQuery, type CatalogProduct } from "app/lib/catalog-server";
+import {
+  fetchCatalogProductsByQuery,
+  fetchEuroRate,
+  toPriceUah,
+  type CatalogProduct,
+} from "app/lib/catalog-server";
 import { resolveProductCategoryHierarchy } from "app/lib/catalog-hierarchy";
 import {
   buildCatalogSeoFacetsFromSitemapEntries,
@@ -52,6 +57,7 @@ import { fetchProductImageBase64Batch } from "app/lib/product-image";
 import {
   buildProductImageBatchKey,
   buildProductImagePath,
+  buildProductSeoImagePath,
 } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getProducerSeoCopy } from "app/lib/seo-copy";
@@ -1213,6 +1219,11 @@ export default async function ManufacturerDetailPage({
       );
   const manufacturerProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
   const visibleProducts = manufacturerProducts.slice(0, MANUFACTURER_VISIBLE_PRODUCTS_LIMIT);
+  const euroRate = visibleProducts.some(
+    (product) => typeof product.priceEuro === "number" && product.priceEuro > 0
+  )
+    ? await resolveWithTimeout(() => fetchEuroRate(), null, 500).catch(() => null)
+    : null;
   const productSamplesByGroup = await buildManufacturerGroupProductSamples(
     producer.label,
     producer.topGroups,
@@ -1317,7 +1328,9 @@ export default async function ManufacturerDetailPage({
     (product) => typeof product.priceEuro === "number" && product.priceEuro > 0
   );
 
-  const productItemListJsonLd = pricedSchemaProducts.length > 0
+  const hasValidEuroRate =
+    typeof euroRate === "number" && Number.isFinite(euroRate) && euroRate > 0;
+  const productItemListJsonLd = pricedSchemaProducts.length > 0 && hasValidEuroRate
     ? {
         "@context": "https://schema.org",
         "@type": "ItemList",
@@ -1345,7 +1358,7 @@ export default async function ManufacturerDetailPage({
               url,
               image:
                 product.hasPhoto === true
-                  ? `${siteUrl}${buildProductImagePath(product.code, product.article)}`
+                  ? `${siteUrl}${buildProductSeoImagePath(product.code, product.article)}`
                   : undefined,
               sku: product.article || undefined,
               mpn: product.code || undefined,
@@ -1355,7 +1368,7 @@ export default async function ManufacturerDetailPage({
               offers: {
                 "@type": "Offer",
                 priceCurrency: "UAH",
-                price: Math.round((product.priceEuro as number) * 50),
+                price: toPriceUah(product.priceEuro as number, euroRate),
                 availability:
                   product.quantity > 0
                     ? "https://schema.org/InStock"

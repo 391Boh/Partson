@@ -4,7 +4,7 @@ import { unstable_cache } from "next/cache";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 
 import {
   type CatalogProduct,
@@ -861,32 +861,35 @@ const getCatalogProductUncached = async (code: string) => {
 const getCatalogProduct = cache(getCatalogProductUncached);
 
 const buildProductMetaDescription = (options: {
-  name?: string;
-  article?: string;
-  code?: string;
   category?: string;
   group?: string;
   subGroup?: string;
 }) => {
-  const { name, article, code, category, group, subGroup } = options;
-  const productLabel = buildVisibleProductName(name || article || code || "Автозапчастина");
-  const categoryLabel = buildVisibleProductName(category || "автозапчастин");
-  const groupLabel =
-    group && buildVisibleProductName(group).toLowerCase() !== categoryLabel.toLowerCase()
-      ? buildVisibleProductName(group)
-      : "";
-  const subGroupLabel =
-    subGroup && buildVisibleProductName(subGroup).toLowerCase() !== groupLabel.toLowerCase()
-      ? buildVisibleProductName(subGroup)
-      : "";
+  const { category, group, subGroup } = options;
+  const cleanLabel = (value?: string) => {
+    const label = buildVisibleCategoryLabel(value || "");
+    return label === "Товар" ? "" : label;
+  };
+  const lowerFirst = (value: string) =>
+    value ? `${value.charAt(0).toLocaleLowerCase("uk-UA")}${value.slice(1)}` : value;
+
+  const categoryLabel = cleanLabel(category);
+  const productGroupLabel = cleanLabel(subGroup) || cleanLabel(group) || categoryLabel;
+  const hasDistinctCategory =
+    Boolean(categoryLabel) &&
+    categoryLabel.toLocaleLowerCase("uk-UA") !==
+      productGroupLabel.toLocaleLowerCase("uk-UA");
+  const subject = lowerFirst(productGroupLabel || "автозапчастини");
 
   return trimSeoDescription(
     [
-      `Купити ${productLabel}${article ? `, артикул ${article}` : ""}.`,
-      `Категорія: ${categoryLabel}${groupLabel ? `, ${groupLabel}` : ""}${subGroupLabel ? `, ${subGroupLabel}` : ""}.`,
-      "Ціна, наявність, фото та швидке онлайн-замовлення.",
-      `${STORE_PHONE_DISPLAY}, ${STORE_ADDRESS}.`,
-    ].join(" ")
+      `Купити ${subject}${
+        hasDistinctCategory ? ` із категорії «${categoryLabel}»` : ""
+      } у PartsON.`,
+      "Актуальна ціна та наявність.",
+      "Замовлення з доставкою по Україні.",
+    ].join(" "),
+    150
   );
 };
 
@@ -1926,7 +1929,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     !isSeoResolvedInternally &&
     currentRouteParam !== canonicalRouteParam
   ) {
-    redirect(canonicalPath);
+    permanentRedirect(canonicalPath);
   }
 
   const primaryLookupKey =

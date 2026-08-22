@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, Clock, ShieldCheck } from "lucide-react";
 
 import { getPublishedBlogPostBySlug, getPublishedBlogPosts } from "app/lib/blog";
+import { isStorageMediaUrl } from "app/lib/blog-media";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { getSiteUrl } from "app/lib/site-url";
@@ -159,13 +160,17 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
     .map((w) => w.trim())
     .filter((w) => w.length >= 5 && !/^\d+$/.test(w))
     .slice(0, 6);
+  const socialImage =
+    post.imageDataUrl && isStorageMediaUrl(post.imageDataUrl)
+      ? post.imageDataUrl
+      : "/opengraph-partson-v2.png";
   return buildPageMetadata({
     title: post.title,
     description: appendSeoContact(post.excerpt),
     canonicalPath: `/blog/${post.slug}`,
     type: "article",
     keywords: ["блог PartsON", "автозапчастини Львів", post.title, ...contentWords],
-    image: { url: "/opengraph-partson-v2.png", alt: post.imageAlt || post.title },
+    image: { url: socialImage, alt: post.imageAlt || post.title },
     openGraphTitle: `${post.title} | Блог PartsON`,
   });
 }
@@ -179,6 +184,10 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const canonicalUrl = `${siteUrl.replace(/\/$/, "")}/blog/${post.slug}`;
   const published = post.publishedAt || post.createdAt;
   const updated = post.updatedAt || published;
+  const seoImage =
+    post.imageDataUrl && isStorageMediaUrl(post.imageDataUrl)
+      ? post.imageDataUrl
+      : `${siteUrl.replace(/\/$/, "")}/opengraph-partson-v2.png`;
 
   const contentBlocks = parseContent(post.content);
   const extraImages = post.extraImages ?? [];
@@ -192,7 +201,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     "@type": "BlogPosting",
     headline: post.title,
     description: post.excerpt,
-    image: `${siteUrl.replace(/\/$/, "")}/opengraph-partson-v2.png`,
+    image: seoImage,
     datePublished: published,
     dateModified: updated,
     wordCount: Math.round(post.content.split(/\s+/).length / 10) * 10,

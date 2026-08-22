@@ -26,6 +26,8 @@ import {
 } from "app/lib/catalog-seo";
 import {
   fetchCatalogProductsByQuery,
+  fetchEuroRate,
+  toPriceUah,
   type CatalogProduct,
 } from "app/lib/catalog-server";
 import {
@@ -42,8 +44,7 @@ import { pluralizeCategories, pluralizeManufacturers, pluralizeProducts } from "
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getProductTreeDataset } from "app/lib/product-tree";
-import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
-import { buildProductImagePath } from "app/lib/product-image-path";
+import { buildProductSeoImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getGroupItemSeoCopy } from "app/lib/seo-copy";
 import { appendSeoContact, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
@@ -801,6 +802,11 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         CATEGORY_TOP_PRODUCTS_TIMEOUT_MS
       );
   const visibleProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
+  const euroRate = visibleProducts.some(
+    (product) => typeof product.priceEuro === "number" && product.priceEuro > 0
+  )
+    ? await resolveWithTimeout(() => fetchEuroRate(), null, 500).catch(() => null)
+    : null;
 
   const siteUrl = getSiteUrl();
   const pagePath = buildGroupItemPath(item.groupSlug, item.itemSlug);
@@ -866,7 +872,9 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     (product) => typeof product.priceEuro === "number" && product.priceEuro > 0
   );
 
-  const productItemListJsonLd = pricedSchemaProducts.length > 0
+  const hasValidEuroRate =
+    typeof euroRate === "number" && Number.isFinite(euroRate) && euroRate > 0;
+  const productItemListJsonLd = pricedSchemaProducts.length > 0 && hasValidEuroRate
     ? {
         "@context": "https://schema.org",
         "@type": "ItemList",
@@ -884,10 +892,9 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
             category: product.category,
           });
           const url = `${siteUrl}${productPath}`;
-          const imagePath =
-            product.hasPhoto === true
-              ? buildProductImagePath(product.code, product.article)
-              : PRODUCT_IMAGE_FALLBACK_PATH;
+          const imagePath = product.hasPhoto === true
+            ? buildProductSeoImagePath(product.code, product.article)
+            : "";
 
           return {
             "@type": "ListItem",
@@ -898,7 +905,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               name: buildVisibleProductName(product.name),
               sku: product.article || undefined,
               mpn: product.code || undefined,
-              image: `${siteUrl}${imagePath}`,
+              image: imagePath ? `${siteUrl}${imagePath}` : undefined,
               brand: product.producer
                 ? { "@type": "Brand", name: product.producer }
                 : undefined,
@@ -906,7 +913,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               offers: {
                 "@type": "Offer",
                 priceCurrency: "UAH",
-                price: Math.round((product.priceEuro as number) * 50),
+                price: toPriceUah(product.priceEuro as number, euroRate),
                 availability:
                   product.quantity > 0
                     ? "https://schema.org/InStock"

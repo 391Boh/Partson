@@ -1,4 +1,5 @@
 import { getPublishedBlogPosts } from "app/lib/blog";
+import { isStorageMediaUrl } from "app/lib/blog-media";
 import { getConfiguredSitemapLastModified } from "app/lib/sitemap-dates";
 import { buildUrlSetXml, createSitemapXmlResponse } from "app/lib/sitemap-xml";
 import { getSiteUrl } from "app/lib/site-url";
@@ -26,12 +27,26 @@ export async function GET() {
         },
       ],
     },
-    ...posts.map((post) => ({
-      path: `/blog/${post.slug}`,
-      lastModified: post.updatedAt || post.publishedAt || fallbackLastModified,
-      changeFrequency: "monthly" as const,
-      priority: 0.68,
-    })),
+    ...posts.map((post) => {
+      const articleImage =
+        post.imageDataUrl && isStorageMediaUrl(post.imageDataUrl)
+          ? post.imageDataUrl
+          : "/opengraph-partson-v2.png";
+
+      return {
+        path: `/blog/${post.slug}`,
+        lastModified: post.updatedAt || post.publishedAt || fallbackLastModified,
+        changeFrequency: "monthly" as const,
+        priority: 0.68,
+        images: [
+          {
+            loc: articleImage,
+            title: post.imageAlt || post.title,
+            caption: post.excerpt || post.title,
+          },
+        ],
+      };
+    }),
   ];
 
   return createSitemapXmlResponse(buildUrlSetXml(siteUrl, entries));

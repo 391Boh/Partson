@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 
 import {
@@ -43,5 +43,5 @@ export default async function InformationRedirectPage({
   const resolvedSection =
     getInformationSection(tab) ?? getInformationSection(DEFAULT_INFORMATION_SECTION);
 
-  redirect(getInformationPath(resolvedSection?.key || DEFAULT_INFORMATION_SECTION));
+  permanentRedirect(getInformationPath(resolvedSection?.key || DEFAULT_INFORMATION_SECTION));
 }

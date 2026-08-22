@@ -30,10 +30,9 @@ import {
   type CatalogSeoFacets,
 } from "app/lib/catalog-seo";
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
-import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
+import { fetchCatalogProductsByQuery, fetchEuroRate, toPriceUah } from "app/lib/catalog-server";
 import { buildManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
-import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
-import { buildProductImagePath } from "app/lib/product-image-path";
+import { buildProductSeoImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getProductTreeDataset } from "app/lib/product-tree";
@@ -632,8 +631,10 @@ const buildSeoProductPath = (item: CatalogSeoProduct) =>
 const buildCatalogItemListJsonLd = (
   siteUrl: string,
   state: CatalogSeoState,
-  items: CatalogSeoProduct[]
+  items: CatalogSeoProduct[],
+  euroRate: number | null
 ) => {
+  if (euroRate == null || !Number.isFinite(euroRate) || euroRate <= 0) return null;
   const currentUrl = `${siteUrl}${state.canonicalPath}`;
   const itemListElement = items
     .filter(
@@ -646,10 +647,9 @@ const buildCatalogItemListJsonLd = (
     .slice(0, INITIAL_CATALOG_PAGE_LIMIT)
     .map((item, index) => {
       const url = `${siteUrl}${buildSeoProductPath(item)}`;
-      const imagePath =
-        item.hasPhoto === true
-          ? buildProductImagePath(item.code, item.article)
-          : PRODUCT_IMAGE_FALLBACK_PATH;
+      const imagePath = item.hasPhoto === true
+        ? buildProductSeoImagePath(item.code, item.article)
+        : "";
 
       return {
         "@type": "ListItem",
@@ -660,7 +660,7 @@ const buildCatalogItemListJsonLd = (
           name: item.name,
           sku: item.code,
           mpn: item.article || item.code,
-          image: `${siteUrl}${imagePath}`,
+          image: imagePath ? `${siteUrl}${imagePath}` : undefined,
           brand: item.producer
             ? {
                 "@type": "Brand",
@@ -673,7 +673,7 @@ const buildCatalogItemListJsonLd = (
               ? {
                   "@type": "Offer",
                   priceCurrency: "UAH",
-                  price: Math.round(item.priceEuro * 50),
+                  price: toPriceUah(item.priceEuro, euroRate),
                   availability:
                     item.quantity > 0
                       ? "https://schema.org/InStock"
@@ -1119,7 +1119,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     producer: state.producer || null,
     expandHierarchy: state.expandHierarchy,
   });
-  const [rawInitialPagePayload, rawSeoFacets, productTreeDataset] = await Promise.all([
+  const [rawInitialPagePayload, rawSeoFacets, productTreeDataset, euroRate] = await Promise.all([
     resolveWithTimeout(
       () => getCatalogSeoSnapshotPayloadCached(snapshotCacheKey),
       null,
@@ -1133,6 +1133,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       null,
       CATALOG_PRODUCT_TREE_TIMEOUT_MS
     ).catch(() => null),
+    resolveWithTimeout(() => fetchEuroRate(), null, 500).catch(() => null),
   ]);
   const initialPagePayload = rawInitialPagePayload
     ? {
@@ -1149,7 +1150,8 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   const catalogItemListJsonLd = buildCatalogItemListJsonLd(
     siteUrl,
     state,
-    initialPagePayload?.items ?? []
+    initialPagePayload?.items ?? [],
+    euroRate
   );
   const topGroups = (productTreeDataset?.groups ?? []).slice(0, 30).map((g) => ({
     label: g.label,
