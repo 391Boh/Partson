@@ -6,6 +6,7 @@ import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import {
   ensureBotCommandsRegistered,
   ensureBotMenuButtonConfigured,
+  sendTelegramChatAction,
   sendTelegramLocation,
   sendTelegramMessage,
   sendTelegramPhoto,
@@ -232,8 +233,27 @@ const findUserByProfileToken = async (token: string) => {
   return docSnap.ref;
 };
 
-const NOT_LINKED_MESSAGE =
-  "🔒 Спочатку увійдіть через Telegram на сайті PartsON, а потім спробуйте ще раз.";
+const sendLinkRequired = (chatId: string | number) => {
+  const siteUrl = getSiteUrl();
+  return sendTelegramMessage(
+    chatId,
+    [
+      "🔐 <b>Для цієї дії потрібен профіль PartsON.</b>",
+      "Увійдіть через Telegram на сайті — після прив’язки тут стануть доступні кошик, замовлення та підтримка.",
+      "",
+      "Каталог і пошук товарів доступні без реєстрації.",
+    ].join("\n"),
+    {
+      parseMode: "HTML",
+      replyMarkup: {
+        inline_keyboard: [
+          [buildSiteButton("🔗 Увійти на сайті", siteUrl)],
+          [{ text: "📂 Переглянути каталог", callback_data: "m" }],
+        ],
+      },
+    }
+  );
+};
 
 const askPhone = (chatId: string | number) =>
   sendTelegramMessage(
@@ -255,8 +275,8 @@ const askEmail = (chatId: string | number) =>
 const finishProfile = (chatId: string | number) =>
   sendTelegramMessage(
     chatId,
-    "🎉 <b>Готово!</b> Телефон і email збережені в профілі PartsON.",
-    { parseMode: "HTML", replyMarkup: removeKeyboard() }
+    "🎉 <b>Готово!</b> Профіль налаштовано. Тепер можна користуватися кошиком, переглядати замовлення й писати менеджеру.",
+    { parseMode: "HTML", replyMarkup: buildCatalogKeyboard(getSiteUrl()) }
   );
 
 // Leads with the branded banner (public/telegram/bot-welcome.png — matches
@@ -266,17 +286,13 @@ const sendWelcomeBack = async (chatId: string | number, from: TelegramUser) => {
   const siteUrl = getSiteUrl();
   const text = [
     `<b>Привіт, ${escapeTelegramHtml(getDisplayName(from))}! 👋</b>`,
-    "Просто напишіть назву чи артикул деталі — я знайду її в каталозі.",
+    "Я допоможу знайти й замовити автозапчастини без зайвих кроків.",
     "",
-    "<b>Команди:</b>",
-    "<code>/catalog</code> — групи, марки авто, виробники",
-    "<code>/find</code> — пошук товару",
-    "<code>/orders</code> — ваші замовлення в PartsON",
-    "<code>/profile</code> — ваш профіль",
-    "<code>/support</code> — написати менеджеру",
-    "<code>/contacts</code> — контакти й адреса магазину",
-    "<code>/cart</code> — кошик і оформлення замовлення",
-    "<code>/help</code> — довідка",
+    "🔎 Напишіть назву або артикул — знайду товар.",
+    "📂 Або відкрийте каталог за категорією, авто чи виробником.",
+    "🛒 Додавайте позиції в кошик та оформлюйте замовлення прямо тут.",
+    "",
+    "Усі команди доступні в кнопці <b>Меню</b> біля поля введення.",
   ].join("\n");
   const replyMarkup = buildCatalogKeyboard(siteUrl);
 
@@ -284,6 +300,29 @@ const sendWelcomeBack = async (chatId: string | number, from: TelegramUser) => {
     parseMode: "HTML",
     replyMarkup,
   });
+  if (!photoResult.ok) {
+    await sendTelegramMessage(chatId, text, { parseMode: "HTML", replyMarkup });
+  }
+};
+
+const sendGuestWelcome = async (chatId: string | number, from: TelegramUser) => {
+  const siteUrl = getSiteUrl();
+  const text = [
+    `<b>Вітаємо в PartsON, ${escapeTelegramHtml(getDisplayName(from))}! 👋</b>`,
+    "Знайти запчастину можна одразу — реєстрація для пошуку не потрібна.",
+    "",
+    "🔎 Просто напишіть назву або артикул товару.",
+    "📂 Або скористайтеся каталогом за категорією, авто чи виробником.",
+    "",
+    "Профіль знадобиться лише для кошика, замовлень і зв’язку з менеджером.",
+  ].join("\n");
+  const replyMarkup = buildCatalogKeyboard(siteUrl);
+  const photoResult = await sendTelegramPhoto(
+    chatId,
+    `${siteUrl}/telegram/bot-welcome.png`,
+    text,
+    { parseMode: "HTML", replyMarkup }
+  );
   if (!photoResult.ok) {
     await sendTelegramMessage(chatId, text, { parseMode: "HTML", replyMarkup });
   }
@@ -305,7 +344,7 @@ const handleStart = async (
     : await findUserByTelegramId(telegramId);
 
   if (!userRef) {
-    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    await sendGuestWelcome(chatId, from);
     return;
   }
 
@@ -344,12 +383,13 @@ const handleStart = async (
 };
 
 const handleOrders = async (from: TelegramUser, chatId: string) => {
+  void sendTelegramChatAction(chatId).catch(() => undefined);
   const telegramId = normalizeId(from.id);
   const userRef = await findUserByTelegramId(telegramId);
   const siteUrl = getSiteUrl();
 
   if (!userRef) {
-    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    await sendLinkRequired(chatId);
     return;
   }
 
@@ -401,7 +441,7 @@ const handleProfile = async (from: TelegramUser, chatId: string) => {
   const userRef = await findUserByTelegramId(telegramId);
 
   if (!userRef) {
-    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    await sendLinkRequired(chatId);
     return;
   }
 
@@ -462,10 +502,15 @@ const handleFind = async (chatId: string, rawQuery: string, page = 1) => {
     await sendTelegramMessage(
       chatId,
       "🔍 Напишіть, що шукаємо — наприклад: <code>/find гальмівні колодки</code> або <code>/find AD030213</code>.",
-      { parseMode: "HTML" }
+      {
+        parseMode: "HTML",
+        replyMarkup: { inline_keyboard: [[{ text: "📂 Відкрити каталог", callback_data: "m" }]] },
+      }
     );
     return;
   }
+
+  void sendTelegramChatAction(chatId).catch(() => undefined);
 
   const [result, euroRate] = await Promise.all([
     fetchCatalogProductsByQuery({
@@ -552,7 +597,7 @@ const handleSupport = async (from: TelegramUser, chatId: string) => {
   const telegramId = normalizeId(from.id);
   const userRef = await findUserByTelegramId(telegramId);
   if (!userRef) {
-    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    await sendLinkRequired(chatId);
     return;
   }
   await startSupportMode(userRef, chatId);
@@ -652,6 +697,7 @@ const PRODUCTS_CALLBACK_LIMIT = 5;
 // after whatever slugs/indices that prefix already carries), so parsing
 // pops it off first and applies the existing per-prefix logic to what's left.
 const handleProductsCallback = async (chatId: string, data: string) => {
+  void sendTelegramChatAction(chatId).catch(() => undefined);
   const siteUrl = getSiteUrl();
   const [prefix, ...rest] = data.split(":");
   const page = Math.max(1, Number(rest[rest.length - 1]) || 1);
@@ -724,7 +770,7 @@ const handleWatchCallback = async (chatId: string, code: string, from?: Telegram
 
   const userRef = await findUserByTelegramId(normalizeId(from.id));
   if (!userRef) {
-    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    await sendLinkRequired(chatId);
     return;
   }
 
@@ -785,7 +831,7 @@ const handleCartView = async (chatId: string, messageId: number | undefined, fro
   if (!from) return;
   const linked = await resolveLinkedUser(from);
   if (!linked) {
-    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    await sendLinkRequired(chatId);
     return;
   }
   const cart = await getCart(linked.ref.id);
@@ -797,7 +843,7 @@ const handleAddToCart = async (chatId: string, code: string, from?: TelegramUser
   if (!code || !from) return;
   const linked = await resolveLinkedUser(from);
   if (!linked) {
-    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    await sendLinkRequired(chatId);
     return;
   }
 
@@ -885,7 +931,7 @@ const handleCheckoutStart = async (chatId: string, from?: TelegramUser) => {
   if (!from) return;
   const linked = await resolveLinkedUser(from);
   if (!linked) {
-    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    await sendLinkRequired(chatId);
     return;
   }
   const cart = await getCart(linked.ref.id);
@@ -1198,7 +1244,7 @@ const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
     if (!from) return;
     const userRef = await findUserByTelegramId(normalizeId(from.id));
     if (!userRef) {
-      await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+      await sendLinkRequired(chatId);
       return;
     }
     await startSupportMode(userRef, chatId);
@@ -1398,7 +1444,7 @@ const handlePhone = async (
   const userRef = await findUserByTelegramId(telegramId);
 
   if (!userRef) {
-    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    await sendLinkRequired(chatId);
     return;
   }
 
@@ -1422,7 +1468,7 @@ const handleEmail = async (
   const userRef = await findUserByTelegramId(telegramId);
 
   if (!userRef) {
-    await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+    await sendLinkRequired(chatId);
     return;
   }
 
@@ -1587,7 +1633,7 @@ const processUpdate = async (update: TelegramUpdate) => {
     const data = snap?.exists ? snap.data() : null;
 
     if (!userRef || !data?.phone || !data?.email) {
-      await sendTelegramMessage(chatId, NOT_LINKED_MESSAGE, { replyMarkup: removeKeyboard() });
+      await sendLinkRequired(chatId);
       return;
     }
 
@@ -1645,6 +1691,15 @@ const processUpdate = async (update: TelegramUpdate) => {
     return;
   }
   if (existingData?.phone && existingData?.email) {
+    await handleFind(chatId, text);
+    return;
+  }
+
+  // Browsing and search are useful before registration. Only account-bound
+  // actions (cart, orders, support) require a linked profile; forcing every
+  // first-time visitor through onboarding before a single search made the
+  // bot feel closed and caused direct t.me visitors to abandon it.
+  if (!existingUserRef && text) {
     await handleFind(chatId, text);
     return;
   }

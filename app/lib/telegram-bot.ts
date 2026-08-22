@@ -110,6 +110,11 @@ export const sendTelegramPhoto = (
 export const sendTelegramLocation = (chatId: string | number, lat: number, lng: number) =>
   callTelegramBotApi("sendLocation", { chat_id: chatId, latitude: lat, longitude: lng });
 
+export const sendTelegramChatAction = (
+  chatId: string | number,
+  action: "typing" | "upload_photo" = "typing"
+) => callTelegramBotApi("sendChatAction", { chat_id: chatId, action });
+
 // Registers the "/" command autocomplete menu in Telegram clients. Cheap and
 // idempotent on Telegram's side, but there's no need to hit their API on
 // every single webhook update — the module-level flag limits it to once per
@@ -149,4 +154,3 @@ export const ensureBotMenuButtonConfigured = () => {
     menu_button: { type: "commands" },
   }).catch(() => undefined);
 };
-
