@@ -211,7 +211,7 @@ export const buildPageMetadata = ({
       description: normalizedTwitterDescription,
       images: [{ url: image.url, alt: image.alt ?? DEFAULT_IMAGE.alt }],
     },
-    icons,
+    ...(icons ? { icons } : {}),
     other: {
       "geo.region": "UA-46",
       "geo.placename": "Львів",
