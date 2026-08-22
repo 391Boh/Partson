@@ -53,6 +53,9 @@ export const formatProductCaption = (
 
 export const buildProductKeyboard = (siteUrl: string, product: CatalogProduct) => ({
   inline_keyboard: [
+    ...(product.quantity > 0 && product.code
+      ? [[{ text: "➕ Додати в кошик", callback_data: `cadd:${product.code}` }]]
+      : []),
     [{ text: "🛒 Замовити на сайті", url: buildProductUrl(siteUrl, product) }],
     ...(product.quantity <= 0 && product.code
       ? [[{ text: "🔔 Повідомити, коли з'явиться", callback_data: `watch:${product.code}` }]]

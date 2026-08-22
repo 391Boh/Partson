@@ -80,7 +80,7 @@ export const buildTopMenu = (): NavMenu => ({
       { text: "🏭 Виробники", callback_data: "p:0" },
     ],
     [
-      { text: "💬 Написати менеджеру", callback_data: "support:start" },
+      { text: "💬 Підтримка", callback_data: "support:start" },
       { text: "📍 Контакти", callback_data: "contacts" },
     ],
   ],

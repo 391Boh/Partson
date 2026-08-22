@@ -76,7 +76,7 @@ export const buildContactsCard = (siteUrl: string) => {
         { text: "🗺 Маршрут на карті", url: buildShopMapsUrl() },
       ],
       [
-        { text: "💬 Написати менеджеру", callback_data: "support:start" },
+        { text: "💬 Підтримка", callback_data: "support:start" },
         siteButton,
       ],
       [{ text: "⬅️ Каталог", callback_data: "m" }],

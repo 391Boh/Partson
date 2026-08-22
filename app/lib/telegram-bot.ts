@@ -125,8 +125,9 @@ export const ensureBotCommandsRegistered = () => {
       { command: "find", description: "Пошук товару" },
       { command: "orders", description: "Мої замовлення" },
       { command: "profile", description: "Мій профіль" },
-      { command: "support", description: "Написати менеджеру" },
+      { command: "support", description: "Підтримка" },
       { command: "contacts", description: "Контакти і локація магазину" },
+      { command: "cart", description: "Кошик і оформлення замовлення" },
       { command: "help", description: "Довідка" },
     ],
   }).catch(() => undefined);
