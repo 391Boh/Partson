@@ -6,6 +6,7 @@ import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import {
   ensureBotCommandsRegistered,
   ensureBotMenuButtonConfigured,
+  ensureBotProfileConfigured,
   sendTelegramChatAction,
   sendTelegramLocation,
   sendTelegramMessage,
@@ -1533,6 +1534,7 @@ const processUpdate = async (update: TelegramUpdate) => {
 
   ensureBotCommandsRegistered();
   ensureBotMenuButtonConfigured();
+  ensureBotProfileConfigured();
 
   const text = normalizeText(message.text, 1200);
 

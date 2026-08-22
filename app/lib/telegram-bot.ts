@@ -138,6 +138,27 @@ export const ensureBotCommandsRegistered = () => {
   }).catch(() => undefined);
 };
 
+// setMyShortDescription shows on the bot's profile/share preview (and the
+// "what is this bot" line above the Start button); setMyDescription is the
+// longer text shown on the empty chat screen before a user has pressed
+// Start. Neither is set anywhere else, so this is the only place the site
+// link appears on the bot's own Telegram profile — the parts of a bot a
+// visitor can see without messaging it.
+let profileConfigured = false;
+export const ensureBotProfileConfigured = () => {
+  if (profileConfigured) return;
+  profileConfigured = true;
+  void callTelegramBotApi("setMyShortDescription", {
+    short_description: "Пошук і замовлення автозапчастин у Telegram · partson.shop",
+  }).catch(() => undefined);
+  void callTelegramBotApi("setMyDescription", {
+    description:
+      "🔧 PartsON — автозапчастини у Львові з доставкою по Україні.\n\n" +
+      "Шукайте деталі за назвою чи артикулом, переглядайте каталог, додавайте в кошик і оформлюйте замовлення прямо тут.\n\n" +
+      "🌐 Сайт: partson.shop",
+  }).catch(() => undefined);
+};
+
 // The persistent button next to the message input has exactly one slot —
 // Telegram doesn't support two. Setting it to type "web_app" (opening the
 // site) replaces the native "commands" button, which is what actually
