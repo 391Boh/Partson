@@ -20,7 +20,7 @@ import {
   Undo2,
   Wallet,
 } from "lucide-react";
-import { SiFacebook, SiInstagram, SiTelegram } from "react-icons/si";
+import { SiFacebook, SiInstagram, SiTelegram, SiViber } from "react-icons/si";
 import React from "react";
 import AnalyticsConsentSettingsButton from "app/components/AnalyticsConsentSettingsButton";
 
@@ -30,6 +30,7 @@ const telegramBotName = (
   .replace(/^@/u, "")
   .trim();
 const telegramBotUrl = `https://t.me/${encodeURIComponent(telegramBotName)}`;
+const viberProfileUrl = "https://viber.me/380634211851";
 
 const infoLinks = [
   { href: "/inform/about",       icon: Info,        label: "Про нас" },
@@ -181,14 +182,15 @@ export default function Footer() {
                   { label: "Facebook",  Icon: SiFacebook,  color: "#1877F2", border: "border-blue-200/70",  bg: "hover:bg-blue-50/60",  hoverBorder: "hover:border-[#1877F2]", href: "" },
                   { label: "Instagram", Icon: SiInstagram, color: "#E4405F", border: "border-rose-200/70",  bg: "hover:bg-rose-50/60",  hoverBorder: "hover:border-[#E4405F]", href: "" },
                   { label: "Telegram",  Icon: SiTelegram,  color: "#229ED9", border: "border-cyan-200/70",  bg: "hover:bg-sky-50/60",   hoverBorder: "hover:border-[#229ED9]", href: telegramBotUrl },
+                  { label: "Viber",     Icon: SiViber,     color: "#7360F2", border: "border-violet-200/70", bg: "hover:bg-violet-50/60", hoverBorder: "hover:border-[#7360F2]", href: viberProfileUrl },
                 ].map(({ label, Icon, color, border, bg, hoverBorder, href }) => href ? (
                   <a
                     key={label}
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label="Відкрити Telegram-бот PartsON"
-                    title="Telegram-бот PartsON"
+                    aria-label={`Відкрити ${label} PartsON`}
+                    title={`${label} PartsON`}
                     className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border ${border} bg-white/60 transition-[border-color,background-color,box-shadow] duration-200 ${bg} ${hoverBorder} hover:shadow-[0_8px_18px_rgba(15,23,42,0.10),inset_0_1px_0_rgba(255,255,255,0.84)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300`}
                     style={{ color }}
                   >

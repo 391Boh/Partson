@@ -64,6 +64,7 @@ import {
   type CheckoutDelivery,
   type DeliveryMethod,
 } from "app/lib/telegram-checkout";
+import { recordTelegramBotEvent } from "app/lib/telegram-analytics";
 
 export const runtime = "nodejs";
 
@@ -1511,13 +1512,55 @@ export async function POST(req: NextRequest) {
   after(() =>
     processUpdate(update).catch((error) => {
       console.error("Telegram update processing failed:", error);
+      return recordTelegramBotEvent("processing_error").catch(() => undefined);
     })
   );
 
   return NextResponse.json({ ok: true });
 }
 
+const TRACKED_COMMANDS = new Set([
+  "start",
+  "catalog",
+  "orders",
+  "profile",
+  "find",
+  "help",
+  "support",
+  "contacts",
+  "cart",
+]);
+
+const classifyTelegramUpdate = (update: TelegramUpdate) => {
+  const callbackData = normalizeText(update.callback_query?.data, 100);
+  if (callbackData) {
+    if (callbackData === "cart" || callbackData.startsWith("cqty:") || callbackData.startsWith("cdel:")) return "cart_action";
+    if (callbackData.startsWith("cadd:")) return "add_to_cart";
+    if (callbackData === "ccheckout") return "checkout_start";
+    if (callbackData === "cconfirm") return "checkout_confirm";
+    if (callbackData.startsWith("watch:")) return "stock_watch";
+    if (callbackData.startsWith(FIND_CALLBACK_PREFIX)) return "search_pagination";
+    if (callbackData === "support:start") return "support_start";
+    if (callbackData === "contacts") return "contacts_open";
+    if (callbackData.startsWith("gp:") || callbackData.startsWith("pp:") || callbackData.startsWith("mp:")) return "product_list_open";
+    return "catalog_navigation";
+  }
+
+  const message = update.message;
+  if (message?.photo?.length) return "support_photo";
+  if (message?.contact) return "contact_shared";
+
+  const text = normalizeText(message?.text, 1200);
+  if (text.startsWith("/")) {
+    const command = text.slice(1).split(/[\s@]/u, 1)[0].toLowerCase();
+    return TRACKED_COMMANDS.has(command) ? `command_${command}` : "command_other";
+  }
+  return text ? "text_search_or_reply" : "other_update";
+};
+
 const processUpdate = async (update: TelegramUpdate) => {
+  await recordTelegramBotEvent(classifyTelegramUpdate(update)).catch(() => undefined);
+
   if (update.callback_query) {
     await handleCallbackQuery(update.callback_query);
     return;
