@@ -46,6 +46,7 @@ const getCategoryRowCatalogPath = (row: CategoryRow) => {
 interface Props {
   products?: unknown;
   playEntranceAnimations?: boolean;
+  onReady?: () => void;
 }
 
 let cachedProducts: ProductNode[] | null = null;
@@ -543,6 +544,17 @@ const preloadChildPreviews = (
   }
 };
 
+// Let React paint the selected group before touching sessionStorage and
+// starting a batch of preview requests. Running this work in pointerdown and
+// again in click extended the interaction task and pushed INP over 200 ms on
+// slower phones.
+const deferChildPreviewPreload = (parent: ProductNode) => {
+  if (typeof window === "undefined") return;
+  window.requestAnimationFrame(() => {
+    window.setTimeout(() => preloadChildPreviews(parent), 0);
+  });
+};
+
 const GroupPreviewImage = React.memo(({ category, group }: { category: string; group: string }) => {
   const cacheKey = `${category.trim().toLowerCase()}::${group.trim().toLowerCase()}`;
   const [src, setSrc] = useState<string | null | undefined>(() =>
@@ -569,7 +581,7 @@ const GroupPreviewImage = React.memo(({ category, group }: { category: string; g
     <span className="relative block h-[88px] w-full overflow-hidden border-b border-sky-100/90 bg-[radial-gradient(circle_at_72%_12%,rgba(125,211,252,0.28),transparent_43%),linear-gradient(145deg,#ffffff_0%,#f5fbff_55%,#eaf8ff_100%)] shadow-[inset_0_2px_6px_rgba(15,23,42,0.08),inset_0_-4px_12px_rgba(2,132,199,0.10),inset_0_0_0_1px_rgba(15,23,42,0.03)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.16),inset_0_-8px_20px_rgba(2,132,199,0.22),inset_0_0_0_1px_rgba(2,132,199,0.08)] sm:h-[104px]">
       <Image
         src={src}
-        alt=""
+        alt={`Автозапчастини групи «${group}» у категорії «${category}»`}
         fill
         unoptimized
         loading="eager"
@@ -771,6 +783,7 @@ const LoadingNotice = ({ shouldAnimate, title, subtitle }: LoadingNoticeProps) =
 const ProductFetcher: React.FC<Props> = ({
   products,
   playEntranceAnimations = true,
+  onReady,
 }) => {
   const hasExternalProducts = Array.isArray(products);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -811,6 +824,11 @@ const ProductFetcher: React.FC<Props> = ({
   const shouldAnimate = !shouldReduceMotion && playEntranceAnimations;
   const isBooting = !hasExternalProducts && !isHydrated;
   const showSkeleton = !hasLoadedOnce && (isBooting || isLoading);
+
+  useEffect(() => {
+    if (!isHydrated || showSkeleton) return;
+    onReady?.();
+  }, [isHydrated, onReady, showSkeleton]);
   const entryMotion = shouldAnimate
       ? {
           initial: { opacity: 0, y: 10 },
@@ -1162,10 +1180,10 @@ const ProductFetcher: React.FC<Props> = ({
   }, [browseItemsPerPage, browseNodes]);
 
   const openCategory = useCallback((category: ProductNode) => {
-    preloadChildPreviews(category);
     setActiveCategory(category);
     setBrowseTrail([]);
     setPage(1);
+    deferChildPreviewPreload(category);
     window.requestAnimationFrame(() => {
       groupPagesRef.current?.scrollTo({ left: 0, behavior: "auto" });
     });
@@ -1184,20 +1202,20 @@ const ProductFetcher: React.FC<Props> = ({
   }, [browseTrail.length]);
 
   const openGroup = useCallback((group: ProductNode) => {
-    preloadChildPreviews(group);
     setBrowseTrail((current) => [...current, group]);
     setPage(1);
+    deferChildPreviewPreload(group);
     window.requestAnimationFrame(() => {
       groupPagesRef.current?.scrollTo({ left: 0, behavior: "auto" });
     });
   }, []);
 
   const openSearchGroup = useCallback((category: ProductNode, group: ProductNode) => {
-    preloadChildPreviews(group);
     setActiveCategory(category);
     setBrowseTrail([group]);
     setSearchTerm("");
     setPage(1);
+    deferChildPreviewPreload(group);
     window.requestAnimationFrame(() => {
       groupPagesRef.current?.scrollTo({ left: 0, behavior: "auto" });
     });
@@ -1529,7 +1547,6 @@ const ProductFetcher: React.FC<Props> = ({
                             type="button"
                             onClick={() => openCategory(group)}
                             onPointerEnter={() => preloadChildPreviews(group)}
-                            onPointerDown={() => preloadChildPreviews(group)}
                             onFocus={() => preloadChildPreviews(group)}
                             className={cardClass}
                           >
@@ -1543,7 +1560,7 @@ const ProductFetcher: React.FC<Props> = ({
                                 width={76}
                                 height={76}
                                 sizes="(min-width: 640px) 76px, 64px"
-                                quality={72}
+                                quality={80}
                                 priority={pageIndex === 0 && index < 3}
                                 className="relative h-16 w-16 object-contain drop-shadow-[0_7px_12px_rgba(14,116,144,0.14)] transition-[filter,opacity,transform] duration-500 ease-out group-hover/category:scale-[1.08] group-hover/category:brightness-[1.06] group-hover/category:saturate-[1.12] group-hover/category:drop-shadow-[0_12px_20px_rgba(2,132,199,0.32)] sm:h-[76px] sm:w-[76px]"
                               />
@@ -1592,7 +1609,6 @@ const ProductFetcher: React.FC<Props> = ({
                             type="button"
                             onClick={() => openGroup(group)}
                             onPointerEnter={() => preloadChildPreviews(group)}
-                            onPointerDown={() => preloadChildPreviews(group)}
                             onFocus={() => preloadChildPreviews(group)}
                             className={cardClass}
                             aria-label={`Відкрити підгрупи: ${label}`}

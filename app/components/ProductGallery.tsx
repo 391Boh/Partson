@@ -12,9 +12,11 @@ interface GalleryImage {
 
 export default function ProductGallery({
   code,
+  productName,
   initialImages = [],
 }: {
   code: string;
+  productName: string;
   initialImages?: string[];
 }) {
   const [images, setImages] = useState<GalleryImage[]>(() =>
@@ -187,7 +189,7 @@ export default function ProductGallery({
         Додаткові фото
       </p>
       <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
-        {images.map((image) => (
+        {images.map((image, index) => (
           <div key={image.id} className="group relative h-14 w-14 shrink-0 sm:h-16 sm:w-16">
             <button
               type="button"
@@ -197,7 +199,7 @@ export default function ProductGallery({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={image.url}
-                alt={`Додаткове фото товару ${code}`}
+                alt={`${productName} — додаткове фото ${index + 1}`}
                 width={64}
                 height={64}
                 loading="lazy"
@@ -277,7 +279,7 @@ export default function ProductGallery({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={lightboxUrl}
-            alt={`Збільшене фото товару ${code}`}
+            alt={`${productName} — збільшене додаткове фото`}
             decoding="async"
             className={`max-h-[85vh] max-w-[92vw] rounded-[16px] object-contain shadow-[0_30px_80px_rgba(0,0,0,0.5)] transition-transform duration-200 ${
               lightboxVisible ? "scale-100" : "scale-95"

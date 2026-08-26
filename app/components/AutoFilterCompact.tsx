@@ -3,12 +3,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { Plus } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { db } from '../../firebase';
 import { carBrands, type CarBrand } from 'app/components/carBrands';
 import CarModels from 'app/components/CarModels';
 import CarModifications from 'app/components/CarModifications';
 import type { PersistedCarSelection } from 'app/components/Auto';
+import { DirectoryPagePagination } from 'app/components/HorizontalDirectoryRail';
 
 type StepId = 'brand' | 'model' | 'engine';
 
@@ -100,7 +101,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
     return carBrands.filter((brand) => brand.name.toLowerCase().includes(term));
   }, [brandSearch]);
 
-  const BRAND_PAGE_SIZE = 12;
+  const BRAND_PAGE_SIZE = 8;
   const brandPages = useMemo(() => {
     const pages: CarBrand[][] = [];
     for (let index = 0; index < filteredBrands.length; index += BRAND_PAGE_SIZE) {
@@ -784,14 +785,17 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
            {activeStep === 'brand' && (
              <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex min-w-[160px] flex-1 items-center gap-2">
+                <div className="catalog-filter-search-shell flex min-w-[160px] flex-1 items-center gap-2">
+                  <span className="catalog-filter-search-icon" aria-hidden="true">
+                    <Search size={15} />
+                  </span>
                   <input
                     type="text"
                     value={brandSearch}
                     onChange={(event) => setBrandSearch(event.target.value)}
                     placeholder="Пошук марки..."
                     data-search="true"
-                    className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-200"
+                    className="catalog-filter-search-input min-w-0"
                   />
                   {selectedBrand && (
                     <button
@@ -819,49 +823,26 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
                   )}
                 </div>
 
-                <div className="flex items-center justify-between gap-2 px-1 text-[11px] font-semibold text-slate-500">
-                  <span className="whitespace-nowrap">
-                    <span className="hidden sm:inline">Сторінка </span>
-                    {Math.min(brandPage + 1, brandPageCount)} / {brandPageCount}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setBrandPage((prev) => Math.max(0, prev - 1))}
-                      disabled={brandPage <= 0}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="Попередня сторінка"
-                    >
-                      ‹
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setBrandPage((prev) => Math.min(brandPageCount - 1, prev + 1))
-                      }
-                      disabled={brandPage >= brandPageCount - 1}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="Наступна сторінка"
-                    >
-                      ›
-                    </button>
-                  </div>
-                </div>
+                <DirectoryPagePagination
+                  currentPage={brandPage}
+                  pageCount={brandPageCount}
+                  onPageChange={setBrandPage}
+                />
               </div>
               <div
                 ref={brandPagesRef}
                 onScroll={handleBrandPagesScroll}
-                className="no-scrollbar h-[240px] overflow-x-auto overflow-y-hidden rounded-lg border border-slate-200 bg-slate-50 snap-x snap-mandatory"
+                className="catalog-filter-horizontal-rail no-scrollbar h-[164px] overflow-x-auto overflow-y-hidden rounded-[18px] border border-sky-100 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] shadow-inner snap-x snap-mandatory sm:h-[180px]"
               >
                 <div className="flex h-full w-full">
                   {brandPages.map((page, pageIndex) => (
-                    <div key={pageIndex} className="h-[240px] w-full shrink-0 snap-start p-2">
+                    <div key={pageIndex} className="h-full w-full shrink-0 snap-start p-2">
                     {page.length === 0 ? (
                       <div className="flex h-full items-center justify-center text-[12px] font-semibold text-slate-400">
                         Нічого не знайдено
                       </div>
                     ) : (
-                      <div className="grid grid-cols-4 gap-2">
+                      <div className="grid h-full grid-cols-4 grid-rows-2 gap-2">
                         {page.map((brand) => {
                           const isActive = selectedBrand?.name === brand.name;
                           return (
@@ -869,10 +850,10 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
                               key={brand.id}
                               type="button"
                               onClick={() => handleBrandPick(brand)}
-                              className={`flex h-16 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center text-[11px] font-semibold transition ${
+                              className={`catalog-filter-choice-card flex h-[72px] flex-col items-center justify-center gap-1 rounded-[14px] border px-2 py-2 text-center text-[11px] font-semibold transition-[border-color,background-color,box-shadow] duration-300 ${
                                 isActive
-                                  ? 'border-blue-500 bg-blue-600 text-white'
-                                  : 'border-slate-200 bg-white text-slate-700 hover:bg-blue-50'
+                                  ? 'border-blue-500 bg-[linear-gradient(145deg,#2563eb,#0284c7)] text-white shadow-[0_10px_22px_rgba(37,99,235,0.24)]'
+                                  : 'border-sky-100 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] text-slate-700 shadow-[0_6px_16px_rgba(15,23,42,0.06)] hover:border-sky-300 hover:bg-[linear-gradient(145deg,#ffffff,#e0f2fe)] hover:shadow-[0_11px_24px_rgba(14,116,144,0.13)]'
                               }`}
                               title={brand.name}
                             >

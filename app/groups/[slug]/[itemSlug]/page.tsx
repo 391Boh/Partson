@@ -794,6 +794,10 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   // Effective catalog group filter: for child items use the parent subgroup label,
   // for top-level subgroup items use the group label.
   const catalogGroupLabel = item.parentSubgroupLabel || item.groupLabel;
+  // Kicked off now and awaited near its first use below (brandLogoMap) — it
+  // has no dependency on topProducts/euroRate, so it can run alongside them
+  // instead of waiting for that chain plus all the sync work in between.
+  const brandLogoMapPromise = getBrandLogoMap().catch(() => new Map<string, string>());
   const topProducts = isProductionBuildPhase
     ? ([] as CatalogProduct[])
     : await resolveWithTimeout(
@@ -824,7 +828,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     (sum, producer) => sum + producer.productCount,
     0
   );
-  const brandLogoMap = await getBrandLogoMap().catch(() => new Map<string, string>());
+  const brandLogoMap = await brandLogoMapPromise;
   const topProducerSplit = item.producerSplit.slice(0, 24).map((producer) => ({
     ...producer,
     logoPath: producer.logoPath ?? resolveProducerLogo(producer.label, brandLogoMap),

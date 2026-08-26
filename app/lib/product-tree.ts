@@ -327,6 +327,19 @@ const fetchDataset = async (): Promise<ProductTreeDataset> => {
 
   const rows = parseTreeResponse(response.text);
   const nodes = rows.map((row) => toTreeNode(row));
+
+  // A 2xx status doesn't guarantee a real body — 1C can also return 200
+  // with an empty/malformed payload while degraded, which parses to zero
+  // rows and would otherwise cache as a "successful" empty tree for 6h.
+  // Downstream (app/katalog/page.tsx), an empty tree here makes the "top
+  // categories" SEO section silently fall back to seoFacets.groups instead
+  // — real data, but at the wrong granularity (specific groups shown under
+  // a "Категорії" heading) — so this needs the same "don't cache empty" fix
+  // as the status check above, not just a one-off symptom patch there.
+  if (nodes.length === 0) {
+    throw new Error("getprod request failed: no category tree nodes returned");
+  }
+
   return buildDataset(nodes);
 };
 

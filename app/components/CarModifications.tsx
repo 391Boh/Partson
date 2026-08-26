@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarRange, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Info, SlidersHorizontal, X } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
+import { DirectoryPagePagination } from "./HorizontalDirectoryRail";
 
 interface ModDetails {
   volume: string | null;
@@ -549,7 +550,7 @@ const CarModifications: React.FC<Props> = ({
               : []
   ), [isSelectingYear, yearOptions, isSelectingVolume, volumeOptions, isSelectingPower, powerOptions, isSelectingGearbox, gearboxOptions, isSelectingDrive, driveOptions]);
 
-  const yearPerPage = isCompact ? 15 : 24;
+  const yearPerPage = (isCompact ? 3 : 4) * 2;
   // Fixed column count (not responsive) so a page is always exactly two rows
   // — matches the model grid in CarModels.tsx (grid-cols-4, 8 per page).
   const filterColumns = isCompact ? 3 : 4;
@@ -900,7 +901,7 @@ const CarModifications: React.FC<Props> = ({
                   <div
                     ref={optionPagesRef}
                     onScroll={handleOptionPagesScroll}
-                    className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
+                    className="catalog-filter-horizontal-rail no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
                   >
                     <div className="flex">
                       {stepPages.map((page, pageIndex) => (
@@ -936,18 +937,15 @@ const CarModifications: React.FC<Props> = ({
                     </button>
                   )}
                 </div>
-                {totalOptionPages > 1 && (
-                  <div className="relative mt-3 flex min-h-9 items-center justify-center px-2 sm:px-3">
-                    <div className="inline-flex items-center gap-2 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">
-                      <span className="h-px w-4 bg-gradient-to-r from-transparent to-cyan-500/75 sm:w-6" />
-                      <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
-                      <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(14,116,144,0.14)]">{safeOptionPage + 1}</span>
-                      <span className="font-semibold text-cyan-400">/</span>
-                      <span className="font-extrabold text-slate-500">{totalOptionPages}</span>
-                      <span className="h-px w-4 bg-gradient-to-l from-transparent to-cyan-500/75 sm:w-6" />
-                    </div>
-                  </div>
-                )}
+                <DirectoryPagePagination
+                  currentPage={safeOptionPage}
+                  pageCount={totalOptionPages}
+                  onPageChange={(page) => {
+                    setOptionPage(page);
+                    scrollToOptionPage(page);
+                  }}
+                  className="mt-2"
+                />
               </>
             )
           )}

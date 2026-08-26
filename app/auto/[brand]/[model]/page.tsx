@@ -15,6 +15,7 @@ import {
   directoryCompactMetricClass,
   directoryDescriptionClass,
   directoryHeaderClass,
+  directoryListCardClass,
   directoryPanelClass,
   directoryPrimaryButtonClass,
   directorySecondaryButtonClass,
@@ -227,7 +228,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
     return (
       <article
         key={group.slug}
-        className="group/card overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 transition-colors duration-200 hover:border-sky-200"
+        className={`${directoryListCardClass} group/card overflow-hidden`}
       >
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
           {showIcon ? (
@@ -248,7 +249,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             <SmartLink
               href={groupHref}
               prefetchOnViewport
-              className="directory-card-title inline-flex text-[15px] leading-tight text-slate-900 transition-colors duration-200 group-hover/card:text-sky-700"
+              className="directory-card-title inline-flex text-[15px] leading-tight text-slate-900 transition-colors duration-200 group-hover/card:text-teal-700"
             >
               {group.label}
             </SmartLink>
@@ -364,7 +365,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                     <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] border border-white/95 bg-white/95 p-4 shadow-[0_16px_36px_rgba(15,23,42,0.09)] ring-1 ring-sky-100/80 sm:h-28 sm:w-28">
                       <Image
                         src={brandEntry.logo}
-                        alt={`Логотип ${brand}`}
+                        alt={`Логотип марки автомобіля ${brand}`}
                         width={96}
                         height={96}
                         sizes="(min-width: 640px) 76px, 64px"
@@ -501,7 +502,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                 <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/90 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-sky-100/80 sm:h-28 sm:w-28">
                   <Image
                     src={brandEntry.logo}
-                    alt={`Логотип ${brand}`}
+                    alt={`Логотип марки автомобіля ${brand}`}
                     width={96}
                     height={96}
                     sizes="(min-width: 640px) 76px, 64px"

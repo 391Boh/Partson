@@ -25,6 +25,54 @@ type HorizontalDirectoryRailProps = {
 // sync with the `visiblePages` window logic below.
 const VISIBLE_PAGE_WINDOW = 5;
 
+export function DirectoryPagePagination({
+  currentPage,
+  pageCount,
+  onPageChange,
+  className = "",
+}: {
+  currentPage: number;
+  pageCount: number;
+  onPageChange: (page: number) => void;
+  className?: string;
+}) {
+  if (pageCount <= 1) return null;
+  const safePage = Math.min(Math.max(currentPage, 0), pageCount - 1);
+  const visiblePages = Array.from(
+    { length: Math.min(pageCount, VISIBLE_PAGE_WINDOW) },
+    (_, index) => {
+      if (pageCount <= VISIBLE_PAGE_WINDOW) return index;
+      const half = Math.floor(VISIBLE_PAGE_WINDOW / 2);
+      const start = Math.min(Math.max(safePage - half, 0), pageCount - VISIBLE_PAGE_WINDOW);
+      return start + index;
+    }
+  );
+  const pageButton = (page: number) => (
+    <button
+      key={page}
+      type="button"
+      onClick={() => onPageChange(page)}
+      aria-label={`Перейти на сторінку ${page + 1}`}
+      aria-current={page === safePage ? "page" : undefined}
+      className={`inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-lg border px-1 text-[12px] font-bold tabular-nums transition sm:h-9 sm:min-w-[2.25rem] ${
+        page === safePage
+          ? "border-sky-600 bg-sky-600 text-white shadow-[0_4px_12px_rgba(2,132,199,0.35)]"
+          : "border-sky-200/80 bg-white text-sky-800 hover:border-sky-300 hover:bg-sky-50"
+      }`}
+    >
+      {page + 1}
+    </button>
+  );
+
+  return (
+    <div className={`flex items-center justify-center gap-1 sm:gap-1.5 ${className}`}>
+      {visiblePages[0] > 0 ? <>{pageButton(0)}<span className="px-0.5 text-xs font-bold text-slate-400">…</span></> : null}
+      {visiblePages.map(pageButton)}
+      {visiblePages[visiblePages.length - 1] < pageCount - 1 ? <><span className="px-0.5 text-xs font-bold text-slate-400">…</span>{pageButton(pageCount - 1)}</> : null}
+    </div>
+  );
+}
+
 // Arrows render at every breakpoint, including mobile. Card widths are
 // container-relative (w-full / fixed px from sm: up), not viewport-relative,
 // so reserving side padding here for the arrows shrinks the rail's box and
@@ -159,16 +207,6 @@ export default function HorizontalDirectoryRail({
 
   const move = (direction: -1 | 1) => goToPage(currentPage + direction, "smooth");
 
-  const visiblePages = Array.from(
-    { length: Math.min(pageCount, VISIBLE_PAGE_WINDOW) },
-    (_, index) => {
-      if (pageCount <= VISIBLE_PAGE_WINDOW) return index;
-      const half = Math.floor(VISIBLE_PAGE_WINDOW / 2);
-      const start = Math.min(Math.max(currentPage - half, 0), pageCount - VISIBLE_PAGE_WINDOW);
-      return start + index;
-    }
-  );
-
   // A swipe should move by a full page (every column currently visible),
   // not by a single column — so only the first column of each page group
   // is a snap point. Overriding via inline style (wins over the caller's
@@ -230,54 +268,12 @@ export default function HorizontalDirectoryRail({
       </div>
 
       {pageCount > 1 ? (
-        <div className="mt-1.5 flex items-center justify-center gap-1 sm:gap-1.5">
-          {visiblePages[0] > 0 ? (
-            <>
-              <button
-                type="button"
-                onClick={() => goToPage(0)}
-                className="inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white px-1 text-[12px] font-bold text-sky-800 transition hover:border-sky-300 hover:bg-sky-50 sm:h-9 sm:min-w-[2.25rem]"
-              >
-                1
-              </button>
-              <span className="px-0.5 text-[12px] font-bold text-slate-400" aria-hidden="true">
-                …
-              </span>
-            </>
-          ) : null}
-
-          {visiblePages.map((page) => (
-            <button
-              key={page}
-              type="button"
-              onClick={() => goToPage(page)}
-              aria-label={`Перейти на сторінку ${page + 1}`}
-              aria-current={page === currentPage ? "page" : undefined}
-              className={`inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-lg border px-1 text-[12px] font-bold tabular-nums transition sm:h-9 sm:min-w-[2.25rem] ${
-                page === currentPage
-                  ? "border-sky-600 bg-sky-600 text-white shadow-[0_4px_12px_rgba(2,132,199,0.35)]"
-                  : "border-sky-200/80 bg-white text-sky-800 hover:border-sky-300 hover:bg-sky-50"
-              }`}
-            >
-              {page + 1}
-            </button>
-          ))}
-
-          {visiblePages[visiblePages.length - 1] < pageCount - 1 ? (
-            <>
-              <span className="px-0.5 text-[12px] font-bold text-slate-400" aria-hidden="true">
-                …
-              </span>
-              <button
-                type="button"
-                onClick={() => goToPage(pageCount - 1)}
-                className="inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-white px-1 text-[12px] font-bold text-sky-800 transition hover:border-sky-300 hover:bg-sky-50 sm:h-9 sm:min-w-[2.25rem]"
-              >
-                {pageCount}
-              </button>
-            </>
-          ) : null}
-        </div>
+        <DirectoryPagePagination
+          currentPage={currentPage}
+          pageCount={pageCount}
+          onPageChange={goToPage}
+          className="mt-1.5"
+        />
       ) : null}
     </div>
   );

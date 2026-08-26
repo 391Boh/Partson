@@ -80,6 +80,7 @@ interface AutoProps {
   variant?: "default" | "filter" | string;
   showSummary?: boolean;
   showAllBrands?: boolean;
+  onReady?: () => void;
 }
 
 interface ModDetails {
@@ -141,10 +142,10 @@ const CarBrandButton = React.memo(function CarBrandButton({
       <span className="relative flex h-11 w-11 items-center justify-center sm:h-[52px] sm:w-[52px]">
         <Image
           src={brand.logo}
-          alt={`${brand.name} logo`}
+          alt={`Логотип марки автомобіля ${brand.name}`}
           width={120}
           height={78}
-          quality={75}
+          quality={85}
           draggable={false}
           priority={priority}
           loading={priority ? "eager" : "lazy"}
@@ -351,6 +352,7 @@ const AutoSection: React.FC<AutoProps> = ({
   showSummary = true,
   showAllBrands = false,
   playEntranceAnimations = true,
+  onReady,
 }) => {
   const isStandalonePersistenceEnabled =
     selectedCarsProp === undefined &&
@@ -636,13 +638,22 @@ const AutoSection: React.FC<AutoProps> = ({
   // multiple of the active column count so it always fills exactly 2 rows
   // instead of leaving a ragged half-empty row on desktop.
   const [isWideBrandGrid, setIsWideBrandGrid] = useState(false);
+  const [brandLayoutReady, setBrandLayoutReady] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 640px)");
-    const update = () => setIsWideBrandGrid(mq.matches);
+    const update = () => {
+      setIsWideBrandGrid(mq.matches);
+      setBrandLayoutReady(true);
+    };
     update();
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
+
+  useEffect(() => {
+    if (!brandLayoutReady) return;
+    onReady?.();
+  }, [brandLayoutReady, onReady]);
 
   const brandsPerPage = showAllBrands
     ? Math.max(filteredBrands.length, 1)
@@ -1084,6 +1095,25 @@ const AutoSection: React.FC<AutoProps> = ({
         onSelectionChange(nextSelection);
       } else if (isStandalonePersistenceEnabled) {
         setInternalSelection(nextSelection);
+        // Persist the completed selection in the same interaction. Waiting
+        // for the following effect allowed a fast navigation to /katalog to
+        // read the previous car and issue its first request with stale state.
+        if (typeof window !== "undefined") {
+          const nextCars = selectedCars.includes(label)
+            ? selectedCars
+            : [...selectedCars, label];
+          try {
+            window.localStorage.setItem(AUTO_STORAGE_KEYS.cars, JSON.stringify(nextCars));
+            window.localStorage.setItem(AUTO_STORAGE_KEYS.selection, JSON.stringify(nextSelection));
+            window.dispatchEvent(
+              new CustomEvent("partson:carSelectionChange", {
+                detail: { cars: nextCars, selection: nextSelection },
+              })
+            );
+          } catch (error) {
+            console.error("Failed to synchronize selected car:", error);
+          }
+        }
       }
     },
     [
@@ -1093,6 +1123,7 @@ const AutoSection: React.FC<AutoProps> = ({
       selectedModel,
       selectedYear,
       selectedCarLabel,
+      selectedCars,
     ]
   );
 
@@ -1695,7 +1726,7 @@ const AutoSection: React.FC<AutoProps> = ({
                           {step.id === "brand" && isDone && modelBrandLogo ? (
                             <Image
                               src={modelBrandLogo}
-                              alt={selectedBrand?.name ?? ""}
+                              alt={selectedBrand ? `Логотип марки автомобіля ${selectedBrand.name}` : ""}
                               width={40}
                               height={40}
                               sizes="28px"
@@ -1816,7 +1847,7 @@ const AutoSection: React.FC<AutoProps> = ({
                     <div>
                       <div className="min-w-0">
                         <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-sky-600 sm:text-[11px]">Точний підбір</span>
-                        <h3 className="mt-0.5 text-[20px] font-black leading-tight tracking-[-0.03em] text-slate-900 sm:text-[23px]">
+                        <h3 className="mt-0.5 text-[20px] font-black leading-tight tracking-[-0.03em] text-slate-800 sm:text-[23px]">
                           Оберіть марку авто
                         </h3>
                       </div>

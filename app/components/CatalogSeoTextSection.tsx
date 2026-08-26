@@ -21,6 +21,13 @@ interface CatalogSeoTextSectionProps {
   topics: CatalogSeoTopic[];
   links: CatalogSeoLink[];
   contained?: boolean;
+  // The three top-level directory hubs (/auto, /groups, /manufacturers) used
+  // to stack this section under a near-identical separate "3-step guide"
+  // component — same badge/heading/card treatment, restating the same idea
+  // twice. Folding that into one topics grid here (numbered, with a step
+  // kicker + connector arrow) keeps the single "how this works" explanation
+  // instead of two, without inventing a second visual language for it.
+  numbered?: boolean;
 }
 
 export default function CatalogSeoTextSection({
@@ -31,6 +38,7 @@ export default function CatalogSeoTextSection({
   topics,
   links,
   contained = true,
+  numbered = false,
 }: CatalogSeoTextSectionProps) {
   return (
     <section className="relative pb-6 pt-3 sm:pb-8 sm:pt-4" aria-labelledby="catalog-seo-heading">
@@ -55,23 +63,42 @@ export default function CatalogSeoTextSection({
           </header>
 
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
-            {topics.map((topic) => {
+            {topics.map((topic, index) => {
               const TopicIcon = topic.icon;
 
               return (
                 <section
                   key={topic.title}
-                  className="rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.22),transparent_40%),linear-gradient(145deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.96)_58%,rgba(241,249,247,0.92)_100%)] p-4 shadow-[0_11px_26px_rgba(15,23,42,0.045)]"
+                  className="relative rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.22),transparent_40%),linear-gradient(145deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.96)_58%,rgba(241,249,247,0.92)_100%)] p-4 shadow-[0_11px_26px_rgba(15,23,42,0.045)]"
                 >
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-[13px] border border-cyan-200/75 bg-[linear-gradient(145deg,#ffffff_0%,#e7f5fb_52%,#def7f0_100%)] text-teal-700 shadow-[0_8px_20px_rgba(13,148,136,0.09),inset_0_1px_0_white]">
-                    <TopicIcon size={18} strokeWidth={2.1} />
-                  </span>
-                  <h3 className="directory-card-title mt-3 text-[17px] leading-5 text-slate-900">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-[13px] border border-cyan-200/75 bg-[linear-gradient(145deg,#ffffff_0%,#e7f5fb_52%,#def7f0_100%)] text-teal-700 shadow-[0_8px_20px_rgba(13,148,136,0.09),inset_0_1px_0_white]">
+                      <TopicIcon size={18} strokeWidth={2.1} />
+                    </span>
+                    {numbered ? (
+                      <span className="directory-counter-label text-[9px] uppercase text-slate-400">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                    ) : null}
+                  </div>
+                  {numbered ? (
+                    <p className="directory-kicker mt-3 text-[9px] uppercase text-teal-700">
+                      Крок {index + 1}
+                    </p>
+                  ) : null}
+                  <h3 className={`directory-card-title text-slate-900 ${numbered ? "mt-1" : "mt-3"} text-[17px] leading-5`}>
                     {topic.title}
                   </h3>
                   <p className="mt-2 text-[13px] leading-6 text-slate-600">
                     {topic.text}
                   </p>
+                  {numbered && index < topics.length - 1 ? (
+                    <ArrowRight
+                      size={14}
+                      className="absolute bottom-3 right-3 hidden text-teal-500/70 lg:block"
+                      aria-hidden="true"
+                    />
+                  ) : null}
                 </section>
               );
             })}

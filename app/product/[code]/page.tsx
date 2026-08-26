@@ -928,8 +928,9 @@ const trimSeoDescription = (
 const buildProductSeoTitle = (options: {
   name: string;
   producer?: string;
+  article?: string;
 }) => {
-  const { name, producer } = options;
+  const { name, producer, article } = options;
   const baseName = buildVisibleProductName(name);
   const normalizedProducer = (producer || "").trim();
   const nameAlreadyHasProducer =
@@ -940,7 +941,18 @@ const buildProductSeoTitle = (options: {
       ? `${baseName} ${normalizedProducer}`
       : baseName;
 
-  return trimSeoPhrase(withProducer, 65) || "Автозапчастина";
+  // Two different catalog lines can share the exact same name+producer text
+  // (the same part sold under a shorter marketing name across several
+  // internal 1C codes) — without the article, their <title> tags collide,
+  // which Google treats as a duplicate-content signal. Reserve room for the
+  // article first so it always survives the trim, instead of appending it
+  // after truncation where it could get pushed out on longer names.
+  const normalizedArticle = (article || "").trim();
+  const articleSuffix = normalizedArticle ? ` — ${normalizedArticle}` : "";
+  const descriptiveBudget = Math.max(30, 68 - articleSuffix.length);
+  const descriptive = trimSeoPhrase(withProducer, descriptiveBudget) || "Автозапчастина";
+
+  return `${descriptive}${articleSuffix}`;
 };
 
 // Cross-reference/OEM codes live in parentheses in the raw 1C name (e.g. "(LIN030104/AD030213)")
@@ -1680,6 +1692,7 @@ export async function generateMetadata({
   const seoTitle = buildProductSeoTitle({
     name: seoVisibleProductName,
     producer: productProducer,
+    article: productArticle,
   });
 
   const description = buildProductMetaDescription({
@@ -2030,18 +2043,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? buildProductSeoImagePath(product.code || resolvedCode, product.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const productSeoImageUrl = `${siteUrl}${productSeoImagePath}`;
-  const [reviewStats, initialReviews] = await resolveWithTimeout<
-    readonly [Awaited<ReturnType<typeof getProductReviewStats>>, ProductReview[] | null]
-  >(
-    () => reviewsPromise,
-    [null, null],
-    PRODUCT_PAGE_REVIEWS_TIMEOUT_MS
-  );
-  const galleryImageUrls = await resolveWithTimeout(
-    () => galleryImagesPromise,
-    [],
-    PRODUCT_PAGE_GALLERY_TIMEOUT_MS
-  );
+  // reviewsPromise and galleryImagesPromise were both kicked off earlier
+  // (right after resolvedCode became available) and are unrelated Firestore
+  // reads — awaiting their per-promise timeouts back-to-back added up to an
+  // extra PRODUCT_PAGE_REVIEWS_TIMEOUT_MS of pure wait on the tail case
+  // where both are slow, instead of the two timeouts overlapping.
+  const [[reviewStats, initialReviews], galleryImageUrls] = await Promise.all([
+    resolveWithTimeout<
+      readonly [Awaited<ReturnType<typeof getProductReviewStats>>, ProductReview[] | null]
+    >(() => reviewsPromise, [null, null], PRODUCT_PAGE_REVIEWS_TIMEOUT_MS),
+    resolveWithTimeout(() => galleryImagesPromise, [], PRODUCT_PAGE_GALLERY_TIMEOUT_MS),
+  ]);
   // Google's Product rich-result eligibility requires at least one of
   // offers/review/aggregateRating. A price-on-request product with no
   // reviews yet would otherwise ship a Product block with none of the
@@ -2300,6 +2312,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     </div>
                     <ProductGallery
                       code={product.code || resolvedCode}
+                      productName={product.name}
                       initialImages={galleryImageUrls}
                     />
                   </div>
@@ -2363,7 +2376,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                                   <Link href={producerLandingPath} className="flex items-center justify-center px-3 py-2.5" title={product.producer}>
                                     <Image
                                       src={producerLogoPath}
-                                      alt={product.producer}
+                                      alt={`Логотип виробника ${product.producer}`}
                                       width={72}
                                       height={38}
                                       className="h-8 w-auto max-w-[72px] object-contain"
@@ -2374,7 +2387,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                                   <div className="flex items-center justify-center px-3 py-2.5">
                                     <Image
                                       src={producerLogoPath}
-                                      alt={product.producer}
+                                      alt={`Логотип виробника ${product.producer}`}
                                       width={72}
                                       height={38}
                                       className="h-8 w-auto max-w-[72px] object-contain"
@@ -2460,7 +2473,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[9px] border border-slate-200/70 bg-white shadow-[0_2px_6px_rgba(15,23,42,0.07)]">
                     <Image
                       src={producerLogoPath}
-                      alt={product.producer}
+                      alt={`Логотип виробника ${product.producer}`}
                       width={48}
                       height={30}
                       className="h-6 w-8 object-contain"

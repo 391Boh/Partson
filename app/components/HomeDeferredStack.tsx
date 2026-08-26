@@ -1,35 +1,28 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { startTransition, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import SectionBoundary from "./SectionBoundary";
-import { scheduleIdle } from "app/lib/schedule-idle";
 
 // Keep the placeholders close to the rendered height at every layout
 // breakpoint. The sections become much taller in the one/two-column layouts;
 // using only the desktop height here causes a large layout shift on phones and
 // tablets as soon as the dynamic chunk resolves.
-const ProductSectionFallback = () => (
-  <div
-    className="home-fade-in h-[1065px] bg-sky-50/60 sm:h-[1340px] lg:h-[568px]"
-    aria-hidden="true"
-  />
-);
-
-const AutoSectionFallback = () => (
-  <div
-    className="home-fade-in h-[750px] bg-slate-50/70 sm:h-[735px] lg:h-[460px] xl:h-[438px]"
-    aria-hidden="true"
-  />
-);
-
-const BrandsSectionFallback = () => (
-  <div
-    className="home-fade-in h-[573px] bg-[linear-gradient(180deg,#e2f0f7_0%,#c8e1ee_48%,#d8eaec_100%)] sm:h-[660px] lg:h-[617px]"
-    aria-hidden="true"
-  />
-);
+function HomeSectionFallback({
+  ready = false,
+  tone,
+}: {
+  ready?: boolean;
+  tone: "product" | "auto" | "brands";
+}) {
+  return (
+    <div
+      className={`home-section-skeleton home-section-skeleton-${tone} ${ready ? "is-ready" : ""}`}
+      aria-hidden="true"
+    />
+  );
+}
 
 const loadProductSection = () => import("./tovar");
 const loadAutoSection = () => import("./Auto");
@@ -43,15 +36,15 @@ const ProductFetcher = dynamic(loadProductSection, {
   // Keep only this interactive catalog browser client-only; the SEO section
   // below it is rendered as server HTML in app/page.tsx.
   ssr: false,
-  loading: ProductSectionFallback,
+  loading: () => null,
 });
 const Auto = dynamic(loadAutoSection, {
   ssr: false,
-  loading: AutoSectionFallback,
+  loading: () => null,
 });
 const BrandCarousel = dynamic(loadBrandsSection, {
   ssr: false,
-  loading: BrandsSectionFallback,
+  loading: () => null,
 });
 
 type InitialSyncedBrand = {
@@ -69,68 +62,66 @@ export default function HomeDeferredStack({
   initialSyncedBrands?: InitialSyncedBrand[];
   initialProductTree?: unknown;
 }) {
-  // These three sections used to all start their dynamic import in the same
-  // render, immediately on mount. Each is a heavy client bundle (framer-motion
-  // + a few dozen DOM nodes), and having all three resolve and commit within
-  // the same task is what produced ~150ms main-thread blocks — measured via
-  // the Long Tasks API — landing right as a user scrolls past them on a fresh
-  // homepage load. Staggering by a short delay per section keeps every chunk
-  // requested almost immediately (still not scroll-triggered — the comment
-  // below explains why that matters) while spreading their commits across
-  // separate tasks so scroll input can interleave between them.
-  const [stage, setStage] = useState(0);
+  const [readySections, setReadySections] = useState(0);
+
+  // The three dynamic components below mount during the same render, so Next
+  // requests their chunks in parallel. Do not gate them behind a preliminary
+  // Promise: that used to add an extra render and made every section wait for
+  // the slowest chunk before any useful content could appear.
   useEffect(() => {
-    if (stage >= 2) return;
-    // Fetch/evaluate each following chunk in the first available idle slice,
-    // then commit it as a transition. This keeps input responsive without the
-    // former 1.5s artificial waterfall between Auto and Brands.
-    const delay = stage === 0 ? 120 : 220;
-    const preload = stage === 0 ? loadAutoSection : loadBrandsSection;
-    return scheduleIdle(() => {
-      const revealNextStage = () => {
-        startTransition(() => setStage((prev) => Math.min(2, prev + 1)));
-      };
-      void preload().then(revealNextStage, revealNextStage);
-    }, delay);
-  }, [stage]);
+    // Error boundaries must never remain covered by a loading veil. This is a
+    // fallback only; normal sections reveal themselves on their first stable
+    // layout, usually hundreds of milliseconds earlier.
+    const safetyTimer = window.setTimeout(() => setReadySections(7), 4_000);
+    return () => window.clearTimeout(safetyTimer);
+  }, []);
+
+  const markSectionReady = useCallback((flag: number) => {
+    setReadySections((current) => current | flag);
+  }, []);
+  const handleProductReady = useCallback(() => markSectionReady(1), [markSectionReady]);
+  const handleAutoReady = useCallback(() => markSectionReady(2), [markSectionReady]);
+  const handleBrandsReady = useCallback(() => markSectionReady(4), [markSectionReady]);
+
+  const renderSectionState = (flag: number) => {
+    const ready = (readySections & flag) === flag;
+    return {
+      ready,
+      contentClassName: `home-deferred-content ${ready ? "is-ready" : ""}`,
+      slotClassName: ready ? "home-slot-ready" : "",
+    };
+  };
+  const productState = renderSectionState(1);
+  const autoState = renderSectionState(2);
+  const brandsState = renderSectionState(4);
 
   return (
     <>
-      {/* The product section renders from the first pass because it is closest
-          to the hero. Lower sections keep responsive placeholders and mount in
-          spaced browser-idle slices, so layout stays stable without evaluating
-          every heavy client chunk during the first scroll gesture. */}
-      <section className="section-reveal home-section-stage relative w-full">
-        <SectionBoundary title="Модуль товарів тимчасово недоступний">
-          <ProductFetcher
-            products={initialProductTree}
-            playEntranceAnimations={false}
-          />
-        </SectionBoundary>
+      <section className={`section-reveal home-section-stage home-slot-product relative w-full ${productState.slotClassName}`} aria-busy={!productState.ready}>
+        <div className={productState.contentClassName}>
+          <SectionBoundary title="Модуль товарів тимчасово недоступний">
+            <ProductFetcher products={initialProductTree} playEntranceAnimations={false} onReady={handleProductReady} />
+          </SectionBoundary>
+        </div>
+        <HomeSectionFallback tone="product" ready={productState.ready} />
       </section>
 
-      <section className="section-reveal home-section-stage relative w-full">
-        {stage >= 1 ? (
-          <div className="home-fade-in">
-            <SectionBoundary title="Модуль підбору авто тимчасово недоступний">
-              <Auto playEntranceAnimations={false} showSummary />
-            </SectionBoundary>
-          </div>
-        ) : (
-          <AutoSectionFallback />
-        )}
+      <section className={`section-reveal home-section-stage home-slot-auto relative w-full ${autoState.slotClassName}`} aria-busy={!autoState.ready}>
+        <div className={autoState.contentClassName}>
+          <SectionBoundary title="Модуль підбору авто тимчасово недоступний">
+            <Auto playEntranceAnimations={false} showSummary onReady={handleAutoReady} />
+          </SectionBoundary>
+        </div>
+        <HomeSectionFallback tone="auto" ready={autoState.ready} />
       </section>
 
-      <section className="section-reveal home-section-stage relative w-full">
-        {stage >= 2 ? (
-          <div className="home-fade-in">
-            <SectionBoundary title="Модуль брендів тимчасово недоступний">
-              <BrandCarousel playEntranceAnimations={false} initialSyncedBrands={initialSyncedBrands} />
-            </SectionBoundary>
-          </div>
-        ) : (
-          <BrandsSectionFallback />
-        )}
+      <section className={`section-reveal home-section-stage home-slot-brands relative w-full ${brandsState.slotClassName}`} aria-busy={!brandsState.ready}>
+        <div className={brandsState.contentClassName}>
+          <SectionBoundary title="Модуль брендів тимчасово недоступний">
+            <BrandCarousel playEntranceAnimations={false} initialSyncedBrands={initialSyncedBrands} onReady={handleBrandsReady} />
+          </SectionBoundary>
+        </div>
+        <HomeSectionFallback tone="brands" ready={brandsState.ready} />
       </section>
     </>
   );

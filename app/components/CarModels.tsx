@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
 import { transliterateCyrillicToLatin, fixLayoutUkrainianToEnglish } from "../lib/transliterate";
+import { DirectoryPagePagination } from "./HorizontalDirectoryRail";
 
 interface Props {
   selectedBrand: string;
@@ -553,7 +554,7 @@ const extractErrorMessage = (text: string) => {
     onCountChange?.(filteredModels.length);
   }, [filteredModels.length, onCountChange]);
 
-  const compactModelRows = 3;
+  const compactModelRows = 2;
   const compactModelCols = isSmUp ? 4 : 2;
   const modelsPerPage = isCompact
     ? compactModelRows * compactModelCols
@@ -734,38 +735,27 @@ const extractErrorMessage = (text: string) => {
               </span>
             </div>
 
-            <div className="ml-auto flex items-center gap-1.5">
-              <input
-                type="text"
-                placeholder={LABEL_SEARCH_MODEL}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-8 w-[130px] rounded-lg border border-slate-200/70 bg-white px-2.5 text-xs text-slate-700 outline-none placeholder:text-slate-300 transition-all focus:border-sky-300 focus:ring-2 focus:ring-sky-200/70"
-                data-search="true"
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+              <label className="catalog-filter-search-shell w-full min-w-[190px] sm:w-[250px]">
+                <span className="sr-only">{LABEL_SEARCH_MODEL}</span>
+                <span className="catalog-filter-search-icon" aria-hidden="true"><Search size={15} /></span>
+                <input
+                  type="text"
+                  placeholder={LABEL_SEARCH_MODEL}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="catalog-filter-search-input"
+                  data-search="true"
+                />
+              </label>
+              <DirectoryPagePagination
+                currentPage={safeModelPage}
+                pageCount={totalModelPages}
+                onPageChange={(page) => {
+                  setModelPage(page);
+                  scrollToModelPage(page);
+                }}
               />
-              <div className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200/70 bg-white px-1 py-0.5 shadow-sm">
-                <button
-                  type="button"
-                  onClick={handlePrevPage}
-                  disabled={!canGoPrev}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-all hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
-                  aria-label={LABEL_PREV_PAGE}
-                >
-                  <ChevronLeft size={12} />
-                </button>
-                <span className="min-w-[28px] text-center text-[10px] font-semibold text-slate-500">
-                  {Math.min(safeModelPage + 1, totalModelPages)}/{totalModelPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleNextPage}
-                  disabled={!canGoNext}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-all hover:bg-sky-50 hover:text-sky-600 disabled:opacity-35"
-                  aria-label={LABEL_NEXT_PAGE}
-                >
-                  <ChevronRight size={12} />
-                </button>
-              </div>
             </div>
           </div>
 
@@ -828,7 +818,7 @@ const extractErrorMessage = (text: string) => {
         <div
           ref={modelPagesRef}
           onScroll={handleModelPagesScroll}
-          className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-2xl border border-sky-100/80 bg-gradient-to-br from-white/92 via-sky-50/68 to-blue-50/60 shadow-[0_14px_32px_rgba(59,130,246,0.12)] [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
+          className="catalog-filter-horizontal-rail no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-2xl border border-sky-100/80 bg-gradient-to-br from-white/92 via-sky-50/68 to-blue-50/60 shadow-[0_14px_32px_rgba(59,130,246,0.12)] [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
         >
           {isBusy ? (
             <div className="flex min-h-[90px] items-center justify-center">
@@ -860,7 +850,7 @@ const extractErrorMessage = (text: string) => {
                             type="button"
                             onClick={() => onModelSelect(model)}
                             title={model}
-                            className={`flex h-8 items-center justify-center rounded-lg border px-1.5 text-center text-[9px] font-semibold uppercase tracking-[0.04em] leading-tight transition-[border-color,background-color,box-shadow,color] duration-300 ease-out active:scale-[0.96] ${
+                            className={`catalog-filter-choice-card flex h-[72px] items-center justify-center rounded-[14px] border px-2 text-center text-[10px] font-bold uppercase tracking-[0.03em] leading-tight transition-[border-color,background-color,box-shadow,color] duration-300 ease-out ${
                               isActive
                                 ? "border-sky-400/50 bg-sky-500 text-white shadow-[0_3px_10px_rgba(14,165,233,0.25)]"
                                 : "border-sky-200/95 bg-white text-slate-600 shadow-[0_2px_6px_rgba(15,23,42,0.06)] hover:border-sky-500 hover:bg-sky-50/70 hover:text-sky-900 hover:shadow-[0_6px_16px_rgba(2,132,199,0.16)]"

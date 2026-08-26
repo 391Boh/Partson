@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
   Car,
+  BadgeDollarSign,
   CheckCircle,
   ChevronDown,
   ChevronUp,
@@ -15,11 +16,13 @@ import {
   LogIn,
   MessageCircle,
   Package,
+  RotateCcw,
   Search,
   X,
 } from 'lucide-react';
 import { brands } from 'app/components/brandsData';
 import type { PersistedCarSelection } from 'app/components/Auto';
+import HorizontalDirectoryRail from 'app/components/HorizontalDirectoryRail';
 
 type ProducerFilterBrand = {
   name: string;
@@ -661,52 +664,81 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     : isSortAsc
       ? `${filterIconBlue} text-[11px] font-bold`
       : `${filterIconEmerald} text-[11px] font-bold`;
-  const overlayPanelHeight = 'min(72vh, calc(100dvh - var(--header-height, 4rem) - 6rem))';
+  const overlayPanelMaxHeight = 'min(390px, calc(100dvh - 190px))';
+
+  const applyPricePreset = (from: number | null, to: number | null) => {
+    setLocalPriceFrom(from);
+    setLocalPriceTo(to);
+    commitPriceRange(from, to);
+  };
+
+  const clearPriceSettings = () => {
+    cancelPendingPriceCommit();
+    lastCommittedPriceRef.current = { from: null, to: null };
+    setLocalPriceFrom(null);
+    setLocalPriceTo(null);
+    onPriceRangeChange?.(null, null);
+    onPricedOnlyChange?.(false);
+    if (onSortOrderChange) onSortOrderChange('none');
+    else setLocalSortOrder('none');
+  };
 
   const renderActivePanel = () => {
     switch (activeComponent) {
       case 'auto':
         return (
-          <Auto
-            variant="filter"
-            selectedCars={internalSelectedCars}
-            handleCarChange={handleInternalCarChange}
-            initialSelection={selectedVin ? null : selectedCarSelection}
-            onSelectionChange={onSelectedCarSelectionChange}
-            onVinSelect={onVinSelect}
-            selectedVin={selectedVin ?? null}
-            onAutoPicked={handleAutoPicked}
-          />
+          <div className="catalog-filter-panel-view">
+            <Auto
+              variant="filter"
+              selectedCars={internalSelectedCars}
+              handleCarChange={handleInternalCarChange}
+              initialSelection={selectedVin ? null : selectedCarSelection}
+              onSelectionChange={onSelectedCarSelectionChange}
+              onVinSelect={onVinSelect}
+              selectedVin={selectedVin ?? null}
+              onAutoPicked={handleAutoPicked}
+            />
+          </div>
         );
       case 'category':
         return (
-          <Category
-            selectedCategories={selectedCategories}
-            handleCategoryChange={handleCategoryToggle}
-            searchTerm={categorySearchTerm}
-            onSearchTermChange={setCategorySearchTerm}
-            resetViewSignal={categoryResetSignal}
-          />
+          <div className="catalog-filter-panel-view">
+            <Category
+              selectedCategories={selectedCategories}
+              handleCategoryChange={handleCategoryToggle}
+              searchTerm={categorySearchTerm}
+              onSearchTermChange={setCategorySearchTerm}
+              resetViewSignal={categoryResetSignal}
+            />
+          </div>
         );
       case 'producer':
         return (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Search size={14} className="text-slate-400" />
+          <div className="catalog-filter-panel-view space-y-3">
+            <div className="catalog-filter-list-header catalog-filter-search-shell sticky top-0 z-[2] flex items-center gap-2">
+              <span className="catalog-filter-search-icon">
+                <Search size={15} />
+              </span>
               <input
                 type="text"
                 value={producerSearchTerm}
                 onChange={(e) => setProducerSearchTerm(e.target.value)}
                 placeholder="Пошук виробника..."
-                className="w-full rounded-lg border border-white/72 bg-white/72 px-3 py-2 text-[13px] font-semibold text-slate-800 shadow-[0_8px_20px_rgba(15,23,42,0.04)] outline-none backdrop-blur-md transition focus:border-purple-200/85 focus:bg-white/84 focus:ring-2 focus:ring-purple-100/70"
+                className="catalog-filter-search-input"
               />
             </div>
-            <div className="catalog-filter-scroll overflow-x-auto overflow-y-hidden rounded-lg border border-white/72 bg-white/62 px-3 py-2 pb-3 pr-2 backdrop-blur-xl">
-              <div className="grid min-w-max grid-flow-col grid-rows-2 gap-3">
+            <div className="catalog-filter-rail-shell rounded-[18px] border border-white/80 bg-white/46 p-2 shadow-inner sm:p-3">
+              <HorizontalDirectoryRail
+                ariaLabel="Виробники автозапчастин"
+                rows={2}
+                className="auto-cols-[calc((100%_-_1.25rem)/3)] gap-2.5 sm:auto-cols-[calc((100%_-_2.25rem)/4)] sm:gap-3 lg:auto-cols-[calc((100%_-_3rem)/5)]"
+              >
                 {visibleProducerBrands.map((b, index) => (
                     <button
                       key={b.name}
                       type="button"
+                      aria-label={`Виробник ${b.name}`}
+                      title={b.name}
                       onClick={() => {
                         const nextParams = new URLSearchParams(currentSearchParams.toString());
                         const isSameProducer = producerParam === b.name;
@@ -737,26 +769,28 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                             : pathname
                         );
                       }}
-                      className={`flex h-16 w-24 items-center justify-center rounded-lg border transition ${
+                      className={`catalog-filter-brand-card group flex h-[72px] w-full min-w-0 flex-col items-center justify-center gap-1 rounded-[14px] border px-2 py-1.5 transition-[border-color,background-color,box-shadow] duration-300 ${
                         producerParam === b.name
-                          ? 'border-purple-200/85 bg-white/76 shadow-[0_8px_18px_rgba(15,23,42,0.05)] backdrop-blur-md'
-                          : 'border-white/72 bg-white/68 backdrop-blur-md hover:border-purple-200/70 hover:bg-white/82'
+                          ? 'border-violet-400 bg-[linear-gradient(145deg,#ffffff,#ede9fe)] shadow-[0_12px_26px_rgba(124,58,237,0.18),inset_0_1px_0_white] ring-2 ring-violet-100'
+                          : 'border-sky-100 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] shadow-[0_8px_18px_rgba(15,23,42,0.07),inset_0_1px_0_white] hover:border-violet-300 hover:bg-[linear-gradient(145deg,#ffffff,#ede9fe)] hover:shadow-[0_14px_28px_rgba(99,102,241,0.15),inset_0_1px_0_white]'
                       }`}
                     >
                       {b.logo ? (
                         <Image
                           src={b.logo}
-                          alt={b.name}
+                          alt={`Логотип виробника ${b.name}`}
                           width={96}
                           height={48}
                           sizes="96px"
+                          quality={85}
+                          unoptimized={b.logo.endsWith('.svg')}
                           // These source files are raw, un-optimized uploads (some
                           // 50-270KB) — unlike the tiny 16x16 category icons in
                           // katkomp.tsx, they genuinely need Next's resize/compress
                           // pass, so keep it (not unoptimized). First row loads
                           // eagerly since it's already visible the moment this tab opens.
-                          loading={index < 8 ? 'eager' : 'lazy'}
-                          className="max-h-12 max-w-full object-contain"
+                          loading={index < 4 ? 'eager' : 'lazy'}
+                          className="h-10 w-full object-contain transition-transform duration-300 group-hover:scale-[1.07]"
                           onError={(event) => {
                             const image = event.currentTarget;
                             if (image.dataset.fallbackApplied === '1') return;
@@ -765,27 +799,48 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                           }}
                         />
                       ) : (
-                        <span className="truncate text-[12px] font-semibold text-slate-600">
+                        <span className="max-w-full truncate text-[11px] font-bold text-slate-700 sm:text-xs">
                           {b.name}
                         </span>
                       )}
                     </button>
                   ))}
                 {hiddenProducerCount > 0 ? (
-                  <div className="flex h-16 w-36 items-center justify-center rounded-lg border border-dashed border-purple-200/80 bg-white/54 px-3 text-center text-[11px] font-semibold leading-4 text-slate-500">
+                  <div className="flex h-[72px] w-full min-w-0 items-center justify-center rounded-[14px] border border-dashed border-violet-300 bg-violet-50/70 px-2 text-center text-[9px] font-semibold leading-3 text-slate-500">
                     +{hiddenProducerCount.toLocaleString('uk-UA')} виробників.
                     Уточніть пошук
                   </div>
                 ) : null}
-              </div>
+              </HorizontalDirectoryRail>
             </div>
           </div>
         );
       case 'price':
         return (
-          <div className="space-y-2">
+          <div className="catalog-filter-panel-view catalog-filter-price-panel mx-auto w-full max-w-4xl gap-2">
+            <div className="catalog-price-panel-header">
+              <span className="catalog-price-panel-icon" aria-hidden="true">
+                <BadgeDollarSign size={18} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[12px] font-black leading-tight text-slate-800 sm:text-[13px]">Ціна та сортування</span>
+                <span className="mt-0.5 block text-[10px] font-semibold leading-tight text-slate-500">Вкажіть діапазон або виберіть швидкий варіант</span>
+              </span>
+              {(hasPriceFilter || pricedOnly || localPriceFrom != null || localPriceTo != null) && (
+                <button
+                  type="button"
+                  onClick={clearPriceSettings}
+                  className="catalog-price-reset-button"
+                  aria-label="Очистити цінові фільтри"
+                >
+                  <RotateCcw size={13} />
+                  <span className="hidden sm:inline">Очистити</span>
+                </button>
+              )}
+            </div>
+
             {/* Sort order */}
-            <div className="flex rounded-[12px] border border-slate-200/60 bg-white/50 p-[3px] gap-[3px] backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+            <div className="catalog-price-control-card flex rounded-[15px] border border-slate-200/60 bg-white/72 p-1 gap-1 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
               {(['none', 'asc', 'desc'] as const).map((order) => {
                 const config = {
                   none: { label: 'Будь-яка', icon: null },
@@ -822,7 +877,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
 
             {/* Price range */}
             {onPriceRangeChange && (
-              <div className="flex items-center gap-1.5 rounded-[12px] border border-slate-200/60 bg-white/60 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-sm">
+              <div className="catalog-price-control-card flex items-center gap-2 rounded-[15px] border border-sky-100 bg-white/76 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-sm">
                 <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">Ціна</span>
                 <div className="relative flex-1">
                   <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 select-none text-[10px] font-bold text-sky-400">₴</span>
@@ -862,9 +917,33 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               </div>
             )}
 
+            {onPriceRangeChange && (
+              <div className="catalog-price-presets" aria-label="Швидкий вибір діапазону ціни">
+                {([
+                  { label: 'до 500 ₴', from: null, to: 500 },
+                  { label: '500–1500 ₴', from: 500, to: 1500 },
+                  { label: '1500–5000 ₴', from: 1500, to: 5000 },
+                  { label: 'від 5000 ₴', from: 5000, to: null },
+                ] as const).map((preset) => {
+                  const isActive = localPriceFrom === preset.from && localPriceTo === preset.to;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => applyPricePreset(preset.from, preset.to)}
+                      aria-pressed={isActive}
+                      className={`catalog-price-preset ${isActive ? 'is-active' : ''}`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Toggles */}
             {(onPricedOnlyChange || onInStockChange) && (
-              <div className={`grid gap-1.5 ${onPricedOnlyChange && onInStockChange ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className={`catalog-price-toggle-grid grid gap-2 ${onPricedOnlyChange && onInStockChange ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {onPricedOnlyChange && (
                   <button
                     type="button"
@@ -1085,8 +1164,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
         <div className="min-h-0 overflow-hidden">
           <div ref={panelContentRef} className="p-2 sm:p-3">
             <div
-              className="catalog-filter-scroll overflow-y-auto rounded-[16px] border border-sky-200/90 bg-[linear-gradient(155deg,#ffffff_0%,#f8fcff_52%,#edf8fd_100%)] p-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-1px_0_rgba(14,116,144,0.08),0_16px_34px_rgba(14,116,144,0.11)] ring-1 ring-white sm:p-3 sm:pr-2"
-              style={{ maxHeight: overlayPanelHeight }}
+              className="catalog-filter-scroll catalog-filter-panel-stage overflow-y-auto rounded-[16px] border border-sky-200/90 bg-[linear-gradient(155deg,#ffffff_0%,#f8fcff_52%,#edf8fd_100%)] p-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-1px_0_rgba(14,116,144,0.08),0_16px_34px_rgba(14,116,144,0.11)] ring-1 ring-white sm:p-3 sm:pr-2"
+              style={{ maxHeight: overlayPanelMaxHeight }}
             >
               {renderActivePanel()}
             </div>

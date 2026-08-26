@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
+import { getProductTreeNodes } from "app/lib/product-tree";
 import { buildSeoContactLine, buildPageMetadata } from "app/lib/seo-metadata";
 import HomePageContent from "./components/HomePageContent";
 import AdvantagesSection from "./components/AdvantagesSection";
@@ -51,9 +52,10 @@ export default async function HomePage() {
   // previously left every brand tile showing zero counts until that request
   // resolved after hydration — the "manufacturers load slowly the first
   // time" symptom.
-  const { clientProducers } = await getFullManufacturersDirectoryData().catch(
-    () => ({ clientProducers: [] })
-  );
+  const [{ clientProducers }, initialProductTree] = await Promise.all([
+    getFullManufacturersDirectoryData().catch(() => ({ clientProducers: [] })),
+    getProductTreeNodes().catch(() => []),
+  ]);
   const initialSyncedBrands = clientProducers.map((producer) => ({
     name: producer.label,
     logo: producer.logoPath,
@@ -69,8 +71,11 @@ export default async function HomePage() {
   // fetch their data lazily through their existing client caches.
   return (
     <HomePageContent>
-      <HomeDeferredStack initialSyncedBrands={initialSyncedBrands} />
-      <div className="home-section-stage">
+      <HomeDeferredStack
+        initialSyncedBrands={initialSyncedBrands}
+        initialProductTree={initialProductTree}
+      />
+      <div className="home-section-stage home-section-stage-static">
         <AdvantagesSection />
       </div>
     </HomePageContent>

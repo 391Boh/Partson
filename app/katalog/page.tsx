@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 import {
   ArrowUpRight,
   BadgeCheck,
+  Car,
+  CreditCard,
   ListTree,
   MapPin,
   PackageSearch,
@@ -15,10 +18,12 @@ import {
 import CatalogSearchTotalCountClient from "app/components/CatalogSearchTotalCountClient";
 import VinOpenButton from "app/katalog/VinOpenButton";
 import CatalogShownCountClient from "app/components/CatalogShownCountClient";
+import CatalogSeoFilterSummaryClient from "app/katalog/CatalogSeoFilterSummaryClient";
 import KatalogPageShell from "app/katalog/KatalogPageShell";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import {
   buildAutoBrandPath,
+  buildAutoModelPath,
   buildCatalogCategoryPath,
   buildCatalogProducerPath,
   buildGroupPath,
@@ -30,27 +35,51 @@ import {
   type CatalogSeoFacets,
 } from "app/lib/catalog-seo";
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
+import { getVerifiedAutoModelKeys } from "app/lib/auto-directory-data";
 import { fetchCatalogProductsByQuery, fetchEuroRate, toPriceUah } from "app/lib/catalog-server";
 import { buildManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
-import { buildProductSeoImagePath } from "app/lib/product-image-path";
-import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
+import { buildProductImagePath, buildProductSeoImagePath } from "app/lib/product-image-path";
+import { buildProductPath } from "app/lib/product-url";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
+import { homeSeoContent } from "app/lib/seo-copy";
+import { getCategoryIconPath, inferCategoryForGroupLabel } from "app/lib/category-icons";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 
 export const revalidate = 900;
 
 const INITIAL_CATALOG_PAGE_LIMIT = 16;
-const INITIAL_CATALOG_SSR_TIMEOUT_MS = 250;
+// Measured against real (not degraded) 1C: the plain unfiltered "browse
+// everything" snapshot (allgoods feed, 1C's cheapest query shape) reliably
+// resolves well inside the old 250ms budget once healthy — bumping it a bit
+// gives it more margin without risking a real delay on the highest-traffic
+// case (a bare /katalog visit).
+// Filtered/search snapshots are a different story: measured live, they
+// consistently take 1.1-3.9s even on a healthy 1C (1C search/text scans are
+// just slow), so raising this budget only made the page wait longer for the
+// exact same null fallback — reverted to the original fail-fast value.
+// Both stay well short of the route's own 3.6-5.2s 1C timeout budget
+// (app/api/catalog-page/route.ts) so a genuinely degraded 1C still fails
+// fast into the null fallback instead of holding up the page for seconds.
+const INITIAL_CATALOG_SSR_TIMEOUT_MS = 450;
 const INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED = 350;
 const CATALOG_SEO_FACETS_TIMEOUT_MS = 200;
 const CATALOG_PRODUCT_TREE_TIMEOUT_MS = 200;
 const MANUFACTURERS_DIRECTORY_TIMEOUT_MS = 300;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
+
+// Shared across "Популярні моделі авто" / "Категорії товарів" / "Виробники" —
+// one consistent header + "Усі ..." CTA style instead of each section having
+// its own (previously the model-list CTA was a bordered pill while the
+// group/producer CTAs were bare text links).
+const CATALOG_SEO_SECTION_HEADING_CLASS =
+  "inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500";
+const CATALOG_SEO_SECTION_CTA_CLASS =
+  "inline-flex h-8 items-center gap-1.5 rounded-[11px] border border-sky-200 bg-sky-50 px-3 text-[12px] font-extrabold text-sky-700 shadow-sm transition-[border-color,color,background-color,box-shadow] duration-200 hover:border-sky-300 hover:bg-sky-100 hover:text-sky-800 hover:shadow-[0_6px_14px_rgba(14,165,233,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70";
 
 type InitialCatalogPagePayload = {
   items: Array<{
@@ -165,6 +194,20 @@ const fetchCatalogSeoSnapshotPayload = async (
     preferLegacySource: false,
     forceAllgoodsSource: true,
   });
+
+  // An unfiltered "browse everything" snapshot returning zero items is never
+  // a real business state for this catalog (10k+ products) — it only
+  // happens when 1C was degraded during this specific request. Throwing
+  // here (resolveWithTimeout's caller already treats a rejection as "use
+  // the null fallback") keeps unstable_cache from persisting that bad
+  // snapshot for its full 15-minute revalidate window — without this, one
+  // transient 1C blip made the catalog's first-paint items AND its "total
+  // products" counter read empty/wrong for 15 minutes after 1C recovered.
+  const isUnfilteredQuery =
+    !query.searchQuery && !query.group && !query.subcategory && !query.producer;
+  if (result.items.length === 0 && isUnfilteredQuery) {
+    throw new Error("Catalog getdata failed: no products returned for unfiltered SEO snapshot");
+  }
 
   return {
     items: result.items,
@@ -376,6 +419,90 @@ const resolveCatalogSeoState = (
     description,
     indexable,
   };
+};
+
+// The <title>/meta title (state.title) is deliberately terser and
+// keyword-first for search snippets. This is the fuller, sentence-style
+// heading actually shown on the page — both the visible section heading and
+// the page's real (sr-only) <h1> read from this single function so they
+// never drift into two differently-worded statements of the same page
+// topic again.
+const buildCatalogSeoHeading = (state: CatalogSeoState) =>
+  state.searchQuery
+    ? `Пошук «${state.searchQuery}» — каталог автозапчастин PartsON`
+    : state.producer && state.subcategory && state.group
+      ? `${state.producer} ${state.subcategory} (${state.group}) — автозапчастини у Львові`
+      : state.producer && state.group
+        ? `${state.producer}: ${state.group} — автозапчастини в PartsON, Львів`
+        : state.producer
+          ? `Автозапчастини ${state.producer}: ціни, наявність, доставка`
+          : state.group && state.subcategory
+            ? `${state.subcategory} — ${state.group}: автозапчастини у Львові`
+            : state.group
+              ? `${state.group} — каталог автозапчастин PartsON`
+              : `Автозапчастини у Львові: каталог, ціни та наявність — PartsON`;
+
+// "Популярні моделі авто" used to link straight into homeSeoContent's
+// curated bare model-family names ("Audi A4", "BMW 3 Series"). Those read
+// fine as copy but don't exist as routes: /auto/[brand]/[model] only
+// resolves an exact, verified GENERATION string (e.g. "A4 I B5") via
+// findCarModelInBrand — a bare family name has no match, so every one of
+// these links 404'd. Pull real (brand, model) pairs from the same
+// verified-model snapshot the /auto route's own generateStaticParams
+// trusts (scripts/generate-auto-model-sitemap.ts) instead, while keeping
+// the curated brand popularity order and preferring a generation that
+// actually belongs to one of the curated model families, so the section
+// still reads the same way it always did.
+const buildPopularAutoModels = async (): Promise<Array<{ brand: string; model: string }>> => {
+  const verifiedKeys = await getVerifiedAutoModelKeys();
+  if (!verifiedKeys) return [];
+
+  const modelsByBrandLower = new Map<string, string[]>();
+  for (const key of verifiedKeys) {
+    const separatorIndex = key.indexOf("::");
+    if (separatorIndex <= 0) continue;
+
+    const brand = key.slice(0, separatorIndex).trim();
+    const model = key.slice(separatorIndex + 2).trim();
+    if (!brand || !model) continue;
+
+    const brandLower = brand.toLowerCase();
+    const existing = modelsByBrandLower.get(brandLower);
+    if (existing) {
+      existing.push(model);
+    } else {
+      modelsByBrandLower.set(brandLower, [model]);
+    }
+  }
+
+  const popularModels: Array<{ brand: string; model: string }> = [];
+
+  for (const { brand, models: genericModels } of homeSeoContent.modelGroups) {
+    if (popularModels.length >= 12) break;
+
+    const realModels = modelsByBrandLower.get(brand.toLowerCase());
+    if (!realModels || realModels.length === 0) continue;
+
+    const picked: string[] = [];
+    for (const generic of genericModels) {
+      if (picked.length >= 2) break;
+      const genericLower = generic.toLowerCase();
+      const match = realModels.find(
+        (real) => real.toLowerCase().startsWith(genericLower) && !picked.includes(real)
+      );
+      if (match) picked.push(match);
+    }
+    for (const real of realModels) {
+      if (picked.length >= 2) break;
+      if (!picked.includes(real)) picked.push(real);
+    }
+
+    for (const model of picked) {
+      popularModels.push({ brand, model });
+    }
+  }
+
+  return popularModels;
 };
 
 const normalizeFacetLookup = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
@@ -699,10 +826,10 @@ const buildCatalogItemListJsonLd = (
   };
 };
 
-type CatalogSeoDiscoveryItem = { label: string; slug: string };
+type CatalogSeoDiscoveryItem = { label: string; slug: string; logoPath?: string | null };
 type CatalogSeoGroupDiscoveryItem = CatalogSeoDiscoveryItem & { href: string };
 
-const CatalogSeoSnapshot = ({
+const CatalogSeoSnapshot = async ({
   state,
   items,
   hasMore,
@@ -723,21 +850,10 @@ const CatalogSeoSnapshot = ({
   const hasExactCount = typeof totalCount === "number" && totalCount >= 0;
   const initialFilteredCount = hasExactCount ? totalCount : visibleItemsCount;
   const showDiscovery = topGroups.length > 0 || topProducers.length > 0;
+  const popularModels = await buildPopularAutoModels();
 
 
-  const seoHeading = state.searchQuery
-    ? `Пошук «${state.searchQuery}» — каталог автозапчастин PartsON`
-    : state.producer && state.subcategory && state.group
-      ? `${state.producer} ${state.subcategory} (${state.group}) — автозапчастини у Львові`
-      : state.producer && state.group
-        ? `${state.producer}: ${state.group} — автозапчастини в PartsON, Львів`
-        : state.producer
-          ? `Автозапчастини ${state.producer}: ціни, наявність, доставка`
-          : state.group && state.subcategory
-            ? `${state.subcategory} — ${state.group}: автозапчастини у Львові`
-            : state.group
-              ? `${state.group} — каталог автозапчастин PartsON`
-              : `Автозапчастини у Львові: каталог, ціни та наявність — PartsON`;
+  const seoHeading = buildCatalogSeoHeading(state);
 
   const seoSubheading = state.searchQuery
     ? null
@@ -751,27 +867,41 @@ const CatalogSeoSnapshot = ({
             ? `Деталі та агрегати ${state.group}: підбір, ціни, доставка`
             : `Пошук за артикулом, VIN, кодом та виробником`;
 
+  // Deliberately no shop/delivery info here (address, hours, self-pickup,
+  // Nova Poshta) — that used to be repeated in nearly every branch and then
+  // restated a second time in seoText2 below. This block stays focused on
+  // the one thing it's actually titled for: how to find and pick a part.
   const seoText = state.searchQuery
-    ? `Пошук «${state.searchQuery}» у каталозі PartsON: підбір за артикулом, кодом OEM, назвою або виробником. Перевірка сумісності за VIN-номером. Актуальна наявність та ціни онлайн — самовивіз у Львові або доставка Новою Поштою по всій Україні.`
+    ? `Пошук «${state.searchQuery}» у каталозі PartsON: підбір за артикулом, кодом OEM, назвою або виробником. Перевірка сумісності за VIN-номером. Актуальна наявність та ціни відображаються одразу в картці товару.`
     : state.producer && state.group && state.subcategory
-      ? `${state.producer} ${state.subcategory} у групі «${state.group}»: оригінальні та аналогові запчастини за артикулом і кодом OEM, актуальна наявність і ціни в PartsON. Перевірка сумісності за VIN. Самовивіз — Львів, вул. Перфецького, 8. Доставка Новою Поштою по всій Україні.`
+      ? `${state.producer} ${state.subcategory} у групі «${state.group}»: оригінальні та аналогові запчастини за артикулом і кодом OEM, актуальна наявність і ціни в PartsON. Перевірка сумісності за VIN-номером перед замовленням.`
       : state.producer && state.group
-        ? `${state.producer} у категорії «${state.group}»: підбір запчастин за артикулом і кодом OEM, оригінали та сертифіковані аналоги, перевірка сумісності за VIN, актуальна наявність та ціни онлайн у PartsON, Львів. Доставка Новою Поштою.`
+        ? `${state.producer} у категорії «${state.group}»: підбір запчастин за артикулом і кодом OEM, оригінали та сертифіковані аналоги, перевірка сумісності за VIN, актуальна наявність та ціни онлайн.`
         : state.producer
-          ? `Автозапчастини ${state.producer} у PartsON: пошук за артикулом і кодом OEM, перевірка сумісності за VIN, підбір аналогів і оригінальних деталей, ціни та наявність онлайн. Самовивіз у Львові (вул. Перфецького, 8) або доставка Новою Поштою по Україні.`
+          ? `Автозапчастини ${state.producer} у PartsON: пошук за артикулом і кодом OEM, перевірка сумісності за VIN, підбір аналогів і оригінальних деталей, ціни та наявність онлайн.`
           : state.group && state.subcategory
-            ? `${state.subcategory} — запчастини в категорії «${state.group}»: підбір за артикулом, VIN-номером і кодом OEM, оригінали та аналоги провідних виробників, актуальна наявність і ціни онлайн у PartsON. Самовивіз у Львові або доставка Новою Поштою.`
+            ? `${state.subcategory} — запчастини в категорії «${state.group}»: підбір за артикулом, VIN-номером і кодом OEM, оригінали та аналоги провідних виробників, актуальна наявність і ціни онлайн.`
             : state.group
-              ? `${state.group}: пошук запчастин за артикулом, кодом та виробником, перевірка сумісності за VIN, оригінали й аналоги у наявності, актуальні ціни в PartsON. Самовивіз — Львів, вул. Перфецького, 8, доставка Новою Поштою по Україні.`
-              : `Каталог автозапчастин PartsON у Львові: пошук за артикулом, кодом OEM, назвою та виробником. Оригінальні та аналогові деталі від перевірених постачальників. Підбір за VIN-номером, перевірка сумісності, актуальні ціни та наявність онлайн. Самовивіз — вул. Перфецького, 8 або доставка Новою Поштою по всій Україні.`;
+              ? `${state.group}: пошук запчастин за артикулом, кодом та виробником, перевірка сумісності за VIN, оригінали й аналоги у наявності, актуальні ціни в PartsON.`
+              : `Каталог автозапчастин PartsON: пошук за артикулом, кодом OEM, назвою та виробником. Оригінальні та аналогові деталі від перевірених постачальників. Підбір за VIN-номером, перевірка сумісності, актуальні ціни та наявність онлайн.`;
 
+  // Address/phone are already real links in the .catalog-seo-contacts row
+  // below, so this block covers what isn't shown there — payment and
+  // fulfilment — as its own real links (see catalogSeoServiceLinks) instead
+  // of restating the same address/hours copy as plain text a second time.
   const seoText2 = state.searchQuery
-    ? `PartsON — магазин автозапчастин у Львові: консультація спеціалістів, широкий асортимент оригінальних і аналогових деталей, швидке оформлення замовлення. Оплата готівкою, карткою або онлайн. Режим роботи: пн–сб 08:00–18:00, нд 08:00–16:00.`
+    ? `PartsON — магазин автозапчастин у Львові: консультація спеціалістів, широкий асортимент оригінальних і аналогових деталей, швидке оформлення замовлення.`
     : state.producer
-      ? `PartsON — магазин автозапчастин у Львові. Консультація з підбору ${state.producer}, перевірка OEM-сумісності, оплата готівкою та карткою. Режим роботи: пн–сб 08:00–18:00, нд 08:00–16:00.`
+      ? `Консультація з підбору ${state.producer}, перевірка OEM-сумісності та відправка замовлення день у день.`
       : state.group
-        ? `PartsON — магазин автозапчастин на вул. Перфецького, 8 у Львові. Консультація з підбору ${state.group}, допомога у визначенні артикулу, оплата готівкою та карткою. Пн–сб 08:00–18:00, нд 08:00–16:00.`
-        : `PartsON — офіційний магазин автозапчастин на вул. Перфецького, 8 у Львові. Консультація спеціалістів з підбору деталей, допомога з визначенням артикулу та OEM-коду. Оплата готівкою, карткою або онлайн через LiqPay. Режим роботи: пн–сб 08:00–18:00, нд 08:00–16:00.`;
+        ? `Консультація з підбору «${state.group}», допомога у визначенні артикулу та відправка замовлення день у день.`
+        : `PartsON — офіційний магазин автозапчастин у Львові. Консультація спеціалістів з підбору деталей та допомога з визначенням артикулу чи OEM-коду.`;
+
+  const catalogSeoServiceLinks: Array<{ href: string; label: string; icon: typeof MapPin }> = [
+    { href: "/inform/location", label: "Самовивіз у Львові", icon: MapPin },
+    { href: "/inform/delivery", label: "Доставка Новою Поштою", icon: Truck },
+    { href: "/inform/payment", label: "Оплата та розрахунок", icon: CreditCard },
+  ];
 
   const countLabel = hasExactCount
     ? "Усього за фільтром"
@@ -779,7 +909,7 @@ const CatalogSeoSnapshot = ({
       ? "Знайдено"
       : "Усього товарів";
 
-  const renderTotalCount = (className = "text-slate-950") => (
+  const renderTotalCount = (className = "text-slate-900") => (
     // useSearchParams() inside CatalogSearchTotalCountClient forces a dynamic
     // bailout all the way up to the nearest Suspense boundary — without one
     // here, that bailout hits this page's `revalidate` (ISR) config and
@@ -806,17 +936,17 @@ const CatalogSeoSnapshot = ({
   return (
     <section
       aria-labelledby="catalog-seo-block-title"
-      className="mx-auto mt-7 w-full max-w-7xl px-3 pb-12 sm:mt-9 sm:px-4 lg:px-6"
+      className="catalog-seo-section mx-auto mt-7 w-full max-w-7xl px-3 pb-12 sm:mt-9 sm:px-4 lg:px-6"
     >
-      <div className="relative overflow-hidden rounded-[26px] border border-sky-200/80 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.09),0_5px_18px_rgba(14,165,233,0.07)] ring-1 ring-white">
+      <div className="catalog-seo-shell relative overflow-hidden rounded-[26px] border border-sky-200/80 bg-white ring-1 ring-white">
 
         {/* ── Верхня секція: заголовок + лічильник ─────────────────────── */}
-        <div className="relative overflow-hidden border-b border-sky-100 bg-[radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.16),transparent_32%),radial-gradient(circle_at_92%_18%,rgba(59,130,246,0.13),transparent_34%),linear-gradient(135deg,#f8fcff_0%,#eef8ff_48%,#f8fbff_100%)] px-4 py-6 sm:px-7 sm:py-7">
+        <div className="catalog-seo-hero relative overflow-hidden border-b border-sky-100 bg-[radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.16),transparent_32%),radial-gradient(circle_at_92%_18%,rgba(59,130,246,0.13),transparent_34%),linear-gradient(135deg,#f8fcff_0%,#eef8ff_48%,#f8fbff_100%)] px-4 py-6 sm:px-7 sm:py-7">
           <span className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full border-[34px] border-white/40" aria-hidden />
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_230px] lg:items-start">
+          <div className="catalog-seo-overview grid gap-3.5 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(270px,320px)] lg:items-start xl:grid-cols-[minmax(0,1fr)_335px]">
 
             {/* Ліва колонка — тексти */}
-            <div className="min-w-0">
+            <div className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
               {/* Хлібні крихти-бейдж */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-100 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-700 shadow-sm">
@@ -838,28 +968,55 @@ const CatalogSeoSnapshot = ({
               {/* H2 — основний SEO-заголовок */}
               <h2
                 id="catalog-seo-block-title"
-                className="mt-3 max-w-3xl font-display text-[1.35rem] font-black leading-[1.1] tracking-[-0.025em] text-slate-900 sm:text-[1.75rem]"
+                className="catalog-seo-title mt-3 max-w-4xl text-slate-900"
               >
                 {seoHeading}
               </h2>
 
               {/* H3 — підзаголовок з ключовими словами (не дублює h2) */}
               {seoSubheading && (
-                <h3 className="mt-1.5 max-w-2xl text-[13px] font-bold text-sky-700 sm:text-[14px]">
+                <h3 className="catalog-seo-subtitle mt-1.5 max-w-3xl text-sky-700">
                   {seoSubheading}
                 </h3>
               )}
+            </div>
 
+            <div className="order-3 min-w-0 lg:col-span-2 lg:row-start-2">
               {/* Основний SEO-текст */}
-              <p className="mt-2.5 max-w-3xl text-[13.5px] leading-[1.7] text-slate-600">
-                {seoText}
-              </p>
-              <p className="mt-1.5 max-w-3xl text-[12.5px] leading-[1.7] text-slate-500">
-                {seoText2}
-              </p>
+              <div className="catalog-seo-copy-grid">
+                <section className="catalog-seo-copy-primary" aria-labelledby="catalog-selection-copy-title">
+                  <h4 id="catalog-selection-copy-title" className="catalog-seo-copy-heading">
+                    Підбір запчастин
+                  </h4>
+                  <p>{seoText}</p>
+                </section>
+                <section className="catalog-seo-copy-secondary" aria-labelledby="catalog-service-copy-title">
+                  <h4 id="catalog-service-copy-title" className="catalog-seo-copy-heading">
+                    Магазин та доставка
+                  </h4>
+                  <p>{seoText2}</p>
+                  <ul className="catalog-seo-copy-links">
+                    {catalogSeoServiceLinks.map(({ href, label, icon: LinkIcon }) => (
+                      <li key={href}>
+                        <Link href={href}>
+                          <LinkIcon size={12} aria-hidden />
+                          {label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
+
+              <CatalogSeoFilterSummaryClient
+                producer={state.producer}
+                group={state.group}
+                subcategory={state.subcategory}
+                searchQuery={state.searchQuery}
+              />
 
               {/* Піктограми-контакти */}
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="catalog-seo-contacts mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <a
                   href="tel:+380634211851"
                   aria-label={`Подзвонити в магазин PartsON: ${STORE_PHONE_DISPLAY}`}
@@ -905,17 +1062,16 @@ const CatalogSeoSnapshot = ({
 
             {/* ── Лічильник — світлий варіант ─────────────────────────── */}
             <div
-              className="relative overflow-hidden rounded-[20px] border border-sky-300/75 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(235,248,255,0.94))] p-4 shadow-[0_14px_34px_rgba(2,132,199,0.14),inset_0_1px_0_#fff] ring-1 ring-white/90"
+              className="catalog-seo-counter order-2 relative overflow-hidden rounded-[20px] border border-sky-300/75 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(235,248,255,0.94))] p-4 ring-1 ring-white/90 lg:col-start-2 lg:row-start-1"
               data-nosnippet
             >
-              <span className="pointer-events-none absolute inset-x-5 top-0 h-[3px] rounded-b-full bg-gradient-to-r from-sky-500 via-cyan-400 to-blue-500" aria-hidden />
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[9.5px] font-black uppercase tracking-[0.16em] text-sky-700">
                     {countLabel}
                   </p>
-                  <p className="mt-1 font-display text-[2.1rem] font-black leading-none text-slate-900">
-                    {renderTotalCount("text-slate-900")}
+                  <p className="catalog-seo-counter-number mt-1 font-black">
+                    {renderTotalCount("text-slate-900 tabular-nums")}
                   </p>
                 </div>
                 <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-sky-500 to-cyan-500 text-white shadow-[0_8px_18px_rgba(14,165,233,0.24)] ring-1 ring-white/80">
@@ -923,7 +1079,7 @@ const CatalogSeoSnapshot = ({
                 </span>
               </div>
 
-              <div className="mt-3.5 rounded-[14px] border border-white bg-white/80 px-3 py-2.5 shadow-[0_5px_15px_rgba(15,23,42,0.05)]">
+              <div className="catalog-seo-counter-status mt-3.5 rounded-[14px] border border-white bg-white/80 px-3 py-2.5 shadow-[0_5px_15px_rgba(15,23,42,0.05)]">
                 <p className="text-[12px] font-semibold leading-[1.6] text-slate-600">
                   Завантажено зараз:{" "}
                   <span className="font-black text-sky-700">
@@ -945,40 +1101,37 @@ const CatalogSeoSnapshot = ({
           </div>
         </div>
 
-        {/* ── Список товарів для SEO ────────────────────────────────────── */}
-        {visibleItems.length > 0 && (
-          <div className="bg-[linear-gradient(180deg,#ffffff,#fbfdff)] px-4 py-6 sm:px-7" data-nosnippet>
+        {/* ── Популярні моделі авто для SEO-навігації ───────────────────── */}
+        {popularModels.length > 0 && (
+          <div className="catalog-seo-products bg-[linear-gradient(180deg,#ffffff,#fbfdff)] px-4 py-6 sm:px-7">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-                Позиції каталогу
-              </p>
-              <Link
-                href="/katalog"
-                className="inline-flex h-8 items-center gap-1.5 rounded-[11px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-600 shadow-sm transition-[border-color,color,background-color] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
-              >
-                Увесь каталог
+              <h3 className={CATALOG_SEO_SECTION_HEADING_CLASS}>
+                <Car size={12} aria-hidden />
+                Популярні моделі авто
+              </h3>
+              <Link href="/auto" className={CATALOG_SEO_SECTION_CTA_CLASS}>
+                Усі марки
                 <ArrowUpRight size={12} aria-hidden />
               </Link>
             </div>
-            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {visibleItems.slice(0, 16).map((item) => {
-                const visibleName = buildVisibleProductName(item.name);
-                return (
-                  <li key={item.code}>
-                    <a
-                      href={buildSeoProductPath(item)}
-                      className="group flex min-h-[62px] flex-col justify-center rounded-[14px] border border-slate-200/80 bg-white px-3.5 py-2.5 shadow-[0_4px_14px_rgba(15,23,42,0.04)] transition-[border-color,background-color,box-shadow,color] duration-300 hover:border-sky-300 hover:bg-sky-50/45 hover:shadow-[0_9px_22px_rgba(14,165,233,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+            <ul className="catalog-seo-model-list" role="list">
+              {popularModels.map(({ brand, model }) => (
+                  <li key={`${brand}-${model}`}>
+                    <Link
+                      href={buildAutoModelPath(brand, model)}
+                      className="catalog-seo-model-link group"
+                      aria-label={`Запчастини для ${brand} ${model}`}
                     >
-                      <span className="line-clamp-2 text-[12.5px] font-bold leading-[1.45] text-slate-800 group-hover:text-sky-700">
-                        {visibleName}
+                      <span className="min-w-0">
+                        <span className="block truncate text-[11.5px] font-extrabold text-slate-800 group-hover:text-sky-700">
+                          {brand} {model}
+                        </span>
+                        <span className="block text-[9.5px] font-semibold text-slate-400">Підібрати запчастини</span>
                       </span>
-                      <span className="mt-1 line-clamp-1 text-[11px] font-medium text-slate-500">
-                        {[item.producer, item.article].filter(Boolean).join(" · ")}
-                      </span>
-                    </a>
+                      <ArrowUpRight className="shrink-0 text-sky-500" size={12} aria-hidden />
+                    </Link>
                   </li>
-                );
-              })}
+                ))}
             </ul>
           </div>
         )}
@@ -987,65 +1140,88 @@ const CatalogSeoSnapshot = ({
         {showDiscovery && (
           <nav
             aria-label="Розділи каталогу"
-            className="border-t border-sky-100 bg-[linear-gradient(145deg,#f8fbff,#eef8ff_55%,#f8fcff)] px-4 py-6 sm:px-7"
+            className="catalog-seo-navigation border-t border-sky-100 bg-[linear-gradient(145deg,#f8fbff,#eef8ff_55%,#f8fcff)] px-4 py-6 sm:px-7"
           >
-            <div className="grid gap-4 lg:grid-cols-2 lg:gap-5">
+            <div className="grid gap-3.5">
               {topGroups.length > 0 && (
                 <div className="rounded-[18px] border border-white bg-white/85 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.055)] ring-1 ring-sky-100/80">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <h3 className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    <h3 className={CATALOG_SEO_SECTION_HEADING_CLASS}>
                       <ListTree size={12} aria-hidden />
-                      Групи запчастин
+                      Категорії товарів
                     </h3>
-                    <Link
-                      href="/groups"
-                      className="inline-flex items-center gap-1 text-[12px] font-bold text-sky-700 transition hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
-                    >
-                      Усі групи
+                    <Link href="/groups" className={CATALOG_SEO_SECTION_CTA_CLASS}>
+                      Усі категорії
                       <ArrowUpRight size={12} aria-hidden />
                     </Link>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <ul className="catalog-seo-link-list" role="list">
                     {topGroups.map((group) => (
-                      <a
-                        key={`group-${group.slug}`}
-                        href={group.href}
-                        aria-label={`Категорія запчастин: ${group.label}`}
-                        className="inline-flex min-h-7 items-center rounded-[10px] border border-slate-200 bg-white px-2.5 text-[12px] font-semibold text-slate-600 transition-[border-color,background-color,color] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
-                      >
-                        {group.label}
-                      </a>
+                      <li key={`group-${group.slug}`}>
+                        <a
+                          href={group.href}
+                          aria-label={`Категорія товарів: ${group.label}`}
+                          className="catalog-seo-facet-link"
+                        >
+                          <span className="catalog-seo-facet-icon">
+                            <Image
+                              src={getCategoryIconPath(inferCategoryForGroupLabel(group.label) || group.label)}
+                              alt={`Іконка категорії ${group.label}`}
+                              width={28}
+                              height={28}
+                              sizes="28px"
+                              loading="lazy"
+                              className="h-5 w-5 object-contain"
+                            />
+                          </span>
+                          <span className="min-w-0 line-clamp-2">{group.label}</span>
+                        </a>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
               )}
               {topProducers.length > 0 && (
                 <div className="rounded-[18px] border border-white bg-white/85 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.055)] ring-1 ring-sky-100/80">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <h3 className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    <h3 className={CATALOG_SEO_SECTION_HEADING_CLASS}>
                       <Tags size={12} aria-hidden />
                       Виробники
                     </h3>
-                    <Link
-                      href="/manufacturers"
-                      className="inline-flex items-center gap-1 text-[12px] font-bold text-sky-700 transition hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
-                    >
+                    <Link href="/manufacturers" className={CATALOG_SEO_SECTION_CTA_CLASS}>
                       Усі виробники
                       <ArrowUpRight size={12} aria-hidden />
                     </Link>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <ul className="catalog-seo-link-list" role="list">
                     {topProducers.map((producer) => (
-                      <a
-                        key={`producer-${producer.slug}`}
-                        href={buildManufacturerPath(producer.slug)}
-                        aria-label={`Виробник автозапчастин: ${producer.label}`}
-                        className="inline-flex min-h-7 items-center rounded-[10px] border border-slate-200 bg-white px-2.5 text-[12px] font-semibold text-slate-600 transition-[border-color,background-color,color] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
-                      >
-                        {producer.label}
-                      </a>
+                      <li key={`producer-${producer.slug}`}>
+                        <a
+                          href={buildManufacturerPath(producer.slug)}
+                          aria-label={`Виробник автозапчастин: ${producer.label}`}
+                          className="catalog-seo-facet-link"
+                        >
+                          <span className="catalog-seo-brand-logo">
+                            {producer.logoPath ? (
+                              <Image
+                                src={producer.logoPath}
+                                alt={`Логотип виробника ${producer.label}`}
+                                width={56}
+                                height={28}
+                                sizes="46px"
+                                loading="lazy"
+                                unoptimized={producer.logoPath.endsWith(".svg")}
+                                className="h-5 w-10 object-contain"
+                              />
+                            ) : (
+                              <span>{producer.label.slice(0, 2).toUpperCase()}</span>
+                            )}
+                          </span>
+                          <span className="min-w-0 truncate">{producer.label}</span>
+                        </a>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
               )}
             </div>
@@ -1153,7 +1329,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     initialPagePayload?.items ?? [],
     euroRate
   );
-  const topGroups = (productTreeDataset?.groups ?? []).slice(0, 30).map((g) => ({
+  const topGroups = (productTreeDataset?.groups ?? []).slice(0, 16).map((g) => ({
     label: g.label,
     slug: g.slug,
     href: buildGroupPath(g.slug || g.label),
@@ -1165,9 +1341,6 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   }));
   const catalogNavigationGroups =
     topGroups.length > 0 ? topGroups : seoFallbackGroups;
-  const topProducers = seoFacets.producers
-    .slice(0, 42)
-    .map((p) => ({ label: p.label, slug: p.slug }));
   // Reuses the seoFacets already fetched above (no extra 1C round-trip) so
   // the producer picker in the filter sidebar renders with real logos/counts
   // on first paint — no static-seed-then-live-swap flicker, no client fetch.
@@ -1183,10 +1356,42 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       productCount: producer.productCount,
     })
   );
+  const producerLogoByLabel = new Map(
+    (manufacturersDirectoryData?.clientProducers ?? []).map((producer) => [
+      producer.label.trim().toLocaleLowerCase("uk-UA"),
+      producer.logoPath,
+    ])
+  );
+  const topProducers = seoFacets.producers.slice(0, 16).map((producer) => ({
+    label: producer.label,
+    slug: producer.slug,
+    logoPath:
+      producerLogoByLabel.get(producer.label.trim().toLocaleLowerCase("uk-UA")) ?? null,
+  }));
+
+  // The LCP candidate is the first card's image, but the initial payload's own
+  // `images` map is deliberately empty (see above — no per-card filesystem
+  // checks in SSR). The image URL itself needs no lookup though: it's a pure
+  // function of code+article, the same one ProductCardImage computes on mount.
+  // Preloading it here lets the browser's HTML scanner start the request
+  // while parsing, well before hydration runs that mount effect.
+  const lcpImageItem = initialPagePayload?.items?.[0];
+  const lcpImageHref =
+    lcpImageItem && lcpImageItem.hasPhoto !== false
+      ? buildProductImagePath(lcpImageItem.code, lcpImageItem.article, { catalog: true })
+      : null;
 
   return (
     <>
-      <h1 className="sr-only">{state.title}</h1>
+      {lcpImageHref ? (
+        <link rel="preload" as="image" href={lcpImageHref} fetchPriority="high" />
+      ) : null}
+      {/* The <title> tag (state.title) stays terser/keyword-first for search
+          snippets — this sr-only h1 instead matches the sentence-style
+          heading actually shown on the page (CatalogSeoSnapshot's visible
+          heading), so what's announced as the page's h1 doesn't say
+          something different from what's on screen. */}
+      <h1 className="sr-only">{buildCatalogSeoHeading(state)}</h1>
       <KatalogPageShell
         initialPagePayload={initialPagePayload}
         initialQuerySignature={initialQuerySignature}

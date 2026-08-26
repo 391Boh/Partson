@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { ChevronRight, FolderTree, Layers3, PackageSearch } from "lucide-react";
 
-import CatalogDirectoryGuide from "app/components/CatalogDirectoryGuide";
 import CatalogHubHero from "app/components/CatalogHubHero";
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
@@ -215,35 +214,6 @@ export default async function GroupsPage() {
         </div>
       </div>
 
-      <CatalogDirectoryGuide
-        badge="Навігація за вузлом авто"
-        title="Від системи автомобіля до конкретної групи запчастин"
-        paragraphs={[
-          "Групи впорядковують каталог за логікою ремонту: підвіска, гальма, двигун, фільтри, електрика, охолодження та інші системи автомобіля.",
-          "Оберіть напрямок, уточніть підгрупу або кінцеву категорію — і відкрийте добірку товарів із уже підготовленим фільтром.",
-        ]}
-        steps={[
-          {
-            label: "Крок 1",
-            title: "Оберіть систему",
-            description: "Почніть із вузла автомобіля або знайдіть його за назвою.",
-            icon: Layers3,
-          },
-          {
-            label: "Крок 2",
-            title: "Уточніть групу",
-            description: "Перейдіть до підгрупи чи конкретного типу запчастини.",
-            icon: FolderTree,
-          },
-          {
-            label: "Крок 3",
-            title: "Перегляньте товари",
-            description: "Отримайте релевантні позиції та продовжте пошук у каталозі.",
-            icon: PackageSearch,
-          },
-        ]}
-      />
-
       {hasResolvedGroups ? (
         <GroupsDirectoryClient
           items={clientGroups}
@@ -262,23 +232,24 @@ export default async function GroupsPage() {
       )}
 
       <CatalogSeoTextSection
-        badge="Каталог за типом запчастини"
+        numbered
+        badge="Категорії за вузлом авто"
         title="Як знайти автозапчастину за групою, категорією або вузлом авто"
         lead="Структура груп допомагає перейти від системи автомобіля до конкретного типу деталі та відкрити релевантні товари з готовим фільтром."
         topics={[
           {
-            title: "Оберіть вузол автомобіля",
-            text: "Почніть із підвіски, гальм, двигуна, охолодження, електрики або іншої системи автомобіля.",
+            title: "Оберіть систему автомобіля",
+            text: "Почніть із підвіски, гальм, двигуна, охолодження, електрики або іншої системи — групи впорядковують каталог за логікою ремонту.",
             icon: Layers3,
           },
           {
-            title: "Уточніть категорію",
+            title: "Уточніть підгрупу",
             text: "Перейдіть від основної групи до підгрупи й конкретного типу запчастини, потрібного для ремонту.",
             icon: FolderTree,
           },
           {
-            title: "Порівняйте товари",
-            text: "Перегляньте доступних виробників, актуальну наявність і ціни у сформованій добірці каталогу.",
+            title: "Перегляньте товари",
+            text: "Відкриється добірка з уже підготовленим фільтром — порівняйте виробників, наявність і ціни в каталозі.",
             icon: PackageSearch,
           },
         ]}

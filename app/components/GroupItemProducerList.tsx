@@ -182,11 +182,13 @@ export default function GroupItemProducerList({
                 {producer.logoPath ? (
                   <Image
                     src={producer.logoPath}
-                    alt={producer.label}
+                    alt={`Логотип виробника автозапчастин ${producer.label}`}
                     width={80}
                     height={48}
                     sizes="56px"
+                    quality={85}
                     loading="lazy"
+                    unoptimized={producer.logoPath.endsWith(".svg")}
                     className="h-9 w-12 object-contain transition duration-200 group-hover:scale-[1.04]"
                   />
                 ) : (

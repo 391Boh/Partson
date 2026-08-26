@@ -424,9 +424,10 @@ const Header: React.FC = () => {
           >
             <Image
               src="/partson-logo-v2.webp"
-              alt="PartsOn Logo"
+              alt="Логотип інтернет-магазину автозапчастин PartsON"
               width={98}
               height={49}
+              quality={85}
               priority
               fetchPriority="high"
               sizes="(max-width: 768px) 65px, 85px"

@@ -415,7 +415,12 @@ const ProductCardImage: React.FC<Props> = ({
   const showLoadingSkeleton = status === "loading" || status === "retrying";
   const showPlaceholder = status === "missing";
   const imageDecodingMode = fetchPriority === "high" ? "sync" : "async";
-  const imageFadeClass = "duration-0";
+  // A zero-duration "fade" is really an instant opacity snap the moment
+  // `status` flips to "loaded" — across a full grid where every card's image
+  // resolves at a slightly different time, that reads as the whole page
+  // blinking rather than images settling in. A short real fade smooths each
+  // individual swap without adding a perceptible delay to any one card.
+  const imageFadeClass = "duration-200";
   const effectiveLoadingMode = isNearViewport ? "eager" : loadingMode;
 
   return (

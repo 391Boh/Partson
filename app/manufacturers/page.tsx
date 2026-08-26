@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Factory, PackageSearch, Search, Tags } from "lucide-react";
 
-import CatalogDirectoryGuide from "app/components/CatalogDirectoryGuide";
 import CatalogHubHero from "app/components/CatalogHubHero";
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
@@ -200,35 +199,6 @@ export default async function ManufacturersPage() {
         </div>
       </div>
 
-      <CatalogDirectoryGuide
-        badge="Пошук за брендом"
-        title="Знайдіть виробника й одразу перейдіть до його асортименту"
-        paragraphs={[
-          "У каталозі зібрані окремі сторінки брендів із товарами, групами та категоріями. Це коротший шлях до потрібної деталі, коли виробник уже відомий.",
-          "Введіть назву бренду, відкрийте його сторінку та продовжте пошук у готовій добірці — без повторного налаштування фільтрів.",
-        ]}
-        steps={[
-          {
-            label: "Крок 1",
-            title: "Знайдіть бренд",
-            description: "Скористайтеся пошуком або перегляньте єдину сітку виробників.",
-            icon: Search,
-          },
-          {
-            label: "Крок 2",
-            title: "Відкрийте сторінку",
-            description: "Перегляньте групи, категорії та доступні позиції бренду.",
-            icon: Factory,
-          },
-          {
-            label: "Крок 3",
-            title: "Перейдіть до товарів",
-            description: "Каталог відкриється з уже вибраним виробником.",
-            icon: PackageSearch,
-          },
-        ]}
-      />
-
       <ManufacturersDirectory
         items={clientProducers.slice(0, 32)}
         totalItems={clientProducers.length}
@@ -236,23 +206,24 @@ export default async function ManufacturersPage() {
       />
 
       <CatalogSeoTextSection
-        badge="Вибір бренду запчастин"
+        numbered
+        badge="Пошук за виробником"
         title="Як вибрати виробника автозапчастин і знайти потрібний товар"
         lead="Сторінка виробника об’єднує його товари, групи та категорії в одному місці, тому знайти потрібну запчастину можна без повторного налаштування каталогу."
         topics={[
           {
-            title: "Пошук за назвою бренду",
-            text: "Введіть виробника в пошуку та відкрийте окрему сторінку з доступним асортиментом PartsON.",
+            title: "Знайдіть бренд",
+            text: "Скористайтеся пошуком або перегляньте сітку виробників і відкрийте окрему сторінку з доступним асортиментом PartsON.",
             icon: Search,
           },
           {
-            title: "Порівняння асортименту",
-            text: "Переглядайте кількість товарів, груп і категорій, щоб швидко оцінити представленість бренду.",
+            title: "Перегляньте асортимент",
+            text: "Оцініть кількість товарів, груп і категорій бренду, щоб зрозуміти його представленість у каталозі.",
             icon: Tags,
           },
           {
-            title: "Каталог із готовим фільтром",
-            text: "Після переходу до товарів виробник уже вибраний — залишається уточнити автомобіль або групу запчастин.",
+            title: "Перейдіть до товарів",
+            text: "Каталог відкриється з уже вибраним виробником — залишається уточнити автомобіль або групу запчастин.",
             icon: PackageSearch,
           },
         ]}

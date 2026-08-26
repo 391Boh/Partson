@@ -92,9 +92,14 @@ const formatCount = (value: number) =>
   Number.isFinite(value) && value > 0 ? value.toLocaleString("uk-UA") : "0";
 
 const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null> => {
-  const dataset = await getProductTreeDataset().catch(() => null);
+  // Same independent dataset/facets shape as the sibling [itemSlug] page —
+  // see its `Promise.all([dataset, rawGroupSeoFacets])` below.
+  const [dataset, rawSeoFacets] = await Promise.all([
+    getProductTreeDataset().catch(() => null),
+    getCatalogSeoFacetsWithTimeout(GROUP_PAGE_SEO_FACETS_TIMEOUT_MS),
+  ]);
   const seoFacets = await resolveCatalogSeoFacetsWithFallback(
-    await getCatalogSeoFacetsWithTimeout(GROUP_PAGE_SEO_FACETS_TIMEOUT_MS),
+    rawSeoFacets,
     getAllProductSitemapEntries
   );
   const group = dataset?.groups.find(

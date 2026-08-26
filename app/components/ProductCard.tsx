@@ -10,6 +10,7 @@ import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { pushEcommerceEvent } from "app/lib/gtm";
 import { prepareProductImage, PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
+import { useProductDescription } from "app/lib/use-product-description";
 import {
     clearProductImageMissing,
     clearProductImageSuccess,
@@ -220,7 +221,11 @@ const ProductCard: React.FC<Props> = ({
     const descriptionRequestUrl = useMemo(() => {
         const params = new URLSearchParams();
 
-        for (const key of [article, code]) {
+        // code first: matches useProductDescription's ordering (see that
+        // file's comment) so a hover-triggered prefetch warms the exact same
+        // cache key this effect reads below, instead of a differently-ordered
+        // query string that misses.
+        for (const key of [code, article]) {
             const normalized = (key || "").trim();
             if (!normalized || normalized === "-") continue;
             params.append("lookup", normalized);
@@ -714,12 +719,23 @@ useEffect(() => {
     };
 }, [descriptionRequestUrl, isFlipped]);
 
+    // A hover (desktop) reliably precedes the click that actually flips the
+    // card by a couple hundred ms or more — enough of a head start on 1C's
+    // measured 1.9-3.7s description lookup to matter. This only warms the
+    // shared session/localStorage cache (descriptionRequestUrl above now uses
+    // the same code-first key order); the effect above still owns what's
+    // actually displayed, so this hook's own return value is unused here.
+    const [isHovered, setIsHovered] = useState(false);
+    useProductDescription(code, article, isHovered || isFlipped);
+
     return (
         <>
         <article
             className={`catalog-product-card relative w-full [perspective:1200px] select-none h-[360px] sm:h-[340px] ${isAdmin ? "catalog-product-card--admin" : ""} ${cardMotionClass}`}
             itemScope={hasPrice ? true : undefined}
             itemType={hasPrice ? "https://schema.org/Product" : undefined}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
         >
             {hasPrice ? (
                 <>
@@ -754,7 +770,7 @@ useEffect(() => {
                 <div
                     className={`
                         catalog-card-face catalog-card-face-front absolute inset-0 w-full h-full backface-hidden
-                        rounded-xl border
+                        rounded-[1.35rem] border
                         ${isAdmin ? "border-violet-200/80 hover:border-violet-300" : "border-slate-200 hover:border-sky-200/90"}
                         shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.07),0_12px_24px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)]
                         hover:shadow-[0_2px_4px_rgba(14,165,233,0.05),0_8px_20px_rgba(14,165,233,0.10),0_20px_36px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)]
@@ -890,7 +906,7 @@ useEffect(() => {
                                                 ],
                                             });
                                         }}
-                                        className="catalog-card-name font-display text-left text-[14.5px] font-black italic tracking-[-0.028em] text-slate-950 sm:text-[15.5px] leading-[1.03] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-4 sm:line-clamp-3"
+                                        className="catalog-card-name catalog-product-title text-left text-[14.5px] text-slate-900 sm:text-[15.5px] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-4 sm:line-clamp-3"
                                         title={name}
                                     >
                                         <span itemProp="name">{name}</span>
@@ -1020,13 +1036,13 @@ useEffect(() => {
                                       {producerPath ? (
                                           <SmartLink href={producerPath} prefetchOnIntent onClick={(event) => event.stopPropagation()} className="flex min-w-0 justify-end no-underline" title={displayProducer}>
                                               {showProducerLogo ? (
-                                                  <Image src={producerLogoSrc || ""} alt={displayProducer} width={112} height={34} loading="lazy" onError={() => setProducerLogoFailed(true)} className="aspect-[112/34] h-7 w-auto max-w-[112px] object-contain object-right" />
+                                                  <Image src={producerLogoSrc || ""} alt={`Логотип виробника ${displayProducer}`} width={112} height={34} sizes="112px" quality={85} loading="lazy" unoptimized={Boolean(producerLogoSrc?.endsWith(".svg"))} onError={() => setProducerLogoFailed(true)} className="aspect-[112/34] h-7 w-auto max-w-[112px] object-contain object-right" />
                                               ) : (
                                                   <span className="min-w-0 truncate font-extrabold text-blue-700 hover:text-blue-800">{displayProducer}</span>
                                               )}
                                           </SmartLink>
                                       ) : showProducerLogo ? (
-                                          <Image src={producerLogoSrc || ""} alt={displayProducer} width={112} height={34} loading="lazy" onError={() => setProducerLogoFailed(true)} className="aspect-[112/34] h-7 w-auto max-w-[112px] object-contain object-right" />
+                                          <Image src={producerLogoSrc || ""} alt={`Логотип виробника ${displayProducer}`} width={112} height={34} sizes="112px" quality={85} loading="lazy" unoptimized={Boolean(producerLogoSrc?.endsWith(".svg"))} onError={() => setProducerLogoFailed(true)} className="aspect-[112/34] h-7 w-auto max-w-[112px] object-contain object-right" />
                                       ) : (
                                           <span className="min-w-0 truncate font-extrabold text-slate-800">{displayProducer}</span>
                                       )}
@@ -1360,7 +1376,7 @@ useEffect(() => {
 <div
     className={`
         catalog-card-face absolute inset-0 w-full h-full backface-hidden
-        rounded-xl border
+        rounded-[1.35rem] border
         ${isAdmin ? "border-violet-200/80" : "border-slate-200"}
         bg-[linear-gradient(155deg,rgba(248,250,252,1)_0%,rgba(255,255,255,0.98)_50%,rgba(240,249,255,0.95)_100%)]
         shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.07),0_12px_24px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)]
@@ -1377,8 +1393,8 @@ useEffect(() => {
     inert={isFrontVisible ? true : undefined}
 >
     {/* Header: name + action buttons */}
-    <div className="group/backheader flex items-start gap-2 px-3 pt-2.5 pb-2 border-b border-slate-100/80 bg-gradient-to-r from-white to-slate-50/60 rounded-t-xl">
-        <h3 className="flex-1 min-w-0 font-display text-[13.5px] font-black italic tracking-[-0.025em] text-slate-950 sm:text-[14.5px] leading-snug line-clamp-2">
+    <div className="group/backheader flex items-start gap-2 px-3 pt-2.5 pb-2 border-b border-slate-100/80 bg-gradient-to-r from-white to-slate-50/60 rounded-t-[1.3rem]">
+        <h3 className="catalog-product-title flex-1 min-w-0 text-[13.5px] text-slate-900 sm:text-[14.5px] line-clamp-2">
             {name}
         </h3>
         <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">

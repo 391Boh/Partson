@@ -99,12 +99,14 @@ const ManufacturerCard = memo(function ManufacturerCard({
               {item.logoPath ? (
                 <Image
                   src={item.logoPath}
-                  alt={item.label}
+                  alt={`Логотип виробника автозапчастин ${item.label}`}
                   width={96}
                   height={56}
                   sizes="56px"
+                  quality={85}
                   priority={priorityLogo}
                   loading={priorityLogo ? undefined : "lazy"}
+                  unoptimized={item.logoPath.endsWith(".svg")}
                   className="h-9 w-11 object-contain"
                 />
               ) : (

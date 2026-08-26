@@ -11,6 +11,7 @@ import {
 } from "app/lib/catalog-client-cache";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { safeSetStorageItem } from "app/lib/safe-storage";
+import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
 
 interface CategoryProps {
   selectedCategories: string[];
@@ -359,11 +360,6 @@ const Category: React.FC<CategoryProps> = ({
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const categoryCarouselRef = useRef<HTMLDivElement | null>(null);
-  const [categoryCarouselState, setCategoryCarouselState] = useState({
-    canGoBack: false,
-    canGoForward: false,
-  });
   const lastResetSignalRef = useRef<number | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -730,54 +726,6 @@ const Category: React.FC<CategoryProps> = ({
     subgroup: "Знайти підгрупу товарів",
   };
 
-  const categoryCarouselScrollRafRef = useRef<number | null>(null);
-  const updateCategoryCarouselState = () => {
-    const carousel = categoryCarouselRef.current;
-    if (!carousel) return;
-
-    const maxScrollLeft = carousel.scrollWidth - carousel.clientWidth;
-    setCategoryCarouselState({
-      canGoBack: carousel.scrollLeft > 4,
-      canGoForward: maxScrollLeft - carousel.scrollLeft > 4,
-    });
-  };
-
-  const handleCategoryCarouselScroll = () => {
-    if (categoryCarouselScrollRafRef.current != null) return;
-    categoryCarouselScrollRafRef.current = window.requestAnimationFrame(() => {
-      categoryCarouselScrollRafRef.current = null;
-      updateCategoryCarouselState();
-    });
-  };
-
-  const scrollCategoryCarousel = (direction: -1 | 1) => {
-    const carousel = categoryCarouselRef.current;
-    if (!carousel) return;
-    carousel.scrollBy({
-      left: direction * carousel.clientWidth,
-      behavior: "smooth",
-    });
-  };
-
-  useEffect(() => {
-    if (step !== "category" || isSearchMode) return;
-    const carousel = categoryCarouselRef.current;
-    if (!carousel) return;
-
-    carousel.scrollTo({ left: 0, behavior: "auto" });
-    const frame = window.requestAnimationFrame(updateCategoryCarouselState);
-    const resizeObserver = new ResizeObserver(updateCategoryCarouselState);
-    resizeObserver.observe(carousel);
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      resizeObserver.disconnect();
-      if (categoryCarouselScrollRafRef.current != null) {
-        window.cancelAnimationFrame(categoryCarouselScrollRafRef.current);
-      }
-    };
-  }, [filteredCategoryItems.length, isSearchMode, step]);
-
   const handleCategorySelect = (name: string) => {
     setActiveCategory(name);
     setActiveGroup(null);
@@ -858,19 +806,19 @@ const Category: React.FC<CategoryProps> = ({
             ))}
         </div>
 
-        <label className="group/search relative w-full shrink-0 sm:ml-auto sm:w-[340px]">
+        <label className="catalog-filter-search-shell group/search relative w-full shrink-0 sm:ml-auto sm:w-[340px]">
           <span className="sr-only">{searchLabelMap[step]}</span>
           <input
             type="text"
             placeholder={searchPlaceholderMap[step]}
             aria-label={searchPlaceholderMap[step]}
-            className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/80 pl-11 pr-10 text-[16px] font-medium text-slate-800 shadow-[inset_0_1px_2px_rgba(15,23,42,0.03)] outline-none transition-[background-color,border-color,box-shadow] duration-300 ease-out placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(59,130,246,0.10)] sm:h-11 sm:text-[13px]"
+            className="catalog-filter-search-input pr-10"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             data-search="true"
           />
           <svg
-            className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400 transition-colors duration-300 ease-out group-focus-within/search:text-blue-600"
+            className="catalog-filter-search-icon pointer-events-none absolute left-1 top-1/2 -translate-y-1/2"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -915,14 +863,18 @@ const Category: React.FC<CategoryProps> = ({
         {!loading && !error && (
           <div className="p-2">
             {isSearchMode && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+              <HorizontalDirectoryRail
+                ariaLabel="Результати пошуку категорій"
+                rows={2}
+                className="auto-cols-[calc((100%_-_0.5rem)/2)] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
+              >
                 {searchResults.length > 0 ? (
                   searchResults.map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => handleSearchSelect(item.path)}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-left text-[10px] transition shadow-sm hover:border-blue-200 hover:bg-blue-50/40"
+                      className="catalog-filter-choice-card h-[72px] w-full rounded-[14px] border border-sky-100 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] px-3 py-2 text-left text-[10px] shadow-[0_7px_16px_rgba(15,23,42,0.06)] transition-[border-color,background-color,box-shadow] duration-300 hover:border-sky-300 hover:bg-[linear-gradient(145deg,#ffffff,#e0f2fe)] hover:shadow-[0_12px_24px_rgba(14,116,144,0.13)]"
                     >
                       <div className="text-[11px] font-semibold text-slate-800 line-clamp-1">
                         {getCompactDisplayLabel(item.label)}
@@ -942,29 +894,17 @@ const Category: React.FC<CategoryProps> = ({
                     {"\u041d\u0456\u0447\u043e\u0433\u043e \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}
                   </div>
                 )}
-              </div>
+              </HorizontalDirectoryRail>
             )}
 
             {!isSearchMode && step === "category" && (
               <div className="relative py-2">
                 {filteredCategoryItems.length > 0 ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => scrollCategoryCarousel(-1)}
-                      disabled={!categoryCarouselState.canGoBack}
-                      aria-label="Попередні категорії"
-                      className="absolute left-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-600 shadow-md backdrop-blur transition-[border-color,background-color,color,box-shadow] duration-300 ease-out hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 disabled:pointer-events-none disabled:opacity-0 sm:left-2"
-                    >
-                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
-                      </svg>
-                    </button>
-                    <div
-                      ref={categoryCarouselRef}
-                      onScroll={handleCategoryCarouselScroll}
-                      className="flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-3"
-                    >
+                  <HorizontalDirectoryRail
+                    ariaLabel="Категорії автозапчастин"
+                    rows={2}
+                    className="auto-cols-[calc((100%_-_1rem)/3)] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)] sm:gap-3"
+                  >
                     {filteredCategoryItems.map((item, itemIndex) => {
                     const isSelected = selectedCategories.includes(item.name);
                     const isActive = activeCategory === item.name;
@@ -979,19 +919,19 @@ const Category: React.FC<CategoryProps> = ({
                         key={item.name}
                         type="button"
                         onClick={() => handleCategorySelect(item.name)}
-                        className={`group/card relative flex min-h-28 w-[calc((100%_-_1rem)/3)] shrink-0 cursor-pointer snap-start flex-col items-center justify-center overflow-hidden rounded-2xl border px-2 py-3 text-center shadow-[0_4px_16px_rgba(15,23,42,0.04)] transition-[background-color,border-color,box-shadow] duration-300 ease-out hover:bg-slate-50/80 hover:shadow-[0_6px_20px_rgba(15,23,42,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 sm:min-h-32 sm:w-[calc((100%_-_1.5rem)/3)] sm:px-4 sm:py-4 ${buttonClass}`}
+                        className={`catalog-filter-choice-card group/card relative flex h-[72px] w-full shrink-0 cursor-pointer snap-start flex-col items-center justify-center overflow-hidden rounded-[16px] border px-2 py-1.5 text-center shadow-[0_8px_18px_rgba(15,23,42,0.07),inset_0_1px_0_white] transition-[background-color,border-color,box-shadow] duration-300 ease-out hover:shadow-[0_14px_28px_rgba(14,116,144,0.14),inset_0_1px_0_white] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 sm:px-3 ${buttonClass}`}
                       >
-                        <span className="flex h-12 w-12 shrink-0 items-center justify-center sm:h-16 sm:w-16">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center sm:h-9 sm:w-9">
                           <Image
                             src={getCategoryIcon(getCompactDisplayLabel(item.name))}
                             alt=""
                             width={48}
                             height={48}
-                            quality={70}
+                            quality={80}
                             sizes="(min-width: 640px) 48px, 40px"
                             priority={itemIndex < 3}
                             loading={itemIndex < 3 ? undefined : "lazy"}
-                            className="h-10 w-10 object-contain sm:h-12 sm:w-12"
+                            className="h-7 w-7 object-contain sm:h-8 sm:w-8"
                           />
                         </span>
                         <div className="mt-2 min-w-0">
@@ -1002,19 +942,7 @@ const Category: React.FC<CategoryProps> = ({
                       </button>
                     );
                     })}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => scrollCategoryCarousel(1)}
-                      disabled={!categoryCarouselState.canGoForward}
-                      aria-label="Наступні категорії"
-                      className="absolute right-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-600 shadow-md backdrop-blur transition-[border-color,background-color,color,box-shadow] duration-300 ease-out hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 disabled:pointer-events-none disabled:opacity-0 sm:right-2"
-                    >
-                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  </>
+                  </HorizontalDirectoryRail>
                 ) : (
                   <div className="py-4 text-center text-[11px] text-slate-400">
                     {"\u041d\u0456\u0447\u043e\u0433\u043e \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}
@@ -1024,7 +952,11 @@ const Category: React.FC<CategoryProps> = ({
             )}
 
             {!isSearchMode && step === "group" && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+              <HorizontalDirectoryRail
+                ariaLabel="Групи автозапчастин"
+                rows={2}
+                className="auto-cols-[calc((100%_-_0.5rem)/2)] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
+              >
                 {filteredGroupItems.length > 0 ? (
                   filteredGroupItems.map((group) => {
                     const name = normalizeNodeName(group);
@@ -1036,7 +968,7 @@ const Category: React.FC<CategoryProps> = ({
                         key={name}
                         type="button"
                         onClick={() => handleGroupSelect(group)}
-                        className={`flex w-full items-center justify-between rounded-xl border px-2.5 py-1.5 text-left text-[10px] transition shadow-sm ${
+                        className={`catalog-filter-choice-card flex h-[72px] w-full items-center justify-between rounded-[14px] border px-3 py-2 text-left text-[10px] transition-[border-color,background-color,box-shadow] duration-300 shadow-sm ${
                           isSelected
                             ? "border-emerald-200 bg-emerald-50/70 text-emerald-800"
                             : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/40"
@@ -1056,11 +988,15 @@ const Category: React.FC<CategoryProps> = ({
                     {"\u041d\u0456\u0447\u043e\u0433\u043e \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}
                   </div>
                 )}
-              </div>
+              </HorizontalDirectoryRail>
             )}
 
             {!isSearchMode && step === "subgroup" && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+              <HorizontalDirectoryRail
+                ariaLabel="Підгрупи автозапчастин"
+                rows={2}
+                className="auto-cols-[calc((100%_-_0.5rem)/2)] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
+              >
                 {filteredSubgroupItems.length > 0 ? (
                   filteredSubgroupItems.map((item) => {
                     const isSelected = selectedCategories.includes(item.label);
@@ -1070,7 +1006,7 @@ const Category: React.FC<CategoryProps> = ({
                         key={item.id}
                         type="button"
                         onClick={() => handleSubgroupSelect(item)}
-                        className={`w-full rounded-xl border px-2.5 py-1.5 text-left text-[10px] transition shadow-sm ${
+                        className={`catalog-filter-choice-card h-[72px] w-full rounded-[14px] border px-3 py-2 text-left text-[10px] transition-[border-color,background-color,box-shadow] duration-300 shadow-sm ${
                           isSelected
                             ? "border-emerald-200 bg-emerald-50/70 text-emerald-800"
                             : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/40"
@@ -1099,7 +1035,7 @@ const Category: React.FC<CategoryProps> = ({
                     {"\u041f\u0456\u0434\u0433\u0440\u0443\u043f \u043d\u0435\u043c\u0430\u0454"}
                   </div>
                 )}
-              </div>
+              </HorizontalDirectoryRail>
             )}
           </div>
         )}

@@ -21,6 +21,36 @@ const galleryItems = [
   ["partson-store-7.jpg", "Автомобільні комплектуючі з доставкою зі Львова по Україні", "Доставка по Україні"],
 ] as const;
 
+const seoCatalogGroups = [
+  {
+    title: "ТО та деталі двигуна",
+    eyebrow: "Регулярне обслуговування",
+    icon: Wrench,
+    text: "Фільтри, моторні оливи, ремені ГРМ, ролики, натяжники, прокладки, сальники, помпи, термостати, радіатори та патрубки охолодження.",
+    tone: "sky" as const,
+  },
+  {
+    title: "Підвіска і гальма",
+    eyebrow: "Безпека та керованість",
+    icon: CheckCircle2,
+    text: "Амортизатори, опори, пружини, важелі, сайлентблоки, кульові опори, підшипники, гальмівні диски, колодки, супорти та шланги.",
+    tone: "cyan" as const,
+  },
+  {
+    title: "Електрика та кузов",
+    eyebrow: "Ремонт і догляд",
+    icon: PackageSearch,
+    text: "Датчики, свічки, котушки, стартери, генератори, фари, ліхтарі, дзеркала, склоочисники, автохімія та аксесуари для автомобіля.",
+    tone: "blue" as const,
+  },
+] as const;
+
+const seoCatalogTones = {
+  sky: "border-sky-200/90 from-white via-sky-50/80 to-blue-50/80 text-sky-700 hover:border-sky-400 hover:from-sky-50 hover:to-cyan-50",
+  cyan: "border-cyan-200/90 from-white via-cyan-50/75 to-emerald-50/70 text-cyan-700 hover:border-cyan-400 hover:from-cyan-50 hover:to-emerald-50",
+  blue: "border-blue-200/90 from-white via-blue-50/75 to-indigo-50/70 text-blue-700 hover:border-blue-400 hover:from-blue-50 hover:to-violet-50",
+} as const;
+
 const serviceCards = [
   {
     title: "Підбір автозапчастин",
@@ -31,10 +61,10 @@ const serviceCards = [
     tone: "sky" as const,
   },
   {
-    title: "Каталог і наявність",
-    eyebrow: "Запчастини для ТО та ремонту",
+    title: "Перевірка перед покупкою",
+    eyebrow: "Менше ризику помилитися",
     icon: Wrench,
-    text: "У каталозі є деталі двигуна, підвіски, гальмівної системи, рульового керування, охолодження, фільтри, оливи, автохімія, електрика та інші витратні матеріали.",
+    text: "Уточнимо виробника, характеристики й актуальну наявність. Якщо потрібної позиції немає, запропонуємо сумісний варіант у відповідному ціновому діапазоні.",
     links: [["/groups", "Групи товарів"], ["/manufacturers", "Виробники"], ["/blog", "Поради фахівців"]],
     tone: "cyan" as const,
   },
@@ -159,29 +189,53 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
   }, []);
 
   return (
-    <section className="font-ui group/seo relative isolate w-full overflow-hidden bg-[radial-gradient(ellipse_at_8%_0%,rgba(14,165,233,0.18),transparent_34%),radial-gradient(ellipse_at_92%_8%,rgba(45,212,191,0.16),transparent_32%),linear-gradient(145deg,#cfe5ee_0%,#e5f6fb_42%,#dcecff_100%)] py-5 text-slate-800 sm:py-7">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_6%,rgba(56,189,248,0.28),transparent_30%),radial-gradient(circle_at_92%_16%,rgba(45,212,191,0.22),transparent_32%),linear-gradient(115deg,rgba(255,255,255,0.28),transparent_46%)] opacity-55 transition-opacity duration-500 group-hover/seo:opacity-100" />
+    <section className="font-ui group/seo relative isolate w-full overflow-hidden bg-[radial-gradient(ellipse_at_8%_0%,rgba(14,165,233,0.24),transparent_34%),radial-gradient(ellipse_at_92%_8%,rgba(45,212,191,0.22),transparent_32%),linear-gradient(145deg,#c8e1ec_0%,#e5f6fb_42%,#d7e9ff_100%)] py-5 text-slate-800 sm:py-8">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_6%,rgba(14,165,233,0.3),transparent_32%),radial-gradient(circle_at_92%_16%,rgba(20,184,166,0.24),transparent_34%),linear-gradient(115deg,rgba(255,255,255,0.3),rgba(59,130,246,0.06)_48%,rgba(45,212,191,0.1))] opacity-65" />
+      <div className="home-scroll-decor pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_18%_10%,rgba(2,132,199,0.34),transparent_38%),radial-gradient(ellipse_at_84%_18%,rgba(13,148,136,0.3),transparent_40%),linear-gradient(125deg,rgba(186,230,253,0.34),rgba(224,242,254,0.1)_44%,rgba(167,243,208,0.28))] opacity-0 transition-opacity duration-500 ease-out group-hover/seo:opacity-100" />
       <div className="page-shell-inline relative z-10">
-        <div className="overflow-hidden rounded-[26px] border border-white/90 bg-white/86 shadow-[0_20px_48px_rgba(15,56,86,0.12),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-sky-200/70">
-          <header className="grid gap-5 border-b border-sky-100/90 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(239,249,255,0.96),rgba(224,242,254,0.9))] px-5 py-6 sm:px-7 sm:py-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.65fr)] lg:items-end lg:gap-8">
+        <div className="relative overflow-hidden rounded-[28px] border border-white bg-white/90 shadow-[0_30px_80px_rgba(15,56,86,0.18),0_8px_24px_rgba(14,116,144,0.12),inset_0_1px_0_white] ring-1 ring-sky-200/80 transition-[box-shadow,border-color] duration-500 group-hover/seo:border-sky-100 group-hover/seo:shadow-[0_36px_90px_rgba(15,56,86,0.22),0_10px_30px_rgba(14,116,144,0.15),inset_0_1px_0_white]">
+          <span className="pointer-events-none absolute inset-x-12 top-0 z-20 h-[3px] rounded-b-full bg-gradient-to-r from-transparent via-sky-500 to-cyan-400 shadow-[0_4px_18px_rgba(14,165,233,0.45)]" />
+          <header className="relative grid gap-5 overflow-hidden border-b border-sky-100/90 bg-[radial-gradient(circle_at_12%_0%,rgba(125,211,252,0.24),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.99),rgba(239,249,255,0.97),rgba(224,242,254,0.92))] px-5 py-6 sm:px-7 sm:py-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.65fr)] lg:items-end lg:gap-8">
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700 sm:text-[11px]">Інтернет-магазин і магазин автозапчастин у Львові</p>
-              <h2 className="mt-2 max-w-4xl font-display text-[27px] font-black leading-[1.04] tracking-[-0.045em] text-slate-950 sm:text-[34px] lg:text-[39px]">Автозапчастини у Львові: підбір за VIN, артикулом і автомобілем</h2>
-              <div className="mt-4 max-w-4xl space-y-3 text-[14px] leading-[1.75] text-slate-600 sm:text-[15px]">
-                <p>
-                  У <strong className="font-extrabold text-slate-900">PartsON</strong> можна купити автозапчастини для планового ТО, ремонту й догляду за автомобілем: оригінальні деталі та перевірені аналоги, амортизатори, опори і пружини підвіски, сайлентблоки, важелі, шарові опори, стійки та тяги стабілізатора, гальмівні диски, колодки, супорти й шланги, наконечники рульових тяг і рульові рейки, ШРУСи та приводні вали, підшипники ступиці, ремені ГРМ, приводні ремені, ролики й натяжники, прокладки та сальники двигуна, а також помпи, термостати, радіатори й патрубки системи охолодження.
-                </p>
-                <p>
-                  Також в асортименті — датчики ABS, тиску та температури, свічки й котушки запалювання, форсунки, паливні насоси, генератори, стартери, акумулятори, комплекти зчеплення, подушки двигуна і КПП, фари, задні ліхтарі, лампи, дзеркала, склопідйомники, щітки склоочисника, моторні оливи, трансмісійні мастила, антифризи, гальмівну рідину, автохімію, автоаксесуари та засоби догляду за автомобілем.
-                </p>
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] bg-gradient-to-br from-sky-600 to-cyan-400 text-white shadow-[0_10px_22px_rgba(14,165,233,0.3),inset_0_1px_0_rgba(255,255,255,0.35)]">
+                  <PackageSearch className="h-5 w-5" strokeWidth={2.4} />
+                </span>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.17em] text-sky-700 sm:text-[10px]">Магазин автозапчастин PartsON</p>
+                  <h2 className="mt-0.5 max-w-4xl bg-gradient-to-r from-slate-950 via-sky-950 to-cyan-800 bg-clip-text font-display text-[22px] font-black leading-[1.08] tracking-[-0.035em] text-transparent sm:text-[27px] lg:text-[31px]">Автозапчастини у Львові</h2>
+                </div>
+              </div>
+              <p className="mt-4 max-w-4xl text-[13.5px] font-medium leading-[1.65] text-slate-600 sm:text-[14px]">
+                Допомагаємо купити <strong className="font-extrabold text-slate-900">оригінальні автозапчастини та перевірені аналоги</strong>, підібрати деталь за VIN-кодом, артикулом або параметрами автомобіля та перевірити сумісність перед замовленням.
+              </p>
+
+              <div className="mt-4 grid gap-2.5 sm:grid-cols-3">
+                {seoCatalogGroups.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <article key={item.title} data-tone={item.tone} className={`seo-topic-card group/seo-card rounded-[17px] border bg-gradient-to-br p-3.5 shadow-[0_8px_20px_rgba(15,23,42,0.06),inset_0_1px_0_white] transition-[transform,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_18px_34px_rgba(14,116,144,0.2),0_0_0_3px_rgba(56,189,248,0.1),inset_0_1px_0_white] ${seoCatalogTones[item.tone]}`}>
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px] border border-current/20 bg-white/80 shadow-sm transition-transform duration-300 group-hover/seo-card:scale-110 group-hover/seo-card:-rotate-3">
+                          <Icon className="h-4 w-4" strokeWidth={2.4} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[8px] font-black uppercase tracking-[0.12em] opacity-70">{item.eyebrow}</p>
+                          <h3 className="mt-0.5 text-[13px] font-black leading-tight text-slate-800">{item.title}</h3>
+                        </div>
+                      </div>
+                      <p className="mt-2.5 text-[11.5px] font-semibold leading-[1.52] text-slate-600">{item.text}</p>
+                    </article>
+                  );
+                })}
               </div>
             </div>
             <div className="overflow-hidden rounded-[20px] border border-white bg-white shadow-[0_16px_34px_rgba(15,56,86,0.16)] ring-1 ring-sky-200/80">
               <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" className="group/map relative block aspect-[16/8] cursor-zoom-in overflow-hidden bg-sky-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-400/60">
-                <Image src="/storefront/partson-location-map-v7.svg" alt="Карта: PartsON, Львів, вул. Перфецького, 8" fill sizes="(max-width: 1024px) 100vw, 360px" className="object-cover transition-transform duration-500 ease-out group-hover/map:scale-[1.015]" />
+                <Image src="/storefront/partson-location-map-v7.svg" alt="Карта: PartsON, Львів, вул. Перфецького, 8" fill sizes="(max-width: 1024px) 100vw, 360px" unoptimized className="object-cover transition-transform duration-500 ease-out group-hover/map:scale-[1.015]" />
                 <span className="pointer-events-none absolute left-1/2 top-[39%] z-[2] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center drop-shadow-[0_10px_14px_rgba(7,89,133,0.28)] transition-transform duration-300 group-hover/map:-translate-y-[56%]">
                   <span className="flex h-[46px] w-[76px] items-center justify-center rounded-[14px] border-[3px] border-sky-700 bg-white px-2 shadow-[inset_0_1px_0_white]">
-                    <Image src="/partson-logo-v2.webp" alt="" width={1024} height={604} className="h-auto w-full object-contain" />
+                    <Image src="/partson-logo-v2.webp" alt="" width={1024} height={604} sizes="70px" quality={85} className="h-auto w-full object-contain" />
                   </span>
                   <span className="-mt-1 h-4 w-4 rotate-45 border-b-[3px] border-r-[3px] border-sky-700 bg-white" />
                   <span className="mt-1 h-2.5 w-8 rounded-full bg-sky-900/20 blur-[2px]" />
@@ -204,7 +258,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
           </header>
 
           <div className="px-4 py-5 sm:px-6 sm:py-6">
-            <div className="flex items-end justify-between gap-4"><div><p className="text-[9px] font-black uppercase tracking-[0.16em] text-sky-600">PartsON наживо</p><h3 className="mt-1 text-[20px] font-black tracking-[-0.025em] text-slate-900 sm:text-[23px]">Магазин та асортимент</h3></div><span className="hidden text-[11px] font-bold text-slate-500 sm:inline">Гортайте фотографії горизонтально →</span></div>
+            <div className="flex items-end justify-between gap-4"><div><p className="text-[9px] font-black uppercase tracking-[0.16em] text-sky-600">PartsON наживо</p><h3 className="mt-1 text-[20px] font-black tracking-[-0.025em] text-slate-800 sm:text-[23px]">Магазин та асортимент</h3></div><span className="hidden text-[11px] font-bold text-slate-500 sm:inline">Гортайте фотографії горизонтально →</span></div>
             <div
               ref={galleryRailRef}
               className="no-scrollbar mt-4 flex gap-3 overflow-x-auto overscroll-x-contain pb-2 [-webkit-overflow-scrolling:touch]"
@@ -224,7 +278,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
                 >
                   {galleryItems.map(([file, alt, label]) => (
                     <figure data-seo-gallery-card key={`${setIndex}-${file}`} className="relative aspect-[16/10] w-[82vw] max-w-[360px] shrink-0 overflow-hidden rounded-[18px] border border-white bg-slate-100 shadow-[0_10px_22px_rgba(15,23,42,0.1)] sm:w-[310px]">
-                      <Image src={`/storefront/photos/${file}`} alt={setIndex === 0 ? alt : ""} fill loading="lazy" quality={58} sizes="(max-width: 640px) 82vw, 310px" className="object-cover" />
+                      <Image src={`/storefront/photos/${file}`} alt={setIndex === 0 ? alt : ""} fill loading="lazy" quality={72} sizes="(max-width: 640px) 82vw, 310px" className="object-cover" />
                       <figcaption className="absolute inset-x-2 bottom-2 rounded-[11px] bg-slate-950/72 px-3 py-2 text-[11px] font-bold text-white shadow-sm">{label}</figcaption>
                     </figure>
                   ))}
@@ -234,11 +288,11 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
           </div>
 
           <div className="grid border-t border-sky-100/90 lg:grid-cols-3 lg:divide-x lg:divide-sky-100/90">
-            {serviceCards.map((item) => { const Icon = item.icon; const tone = cardTones[item.tone]; return <article key={item.title} className="group/service border-b border-sky-100/90 px-5 py-5 transition-[background-color,box-shadow] duration-200 last:border-b-0 hover:bg-sky-50/75 hover:shadow-[inset_0_3px_0_rgba(14,165,233,0.55)] sm:px-6 sm:py-6 lg:border-b-0"><div className="flex items-start gap-3.5"><span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] border transition-transform duration-200 group-hover/service:-translate-y-0.5 group-hover/service:scale-110 ${tone.icon}`}><Icon className="h-[18px] w-[18px]" strokeWidth={2.2} /></span><div><p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">{item.eyebrow}</p><h3 className="mt-1 text-[19px] font-black leading-tight tracking-[-0.025em] text-slate-900 transition-colors group-hover/service:text-sky-900">{item.title}</h3></div></div><p className="mt-3 text-[13px] font-medium leading-[1.65] text-slate-600 sm:text-[13.5px]">{item.text}</p><div className="mt-4 space-y-2">{item.links.map(([href, label]) => <Link key={href} href={href} className={`group flex items-center gap-2 text-[11.5px] font-extrabold ${tone.link}`}><span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />{label}<ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></Link>)}</div></article>; })}
+            {serviceCards.map((item) => { const Icon = item.icon; const tone = cardTones[item.tone]; return <article key={item.title} className="group/service border-b border-sky-100/90 px-5 py-5 transition-[background-color,box-shadow] duration-200 last:border-b-0 hover:bg-sky-50/75 hover:shadow-[inset_0_3px_0_rgba(14,165,233,0.55)] sm:px-6 sm:py-6 lg:border-b-0"><div className="flex items-start gap-3.5"><span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] border transition-transform duration-200 group-hover/service:-translate-y-0.5 group-hover/service:scale-110 ${tone.icon}`}><Icon className="h-[18px] w-[18px]" strokeWidth={2.2} /></span><div><p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">{item.eyebrow}</p><h3 className="mt-1 text-[19px] font-black leading-tight tracking-[-0.025em] text-slate-800 transition-colors group-hover/service:text-sky-900">{item.title}</h3></div></div><p className="mt-3 text-[13px] font-medium leading-[1.65] text-slate-600 sm:text-[13.5px]">{item.text}</p><div className="mt-4 space-y-2">{item.links.map(([href, label]) => <Link key={href} href={href} className={`group flex items-center gap-2 text-[11.5px] font-extrabold ${tone.link}`}><span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />{label}<ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></Link>)}</div></article>; })}
           </div>
 
           <footer className="grid gap-3 border-t border-sky-100/90 bg-[linear-gradient(135deg,#f8fdff,#eef9ff)] px-5 py-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-7">
-            <div><h3 className="text-[17px] font-black tracking-[-0.02em] text-slate-900">Потрібна допомога з вибором запчастини?</h3><p className="mt-1 text-[12.5px] leading-relaxed text-slate-600">Надішліть VIN-код або артикул — менеджер перевірить застосування, наявність і доступні варіанти.</p></div>
+            <div><h3 className="text-[17px] font-black tracking-[-0.02em] text-slate-800">Потрібна допомога з вибором запчастини?</h3><p className="mt-1 text-[12.5px] leading-relaxed text-slate-600">Надішліть VIN-код або артикул — менеджер перевірить застосування, наявність і доступні варіанти.</p></div>
             <OpenChatButton
               message="Допоможіть підібрати автозапчастину за VIN-кодом або артикулом."
               label="Написати для підбору"

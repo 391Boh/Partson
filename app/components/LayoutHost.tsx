@@ -378,23 +378,61 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     const root = document.documentElement;
     let endTimer: number | null = null;
     let scrolling = false;
+    const supportsScrollEnd = "onscrollend" in window;
 
-    const handleScroll = () => {
+    const finishScroll = () => {
+      if (endTimer !== null) window.clearTimeout(endTimer);
+      endTimer = null;
+      scrolling = false;
+      root.classList.remove("is-scrolling");
+    };
+
+    const beginScroll = () => {
       if (!scrolling) {
         scrolling = true;
         root.classList.add("is-scrolling");
       }
-      if (endTimer !== null) window.clearTimeout(endTimer);
-      endTimer = window.setTimeout(() => {
-        scrolling = false;
-        root.classList.remove("is-scrolling");
-        endTimer = null;
-      }, 140);
     };
 
+    const handleScroll = () => {
+      beginScroll();
+      // Modern browsers expose one native event at the end of the gesture, so
+      // avoid creating/cancelling a timer on every compositor scroll tick.
+      if (supportsScrollEnd) {
+        // Cancel the intent-only cleanup once a real scroll begins. Native
+        // scrollend now owns cleanup, avoiding remove/re-add flicker during a
+        // long momentum gesture.
+        if (endTimer !== null) window.clearTimeout(endTimer);
+        endTimer = null;
+        return;
+      }
+      if (endTimer !== null) window.clearTimeout(endTimer);
+      endTimer = window.setTimeout(finishScroll, 120);
+    };
+
+    // wheel/touchmove fires before the browser applies the next scroll delta.
+    // Arming the lightweight CSS state here prevents one expensive first frame
+    // from slipping through — especially visible on battery-throttled Macs.
+    const handleScrollIntent = () => {
+      beginScroll();
+      if (endTimer !== null) window.clearTimeout(endTimer);
+      // Native scrollend remains the primary signal. This longer timer only
+      // cleans up wheel/touch intent at a scroll boundary where no scroll (and
+      // therefore no scrollend) is emitted, so the class cannot get stuck.
+      endTimer = window.setTimeout(finishScroll, supportsScrollEnd ? 1_200 : 140);
+    };
+
+    window.addEventListener("wheel", handleScrollIntent, { passive: true });
+    window.addEventListener("touchmove", handleScrollIntent, { passive: true });
     window.addEventListener("scroll", handleScroll, { passive: true });
+    if (supportsScrollEnd) {
+      window.addEventListener("scrollend", finishScroll, { passive: true });
+    }
     return () => {
+      window.removeEventListener("wheel", handleScrollIntent);
+      window.removeEventListener("touchmove", handleScrollIntent);
       window.removeEventListener("scroll", handleScroll);
+      if (supportsScrollEnd) window.removeEventListener("scrollend", finishScroll);
       if (endTimer !== null) window.clearTimeout(endTimer);
       root.classList.remove("is-scrolling");
     };

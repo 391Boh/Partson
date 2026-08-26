@@ -48,6 +48,7 @@ export default function CatalogSearchTotalCountClient({
   const [priceFilterActive, setPriceFilterActive] = useState(false);
   const [isExact, setIsExact] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const activeFilterSignatureRef = useRef("");
 
   const countQuery = useMemo(() => {
     const params = new URLSearchParams();
@@ -89,6 +90,7 @@ export default function CatalogSearchTotalCountClient({
     const catalogWindow = window as Window & {
       __partsonCatalogVisibleCount?: number;
       __partsonCatalogTotalCount?: number | null;
+      __partsonCatalogTotalSignature?: string;
     };
     if (
       typeof catalogWindow.__partsonCatalogVisibleCount === "number" &&
@@ -102,6 +104,7 @@ export default function CatalogSearchTotalCountClient({
     ) {
       setFilterTotal(Math.max(0, catalogWindow.__partsonCatalogTotalCount));
     }
+    activeFilterSignatureRef.current = catalogWindow.__partsonCatalogTotalSignature || "";
 
     const handleVisibleCount = (event: Event) => {
       const detail = (event as CustomEvent<{ count?: number; loading?: boolean }>).detail;
@@ -116,8 +119,18 @@ export default function CatalogSearchTotalCountClient({
 
   useEffect(() => {
     const handleFilterTotal = (event: Event) => {
-      const detail = (event as CustomEvent<{ count?: number; loading?: boolean }>).detail;
-      if (detail?.loading) return;
+      const detail = (event as CustomEvent<{ count?: number; loading?: boolean; signature?: string }>).detail;
+      const nextSignature = detail?.signature || "";
+      if (nextSignature && nextSignature !== activeFilterSignatureRef.current) {
+        activeFilterSignatureRef.current = nextSignature;
+        setFilterTotal(null);
+      }
+      if (detail?.loading) {
+        setIsLoading(true);
+        setFilterTotal(null);
+        return;
+      }
+      setIsLoading(false);
       if (typeof detail?.count !== "number" || !Number.isFinite(detail.count)) return;
       setFilterTotal(detail.count);
     };
@@ -210,11 +223,14 @@ export default function CatalogSearchTotalCountClient({
     // The dedicated endpoint receives the complete active filter now, including
     // price, stock, car and category values, so it remains authoritative for
     // the entire result set rather than only the products already opened.
-    return totalCount ?? filterTotal ?? openCount;
+    // Data publishes the total for the complete live client state (including
+    // persisted car, price and stock controls). Prefer it over the URL-only
+    // endpoint, which cannot see filters that intentionally stay in memory.
+    return filterTotal ?? totalCount ?? openCount;
   }, [countQuery, initialFallbackCount, openCount, totalCount, filterTotal, priceFilterActive]);
 
   const isCounting =
-    isLoading && totalCount == null && filterTotal == null && Boolean(countQuery);
+    isLoading && filterTotal == null;
 
   return (
     <span className={className}>

@@ -200,10 +200,11 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
                   {brandLogo ? (
                     <Image
                       src={brandLogo}
-                      alt={`Логотип ${brand}`}
+                      alt={`Логотип марки автомобіля ${brand}`}
                       width={32}
                       height={32}
                       sizes="32px"
+                      quality={85}
                       className="h-full w-full object-contain"
                       unoptimized={brandLogo.endsWith(".svg")}
                     />

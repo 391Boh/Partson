@@ -194,21 +194,27 @@ function BrandTile({
         onSelect(brand);
       }}
       onMouseLeave={(event) => event.currentTarget.blur()}
-      className={`group/tile relative flex h-[92px] w-full flex-col items-center justify-center overflow-hidden rounded-[16px] border px-2 shadow-[0_8px_18px_rgba(15,23,42,0.08),0_2px_7px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out hover:scale-[1.025] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:h-[104px] ${
+      className={`group/tile relative flex h-[92px] w-full flex-col items-center justify-center overflow-hidden rounded-[16px] border px-2 shadow-[0_8px_18px_rgba(15,23,42,0.08),0_2px_7px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 transition-[border-color,background-color,box-shadow] duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:h-[104px] ${
         isSelected
           ? "border-sky-500 bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] shadow-[0_16px_30px_rgba(2,132,199,0.22),0_0_0_3px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,1)]"
-          : "border-sky-200/95 bg-[radial-gradient(circle_at_50%_-8%,rgba(125,211,252,0.44),transparent_48%),linear-gradient(150deg,#ffffff_0%,#f3faff_50%,#e9f8ff_100%)] hover:border-sky-500 hover:bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] hover:shadow-[0_16px_30px_rgba(2,132,199,0.22),0_0_0_3px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,1)]"
+          : "border-sky-200/95 bg-[radial-gradient(circle_at_50%_-8%,rgba(125,211,252,0.44),transparent_48%),linear-gradient(150deg,#ffffff_0%,#f3faff_50%,#e9f8ff_100%)] hover:border-cyan-400 hover:bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.76),transparent_54%),linear-gradient(150deg,#ffffff_0%,#e4f7ff_50%,#dcfce7_145%)] hover:shadow-[0_20px_36px_rgba(2,132,199,0.26),0_8px_16px_rgba(20,184,166,0.12),0_0_0_3px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,1)]"
       }`}
     >
       <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_22%,rgba(255,255,255,0.9),transparent_46%),linear-gradient(180deg,rgba(34,211,238,0.08),rgba(59,130,246,0.1))] opacity-0 transition-opacity duration-300 group-hover/tile:opacity-100" />
-      <span className="relative flex h-11 w-11 items-center justify-center sm:h-[52px] sm:w-[52px]">
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-[radial-gradient(ellipse_at_50%_115%,rgba(20,184,166,0.3),transparent_68%)] opacity-0 transition-opacity duration-300 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" />
+      <span className="pointer-events-none absolute inset-x-5 top-0 h-[3px] origin-center scale-x-0 rounded-b-full bg-gradient-to-r from-sky-500 via-cyan-300 to-emerald-400 opacity-0 shadow-[0_3px_12px_rgba(34,211,238,0.5)] transition-[transform,opacity] duration-300 group-hover/tile:scale-x-100 group-hover/tile:opacity-100 group-focus-visible/tile:scale-x-100 group-focus-visible/tile:opacity-100" />
+      <span className="pointer-events-none absolute -left-1/2 top-0 h-full w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/65 to-transparent opacity-0 transition-[transform,opacity] duration-500 ease-out group-hover/tile:translate-x-[470%] group-hover/tile:opacity-70" />
+      <span className="pointer-events-none absolute right-1.5 top-1.5 flex h-5 w-5 translate-x-1 items-center justify-center rounded-full border border-cyan-300/80 bg-white/90 text-cyan-700 opacity-0 shadow-[0_5px_12px_rgba(8,145,178,0.2)] transition-[transform,opacity] duration-300 group-hover/tile:translate-x-0 group-hover/tile:opacity-100 group-focus-visible/tile:translate-x-0 group-focus-visible/tile:opacity-100">
+        <ArrowRight size={11} strokeWidth={3} aria-hidden />
+      </span>
+      <span className="relative flex h-11 w-11 items-center justify-center transition-transform duration-[380ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/tile:scale-[1.08] group-focus-visible/tile:scale-[1.08] sm:h-[52px] sm:w-[52px]">
         {brand.logo ? (
           <Image
             src={brand.logo}
-            alt={`${brand.name} logo`}
+            alt={`Логотип виробника автозапчастин ${brand.name}`}
             width={120}
             height={78}
-            quality={75}
+            quality={85}
             draggable={false}
             priority={priority}
             // Tiles only ever mount when their page is within the carousel's
@@ -218,7 +224,8 @@ function BrandTile({
             // visible pop-in delay while swiping into a neighboring page
             // instead of having it ready ahead of time.
             loading={priority ? undefined : "lazy"}
-            className="relative h-11 w-11 object-contain drop-shadow-[0_5px_9px_rgba(14,116,144,0.14)] transition-[filter,opacity,transform] duration-500 ease-out group-hover/tile:scale-[1.1] group-hover/tile:brightness-[1.06] group-hover/tile:saturate-[1.12] group-hover/tile:drop-shadow-[0_8px_14px_rgba(2,132,199,0.3)] sm:h-[52px] sm:w-[52px]"
+            unoptimized={brand.logo.endsWith(".svg")}
+            className="relative h-11 w-11 object-contain drop-shadow-[0_5px_9px_rgba(14,116,144,0.14)] transition-[filter] duration-[380ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/tile:brightness-[1.08] group-hover/tile:saturate-[1.16] group-hover/tile:drop-shadow-[0_10px_18px_rgba(2,132,199,0.34)] group-focus-visible/tile:brightness-[1.08] group-focus-visible/tile:saturate-[1.16] sm:h-[52px] sm:w-[52px]"
             style={{ imageRendering: "auto" }}
             sizes="(max-width: 640px) 44px, 52px"
             onError={handleBrandLogoLoadError}
@@ -279,7 +286,7 @@ function BrandInfoPanel({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                   <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-sky-600 sm:text-[11px]">Виробник</span>
-                  <h3 className="mt-0.5 truncate text-[21px] font-black leading-tight tracking-[-0.03em] text-slate-900 sm:text-[24px]">
+                  <h3 className="mt-0.5 truncate text-[21px] font-black leading-tight tracking-[-0.03em] text-slate-800 sm:text-[24px]">
                     {brand.name}
                   </h3>
               </div>
@@ -338,7 +345,7 @@ function BrandInfoPanel({
             <div>
               <div>
                 <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-sky-600 sm:text-[11px]">Швидкий вибір</span>
-                <h3 className="mt-0.5 text-[20px] font-black tracking-[-0.03em] text-slate-900 sm:text-[23px]">Оберіть виробника</h3>
+                <h3 className="mt-0.5 text-[20px] font-black tracking-[-0.03em] text-slate-800 sm:text-[23px]">Оберіть виробника</h3>
               </div>
             </div>
             <p className="max-w-sm text-[14px] font-medium leading-[22px] text-slate-600 sm:text-[15px] sm:leading-[23px]">
@@ -358,11 +365,13 @@ function BrandInfoPanel({
 type BrandCarouselProps = {
   playEntranceAnimations?: boolean;
   initialSyncedBrands?: BrandItem[];
+  onReady?: () => void;
 };
 
 export default function BrandCarousel({
   playEntranceAnimations = true,
   initialSyncedBrands,
+  onReady,
 }: BrandCarouselProps) {
   const shouldReduceMotion = useReducedMotion() ?? false;
   const shouldAnimate = !shouldReduceMotion && playEntranceAnimations;
@@ -372,6 +381,10 @@ export default function BrandCarousel({
   const [syncedBrands, setSyncedBrands] = useState<BrandItem[]>(
     initialSyncedBrands && initialSyncedBrands.length > 0 ? initialSyncedBrands : INITIAL_BRANDS
   );
+
+  useEffect(() => {
+    onReady?.();
+  }, [onReady]);
 
   const itemsPerPage = ITEMS_PER_PAGE;
   const filteredBrands = useMemo(
@@ -464,8 +477,8 @@ export default function BrandCarousel({
     // Skip the fetch only when the server already provided the real, synced
     // list as a prop — fetching again would just replace it with an
     // equivalent copy a moment later, causing a visible reorder/flicker for
-    // no benefit. app/page.tsx currently never passes initialSyncedBrands, so
-    // this always falls through to the client fetch on the homepage today.
+    // no benefit. app/page.tsx passes this synchronized snapshot on the
+    // homepage, so the selector is complete on its first visible render.
     //
     // Deliberately no ref-based "already fetched" guard here: under React's
     // Strict Mode dev double-invoke (mount → cleanup → mount), a ref set by
@@ -521,7 +534,7 @@ export default function BrandCarousel({
       {/* static depth — light source top-left */}
       <div className="pointer-events-none absolute inset-0 z-0 bg-[image:radial-gradient(ellipse_125%_82%_at_-4%_-8%,rgba(255,255,255,0.48)_0%,rgba(186,230,253,0.14)_38%,transparent_61%),radial-gradient(ellipse_82%_66%_at_108%_-5%,rgba(56,189,248,0.22)_0%,rgba(125,211,252,0.07)_42%,transparent_62%),radial-gradient(ellipse_92%_52%_at_52%_108%,rgba(45,212,191,0.11)_0%,transparent_68%),linear-gradient(to_bottom,rgba(255,255,255,0.24)_0%,rgba(255,255,255,0.05)_5%,transparent_14%)]" />
       {/* hover bloom — vivid sky sweep on hover */}
-      <div className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/brandcars:opacity-100 bg-[image:radial-gradient(ellipse_180%_100%_at_-4%_2%,rgba(14,165,233,0.38)_0%,rgba(125,211,252,0.12)_38%,transparent_60%),radial-gradient(ellipse_120%_80%_at_110%_5%,rgba(20,184,166,0.28)_0%,rgba(94,234,212,0.08)_42%,transparent_62%),linear-gradient(120deg,rgba(255,255,255,0.22)_0%,transparent_45%)]" />
+      <div className="home-scroll-decor pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover/brandcars:opacity-100 bg-[image:radial-gradient(ellipse_180%_100%_at_-4%_2%,rgba(14,165,233,0.38)_0%,rgba(125,211,252,0.12)_38%,transparent_60%),radial-gradient(ellipse_120%_80%_at_110%_5%,rgba(20,184,166,0.28)_0%,rgba(94,234,212,0.08)_42%,transparent_62%),linear-gradient(120deg,rgba(255,255,255,0.22)_0%,transparent_45%)]" />
       {/* bottom bridge — eases into AdvantagesSection's cyan-50 */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-12 bg-[image:linear-gradient(to_bottom,transparent_0%,rgba(207,250,254,0.24)_100%)]" />
       <motion.div
@@ -602,7 +615,7 @@ export default function BrandCarousel({
                               <BrandTile
                                 key={`${brand.name}-${pageIndex}-${idx}`}
                                 brand={brand}
-                                priority={pageIndex === 0 && idx < 6}
+                                priority={pageIndex === 0 && idx < 4}
                                 isSelected={selectedBrand?.name === brand.name}
                                 onSelect={setSelectedBrand}
                               />

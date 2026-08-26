@@ -54,10 +54,11 @@ function AutoBrandCard({
         <div className={directoryIconTileClass}>
           <Image
             src={brand.logo}
-            alt={brand.name}
+            alt={`Логотип марки автомобіля ${brand.name}`}
             width={48}
             height={48}
             sizes="36px"
+            quality={85}
             className="relative z-[1] h-9 w-9 object-contain"
             unoptimized={brand.logo.endsWith('.svg')}
           />

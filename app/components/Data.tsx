@@ -10,11 +10,13 @@ import React, {
 } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { ChevronsDown, Search } from "lucide-react";
+import { ChevronsDown, LayoutGrid, List, Search } from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
 import ProductCard from "app/components/ProductCard";
+import ProductListRow from "app/components/ProductListRow";
+import CatalogLoaderCard from "app/components/CatalogLoaderCard";
 import { CATALOG_PAGE_CACHE_VERSION, invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import { stripRomanNumeralsFromModel, stripTrailingChassisCode } from "app/lib/car-model-search";
@@ -43,6 +45,10 @@ interface DataProps {
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
   initialTotalCount?: number | null;
+  viewMode?: "grid" | "list";
+  onViewModeChange?: (mode: "grid" | "list") => void;
+  pageBatchSize?: number;
+  onPageBatchSizeChange?: (size: number) => void;
 }
 
 export interface Product {
@@ -85,7 +91,7 @@ const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
 const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
-const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 500;
+const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 220;
 // Start only the actual LCP candidate at high priority. A small first row may
 // still load eagerly, while the rest of the page is resolved by one batch.
 const IMAGE_HIGH_PRIORITY_ITEMS_COUNT = 1;
@@ -100,7 +106,13 @@ const VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE = 4;
 const VISIBLE_IMAGE_DEEP_RECOVERY_DELAY_MS = 60;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
 const NEXT_PAGE_REQUEST_COOLDOWN_MS = 45;
-const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 352;
+// Matches ProductCard's actual h-[360px]/sm:h-[340px] plus CATALOG_GRID_CLASS's
+// gap-3/sm:gap-5/lg:gap-4 (372 below 640px, ~356-360 at sm/lg) — kept in sync
+// with the non-virtualized fallback below (both feed virtualRowHeightPx) so
+// crossing the VIRTUALIZATION_MIN_ITEMS threshold via "load more" doesn't
+// swap from one guess to a different guess before the real ResizeObserver
+// measurement lands a frame later — that mismatch was a visible row-jump.
+const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 358;
 // Keep only a small, generous window mounted once the catalog grows beyond
 // three API pages. This prevents images, card effects and React reconciliation
 // for old pages from competing with the browser's scroll frame.
@@ -669,56 +681,7 @@ const mergeUniqueProducts = (current: Product[], incoming: Product[]) => {
 
 const CATALOG_GRID_CLASS =
   "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-4";
-
-const CatalogProductCardSkeleton = ({ index }: { index: number }) => (
-  <article
-    className="catalog-card-skeleton relative flex h-[360px] w-full flex-col overflow-hidden rounded-xl border border-slate-200/80 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_36%),linear-gradient(155deg,rgba(255,255,255,0.99)_0%,rgba(248,250,252,0.97)_52%,rgba(239,246,255,0.92)_100%)] p-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.03),0_10px_24px_rgba(15,23,42,0.05)] sm:h-[340px]"
-    aria-hidden="true"
-    style={{ "--catalog-skeleton-delay": `${(index % 4) * 90}ms` } as React.CSSProperties}
-  >
-    <div className="flex h-20 gap-2 rounded-xl border border-slate-200/65 bg-slate-100/75 p-1.5">
-      <div className="catalog-skeleton-block h-full w-[36%] shrink-0 rounded-lg bg-white/90 ring-1 ring-slate-200/65 sm:w-[40%]" />
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 px-1">
-        <div className="catalog-skeleton-block h-3 w-[88%] rounded-full" />
-        <div className="catalog-skeleton-block h-3 w-[72%] rounded-full" />
-        <div className="catalog-skeleton-block h-2.5 w-[46%] rounded-full opacity-75" />
-      </div>
-    </div>
-
-    <div className="mt-2 flex items-center gap-1.5 border-b border-slate-100/90 pb-2">
-      <div className="catalog-skeleton-block h-5 w-20 rounded-full bg-sky-100/75" />
-      <div className="catalog-skeleton-block h-5 w-16 rounded-full bg-teal-100/70" />
-    </div>
-
-    <div className="mt-2.5 space-y-2.5 px-1">
-      <div className="flex items-center justify-between gap-3">
-        <div className="catalog-skeleton-block h-2.5 w-16 rounded-full opacity-70" />
-        <div className="catalog-skeleton-block h-3 w-28 rounded-full" />
-      </div>
-      <div className="flex items-center justify-between gap-3">
-        <div className="catalog-skeleton-block h-2.5 w-20 rounded-full opacity-70" />
-        <div className="catalog-skeleton-block h-3 w-24 rounded-full" />
-      </div>
-      <div className="flex items-center justify-between gap-3">
-        <div className="catalog-skeleton-block h-2.5 w-14 rounded-full opacity-70" />
-        <div className="catalog-skeleton-block h-3 w-32 rounded-full" />
-      </div>
-    </div>
-
-    <div className="mt-auto flex h-[122px] flex-col justify-end">
-      <div className="mb-3 ml-auto flex items-center gap-2">
-        <div className="catalog-skeleton-block h-8 w-28 rounded-[13px] bg-sky-100/75" />
-      </div>
-      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
-        <div className="catalog-skeleton-block h-9 w-24 rounded-full bg-white/90 ring-1 ring-slate-200/70" />
-        <div className="flex gap-1.5">
-          <div className="catalog-skeleton-block h-11 w-11 rounded-lg bg-rose-100/65" />
-          <div className="catalog-skeleton-block h-11 w-11 rounded-lg bg-sky-100/70" />
-        </div>
-      </div>
-    </div>
-  </article>
-);
+const CATALOG_LIST_CLASS = "mx-auto mt-1 grid w-full grid-cols-1 gap-2 sm:mt-2";
 
 const CatalogTransitionLoader = ({
   label = "Оновлюю каталог",
@@ -727,34 +690,23 @@ const CatalogTransitionLoader = ({
   label?: string;
   compact?: boolean;
 }) => {
-  if (compact) {
-    return (
-      <div
-        className="col-span-full flex min-h-16 w-full items-center justify-center"
-        role="status"
-        aria-label={label}
-      >
-        <div className="inline-flex items-center gap-3 rounded-[18px] border border-sky-100 bg-white/95 px-4 py-3 text-sm font-bold text-slate-700 shadow-[0_18px_42px_rgba(14,165,233,0.12)] ring-1 ring-white/90 backdrop-blur-md">
-          <span className="catalog-soft-spinner" aria-hidden="true" />
-          <span className="leading-tight">{label}</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="relative col-span-full w-full" role="status" aria-label={label}>
-      <div className="pointer-events-none absolute inset-x-0 top-5 z-10 flex justify-center px-3">
-        <div className="inline-flex items-center gap-3 rounded-[18px] border border-sky-100 bg-white/95 px-4 py-3 text-sm font-bold text-slate-700 shadow-[0_18px_42px_rgba(14,165,233,0.12)] ring-1 ring-white/90 backdrop-blur-md">
-          <span className="catalog-soft-spinner" aria-hidden="true" />
-          <span className="leading-tight">{label}</span>
+    <div
+      className={`col-span-full flex w-full items-start justify-center px-3 ${compact ? "min-h-20 py-2" : "min-h-[240px] py-8 sm:min-h-[300px] sm:py-12"}`}
+      role="status"
+      aria-label={label}
+    >
+      {compact ? (
+        <div className="catalog-loader-card inline-flex min-w-[250px] items-center gap-3.5 rounded-[19px] border border-sky-100/90 bg-white/95 px-4 py-3.5 shadow-[0_16px_38px_rgba(14,165,233,0.12)] ring-1 ring-white/90">
+          <span className="catalog-modern-loader" aria-hidden="true"><i /><b /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-black leading-tight text-slate-700">{label}</span>
+            <span className="catalog-loader-line mt-2 block" aria-hidden="true" />
+          </span>
         </div>
-      </div>
-      <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-4" aria-hidden="true">
-        {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
-          <CatalogProductCardSkeleton key={index} index={index} />
-        ))}
-      </div>
+      ) : (
+        <CatalogLoaderCard label={label} />
+      )}
     </div>
   );
 };
@@ -2063,14 +2015,18 @@ function useCatalogData(params: {
         ttlMs?: number;
         querySignatureSnapshot?: string;
         signal?: AbortSignal;
-        skipFirstPhoto?: boolean;
+        skipLeadingPhotos?: number;
       }
     ) => {
       if (typeof window === "undefined") return;
 
-      const photoItems = items.filter((item) => item.hasPhoto === true);
-      const warmupItems = options?.skipFirstPhoto
-        ? photoItems.slice(1)
+      // Older 1C payloads omit hasPhoto even when a valid image exists. Only
+      // an explicit false is authoritative; otherwise include the item in the
+      // shared batch instead of forcing every card into a delayed direct call.
+      const photoItems = items.filter((item) => item.hasPhoto !== false);
+      const leadingDirectCount = Math.max(0, options?.skipLeadingPhotos ?? 0);
+      const warmupItems = leadingDirectCount > 0
+        ? photoItems.slice(leadingDirectCount)
         : photoItems;
       if (warmupItems.length === 0) return;
 
@@ -2216,10 +2172,7 @@ function useCatalogData(params: {
       ) => {
         // Skip items already resolved (batch or direct load) — don't clobber them.
         const validEntries = missingEntries.filter(
-          (item) =>
-            item.status === "missing" &&
-            item.transient !== true &&
-            !pageImagesRef.current[item.key]
+          (item) => item.status === "missing" && !pageImagesRef.current[item.key]
         );
         if (validEntries.length === 0) return;
 
@@ -2271,7 +2224,7 @@ function useCatalogData(params: {
           const resultsByKey = new Map(results.map((item) => [item.key, item]));
           const recoveryItems = requestItems
             .filter((item) => {
-              if (item.hasPhoto !== true) return false;
+              if (item.hasPhoto === false) return false;
               const key = buildProductImageBatchKey(item.code, item.article);
               if (!key || pageImagesRef.current[key]) return false;
               const result = resultsByKey.get(key);
@@ -2279,14 +2232,25 @@ function useCatalogData(params: {
             })
             .slice(0, VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE);
 
+          const recoveryKeySet = new Set(
+            recoveryItems
+              .map((item) => buildProductImageBatchKey(item.code, item.article))
+              .filter(Boolean)
+          );
+          // Items outside the small deep-recovery window must immediately be
+          // released to ProductCardImage's direct route. Previously they kept
+          // an attempt marker forever, so later pages could remain on a
+          // skeleton until each card's independent timeout fired.
+          applyMissingImageEntries(
+            requestItems
+              .map((item) => buildProductImageBatchKey(item.code, item.article))
+              .filter((key) => Boolean(key && !recoveryKeySet.has(key) && !pageImagesRef.current[key]))
+              .map((key) => resultsByKey.get(key) ?? ({ key, status: "missing", transient: true } as const))
+          );
+
           if (recoveryItems.length > 0) {
-            const recoveryKeys = new Set(
-              recoveryItems
-                .map((item) => buildProductImageBatchKey(item.code, item.article))
-                .filter(Boolean)
-            );
             clearPendingKeys(
-              pendingKeys.filter((key) => !recoveryKeys.has(key))
+              pendingKeys.filter((key) => !recoveryKeySet.has(key))
             );
 
             // Keep the batch pending flag until deep recovery settles. Otherwise
@@ -2322,8 +2286,16 @@ function useCatalogData(params: {
                     const deepReadyEntries = deepResults.filter(
                       (item) => item.status === "ready" && item.src
                     );
+                    const deepResultsByKey = new Map(
+                      deepResults.map((item) => [item.key, item])
+                    );
                     applyReadyImageEntries(deepReadyEntries);
-                    applyMissingImageEntries(deepResults);
+                    applyMissingImageEntries(
+                      recoveryItems
+                        .map((item) => buildProductImageBatchKey(item.code, item.article))
+                        .filter((key) => Boolean(key && !pageImagesRef.current[key]))
+                        .map((key) => deepResultsByKey.get(key) ?? ({ key, status: "missing", transient: true } as const))
+                    );
 
                     if (deepReadyEntries.length > 0 && options?.cacheKey && options?.ttlMs) {
                       const deepMap: Record<string, string> = {};
@@ -3015,7 +2987,7 @@ function useCatalogData(params: {
         ttlMs: ttl,
         querySignatureSnapshot: currentQuerySignature,
         signal: controller.signal,
-        skipFirstPhoto: page === 1,
+        skipLeadingPhotos: page === 1 ? IMAGE_EAGER_ITEMS_COUNT : 0,
       });
       applyResolvedPagePrices(itemsForIncrementalWarmup, payload.prices);
       void fetchCatalogPagePrices(itemsForIncrementalWarmup, {
@@ -3868,6 +3840,10 @@ const Data: React.FC<DataProps> = ({
   inStock = false,
   initialPagePayload = null,
   initialQuerySignature = null,
+  viewMode = "grid",
+  onViewModeChange,
+  pageBatchSize = ITEMS_PER_PAGE,
+  onPageBatchSizeChange,
 }) => {
   const searchParams = useSearchParams();
   const catalogGridRef = useRef<HTMLDivElement | null>(null);
@@ -4001,6 +3977,29 @@ const Data: React.FC<DataProps> = ({
 
   const router = useRouter();
 
+  // "Скільки товарів на сторінці" is implemented as auto-chained 16-item
+  // loads rather than a dynamic fetch limit — ITEMS_PER_PAGE is threaded
+  // through cursor caching, hasMore heuristics and prefetch sizing in
+  // useCatalogData (see its own comments on a past 12/16 SSR/CSR mismatch
+  // bug), so changing it per-request risked reopening that class of bug.
+  // Chaining N/16 calls to the existing, already-correct single-page loader
+  // gets the same visible result without touching any of that.
+  const pendingBatchStepsRef = useRef(0);
+  const wasLoadingNextPageRef = useRef(isLoadingNextPage);
+  useEffect(() => {
+    const wasLoading = wasLoadingNextPageRef.current;
+    wasLoadingNextPageRef.current = isLoadingNextPage;
+    if (wasLoading && !isLoadingNextPage && pendingBatchStepsRef.current > 0 && hasMore) {
+      pendingBatchStepsRef.current -= 1;
+      loadNextPage();
+    }
+  }, [isLoadingNextPage, hasMore, loadNextPage]);
+
+  const handleLoadMoreClick = useCallback(() => {
+    pendingBatchStepsRef.current = Math.max(0, Math.round(pageBatchSize / ITEMS_PER_PAGE) - 1);
+    loadNextPage();
+  }, [pageBatchSize, loadNextPage]);
+
   const loadMoreButtonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const button = loadMoreButtonRef.current;
@@ -4011,7 +4010,7 @@ const Data: React.FC<DataProps> = ({
           prefetchNextPageTriggerRef.current?.();
         }
       },
-      { rootMargin: "900px" }
+      { rootMargin: "1400px" }
     );
     observer.observe(button);
     return () => observer.disconnect();
@@ -4591,29 +4590,31 @@ const Data: React.FC<DataProps> = ({
     searchFilter,
     visibleSortedData.length,
   ]);
-  // Start the actual first visible photo directly. The rest of the first row
-  // is resolved in a small shared batch, so one slow 1C image cannot hold all
-  // visible cards behind a 12-item request.
-  const directCatalogImageKey = useMemo(() => {
-    if (catalogReadyQuerySignature !== catalogQuerySignature) return "";
-    const firstPhoto = visibleSortedData.find((item) => item.hasPhoto === true);
-    return firstPhoto
-      ? buildProductImageBatchKey(firstPhoto.code, firstPhoto.article)
-      : "";
+  // Render the complete first visible row with direct image URLs in SSR HTML.
+  // Those requests can start while React is still hydrating; cards below the
+  // fold continue through the shared batch to avoid a request burst.
+  const directCatalogImageKeys = useMemo(() => {
+    if (catalogReadyQuerySignature !== catalogQuerySignature) return new Set<string>();
+    const keys = visibleSortedData
+      .filter((item) => item.hasPhoto !== false)
+      .slice(0, IMAGE_EAGER_ITEMS_COUNT)
+      .map((item) => buildProductImageBatchKey(item.code, item.article))
+      .filter(Boolean);
+    return new Set(keys);
   }, [catalogQuerySignature, catalogReadyQuerySignature, visibleSortedData]);
   const visibleCatalogImageCandidates = useMemo(
     () =>
       catalogReadyQuerySignature === catalogQuerySignature
         ? visibleSortedData.filter((item) => {
-            if (item.hasPhoto !== true) return false;
+            if (item.hasPhoto === false) return false;
             const key = buildProductImageBatchKey(item.code, item.article);
-            return Boolean(key && key !== directCatalogImageKey);
+            return Boolean(key && !directCatalogImageKeys.has(key));
           })
         : [],
     [
       catalogQuerySignature,
       catalogReadyQuerySignature,
-      directCatalogImageKey,
+      directCatalogImageKeys,
       visibleSortedData,
     ]
   );
@@ -4656,8 +4657,22 @@ const Data: React.FC<DataProps> = ({
     if (viewportWidth >= 640) return 2;
     return 1;
   }, [viewportWidth]);
+  // List view's row height differs from the grid card's fixed 340-360px, and
+  // the virtual window's spacer math assumes that fixed height — rather than
+  // re-deriving it for a second layout, list mode simply renders unwindowed
+  // (its rows are much shorter than a flip-card, so more of them mounted at
+  // once is cheaper than in grid view anyway).
   const shouldUseVirtualWindow =
-    viewportWidth > 0 && visibleSortedEntries.length >= VIRTUALIZATION_MIN_ITEMS;
+    viewMode === "grid" &&
+    viewportWidth > 0 &&
+    visibleSortedEntries.length >= VIRTUALIZATION_MIN_ITEMS;
+  // A list row is a fraction of a grid card's height, so the same absolute
+  // item count covers far less of the first viewport in list mode — eager/
+  // high-priority thresholds tuned for a 2-4 column grid badly under-cover
+  // list view's first screen (which fits 10+ rows), leaving genuinely
+  // visible rows on lazy/auto priority instead of eager/high.
+  const imageEagerItemsCount = viewMode === "list" ? 12 : IMAGE_EAGER_ITEMS_COUNT;
+  const imageHighPriorityItemsCount = viewMode === "list" ? 3 : IMAGE_HIGH_PRIORITY_ITEMS_COUNT;
   const virtualizedEntries = useMemo(() => {
     if (!shouldUseVirtualWindow) return visibleSortedEntries;
 
@@ -4677,17 +4692,26 @@ const Data: React.FC<DataProps> = ({
     : shouldUseVirtualWindow
       ? Math.max(0, Math.min(virtualWindowRange.startIndex, visibleSortedEntries.length))
       : 0;
-  const shouldUseSoftTransition = filterLoading || isRefetching || isLoadingNextPage;
-  const showFilterTransitionOverlay = false;
+  // Appending a page must never start the full-grid transition. Previously
+  // `isLoadingNextPage` enabled `isSoftTransitioning`; when the request ended,
+  // the `!isLoadingNextPage` overlay condition became true for the remainder
+  // of its minimum display time and produced a brief white flash over every
+  // existing card. Keep the current grid fully stable and use only the compact
+  // loader inside the "more products" button while a page is appended.
+  const shouldUseSoftTransition = filterLoading || isRefetching;
+  const showFilterTransitionOverlay =
+    isSoftTransitioning && visibleSortedData.length > 0 && !isLoadingNextPage;
   const shouldDimCatalogGrid = false;
   const filterTransitionLabel = useMemo(() => {
     if (isLoadingNextPage) return "Підвантажую наступну сторінку";
+    if (sortOrder === "asc") return "Сортую: спочатку дешевші";
+    if (sortOrder === "desc") return "Сортую: спочатку дорожчі";
     if (subcategoryFromURL) return `Оновлюю підгрупу: ${subcategoryFromURL}`;
     if (groupFromURL) return `Оновлюю групу: ${groupFromURL}`;
     if (producerFromURL) return `Оновлюю виробника: ${producerFromURL}`;
     if (rawSearchQuery.trim()) return `Оновлюю результати для: ${rawSearchQuery.trim()}`;
     return "Оновлюю каталог";
-  }, [groupFromURL, isLoadingNextPage, producerFromURL, rawSearchQuery, subcategoryFromURL]);
+  }, [groupFromURL, isLoadingNextPage, producerFromURL, rawSearchQuery, sortOrder, subcategoryFromURL]);
 
   useEffect(() => {
     if (shouldUseSoftTransition) {
@@ -4706,7 +4730,10 @@ const Data: React.FC<DataProps> = ({
     if (!isSoftTransitioning) return;
 
     const elapsedMs = Date.now() - softTransitionStartedAtRef.current;
-    const minVisibleMs = 70;
+    // Cached sorting can resolve in one frame. Keep only the visual indicator
+    // around briefly so the action still has clear feedback; products beneath
+    // it are updated immediately and are not artificially delayed.
+    const minVisibleMs = 420;
     const hideDelayMs = Math.max(0, minVisibleMs - elapsedMs);
 
     softTransitionHideTimerRef.current = setTimeout(() => {
@@ -4840,7 +4867,7 @@ const Data: React.FC<DataProps> = ({
     if (typeof window === "undefined") return;
 
     if (!shouldUseVirtualWindow) {
-      const estimatedHeight = viewportWidth < 640 ? 392 : 360;
+      const estimatedHeight = viewportWidth < 640 ? 372 : 358;
       setVirtualRowHeightPx(estimatedHeight);
       setVirtualWindowRange({
         startIndex: 0,
@@ -5044,7 +5071,7 @@ const Data: React.FC<DataProps> = ({
           <div className="relative">
             <div
               ref={catalogGridRef}
-              className={`${CATALOG_GRID_CLASS} ${
+              className={`${viewMode === "list" ? CATALOG_LIST_CLASS : CATALOG_GRID_CLASS} ${
                 shouldDimCatalogGrid ? "opacity-[0.88]" : "opacity-100"
               }`}
             >
@@ -5117,11 +5144,11 @@ const Data: React.FC<DataProps> = ({
                       ? "request"
                       : "loading";
                 const shouldPrioritizeImage =
-                  absoluteIndex < IMAGE_HIGH_PRIORITY_ITEMS_COUNT;
-                const shouldEagerLoadImage = absoluteIndex < IMAGE_EAGER_ITEMS_COUNT;
+                  absoluteIndex < imageHighPriorityItemsCount;
+                const shouldEagerLoadImage = absoluteIndex < imageEagerItemsCount;
                 const imageBatchKey = buildProductImageBatchKey(item.code, item.article);
                 const shouldDirectLoadImage = Boolean(
-                  imageBatchKey && imageBatchKey === directCatalogImageKey
+                  imageBatchKey && directCatalogImageKeys.has(imageBatchKey)
                 );
                 const prefetchedImageSrc =
                   (imageBatchKey ? pageImages[imageBatchKey] : null) ?? null;
@@ -5147,37 +5174,65 @@ const Data: React.FC<DataProps> = ({
                     data-catalog-card="1"
                     className="min-w-0"
                   >
-                    <ProductCard
-                      item={item}
-                      productHref={productHref}
-                      qty={qty}
-                      cartQty={cartQty}
-                      priceUAH={priceUAH}
-                      costPriceUAH={isAdmin && stateCostPriceEuro != null ? Math.round(stateCostPriceEuro * euroRate) : null}
-                      costPriceEuro={isAdmin ? stateCostPriceEuro : undefined}
-                      isAdmin={isAdmin}
-                      onAdminEdit={isAdmin ? (data) => handleAdminEdit(code, item.article || "", data) : undefined}
-                      priceStatus={priceStatus}
-                      analyticsListId={analyticsList.id}
-                      analyticsListName={analyticsList.name}
-                      analyticsIndex={absoluteIndex}
-                      imageLoadingMode={shouldEagerLoadImage ? "eager" : "lazy"}
-                      imageFetchPriority={shouldPrioritizeImage ? "high" : "auto"}
-                      prefetchedImageSrc={prefetchedImageSrc}
-                      batchImagePending={Boolean(imageBatchKey && pageImagePending[imageBatchKey])}
-                      batchImageMissing={
-                        Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
-                      }
-                      batchImageOnly={Boolean(imageBatchKey && !shouldDirectLoadImage)}
-                      isFlipped={flippedCard === code}
-                      motionEnabled={shouldAnimateList}
-                      onAddToCart={handleAddToCart}
-                      onRequestPrice={handleRequestPriceForItem}
-                      onRemoveFromCart={handleRemoveFromCart}
-                      onQtyChange={handleQtyChange}
-                      onFlip={handleFlip}
-                      onImageOpen={handleImageOpen}
-                    />
+                    {viewMode === "list" ? (
+                      <ProductListRow
+                        item={item}
+                        productHref={productHref}
+                        qty={qty}
+                        cartQty={cartQty}
+                        priceUAH={priceUAH}
+                        priceStatus={priceStatus}
+                        imageLoadingMode={shouldEagerLoadImage ? "eager" : "lazy"}
+                        imageFetchPriority={shouldPrioritizeImage ? "high" : "auto"}
+                        prefetchedImageSrc={prefetchedImageSrc}
+                        batchImagePending={Boolean(imageBatchKey && pageImagePending[imageBatchKey])}
+                        batchImageMissing={
+                          Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
+                        }
+                        batchImageOnly={Boolean(imageBatchKey && !shouldDirectLoadImage)}
+                        isAdmin={isAdmin}
+                        costPriceUAH={isAdmin && stateCostPriceEuro != null ? Math.round(stateCostPriceEuro * euroRate) : null}
+                        costPriceEuro={isAdmin ? stateCostPriceEuro : undefined}
+                        onAdminEdit={isAdmin ? (data) => handleAdminEdit(code, item.article || "", data) : undefined}
+                        onAddToCart={handleAddToCart}
+                        onRequestPrice={handleRequestPriceForItem}
+                        onRemoveFromCart={handleRemoveFromCart}
+                        onQtyChange={handleQtyChange}
+                        onImageOpen={handleImageOpen}
+                      />
+                    ) : (
+                      <ProductCard
+                        item={item}
+                        productHref={productHref}
+                        qty={qty}
+                        cartQty={cartQty}
+                        priceUAH={priceUAH}
+                        costPriceUAH={isAdmin && stateCostPriceEuro != null ? Math.round(stateCostPriceEuro * euroRate) : null}
+                        costPriceEuro={isAdmin ? stateCostPriceEuro : undefined}
+                        isAdmin={isAdmin}
+                        onAdminEdit={isAdmin ? (data) => handleAdminEdit(code, item.article || "", data) : undefined}
+                        priceStatus={priceStatus}
+                        analyticsListId={analyticsList.id}
+                        analyticsListName={analyticsList.name}
+                        analyticsIndex={absoluteIndex}
+                        imageLoadingMode={shouldEagerLoadImage ? "eager" : "lazy"}
+                        imageFetchPriority={shouldPrioritizeImage ? "high" : "auto"}
+                        prefetchedImageSrc={prefetchedImageSrc}
+                        batchImagePending={Boolean(imageBatchKey && pageImagePending[imageBatchKey])}
+                        batchImageMissing={
+                          Boolean(imageBatchKey && pageImageMissing[imageBatchKey])
+                        }
+                        batchImageOnly={Boolean(imageBatchKey && !shouldDirectLoadImage)}
+                        isFlipped={flippedCard === code}
+                        motionEnabled={shouldAnimateList}
+                        onAddToCart={handleAddToCart}
+                        onRequestPrice={handleRequestPriceForItem}
+                        onRemoveFromCart={handleRemoveFromCart}
+                        onQtyChange={handleQtyChange}
+                        onFlip={handleFlip}
+                        onImageOpen={handleImageOpen}
+                      />
+                    )}
                   </div>
                 );
               })}
@@ -5202,37 +5257,95 @@ const Data: React.FC<DataProps> = ({
             </div>
 
             {showFilterTransitionOverlay && (
-              <div className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center rounded-[28px] bg-white/58 px-4 py-6 backdrop-blur-[2px]">
-                <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white/95 px-4 py-2 text-sm font-medium text-slate-700 shadow-lg shadow-slate-200/60">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-sky-500" />
-                  <span>{filterTransitionLabel}</span>
+              <div className="catalog-transition-overlay pointer-events-none absolute inset-0 z-20 flex items-start justify-center rounded-[24px] bg-white/46 px-4 py-5 backdrop-blur-[1px]">
+                <div className="catalog-loader-card inline-flex min-w-[250px] items-center gap-3.5 rounded-[19px] border border-sky-100/90 bg-white/96 px-4 py-3.5 shadow-[0_18px_46px_rgba(14,165,233,0.16)] ring-1 ring-white/90">
+                  <span className="catalog-modern-loader" aria-hidden="true"><i /><b /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black leading-tight text-slate-700">{filterTransitionLabel}</span>
+                    <span className="catalog-loader-line mt-2 block" aria-hidden="true" />
+                  </span>
                 </div>
               </div>
             )}
           </div>
         )}
 
-        {!shouldShowInitialSkeleton && hasMore && visibleSortedData.length > 0 && (
-          <div className="col-span-full flex w-full justify-center pt-3" aria-live="polite">
-            <button
-              ref={loadMoreButtonRef}
-              type="button"
-              onClick={loadNextPage}
-              disabled={loading || isLoadingNextPage}
-              className="inline-flex min-h-11 w-full max-w-[360px] items-center justify-center gap-2 rounded-[16px] border border-sky-200 bg-[linear-gradient(135deg,#ffffff,#eef8ff)] px-5 py-2.5 text-sm font-black text-sky-800 shadow-[0_14px_30px_rgba(14,165,233,0.12)] transition hover:border-sky-300 hover:bg-[linear-gradient(135deg,#f8fcff,#e0f2fe)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/80 active:scale-[0.99] disabled:cursor-wait disabled:opacity-70 sm:w-auto sm:min-w-[260px]"
-            >
-              {isLoadingNextPage ? (
-                <>
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-sky-200 border-t-sky-700" />
-                  Завантажую товари
-                </>
-              ) : (
-                <>
-                  <ChevronsDown size={17} strokeWidth={2.4} />
-                  Більше товарів
-                </>
-              )}
-            </button>
+        {!shouldShowInitialSkeleton && visibleSortedData.length > 0 && (
+          <div
+            className="flex w-full flex-wrap items-center justify-center gap-3 px-1 pt-3 sm:pt-4"
+            aria-live="polite"
+          >
+            <div className="catalog-view-controls inline-flex items-center gap-2 rounded-[16px] border border-cyan-200/70 bg-[linear-gradient(150deg,#ffffff_0%,#f0fbff_55%,#eefdf6_100%)] p-1.5 shadow-[0_10px_26px_rgba(14,165,233,0.14),inset_0_1px_0_rgba(255,255,255,0.85)]">
+              <div
+                role="group"
+                aria-label="Вигляд каталогу"
+                className="inline-flex items-center gap-0.5 rounded-[12px] bg-white/70 p-0.5 ring-1 ring-inset ring-sky-100"
+              >
+                <button
+                  type="button"
+                  onClick={() => onViewModeChange?.("grid")}
+                  aria-pressed={viewMode === "grid"}
+                  title="Сітка"
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-[10px] transition-[background,color,box-shadow] duration-200 ${
+                    viewMode === "grid"
+                      ? "bg-[linear-gradient(135deg,#0284c7_0%,#0d9488_100%)] text-white shadow-[0_5px_12px_rgba(2,132,199,0.38)]"
+                      : "text-slate-400 hover:bg-sky-50 hover:text-sky-600"
+                  }`}
+                >
+                  <LayoutGrid size={15} strokeWidth={2.4} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onViewModeChange?.("list")}
+                  aria-pressed={viewMode === "list"}
+                  title="Список"
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-[10px] transition-[background,color,box-shadow] duration-200 ${
+                    viewMode === "list"
+                      ? "bg-[linear-gradient(135deg,#0284c7_0%,#0d9488_100%)] text-white shadow-[0_5px_12px_rgba(2,132,199,0.38)]"
+                      : "text-slate-400 hover:bg-sky-50 hover:text-sky-600"
+                  }`}
+                >
+                  <List size={15} strokeWidth={2.4} />
+                </button>
+              </div>
+
+              <label className="inline-flex items-center gap-1.5 rounded-[12px] bg-white/70 py-0.5 pl-2.5 pr-1.5 text-[11.5px] font-black uppercase tracking-[0.03em] text-sky-800 ring-1 ring-inset ring-sky-100">
+                На сторінці
+                <select
+                  value={pageBatchSize}
+                  onChange={(e) => onPageBatchSizeChange?.(Number(e.target.value))}
+                  className="h-8 rounded-[10px] border-0 bg-[linear-gradient(135deg,#0284c7_0%,#0d9488_100%)] px-2 text-[12.5px] font-black text-white shadow-[0_5px_12px_rgba(2,132,199,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                >
+                  <option value={16}>16</option>
+                  <option value={32}>32</option>
+                  <option value={48}>48</option>
+                </select>
+              </label>
+            </div>
+
+            {hasMore && (
+              <button
+                ref={loadMoreButtonRef}
+                type="button"
+                onClick={handleLoadMoreClick}
+                disabled={loading || isLoadingNextPage}
+                className="catalog-load-more-button inline-flex min-h-11 w-auto min-w-[220px] max-w-full items-center justify-center gap-2 rounded-[15px] border px-5 py-2.5 text-[13px] font-black focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/40 disabled:cursor-wait disabled:opacity-75 sm:min-w-[240px] sm:text-sm"
+              >
+                {isLoadingNextPage ? (
+                  <>
+                    <span className="catalog-modern-loader catalog-modern-loader-small" aria-hidden="true"><i /><b /></span>
+                    <span className="relative z-[2]">Готую наступні товари</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="catalog-load-more-icon" aria-hidden="true">
+                      <ChevronsDown size={17} strokeWidth={2.6} />
+                    </span>
+                    <span className="relative z-[2]">Більше товарів</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         )}
 

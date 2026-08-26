@@ -124,13 +124,17 @@ const ensureDiskCacheDir = () => {
   }
   return diskCacheDirReady;
 };
-const CATALOG_IMAGE_MAX_WIDTH = 320;
-const CATALOG_IMAGE_MAX_HEIGHT = 320;
-const CATALOG_IMAGE_QUALITY = 64;
+// 480px keeps catalog thumbnails crisp on 2x/3x phone screens while the WebP
+// payload remains far smaller than the original 1C image. The cache version
+// ensures previously generated 320px/quality-64 files are not reused.
+const IMAGE_OPTIMIZATION_VERSION = "v2-retina";
+const CATALOG_IMAGE_MAX_WIDTH = 480;
+const CATALOG_IMAGE_MAX_HEIGHT = 480;
+const CATALOG_IMAGE_QUALITY = 74;
 const FULL_IMAGE_MAX_WIDTH = 1400;
 const FULL_IMAGE_MAX_HEIGHT = 1400;
 const FULL_IMAGE_QUALITY = 82;
-const CATALOG_WEBP_PASSTHROUGH_MAX_BYTES = 120 * 1024;
+const CATALOG_WEBP_PASSTHROUGH_MAX_BYTES = 48 * 1024;
 const CATALOG_ROUTE_MISS_CACHE_TTL_MS = 1000 * 120;
 const CATALOG_ROUTE_RETRY_MISS_CACHE_TTL_MS = 1000 * 180;
 let fallbackImageHashPromise: Promise<string | null> | null = null;
@@ -256,7 +260,7 @@ const optimizeImageBuffer = async (
   pruneOptimizedImageCache();
 
   const targetFormat = options.acceptsAvif ? "avif" : "webp";
-  const cacheKey = `${options.variant}:${targetFormat}:${options.hash}`;
+  const cacheKey = `${IMAGE_OPTIMIZATION_VERSION}:${options.variant}:${targetFormat}:${options.hash}`;
   const cached = optimizedImageCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.value;

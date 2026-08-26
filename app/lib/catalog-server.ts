@@ -653,7 +653,10 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     });
   };
 
-  const requestAllgoodsPage = async (body: Record<string, unknown>) => {
+  const requestAllgoodsPage = async (
+    body: Record<string, unknown>,
+    cacheTtlMsOverride?: number
+  ) => {
     const cursorValue =
       typeof body[ALLGOODS_CURSOR_FIELD] === "string"
         ? body[ALLGOODS_CURSOR_FIELD].trim()
@@ -670,7 +673,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       timeoutMs: options.timeoutMs,
       retries: options.retries ?? 1,
       retryDelayMs: options.retryDelayMs ?? 250,
-      cacheTtlMs: options.cacheTtlMs,
+      cacheTtlMs: cacheTtlMsOverride ?? options.cacheTtlMs,
     });
 
     if (response.status < 200 || response.status >= 300) {
@@ -744,8 +747,39 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       [ALLGOODS_LIMIT_FIELD]: limit,
       [ALLGOODS_CURSOR_FIELD]: requestedCursor,
     });
-    const items = filterPricedItems(parsed.items);
-    const pageItems = items.slice(0, limit);
+    let items = filterPricedItems(parsed.items);
+    let pageItems = items.slice(0, limit);
+
+    // A transient empty 1C response for a "load more" cursor continuation
+    // gets cached by oneCRequest under this exact request body (see
+    // resolvedCacheKey in app/api/_lib/oneC.js) for the several-minute TTL
+    // this route uses — so the naive "retry the same call" that used to
+    // live here was retrying against its own just-cached empty result, not
+    // against 1C. Force one real network attempt (cacheTtlMs: 0) before
+    // trusting "zero items" as "reached the end of the catalog".
+    if (pageItems.length === 0) {
+      const freshParsed = await requestAllgoodsPage(
+        {
+          ...requestBodyBase,
+          [ALLGOODS_LIMIT_FIELD]: limit,
+          [ALLGOODS_CURSOR_FIELD]: requestedCursor,
+        },
+        0
+      ).catch(() => null);
+      if (freshParsed) {
+        items = filterPricedItems(freshParsed.items);
+        pageItems = items.slice(0, limit);
+      }
+    }
+
+    // Some cursor values stay genuinely stuck even after a fresh, uncached
+    // call — replaying the same listing from page 1 with 1C-derived cursors
+    // (fetchAllgoodsPageByNumber below) reliably recovers the correct page
+    // in that case, instead of the "Більше товарів" button just disappearing.
+    if (pageItems.length === 0 && page > 1) {
+      return fetchAllgoodsPageByNumber();
+    }
+
     const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(pageItems);
     const hasMore = parsed.hasMore || items.length > limit;
     return {
@@ -757,51 +791,55 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     };
   }
 
-  let cursor = "";
-  for (let currentPage = 1; currentPage <= page; currentPage += 1) {
-    const body: Record<string, unknown> = {
-      ...requestBodyBase,
-      [ALLGOODS_LIMIT_FIELD]: limit,
+  return fetchAllgoodsPageByNumber();
+
+  async function fetchAllgoodsPageByNumber(): Promise<CatalogQueryPageResult> {
+    let cursor = "";
+    for (let currentPage = 1; currentPage <= page; currentPage += 1) {
+      const body: Record<string, unknown> = {
+        ...requestBodyBase,
+        [ALLGOODS_LIMIT_FIELD]: limit,
+      };
+      if (cursor) {
+        body[ALLGOODS_CURSOR_FIELD] = cursor;
+      }
+
+      const parsed = await requestAllgoodsPage(body);
+      const items = filterPricedItems(parsed.items);
+      const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
+      if (currentPage === page) {
+        const hasMoreFromWindow =
+          isPriceSorted && !parsed.nextCursor && parsed.items.length >= limit;
+        return {
+          items: items.slice(0, limit),
+          hasMore:
+            parsed.hasMore ||
+            hasMoreFromWindow ||
+            Boolean(resolvedCursor && parsed.items.length >= limit),
+          nextCursor: resolvedCursor,
+          totalCount: parsed.totalCount,
+        };
+      }
+
+      if (!parsed.hasMore || !resolvedCursor) {
+        return {
+          items: [] as CatalogProduct[],
+          hasMore: false,
+          nextCursor: "",
+          totalCount: parsed.totalCount,
+        };
+      }
+
+      cursor = resolvedCursor;
+    }
+
+    return {
+      items: [] as CatalogProduct[],
+      hasMore: false,
+      nextCursor: "",
+      totalCount: null,
     };
-    if (cursor) {
-      body[ALLGOODS_CURSOR_FIELD] = cursor;
-    }
-
-    const parsed = await requestAllgoodsPage(body);
-    const items = filterPricedItems(parsed.items);
-    const resolvedCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
-    if (currentPage === page) {
-      const hasMoreFromWindow =
-        isPriceSorted && !parsed.nextCursor && parsed.items.length >= limit;
-      return {
-        items: items.slice(0, limit),
-        hasMore:
-          parsed.hasMore ||
-          hasMoreFromWindow ||
-          Boolean(resolvedCursor && parsed.items.length >= limit),
-        nextCursor: resolvedCursor,
-        totalCount: parsed.totalCount,
-      };
-    }
-
-    if (!parsed.hasMore || !resolvedCursor) {
-      return {
-        items: [] as CatalogProduct[],
-        hasMore: false,
-        nextCursor: "",
-        totalCount: parsed.totalCount,
-      };
-    }
-
-    cursor = resolvedCursor;
   }
-
-  return {
-    items: [] as CatalogProduct[],
-    hasMore: false,
-    nextCursor: "",
-    totalCount: null,
-  };
 };
 
 const fetchAllgoodsProductsPage = async (options: {
@@ -2594,12 +2632,18 @@ export const fetchProductDescription = async (
         .map((entry) => asRecord(entry))
         .filter((entry): entry is Record<string, unknown> => entry != null);
 
+      // No fallback to normalizedRecords[0]: this query searches one specific
+      // field (code or article) with a value that may actually belong to the
+      // other field (callers don't always know which), so 1C can return a
+      // loosely-matched, unrelated record instead of nothing. Silently
+      // showing that record's description was worse than showing none —
+      // only an exact code/article match on the *returned* record is trusted.
       const matchedRecord =
         normalizedRecords.find((record) => {
           const recordCode = normalizeFacetValue(readFirstString(record, CODE_FIELDS));
           const recordArticle = normalizeFacetValue(readFirstString(record, ARTICLE_FIELDS));
           return recordCode === normalizedLookup || recordArticle === normalizedLookup;
-        }) ?? normalizedRecords[0] ?? null;
+        }) ?? null;
 
       return matchedRecord ? readDescriptionFromRecord(matchedRecord) : null;
     } catch {

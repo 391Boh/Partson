@@ -344,19 +344,33 @@ export async function POST(request: Request) {
           (allgoodsPrimary.items.length > 0 ||
             queryBase.pricedOnly ||
             queryBase.priceFrom !== null ||
-            queryBase.priceTo !== null ||
-            Boolean(queryBase.cursor || queryBase.cursorField))
+            queryBase.priceTo !== null)
         ) {
           return allgoodsPrimary;
         }
       }
 
       if (shouldUseCursorBackedSource) {
-        if (allgoodsPrimary) {
+        if (allgoodsPrimary && allgoodsPrimary.items.length > 0) {
           return allgoodsPrimary;
         }
 
-        return runAllgoodsQuery();
+        // A "load more" cursor continuation that comes back empty is
+        // ambiguous — it means "genuinely reached the end of the catalog"
+        // just as easily as "1C hiccuped on this one call". The old code
+        // trusted it immediately either way, permanently setting hasMore
+        // to false (the "Більше товарів" button disappearing) on a single
+        // transient miss, with no retry — silently truncating pagination
+        // for the rest of the session. One retry before accepting "no
+        // more" rules out the common transient case without meaningfully
+        // slowing down the real end-of-list case (which stays empty either
+        // way).
+        const cursorRetry = await runAllgoodsQuery().catch(() => null);
+        if (cursorRetry && cursorRetry.items.length > 0) {
+          return cursorRetry;
+        }
+
+        return allgoodsPrimary ?? cursorRetry ?? runAllgoodsQuery();
       }
 
       const legacyResult = await fetchCatalogProductsByQuery({
@@ -442,7 +456,7 @@ export async function POST(request: Request) {
         return allgoodsFallback;
       }
 
-      return fetchCatalogProductsByQuery({
+      const finalResult = await fetchCatalogProductsByQuery({
         ...queryBase,
         sortOrder: queryBase.sortOrder,
         timeoutMs: Math.min(Math.max(runtime.timeoutMs, 4200), 5200),
@@ -461,6 +475,22 @@ export async function POST(request: Request) {
         priceTo: queryBase.priceTo,
         onlyInStock: queryBase.inStock,
       });
+
+      // Every fallback above already came back empty/failed by this point.
+      // For an unfiltered "browse everything" query (no search, no facet,
+      // no car binding) zero items is never a real business state for a
+      // 10k+-product catalog — it only happens when 1C is degraded. Letting
+      // this cache as a normal "success" used to poison routeSuccessCache
+      // with a bogus "0 products" answer for up to ROUTE_SUCCESS_STALE_TTL_MS
+      // (4h): one transient 1C blip made the catalog look permanently empty
+      // long after 1C itself had recovered. Throwing instead routes this
+      // through the catch block below, which returns serviceUnavailable
+      // (uncached) so the very next request gets a real retry.
+      if (finalResult.items.length === 0 && !hasTightFilterContext) {
+        throw new Error("Catalog getdata failed: no products returned for unfiltered browse query");
+      }
+
+      return finalResult;
     };
 
     let inFlight = routeInFlightRequests.get(routeCacheKey);

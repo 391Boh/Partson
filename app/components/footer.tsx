@@ -158,9 +158,11 @@ export default function Footer() {
             >
               <Image
                 src="/partson-logo-v2.png"
-                alt="PartsON"
+                alt="Логотип інтернет-магазину автозапчастин PartsON"
                 width={96}
                 height={60}
+                sizes="(max-width: 640px) 76px, 94px"
+                quality={85}
                 className="h-auto w-[76px] object-contain drop-shadow-[0_10px_18px_rgba(14,165,233,0.16)] sm:w-[94px]"
                 onError={(e) => {
                   const img = e.currentTarget;

@@ -17,6 +17,7 @@ import {
   directoryCompactMetricClass,
   directoryDescriptionClass,
   directoryHeaderClass,
+  directoryListCardClass,
   directoryPanelClass,
   directoryPrimaryButtonClass,
   directorySecondaryButtonClass,
@@ -1219,33 +1220,41 @@ export default async function ManufacturerDetailPage({
       );
   const manufacturerProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
   const visibleProducts = manufacturerProducts.slice(0, MANUFACTURER_VISIBLE_PRODUCTS_LIMIT);
-  const euroRate = visibleProducts.some(
+  const needsEuroRate = visibleProducts.some(
     (product) => typeof product.priceEuro === "number" && product.priceEuro > 0
-  )
-    ? await resolveWithTimeout(() => fetchEuroRate(), null, 500).catch(() => null)
-    : null;
-  const productSamplesByGroup = await buildManufacturerGroupProductSamples(
-    producer.label,
-    producer.topGroups,
-    manufacturerProducts
   );
-  const visibleProductImages = isProductionBuildPhase
-    ? new Map(
-        visibleProducts
-          .filter((product) => product.hasPhoto === true)
-          .map((product) => [
-            buildProductDedupeKey(product),
-            buildProductImagePath(product.code, product.article, {
-              catalog: true,
-              noFallback: true,
-            }),
-          ])
-      )
-    : await buildVerifiedProductImageMap(visibleProducts, {
-        maxKeys: MANUFACTURER_VISIBLE_PRODUCTS_LIMIT * 2,
-        timeoutMs: 650,
-        allowUrlDownload: true,
-      });
+  // These three only depend on topProducts/visibleProducts above, not on each
+  // other — euro rate lookup, group sampling and image resolution used to run
+  // back-to-back, each paying its own full timeout on the tail case.
+  const [euroRate, productSamplesByGroup, visibleProductImages] = await Promise.all([
+    needsEuroRate
+      ? resolveWithTimeout(() => fetchEuroRate(), null, 500).catch(() => null)
+      : Promise.resolve(null),
+    buildManufacturerGroupProductSamples(
+      producer.label,
+      producer.topGroups,
+      manufacturerProducts
+    ),
+    isProductionBuildPhase
+      ? Promise.resolve(
+          new Map(
+            visibleProducts
+              .filter((product) => product.hasPhoto === true)
+              .map((product) => [
+                buildProductDedupeKey(product),
+                buildProductImagePath(product.code, product.article, {
+                  catalog: true,
+                  noFallback: true,
+                }),
+              ])
+          )
+        )
+      : buildVerifiedProductImageMap(visibleProducts, {
+          maxKeys: MANUFACTURER_VISIBLE_PRODUCTS_LIMIT * 2,
+          timeoutMs: 650,
+          allowUrlDownload: true,
+        }),
+  ]);
   const visibleProductImagePayload = Object.fromEntries(
     visibleProducts.flatMap((product) => {
       const imageKey = buildProductImageBatchKey(product.code, product.article);
@@ -1441,7 +1450,7 @@ export default async function ManufacturerDetailPage({
     return (
       <article
         key={`${keyPrefix}:${group.slug}:${group.filterValue}:${groupIndex}`}
-        className="group/card overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 transition-colors duration-200 hover:border-sky-200"
+        className={`${directoryListCardClass} group/card overflow-hidden`}
       >
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
           {showIcon ? (
@@ -1462,7 +1471,7 @@ export default async function ManufacturerDetailPage({
             <CatalogPrefetchLink
               href={groupCatalogPath}
               prefetchCatalogOnViewport
-              className="directory-card-title inline-flex text-[15px] leading-tight text-slate-900 transition-colors duration-200 group-hover/card:text-sky-700"
+              className="directory-card-title inline-flex text-[15px] leading-tight text-slate-900 transition-colors duration-200 group-hover/card:text-teal-700"
             >
               {normalizeValue(group.label)}
             </CatalogPrefetchLink>
@@ -1583,7 +1592,7 @@ export default async function ManufacturerDetailPage({
                 {producer.logoPath ? (
                   <Image
                     src={producer.logoPath}
-                    alt={producer.label}
+                    alt={`Логотип виробника автозапчастин ${producer.label}`}
                     width={96}
                     height={96}
                     sizes="96px"

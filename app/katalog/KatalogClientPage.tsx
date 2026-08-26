@@ -8,6 +8,7 @@ import type { User } from 'firebase/auth';
 import type { PersistedCarSelection } from 'app/components/Auto';
 import { cleanCarModelForSearch } from 'app/lib/car-model-search';
 import CatalogData from 'app/components/Data';
+import CatalogLoaderCard from 'app/components/CatalogLoaderCard';
 
 const MemoizedCatalogData = memo(CatalogData);
 
@@ -58,7 +59,26 @@ type InitialCatalogPagePayload = {
 const STORAGE_KEYS = {
   cars: 'partson:selectedCars',
   selection: 'partson:selectedCarSelection',
+  sort: 'partson:catalogSortOrder',
+  viewMode: 'partson:catalogViewMode',
+  pageBatchSize: 'partson:catalogPageBatchSize',
 };
+
+const isCatalogSortOrder = (value: unknown): value is 'none' | 'asc' | 'desc' =>
+  value === 'none' || value === 'asc' || value === 'desc';
+
+const isCatalogViewMode = (value: unknown): value is 'grid' | 'list' =>
+  value === 'grid' || value === 'list';
+
+const CATALOG_PAGE_BATCH_SIZE_OPTIONS = [16, 32, 48] as const;
+const isCatalogPageBatchSize = (value: unknown): value is number =>
+  typeof value === 'number' && (CATALOG_PAGE_BATCH_SIZE_OPTIONS as readonly number[]).includes(value);
+
+const CatalogStateLoader = () => (
+  <div className="flex min-h-[55vh] w-full items-start justify-center px-4 py-14 sm:py-20" role="status" aria-label="Завантаження каталогу">
+    <CatalogLoaderCard label="Готую товари" />
+  </div>
+);
 
 // cleanCarModelForSearch (imported above) drops the "рестайлинг"/"рестайлінг"
 // word from a model like "A6 C4 рестайлинг" so the description search isn't
@@ -164,6 +184,11 @@ const Katalog: React.FC<KatalogProps> = ({
   const [selectedCars, setSelectedCars] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  // Display preferences, not filters — deliberately kept out of the
+  // filter-reset flow below (resetParam handling, STORAGE_KEYS.cars/sort
+  // removal) so clearing filters never resets how the user likes to browse.
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [pageBatchSize, setPageBatchSize] = useState(16);
   const [pricedOnly, setPricedOnly] = useState(false);
   const [priceFrom, setPriceFrom] = useState<number | null>(null);
   const [priceTo, setPriceTo] = useState<number | null>(null);
@@ -212,6 +237,12 @@ const Katalog: React.FC<KatalogProps> = ({
     (selectedCategories.length > 0 ? selectedCategories.join(', ') : '');
   const searchQuery = (currentSearchParams.get('search') || '').trim();
   const searchFilter = currentSearchParams.get('filter') || 'all';
+  const selectedCarCatalogSynced =
+    !selectedCarSelection ||
+    (currentSearchParams.get('carSearch') === '1' &&
+      searchFilter === 'description' &&
+      searchQuery === cleanCarModelForSearch(selectedCarSelection.model || ''));
+  const catalogStateReady = localReady && selectedCarCatalogSynced;
   const searchFilterLabels: Record<string, string> = {
     name: 'Назва',
     code: 'Код',
@@ -331,6 +362,7 @@ const Katalog: React.FC<KatalogProps> = ({
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(STORAGE_KEYS.cars);
       window.localStorage.removeItem(STORAGE_KEYS.selection);
+      window.localStorage.removeItem(STORAGE_KEYS.sort);
     }
 
     const nextParams = new URLSearchParams(searchParamsKey);
@@ -344,7 +376,7 @@ const Katalog: React.FC<KatalogProps> = ({
     router.replace(query ? `${pathname}?${query}` : pathname);
   }, [pathname, resetParam, router, searchParamsKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (hasLoadedLocalRef.current) return;
     hasLoadedLocalRef.current = true;
     if (typeof window === 'undefined') return;
@@ -352,17 +384,11 @@ const Katalog: React.FC<KatalogProps> = ({
       setLocalReady(true);
       return;
     }
-    // Filtered links from manufacturer/group/model pages already describe
-    // the requested result set. Restoring a previously saved car here would
-    // silently add selectedCars to the API request and can turn a positive
-    // facet count into an empty catalog.
-    if (hasExplicitCatalogFilter) {
-      setCarsLoaded(true);
-      setLocalReady(true);
-      return;
-    }
-
     try {
+      const storedSort = window.localStorage.getItem(STORAGE_KEYS.sort);
+      if (isCatalogSortOrder(storedSort)) {
+        setSortOrder(storedSort);
+      }
       const rawCars = window.localStorage.getItem(STORAGE_KEYS.cars);
       const rawSelection = window.localStorage.getItem(STORAGE_KEYS.selection);
       const parsedCars = rawCars ? (JSON.parse(rawCars) as unknown) : [];
@@ -644,6 +670,7 @@ const Katalog: React.FC<KatalogProps> = ({
         STORAGE_KEYS.cars,
         JSON.stringify(selectedCars)
       );
+      window.localStorage.setItem(STORAGE_KEYS.sort, sortOrder);
       if (selectedCarSelection) {
         window.localStorage.setItem(
           STORAGE_KEYS.selection,
@@ -655,7 +682,41 @@ const Katalog: React.FC<KatalogProps> = ({
     } catch (error) {
       console.error('Failed to save cars to local storage:', error);
     }
-  }, [localReady, selectedCarSelection, selectedCars]);
+  }, [localReady, selectedCarSelection, selectedCars, sortOrder]);
+
+  // Display preferences (grid/list, items per "load more") — read once on
+  // mount and written on change, but kept in their own effects so they never
+  // interact with the filter-reset flow above (a "clear filters" click must
+  // not also flip the user back to grid view or the default batch size).
+  const hasLoadedViewPrefsRef = useRef(false);
+  useLayoutEffect(() => {
+    if (hasLoadedViewPrefsRef.current) return;
+    hasLoadedViewPrefsRef.current = true;
+    if (typeof window === 'undefined') return;
+    try {
+      const storedViewMode = window.localStorage.getItem(STORAGE_KEYS.viewMode);
+      if (isCatalogViewMode(storedViewMode)) {
+        setViewMode(storedViewMode);
+      }
+      const storedBatchSize = Number(window.localStorage.getItem(STORAGE_KEYS.pageBatchSize));
+      if (isCatalogPageBatchSize(storedBatchSize)) {
+        setPageBatchSize(storedBatchSize);
+      }
+    } catch (error) {
+      console.error('Failed to read catalog view preferences from local storage:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!hasLoadedViewPrefsRef.current) return;
+    try {
+      window.localStorage.setItem(STORAGE_KEYS.viewMode, viewMode);
+      window.localStorage.setItem(STORAGE_KEYS.pageBatchSize, String(pageBatchSize));
+    } catch (error) {
+      console.error('Failed to save catalog view preferences to local storage:', error);
+    }
+  }, [pageBatchSize, viewMode]);
 
   useEffect(() => {
     if (!selectedCarSelection) return;
@@ -671,6 +732,22 @@ const Katalog: React.FC<KatalogProps> = ({
       })
     );
   }, [pricedOnly, priceFrom, priceTo]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !localReady) return;
+    window.dispatchEvent(
+      new CustomEvent('partson:catalog-view-state', {
+        detail: {
+          sortOrder,
+          pricedOnly,
+          priceFrom,
+          priceTo,
+          inStock,
+          car: carSummary || selectedVin || selectedCars.join(', '),
+        },
+      })
+    );
+  }, [carSummary, inStock, localReady, priceFrom, priceTo, pricedOnly, selectedCars, selectedVin, sortOrder]);
 
   useEffect(() => {
     if (!requestMessage) {
@@ -793,7 +870,7 @@ const Katalog: React.FC<KatalogProps> = ({
 
   const fixedFilterLayer = (
     <div
-      className="catalog-filter-shell pointer-events-none fixed inset-x-0 z-40"
+      className="catalog-page catalog-filter-shell pointer-events-none fixed inset-x-0 z-40"
       style={{ top: `calc(var(--header-height, 4rem) + ${FILTER_TOP_GAP}px)` }}
     >
       <div className="pointer-events-auto page-shell-inline -mt-px">
@@ -803,26 +880,34 @@ const Katalog: React.FC<KatalogProps> = ({
   );
 
   return (
-    <section className="w-full pb-0">
+    <section className="catalog-page w-full pb-0">
       {portalRoot ? createPortal(fixedFilterLayer, portalRoot) : fixedFilterLayer}
       <div
-        className="page-shell-inline"
+        className="page-shell-inline relative"
         style={{
           paddingTop: catalogTopOffset,
         }}
       >
-        <MemoizedCatalogData
-          selectedCars={selectedCars}
-          selectedCategories={selectedCategories}
-          sortOrder={sortOrder}
-          pricedOnly={pricedOnly}
-          priceFrom={priceFrom}
-          priceTo={priceTo}
-          inStock={inStock}
-          initialPagePayload={initialPagePayload}
-          initialQuerySignature={initialQuerySignature}
-          initialTotalCount={initialTotalCount}
-        />
+        {catalogStateReady ? (
+          <MemoizedCatalogData
+            selectedCars={selectedCars}
+            selectedCategories={selectedCategories}
+            sortOrder={sortOrder}
+            pricedOnly={pricedOnly}
+            priceFrom={priceFrom}
+            priceTo={priceTo}
+            inStock={inStock}
+            initialPagePayload={initialPagePayload}
+            initialQuerySignature={initialQuerySignature}
+            initialTotalCount={initialTotalCount}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            pageBatchSize={pageBatchSize}
+            onPageBatchSizeChange={setPageBatchSize}
+          />
+        ) : (
+          <CatalogStateLoader />
+        )}
       </div>
     </section>
   );

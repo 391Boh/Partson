@@ -34,7 +34,7 @@ const groupPreviewManifest: Record<string, string> = {
   "ролики::натяжний": "/group-previews/e443d26bdd7cc4.webp",
   "ремені клинові::ремені клинові": "/group-previews/7f227c5c5bd41f.webp",
   "турбокомпрессор::патрубки турбіни": "/group-previews/f9ca0c42d339b3.webp",
-  "деталі для то::масляний фільтр": "/group-previews/c8535c0622088e.webp",
+  "деталі для то::масляний фільтр": "/group-previews/46cdd5543d177a.webp",
   "деталі для то::фільтр салону (салонний)": "/group-previews/feefadc9bfdac5.webp",
   "деталі підвіски::сайлентблоки, втулки": "/group-previews/6be41d9f34bbc8.webp",
   "деталі для то::повітряний фільтр(повітря)": "/group-previews/a33a81eb55952f.webp",

@@ -214,7 +214,7 @@ function FlipCardComponent({
             width={60}
             height={60}
             sizes="60px"
-            quality={75}
+            quality={85}
             priority={priority}
             onError={(event) => {
               const target = event.currentTarget;
