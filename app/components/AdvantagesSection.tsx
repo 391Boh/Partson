@@ -180,11 +180,63 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
       }
     };
 
+    // Resuming the auto-scroll the instant a pointer lifts fights touch
+    // momentum scrolling — the browser keeps animating scrollLeft on its own
+    // for a while after pointerup, and the auto-scroll's own scrollLeft
+    // writes then collide with that momentum, producing a visible jump. Wait
+    // for the rail's own scrollend (or a short timeout fallback where
+    // scrollend isn't supported) before resuming, mirroring the page-scroll
+    // "is-scrolling" intent detection in LayoutHost.tsx.
+    const supportsScrollEnd = "onscrollend" in window;
+    let resumeTimer: number | null = null;
+    const clearResumeTimer = () => {
+      if (resumeTimer !== null) {
+        window.clearTimeout(resumeTimer);
+        resumeTimer = null;
+      }
+    };
+    const handlePointerDown = () => {
+      galleryPausedRef.current = true;
+      clearResumeTimer();
+    };
+    const handlePointerRelease = () => {
+      if (supportsScrollEnd) return; // scrollend below owns the resume
+      clearResumeTimer();
+      resumeTimer = window.setTimeout(() => {
+        galleryPausedRef.current = false;
+      }, 150);
+    };
+    const handleScrollEnd = () => {
+      clearResumeTimer();
+      galleryPausedRef.current = false;
+    };
+    const handleFocusIn = () => {
+      galleryPausedRef.current = true;
+      clearResumeTimer();
+    };
+    const handleFocusOut = () => {
+      galleryPausedRef.current = false;
+    };
+
+    rail.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    rail.addEventListener("pointerup", handlePointerRelease, { passive: true });
+    rail.addEventListener("pointercancel", handlePointerRelease, { passive: true });
+    if (supportsScrollEnd) rail.addEventListener("scrollend", handleScrollEnd, { passive: true });
+    rail.addEventListener("focusin", handleFocusIn);
+    rail.addEventListener("focusout", handleFocusOut);
+
     visibilityObserver.observe(rail);
     return () => {
       if (animationFrame !== 0) window.cancelAnimationFrame(animationFrame);
       resizeObserver?.disconnect();
       visibilityObserver.disconnect();
+      clearResumeTimer();
+      rail.removeEventListener("pointerdown", handlePointerDown);
+      rail.removeEventListener("pointerup", handlePointerRelease);
+      rail.removeEventListener("pointercancel", handlePointerRelease);
+      if (supportsScrollEnd) rail.removeEventListener("scrollend", handleScrollEnd);
+      rail.removeEventListener("focusin", handleFocusIn);
+      rail.removeEventListener("focusout", handleFocusOut);
     };
   }, []);
 
@@ -203,7 +255,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
                 </span>
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-[0.17em] text-sky-700 sm:text-[10px]">Магазин автозапчастин PartsON</p>
-                  <h2 className="mt-0.5 max-w-4xl bg-gradient-to-r from-slate-950 via-sky-950 to-cyan-800 bg-clip-text font-display text-[22px] font-black leading-[1.08] tracking-[-0.035em] text-transparent sm:text-[27px] lg:text-[31px]">Автозапчастини у Львові</h2>
+                  <h2 className="mt-0.5 max-w-4xl font-display text-[22px] font-black leading-[1.08] tracking-[-0.035em] text-slate-950 sm:text-[27px] lg:text-[31px]">Автозапчастини у Львові</h2>
                 </div>
               </div>
               <p className="mt-4 max-w-4xl text-[13.5px] font-medium leading-[1.65] text-slate-600 sm:text-[14px]">
@@ -258,17 +310,20 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
           </header>
 
           <div className="px-4 py-5 sm:px-6 sm:py-6">
-            <div className="flex items-end justify-between gap-4"><div><p className="text-[9px] font-black uppercase tracking-[0.16em] text-sky-600">PartsON наживо</p><h3 className="mt-1 text-[20px] font-black tracking-[-0.025em] text-slate-800 sm:text-[23px]">Магазин та асортимент</h3></div><span className="hidden text-[11px] font-bold text-slate-500 sm:inline">Гортайте фотографії горизонтально →</span></div>
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-sky-600">PartsON наживо</p>
+                <h3 className="mt-1 font-display text-[20px] font-black tracking-[-0.025em] text-slate-800 sm:text-[23px]">
+                  Магазин та асортимент
+                </h3>
+              </div>
+              <span className="hidden text-[11px] font-bold text-slate-500 sm:inline">Гортайте фотографії горизонтально →</span>
+            </div>
             <div
               ref={galleryRailRef}
               className="no-scrollbar mt-4 flex gap-3 overflow-x-auto overscroll-x-contain pb-2 [-webkit-overflow-scrolling:touch]"
               role="region"
               aria-label="Фотографії магазину та асортименту"
-              onPointerDown={() => { galleryPausedRef.current = true; }}
-              onPointerUp={() => { galleryPausedRef.current = false; }}
-              onPointerCancel={() => { galleryPausedRef.current = false; }}
-              onFocusCapture={() => { galleryPausedRef.current = true; }}
-              onBlurCapture={() => { galleryPausedRef.current = false; }}
             >
               {[0, 1].map((setIndex) => (
                 <div

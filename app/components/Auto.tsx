@@ -1215,22 +1215,22 @@ const AutoSection: React.FC<AutoProps> = ({
           <div className="group/search relative w-full min-w-0 overflow-hidden rounded-[22px] border border-sky-300/80 bg-[radial-gradient(circle_at_0%_0%,rgba(56,189,248,0.14),transparent_34%),linear-gradient(125deg,#ffffff_0%,#ffffff_55%,#f2f8fd_100%)] px-3 pb-3 pt-3 text-gray-800 shadow-[0_18px_40px_rgba(15,23,42,0.12),0_5px_14px_rgba(2,132,199,0.08),inset_0_-16px_28px_-20px_rgba(56,189,248,0.12),inset_0_1px_0_#fff] ring-1 ring-white transition-[border-color,box-shadow] duration-300 hover:border-sky-400 hover:shadow-[0_22px_48px_rgba(15,23,42,0.14),0_6px_16px_rgba(2,132,199,0.12),inset_0_-16px_28px_-20px_rgba(56,189,248,0.16),inset_0_1px_0_#fff] sm:px-4 sm:py-4">
             <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-sky-200/20 blur-3xl transition-opacity duration-300 group-hover/search:opacity-80" />
             <div className="relative flex flex-col gap-3 sm:flex-row sm:w-full sm:items-center sm:justify-between sm:gap-5">
-              <div className="min-w-0 sm:flex-1 sm:pr-2">
+              <div className="order-1 min-w-0 sm:order-2 sm:flex-1 sm:pl-5">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600/90 to-sky-400/90 text-white shadow-[0_8px_18px_rgba(37,99,235,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] sm:h-11 sm:w-11 sm:rounded-[18px]">
-                    <Car size={17} strokeWidth={2.3} aria-hidden className="sm:h-5 sm:w-5" />
-                  </span>
-                  <h2 className="font-display text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:text-[22px]">
+                  <h2 className="font-display relative min-w-0 text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:text-[22px]">
                     {selectedBrand
                       ? `Модель ${selectedBrand.name}`
                       : "Усі популярні марки виробників авто"}
                   </h2>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-2xl bg-gradient-to-br from-blue-600/90 to-sky-400/90 text-white shadow-[0_10px_20px_rgba(37,99,235,0.4),inset_0_1px_0_rgba(255,255,255,0.4)] ring-2 ring-white/50 sm:h-12 sm:w-12 sm:rounded-[19px]">
+                    <Car size={19} strokeWidth={2.3} aria-hidden className="sm:h-[23px] sm:w-[23px]" />
+                  </span>
                 </div>
                 <p className="mt-1 hidden text-[11px] leading-relaxed text-slate-500 sm:block">
                   Оберіть модель вашого авто для точного підбору
                 </p>
               </div>
-              <div className="w-full min-w-0 sm:w-[400px] sm:max-w-[400px] sm:shrink-0 sm:border-l sm:border-sky-200/80 sm:pl-5">
+              <div className="order-2 w-full min-w-0 sm:order-1 sm:w-[400px] sm:max-w-[400px] sm:shrink-0 sm:border-r sm:border-sky-200/80 sm:pr-5">
                 <AutoBrandSearchInput
                   key={selectedBrand ? "model" : "brand"}
                   onChange={selectedBrand ? setModelSearchTerm : handleSearchChange}
@@ -1335,7 +1335,7 @@ const AutoSection: React.FC<AutoProps> = ({
                           {brandPages.map((page, pageIndex) => (
                             <div key={pageIndex} data-brand-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
                               {Math.abs(pageIndex - safeBrandPage) <= 1 ? (
-                                <div className="grid grid-cols-4 gap-2.5 place-items-stretch sm:grid-cols-6 sm:gap-3">
+                                <div className="grid grid-cols-3 gap-2.5 place-items-stretch min-[380px]:grid-cols-4 sm:grid-cols-6 sm:gap-3">
                                   {page.map((brand, brandIndex) => (
                                     <CarBrandButton
                                       key={brand.id}

@@ -4,7 +4,12 @@ import { FieldValue } from "firebase-admin/firestore";
 
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import { sendTelegramMessage, sendTelegramPhoto } from "app/lib/telegram-bot";
-import { fetchCatalogProductsByQuery, type CatalogProduct } from "app/lib/catalog-server";
+import {
+  fetchCatalogProductsByQuery,
+  fetchEuroRate,
+  toPriceUah,
+  type CatalogProduct,
+} from "app/lib/catalog-server";
 import { escapeTelegramHtml } from "app/lib/telegram-order-message";
 import {
   buildProductImageUrl,
@@ -89,6 +94,7 @@ export const checkAndNotifyStockWatches = async () => {
     .get();
 
   const siteUrl = getSiteUrl();
+  const euroRate = await fetchEuroRate().catch(() => null);
   let notified = 0;
 
   for (const doc of pendingSnap.docs) {
@@ -110,7 +116,8 @@ export const checkAndNotifyStockWatches = async () => {
       "",
       `<b>${escapeTelegramHtml(product.name || watch.name || "Товар")}</b>`,
     ].join("\n");
-    const keyboard = buildProductKeyboard(siteUrl, product);
+    const priceUah = euroRate != null ? toPriceUah(product.priceEuro ?? null, euroRate) : null;
+    const keyboard = buildProductKeyboard(siteUrl, product, priceUah);
     const imageUrl = buildProductImageUrl(siteUrl, product);
 
     const photoResult =

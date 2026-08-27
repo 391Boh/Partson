@@ -1008,7 +1008,7 @@ const extractErrorMessage = (text: string) => {
               <div className="flex">
               {modelPages.map((page, pageIndex) => (
                 <div key={pageIndex} data-model-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
-                <div className="grid grid-cols-4 gap-1.5 sm:gap-2.5 place-items-stretch">
+                <div className="grid grid-cols-2 gap-1.5 place-items-stretch sm:grid-cols-4 sm:gap-2.5">
               {page.map((model) => {
                 const isActive = selectedModel === model;
                 const yr = modelYearRanges[model];

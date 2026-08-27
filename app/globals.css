@@ -3552,10 +3552,14 @@ svg.catalog-filter-search-icon {
   background: transparent;
   padding: 0 0.65rem;
   color: #1e293b;
-  font-size: 0.78rem;
+  /* 16px, not the tighter desktop size below — any font-size under 16px on
+     a focused input makes iOS Safari zoom the whole page in, which reads
+     as an unwanted "jump" the moment you tap the field. */
+  font-size: 1rem;
   font-weight: 650;
   font-variation-settings: "wght" 650;
   outline: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .catalog-filter-search-input::placeholder {
@@ -3691,12 +3695,28 @@ svg.catalog-filter-search-icon {
   .catalog-filter-brand-card:hover {
     transform: none;
   }
+
+  .catalog-filter-search-input {
+    font-size: 0.78rem;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .catalog-filter-choice-card,
+  .catalog-filter-brand-card {
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 @media (max-width: 639px) {
   .catalog-filter-panel-stage {
     width: 100%;
-    max-height: min(340px, calc(100dvh - 165px)) !important;
+    /* svh (not dvh) on purpose: dvh shrinks when the on-screen keyboard
+       opens on Android, which was collapsing this panel to almost nothing
+       the moment a search field inside it got focus. svh stays pinned to
+       the viewport size with the browser UI fully shown, so the panel
+       height doesn't move when the keyboard appears. */
+    max-height: min(340px, calc(100svh - 165px)) !important;
   }
 
   .catalog-filter-price-panel {
@@ -3720,7 +3740,7 @@ svg.catalog-filter-search-icon {
 
 @media (min-width: 640px) and (max-width: 1023px) {
   .catalog-filter-panel-stage {
-    max-height: min(370px, calc(100dvh - 200px)) !important;
+    max-height: min(370px, calc(100svh - 200px)) !important;
   }
 }
 

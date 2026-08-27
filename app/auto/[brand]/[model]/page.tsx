@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Layers3, PackageSearch, ShieldCheck } from "lucide-react";
 
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
+import GroupPreviewImage from "app/components/GroupPreviewImage";
 import OpenChatButton from "app/components/OpenChatButton";
 import SmartLink from "app/components/SmartLink";
 import {
@@ -210,7 +211,15 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   // showIcon mirrors renderManufacturerGroupCard's convention: category
   // blocks already show the icon once in their own header, so per-group
   // icons only appear in the flat fallback list (no categories resolved).
-  const renderModelGroupCard = (group: AutoModelGroupSummary, showIcon = false) => {
+  // categoryLabel scopes the representative product photo — the same
+  // (category, group) pair the homepage's category browser (tovar.tsx) uses,
+  // via the shared GroupPreviewImage component, so a group's card shows the
+  // same photo here as it would there instead of a text-only row.
+  const renderModelGroupCard = (
+    group: AutoModelGroupSummary,
+    categoryLabel: string,
+    showIcon = false
+  ) => {
     // A group with real subgroups links to the whole group (all subgroups
     // included) — the individual subcategory filter is only meaningful once
     // a genuine subgroup tier exists to narrow into via the chips below.
@@ -230,6 +239,10 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
         key={group.slug}
         className={`${directoryListCardClass} group/card overflow-hidden`}
       >
+        <SmartLink href={groupHref} prefetchOnViewport className="group/category block">
+          <GroupPreviewImage category={categoryLabel} group={group.label} />
+        </SmartLink>
+
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
           {showIcon ? (
             <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-sky-100/80 bg-gradient-to-br from-sky-50 to-white">
@@ -550,6 +563,9 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                 {[
                   { label: "товарів знайдено", value: formatCount(totalProducts) },
                   { label: "груп запчастин", value: formatCount(groups.length) },
+                  ...(categories.length > 0
+                    ? [{ label: "категорій", value: formatCount(categories.length) }]
+                    : []),
                 ].map((metric) => (
                   <div
                     key={metric.label}
@@ -625,8 +641,8 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                       </div>
                     </div>
 
-                    <div className="space-y-2 p-2.5 sm:p-3">
-                      {category.groups.map((group) => renderModelGroupCard(group))}
+                    <div className="grid grid-cols-1 gap-3 p-2.5 sm:grid-cols-2 sm:p-3 xl:grid-cols-3">
+                      {category.groups.map((group) => renderModelGroupCard(group, category.label))}
                     </div>
                   </article>
                 ))}
@@ -671,8 +687,8 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                       </div>
                     </div>
 
-                    <div className="space-y-2 p-2.5 sm:p-3">
-                      {uncategorizedGroups.map((group) => renderModelGroupCard(group))}
+                    <div className="grid grid-cols-1 gap-3 p-2.5 sm:grid-cols-2 sm:p-3 xl:grid-cols-3">
+                      {uncategorizedGroups.map((group) => renderModelGroupCard(group, "Інше"))}
                     </div>
                   </article>
                 ) : null}
@@ -681,8 +697,14 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
               // categories.length === 0 here always implies groups.length > 0
               // — the groups.length === 0 case returns early above, before
               // this JSX is ever built.
-              <div className="space-y-2.5 px-4 py-4 sm:px-5 sm:py-5">
-                {groups.map((group) => renderModelGroupCard(group, true))}
+              <div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5 xl:grid-cols-3">
+                {groups.map((group) =>
+                  renderModelGroupCard(
+                    group,
+                    group.categoryLabel || group.filterGroup || group.label,
+                    true
+                  )
+                )}
               </div>
             )}
           </section>

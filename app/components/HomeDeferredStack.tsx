@@ -42,8 +42,13 @@ const Auto = dynamic(loadAutoSection, {
   ssr: false,
   loading: () => null,
 });
+// Unlike ProductFetcher/Auto, BrandCarousel's first-render state comes
+// entirely from the initialSyncedBrands prop passed down from the server —
+// no sessionStorage/media-query read, so no hydration-mismatch risk. Leaving
+// ssr enabled (the dynamic() default) lets its manufacturer-logo <Image>
+// tags go out in the initial server HTML instead of waiting for the client
+// JS chunk to load and execute before those requests are even discovered.
 const BrandCarousel = dynamic(loadBrandsSection, {
-  ssr: false,
   loading: () => null,
 });
 

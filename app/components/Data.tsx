@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { ChevronsDown, LayoutGrid, List, Search } from "lucide-react";
+import { ChevronsDown, LayoutGrid, List, MessageCircle, SearchX } from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
@@ -96,6 +96,14 @@ const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 220;
 // still load eagerly, while the rest of the page is resolved by one batch.
 const IMAGE_HIGH_PRIORITY_ITEMS_COUNT = 1;
 const IMAGE_EAGER_ITEMS_COUNT = 4;
+// List rows are much shorter than a grid card, so more of them sit in the
+// first viewport — list view eager-loads this many up front instead of
+// IMAGE_EAGER_ITEMS_COUNT. Every "how many images get to skip the shared
+// batch and start their own request immediately" computation must use this
+// per-viewMode count consistently, or the extra list rows it covers end up
+// eager (rendered as if visible) but still gated behind the batch response,
+// which is exactly what made list view's first portion of images slow.
+const IMAGE_EAGER_ITEMS_COUNT_LIST = 12;
 // Resolve the whole first page in one batch call. A smaller chunk here leaves
 // most first-page cards "unqueued" long enough to trip ProductCardImage's
 // deferDirectLoad fallback (see DEFERRED_DIRECT_LOAD_DELAY_MS), so instead of
@@ -1240,6 +1248,7 @@ function useCatalogData(params: {
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
   initialTotalCount?: number | null;
+  viewMode?: "grid" | "list";
 }) {
   const {
     selectedCars,
@@ -1260,6 +1269,7 @@ function useCatalogData(params: {
     initialPagePayload,
     initialQuerySignature,
     initialTotalCount = null,
+    viewMode = "grid",
   } = params;
 
   const { addToCart, cartItems, removeFromCart } = useCart();
@@ -1369,6 +1379,47 @@ function useCatalogData(params: {
       inStock,
     ]
   );
+  // Same signature with sortOrder pinned to "none" — used only to detect a
+  // sort-only query change (everything else identical) in the reset effect
+  // below, so it can keep already-rendered products on screen instead of
+  // flashing the full skeleton while the re-sorted page 1 loads.
+  const filtersSignatureExcludingSort = useMemo(
+    () =>
+      buildCatalogQuerySignature({
+        normalizedSearch,
+        searchFilter,
+        selectedCars,
+        selectedCategories: effectiveSelectedCategories,
+        group: groupFromURL,
+        subcategory: subcategoryFromURL,
+        producer: producerFromURL,
+        expandHierarchy: expandHierarchyFromURL,
+        sortOrder: "none",
+        pricedOnly,
+        priceFrom,
+        priceTo,
+        priceRate:
+          priceFrom !== null || priceTo !== null ? euroRate : null,
+        inStock,
+      }),
+    [
+      normalizedSearch,
+      searchFilter,
+      selectedCars,
+      effectiveSelectedCategories,
+      groupFromURL,
+      subcategoryFromURL,
+      producerFromURL,
+      expandHierarchyFromURL,
+      pricedOnly,
+      priceFrom,
+      priceTo,
+      euroRate,
+      inStock,
+    ]
+  );
+  const prevFiltersSignatureExcludingSortRef = useRef(filtersSignatureExcludingSort);
+  const isInitialResetRunRef = useRef(true);
   const activeQuerySignatureRef = useRef(querySignature);
   const primedInitialPayloadSignatureRef = useRef<string | null>(
     hasInitialPage ? initialQuerySignature ?? null : null
@@ -2653,6 +2704,13 @@ function useCatalogData(params: {
 
   // reset при зміні фільтрів / пошуку
   useEffect(() => {
+    const isSortOnlyChange =
+      !isInitialResetRunRef.current &&
+      prevFiltersSignatureExcludingSortRef.current === filtersSignatureExcludingSort &&
+      dataRef.current.length > 0;
+    isInitialResetRunRef.current = false;
+    prevFiltersSignatureExcludingSortRef.current = filtersSignatureExcludingSort;
+
     activeQuerySignatureRef.current = querySignature;
     firstPageReadySignatureRef.current = null;
     setCatalogReadyQuerySignature("");
@@ -2783,9 +2841,16 @@ function useCatalogData(params: {
         };
       }
 
-      // No immediate cache hit for this filter/query, so clear stale products first.
-      dataRef.current = [];
-      setData([]);
+      // No immediate cache hit for this filter/query. A sort-only change keeps
+      // the currently-rendered products on screen instead of clearing them —
+      // showFilterTransitionOverlay's "Сортую: спочатку дешевші/дорожчі" label
+      // then shows over the existing grid while the re-sorted page 1 loads,
+      // rather than flashing the full "Готую товари" skeleton. Any other
+      // filter/search change still clears immediately so results never mix.
+      if (!isSortOnlyChange) {
+        dataRef.current = [];
+        setData([]);
+      }
       replacePageImages({});
       setCatalogTotalCount(initialTotalCount ?? null);
       setLoading(true);
@@ -2987,7 +3052,12 @@ function useCatalogData(params: {
         ttlMs: ttl,
         querySignatureSnapshot: currentQuerySignature,
         signal: controller.signal,
-        skipLeadingPhotos: page === 1 ? IMAGE_EAGER_ITEMS_COUNT : 0,
+        skipLeadingPhotos:
+          page === 1
+            ? viewMode === "list"
+              ? IMAGE_EAGER_ITEMS_COUNT_LIST
+              : IMAGE_EAGER_ITEMS_COUNT
+            : 0,
       });
       applyResolvedPagePrices(itemsForIncrementalWarmup, payload.prices);
       void fetchCatalogPagePrices(itemsForIncrementalWarmup, {
@@ -3973,6 +4043,7 @@ const Data: React.FC<DataProps> = ({
     getAdminAuthToken: getAdminToken,
     initialPagePayload,
     initialQuerySignature,
+    viewMode,
   });
 
   const router = useRouter();
@@ -4597,11 +4668,11 @@ const Data: React.FC<DataProps> = ({
     if (catalogReadyQuerySignature !== catalogQuerySignature) return new Set<string>();
     const keys = visibleSortedData
       .filter((item) => item.hasPhoto !== false)
-      .slice(0, IMAGE_EAGER_ITEMS_COUNT)
+      .slice(0, viewMode === "list" ? IMAGE_EAGER_ITEMS_COUNT_LIST : IMAGE_EAGER_ITEMS_COUNT)
       .map((item) => buildProductImageBatchKey(item.code, item.article))
       .filter(Boolean);
     return new Set(keys);
-  }, [catalogQuerySignature, catalogReadyQuerySignature, visibleSortedData]);
+  }, [catalogQuerySignature, catalogReadyQuerySignature, viewMode, visibleSortedData]);
   const visibleCatalogImageCandidates = useMemo(
     () =>
       catalogReadyQuerySignature === catalogQuerySignature
@@ -4671,7 +4742,7 @@ const Data: React.FC<DataProps> = ({
   // high-priority thresholds tuned for a 2-4 column grid badly under-cover
   // list view's first screen (which fits 10+ rows), leaving genuinely
   // visible rows on lazy/auto priority instead of eager/high.
-  const imageEagerItemsCount = viewMode === "list" ? 12 : IMAGE_EAGER_ITEMS_COUNT;
+  const imageEagerItemsCount = viewMode === "list" ? IMAGE_EAGER_ITEMS_COUNT_LIST : IMAGE_EAGER_ITEMS_COUNT;
   const imageHighPriorityItemsCount = viewMode === "list" ? 3 : IMAGE_HIGH_PRIORITY_ITEMS_COUNT;
   const virtualizedEntries = useMemo(() => {
     if (!shouldUseVirtualWindow) return visibleSortedEntries;
@@ -5350,11 +5421,12 @@ const Data: React.FC<DataProps> = ({
         )}
 
         {showEmptyState && (
-          <div className="col-span-full overflow-hidden rounded-[26px] border border-slate-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.95)_48%,rgba(248,250,252,0.98))] shadow-[0_18px_46px_rgba(15,23,42,0.09)] ring-1 ring-white/90">
+          <div className="relative col-span-full overflow-hidden rounded-[26px] border border-white bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.95)_48%,rgba(248,250,252,0.98))] shadow-[0_18px_46px_rgba(15,23,42,0.09)] ring-1 ring-sky-100/80">
+            <span className="pointer-events-none absolute inset-x-10 top-0 z-10 h-[3px] rounded-b-full bg-gradient-to-r from-transparent via-sky-500 to-cyan-400 shadow-[0_4px_18px_rgba(14,165,233,0.4)]" />
             <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
               <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-sky-100 bg-white text-sky-700 shadow-[0_12px_26px_rgba(14,165,233,0.14)]">
-                  <Search size={20} />
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-sky-100 bg-[linear-gradient(145deg,#f0f9ff,#e0f2fe)] text-sky-700 shadow-[0_12px_26px_rgba(14,165,233,0.16),inset_0_1px_0_white]">
+                  <SearchX size={20} />
                 </span>
                 <div className="min-w-0">
                   <p className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">
@@ -5385,8 +5457,9 @@ const Data: React.FC<DataProps> = ({
               <button
                 type="button"
                 onClick={handleSendRequest}
-                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[15px] border border-sky-300/50 bg-[linear-gradient(135deg,#0284c7,#2563eb)] px-5 py-2.5 text-sm font-black text-white shadow-[0_16px_32px_rgba(37,99,235,0.2)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/80 active:scale-[0.98]"
+                className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-[15px] border border-sky-300/50 bg-[linear-gradient(135deg,#0284c7,#2563eb)] px-5 py-2.5 text-sm font-black text-white shadow-[0_16px_32px_rgba(37,99,235,0.2)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/80 active:scale-[0.98] sm:w-auto"
               >
+                <MessageCircle size={16} aria-hidden />
                 Надіслати запит у чат
               </button>
             </div>

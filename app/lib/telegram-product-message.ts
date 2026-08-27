@@ -51,11 +51,21 @@ export const formatProductCaption = (
     .join("\n");
 };
 
-export const buildProductKeyboard = (siteUrl: string, product: CatalogProduct) => ({
+// When priceUah is null the product has no known price ("ціна за запитом" in
+// the caption) — same signal app/components/ProductCard.tsx uses to swap its
+// cart button for "Уточнити ціну". Adding a priceless item to the bot's cart
+// would silently price it at 0 UAH, so offer the price-ask flow instead.
+export const buildProductKeyboard = (
+  siteUrl: string,
+  product: CatalogProduct,
+  priceUah: number | null
+) => ({
   inline_keyboard: [
-    ...(product.quantity > 0 && product.code
-      ? [[{ text: "➕ Додати в кошик", callback_data: `cadd:${product.code}` }]]
-      : []),
+    ...(product.code && priceUah == null
+      ? [[{ text: "🔎 Уточнити ціну", callback_data: `priceask:${product.code}` }]]
+      : product.quantity > 0 && product.code
+        ? [[{ text: "➕ Додати в кошик", callback_data: `cadd:${product.code}` }]]
+        : []),
     [{ text: "🛒 Замовити на сайті", url: buildProductUrl(siteUrl, product) }],
     ...(product.quantity <= 0 && product.code
       ? [[{ text: "🔔 Повідомити, коли з'явиться", callback_data: `watch:${product.code}` }]]
@@ -110,7 +120,7 @@ export const sendProductResults = async (
 
   for (const [index, { product, priceUah }] of priced.entries()) {
     const caption = formatProductCaption(product, priceUah);
-    const keyboard = buildProductKeyboard(siteUrl, product);
+    const keyboard = buildProductKeyboard(siteUrl, product, priceUah);
     const isLast = index === priced.length - 1;
     if (isLast && pagerRow) keyboard.inline_keyboard.push(pagerRow);
 

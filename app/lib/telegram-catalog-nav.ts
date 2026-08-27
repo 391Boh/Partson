@@ -1,7 +1,11 @@
 import "server-only";
 
 import { getProductTreeDataset } from "app/lib/product-tree";
-import { getCategoryEmoji, getCategoryIconPath } from "app/lib/category-icons";
+import {
+  getCategoryEmoji,
+  getCategoryIconPath,
+  inferCategoryForGroupLabel,
+} from "app/lib/category-icons";
 import { getGroupSeoCopy, getGroupItemSeoCopy } from "app/lib/seo-copy";
 import { carBrands, type CarBrand } from "app/components/carBrands";
 import { resolveCarBrandSocialImage } from "app/lib/car-brand-social-image";
@@ -20,6 +24,7 @@ import {
 } from "app/lib/catalog-links";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { escapeTelegramHtml } from "app/lib/telegram-order-message";
+import { pluralizeGroups } from "app/lib/pluralize-uk";
 
 // Every level here mirrors a real site page/section — see the plan doc for
 // the exact data source each pulls from. callback_data stays well under
@@ -67,7 +72,7 @@ const siteLinkButton = (siteUrl: string, path: string, label = "🔗 Перег�
 
 export const buildTopMenu = (): NavMenu => ({
   caption: [
-    "<b>🗂 Каталог PartsON</b>",
+    "<b>📂 Каталог PartsON</b>",
     "Автозапчастини за категорією, маркою авто або виробником.",
     "",
     "Оберіть розділ:",
@@ -119,7 +124,7 @@ export const buildGroupMenu = async (siteUrl: string, groupSlug: string): Promis
   if (!group) return null;
 
   const copy = getGroupSeoCopy(group.label, 0);
-  const imageUrl = `${siteUrl}${getCategoryIconPath(group.label)}`;
+  const imageUrl = `${siteUrl}${getCategoryIconPath(inferCategoryForGroupLabel(group.label) || group.label)}`;
   const caption = `<b>📂 ${escapeTelegramHtml(group.label)}</b>\n\n${escapeTelegramHtml(copy.intro)}`;
 
   if (group.subgroups.length === 0) {
@@ -149,7 +154,7 @@ export const buildSubgroupMenu = async (
   const sub = group?.subgroups[subIndex];
   if (!group || !sub) return null;
 
-  const imageUrl = `${siteUrl}${getCategoryIconPath(sub.label)}`;
+  const imageUrl = `${siteUrl}${getCategoryIconPath(inferCategoryForGroupLabel(sub.label) || sub.label)}`;
   const backCallback = `g:${group.slug}`;
   const header = `<b>${escapeTelegramHtml(sub.label)}</b>\n<i>${escapeTelegramHtml(group.label)}</i>`;
 
@@ -216,7 +221,7 @@ export const buildChildMenu = async (
       "",
       escapeTelegramHtml(copy.intro),
     ].join("\n"),
-    imageUrl: `${siteUrl}${getCategoryIconPath(child.label)}`,
+    imageUrl: `${siteUrl}${getCategoryIconPath(inferCategoryForGroupLabel(child.label) || child.label)}`,
     keyboard: [
       [
         {
@@ -274,7 +279,7 @@ export const buildBrandListMenu = (page: number): NavMenu => {
   };
 };
 
-const resolveBrandModels = async (brandSlug: string) => {
+export const resolveBrandModels = async (brandSlug: string) => {
   const brand = findCarBrandBySlug(brandSlug);
   if (!brand) return null;
   const data = await getModelsForBrand(brand.name);
@@ -325,8 +330,9 @@ export const buildModelMenu = async (
     resolveCarBrandSocialImage(brand as CarBrand).catch(() => null),
   ]);
 
-  const groupsList = breakdown.groups
-    .slice(0, 8)
+  const groupsShown = breakdown.groups.slice(0, 8);
+  const remainingGroupsCount = breakdown.groups.length - groupsShown.length;
+  const groupsList = groupsShown
     .map((group) => `• ${escapeTelegramHtml(group.label)}`)
     .join("\n");
 
@@ -336,6 +342,7 @@ export const buildModelMenu = async (
       ? `📦 Знайдено товарів: <b>${breakdown.totalProducts}</b>`
       : "Товари для цієї моделі підбираються індивідуально — перевірте на сайті.",
     groupsList ? `\n<b>Групи запчастин:</b>\n${groupsList}` : "",
+    remainingGroupsCount > 0 ? `<i>і ще ${remainingGroupsCount} ${pluralizeGroups(remainingGroupsCount)} — повний список на сайті</i>` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -347,6 +354,7 @@ export const buildModelMenu = async (
       ...(breakdown.totalProducts > 0
         ? [[{ text: "📦 Показати товари", callback_data: `mp:${brandSlug}:${modelIndex}:1` }]]
         : []),
+      [{ text: "⭐ Зробити моїм авто в боті", callback_data: `mset:${brandSlug}:${modelIndex}` }],
       [siteLinkButton(siteUrl, buildAutoModelPath(brand.name, model.name))],
       backRow(`ab:${brandSlug}:0`),
     ],

@@ -413,6 +413,16 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     onLayoutChange(headerHeight + panelHeight + requestHeight);
   }, [collapsed, onLayoutChange]);
 
+  // Collapse/expand height is intentionally NOT tracked here: the panel's
+  // height changes over a 200ms CSS transition (grid-template-rows), and
+  // emitLayoutHeight's collapsed branch reports the final height instantly.
+  // Firing it on this burst (0/120/240ms + 2 rAF) during that transition made
+  // KatalogClientPage snap its scroll-compensation to the final offset while
+  // the panel was still visually mid-animation, producing a jump/flicker on
+  // the very first scroll after using a filter tab. The existing
+  // onTransitionEnd={emitLayoutHeight} below reports the real final height
+  // once the animation actually finishes, which is the only report needed
+  // for a collapse/expand toggle.
   useEffect(() => {
     if (!onLayoutChange || typeof window === 'undefined') return;
 
@@ -434,7 +444,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   }, [
     activeComponent,
     carLabel,
-    collapsed,
     emitLayoutHeight,
     onLayoutChange,
     partLabel,
@@ -618,53 +627,51 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const filterChipIdle =
     `${filterChipBase} border border-slate-200/90 bg-white/88 text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.07)] ring-1 ring-white/75 backdrop-blur-md hover:border-slate-300 hover:bg-white hover:text-slate-800`;
   const filterChipBlue =
-    `${filterChipBase} border border-sky-300/90 bg-sky-50/86 text-sky-800 shadow-[0_10px_20px_rgba(14,165,233,0.10)] ring-1 ring-sky-100/90 backdrop-blur-md hover:border-sky-300 hover:bg-sky-50`;
+    `${filterChipBase} border border-sky-300/90 bg-[linear-gradient(135deg,#f0f9ff,#bae6fd)] text-sky-800 shadow-[0_10px_22px_rgba(14,165,233,0.16)] ring-1 ring-sky-100/90 backdrop-blur-md hover:border-sky-300 hover:shadow-[0_12px_26px_rgba(14,165,233,0.2)]`;
   const filterChipEmerald =
-    `${filterChipBase} border border-emerald-300/90 bg-emerald-50/86 text-emerald-800 shadow-[0_10px_20px_rgba(16,185,129,0.10)] ring-1 ring-emerald-100/90 backdrop-blur-md hover:border-emerald-300 hover:bg-emerald-50`;
+    `${filterChipBase} border border-emerald-300/90 bg-[linear-gradient(135deg,#f0fdf4,#a7f3d0)] text-emerald-800 shadow-[0_10px_22px_rgba(16,185,129,0.16)] ring-1 ring-emerald-100/90 backdrop-blur-md hover:border-emerald-300 hover:shadow-[0_12px_26px_rgba(16,185,129,0.2)]`;
   const filterChipPurple =
-    `${filterChipBase} border border-violet-300/90 bg-violet-50/86 text-violet-800 shadow-[0_10px_20px_rgba(139,92,246,0.10)] ring-1 ring-violet-100/90 backdrop-blur-md hover:border-violet-300 hover:bg-violet-50`;
+    `${filterChipBase} border border-violet-300/90 bg-[linear-gradient(135deg,#f5f3ff,#ddd6fe)] text-violet-800 shadow-[0_10px_22px_rgba(139,92,246,0.16)] ring-1 ring-violet-100/90 backdrop-blur-md hover:border-violet-300 hover:shadow-[0_12px_26px_rgba(139,92,246,0.2)]`;
+  // "Open but nothing chosen in it yet" state — an outline in the tab's own
+  // accent color instead of the filled gradient, so an expanded panel with
+  // no selection still reads as active (previously it looked identical to
+  // an idle, closed tab).
+  const filterChipBlueOutline =
+    `${filterChipBase} border border-sky-400/90 bg-white text-sky-700 shadow-[0_0_0_3px_rgba(14,165,233,0.12),0_8px_18px_rgba(14,165,233,0.10)] hover:border-sky-500 hover:bg-sky-50/60`;
+  const filterChipEmeraldOutline =
+    `${filterChipBase} border border-emerald-400/90 bg-white text-emerald-700 shadow-[0_0_0_3px_rgba(16,185,129,0.12),0_8px_18px_rgba(16,185,129,0.10)] hover:border-emerald-500 hover:bg-emerald-50/60`;
+  const filterChipPurpleOutline =
+    `${filterChipBase} border border-violet-400/90 bg-white text-violet-700 shadow-[0_0_0_3px_rgba(139,92,246,0.12),0_8px_18px_rgba(139,92,246,0.10)] hover:border-violet-500 hover:bg-violet-50/60`;
 
-  const filterIconBase =
-    'inline-flex h-6 w-6 items-center justify-center rounded-full border transition-all duration-200 ease-out backdrop-blur-md sm:h-5 sm:w-5';
-  const filterIconIdle =
-    `${filterIconBase} border-slate-200/90 bg-white/92 text-slate-600 shadow-[0_6px_14px_rgba(15,23,42,0.08)] ring-1 ring-white/80`;
-  const filterIconBlue =
-    `${filterIconBase} border-sky-300/90 bg-sky-50/92 text-sky-800 shadow-[0_8px_16px_rgba(14,165,233,0.10)] ring-1 ring-sky-100/90`;
-  const filterIconEmerald =
-    `${filterIconBase} border-emerald-300/90 bg-emerald-50/92 text-emerald-800 shadow-[0_8px_16px_rgba(16,185,129,0.10)] ring-1 ring-emerald-100/90`;
-  const filterIconPurple =
-    `${filterIconBase} border-violet-300/90 bg-violet-50/92 text-violet-800 shadow-[0_8px_16px_rgba(139,92,246,0.10)] ring-1 ring-violet-100/90`;
+  const isAutoTabOpen = isAutoTabActive && !collapsed;
+  const isCategoryTabOpen = isCategoryTabActive && !collapsed;
+  const isProducerTabOpen = isProducerTabActive && !collapsed;
+  const isPriceTabOpen = isPriceTabActive && !collapsed;
 
-  const autoButtonClass = isAutoSelected ? filterChipBlue : filterChipIdle;
-  const categoryButtonClass = isCategorySelected ? filterChipEmerald : filterChipIdle;
-
-  const autoIconWrapClass = isAutoTabActive
-    ? filterIconBlue
-    : isAutoSelected
-      ? filterIconBlue
-      : filterIconIdle;
-
-  const categoryIconWrapClass = isCategoryTabActive
-    ? filterIconEmerald
-    : isCategorySelected
-      ? filterIconEmerald
-      : filterIconIdle;
-  const producerIconWrapClass = isProducerTabActive
-    ? filterIconPurple
-    : isProducerSelected
-      ? filterIconPurple
-      : filterIconIdle;
-  const sortButtonClass = !hasPriceFilter
-    ? filterChipIdle
-    : isSortAsc
-      ? filterChipBlue
-      : filterChipEmerald;
-  const priceIconWrapClass = !hasPriceFilter
-    ? `${filterIconIdle} text-[11px] font-bold`
-    : isSortAsc
-      ? `${filterIconBlue} text-[11px] font-bold`
-      : `${filterIconEmerald} text-[11px] font-bold`;
-  const overlayPanelMaxHeight = 'min(390px, calc(100dvh - 190px))';
+  const autoButtonClass = isAutoSelected
+    ? filterChipBlue
+    : isAutoTabOpen
+      ? filterChipBlueOutline
+      : filterChipIdle;
+  const categoryButtonClass = isCategorySelected
+    ? filterChipEmerald
+    : isCategoryTabOpen
+      ? filterChipEmeraldOutline
+      : filterChipIdle;
+  const producerButtonClass = isProducerSelected
+    ? filterChipPurple
+    : isProducerTabOpen
+      ? filterChipPurpleOutline
+      : filterChipIdle;
+  const sortButtonClass = hasPriceFilter
+    ? (isSortAsc ? filterChipBlue : filterChipEmerald)
+    : isPriceTabOpen
+      ? filterChipBlueOutline
+      : filterChipIdle;
+  // svh, not dvh — dvh shrinks when a mobile keyboard opens, which was
+  // visibly collapsing this panel the moment a search field inside it
+  // got focus (see the matching .catalog-filter-panel-stage media rules).
+  const overlayPanelMaxHeight = 'min(390px, calc(100svh - 190px))';
 
   const applyPricePreset = (from: number | null, to: number | null) => {
     setLocalPriceFrom(from);
@@ -731,7 +738,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               <HorizontalDirectoryRail
                 ariaLabel="Виробники автозапчастин"
                 rows={2}
-                className="auto-cols-[calc((100%_-_1.25rem)/3)] gap-2.5 sm:auto-cols-[calc((100%_-_2.25rem)/4)] sm:gap-3 lg:auto-cols-[calc((100%_-_3rem)/5)]"
+                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
               >
                 {visibleProducerBrands.map((b, index) => (
                     <button
@@ -769,40 +776,45 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                             : pathname
                         );
                       }}
-                      className={`catalog-filter-brand-card group flex h-[72px] w-full min-w-0 flex-col items-center justify-center gap-1 rounded-[14px] border px-2 py-1.5 transition-[border-color,background-color,box-shadow] duration-300 ${
+                      className={`catalog-filter-brand-card group/card flex h-[72px] w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-[16px] border px-3 py-2 transition-[border-color,background-color,box-shadow] duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 ${
                         producerParam === b.name
-                          ? 'border-violet-400 bg-[linear-gradient(145deg,#ffffff,#ede9fe)] shadow-[0_12px_26px_rgba(124,58,237,0.18),inset_0_1px_0_white] ring-2 ring-violet-100'
-                          : 'border-sky-100 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] shadow-[0_8px_18px_rgba(15,23,42,0.07),inset_0_1px_0_white] hover:border-violet-300 hover:bg-[linear-gradient(145deg,#ffffff,#ede9fe)] hover:shadow-[0_14px_28px_rgba(99,102,241,0.15),inset_0_1px_0_white]'
+                          ? 'border-violet-300 bg-violet-50 text-violet-800 shadow-[0_10px_22px_rgba(124,58,237,0.14),inset_0_1px_0_white]'
+                          : 'border-slate-200 bg-white shadow-[0_8px_18px_rgba(15,23,42,0.07),inset_0_1px_0_white] hover:border-violet-300 hover:shadow-[0_14px_28px_rgba(124,58,237,0.12),inset_0_1px_0_white]'
                       }`}
                     >
-                      {b.logo ? (
-                        <Image
-                          src={b.logo}
-                          alt={`Логотип виробника ${b.name}`}
-                          width={96}
-                          height={48}
-                          sizes="96px"
-                          quality={85}
-                          unoptimized={b.logo.endsWith('.svg')}
-                          // These source files are raw, un-optimized uploads (some
-                          // 50-270KB) — unlike the tiny 16x16 category icons in
-                          // katkomp.tsx, they genuinely need Next's resize/compress
-                          // pass, so keep it (not unoptimized). First row loads
-                          // eagerly since it's already visible the moment this tab opens.
-                          loading={index < 4 ? 'eager' : 'lazy'}
-                          className="h-10 w-full object-contain transition-transform duration-300 group-hover:scale-[1.07]"
-                          onError={(event) => {
-                            const image = event.currentTarget;
-                            if (image.dataset.fallbackApplied === '1') return;
-                            image.dataset.fallbackApplied = '1';
-                            image.src = '/favicon-partson-v2-48.png';
-                          }}
-                        />
-                      ) : (
-                        <span className="max-w-full truncate text-[11px] font-bold text-slate-700 sm:text-xs">
-                          {b.name}
-                        </span>
-                      )}
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-white/70 bg-white shadow-[inset_0_1px_0_white] sm:h-10 sm:w-10">
+                        {b.logo ? (
+                          <Image
+                            src={b.logo}
+                            alt=""
+                            width={64}
+                            height={64}
+                            sizes="40px"
+                            quality={85}
+                            unoptimized={b.logo.endsWith('.svg')}
+                            // These source files are raw, un-optimized uploads (some
+                            // 50-270KB) — unlike the tiny 16x16 category icons in
+                            // katkomp.tsx, they genuinely need Next's resize/compress
+                            // pass, so keep it (not unoptimized). First row loads
+                            // eagerly since it's already visible the moment this tab opens.
+                            loading={index < 4 ? 'eager' : 'lazy'}
+                            className="h-7 w-7 object-contain transition-transform duration-300 ease-out group-hover/card:scale-[1.07] sm:h-8 sm:w-8"
+                            onError={(event) => {
+                              const image = event.currentTarget;
+                              if (image.dataset.fallbackApplied === '1') return;
+                              image.dataset.fallbackApplied = '1';
+                              image.src = '/favicon-partson-v2-48.png';
+                            }}
+                          />
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-500">
+                            {b.name.slice(0, 2)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="line-clamp-2 min-w-0 flex-1 text-left text-[12px] font-bold leading-tight text-slate-900 transition-colors duration-300 ease-out group-hover/card:text-violet-600 sm:text-sm sm:leading-snug">
+                        {b.name}
+                      </span>
                     </button>
                   ))}
                 {hiddenProducerCount > 0 ? (
@@ -1027,9 +1039,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               aria-label="Відкрити вкладку авто"
               aria-pressed={isAutoSelected}
             >
-              <span className={autoIconWrapClass} aria-hidden="true">
-                <Car size={12} className="pointer-events-none" />
-              </span>
+              <Car size={19} strokeWidth={2.25} className="pointer-events-none sm:size-[15px]" aria-hidden="true" />
               <span className="hidden sm:inline">Авто</span>
               {carCount > 0 && (
                 <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-500 px-1 text-[9px] font-black leading-none text-white ring-2 ring-white sm:static sm:ml-1 sm:h-auto sm:min-w-0 sm:bg-blue-50 sm:px-2 sm:py-0.5 sm:text-[11px] sm:font-semibold sm:text-blue-700 sm:ring-0">
@@ -1045,9 +1055,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               aria-pressed={isCategorySelected}
               title={displayCategoryLabel || 'Категорія'}
             >
-              <span className={categoryIconWrapClass} aria-hidden="true">
-                <Layers size={12} className="pointer-events-none" />
-              </span>
+              <Layers size={19} strokeWidth={2.25} className="pointer-events-none sm:size-[15px]" aria-hidden="true" />
               {hasCategoryLabel ? (
                 <>
                   <span className="hidden md:inline text-slate-500">Категорія</span>
@@ -1067,16 +1075,12 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             <button
               type="button"
               onClick={handleOpenProducerTab}
-              className={
-                isProducerSelected ? filterChipPurple : filterChipIdle
-              }
+              className={producerButtonClass}
               aria-label="Відкрити вкладку виробників"
               aria-pressed={isProducerSelected}
               title={displayProducerLabel || 'Виробник'}
             >
-              <span className={producerIconWrapClass} aria-hidden="true">
-                <Package size={12} className="pointer-events-none" />
-              </span>
+              <Package size={19} strokeWidth={2.25} className="pointer-events-none sm:size-[15px]" aria-hidden="true" />
               <span className="hidden sm:inline">Виробник</span>
               {producerParam && (
                 <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-500 px-1 text-[9px] font-black leading-none text-white ring-2 ring-white sm:static sm:ml-1 sm:h-auto sm:min-w-0 sm:bg-purple-50 sm:px-2 sm:py-0.5 sm:text-[11px] sm:font-semibold sm:text-purple-700 sm:ring-0">
@@ -1095,10 +1099,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               aria-pressed={isPriceTabActive && !collapsed}
             >
               <span className="flex items-center gap-1 whitespace-nowrap sm:hidden">
-                <span
-                  className={priceIconWrapClass}
-                  aria-hidden="true"
-                >
+                <span className="text-[19px] font-black leading-none" aria-hidden="true">
                   ₴
                 </span>
                 {!isSortNone && (
@@ -1108,10 +1109,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 )}
               </span>
               <span className="hidden items-center gap-1 whitespace-nowrap sm:flex">
-                <span
-                  className={priceIconWrapClass}
-                  aria-hidden="true"
-                >
+                <span className="text-[15px] font-black leading-none" aria-hidden="true">
                   ₴
                 </span>
                 <span className="whitespace-nowrap">
@@ -1128,7 +1126,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 event.stopPropagation();
                 handleClearFilters();
                 }}
-                className="flex h-9 w-9 items-center justify-center rounded-[13px] border border-white/72 bg-white/72 text-slate-500 shadow-[0_6px_16px_rgba(15,23,42,0.04)] backdrop-blur-md transition hover:bg-white/84 hover:text-slate-700 active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8 sm:rounded-full"
+                className="flex h-9 w-9 items-center justify-center rounded-[13px] border border-rose-200 bg-white text-rose-500 shadow-[0_6px_16px_rgba(225,29,72,0.08)] transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8 sm:rounded-full"
                 aria-label="Очистити фільтри"
               >
                 <X size={14} className="pointer-events-none sm:size-4" />
@@ -1140,7 +1138,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 event.stopPropagation();
                 setCollapsed((prev) => !prev);
               }}
-              className="flex h-9 w-9 items-center justify-center rounded-[13px] border border-white/72 bg-white/72 text-slate-500 shadow-[0_6px_16px_rgba(15,23,42,0.04)] backdrop-blur-md transition hover:bg-white/84 hover:text-slate-700 active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8 sm:rounded-full"
+              className="flex h-9 w-9 items-center justify-center rounded-[13px] border border-slate-200 bg-white text-slate-500 shadow-[0_6px_16px_rgba(15,23,42,0.06)] transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8 sm:rounded-full"
               aria-label={collapsed ? 'Розгорнути фільтрацію' : 'Згорнути фільтрацію'}
               aria-expanded={!collapsed}
             >

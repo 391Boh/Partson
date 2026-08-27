@@ -20,15 +20,9 @@ type HorizontalDirectoryRailProps = {
   rows?: 1 | 2;
 };
 
-// How many page numbers to show at once around the current page (plus the
-// first/last shortcuts once there are more pages than this). Keep this in
-// sync with the `visiblePages` window logic below.
-const VISIBLE_PAGE_WINDOW = 5;
-
 export function DirectoryPagePagination({
   currentPage,
   pageCount,
-  onPageChange,
   className = "",
 }: {
   currentPage: number;
@@ -38,37 +32,20 @@ export function DirectoryPagePagination({
 }) {
   if (pageCount <= 1) return null;
   const safePage = Math.min(Math.max(currentPage, 0), pageCount - 1);
-  const visiblePages = Array.from(
-    { length: Math.min(pageCount, VISIBLE_PAGE_WINDOW) },
-    (_, index) => {
-      if (pageCount <= VISIBLE_PAGE_WINDOW) return index;
-      const half = Math.floor(VISIBLE_PAGE_WINDOW / 2);
-      const start = Math.min(Math.max(safePage - half, 0), pageCount - VISIBLE_PAGE_WINDOW);
-      return start + index;
-    }
-  );
-  const pageButton = (page: number) => (
-    <button
-      key={page}
-      type="button"
-      onClick={() => onPageChange(page)}
-      aria-label={`Перейти на сторінку ${page + 1}`}
-      aria-current={page === safePage ? "page" : undefined}
-      className={`inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-lg border px-1 text-[12px] font-bold tabular-nums transition sm:h-9 sm:min-w-[2.25rem] ${
-        page === safePage
-          ? "border-sky-600 bg-sky-600 text-white shadow-[0_4px_12px_rgba(2,132,199,0.35)]"
-          : "border-sky-200/80 bg-white text-sky-800 hover:border-sky-300 hover:bg-sky-50"
-      }`}
-    >
-      {page + 1}
-    </button>
-  );
 
+  // One consistent compact "current / total" counter everywhere (brand,
+  // category, producer, ...) instead of a numbered-pill strip — a row of
+  // page buttons doesn't fit a phone width once a list needs many pages
+  // (single-column mobile cards only fit 1-2 items per page), and jumping
+  // to an arbitrary page deep in a long list isn't useful anyway. The
+  // prev/next arrows next to the rail handle navigation.
   return (
-    <div className={`flex items-center justify-center gap-1 sm:gap-1.5 ${className}`}>
-      {visiblePages[0] > 0 ? <>{pageButton(0)}<span className="px-0.5 text-xs font-bold text-slate-400">…</span></> : null}
-      {visiblePages.map(pageButton)}
-      {visiblePages[visiblePages.length - 1] < pageCount - 1 ? <><span className="px-0.5 text-xs font-bold text-slate-400">…</span>{pageButton(pageCount - 1)}</> : null}
+    <div className={`flex items-center justify-center ${className}`}>
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200/80 bg-white px-3.5 py-1.5 text-[12px] font-bold tabular-nums text-sky-800 shadow-sm">
+        <span className="text-sky-600">{safePage + 1}</span>
+        <span className="h-3 w-px bg-sky-200" aria-hidden="true" />
+        <span className="text-slate-400">{pageCount}</span>
+      </span>
     </div>
   );
 }
@@ -78,7 +55,7 @@ export function DirectoryPagePagination({
 // so reserving side padding here for the arrows shrinks the rail's box and
 // the cards inside shrink right along with it — no overflow.
 const railArrowClass =
-  "absolute top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-800 shadow-[0_10px_24px_rgba(14,165,233,0.16)] transition-[border-color,box-shadow,background-color,color] duration-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900 hover:shadow-[0_13px_28px_rgba(14,165,233,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60 disabled:pointer-events-none disabled:opacity-30 sm:h-12 sm:w-12";
+  "absolute top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-800 shadow-[0_10px_24px_rgba(14,165,233,0.16)] transition-[border-color,box-shadow,background-color,color] duration-200 active:scale-[0.92] hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900 hover:shadow-[0_13px_28px_rgba(14,165,233,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60 disabled:pointer-events-none disabled:opacity-30 sm:h-12 sm:w-12";
 
 export default function HorizontalDirectoryRail({
   children,

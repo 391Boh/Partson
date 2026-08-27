@@ -547,12 +547,12 @@ export default function BrandCarousel({
           <div className="group/search relative w-full min-w-0 overflow-hidden rounded-[22px] border border-sky-300 bg-[radial-gradient(circle_at_100%_0%,rgba(56,189,248,0.2),transparent_32%),radial-gradient(circle_at_0%_100%,rgba(45,212,191,0.12),transparent_28%),linear-gradient(125deg,#ffffff_0%,#f8fcff_48%,#edf7ff_100%)] px-3 pb-3 pt-3 text-gray-800 shadow-[0_18px_46px_rgba(14,116,144,0.18),0_4px_14px_rgba(15,23,42,0.06),inset_0_1px_0_#fff] ring-1 ring-white/90 transition-[border-color,box-shadow] duration-300 hover:border-sky-400 hover:shadow-[0_23px_54px_rgba(2,132,199,0.24),0_5px_16px_rgba(15,23,42,0.07),inset_0_1px_0_#fff] sm:px-4 sm:py-4">
             <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-cyan-200/25 blur-3xl transition-opacity duration-300 group-hover/search:opacity-80" />
             <div className="relative flex flex-col gap-3 sm:flex-row sm:w-full sm:items-center sm:justify-between sm:gap-5">
-              <div className="order-1 min-w-0 sm:order-2 sm:flex-1 sm:pl-2 sm:text-right">
+              <div className="order-1 min-w-0 sm:order-1 sm:flex-1 sm:pr-5 sm:text-right">
                 <div className="flex items-center gap-2 sm:justify-end sm:gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500/90 to-cyan-400/90 text-white shadow-[0_8px_18px_rgba(14,165,233,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] sm:h-11 sm:w-11 sm:rounded-[18px] sm:order-2">
-                    <Factory size={17} strokeWidth={2.3} aria-hidden className="sm:h-5 sm:w-5" />
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-2xl bg-gradient-to-br from-sky-500/90 to-cyan-400/90 text-white shadow-[0_10px_20px_rgba(14,165,233,0.4),inset_0_1px_0_rgba(255,255,255,0.4)] ring-2 ring-white/50 sm:h-12 sm:w-12 sm:rounded-[19px]">
+                    <Factory size={19} strokeWidth={2.3} aria-hidden className="sm:h-[23px] sm:w-[23px]" />
                   </span>
-                  <h2 className="font-display relative min-w-0 text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:order-1 sm:text-[22px]">
+                  <h2 className="font-display relative min-w-0 text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:text-[22px]">
                     Відомі бренди виробників автозапчастин та якісні аналоги
                   </h2>
                 </div>
@@ -560,7 +560,7 @@ export default function BrandCarousel({
                   Оберіть оптимальний варіант зі списку
                 </p>
               </div>
-              <div className="order-2 w-full min-w-0 sm:order-1 sm:w-[400px] sm:max-w-[400px] sm:shrink-0 sm:border-r sm:border-sky-200/80 sm:pr-5">
+              <div className="order-2 w-full min-w-0 sm:order-2 sm:w-[400px] sm:max-w-[400px] sm:shrink-0 sm:border-l sm:border-sky-200/80 sm:pl-5">
                 <BrandSearchInput value={search} onChange={setSearch} />
                 <span className="mt-1.5 block px-1 text-[10px] font-medium text-slate-500">
                   {"Доступно для пошуку: "}

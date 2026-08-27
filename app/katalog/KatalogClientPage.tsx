@@ -857,11 +857,20 @@ const Katalog: React.FC<KatalogProps> = ({
   // When the filter panel collapses, catalogTopOffset decreases and catalog content
   // shifts up. Compensate the scroll position synchronously before the browser paints
   // so the user's viewed content stays at the same viewport position.
+  // Skipped while a native scroll gesture is in flight (the "is-scrolling" root
+  // class set by LayoutHost): the filter panel auto-collapses ON scroll, so this
+  // effect fires mid-gesture — injecting a programmatic scrollBy on top of the
+  // user's own wheel/touch momentum fought that motion and produced a visible
+  // jerk. Once the gesture ends, catalogTopOffset is already at its final value
+  // and there is nothing left to compensate for.
   const prevCatalogTopOffsetRef = useRef(catalogTopOffset);
   useLayoutEffect(() => {
     const prev = prevCatalogTopOffsetRef.current;
     prevCatalogTopOffsetRef.current = catalogTopOffset;
     if (prev === 0) return; // skip initial mount
+    if (typeof document !== 'undefined' && document.documentElement.classList.contains('is-scrolling')) {
+      return;
+    }
     const delta = catalogTopOffset - prev;
     if (delta < 0 && window.scrollY > 0) {
       window.scrollBy(0, delta);

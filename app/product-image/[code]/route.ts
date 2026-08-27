@@ -570,7 +570,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   // budget, sharp resize at higher quality), so it benefits at least as much
   // from surviving process restarts and the 2h in-memory cache expiring.
   const canUsePersistentImageCache =
-    !hasCacheBust && !strictMode && !noRedirectFallback && retryAttempt === 0;
+    !hasCacheBust && !strictMode && retryAttempt === 0;
   const routeCacheRevisionAtStart = getProductRouteImageCacheRevision(
     normalizedCode,
     articleHint

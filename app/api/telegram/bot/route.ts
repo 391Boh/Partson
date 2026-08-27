@@ -39,6 +39,7 @@ import {
   buildProducersListMenu,
   buildSubgroupMenu,
   buildTopMenu,
+  resolveBrandModels,
   resolveGroupProductFilter,
   resolveModelProductQuery,
   resolveProducerProductFilter,
@@ -156,7 +157,7 @@ const buildSiteButton = (text: string, url: string) =>
 const buildCatalogKeyboard = (siteUrl: string) => ({
   inline_keyboard: [
     [
-      { text: "📂 Каталог у боті", callback_data: "m" },
+      { text: "📂 Каталог", callback_data: "m" },
       { text: "🛒 Кошик", callback_data: "cart" },
     ],
     [
@@ -250,7 +251,7 @@ const sendLinkRequired = (chatId: string | number) => {
       replyMarkup: {
         inline_keyboard: [
           [buildSiteButton("🔗 Увійти на сайті", siteUrl)],
-          [{ text: "📂 Переглянути каталог", callback_data: "m" }],
+          [{ text: "📂 Каталог", callback_data: "m" }],
         ],
       },
     }
@@ -284,19 +285,43 @@ const finishProfile = (chatId: string | number) =>
 // Leads with the branded banner (public/telegram/bot-welcome.png — matches
 // the site's real logo mark and navy/sky palette) instead of a bare text
 // wall; falls back to a plain text message if Telegram can't fetch it.
-const sendWelcomeBack = async (chatId: string | number, from: TelegramUser) => {
+// botCar (brand+model saved via the "⭐ Зробити моїм авто в боті" button on
+// buildModelMenu, app/lib/telegram-catalog-nav.ts) surfaces on this main
+// screen so the user sees it's remembered without having to reopen the car
+// picker — mirrors the site's own persisted car selection, scoped to
+// brand+model only since that's all the bot's car flow collects today.
+const sendWelcomeBack = async (
+  chatId: string | number,
+  from: TelegramUser,
+  botCar?: { brand: string; model: string } | null
+) => {
   const siteUrl = getSiteUrl();
   const text = [
     `<b>Привіт, ${escapeTelegramHtml(getDisplayName(from))}! 👋</b>`,
     "Я допоможу знайти й замовити автозапчастини без зайвих кроків.",
     "",
+    botCar
+      ? `🚗 Ваше авто в боті: <b>${escapeTelegramHtml(botCar.brand)} ${escapeTelegramHtml(botCar.model)}</b>`
+      : null,
     "🔎 Напишіть назву або артикул — знайду товар.",
     "📂 Або відкрийте каталог за категорією, авто чи виробником.",
     "🛒 Додавайте позиції в кошик та оформлюйте замовлення прямо тут.",
     "",
     "Усі команди доступні в кнопці <b>Меню</b> біля поля введення.",
-  ].join("\n");
-  const replyMarkup = buildCatalogKeyboard(siteUrl);
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
+  const replyMarkup = botCar
+    ? {
+        inline_keyboard: [
+          [
+            { text: "🔁 Змінити авто", callback_data: "a:0" },
+            { text: "❌ Скинути авто", callback_data: "carreset" },
+          ],
+          ...buildCatalogKeyboard(siteUrl).inline_keyboard,
+        ],
+      }
+    : buildCatalogKeyboard(siteUrl);
 
   const photoResult = await sendTelegramPhoto(chatId, `${siteUrl}/telegram/bot-welcome.png`, text, {
     parseMode: "HTML",
@@ -360,7 +385,10 @@ const handleStart = async (
 
   if (alreadyComplete && !token) {
     await userRef.set(getTelegramUserPatch(from, chatId), { merge: true });
-    await sendWelcomeBack(message.chat?.id || chatId, from);
+    const botCarBrand = normalizeText(existingData?.botSelectedCarBrand, 80);
+    const botCarModel = normalizeText(existingData?.botSelectedCarModel, 80);
+    const botCar = botCarBrand && botCarModel ? { brand: botCarBrand, model: botCarModel } : null;
+    await sendWelcomeBack(message.chat?.id || chatId, from, botCar);
     return;
   }
 
@@ -506,7 +534,7 @@ const handleFind = async (chatId: string, rawQuery: string, page = 1) => {
       "🔍 Напишіть, що шукаємо — наприклад: <code>/find гальмівні колодки</code> або <code>/find AD030213</code>.",
       {
         parseMode: "HTML",
-        replyMarkup: { inline_keyboard: [[{ text: "📂 Відкрити каталог", callback_data: "m" }]] },
+        replyMarkup: { inline_keyboard: [[{ text: "📂 Каталог", callback_data: "m" }]] },
       }
     );
     return;
@@ -858,6 +886,14 @@ const handleAddToCart = async (chatId: string, code: string, from?: TelegramUser
   const euroRate = await fetchEuroRate().catch(() => null);
   const priceUah = euroRate != null ? toPriceUah(product.priceEuro ?? null, euroRate) : null;
 
+  // Guards against a stale keyboard from before a price went missing (or an
+  // older cached message still showing the button) — a priceless product has
+  // nothing to add to cart, it should route through handlePriceAsk instead.
+  if (priceUah == null) {
+    await handlePriceAsk(chatId, code, from);
+    return;
+  }
+
   await addToCart(linked.ref.id, {
     code: product.code,
     article: product.article || "",
@@ -877,6 +913,100 @@ const handleAddToCart = async (chatId: string, code: string, from?: TelegramUser
       replyMarkup: { inline_keyboard: [[{ text: "🛒 Переглянути кошик", callback_data: "cart" }]] },
     }
   );
+};
+
+// Saves the brand+model picked via buildModelMenu's "⭐ Зробити моїм авто в
+// боті" button onto the linked user doc, so sendWelcomeBack can show it on
+// every later /start without the user re-picking it. Scoped to brand+model
+// only — the bot's car flow has no year/modification/VIN step to persist
+// beyond that (unlike the site's fuller PersistedCarSelection).
+const handleSetBotCar = async (
+  chatId: string,
+  brandSlug: string,
+  modelIndex: number,
+  from?: TelegramUser
+) => {
+  if (!from) return;
+  const userRef = await findUserByTelegramId(normalizeId(from.id));
+  if (!userRef) {
+    await sendLinkRequired(chatId);
+    return;
+  }
+
+  const resolved = await resolveBrandModels(brandSlug);
+  const model = resolved?.models[modelIndex];
+  if (!resolved || !model) {
+    await sendTelegramMessage(chatId, "⚠️ Не вдалося визначити модель.");
+    return;
+  }
+
+  await userRef.set(
+    { botSelectedCarBrand: resolved.brand.name, botSelectedCarModel: model.name },
+    { merge: true }
+  );
+
+  await sendTelegramMessage(
+    chatId,
+    `🚗 Готово! Ваше авто в боті: <b>${escapeTelegramHtml(resolved.brand.name)} ${escapeTelegramHtml(model.name)}</b>`,
+    {
+      parseMode: "HTML",
+      replyMarkup: {
+        inline_keyboard: [[{ text: "❌ Скинути авто", callback_data: "carreset" }]],
+      },
+    }
+  );
+};
+
+const handleResetBotCar = async (chatId: string, from?: TelegramUser) => {
+  if (!from) return;
+  const userRef = await findUserByTelegramId(normalizeId(from.id));
+  if (!userRef) {
+    await sendLinkRequired(chatId);
+    return;
+  }
+
+  await userRef.set(
+    {
+      botSelectedCarBrand: FieldValue.delete(),
+      botSelectedCarModel: FieldValue.delete(),
+    },
+    { merge: true }
+  );
+
+  await sendTelegramMessage(chatId, "❌ Авто в боті скинуто.", {
+    replyMarkup: { inline_keyboard: [[{ text: "🚗 Обрати авто", callback_data: "a:0" }]] },
+  });
+};
+
+// Mirrors the web catalog's "Уточнити ціну" action (handleRequestPriceForItem
+// in app/components/Data.tsx): a priceless product has no cart-able price, so
+// instead of adding it at 0 UAH, route straight into the same support chat
+// used by /support, pre-filled with the product details.
+const handlePriceAsk = async (chatId: string, code: string, from?: TelegramUser) => {
+  if (!code || !from) return;
+  const userRef = await findUserByTelegramId(normalizeId(from.id));
+  if (!userRef) {
+    await sendLinkRequired(chatId);
+    return;
+  }
+
+  const product = await findProductForWatch(code);
+  if (!product) {
+    await sendTelegramMessage(chatId, "⚠️ Не вдалося знайти цей товар.");
+    return;
+  }
+
+  const message = [
+    "Потрібна ціна на товар (за запитом).",
+    `Назва: ${product.name}`,
+    `Артикул: ${product.article || product.code}`,
+    product.producer && product.producer !== "-" ? `Виробник: ${product.producer}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  await startSupportMode(userRef, chatId);
+  await relaySupportText(userRef.id, chatId, message);
 };
 
 const handleQuantityChange = async (
@@ -1304,6 +1434,31 @@ const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
     await answerTelegramCallback(callback.id, "Додано в кошик").catch(() => undefined);
     await handleAddToCart(chatId, data.slice("cadd:".length), callback.from).catch((error) => {
       console.error("Add to cart failed:", error);
+    });
+    return;
+  }
+
+  if (data.startsWith("priceask:")) {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    await handlePriceAsk(chatId, data.slice("priceask:".length), callback.from).catch((error) => {
+      console.error("Price ask callback failed:", error);
+    });
+    return;
+  }
+
+  if (data.startsWith("mset:")) {
+    await answerTelegramCallback(callback.id, "Авто збережено").catch(() => undefined);
+    const [, brandSlug, modelIndexRaw] = data.split(":");
+    await handleSetBotCar(chatId, brandSlug, Number(modelIndexRaw), callback.from).catch((error) => {
+      console.error("Set bot car callback failed:", error);
+    });
+    return;
+  }
+
+  if (data === "carreset") {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    await handleResetBotCar(chatId, callback.from).catch((error) => {
+      console.error("Reset bot car callback failed:", error);
     });
     return;
   }

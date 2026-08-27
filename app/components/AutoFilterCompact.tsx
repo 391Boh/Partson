@@ -3,13 +3,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { Plus, Search } from 'lucide-react';
+import { Check, Plus, Search } from 'lucide-react';
 import { db } from '../../firebase';
 import { carBrands, type CarBrand } from 'app/components/carBrands';
 import CarModels from 'app/components/CarModels';
 import CarModifications from 'app/components/CarModifications';
 import type { PersistedCarSelection } from 'app/components/Auto';
-import { DirectoryPagePagination } from 'app/components/HorizontalDirectoryRail';
+import HorizontalDirectoryRail from 'app/components/HorizontalDirectoryRail';
 
 type StepId = 'brand' | 'model' | 'engine';
 
@@ -101,66 +101,6 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
     return carBrands.filter((brand) => brand.name.toLowerCase().includes(term));
   }, [brandSearch]);
 
-  const BRAND_PAGE_SIZE = 8;
-  const brandPages = useMemo(() => {
-    const pages: CarBrand[][] = [];
-    for (let index = 0; index < filteredBrands.length; index += BRAND_PAGE_SIZE) {
-      pages.push(filteredBrands.slice(index, index + BRAND_PAGE_SIZE));
-    }
-    return pages.length > 0 ? pages : [[]];
-  }, [filteredBrands]);
-  const [brandPage, setBrandPage] = useState(0);
-  const brandPageCount = brandPages.length;
-  const brandPagesRef = useRef<HTMLDivElement | null>(null);
-  const brandScrollLockRef = useRef(false);
-  const brandScrollUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    setBrandPage(0);
-  }, [brandSearch]);
-
-  useEffect(() => {
-    setBrandPage((prev) => Math.max(0, Math.min(prev, Math.max(0, brandPageCount - 1))));
-  }, [brandPageCount]);
-
-  useEffect(() => {
-    const container = brandPagesRef.current;
-    if (!container) return;
-    const pageWidth = container.clientWidth;
-    if (!pageWidth) return;
-    const targetLeft = brandPage * pageWidth;
-    if (Math.abs(container.scrollLeft - targetLeft) < 2) return;
-    brandScrollLockRef.current = true;
-    if (brandScrollUnlockTimerRef.current) clearTimeout(brandScrollUnlockTimerRef.current);
-    brandScrollUnlockTimerRef.current = setTimeout(() => {
-      brandScrollLockRef.current = false;
-    }, 350);
-    container.scrollTo({ left: targetLeft, behavior: 'smooth' });
-  }, [brandPage]);
-
-  const brandScrollRafRef = useRef<number | null>(null);
-  const handleBrandPagesScroll = useCallback(() => {
-    if (brandScrollLockRef.current) return;
-    if (brandScrollRafRef.current != null) return;
-    brandScrollRafRef.current = window.requestAnimationFrame(() => {
-      brandScrollRafRef.current = null;
-      const container = brandPagesRef.current;
-      if (!container) return;
-      const pageWidth = container.clientWidth;
-      if (!pageWidth) return;
-      const nextPage = Math.round(container.scrollLeft / pageWidth);
-      if (nextPage !== brandPage) setBrandPage(nextPage);
-    });
-  }, [brandPage]);
-
-  useEffect(() => {
-    return () => {
-      if (brandScrollUnlockTimerRef.current) clearTimeout(brandScrollUnlockTimerRef.current);
-      if (brandScrollRafRef.current != null) {
-        window.cancelAnimationFrame(brandScrollRafRef.current);
-      }
-    };
-  }, []);
 
   const canChooseModel = Boolean(selectedBrand);
   const canChooseMods = Boolean(selectedBrand && selectedModel);
@@ -271,7 +211,6 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
     if (!hadSelection || listHasSelection) return;
 
     setBrandSearch('');
-    setBrandPage(0);
     setSelectedBrand(null);
     setSelectedModel(null);
     setSelectedYear(null);
@@ -518,219 +457,256 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
       <div className="flex flex-col gap-4">
         {hasTableData && (
           <div className="flex flex-col gap-3">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="min-w-0">
-                <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-                  <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                        Авто
-                      </span>
-                      <span className="text-[11px] font-semibold text-slate-400">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="min-w-0 flex flex-col gap-2 rounded-[14px] border border-blue-100/70 bg-white/70 p-2.5 shadow-[0_4px_14px_rgba(37,99,235,0.06)]">
+                <div className="flex flex-wrap items-center gap-2 text-[13px] font-bold uppercase tracking-widest text-slate-600">
+                  <span className="min-w-0 flex items-center gap-2">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-blue-200/80 bg-blue-50 text-blue-700 shadow-[0_4px_10px_rgba(37,99,235,0.12)]">
+                      <Check size={14} strokeWidth={2.5} className="pointer-events-none" />
+                    </span>
+                    Авто
+                  </span>
+                  <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
+                    {selectedCarRows.length > 0 && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                         {selectedCarRows.length}
                       </span>
-                    </div>
+                    )}
                     <button
                       type="button"
                       onClick={handleAddCar}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-100/80 px-2.5 py-1 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-200/80 active:scale-[0.98]"
+                      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-blue-200 bg-blue-100/70 px-2.5 py-1 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-200/80 active:scale-[0.98] sm:px-3 sm:py-1.5 sm:text-[11px]"
                     >
                       <Plus size={14} className="pointer-events-none" />
                       <span>Додати авто</span>
                     </button>
                   </div>
+                </div>
 
-                  {selectedCarRows.length === 0 ? (
-                    <div className="px-3 py-3 text-[12px] font-medium text-slate-400">Немає вибраних авто</div>
-                  ) : (
-                    <div className="divide-y divide-slate-200/70">
-                      {selectedCarRows.map((car) => {
-                        const isActive = car === selectedCarLabel;
-                        return (
-                          <div
-                            key={car}
-                            onClick={() => {
-                              setSelectedCarLabel(car);
-                              lastSelectedLabelRef.current = car;
-                              setSelectedVin('');
-                              onVinSelect?.(null);
-                              onAutoPicked?.();
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key !== 'Enter' && event.key !== ' ') return;
-                              event.preventDefault();
-                              setSelectedCarLabel(car);
-                              lastSelectedLabelRef.current = car;
-                              setSelectedVin('');
-                              onVinSelect?.(null);
-                              onAutoPicked?.();
-                            }}
-                            className={`flex items-center justify-between gap-2 px-3 py-2 text-[12px] font-semibold transition ${
-                              isActive
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-white text-slate-700 hover:bg-blue-50'
-                            }`}
-                            role="button"
-                            tabIndex={0}
-                            aria-pressed={isActive}
-                          >
-                            <span className="min-w-0 flex-1 truncate">{car}</span>
-                            <div className="flex items-center gap-2">
-                              {isActive && (
-                                <span className="inline-flex items-center rounded-md border border-white/40 bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white">
-                                  Вибрано
-                                </span>
-                              )}
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleRemoveCar(car);
-                                }}
-                                aria-label={`Видалити ${car}`}
-                               className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition ${
-                                 isActive
-                                   ? 'border-white/40 bg-white/10 text-white hover:bg-white/20'
-                                   : 'border-slate-200 bg-white text-slate-500 hover:text-slate-700'
-                               }`}
-                             >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 24 24"
-                                  className="h-3.5 w-3.5 pointer-events-none"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.6"
-                                  strokeLinecap="round"
-                                >
-                                  <path d="M3 6h18" />
-                                  <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
-                                  <path d="M6 6v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6" />
-                                  <path d="M10 11v6" />
-                                  <path d="M14 11v6" />
-                                </svg>
-                             </button>
-                            </div>
+                {selectedCarRows.length === 0 ? (
+                  <div className="px-2 py-2 text-[12px] text-slate-400">Немає вибраних авто</div>
+                ) : (
+                  <div className="flex flex-col gap-1.5 text-[12px] text-slate-700">
+                    {selectedCarRows.map((car) => {
+                      const isActive = car === selectedCarLabel;
+                      return (
+                        <div
+                          key={car}
+                          onClick={() => {
+                            setSelectedCarLabel(car);
+                            lastSelectedLabelRef.current = car;
+                            setSelectedVin('');
+                            onVinSelect?.(null);
+                            onAutoPicked?.();
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'Enter' && event.key !== ' ') return;
+                            event.preventDefault();
+                            setSelectedCarLabel(car);
+                            lastSelectedLabelRef.current = car;
+                            setSelectedVin('');
+                            onVinSelect?.(null);
+                            onAutoPicked?.();
+                          }}
+                          className={`flex min-w-0 cursor-pointer items-center justify-between gap-2 rounded-[12px] border px-3 py-2.5 text-left font-semibold transition-all duration-300 ease-out ${
+                            isActive
+                              ? 'border-blue-300/70 bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 text-white shadow-[0_10px_24px_rgba(37,99,235,0.28)]'
+                              : 'border-slate-200/90 bg-[radial-gradient(circle_at_50%_-25%,rgba(125,211,252,0.28),transparent_55%),linear-gradient(150deg,#ffffff_0%,#f8fbff_55%,#eef6ff_100%)] shadow-[0_3px_10px_rgba(15,23,42,0.05)] hover:border-blue-300 hover:shadow-[0_8px_18px_rgba(37,99,235,0.14)]'
+                          }`}
+                          role="button"
+                          tabIndex={0}
+                          aria-pressed={isActive}
+                        >
+                          <span className="min-w-0 flex-1 truncate">{car}</span>
+                          <div className="shrink-0 flex items-center gap-2">
+                            {isActive && (
+                              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                                Обрано
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleRemoveCar(car);
+                              }}
+                              aria-label={`Видалити ${car}`}
+                              className={`inline-flex h-6 w-6 items-center justify-center rounded-full border transition ${
+                                isActive
+                                  ? 'border-white/50 text-white/90 hover:bg-white/20'
+                                  : 'border-slate-200 text-slate-500 hover:bg-white hover:text-red-500'
+                              }`}
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                className="h-3.5 w-3.5 pointer-events-none"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.6"
+                                strokeLinecap="round"
+                              >
+                                <path d="M3 6h18" />
+                                <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
+                                <path d="M6 6v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6" />
+                                <path d="M10 11v6" />
+                                <path d="M14 11v6" />
+                              </svg>
+                            </button>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-                </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
-              <div className="min-w-0">
-                <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-                  <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                        VIN
-                      </span>
-                      {vinLoading && (
-                        <span className="text-[10px] font-semibold text-slate-400">Завантаження…</span>
-                      )}
-                    </div>
+              <div className="min-w-0 flex flex-col gap-2 rounded-[14px] border border-emerald-100/70 bg-white/70 p-2.5 shadow-[0_4px_14px_rgba(16,185,129,0.06)]">
+                <div className="flex flex-wrap items-center gap-2 text-[13px] font-bold uppercase tracking-widest text-slate-600">
+                  <span className="min-w-0 flex items-center gap-2">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-emerald-200/80 bg-emerald-50 text-emerald-700 shadow-[0_4px_10px_rgba(16,185,129,0.12)]">
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 5v14" />
+                        <path d="M8 5v14" />
+                        <path d="M12 5v14" />
+                        <path d="M16 5v14" />
+                        <path d="M20 5v14" />
+                      </svg>
+                    </span>
+                    VIN
+                  </span>
+                  <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
+                    {vinLoading ? (
+                      <span className="text-[9px] normal-case text-slate-500">Завантаження…</span>
+                    ) : (
+                      vinRows.length > 0 && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                          {vinRows.length}
+                        </span>
+                      )
+                    )}
                     <button
                       type="button"
                       onClick={handleOpenVinTab}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-100/70 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-200/80 active:scale-[0.98]"
+                      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-emerald-200 bg-emerald-100/70 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-200/80 sm:px-3 sm:py-1.5 sm:text-[11px]"
                     >
                       <Plus size={14} className="pointer-events-none" />
                       <span>Додати VIN</span>
                     </button>
                   </div>
-
-                  {vinRows.length === 0 ? (
-                    <div className="px-3 py-3 text-[12px] font-medium text-slate-400">Немає VIN у профілі</div>
-                  ) : (
-                    <div className="divide-y divide-slate-200/70">
-                      {vinRows.map((vin) => {
-                        const isActive = vin === selectedVin;
-                        return (
-                          <div
-                            key={vin}
-                            onClick={() => handleSelectVin(vin)}
-                            onKeyDown={(event) => {
-                              if (event.key !== 'Enter' && event.key !== ' ') return;
-                              event.preventDefault();
-                              handleSelectVin(vin);
-                            }}
-                            className={`flex items-center justify-between gap-2 px-3 py-2 text-[12px] font-semibold transition ${
-                              isActive
-                                ? 'bg-emerald-500 text-white'
-                                : 'bg-white text-slate-700 hover:bg-emerald-50'
-                            }`}
-                            role="button"
-                            tabIndex={0}
-                            aria-pressed={isActive}
-                          >
-                            <span className="min-w-0 flex-1 truncate">{vin}</span>
-                            <div className="flex items-center gap-2">
-                              {isActive && (
-                                <span className="inline-flex items-center rounded-md border border-white/40 bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white">
-                                  Вибрано
-                                </span>
-                              )}
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleRemoveVin(vin);
-                                }}
-                                aria-label={`Видалити VIN ${vin}`}
-                               className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition ${
-                                 isActive
-                                   ? 'border-white/40 bg-white/10 text-white hover:bg-white/20'
-                                   : 'border-emerald-200 bg-white text-emerald-700 hover:text-emerald-900'
-                               }`}
-                             >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 24 24"
-                                  className="h-3.5 w-3.5 pointer-events-none"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.6"
-                                  strokeLinecap="round"
-                                >
-                                  <path d="M3 6h18" />
-                                  <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
-                                  <path d="M6 6v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6" />
-                                  <path d="M10 11v6" />
-                                  <path d="M14 11v6" />
-                                </svg>
-                             </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
+
+                {vinRows.length === 0 ? (
+                  <div className="px-2 py-2 text-[12px] text-slate-400">Немає VIN у профілі</div>
+                ) : (
+                  <div className="flex flex-col gap-1.5 text-[12px] text-slate-700">
+                    {vinRows.map((vin) => {
+                      const isActive = vin === selectedVin;
+                      return (
+                        <div
+                          key={vin}
+                          onClick={() => handleSelectVin(vin)}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'Enter' && event.key !== ' ') return;
+                            event.preventDefault();
+                            handleSelectVin(vin);
+                          }}
+                          className={`flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-[12px] border px-3 py-2.5 text-left font-semibold transition-all duration-300 ease-out ${
+                            isActive
+                              ? 'border-emerald-300/70 bg-gradient-to-r from-emerald-500 via-emerald-400 to-sky-400 text-white shadow-[0_10px_24px_rgba(16,185,129,0.28)]'
+                              : 'border-slate-200/90 bg-[radial-gradient(circle_at_50%_-25%,rgba(110,231,183,0.26),transparent_55%),linear-gradient(150deg,#ffffff_0%,#f7fefb_55%,#ecfdf5_100%)] shadow-[0_3px_10px_rgba(15,23,42,0.05)] hover:border-emerald-300 hover:shadow-[0_8px_18px_rgba(16,185,129,0.14)]'
+                          }`}
+                          role="button"
+                          tabIndex={0}
+                          aria-pressed={isActive}
+                        >
+                          <span className="min-w-0 flex-1 truncate">{vin}</span>
+                          <div className="shrink-0 flex items-center gap-2">
+                            {isActive ? (
+                              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                                Обрано
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                                VIN
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleRemoveVin(vin);
+                              }}
+                              aria-label={`Видалити VIN ${vin}`}
+                              className={`inline-flex h-6 w-6 items-center justify-center rounded-full border transition ${
+                                isActive
+                                  ? 'border-white/50 text-white/90 hover:bg-white/20'
+                                  : 'border-emerald-200 text-emerald-700 hover:bg-white hover:text-emerald-900'
+                              }`}
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                className="h-3.5 w-3.5 pointer-events-none"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.6"
+                                strokeLinecap="round"
+                              >
+                                <path d="M3 6h18" />
+                                <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
+                                <path d="M6 6v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6" />
+                                <path d="M10 11v6" />
+                                <path d="M14 11v6" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
 
         {isPickerOpen && (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-[200px_minmax(0,1fr)] md:gap-6">
-            <div className="md:border-r md:border-slate-200 md:pr-4">
-                  <div className="grid grid-cols-3 gap-2 md:grid-cols-1">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[210px_minmax(0,1fr)] md:gap-6">
+            <div className="md:border-r md:border-slate-200/80 md:pr-4">
+                  <div className="grid grid-cols-3 gap-1.5 md:grid-cols-1 md:gap-2">
             <button
               type="button"
               onClick={() => handleStepClick('brand')}
               title={selectedBrand?.name ?? ''}
-              className={`flex flex-1 flex-col items-start gap-0.5 rounded-lg border px-2 py-2 text-left text-xs font-semibold transition md:px-3 ${
+              className={`group flex items-center gap-2 rounded-[13px] border px-2.5 py-2 text-left transition-all duration-200 md:gap-2.5 md:px-3 md:py-2.5 ${
                 activeStep === 'brand'
-                  ? 'border-blue-500 bg-blue-600 text-white'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  ? 'border-sky-300/90 bg-[linear-gradient(135deg,#0284c7,#2563eb)] text-white shadow-[0_10px_22px_rgba(37,99,235,0.22)]'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:bg-sky-50/70'
               }`}
             >
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-80">
-                Марка
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black transition-colors duration-200 md:h-7 md:w-7 ${
+                  activeStep === 'brand'
+                    ? 'bg-white/20 text-white'
+                    : selectedBrand
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {selectedBrand ? <Check size={13} strokeWidth={3} /> : '1'}
               </span>
-              <span className="w-full truncate text-xs leading-tight">
-                {selectedBrand?.name ?? '—'}
+              <span className="min-w-0 flex-1">
+                <span
+                  className={`block text-[9px] font-bold uppercase leading-none tracking-[0.1em] sm:text-[10px] sm:tracking-[0.14em] ${
+                    activeStep === 'brand' ? 'text-white/75' : 'text-slate-400'
+                  }`}
+                >
+                  Марка
+                </span>
+                <span className="hidden w-full truncate text-[12px] font-bold leading-tight sm:block md:text-[13px]">
+                  {selectedBrand?.name ?? 'Марка'}
+                </span>
               </span>
             </button>
             <button
@@ -738,16 +714,35 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
               onClick={() => handleStepClick('model')}
               disabled={!canChooseModel}
               title={selectedModel ?? ''}
-              className={`flex flex-1 flex-col items-start gap-0.5 rounded-lg border px-2 py-2 text-left text-xs font-semibold transition md:px-3 ${
+              className={`group flex items-center gap-2 rounded-[13px] border px-2.5 py-2 text-left transition-all duration-200 md:gap-2.5 md:px-3 md:py-2.5 ${
                 activeStep === 'model'
-                  ? 'border-blue-500 bg-blue-600 text-white'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              } ${!canChooseModel ? 'cursor-not-allowed opacity-50' : ''}`}
+                  ? 'border-sky-300/90 bg-[linear-gradient(135deg,#0284c7,#2563eb)] text-white shadow-[0_10px_22px_rgba(37,99,235,0.22)]'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:bg-sky-50/70'
+              } ${!canChooseModel ? 'cursor-not-allowed opacity-45' : ''}`}
             >
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-80">
-                Модель
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black transition-colors duration-200 md:h-7 md:w-7 ${
+                  activeStep === 'model'
+                    ? 'bg-white/20 text-white'
+                    : selectedModel
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {selectedModel ? <Check size={13} strokeWidth={3} /> : '2'}
               </span>
-              <span className="w-full truncate text-xs leading-tight">{selectedModel ?? '—'}</span>
+              <span className="min-w-0 flex-1">
+                <span
+                  className={`block text-[9px] font-bold uppercase leading-none tracking-[0.1em] sm:text-[10px] sm:tracking-[0.14em] ${
+                    activeStep === 'model' ? 'text-white/75' : 'text-slate-400'
+                  }`}
+                >
+                  Модель
+                </span>
+                <span className="hidden w-full truncate text-[12px] font-bold leading-tight sm:block md:text-[13px]">
+                  {selectedModel ?? 'Модель'}
+                </span>
+              </span>
             </button>
             <button
               type="button"
@@ -760,21 +755,38 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
                     : selectedCarLabel
                   : pickerParams
               }
-              className={`flex flex-1 flex-col items-start gap-0.5 rounded-lg border px-2 py-2 text-left text-xs font-semibold transition md:px-3 ${
+              className={`group flex items-center gap-2 rounded-[13px] border px-2.5 py-2 text-left transition-all duration-200 md:gap-2.5 md:px-3 md:py-2.5 ${
                 activeStep === 'engine'
-                  ? 'border-blue-500 bg-blue-600 text-white'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              } ${!canChooseMods ? 'cursor-not-allowed opacity-50' : ''}`}
+                  ? 'border-sky-300/90 bg-[linear-gradient(135deg,#0284c7,#2563eb)] text-white shadow-[0_10px_22px_rgba(37,99,235,0.22)]'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:bg-sky-50/70'
+              } ${!canChooseMods ? 'cursor-not-allowed opacity-45' : ''}`}
             >
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-80">
-                Модифікація
-              </span>
-              <span className="w-full truncate text-xs leading-tight">
-                {selectedCarLabel
-                  ? pickerParams
-                    ? `${selectedCarLabel} • ${pickerParams}`
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black transition-colors duration-200 md:h-7 md:w-7 ${
+                  activeStep === 'engine'
+                    ? 'bg-white/20 text-white'
                     : selectedCarLabel
-                  : pickerParams || '—'}
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {selectedCarLabel ? <Check size={13} strokeWidth={3} /> : '3'}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span
+                  className={`block text-[9px] font-bold uppercase leading-none tracking-[0.1em] sm:text-[10px] sm:tracking-[0.14em] ${
+                    activeStep === 'engine' ? 'text-white/75' : 'text-slate-400'
+                  }`}
+                >
+                  Модифікація
+                </span>
+                <span className="hidden w-full truncate text-[12px] font-bold leading-tight sm:block md:text-[13px]">
+                  {selectedCarLabel
+                    ? pickerParams
+                      ? `${selectedCarLabel} • ${pickerParams}`
+                      : selectedCarLabel
+                    : pickerParams || 'Модифікація'}
+                </span>
               </span>
             </button>
                 </div>
@@ -784,111 +796,100 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
               <div className="min-w-0 md:pl-4">
            {activeStep === 'brand' && (
              <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="catalog-filter-search-shell flex min-w-[160px] flex-1 items-center gap-2">
-                  <span className="catalog-filter-search-icon" aria-hidden="true">
-                    <Search size={15} />
-                  </span>
-                  <input
-                    type="text"
-                    value={brandSearch}
-                    onChange={(event) => setBrandSearch(event.target.value)}
-                    placeholder="Пошук марки..."
-                    data-search="true"
-                    className="catalog-filter-search-input min-w-0"
-                  />
-                  {selectedBrand && (
-                    <button
-                      type="button"
-                      onClick={clearBrand}
-                      className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-100 active:scale-[0.98]"
-                      title="Очистити"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        className="h-4 w-4 pointer-events-none"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
-                        strokeLinecap="round"
-                      >
-                        <path d="M3 6h18" />
-                        <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
-                        <path d="M6 6v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6" />
-                        <path d="M10 11v6" />
-                        <path d="M14 11v6" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-
-                <DirectoryPagePagination
-                  currentPage={brandPage}
-                  pageCount={brandPageCount}
-                  onPageChange={setBrandPage}
+              <div className="catalog-filter-search-shell flex items-center gap-2">
+                <span className="catalog-filter-search-icon" aria-hidden="true">
+                  <Search size={15} />
+                </span>
+                <input
+                  type="text"
+                  value={brandSearch}
+                  onChange={(event) => setBrandSearch(event.target.value)}
+                  placeholder="Пошук марки..."
+                  data-search="true"
+                  className="catalog-filter-search-input min-w-0"
                 />
+                {selectedBrand && (
+                  <button
+                    type="button"
+                    onClick={clearBrand}
+                    className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-100 active:scale-[0.98]"
+                    title="Очистити"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 pointer-events-none"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    >
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6" />
+                      <path d="M6 6v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                    </svg>
+                  </button>
+                )}
               </div>
-              <div
-                ref={brandPagesRef}
-                onScroll={handleBrandPagesScroll}
-                className="catalog-filter-horizontal-rail no-scrollbar h-[164px] overflow-x-auto overflow-y-hidden rounded-[18px] border border-sky-100 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] shadow-inner snap-x snap-mandatory sm:h-[180px]"
-              >
-                <div className="flex h-full w-full">
-                  {brandPages.map((page, pageIndex) => (
-                    <div key={pageIndex} className="h-full w-full shrink-0 snap-start p-2">
-                    {page.length === 0 ? (
-                      <div className="flex h-full items-center justify-center text-[12px] font-semibold text-slate-400">
-                        Нічого не знайдено
-                      </div>
-                    ) : (
-                      <div className="grid h-full grid-cols-4 grid-rows-2 gap-2">
-                        {page.map((brand) => {
-                          const isActive = selectedBrand?.name === brand.name;
-                          return (
-                            <button
-                              key={brand.id}
-                              type="button"
-                              onClick={() => handleBrandPick(brand)}
-                              className={`catalog-filter-choice-card flex h-[72px] flex-col items-center justify-center gap-1 rounded-[14px] border px-2 py-2 text-center text-[11px] font-semibold transition-[border-color,background-color,box-shadow] duration-300 ${
-                                isActive
-                                  ? 'border-blue-500 bg-[linear-gradient(145deg,#2563eb,#0284c7)] text-white shadow-[0_10px_22px_rgba(37,99,235,0.24)]'
-                                  : 'border-sky-100 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] text-slate-700 shadow-[0_6px_16px_rgba(15,23,42,0.06)] hover:border-sky-300 hover:bg-[linear-gradient(145deg,#ffffff,#e0f2fe)] hover:shadow-[0_11px_24px_rgba(14,116,144,0.13)]'
-                              }`}
-                              title={brand.name}
-                            >
-                              <span
-                                className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border ${
-                                  isActive
-                                    ? 'border-white/30 bg-white/10'
-                                    : 'border-slate-200 bg-white'
-                                }`}
-                              >
-                                {brand.logo ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={brand.logo}
-                                    // Decorative: the brand name right below already labels this
-                                    // logo, so a repeated alt would have screen readers announce
-                                    // it twice.
-                                    alt=""
-                                    className="h-6 w-6 object-contain"
-                                    loading="lazy"
-                                    onError={handleBrandLogoLoadError}
-                                  />
-                                ) : (
-                                  <span className="text-[10px] font-bold">{brand.name.slice(0, 2)}</span>
-                                )}
-                              </span>
-                              <span className="w-full truncate text-[10px] leading-tight">{brand.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                    </div>
-                  ))}
-                </div>
+
+              <div className="catalog-filter-rail-shell rounded-[18px] border border-sky-100 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] p-2 shadow-inner">
+                {filteredBrands.length === 0 ? (
+                  <div className="flex h-[152px] items-center justify-center text-[12px] font-semibold text-slate-400">
+                    Нічого не знайдено
+                  </div>
+                ) : (
+                  <HorizontalDirectoryRail
+                    ariaLabel="Марки авто"
+                    rows={2}
+                    className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
+                  >
+                    {filteredBrands.map((brand) => {
+                      const isActive = selectedBrand?.name === brand.name;
+                      return (
+                        <button
+                          key={brand.id}
+                          type="button"
+                          onClick={() => handleBrandPick(brand)}
+                          className={`catalog-filter-choice-card group/card flex h-[72px] w-full items-center gap-2.5 overflow-hidden rounded-[14px] border px-3 py-2 text-left font-semibold transition-[border-color,background-color,box-shadow] duration-300 ${
+                            isActive
+                              ? 'border-blue-500 bg-[linear-gradient(145deg,#2563eb,#0284c7)] text-white shadow-[0_10px_22px_rgba(37,99,235,0.24)]'
+                              : 'border-sky-100 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] text-slate-700 shadow-[0_6px_16px_rgba(15,23,42,0.06)] hover:border-sky-300 hover:bg-[linear-gradient(145deg,#ffffff,#e0f2fe)] hover:shadow-[0_11px_24px_rgba(14,116,144,0.13)]'
+                          }`}
+                          title={brand.name}
+                        >
+                          <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border sm:h-10 sm:w-10 ${
+                              isActive
+                                ? 'border-white/30 bg-white/10'
+                                : 'border-slate-200 bg-white'
+                            }`}
+                          >
+                            {brand.logo ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={brand.logo}
+                                // Decorative: the brand name right next to it already labels
+                                // this logo, so a repeated alt would have screen readers
+                                // announce it twice.
+                                alt=""
+                                className="h-7 w-7 object-contain transition-transform duration-300 ease-out group-hover/card:scale-[1.07] sm:h-8 sm:w-8"
+                                loading="lazy"
+                                onError={handleBrandLogoLoadError}
+                              />
+                            ) : (
+                              <span className="text-[10px] font-bold">{brand.name.slice(0, 2)}</span>
+                            )}
+                          </span>
+                          <span className="line-clamp-2 min-w-0 flex-1 text-left text-[12px] font-bold leading-tight sm:text-sm sm:leading-snug">
+                            {brand.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </HorizontalDirectoryRail>
+                )}
               </div>
             </div>
           )}

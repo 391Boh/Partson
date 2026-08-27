@@ -45,6 +45,7 @@ import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
+import { SEO_TITLE_MAX_LENGTH } from "app/lib/seo-metadata";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import {
@@ -861,11 +862,16 @@ const getCatalogProductUncached = async (code: string) => {
 const getCatalogProduct = cache(getCatalogProductUncached);
 
 const buildProductMetaDescription = (options: {
+  name?: string;
+  producer?: string;
+  article?: string;
   category?: string;
   group?: string;
   subGroup?: string;
+  priceUah?: number | null;
+  quantity?: number;
 }) => {
-  const { category, group, subGroup } = options;
+  const { name, producer, article, category, group, subGroup, priceUah, quantity } = options;
   const cleanLabel = (value?: string) => {
     const label = buildVisibleCategoryLabel(value || "");
     return label === "Товар" ? "" : label;
@@ -880,13 +886,40 @@ const buildProductMetaDescription = (options: {
     categoryLabel.toLocaleLowerCase("uk-UA") !==
       productGroupLabel.toLocaleLowerCase("uk-UA");
   const subject = lowerFirst(productGroupLabel || "автозапчастини");
+  const productName = buildVisibleProductName(name || "");
+  const normalizedProducer = (producer || "").trim();
+  const normalizedArticle = (article || "").trim();
+  const identity = [
+    productName && productName !== "Товар" ? productName : "",
+    normalizedProducer &&
+    !productName.toLocaleLowerCase("uk-UA").includes(
+      normalizedProducer.toLocaleLowerCase("uk-UA")
+    )
+      ? normalizedProducer
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const priceText =
+    typeof priceUah === "number" && Number.isFinite(priceUah) && priceUah > 0
+      ? ` Ціна ${Math.round(priceUah).toLocaleString("uk-UA")} грн.`
+      : " Актуальна ціна.";
+  const availabilityText =
+    typeof quantity === "number"
+      ? quantity > 0
+        ? " Є в наявності."
+        : " Уточнюйте наявність."
+      : "";
 
   return trimSeoDescription(
     [
+      identity
+        ? `${identity}${normalizedArticle ? `, артикул ${normalizedArticle}` : ""}.`
+        : "",
       `Купити ${subject}${
         hasDistinctCategory ? ` із категорії «${categoryLabel}»` : ""
       } у PartsON.`,
-      "Актуальна ціна та наявність.",
+      `${priceText}${availabilityText}`.trim(),
       "Замовлення з доставкою по Україні.",
     ].join(" "),
     150
@@ -897,11 +930,12 @@ const trimSeoPhrase = (value: string, maxLength: number) => {
   const normalized = makeSeoTextTrim(value);
   if (normalized.length <= maxLength) return normalized;
 
-  const slice = normalized.slice(0, maxLength + 1);
+  const contentMaxLength = Math.max(1, maxLength - 1);
+  const slice = normalized.slice(0, contentMaxLength + 1);
   const boundary = Math.max(slice.lastIndexOf(" "), slice.lastIndexOf(","));
   return `${stripTrailingSeoPunctuation(
-    slice.slice(0, boundary > 48 ? boundary : maxLength)
-  )}...`;
+    slice.slice(0, boundary > Math.floor(contentMaxLength * 0.65) ? boundary : contentMaxLength)
+  )}…`;
 };
 
 const trimSeoDescription = (
@@ -948,11 +982,20 @@ const buildProductSeoTitle = (options: {
   // article first so it always survives the trim, instead of appending it
   // after truncation where it could get pushed out on longer names.
   const normalizedArticle = (article || "").trim();
-  const articleSuffix = normalizedArticle ? ` — ${normalizedArticle}` : "";
-  const descriptiveBudget = Math.max(30, 68 - articleSuffix.length);
+  const brandSuffix = " | PartsON";
+  // Keep pathological multi-code supplier values from pushing the useful
+  // product name (and the site brand) out of Google's visible title.
+  const titleArticle = normalizedArticle
+    ? trimSeoPhrase(normalizedArticle, 20)
+    : "";
+  const articleSuffix = titleArticle ? ` — ${titleArticle}` : "";
+  const descriptiveBudget = Math.max(
+    24,
+    SEO_TITLE_MAX_LENGTH - brandSuffix.length - articleSuffix.length
+  );
   const descriptive = trimSeoPhrase(withProducer, descriptiveBudget) || "Автозапчастина";
 
-  return `${descriptive}${articleSuffix}`;
+  return `${descriptive}${articleSuffix}${brandSuffix}`;
 };
 
 // Cross-reference/OEM codes live in parentheses in the raw 1C name (e.g. "(LIN030104/AD030213)")
@@ -1696,9 +1739,14 @@ export async function generateMetadata({
   });
 
   const description = buildProductMetaDescription({
+    name: seoVisibleProductName,
+    producer: productProducer,
+    article: productArticle,
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubGroup,
     subGroup: productCategory ? productSubGroup : "",
+    priceUah: seoPriceForMeta.priceUah,
+    quantity: routeProduct?.quantity,
   });
 
   const keywords = buildProductSeoKeywords({
@@ -1989,9 +2037,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
       ? toPriceUah(product.costPriceEuro, pagePrice.euroRate)
       : null;
   const schemaDescription = buildProductMetaDescription({
+    name: visibleProductName,
+    producer: product.producer,
+    article: product.article,
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubgroup,
     subGroup: productCategory ? productSubgroup : "",
+    priceUah: initialPriceUah,
+    quantity: product.quantity,
   });
   const categoryCatalogGroupValue =
     productGroup || productCategory || productSubgroup;

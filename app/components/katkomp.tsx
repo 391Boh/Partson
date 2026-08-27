@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { ChevronLeft } from "lucide-react";
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ProductNode } from "app/components/FlipCard";
@@ -783,13 +784,14 @@ const Category: React.FC<CategoryProps> = ({
   return (
     <div className="flex h-full flex-col gap-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-extrabold text-slate-800">
           {!isSearchMode && (activeCategory || activeGroup) ? (
             <button
               type="button"
               onClick={handleBack}
-              className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 transition hover:border-blue-200 hover:text-blue-600"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-extrabold text-slate-700 shadow-[0_2px_6px_rgba(15,23,42,0.06)] transition-colors duration-200 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
             >
+              <ChevronLeft size={13} strokeWidth={3} className="pointer-events-none" />
               {"\u041d\u0430\u0437\u0430\u0434"}
             </button>
           ) : null}
@@ -806,19 +808,10 @@ const Category: React.FC<CategoryProps> = ({
             ))}
         </div>
 
-        <label className="catalog-filter-search-shell group/search relative w-full shrink-0 sm:ml-auto sm:w-[340px]">
+        <label className="catalog-filter-search-shell group/search flex w-full shrink-0 items-center gap-2 sm:ml-auto sm:flex-1">
           <span className="sr-only">{searchLabelMap[step]}</span>
-          <input
-            type="text"
-            placeholder={searchPlaceholderMap[step]}
-            aria-label={searchPlaceholderMap[step]}
-            className="catalog-filter-search-input pr-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            data-search="true"
-          />
           <svg
-            className="catalog-filter-search-icon pointer-events-none absolute left-1 top-1/2 -translate-y-1/2"
+            className="catalog-filter-search-icon"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -830,12 +823,21 @@ const Category: React.FC<CategoryProps> = ({
               d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
             />
           </svg>
+          <input
+            type="text"
+            placeholder={searchPlaceholderMap[step]}
+            aria-label={searchPlaceholderMap[step]}
+            className="catalog-filter-search-input pr-10"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            data-search="true"
+          />
           {searchTerm && (
             <button
               type="button"
               onClick={() => setSearchTerm("")}
               className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-sm text-slate-400 transition-colors duration-300 ease-out hover:bg-slate-100 hover:text-slate-700"
-              aria-label="Очистити пошук"
+              aria-label="\u041e\u0447\u0438\u0441\u0442\u0438\u0442\u0438 \u043f\u043e\u0448\u0443\u043a"
             >
               {"x"}
             </button>
@@ -866,7 +868,7 @@ const Category: React.FC<CategoryProps> = ({
               <HorizontalDirectoryRail
                 ariaLabel="Результати пошуку категорій"
                 rows={2}
-                className="auto-cols-[calc((100%_-_0.5rem)/2)] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
+                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
               >
                 {searchResults.length > 0 ? (
                   searchResults.map((item) => (
@@ -874,7 +876,7 @@ const Category: React.FC<CategoryProps> = ({
                       key={item.id}
                       type="button"
                       onClick={() => handleSearchSelect(item.path)}
-                      className="catalog-filter-choice-card h-[72px] w-full rounded-[14px] border border-sky-100 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] px-3 py-2 text-left text-[10px] shadow-[0_7px_16px_rgba(15,23,42,0.06)] transition-[border-color,background-color,box-shadow] duration-300 hover:border-sky-300 hover:bg-[linear-gradient(145deg,#ffffff,#e0f2fe)] hover:shadow-[0_12px_24px_rgba(14,116,144,0.13)]"
+                      className="catalog-filter-choice-card h-[72px] w-full overflow-hidden rounded-[14px] border border-sky-100 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] px-3 py-2 text-left text-[10px] shadow-[0_7px_16px_rgba(15,23,42,0.06)] transition-[border-color,background-color,box-shadow] duration-300 hover:border-sky-300 hover:bg-[linear-gradient(145deg,#ffffff,#e0f2fe)] hover:shadow-[0_12px_24px_rgba(14,116,144,0.13)]"
                     >
                       <div className="text-[11px] font-semibold text-slate-800 line-clamp-1">
                         {getCompactDisplayLabel(item.label)}
@@ -903,7 +905,7 @@ const Category: React.FC<CategoryProps> = ({
                   <HorizontalDirectoryRail
                     ariaLabel="Категорії автозапчастин"
                     rows={2}
-                    className="auto-cols-[calc((100%_-_1rem)/3)] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)] sm:gap-3"
+                    className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
                   >
                     {filteredCategoryItems.map((item, itemIndex) => {
                     const isSelected = selectedCategories.includes(item.name);
@@ -919,26 +921,24 @@ const Category: React.FC<CategoryProps> = ({
                         key={item.name}
                         type="button"
                         onClick={() => handleCategorySelect(item.name)}
-                        className={`catalog-filter-choice-card group/card relative flex h-[72px] w-full shrink-0 cursor-pointer snap-start flex-col items-center justify-center overflow-hidden rounded-[16px] border px-2 py-1.5 text-center shadow-[0_8px_18px_rgba(15,23,42,0.07),inset_0_1px_0_white] transition-[background-color,border-color,box-shadow] duration-300 ease-out hover:shadow-[0_14px_28px_rgba(14,116,144,0.14),inset_0_1px_0_white] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 sm:px-3 ${buttonClass}`}
+                        className={`catalog-filter-choice-card group/card flex h-[72px] w-full shrink-0 cursor-pointer snap-start items-center gap-2.5 overflow-hidden rounded-[16px] border px-3 py-2 text-left shadow-[0_8px_18px_rgba(15,23,42,0.07),inset_0_1px_0_white] transition-[background-color,border-color,box-shadow] duration-300 ease-out hover:shadow-[0_14px_28px_rgba(14,116,144,0.14),inset_0_1px_0_white] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 ${buttonClass}`}
                       >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center sm:h-9 sm:w-9">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-white/70 bg-white/85 shadow-[inset_0_1px_0_white] sm:h-10 sm:w-10">
                           <Image
                             src={getCategoryIcon(getCompactDisplayLabel(item.name))}
                             alt=""
                             width={48}
                             height={48}
                             quality={80}
-                            sizes="(min-width: 640px) 48px, 40px"
+                            sizes="(min-width: 640px) 40px, 36px"
                             priority={itemIndex < 3}
                             loading={itemIndex < 3 ? undefined : "lazy"}
-                            className="h-7 w-7 object-contain sm:h-8 sm:w-8"
+                            className="h-6 w-6 object-contain sm:h-7 sm:w-7"
                           />
                         </span>
-                        <div className="mt-2 min-w-0">
-                          <div className="line-clamp-2 text-[11px] font-bold leading-tight text-slate-900 transition-colors duration-300 ease-out group-hover/card:text-blue-600 sm:text-sm sm:leading-snug">
-                            {getCompactDisplayLabel(item.name)}
-                          </div>
-                        </div>
+                        <span className="line-clamp-2 min-w-0 flex-1 text-left text-[12px] font-bold leading-tight text-slate-900 transition-colors duration-300 ease-out group-hover/card:text-blue-600 sm:text-sm sm:leading-snug">
+                          {getCompactDisplayLabel(item.name)}
+                        </span>
                       </button>
                     );
                     })}
@@ -955,7 +955,7 @@ const Category: React.FC<CategoryProps> = ({
               <HorizontalDirectoryRail
                 ariaLabel="Групи автозапчастин"
                 rows={2}
-                className="auto-cols-[calc((100%_-_0.5rem)/2)] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
+                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
               >
                 {filteredGroupItems.length > 0 ? (
                   filteredGroupItems.map((group) => {
@@ -968,17 +968,17 @@ const Category: React.FC<CategoryProps> = ({
                         key={name}
                         type="button"
                         onClick={() => handleGroupSelect(group)}
-                        className={`catalog-filter-choice-card flex h-[72px] w-full items-center justify-between rounded-[14px] border px-3 py-2 text-left text-[10px] transition-[border-color,background-color,box-shadow] duration-300 shadow-sm ${
+                        className={`catalog-filter-choice-card flex h-[72px] w-full items-center justify-between overflow-hidden rounded-[14px] border px-3 py-2 text-left text-[10px] transition-[border-color,background-color,box-shadow] duration-300 shadow-sm ${
                           isSelected
                             ? "border-emerald-200 bg-emerald-50/70 text-emerald-800"
                             : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/40"
                         }`}
                       >
-                        <span className="text-[11px] font-semibold text-slate-800 line-clamp-1">
+                        <span className="line-clamp-2 min-w-0 flex-1 text-[12px] font-bold leading-tight text-slate-800 sm:text-sm">
                           {getCompactDisplayLabel(name)}
                         </span>
                         {hasChildren && (
-                          <span className="text-[10px] text-slate-400">{">"}</span>
+                          <span className="shrink-0 text-slate-400">{">"}</span>
                         )}
                       </button>
                     );
@@ -995,7 +995,7 @@ const Category: React.FC<CategoryProps> = ({
               <HorizontalDirectoryRail
                 ariaLabel="Підгрупи автозапчастин"
                 rows={2}
-                className="auto-cols-[calc((100%_-_0.5rem)/2)] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
+                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
               >
                 {filteredSubgroupItems.length > 0 ? (
                   filteredSubgroupItems.map((item) => {
@@ -1006,13 +1006,13 @@ const Category: React.FC<CategoryProps> = ({
                         key={item.id}
                         type="button"
                         onClick={() => handleSubgroupSelect(item)}
-                        className={`catalog-filter-choice-card h-[72px] w-full rounded-[14px] border px-3 py-2 text-left text-[10px] transition-[border-color,background-color,box-shadow] duration-300 shadow-sm ${
+                        className={`catalog-filter-choice-card flex h-[72px] w-full flex-col justify-center gap-0.5 overflow-hidden rounded-[14px] border px-3 py-2 text-left text-[10px] transition-[border-color,background-color,box-shadow] duration-300 shadow-sm ${
                           isSelected
                             ? "border-emerald-200 bg-emerald-50/70 text-emerald-800"
                             : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/40"
                         }`}
                       >
-                        <div className="text-[11px] font-semibold text-slate-800 line-clamp-1">
+                        <div className="text-[12px] font-bold leading-tight text-slate-800 line-clamp-2 sm:text-sm">
                           {getCompactDisplayLabel(item.label)}
                         </div>
                         {item.trail ? (

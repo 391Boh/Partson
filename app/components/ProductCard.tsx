@@ -1082,7 +1082,7 @@ useEffect(() => {
                             </button>
                         </div>
                     ) : (
-                        <div className="catalog-card-price-row group/price mt-2 flex w-full items-center gap-1.5 sm:mt-2.5">
+                        <div className="catalog-card-price-row group/price mt-2 flex w-full flex-wrap items-center gap-1.5 gap-y-1 sm:mt-2.5">
                             {/* Pill toggle Прод / Закуп — visible to any admin, even before a
                                 cost price has ever been saved, so they have a way to switch into
                                 "Закуп" mode and enter one for the first time via the pencil edit
@@ -1093,7 +1093,7 @@ useEffect(() => {
                                     <button
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); setShowCostPrice(false); }}
-                                        className={`px-2 py-[3px] rounded-[7px] text-[9px] font-black uppercase tracking-[0.07em] transition-all duration-150 leading-none ${
+                                        className={`px-1.5 py-[3px] rounded-[7px] text-[9px] font-black uppercase tracking-[0.07em] transition-all duration-150 leading-none sm:px-2 ${
                                             !showCostPrice
                                                 ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-200/60'
                                                 : 'text-slate-400 hover:text-slate-600'
@@ -1102,7 +1102,7 @@ useEffect(() => {
                                     <button
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); setShowCostPrice(true); }}
-                                        className={`px-2 py-[3px] rounded-[7px] text-[9px] font-black uppercase tracking-[0.07em] transition-all duration-150 leading-none ${
+                                        className={`px-1.5 py-[3px] rounded-[7px] text-[9px] font-black uppercase tracking-[0.07em] transition-all duration-150 leading-none sm:px-2 ${
                                             showCostPrice
                                                 ? 'bg-white text-amber-700 shadow-sm ring-1 ring-amber-200/60'
                                                 : 'text-slate-400 hover:text-slate-600'
@@ -1111,7 +1111,7 @@ useEffect(() => {
                                 </div>
                             )}
                             {/* Price display */}
-                            <div className={`ml-auto flex min-h-[32px] w-fit max-w-[72%] items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
+                            <div className={`ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
                                 <span className={`text-[10px] font-bold uppercase tracking-[0.06em] ${showCostPrice ? 'text-amber-500' : 'text-slate-400'}`}>
                                     {showCostPrice ? 'Закуп:' : 'Ціна:'}
                                 </span>
@@ -1151,7 +1151,7 @@ useEffect(() => {
                                         }
                                         setQuickEditPrice(true);
                                     }}
-                                    className="inline-flex min-h-8 min-w-8 flex-shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 p-1 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-[0.95] sm:opacity-0 sm:group-hover/price:opacity-100 sm:group-focus-within/price:opacity-100 transition-all duration-150"
+                                    className="inline-flex min-h-7 min-w-7 flex-shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 p-1 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-[0.95] sm:min-h-8 sm:min-w-8 sm:opacity-0 sm:group-hover/price:opacity-100 sm:group-focus-within/price:opacity-100 transition-all duration-150"
                                     title="Редагувати ціну"
                                 >
                                     <Pencil size={11} />
@@ -1375,7 +1375,7 @@ useEffect(() => {
       {/* ---------- BACK ---------- */}
 <div
     className={`
-        catalog-card-face absolute inset-0 w-full h-full backface-hidden
+        catalog-card-face absolute inset-0 w-full h-full backface-hidden overflow-hidden
         rounded-[1.35rem] border
         ${isAdmin ? "border-violet-200/80" : "border-slate-200"}
         bg-[linear-gradient(155deg,rgba(248,250,252,1)_0%,rgba(255,255,255,0.98)_50%,rgba(240,249,255,0.95)_100%)]
