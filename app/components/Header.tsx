@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, type ComponentType } from 'react';
 import dynamic from 'next/dynamic';
 import {
   ShoppingCart, User, Menu, Info,
-  List, Truck, CreditCard, MapPin, Users, Phone, PhoneCall, Search, ShieldCheck, RotateCcw, Wrench,
+  List, Truck, CreditCard, MapPin, Users, Phone, Search, ShieldCheck, RotateCcw, Wrench,
   CarFront, Factory, Layers3, BookOpen
 } from 'lucide-react';
 import Image from 'next/image';
@@ -13,7 +13,6 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { useCart } from 'app/context/CartContext';
 import { useFirebaseAuthState } from 'app/lib/firebase-auth-state';
 import SmartLink from 'app/components/SmartLink';
-import { STORE_PHONE_DISPLAY, STORE_PHONE_TEL } from 'app/lib/seo-metadata';
 import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { createPortal } from 'react-dom';
 
@@ -357,15 +356,6 @@ const Header: React.FC = () => {
   const contactActionActiveClass =
     '!border-rose-100/80 !bg-[image:linear-gradient(145deg,rgba(225,29,72,0.99),rgba(244,63,94,0.97)_50%,rgba(251,113,133,0.94))] !text-white !shadow-[0_10px_24px_rgba(225,29,72,0.30),inset_0_1px_0_rgba(255,255,255,0.28)] !translate-y-0';
 
-  // A direct tel: link, not another modal toggle like "Контакти" below — one
-  // tap to call instead of one tap to open a modal then another to dial.
-  // Site-wide (every page, not just the homepage) so it's a consistent,
-  // always-crawlable call action rather than something only Googlebot would
-  // find on one URL.
-  const callActionClass =
-    'border-emerald-200/50 bg-[image:linear-gradient(145deg,rgba(5,150,105,0.94),rgba(16,185,129,0.92)_54%,rgba(52,211,153,0.88))] text-white shadow-[0_4px_14px_rgba(5,150,105,0.26),0_2px_6px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] hover:border-emerald-100/60 hover:brightness-[1.035] hover:shadow-[0_6px_18px_rgba(16,185,129,0.28),0_2px_7px_rgba(0,0,0,0.17),inset_0_1px_0_rgba(255,255,255,0.25)]';
-
-
   const dropdownBaseClass =
     'app-header-dropdown font-ui fixed inset-x-3 top-[calc(var(--header-height,4rem)+0.55rem)] z-[90] max-h-[calc(100svh-var(--header-height,4rem)-1rem)] origin-top overflow-y-auto rounded-[20px] border border-sky-100/16 p-2 text-white shadow-[0_18px_42px_rgba(2,6,23,0.34),0_12px_28px_rgba(2,6,23,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-sky-100/10 backdrop-blur-xl select-none transition-all duration-150 ease-out sm:absolute sm:inset-x-auto sm:left-1/2 sm:top-auto sm:mt-5 sm:-translate-x-1/2 sm:rounded-[18px] sm:p-1.5';
 
@@ -620,19 +610,6 @@ const Header: React.FC = () => {
               </span>
             )}
           </button>
-
-          {/* CALL — direct tel: link, distinct from the "Контакти" modal below */}
-          <a
-            href={`tel:${STORE_PHONE_TEL}`}
-            aria-label={`Зателефонувати: ${STORE_PHONE_DISPLAY}`}
-            title={STORE_PHONE_DISPLAY}
-            onMouseDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-            className={`${rightActionBaseClass} ${callActionClass}`}
-          >
-            <PhoneCall size={17} className="sm:size-4" />
-            <span className="hidden sm:inline cursor-pointer select-none">Зателефонувати</span>
-          </a>
 
           {/* PHONE */}
           <button
