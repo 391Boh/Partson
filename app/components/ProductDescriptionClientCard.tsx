@@ -2,7 +2,15 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { MapPin, Phone } from "lucide-react";
+import { Check, MapPin, Phone } from "lucide-react";
+
+// seoDetails items are server-built as "Label: rest of the sentence." (see
+// productSeoDetails in app/product/[code]/page.tsx) — bolding the label
+// when that shape holds gives each bullet a scannable lead-in instead of a
+// flat wall of same-weight text. Capped label length + requiring the rest
+// to be non-empty guards against a stray mid-sentence colon (e.g. a time
+// "10:00") being mistaken for one.
+const SEO_DETAIL_LABEL_PATTERN = /^([^:]{2,42}):\s+(\S.*)$/s;
 
 type ProductDescriptionClientCardProps = {
   initialText?: string | null;
@@ -252,7 +260,7 @@ export default function ProductDescriptionClientCard({
           <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-sky-900">
             Характеристики та застосування
           </p>
-          <h2 className="font-display mt-1 text-[1.05rem] font-extrabold italic leading-[1.12] tracking-normal text-slate-950 sm:text-[1.16rem]">
+          <h2 className="font-display mt-1 text-[1.05rem] font-extrabold leading-[1.18] tracking-[-0.015em] text-slate-800 sm:text-[1.16rem]">
             {productName
               ? productName.length > 58
                 ? `${productName.slice(0, 58).trimEnd()}…`
@@ -354,13 +362,30 @@ export default function ProductDescriptionClientCard({
           <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-600">
             {seoDetails.title}
           </p>
-          <ul className="mt-2 grid gap-2 text-[13px] font-medium leading-5 text-slate-600 sm:grid-cols-2">
-            {seoDetails.items.map((item) => (
-              <li key={item} className="flex items-start gap-2 rounded-[12px] border border-slate-100 bg-slate-50/70 px-2.5 py-2">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
-                <span>{item}</span>
-              </li>
-            ))}
+          <ul className="mt-2 grid gap-2 text-[13px] leading-[1.55] text-slate-600 sm:grid-cols-2">
+            {seoDetails.items.map((item) => {
+              const match = item.match(SEO_DETAIL_LABEL_PATTERN);
+              return (
+                <li
+                  key={item}
+                  className="flex items-start gap-2.5 rounded-[12px] border border-slate-100 bg-slate-50/70 px-3 py-2.5 transition-colors duration-200 hover:border-sky-100 hover:bg-sky-50/50"
+                >
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700">
+                    <Check size={11} strokeWidth={3} />
+                  </span>
+                  <span>
+                    {match ? (
+                      <>
+                        <span className="font-bold text-slate-900">{match[1]}: </span>
+                        {match[2]}
+                      </>
+                    ) : (
+                      item
+                    )}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ) : null}

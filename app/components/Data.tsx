@@ -5243,7 +5243,16 @@ const Data: React.FC<DataProps> = ({
                   <div
                     key={stableKey || `${code || "item"}-${index}`}
                     data-catalog-card="1"
-                    className="min-w-0"
+                    className={`min-w-0 ${
+                      shouldAnimateList && absoluteIndex < 12
+                        ? "catalog-card-reveal"
+                        : ""
+                    }`}
+                    style={
+                      shouldAnimateList && absoluteIndex < 12
+                        ? ({ "--catalog-reveal-index": absoluteIndex } as React.CSSProperties)
+                        : undefined
+                    }
                   >
                     {viewMode === "list" ? (
                       <ProductListRow
@@ -5319,7 +5328,18 @@ const Data: React.FC<DataProps> = ({
               )}
 
               {shouldShowInitialSkeleton && (
-                <CatalogTransitionLoader label={filterTransitionLabel} />
+                // Before the very first successful fetch, this slot picks up
+                // right after KatalogClientPage's own CatalogStateLoader (same
+                // "Завантажую каталог" wording, same box height) — matching
+                // both keeps that handoff from reading as two different
+                // loaders flashing in sequence. Once real data has loaded at
+                // least once, a filter/sort change re-showing this skeleton
+                // switches to the specific filterTransitionLabel instead,
+                // since that's a status update for an action the user just
+                // took, not part of the initial-load handoff.
+                <CatalogTransitionLoader
+                  label={hasLoadedOnce ? filterTransitionLabel : "Завантажую каталог"}
+                />
               )}
 
               {showInlineLoader && (

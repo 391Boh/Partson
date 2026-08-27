@@ -465,11 +465,52 @@ export const getOtherPagesSitemapEntries = cache(async (): Promise<SitemapPathEn
       lastModified: contentLastModified,
       changeFrequency: "daily",
       priority: 1,
+      // The homepage's real storefront photo gallery (app/components/
+      // AdvantagesSection.tsx's `galleryItems`, kept in sync with that list)
+      // wasn't in any sitemap — real photos of the physical shop are the
+      // most distinctive, non-duplicated images on the whole site, and the
+      // homepage is the highest-authority page to submit them under for
+      // Google Images (e.g. "автозапчастини львів" image search).
       images: [
         {
           loc: "/opengraph-partson-v2.png",
           title: "PartsON - інтернет-магазин автозапчастин у Львові",
           caption: "Каталог автозапчастин PartsON з підбором за кодом, авто і виробником",
+        },
+        {
+          loc: "/storefront/photos/partson-store-1.jpg",
+          title: "Магазин автозапчастин PartsON у Львові на вулиці Перфецького, 8",
+          caption: "Магазин автозапчастин PartsON у Львові на вулиці Перфецького, 8",
+        },
+        {
+          loc: "/storefront/photos/partson-store-4.jpg",
+          title: "Моторні оливи GM, Mercedes-Benz, Ford, ELF і Mobil у магазині PartsON",
+          caption: "Моторні оливи GM, Mercedes-Benz, Ford, ELF і Mobil у магазині PartsON",
+        },
+        {
+          loc: "/storefront/photos/partson-store-2.jpg",
+          title: "Автотовари Bosch і Vitol, компресори, домкрати та пускові пристрої",
+          caption: "Автотовари Bosch і Vitol, компресори, домкрати та пускові пристрої",
+        },
+        {
+          loc: "/storefront/photos/partson-store-3.jpg",
+          title: "Асортимент запчастин та витратних матеріалів у магазині PartsON",
+          caption: "Асортимент запчастин та витратних матеріалів у магазині PartsON",
+        },
+        {
+          loc: "/storefront/photos/partson-store-5.jpg",
+          title: "Торговий зал інтернет-магазину автозапчастин PartsON у Львові",
+          caption: "Торговий зал інтернет-магазину автозапчастин PartsON у Львові",
+        },
+        {
+          loc: "/storefront/photos/partson-store-6.jpg",
+          title: "Оригінальні автозапчастини та перевірені аналоги в каталозі PartsON",
+          caption: "Оригінальні автозапчастини та перевірені аналоги в каталозі PartsON",
+        },
+        {
+          loc: "/storefront/photos/partson-store-7.jpg",
+          title: "Автомобільні комплектуючі з доставкою зі Львова по Україні",
+          caption: "Автомобільні комплектуючі з доставкою зі Львова по Україні",
         },
       ],
     },

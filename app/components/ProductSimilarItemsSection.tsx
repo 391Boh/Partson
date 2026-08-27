@@ -88,7 +88,7 @@ export default async function ProductSimilarItemsSection({
           <p className="mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-sky-800">
             Та сама група або підгрупа
           </p>
-          <h2 className="font-display-italic mt-0.5 break-words text-[1.05rem] font-black leading-tight text-slate-950 sm:text-[1.2rem]">
+          <h2 className="font-display mt-0.5 break-words text-[1.05rem] font-extrabold leading-tight tracking-[-0.015em] text-slate-800 sm:text-[1.2rem]">
             {sectionTitle}
           </h2>
         </div>

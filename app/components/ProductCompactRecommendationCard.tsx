@@ -75,7 +75,7 @@ export default function ProductCompactRecommendationCard({
           </span>
         </div>
 
-        <p className="mt-1 line-clamp-3 break-words text-[11.5px] font-extrabold leading-[1.12] text-slate-950 sm:line-clamp-2 sm:text-[11.5px] lg:text-[12px]">
+        <p className="mt-1 line-clamp-3 break-words text-[11.5px] font-extrabold leading-[1.16] text-slate-800 sm:line-clamp-2 sm:text-[11.5px] lg:text-[12px]">
           {visibleName}
         </p>
 

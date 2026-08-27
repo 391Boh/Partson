@@ -1202,14 +1202,13 @@ const AutoSection: React.FC<AutoProps> = ({
     resetToBrandIfEmpty();
   }, [resetToBrandIfEmpty, selectedCarRows, vinRows]);
 
+    // home-glow-section (also used by tovar.tsx/Brands.tsx, its "twin"
+    // homepage widgets) replaces this component's old bespoke ambient
+    // gradient — same idea (a tinted background that brightens on hover),
+    // but now the same shared system across all three, instead of each one
+    // animating its own differently-timed effect.
     return (
-      <div className={`group/auto select-none ${isFilterVariant ? "" : "relative pb-3 pt-5 sm:pb-4 sm:pt-6"}`}>
-        {!isFilterVariant && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 z-0 opacity-45 bg-[image:linear-gradient(120deg,#e0f2fe_0%,#7dd3fc_50%,#e0f2fe_100%)] transition-opacity duration-700 ease-out group-hover/auto:opacity-90"
-          />
-        )}
+      <div className={`group/auto select-none ${isFilterVariant ? "" : "home-glow-section home-glow-section-sky relative overflow-hidden pb-3 pt-5 sm:pb-4 sm:pt-6"}`}>
       <div className={`relative z-10 ${isFilterVariant ? "" : "page-shell-inline flex flex-col gap-3 sm:gap-4"}`}>
         {!isFilterVariant && (!selectedBrand || activeTab === "model") && (
           <div className="group/search relative w-full min-w-0 overflow-hidden rounded-[22px] border border-sky-300/80 bg-[radial-gradient(circle_at_0%_0%,rgba(56,189,248,0.14),transparent_34%),linear-gradient(125deg,#ffffff_0%,#ffffff_55%,#f2f8fd_100%)] px-3 pb-3 pt-3 text-gray-800 shadow-[0_18px_40px_rgba(15,23,42,0.12),0_5px_14px_rgba(2,132,199,0.08),inset_0_-16px_28px_-20px_rgba(56,189,248,0.12),inset_0_1px_0_#fff] ring-1 ring-white transition-[border-color,box-shadow] duration-300 hover:border-sky-400 hover:shadow-[0_22px_48px_rgba(15,23,42,0.14),0_6px_16px_rgba(2,132,199,0.12),inset_0_-16px_28px_-20px_rgba(56,189,248,0.16),inset_0_1px_0_#fff] sm:px-4 sm:py-4">

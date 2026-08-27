@@ -144,7 +144,7 @@ const ProductCard: React.FC<Props> = ({
 }) => {
     const motionEnabled = motionEnabledProp ?? true;
     const cardMotionClass = motionEnabled
-        ? "transition-[border-color,box-shadow] duration-300 ease-out motion-reduce:transition-none"
+        ? "transition-[border-color,box-shadow,transform] duration-300 ease-out motion-reduce:transition-none"
         : "";
     const flipMotionClass = motionEnabled
         ? "transition-transform duration-300 ease-out motion-reduce:transition-none"
@@ -791,9 +791,8 @@ useEffect(() => {
                     <div
                         className={`
                             catalog-card-hero group flex flex-row w-full ${quickEditName ? "h-auto min-h-20" : "h-20"} mb-2 p-1.5 rounded-xl
-                            bg-gradient-to-r from-slate-100 to-slate-200
-                            hover:from-white hover:to-slate-100
-                            transition-all duration-200 border border-slate-200/70 hover:border-slate-300
+                            bg-[linear-gradient(135deg,rgba(248,252,255,1),rgba(232,246,254,0.96),rgba(238,251,247,0.94))]
+                            transition-all duration-300 border border-sky-100/90 hover:border-cyan-200
                             shadow-sm hover:shadow-md
                         `}
                     >
@@ -806,7 +805,7 @@ useEffect(() => {
                                 // catalog responses can omit hasPhoto even though the
                                 // product image route already has a valid photo.
                                 hasKnownPhoto={item.hasPhoto !== false}
-                                className="w-full h-full transition-transform duration-200 group-hover:scale-[1.02]"
+                                className="w-full h-full transition-transform duration-500 ease-out group-hover:scale-[1.055] motion-reduce:transform-none motion-reduce:transition-none"
                                 onClick={() => onImageOpen(code, item.article)}
                                 loadingMode={imageLoadingMode}
                                 fetchPriority={imageFetchPriority}
@@ -906,7 +905,7 @@ useEffect(() => {
                                                 ],
                                             });
                                         }}
-                                        className="catalog-card-name catalog-product-title text-left text-[14.5px] text-slate-900 sm:text-[15.5px] transition-colors duration-200 hover:text-blue-700 no-underline line-clamp-4 sm:line-clamp-3"
+                                        className="catalog-card-name catalog-product-title text-left text-[14.5px] text-slate-800 sm:text-[15.5px] transition-colors duration-200 hover:text-sky-700 no-underline line-clamp-4 sm:line-clamp-3"
                                         title={name}
                                     >
                                         <span itemProp="name">{name}</span>

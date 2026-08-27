@@ -4,20 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 
 import ProductCompactRecommendationCard from "app/components/ProductCompactRecommendationCard";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
-
-type RecentlyViewedProduct = {
-  code: string;
-  article: string;
-  name: string;
-  producer: string;
-  quantity: number;
-  priceEuro?: number | null;
-  group?: string;
-  subGroup?: string;
-  category?: string;
-  hasPhoto?: boolean;
-  viewedAt: number;
-};
+import {
+  isSameRecentlyViewedProduct,
+  normalizeRecentlyViewedIdentity,
+  readRecentlyViewed,
+  RECENTLY_VIEWED_KEY,
+  RECENTLY_VIEWED_UPDATED_EVENT,
+  type RecentlyViewedProduct,
+} from "app/lib/recently-viewed";
 
 type ProductRecentlyViewedSectionProps = {
   product: {
@@ -35,14 +29,14 @@ type ProductRecentlyViewedSectionProps = {
   euroRate?: number;
 };
 
-const RECENTLY_VIEWED_KEY = "partson:v1:recently-viewed-products";
-const RECENTLY_VIEWED_LIMIT = 12;
 const VISIBLE_RECENTLY_VIEWED_LIMIT = 6;
-const RECENTLY_VIEWED_PRICE_TIMEOUT_MS = 700;
+const RECENTLY_VIEWED_PRICE_TIMEOUT_MS = 2200;
 const RECOMMENDATION_VISIBLE_ITEMS_EVENT = "partson:product-recommendation-visible-items";
+const RECOMMENDATION_VISIBLE_ITEMS_STORAGE_PREFIX =
+  "partson:product-recommendation-visible-items:";
 
 const normalizeIdentity = (value: string | null | undefined) =>
-  (value || "").replace(/\s+/g, " ").trim().toLowerCase();
+  normalizeRecentlyViewedIdentity(value);
 
 const buildRecommendationIdentityKeys = (
   item: Pick<RecentlyViewedProduct, "code" | "article">
@@ -113,44 +107,6 @@ const scheduleRecentlyViewedTask = (task: () => void) => {
   };
 };
 
-const readRecentlyViewed = () => {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const raw = window.localStorage.getItem(RECENTLY_VIEWED_KEY);
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed
-      .filter((item): item is RecentlyViewedProduct => {
-        if (!item || typeof item !== "object") return false;
-        const candidate = item as Partial<RecentlyViewedProduct>;
-        return Boolean(
-          normalizeIdentity(candidate.code || candidate.article) &&
-            typeof candidate.name === "string"
-        );
-      })
-      .slice(0, RECENTLY_VIEWED_LIMIT);
-  } catch {
-    return [];
-  }
-};
-
-const writeRecentlyViewed = (items: RecentlyViewedProduct[]) => {
-  if (typeof window === "undefined") return;
-
-  try {
-    window.localStorage.setItem(
-      RECENTLY_VIEWED_KEY,
-      JSON.stringify(items.slice(0, RECENTLY_VIEWED_LIMIT))
-    );
-  } catch {
-    // Ignore private mode and quota issues.
-  }
-};
-
 export default function ProductRecentlyViewedSection({
   product,
   euroRate = 50,
@@ -197,6 +153,24 @@ export default function ProductRecentlyViewedSection({
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
 
   useEffect(() => {
+    try {
+      const storedKeys = JSON.parse(
+        window.sessionStorage.getItem(
+          `${RECOMMENDATION_VISIBLE_ITEMS_STORAGE_PREFIX}${normalizeIdentity(
+            currentItem.code || currentItem.article
+          )}`
+        ) || "[]"
+      );
+      if (Array.isArray(storedKeys)) {
+        setBlockedRecommendationKeys(
+          new Set(storedKeys.filter((key): key is string => typeof key === "string"))
+        );
+      }
+    } catch {
+      // The live event below remains the source of truth.
+      setBlockedRecommendationKeys(new Set());
+    }
+
     const handleVisibleRecommendationItems = (event: Event) => {
       const keys = (event as CustomEvent<{ keys?: string[] }>).detail?.keys;
       setBlockedRecommendationKeys(new Set(Array.isArray(keys) ? keys : []));
@@ -213,31 +187,28 @@ export default function ProductRecentlyViewedSection({
         handleVisibleRecommendationItems
       );
     };
-  }, []);
+  }, [currentItem.article, currentItem.code]);
 
   useEffect(() => {
-    return scheduleRecentlyViewedTask(() => {
-      const currentCode = normalizeIdentity(currentItem.code);
-      const currentArticle = normalizeIdentity(currentItem.article);
-      const storedItems = readRecentlyViewed();
-      const visibleItems = storedItems.filter((item) => {
-        const itemCode = normalizeIdentity(item.code);
-        const itemArticle = normalizeIdentity(item.article);
-        return !(
-          (currentCode && itemCode === currentCode) ||
-          (currentArticle && itemArticle === currentArticle)
-        );
-      });
+    const refreshItems = () => {
+      setItems(
+        readRecentlyViewed()
+          .filter((item) => !isSameRecentlyViewedProduct(item, currentItem))
+          .slice(0, VISIBLE_RECENTLY_VIEWED_LIMIT)
+      );
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key && event.key !== RECENTLY_VIEWED_KEY) return;
+      refreshItems();
+    };
 
-      setItems(visibleItems.slice(0, VISIBLE_RECENTLY_VIEWED_LIMIT));
-
-      if (!currentCode && !currentArticle) return;
-
-      writeRecentlyViewed([
-        { ...currentItem, viewedAt: Date.now() },
-        ...visibleItems,
-      ]);
-    });
+    refreshItems();
+    window.addEventListener(RECENTLY_VIEWED_UPDATED_EVENT, refreshItems);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(RECENTLY_VIEWED_UPDATED_EVENT, refreshItems);
+      window.removeEventListener("storage", handleStorage);
+    };
   }, [currentItem]);
 
   const visibleItems = useMemo(() => {
@@ -288,7 +259,7 @@ export default function ProductRecentlyViewedSection({
           );
         });
         const response = await Promise.race([
-          fetch("/api/catalog-prices?mode=full", {
+          fetch("/api/catalog-prices", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ items: priceItems }),
@@ -344,7 +315,7 @@ export default function ProductRecentlyViewedSection({
           <p className="mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-amber-800">
             Нещодавні
           </p>
-          <h2 className="font-display-italic mt-0.5 break-words text-[1.05rem] font-black leading-tight text-slate-950 sm:text-[1.18rem]">
+          <h2 className="font-display mt-0.5 break-words text-[1.05rem] font-extrabold leading-tight tracking-[-0.015em] text-slate-800 sm:text-[1.18rem]">
             Останні переглянуті позиції
           </h2>
         </div>

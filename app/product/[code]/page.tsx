@@ -203,21 +203,7 @@ const ProductReviewsSection = dynamic(
 
 const ProductDeferredRecommendations = dynamic(
   () => import("app/components/ProductDeferredRecommendations"),
-  {
-    loading: () => (
-      <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-white/92 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.05)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
-        <div className="h-5 w-64 max-w-full animate-pulse rounded-full bg-slate-100" />
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-2.5">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div
-              key={index}
-              className="h-[92px] min-w-0 animate-pulse rounded-[14px] border border-slate-200 bg-slate-100 sm:h-[88px]"
-            />
-          ))}
-        </div>
-      </section>
-    ),
-  }
+  { loading: () => null }
 );
 
 const ProductRelatedItemsFallback = () => (
@@ -253,7 +239,7 @@ interface ProductPageProps {
 
 const pageBackground: CSSProperties = {
   backgroundImage:
-    "radial-gradient(circle at 0% 0%, rgba(14,165,233,0.18), transparent 24%), radial-gradient(circle at 100% 8%, rgba(20,184,166,0.1), transparent 22%), linear-gradient(180deg, #edf5f9 0%, #f8fafc 42%, #eef4f8 100%)",
+    "radial-gradient(circle at 4% 0%, rgba(14,165,233,0.18), transparent 25%), radial-gradient(circle at 96% 10%, rgba(45,212,191,0.12), transparent 23%), radial-gradient(circle at 50% 72%, rgba(125,211,252,0.08), transparent 30%), linear-gradient(180deg, #edf6fb 0%, #f8fafc 38%, #f2f7fa 100%)",
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -862,16 +848,11 @@ const getCatalogProductUncached = async (code: string) => {
 const getCatalogProduct = cache(getCatalogProductUncached);
 
 const buildProductMetaDescription = (options: {
-  name?: string;
-  producer?: string;
-  article?: string;
   category?: string;
   group?: string;
   subGroup?: string;
-  priceUah?: number | null;
-  quantity?: number;
 }) => {
-  const { name, producer, article, category, group, subGroup, priceUah, quantity } = options;
+  const { category, group, subGroup } = options;
   const cleanLabel = (value?: string) => {
     const label = buildVisibleCategoryLabel(value || "");
     return label === "Товар" ? "" : label;
@@ -886,41 +867,21 @@ const buildProductMetaDescription = (options: {
     categoryLabel.toLocaleLowerCase("uk-UA") !==
       productGroupLabel.toLocaleLowerCase("uk-UA");
   const subject = lowerFirst(productGroupLabel || "автозапчастини");
-  const productName = buildVisibleProductName(name || "");
-  const normalizedProducer = (producer || "").trim();
-  const normalizedArticle = (article || "").trim();
-  const identity = [
-    productName && productName !== "Товар" ? productName : "",
-    normalizedProducer &&
-    !productName.toLocaleLowerCase("uk-UA").includes(
-      normalizedProducer.toLocaleLowerCase("uk-UA")
-    )
-      ? normalizedProducer
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const priceText =
-    typeof priceUah === "number" && Number.isFinite(priceUah) && priceUah > 0
-      ? ` Ціна ${Math.round(priceUah).toLocaleString("uk-UA")} грн.`
-      : " Актуальна ціна.";
-  const availabilityText =
-    typeof quantity === "number"
-      ? quantity > 0
-        ? " Є в наявності."
-        : " Уточнюйте наявність."
-      : "";
 
+  // Deliberately no product name/producer/article/price here — the name
+  // already leads the <title> tag right above this in a SERP snippet (and
+  // the H1 on-page), so repeating it just burns the ~150-char budget on a
+  // duplicate; price/availability belong in the Offer's own JSON-LD fields
+  // (see `offers` below) which search engines read as a separate indicator,
+  // not as prose duplicated into the description.
   return trimSeoDescription(
     [
-      identity
-        ? `${identity}${normalizedArticle ? `, артикул ${normalizedArticle}` : ""}.`
-        : "",
       `Купити ${subject}${
         hasDistinctCategory ? ` із категорії «${categoryLabel}»` : ""
-      } у PartsON.`,
-      `${priceText}${availabilityText}`.trim(),
-      "Замовлення з доставкою по Україні.",
+      } у Львові.`,
+      "Перевірений асортимент товарів.",
+      "вул. Перфецького, 8.",
+      "Онлайн замовлення!",
     ].join(" "),
     150
   );
@@ -1739,14 +1700,9 @@ export async function generateMetadata({
   });
 
   const description = buildProductMetaDescription({
-    name: seoVisibleProductName,
-    producer: productProducer,
-    article: productArticle,
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubGroup,
     subGroup: productCategory ? productSubGroup : "",
-    priceUah: seoPriceForMeta.priceUah,
-    quantity: routeProduct?.quantity,
   });
 
   const keywords = buildProductSeoKeywords({
@@ -2037,14 +1993,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
       ? toPriceUah(product.costPriceEuro, pagePrice.euroRate)
       : null;
   const schemaDescription = buildProductMetaDescription({
-    name: visibleProductName,
-    producer: product.producer,
-    article: product.article,
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubgroup,
     subGroup: productCategory ? productSubgroup : "",
-    priceUah: initialPriceUah,
-    quantity: product.quantity,
   });
   const categoryCatalogGroupValue =
     productGroup || productCategory || productSubgroup;
@@ -2304,7 +2255,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   ];
   return (
     <div
-      className={isModalView ? "min-h-screen select-none bg-white text-slate-900" : "min-h-screen select-none text-slate-900"}
+      className={isModalView ? "min-h-screen bg-white text-slate-900" : "min-h-screen text-slate-900"}
       style={isModalView ? undefined : pageBackground}
     >
       <div
@@ -2315,13 +2266,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
         }
       >
         <article
-          className={`overflow-hidden border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.98),rgba(255,255,255,1))] shadow-[0_22px_58px_rgba(15,23,42,0.1)] ${
-            isModalView ? "rounded-2xl" : "rounded-[24px] sm:rounded-[26px]"
+          className={`overflow-hidden border border-white/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.97),rgba(255,255,255,1))] shadow-[0_30px_80px_rgba(15,23,42,0.11),0_8px_24px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 ${
+            isModalView ? "rounded-2xl" : "rounded-[26px] sm:rounded-[30px]"
           }`}
         >
-          <header className="relative m-2 block h-auto min-h-0 overflow-hidden rounded-[20px] border border-slate-200/90 bg-[linear-gradient(135deg,rgba(248,250,252,0.99),rgba(240,249,255,0.97)_48%,rgba(255,255,255,0.94)_100%)] px-3 py-3 shadow-[0_16px_42px_rgba(15,23,42,0.09)] ring-1 ring-white/80 transition-[box-shadow,border-color,background-color] duration-300 sm:m-3 sm:rounded-[24px] sm:px-4 sm:py-4">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(14,165,233,0.13),transparent_30%),radial-gradient(circle_at_92%_12%,rgba(20,184,166,0.08),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.38),transparent_58%)]" />
-            <div className="pointer-events-none absolute inset-y-6 left-0 w-[3px] rounded-full bg-gradient-to-b from-sky-400 via-cyan-200 to-red-400/70" />
+          <header className="relative m-2 block h-auto min-h-0 overflow-hidden rounded-[22px] border border-sky-100/90 bg-[linear-gradient(135deg,rgba(248,252,255,0.99),rgba(238,249,255,0.97)_45%,rgba(246,253,251,0.96)_100%)] px-3 py-3 shadow-[0_20px_54px_rgba(15,23,42,0.085)] ring-1 ring-white sm:m-3 sm:rounded-[27px] sm:px-5 sm:py-5">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_4%,rgba(14,165,233,0.16),transparent_31%),radial-gradient(circle_at_94%_8%,rgba(20,184,166,0.11),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.45),transparent_60%)]" />
+            <div className="pointer-events-none absolute inset-y-7 left-0 w-[3px] rounded-full bg-gradient-to-b from-sky-400 via-cyan-300 to-teal-400" />
             <div className="pointer-events-none absolute left-6 right-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-red-200/70" />
             <div className="pointer-events-none absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-sky-200/30 via-white to-transparent" />
             <div className="pointer-events-none absolute right-8 top-6 h-20 w-20 rounded-full border border-white/50 bg-[radial-gradient(circle,rgba(255,255,255,0.82)_0%,rgba(224,242,254,0.4)_52%,transparent_74%)]" />
@@ -2343,9 +2294,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </ol>
                 </nav>
               )}
-              <div className="grid gap-3 xl:grid-cols-[minmax(190px,224px)_minmax(0,1fr)_296px] xl:items-stretch 2xl:grid-cols-[minmax(204px,240px)_minmax(0,1fr)_312px]">
-                <div className="order-2 min-w-0 self-stretch xl:order-1">
-                  <div className="flex h-full flex-col overflow-hidden rounded-[20px] border border-white/90 bg-white/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_14px_30px_rgba(14,165,233,0.1)] transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-200 hover:bg-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,1),0_18px_38px_rgba(14,165,233,0.15)]">
+              <div className="grid gap-3.5 lg:grid-cols-[minmax(210px,0.78fr)_minmax(300px,1.45fr)_minmax(275px,0.92fr)] lg:items-stretch xl:grid-cols-[minmax(220px,0.78fr)_minmax(0,1.5fr)_310px]">
+                <div className="order-1 min-w-0 self-stretch">
+                  <div className="group/photo relative flex h-full flex-col overflow-hidden rounded-[22px] border border-white bg-white/95 shadow-[inset_0_1px_0_rgba(255,255,255,1),0_18px_42px_rgba(14,165,233,0.12)] transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[inset_0_1px_0_rgba(255,255,255,1),0_24px_50px_rgba(14,165,233,0.17)]">
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 -z-10 rounded-[22px] bg-[radial-gradient(circle_at_18%_-8%,rgba(56,189,248,0.26),transparent_55%),radial-gradient(circle_at_100%_100%,rgba(45,212,191,0.18),transparent_50%),linear-gradient(150deg,rgba(224,242,254,0.65)_0%,rgba(240,253,250,0.4)_55%,rgba(255,255,255,0)_100%)] opacity-0 transition-opacity duration-500 ease-out group-hover/photo:opacity-100"
+                    />
+                    <span className="pointer-events-none absolute left-3 top-3 z-10 rounded-full border border-white/90 bg-white/85 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-sky-700 shadow-sm backdrop-blur-md">
+                      Фото товару
+                    </span>
                     <div className="flex min-h-[220px] flex-1 items-center justify-center p-1.5 sm:min-h-[260px] xl:min-h-0">
                       <ProductImageWithFallback
                         alt={`Фото товару ${product.name}`}
@@ -2371,8 +2329,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </div>
                 </div>
 
-                <div className="order-1 flex h-full min-w-0 flex-col justify-center rounded-[20px] border border-white/90 bg-white/92 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.07)] ring-1 ring-white/80 transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white hover:shadow-[0_16px_34px_rgba(15,23,42,0.1)] xl:order-2 sm:p-3.5">
-                  <div className="flex flex-wrap items-center gap-1.5">
+                <div className="group/info relative overflow-hidden order-2 flex h-full min-w-0 flex-col justify-center rounded-[22px] border border-white bg-white/88 p-4 shadow-[0_16px_38px_rgba(15,23,42,0.065)] ring-1 ring-slate-200/45 backdrop-blur-sm transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white/95 hover:shadow-[0_22px_46px_rgba(15,23,42,0.09)] sm:p-5">
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 -z-10 rounded-[22px] bg-[radial-gradient(circle_at_82%_-12%,rgba(56,189,248,0.22),transparent_52%),radial-gradient(circle_at_-4%_100%,rgba(45,212,191,0.16),transparent_48%),linear-gradient(160deg,rgba(224,242,254,0.6)_0%,rgba(240,253,250,0.35)_58%,rgba(255,255,255,0)_100%)] opacity-0 transition-opacity duration-500 ease-out group-hover/info:opacity-100"
+                  />
+                  <div className="relative flex flex-wrap items-center gap-1.5">
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-[13px] border px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.09em] shadow-[0_8px_18px_rgba(15,23,42,0.07)] ${
                         isInStock
@@ -2397,7 +2359,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
                   <h1
                     style={{ fontStyle: "normal" }}
-                    className="font-display mt-2.5 max-w-none break-words text-[clamp(1.22rem,1.9vw,1.72rem)] font-extrabold leading-[1.2] tracking-[-0.01em] text-slate-950 [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[42ch]"
+                    className="font-display mt-3 max-w-none break-words text-[clamp(1.35rem,2.15vw,2rem)] font-extrabold leading-[1.14] tracking-[-0.025em] text-slate-800 [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[38ch]"
                   >
                     {productHeadingText}
                   </h1>
@@ -2406,7 +2368,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-sky-700">
                         {productIdentifierLabel}
                       </p>
-                      <p className="mt-1 font-mono text-[13px] font-extrabold leading-5 tracking-normal text-slate-950 [overflow-wrap:anywhere]">
+                      <p className="mt-1 font-mono text-[13px] font-extrabold leading-5 tracking-normal text-slate-800 [overflow-wrap:anywhere]">
                         {productIdentifierValue}
                       </p>
                       {productIdentifierHint ? (
@@ -2480,15 +2442,20 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     {productHeroHighlights.map((item) => (
                       <span
                         key={item}
-                        className="inline-flex min-h-6 items-center rounded-[9px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(248,250,252,0.98))] px-2 py-0.5 text-[10px] font-semibold tracking-normal text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_8px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)]"
+                        className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/90 px-2.5 py-1 text-[10px] font-bold tracking-normal text-slate-600 shadow-[0_5px_12px_rgba(15,23,42,0.045)] transition hover:border-sky-200 hover:text-sky-700"
                       >
+                        <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-br from-sky-400 to-teal-400" aria-hidden="true" />
                         {item}
                       </span>
                     ))}
                   </div>
                 </div>
-                <div className="order-3 min-w-0 self-stretch xl:pl-1">
-                  <div className="h-full rounded-[22px] border border-white/90 bg-white/94 p-1.5 shadow-[0_12px_30px_rgba(15,23,42,0.08)] ring-1 ring-white/80 transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white hover:shadow-[0_16px_36px_rgba(15,23,42,0.11)]">
+                <div className="order-3 min-w-0 self-stretch">
+                  <div className="group/price relative overflow-hidden h-full rounded-[24px] border border-white bg-white/80 p-1.5 shadow-[0_18px_44px_rgba(15,23,42,0.09)] ring-1 ring-sky-100/70 backdrop-blur-sm transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white/95 hover:shadow-[0_24px_52px_rgba(15,23,42,0.12)]">
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 -z-10 rounded-[24px] bg-[radial-gradient(circle_at_50%_-14%,rgba(56,189,248,0.26),transparent_54%),radial-gradient(circle_at_100%_100%,rgba(45,212,191,0.2),transparent_50%),linear-gradient(160deg,rgba(224,242,254,0.65)_0%,rgba(240,253,250,0.4)_55%,rgba(255,255,255,0)_100%)] opacity-0 transition-opacity duration-500 ease-out group-hover/price:opacity-100"
+                    />
                     <ProductPurchasePanelClient
                       lookupKeys={lookupKeys}
                       isModalView={isModalView}

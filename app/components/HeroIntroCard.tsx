@@ -52,8 +52,13 @@ export default function HeroIntroCard() {
                 <path d="M9 21v-6h6v6" />
               </svg>
             </span>
+            {/* Distinct wording from the <title> tag ("Інтернет-магазин
+                автозапчастин у Львові", set in app/page.tsx) on purpose —
+                an H1 that just repeats the title back verbatim wastes the
+                one heading search engines weigh most heavily instead of
+                reinforcing a complementary phrase. */}
             <h1 className="font-display min-w-0 flex-1 text-[15px] font-extrabold italic leading-[1.12] tracking-[0.01em] text-sky-50 min-[380px]:text-[16px] sm:text-[18px] md:text-[19px]">
-              <span className="block whitespace-nowrap">Магазин автозапчастин у Львові</span>
+              <span className="block whitespace-nowrap">Зручний онлайн каталог</span>
             </h1>
           </div>
 

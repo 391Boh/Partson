@@ -48,6 +48,21 @@ export default async function InformationSectionPage({
   }
 
   const siteUrl = getSiteUrl();
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": `${siteUrl}/inform/${resolvedSection.key}#faq`,
+    url: `${siteUrl}/inform/${resolvedSection.key}`,
+    inLanguage: "uk-UA",
+    mainEntity: resolvedSection.faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.answer,
+      },
+    })),
+  };
   const genericInformationSchema =
     resolvedSection.key !== "about" && resolvedSection.key !== "diagnostics"
       ? {
@@ -393,6 +408,10 @@ export default async function InformationSectionPage({
           dangerouslySetInnerHTML={{ __html: safeJsonLd(diagnosticsSchema) }}
         />
       ) : null}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(faqSchema) }}
+      />
       <InformationPageClient
         initialSectionKey={resolvedSection.key as InformationSectionKey}
       />

@@ -307,15 +307,15 @@ export default function ProductPurchasePanelClient(
       ? "Замовлення доступне одразу зі сторінки."
       : "Надішліть запит менеджеру для уточнення ціни.";
   const statusCardClass = isInStock
-    ? "rounded-[16px] border border-emerald-200 bg-emerald-50 px-3 py-2.5 shadow-[0_12px_24px_rgba(16,185,129,0.08)]"
-    : "rounded-[16px] border border-amber-200 bg-amber-50 px-3 py-2.5 shadow-[0_12px_24px_rgba(245,158,11,0.08)]";
+    ? "rounded-[17px] border border-emerald-200/90 bg-[linear-gradient(145deg,#ecfdf5,#f8fffc)] px-3 py-3 shadow-[0_12px_26px_rgba(16,185,129,0.09)]"
+    : "rounded-[17px] border border-amber-200/90 bg-[linear-gradient(145deg,#fffbeb,#fffdf7)] px-3 py-3 shadow-[0_12px_26px_rgba(245,158,11,0.09)]";
   const statusLabelClass = isInStock ? "text-emerald-700" : "text-amber-700";
   const statusValueClass = isInStock ? "text-emerald-950" : "text-amber-950";
   const priceCardClass = isLoading
-    ? "rounded-[16px] border border-sky-200 bg-sky-50 px-3 py-2.5 shadow-[0_12px_24px_rgba(14,165,233,0.08)]"
+    ? "rounded-[17px] border border-sky-200 bg-[linear-gradient(145deg,#f0f9ff,#ffffff)] px-3 py-3 shadow-[0_12px_26px_rgba(14,165,233,0.09)]"
     : hasPrice
-      ? "rounded-[16px] border border-cyan-200 bg-cyan-50 px-3 py-2.5 shadow-[0_12px_24px_rgba(6,182,212,0.08)]"
-      : "rounded-[16px] border border-rose-200 bg-rose-50 px-3 py-2.5 shadow-[0_12px_24px_rgba(244,63,94,0.08)]";
+      ? "rounded-[17px] border border-cyan-200 bg-[linear-gradient(145deg,#ecfeff,#ffffff)] px-3 py-3 shadow-[0_12px_26px_rgba(6,182,212,0.09)]"
+      : "rounded-[17px] border border-rose-200 bg-[linear-gradient(145deg,#fff1f2,#ffffff)] px-3 py-3 shadow-[0_12px_26px_rgba(244,63,94,0.08)]";
   const priceLabelClass = isLoading
     ? "text-sky-700"
     : hasPrice
@@ -331,7 +331,8 @@ export default function ProductPurchasePanelClient(
     : "bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.14)]";
 
   return (
-    <div className="flex h-full flex-col rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] p-3 text-slate-900 shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-[22px] border border-slate-200/80 bg-[radial-gradient(circle_at_100%_0%,rgba(56,189,248,0.10),transparent_34%),linear-gradient(160deg,rgba(255,255,255,0.99),rgba(248,250,252,0.97))] p-3.5 text-slate-900 shadow-[0_18px_40px_rgba(15,23,42,0.075)] sm:p-4">
+      <span className="pointer-events-none absolute inset-x-7 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/70 to-transparent" />
       <ProductViewTracking
         item_id={product.code || resolvedCode}
         item_name={product.name}
@@ -342,10 +343,10 @@ export default function ProductPurchasePanelClient(
         item_variant={product.article || undefined}
         price={priceUah}
       />
-      <div className="mb-2.5 flex items-center justify-between gap-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.11em] text-sky-800">
-            Замовлення
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-sky-700">
+            Готові замовити?
           </p>
           <p className="mt-0.5 text-[12.5px] font-medium leading-5 text-slate-600">
             Ціна та наявність
@@ -395,11 +396,11 @@ export default function ProductPurchasePanelClient(
         </div>
       </div>
 
-      <p className="mt-2.5 rounded-[16px] border border-slate-200 bg-slate-50 px-3 py-2 text-[12.5px] font-medium leading-5 text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
+      <p className="mt-3 rounded-[16px] border border-slate-200/80 bg-white/75 px-3 py-2.5 text-[12.5px] font-medium leading-5 text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
         {helperText}
       </p>
 
-      <div className="mt-auto flex items-center gap-2 pt-2.5">
+      <div className="mt-auto flex items-center gap-2 pt-3">
         <ProductPageActions
           code={product.code || resolvedCode}
           article={product.article}

@@ -8,6 +8,7 @@ import {
   Building2,
   Car,
   CheckCircle,
+  ChevronRight,
   Clock,
   Cpu,
   CreditCard,
@@ -37,6 +38,7 @@ import {
 } from './section-config';
 import DiagnosticsConsultationForm from './DiagnosticsConsultationForm';
 import AnalyticsConsentSettingsButton from 'app/components/AnalyticsConsentSettingsButton';
+import OpenChatButton from 'app/components/OpenChatButton';
 import {
   catalogPageBackgroundClass,
   directoryBadgeClass,
@@ -121,19 +123,19 @@ const InfoCard = memo(function InfoCard({ title, icon: Icon, accent = 'sky', fea
   const a = ACCENT[accent];
   return (
     <article
-      className={`group relative isolate flex h-full flex-col overflow-hidden rounded-[22px] border bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_38%),radial-gradient(circle_at_0%_100%,rgba(153,246,228,0.10),transparent_42%),linear-gradient(148deg,rgba(255,255,255,0.995)_0%,rgba(248,251,254,0.98)_58%,rgba(244,249,249,0.95)_100%)] p-4 shadow-[0_16px_34px_rgba(15,23,42,0.075),0_4px_12px_rgba(14,116,144,0.045),inset_0_1px_0_rgba(255,255,255,0.98)] ring-1 ring-white/90 transition-[border-color,box-shadow,background-color] duration-300 ease-out hover:border-cyan-300/80 hover:shadow-[0_22px_42px_rgba(14,165,233,0.13),0_7px_18px_rgba(13,148,136,0.07),inset_0_1px_0_rgba(255,255,255,1)] sm:p-5 ${
-        featured ? 'border-cyan-200/90 ring-cyan-100/80' : 'border-slate-200/85'
+      className={`group relative isolate flex h-full flex-col overflow-hidden rounded-[24px] border bg-[linear-gradient(152deg,rgba(255,255,255,1)_0%,rgba(248,250,252,0.97)_100%)] p-5 shadow-[0_18px_45px_rgba(15,23,42,0.065),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white transition-[border-color,box-shadow] duration-300 ease-out hover:border-sky-300/80 hover:shadow-[0_24px_54px_rgba(15,23,42,0.09),0_8px_22px_rgba(14,165,233,0.07)] sm:p-6 ${
+        featured ? 'border-sky-200/90 ring-sky-100/70' : 'border-slate-200/80'
       }`}
     >
       <span className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/75 to-transparent opacity-70 transition-opacity duration-300 group-hover:opacity-100" />
       <div className="relative z-10">
-        <div className="mb-3.5 flex items-start gap-3 sm:items-center">
-          <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] border shadow-[0_8px_18px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] ${a.wrap}`}>
+        <div className="mb-4 flex items-start gap-3.5 sm:items-center">
+          <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border shadow-[0_8px_18px_rgba(15,23,42,0.055),inset_0_1px_0_rgba(255,255,255,0.9)] ${a.wrap}`}>
             <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
           </span>
-          <h2 className="directory-card-title min-w-0 flex-1 text-[16px] leading-tight text-slate-950">{title}</h2>
+          <h2 className="min-w-0 flex-1 text-[17px] font-extrabold leading-[1.25] tracking-[-0.015em] text-slate-800 sm:text-[18px]">{title}</h2>
         </div>
-        <div className="text-[13.5px] font-medium leading-6 text-slate-600">{children}</div>
+        <div className="text-[14px] font-medium leading-7 text-slate-600">{children}</div>
       </div>
     </article>
   );
@@ -143,7 +145,7 @@ const InfoCard = memo(function InfoCard({ title, icon: Icon, accent = 'sky', fea
 const Li = ({ icon: Icon, cls, children }: { icon: LucideIcon; cls: string; children: ReactNode }) => (
   <li className="flex items-start gap-2.5">
     <span className={`mt-1 shrink-0 ${cls}`}><Icon size={15} strokeWidth={1.9} aria-hidden="true" /></span>
-    <span className="text-[13.5px] font-medium leading-6 text-slate-600">{children}</span>
+    <span className="text-[14px] font-medium leading-6 text-slate-600">{children}</span>
   </li>
 );
 
@@ -285,7 +287,7 @@ const DeliveryTab = () => (
             <div
               key={name}
               aria-label={`Доставка автозапчастин ${preposition} ${city}`}
-              className="group rounded-[16px] border border-slate-200/80 bg-[linear-gradient(160deg,rgba(255,255,255,0.98),rgba(248,250,252,0.92))] p-3.5 shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_12px_24px_rgba(14,165,233,0.1)]"
+              className="group rounded-[16px] border border-slate-200/80 bg-[linear-gradient(160deg,rgba(255,255,255,0.98),rgba(248,250,252,0.92))] p-3.5 shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] duration-200 hover:border-sky-200 hover:shadow-[0_12px_24px_rgba(14,165,233,0.1)]"
             >
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-sky-100 bg-sky-50 text-sky-600 transition group-hover:border-sky-200 group-hover:bg-sky-100">
@@ -310,7 +312,7 @@ const PaymentTab = () => (
           <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
             Платіжний партнер
           </p>
-          <h2 className="mt-1.5 text-lg font-black tracking-tight text-slate-900">
+          <h2 className="mt-1.5 text-lg font-extrabold tracking-tight text-slate-800">
             Захищена онлайн-оплата через LiqPay
           </h2>
           <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-slate-600">
@@ -382,8 +384,8 @@ const AboutTab = () => (
                 <Star size={13} strokeWidth={2} aria-hidden="true" />
                 Магазин у Львові
               </p>
-              <h2 className="mt-3 font-display-italic text-[1.45rem] font-black leading-tight text-slate-950 sm:text-[1.9rem]">
-                <PartsOnLink className="font-black" /> — точний підбір автозапчастин з першого разу
+              <h2 className="mt-3 font-display-italic text-[1.45rem] font-extrabold leading-tight text-slate-800 sm:text-[1.9rem]">
+                <PartsOnLink className="font-extrabold" /> — точний підбір автозапчастин з першого разу
               </h2>
               <p className="mt-3 max-w-3xl text-[14px] font-medium leading-7 text-slate-600">
                 Уточнюємо авто, перевіряємо сумісність деталі ще до оплати і пропонуємо оригінал
@@ -540,7 +542,7 @@ const DiagnosticsTab = () => (
                 </span>
                 <div className="space-y-2">
                   <div className="grid grid-cols-[minmax(0,1fr)_74px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_92px]">
-                    <h3 className="text-balance text-[24px] font-black leading-[1.08] text-slate-950 sm:text-[30px]">
+                    <h3 className="text-balance text-[24px] font-extrabold leading-[1.12] tracking-[-0.025em] text-slate-800 sm:text-[30px]">
                       Діагностика, яка знаходить причину несправності
                     </h3>
                     <figure className="grid h-[74px] w-[74px] place-items-center justify-self-end rounded-2xl border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(224,242,254,0.86))] p-2 shadow-[0_10px_22px_rgba(14,165,233,0.1)] ring-1 ring-white/80 sm:h-[92px] sm:w-[92px] sm:p-2.5">
@@ -588,7 +590,7 @@ const DiagnosticsTab = () => (
                           <Icon size={20} strokeWidth={1.9} aria-hidden="true" />
                         </span>
                         <span className="block min-w-0">
-                          <span className="block text-[12.5px] font-black leading-tight text-slate-900">
+                          <span className="block text-[12.5px] font-extrabold leading-tight text-slate-800">
                             {item.label}
                           </span>
                           <span className="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-600">
@@ -612,7 +614,7 @@ const DiagnosticsTab = () => (
                     <span className="block text-[11px] font-black uppercase tracking-[0.08em] text-amber-700">
                       Вартість
                     </span>
-                    <span className="mt-0.5 block text-[13px] font-black leading-snug text-slate-900">
+                    <span className="mt-0.5 block text-[13px] font-extrabold leading-snug text-slate-800">
                       За домовленістю
                     </span>
                     <span className="mt-0.5 block text-[11.5px] font-semibold leading-snug text-slate-600">
@@ -635,7 +637,7 @@ const DiagnosticsTab = () => (
                 <Wrench size={13} strokeWidth={2} aria-hidden="true" />
                 Запис на діагностику
               </p>
-              <h3 className="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[22px]">
+              <h3 className="mt-2 text-[20px] font-extrabold leading-tight tracking-[-0.02em] text-slate-800 sm:text-[22px]">
                 Залиште заявку — уточнимо симптоми й час візиту
               </h3>
               <p className="mt-1.5 text-[12.5px] font-semibold leading-relaxed text-slate-600">
@@ -726,7 +728,7 @@ const DiagnosticsTab = () => (
                 key={brand}
                 className="border-b border-slate-200/70 py-1.5 text-[12.5px] leading-relaxed text-slate-600"
               >
-                <strong className="font-extrabold text-slate-900">
+                <strong className="font-extrabold text-slate-800">
                   Комп&apos;ютерна діагностика {brand}:
                 </strong>{" "}
                 <span>моделі {models.join(', ')}.</span>
@@ -1035,7 +1037,7 @@ const renderTabContent = (key: InformationSectionKey) => {
 // ─── Головний компонент ────────────────────────────────────────────────────
 export default function InformationPageClient({ initialSectionKey }: InformationPageClientProps) {
   const activeTab = tabs.find((tab) => tab.key === initialSectionKey) || tabs[0];
-  const activeDescription = activeTab.intro;
+  const activeDescription = activeTab.contentLead || activeTab.intro;
 
   const ActiveIcon = activeTab.icon;
 
@@ -1076,19 +1078,39 @@ export default function InformationPageClient({ initialSectionKey }: Information
                   <span className={directoryCompactMetricAccentClass}>{PHONE_DISPLAY}</span>
                 </div>
 
-                <h1 className="directory-heading-hero mt-3 text-[1.55rem] leading-[1.12] text-slate-950 sm:text-[2.15rem]">
-                  {activeTab.seoTitle}
+                <h1 className="mt-3 max-w-4xl text-[1.55rem] font-extrabold leading-[1.14] tracking-[-0.035em] text-slate-800 sm:text-[2.15rem]">
+                  {activeTab.pageHeading}
                 </h1>
-                <p className="mt-3 max-w-4xl text-sm font-medium leading-6 text-slate-600 sm:text-[15px]">
+                <p className="mt-3 max-w-4xl text-sm font-medium leading-6 text-slate-600 sm:text-[15px] sm:leading-7">
                   {activeDescription}
                 </p>
+                <div className="mt-4 flex flex-wrap gap-2" aria-label="Коротко про розділ">
+                  {activeTab.highlights.map((highlight, index) => (
+                    <span
+                      key={highlight}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-white/80 px-3 py-1.5 text-[11px] font-bold text-slate-600 shadow-[0_5px_14px_rgba(15,23,42,0.04)] backdrop-blur-sm transition hover:border-sky-200 hover:text-sky-700"
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${index === 1 ? 'bg-teal-400' : index === 2 ? 'bg-amber-400' : 'bg-sky-400'}`} />
+                      {highlight}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </section>
 
-          {/* Навігаційні вкладки */}
-          <nav aria-label="Розділи інформації" className={`${directoryPanelClass} p-2 sm:p-2.5`}>
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
+          <div className="grid items-start gap-5 lg:grid-cols-[270px_minmax(0,1fr)] lg:gap-6">
+          {/* Навігація: горизонтальна на мобільних, липка бічна на desktop */}
+          <nav aria-label="Розділи інформації" className={`${directoryPanelClass} overflow-hidden p-2 lg:sticky lg:top-24 lg:p-3`}>
+            <div className="hidden border-b border-slate-200/80 px-2 pb-3 pt-1 lg:block">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">
+                Довідковий центр
+              </p>
+              <p className="mt-1 text-xs font-medium leading-5 text-slate-500">
+                Умови покупки, сервіс і контакти PartsON
+              </p>
+            </div>
+            <div className="flex snap-x gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-2 lg:grid lg:overflow-visible lg:pb-0">
               {tabs.map((tab) => {
                 const isActive = tab.key === activeTab.key;
                 const Icon = tab.icon;
@@ -1097,25 +1119,30 @@ export default function InformationPageClient({ initialSectionKey }: Information
                     key={tab.key}
                     href={getInformationPath(tab.key)}
                     aria-current={isActive ? 'page' : undefined}
-                    className={`group relative overflow-hidden rounded-[15px] border px-3 py-3 text-left transition-[border-color,box-shadow,background-color] duration-250 ${
+                    className={`group relative min-w-[158px] snap-start overflow-hidden rounded-[16px] border px-3 py-3 text-left transition-[border-color,box-shadow,background-color,transform] duration-200 lg:min-w-0 ${
                       isActive
-                        ? 'border-cyan-300/90 bg-[radial-gradient(circle_at_100%_0%,rgba(45,212,191,0.16),transparent_42%),linear-gradient(140deg,rgba(240,253,255,0.98),rgba(230,246,252,0.95))] text-cyan-950 shadow-[0_12px_26px_rgba(8,145,178,0.13),inset_0_1px_0_rgba(255,255,255,0.94)]'
-                        : 'border-slate-200/85 bg-white/86 text-slate-700 shadow-[0_7px_18px_rgba(15,23,42,0.035)] hover:border-sky-200 hover:bg-white hover:shadow-[0_11px_24px_rgba(14,165,233,0.08)]'
+                        ? 'border-sky-300/90 bg-[linear-gradient(135deg,rgba(240,249,255,1),rgba(236,254,255,0.96))] text-sky-950 shadow-[0_10px_24px_rgba(14,116,144,0.12),inset_3px_0_0_#0284c7]'
+                        : 'border-transparent bg-white/65 text-slate-700 hover:border-slate-200 hover:bg-white hover:shadow-[0_8px_20px_rgba(15,23,42,0.06)]'
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span
                         className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
                           isActive
-                            ? 'border-cyan-200 bg-white text-cyan-700'
+                            ? 'border-sky-200 bg-white text-sky-700 shadow-sm'
                             : 'border-slate-200 bg-slate-50 text-slate-500 group-hover:text-slate-700'
                         }`}
                       >
                         <Icon size={13} strokeWidth={isActive ? 2.2 : 1.8} aria-hidden="true" />
                       </span>
-                      <span className="directory-card-title min-w-0 break-words text-[13px] leading-snug text-inherit">{tab.title}</span>
+                      <span className="directory-card-title min-w-0 flex-1 break-words text-[13px] leading-snug text-inherit">{tab.title}</span>
+                      <ChevronRight
+                        size={14}
+                        className={`hidden shrink-0 transition-transform group-hover:translate-x-0.5 lg:block ${isActive ? 'text-sky-600' : 'text-slate-300'}`}
+                        aria-hidden="true"
+                      />
                     </div>
-                    <p className={`mt-1 pl-8 text-[11px] font-medium leading-snug ${isActive ? 'text-cyan-800/80' : 'text-slate-400'}`}>
+                    <p className={`mt-1 pl-8 text-[11px] font-medium leading-snug ${isActive ? 'text-sky-800/80' : 'text-slate-400'}`}>
                       {tab.subtitle}
                     </p>
                   </Link>
@@ -1125,7 +1152,81 @@ export default function InformationPageClient({ initialSectionKey }: Information
           </nav>
 
           {/* Вміст вкладки */}
-          <div>{renderTabContent(activeTab.key)}</div>
+          <section aria-label={`Інформація: ${activeTab.title}`} className="min-w-0">
+            <div className="mb-4 flex items-center gap-3 px-1">
+              <span className="h-px flex-1 bg-gradient-to-r from-sky-200 to-transparent" />
+              <p className="shrink-0 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                {activeTab.title} · PartsON
+              </p>
+            </div>
+            {renderTabContent(activeTab.key)}
+
+            <section className="mt-5 rounded-[24px] border border-slate-200/80 bg-white/85 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.055)] sm:p-6" aria-labelledby="information-faq-title">
+              <div className="max-w-3xl">
+                <p className="text-[10px] font-black uppercase tracking-[0.17em] text-sky-700">
+                  Короткі відповіді
+                </p>
+                <h2 id="information-faq-title" className="mt-2 text-xl font-extrabold tracking-[-0.025em] text-slate-800 sm:text-2xl">
+                  Часті запитання про {activeTab.title.toLocaleLowerCase('uk-UA')}
+                </h2>
+                <p className="mt-2 text-sm font-medium leading-6 text-slate-500">
+                  Зібрали відповіді на практичні запитання, які найчастіше виникають перед замовленням або зверненням.
+                </p>
+              </div>
+              <div className="mt-5 grid gap-3">
+                {activeTab.faqs.map((faq, index) => (
+                  <details
+                    key={faq.question}
+                    open={index === 0}
+                    className="group rounded-2xl border border-slate-200/80 bg-slate-50/70 px-4 transition hover:border-sky-200 hover:bg-sky-50/40 open:border-sky-200 open:bg-white open:shadow-[0_10px_24px_rgba(14,165,233,0.065)]"
+                  >
+                    <summary className="flex cursor-pointer list-none items-center gap-3 py-4 text-[14px] font-bold leading-5 text-slate-700 marker:hidden sm:text-[15px]">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-extrabold text-sky-700 shadow-sm ring-1 ring-slate-200">
+                        {index + 1}
+                      </span>
+                      <span className="flex-1">{faq.question}</span>
+                      <ChevronRight size={16} className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-90 group-open:text-sky-600" aria-hidden="true" />
+                    </summary>
+                    <p className="border-t border-slate-100 pb-4 pl-10 pr-3 pt-3 text-[14px] font-medium leading-7 text-slate-600">
+                      {faq.answer}
+                    </p>
+                  </details>
+                ))}
+              </div>
+            </section>
+
+            <aside className="mt-5 overflow-hidden rounded-[24px] border border-sky-200/80 bg-[radial-gradient(circle_at_90%_0%,rgba(45,212,191,0.13),transparent_35%),linear-gradient(135deg,#f8fbff_0%,#f0f9ff_48%,#f0fdfa_100%)] p-5 shadow-[0_18px_42px_rgba(15,23,42,0.065)] sm:p-6" aria-label="Допомога з вибором автозапчастин">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="max-w-2xl">
+                  <p className="text-[10px] font-black uppercase tracking-[0.17em] text-sky-700">
+                    Потрібна допомога?
+                  </p>
+                  <h2 className="mt-2 text-xl font-extrabold tracking-[-0.025em] text-slate-800">
+                    Допоможемо знайти потрібну запчастину
+                  </h2>
+                  <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
+                    Надішліть VIN, артикул або дані автомобіля — перевіримо сумісність і наявність та запропонуємо оптимальні варіанти для вашого авто.
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-col gap-2.5 sm:min-w-[210px]">
+                  <OpenChatButton
+                    message={`Вітаю! Потрібна допомога з розділом «${activeTab.title}». Хочу підібрати запчастину для автомобіля.`}
+                    label="Написати в чат"
+                    title="Відкрити чат із менеджером PartsON"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-800 px-4 text-[13px] font-bold text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5 hover:bg-slate-700 hover:shadow-[0_16px_30px_rgba(15,23,42,0.22)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200"
+                  />
+                  <Link
+                    href="/katalog"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-4 text-[13px] font-bold text-sky-800 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                  >
+                    Перейти до каталогу
+                    <ChevronRight size={15} aria-hidden="true" />
+                  </Link>
+                </div>
+              </div>
+            </aside>
+          </section>
+          </div>
         </div>
       </div>
     </main>

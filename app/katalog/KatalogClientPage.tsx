@@ -74,9 +74,19 @@ const CATALOG_PAGE_BATCH_SIZE_OPTIONS = [16, 32, 48] as const;
 const isCatalogPageBatchSize = (value: unknown): value is number =>
   typeof value === 'number' && (CATALOG_PAGE_BATCH_SIZE_OPTIONS as readonly number[]).includes(value);
 
+// Same label (component default) and same box height as Data.tsx's own
+// initial skeleton (CatalogTransitionLoader, non-compact) — this loader
+// sits in that exact slot for the one tick before catalogStateReady flips
+// true, and briefly showing a differently-worded, differently-sized card
+// right before swapping to that one read as two loaders flashing in
+// sequence instead of one continuous load.
 const CatalogStateLoader = () => (
-  <div className="flex min-h-[55vh] w-full items-start justify-center px-4 py-14 sm:py-20" role="status" aria-label="Завантаження каталогу">
-    <CatalogLoaderCard label="Готую товари" />
+  <div
+    className="col-span-full flex w-full items-start justify-center px-3 min-h-[240px] py-8 sm:min-h-[300px] sm:py-12"
+    role="status"
+    aria-label="Завантаження каталогу"
+  >
+    <CatalogLoaderCard />
   </div>
 );
 

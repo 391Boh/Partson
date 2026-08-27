@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, MessageCircle, Minus, Plus, ShoppingCart } from "lucide-react";
+import { Check, MessageCircle, Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
 import { pushEcommerceEvent } from "app/lib/gtm";
@@ -31,7 +31,7 @@ const ProductPageActions = ({
   quantity,
   compact = false,
 }: ProductPageActionsProps) => {
-  const { addToCart, cartItems } = useCart();
+  const { addToCart, removeFromCart, cartItems } = useCart();
   const [orderQty, setOrderQty] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
 
@@ -118,6 +118,13 @@ const ProductPageActions = ({
     );
   };
 
+  const handleRemoveFromCart = () => {
+    if (cartQty <= 0) return;
+    removeFromCart(code);
+    setJustAdded(false);
+    setOrderQty(1);
+  };
+
   return (
     <div
       className={
@@ -126,15 +133,9 @@ const ProductPageActions = ({
           : "mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4"
       }
     >
-      {cartQty > 0 && hasPrice && (
-        <span className="inline-flex w-fit rounded-[12px] border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-emerald-700">
-          У кошику: {cartQty}{hasStockLimit ? ` / ${maxQty}` : ""}
-        </span>
-      )}
-
       {hasPrice ? (
-        <div className={`grid gap-2.5 ${compact ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto]"}`}>
-          <div className="inline-flex min-w-0 items-center justify-between rounded-[18px] border border-slate-200 bg-white p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_8px_18px_rgba(15,23,42,0.05)]">
+        <div className="flex items-center gap-2">
+          <div className="inline-flex min-w-0 flex-1 items-center justify-between rounded-[18px] border border-slate-200 bg-white p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_8px_18px_rgba(15,23,42,0.05)]">
             <button
               type="button"
               onClick={() => setOrderQty((prev) => Math.max(1, prev - 1))}
@@ -158,6 +159,23 @@ const ProductPageActions = ({
             </button>
           </div>
 
+          {/* Cart status lives on this same row (a compact remove button +
+              a count badge on the Add button below) instead of a banner
+              stacked above it — that used to grow the panel's height the
+              moment something got added, shifting the whole 3-column header
+              layout (all columns share height via items-stretch). */}
+          {cartQty > 0 && (
+            <button
+              type="button"
+              onClick={handleRemoveFromCart}
+              className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] border border-rose-200 bg-white text-rose-600 shadow-sm transition-[transform,border-color,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-50 hover:shadow-[0_8px_16px_rgba(244,63,94,0.10)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-100 active:translate-y-0"
+              title="Видалити товар із кошика"
+              aria-label={`Видалити ${name} із кошика`}
+            >
+              <Trash2 size={16} strokeWidth={2} aria-hidden="true" />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleAddToCart}
@@ -176,7 +194,7 @@ const ProductPageActions = ({
                   ? "Товар додано"
                   : "Додати в замовлення"
             }
-            className={`inline-flex h-12 min-w-[148px] shrink-0 items-center justify-center gap-2 rounded-[18px] border px-4 text-sm font-bold text-white transition-transform duration-200 hover:-translate-y-0.5 ${
+            className={`relative inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border text-white transition-transform duration-200 hover:-translate-y-0.5 active:scale-95 ${
               isAddDisabled
                 ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none hover:translate-y-0"
                 : justAdded
@@ -184,8 +202,12 @@ const ProductPageActions = ({
                 : "border-sky-300/40 bg-[linear-gradient(135deg,#0891b2,#2563eb)] shadow-[0_16px_30px_rgba(14,116,144,0.22)] hover:brightness-105"
             }`}
           >
-            {justAdded ? <Check size={18} /> : <ShoppingCart size={18} />}
-            <span>{justAdded ? "Додано" : isCartLimitReached ? "Максимум" : "У кошик"}</span>
+            {cartQty > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 z-10 flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-bold text-white shadow-sm ring-2 ring-white">
+                {cartQty}
+              </span>
+            )}
+            {justAdded ? <Check size={19} /> : <ShoppingCart size={19} />}
           </button>
         </div>
       ) : (

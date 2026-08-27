@@ -85,6 +85,8 @@ const RECOMMENDATION_RETRY_DELAY_MS = 240;
 const RECOMMENDATION_PRICE_TIMEOUT_MS = 520;
 const RELATED_ITEMS_VISIBLE_LIMIT = 6;
 const RECOMMENDATION_VISIBLE_ITEMS_EVENT = "partson:product-recommendation-visible-items";
+const RECOMMENDATION_VISIBLE_ITEMS_STORAGE_PREFIX =
+  "partson:product-recommendation-visible-items:";
 
 const normalizeRelatedKeyPart = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -216,7 +218,7 @@ const RecommendationBlock = ({
           <p className={`mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${tone === "indigo" ? "text-indigo-800" : "text-sky-800"}`}>
             {eyebrow}
           </p>
-          <h2 className="font-display-italic mt-0.5 break-words text-[1.05rem] font-black leading-tight text-slate-950 sm:text-[1.18rem]">
+          <h2 className="font-display mt-0.5 break-words text-[1.05rem] font-extrabold leading-tight tracking-[-0.015em] text-slate-800 sm:text-[1.18rem]">
             {title}
           </h2>
           <p className="mt-1 max-w-2xl text-[11px] font-medium leading-relaxed text-slate-600 sm:text-[11.5px]">
@@ -602,7 +604,7 @@ export default function ProductRelatedItemsClientSection({
           );
         });
         const response = await Promise.race([
-          fetch("/api/catalog-prices?mode=full", {
+          fetch("/api/catalog-prices", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ items: priceItems }),
@@ -761,12 +763,22 @@ export default function ProductRelatedItemsClientSection({
   ]);
 
   useEffect(() => {
+    try {
+      window.sessionStorage.setItem(
+        `${RECOMMENDATION_VISIBLE_ITEMS_STORAGE_PREFIX}${normalizeRelatedKeyPart(
+          product.code || product.article
+        )}`,
+        JSON.stringify(visibleIdentityKeys)
+      );
+    } catch {
+      // Storage is only a hand-off for a section that may mount later.
+    }
     window.dispatchEvent(
       new CustomEvent(RECOMMENDATION_VISIBLE_ITEMS_EVENT, {
         detail: { keys: visibleIdentityKeys },
       })
     );
-  }, [visibleIdentityKeys]);
+  }, [product.article, product.code, visibleIdentityKeys]);
 
   if (!articleLabel && !productCode && !productDisplayName) return null;
 

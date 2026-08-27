@@ -66,8 +66,14 @@ html[data-consent-preferences="complete"] .analytics-consent-banner {
     overflow-y: visible;
     -webkit-overflow-scrolling: touch;
     text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: auto;
-    -moz-osx-font-smoothing: auto;
+    /* "auto" leaves anti-aliasing to whatever the OS defaults to, which on
+       macOS/iOS WebKit renders this heavy custom variable font (630 base
+       weight, bold display headings) visibly thinner/fuzzier than intended.
+       antialiased/grayscale forces the crisper, evenly-weighted grayscale AA
+       browsers use for UI text — the standard pairing for a custom
+       web font at this weight. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     overscroll-behavior-y: auto;
     font-size: clamp(15px, 0.25vw + 14.5px, 16px);
     letter-spacing: 0.008em;
@@ -239,6 +245,21 @@ html.is-scrolling .home-static :is(a, button) {
   pointer-events: none !important;
 }
 
+/* .home-glow-section's own cards (tovar.tsx/Brands.tsx/Auto.tsx —
+   .group/category, .group/tile, .group/choice) aren't wrapped in
+   .home-static, so they were missing both fixes above: the section itself
+   stopped transitioning during scroll, but each card's own hover
+   border/shadow transition kept running, visibly animating in and back out
+   as it passed under a stationary cursor — and even with the transition
+   off, :hover would still apply/clear instantly, snapping card after card. */
+html.is-scrolling .home-glow-section :is(a, button, img, article) {
+  transition-property: none !important;
+}
+
+html.is-scrolling .home-glow-section :is(a, button) {
+  pointer-events: none !important;
+}
+
 /* A lazy section can become ready in the middle of a trackpad gesture. Never
    combine its reveal animation and skeleton crossfade with active scrolling. */
 .home-deferred-content.is-ready {
@@ -277,6 +298,17 @@ html.is-scrolling .catalog-product-card *,
 html.is-scrolling .catalog-product-list-row,
 html.is-scrolling .catalog-product-list-row * {
   transition-property: none !important;
+}
+
+/* Same fix already applied to the homepage's cards (html.is-scrolling
+   .home-static :is(a, button) above) — disabling only the transition still
+   let :hover itself snap on and off instantly as each card slid under a
+   stationary cursor during scroll, so the border/shadow/shimmer flashed on
+   then off, card after card. pointer-events:none stops a card from
+   matching :hover at all while scrolling, so nothing flickers. */
+html.is-scrolling .catalog-product-card,
+html.is-scrolling .catalog-product-list-row {
+  pointer-events: none !important;
 }
 
 /* These large blurred circles sit behind already layered radial gradients.
@@ -605,14 +637,21 @@ html.is-scrolling .catalog-product-list-row * {
   transform: translate3d(-20%, 0, 0) skewX(-16deg);
 }
 
-.home-glow-section:hover::before,
+/* :hover bubbles up from any card inside the section, so without the
+   :not(:has(...)) guard, hovering a single category/brand/producer card
+   also satisfied this section-level rule — the section-wide ambient glow
+   and light-sweep fired at the same time as the card's own local hover
+   highlight, competing for attention on every single card hover. Now the
+   ambient glow only shows when the pointer is over empty section
+   background, not over one of its cards. */
+.home-glow-section:hover:not(:has(.group\/category:hover, .group\/tile:hover, .group\/choice:hover))::before,
 .home-glow-section:focus-within::before {
   opacity: var(--home-section-glow-opacity-hover);
   background-position: 8% 3%, 92% 6%, 52% 92%;
   transform: scale(1.015);
 }
 
-.home-glow-section:hover::after,
+.home-glow-section:hover:not(:has(.group\/category:hover, .group\/tile:hover, .group\/choice:hover))::after,
 .home-glow-section:focus-within::after {
   opacity: 0.72;
   transform: translate3d(430%, 0, 0) skewX(-16deg);
@@ -1551,6 +1590,14 @@ h4, h5, h6 {
   line-height: 1.45;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+}
+
+.catalog-page:not(.catalog-filter-shell) {
+  background-image:
+    radial-gradient(circle at 5% 5%, rgba(14, 165, 233, 0.11), transparent 24rem),
+    radial-gradient(circle at 95% 16%, rgba(20, 184, 166, 0.08), transparent 22rem),
+    linear-gradient(180deg, rgba(240, 249, 255, 0.48), rgba(248, 250, 252, 0.2) 45%, transparent);
+  background-repeat: no-repeat;
 }
 
 .catalog-page :where(button, input, select, textarea) {
@@ -3760,14 +3807,14 @@ svg.catalog-filter-search-icon {
      content-visibility here made the browser independently skip/reveal those
      same cards, causing extra layout activation on rapid reverse scrolling. */
   contain: layout style;
-  border-radius: 0.85rem;
+  border-radius: 1.35rem;
 }
 
 /* Product cards gain depth through static paint layers, not movement. The
    restrained hover changes light direction and border contrast while keeping
    the grid geometry completely stable. */
 .catalog-product-card .catalog-card-face {
-  border-radius: 0.85rem;
+  border-radius: 1.35rem;
   background-clip: padding-box;
   isolation: isolate;
   border-color: rgba(186, 230, 253, 0.82);
@@ -3787,7 +3834,9 @@ svg.catalog-filter-search-icon {
 }
 
 .catalog-product-card .catalog-card-hero {
-  border-radius: 0.6rem;
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
   border-color: rgba(186, 230, 253, 0.9);
   background:
     radial-gradient(ellipse at 16% -12%, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.4) 38%, transparent 66%),
@@ -3811,6 +3860,29 @@ svg.catalog-filter-search-icon {
     inset 0 1px 0 #fff;
 }
 
+@keyframes catalog-card-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.catalog-card-reveal {
+  animation: catalog-card-reveal 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--catalog-reveal-index, 0) * 34ms);
+}
+
+/* Depth comes from a static paint-layer swap (border-color/shadow/
+   background), not movement — a moving element here previously (a light
+   sweep pseudo-element) sat inside this card's 3D flip context
+   (backface-visibility/preserve-3d), and animating anything on top of an
+   active 3D transform is a known repaint/flicker risk in Safari/WebKit and
+   on lower-end GPUs. Removed rather than guarded, since it was purely
+   decorative. */
 @media (hover: hover) and (pointer: fine) {
   .catalog-product-card:hover .catalog-card-face {
     border-color: rgba(56, 189, 248, 0.82);
@@ -3827,6 +3899,22 @@ svg.catalog-filter-search-icon {
     background:
       radial-gradient(ellipse at 82% -12%, rgba(103, 232, 249, 0.2) 0%, rgba(186, 230, 253, 0.1) 38%, transparent 68%),
       linear-gradient(140deg, #ffffff 0%, #f4fbff 34%, #e8f6fd 68%, #eaf9f5 100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-card-reveal {
+    animation: none;
+  }
+
+  .catalog-product-card,
+  .catalog-product-card .catalog-card-face,
+  .catalog-product-card .catalog-card-hero {
+    transition: none !important;
+  }
+
+  .catalog-product-card:hover {
+    transform: none;
   }
 }
 
@@ -3852,7 +3940,8 @@ svg.catalog-filter-search-icon {
   transition:
     border-color 240ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1),
-    background 300ms ease;
+    background 300ms ease,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* A slim status rail down the left edge — the same in-naявність/backorder
@@ -3913,6 +4002,17 @@ svg.catalog-filter-search-icon {
       0 8px 18px rgba(15, 23, 42, 0.14),
       0 0 0 1px rgba(56, 189, 248, 0.45),
       inset 0 1px 0 #fff;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-product-list-row,
+  .catalog-product-list-row-image {
+    transition: none !important;
+  }
+
+  .catalog-product-list-row:hover {
+    transform: none;
   }
 }
 

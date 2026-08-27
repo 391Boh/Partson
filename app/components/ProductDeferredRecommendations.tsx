@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 
 import DeferredSection from "app/components/DeferredSection";
+import ProductRecentlyViewedTracker from "app/components/ProductRecentlyViewedTracker";
 
 type RecommendationProduct = {
   code: string;
@@ -69,10 +70,11 @@ export default function ProductDeferredRecommendations({
 }: ProductDeferredRecommendationsProps) {
   return (
     <div className="space-y-2.5">
+      <ProductRecentlyViewedTracker product={product} />
       <DeferredSection
-        rootMargin="1400px"
-        fallback={<RecommendationSkeleton titleWidth="w-52" cards={3} />}
-        minHeight="172px"
+        rootMargin="500px"
+        fallback={null}
+        minHeight="0px"
         className="min-w-0"
       >
         <ProductRecentlyViewedSection product={product} euroRate={euroRate} />
