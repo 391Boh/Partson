@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarRange, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Info, SlidersHorizontal, X } from "lucide-react";
+import { CalendarRange, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Compass, Gauge, Info, Settings2, SlidersHorizontal, X, Zap } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
 import { DirectoryPagePagination } from "./HorizontalDirectoryRail";
+import type { YearMeta } from "./CarModels";
 
 interface ModDetails {
   volume: string | null;
@@ -27,6 +28,13 @@ interface Props {
   }) => void;
   onCountChange?: (count: number | null) => void;
   compact?: boolean;
+  // Lets a parent (Auto.tsx) host the year-picker controls elsewhere in its
+  // own layout — the same "Рік" widget it already renders for CarModels —
+  // instead of the digit stepper CarModifications renders internally. When
+  // provided, CarModifications reports the data the controls need (bounds/
+  // loading/error) and skips its own header + year UI. Falls back to
+  // rendering both itself when omitted (e.g. AutoFilterCompact.tsx).
+  onYearMetaChange?: (meta: YearMeta) => void;
 }
 
 interface Modification {
@@ -177,6 +185,7 @@ const CarModifications: React.FC<Props> = ({
   onConfirmSelection,
   onCountChange,
   compact = false,
+  onYearMetaChange,
 }) => {
   const isCompact = Boolean(compact);
   const [yearOptions, setYearOptions] = useState<number[]>([]);
@@ -185,23 +194,18 @@ const CarModifications: React.FC<Props> = ({
   const [loadingYears, setLoadingYears] = useState(false);
   const [loadingMods, setLoadingMods] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Commits immediately on every digit/arrow edit — same behavior as the
+  // year stepper under the model-selection step in Auto.tsx, no separate
+  // "pending" staging value or confirm button to press afterward.
   const [selectedYear, setSelectedYear] = useState<number | "">(initialYear ?? "");
-  // The digit stepper edits pendingYear, not selectedYear directly — nudging
-  // an arrow used to commit (and advance past the year step) instantly,
-  // which made it easy to land on the wrong year by one stray click.
-  // selectedYear (and the fetch/step it drives) only changes once the user
-  // presses "Підтвердити рік".
-  const [pendingYear, setPendingYear] = useState<number | "">(initialYear ?? "");
   const [optionPage, setOptionPage] = useState(0);
 
   useEffect(() => {
     if (initialYear == null) {
       setSelectedYear((prev) => (prev === "" ? prev : ""));
-      setPendingYear((prev) => (prev === "" ? prev : ""));
       return;
     }
     setSelectedYear((prev) => (prev === initialYear ? prev : initialYear));
-    setPendingYear((prev) => (prev === initialYear ? prev : initialYear));
   }, [initialYear]);
 
   // Fetch 1: years for brand+model
@@ -209,7 +213,6 @@ const CarModifications: React.FC<Props> = ({
     if (!selectedBrand || !selectedModel) {
       setYearOptions([]);
       setSelectedYear("");
-      setPendingYear("");
       setModifications([]);
       setFilters({ volume: "", power: "", gearbox: "", drive: "" });
       return;
@@ -219,7 +222,6 @@ const CarModifications: React.FC<Props> = ({
     if (yearCache.has(cacheKey)) {
       setYearOptions(yearCache.get(cacheKey) ?? []);
       setSelectedYear(initialYear ?? "");
-      setPendingYear(initialYear ?? "");
       setFilters({ volume: "", power: "", gearbox: "", drive: "" });
       setModifications([]);
       return;
@@ -230,7 +232,6 @@ const CarModifications: React.FC<Props> = ({
     setError(null);
     setYearOptions([]);
     setSelectedYear(initialYear ?? "");
-    setPendingYear(initialYear ?? "");
     setModifications([]);
     setFilters({ volume: "", power: "", gearbox: "", drive: "" });
 
@@ -346,13 +347,27 @@ const CarModifications: React.FC<Props> = ({
     [yearOptions]
   );
 
+  // Report bounds up once a year is hosted externally (see onYearMetaChange
+  // above). `error` is shared with the modifications fetch below it, so it
+  // only gets attributed to the year step while a year hasn't been picked
+  // yet — otherwise a later mods-fetch failure would misreport as "years
+  // unavailable" in the hosted widget.
+  useEffect(() => {
+    onYearMetaChange?.({
+      bounds: yearBounds,
+      loading: loadingYears,
+      error: selectedYear ? null : error,
+      hasOptions: yearOptions.length > 0,
+    });
+  }, [onYearMetaChange, yearBounds, loadingYears, error, yearOptions.length, selectedYear]);
+
   const [yearDigits, setYearDigits] = useState<string[]>(["", "", "", ""]);
 
   useEffect(() => {
     setYearDigits(
-      typeof pendingYear === "number" ? String(pendingYear).padStart(4, "0").split("") : ["", "", "", ""]
+      typeof selectedYear === "number" ? String(selectedYear).padStart(4, "0").split("") : ["", "", "", ""]
     );
-  }, [pendingYear]);
+  }, [selectedYear]);
 
   const yearPlaceholderDigits = useMemo(
     () => String(yearBounds?.max ?? new Date().getFullYear()).padStart(4, "0").split(""),
@@ -361,8 +376,6 @@ const CarModifications: React.FC<Props> = ({
 
   const yearDigitRefs = useRef<Array<HTMLInputElement | null>>([]);
 
-  // Digit edits only touch pendingYear — selectedYear (and the fetch/step it
-  // drives) changes only via commitYear, once the user presses "Підтвердити".
   const handleYearDigitType = useCallback(
     (place: number, raw: string) => {
       const digit = raw.replace(/[^\d]/g, "").slice(-1);
@@ -372,7 +385,8 @@ const CarModifications: React.FC<Props> = ({
           next[place] = "";
           return next;
         });
-        setPendingYear("");
+        setSelectedYear("");
+        onYearChange?.(null);
         return;
       }
       setYearDigits((prev) => {
@@ -385,14 +399,15 @@ const CarModifications: React.FC<Props> = ({
           const clamped = yearBounds
             ? Math.min(yearBounds.max, Math.max(yearBounds.min, numeric))
             : numeric;
-          setPendingYear(clamped);
+          setSelectedYear(clamped);
+          onYearChange?.(clamped);
           return String(clamped).padStart(4, "0").split("");
         }
         return next;
       });
       yearDigitRefs.current[place + 1]?.focus();
     },
-    [yearBounds]
+    [yearBounds, onYearChange]
   );
 
   const handleYearDigitKeyDown = useCallback(
@@ -413,8 +428,8 @@ const CarModifications: React.FC<Props> = ({
       if (!yearBounds) return null;
       const step = 10 ** (3 - place);
       const base =
-        typeof pendingYear === "number"
-          ? pendingYear
+        typeof selectedYear === "number"
+          ? selectedYear
           : direction > 0
           ? yearBounds.min
           : yearBounds.max;
@@ -422,7 +437,7 @@ const CarModifications: React.FC<Props> = ({
       if (next < yearBounds.min || next > yearBounds.max) return null;
       return next;
     },
-    [pendingYear, yearBounds]
+    [selectedYear, yearBounds]
   );
 
   const canAdjustYearDigit = useCallback(
@@ -434,23 +449,17 @@ const CarModifications: React.FC<Props> = ({
     (place: number, direction: 1 | -1) => {
       const next = nextYearForDigit(place, direction);
       if (next == null) return;
-      setPendingYear((prev) => (prev === next ? prev : next));
+      setSelectedYear((prev) => (prev === next ? prev : next));
+      onYearChange?.(next);
     },
-    [nextYearForDigit]
+    [nextYearForDigit, onYearChange]
   );
 
   const clearYearDigits = useCallback(() => {
     setYearDigits(["", "", "", ""]);
-    setPendingYear("");
     setSelectedYear("");
     onYearChange?.(null);
   }, [onYearChange]);
-
-  const commitYear = useCallback(() => {
-    if (typeof pendingYear !== "number") return;
-    setSelectedYear((prev) => (prev === pendingYear ? prev : pendingYear));
-    onYearChange?.(pendingYear);
-  }, [pendingYear, onYearChange]);
 
   const volumeOptions = useMemo(() => {
     const set = new Set<string>();
@@ -627,6 +636,18 @@ const CarModifications: React.FC<Props> = ({
           : isSelectingDrive
             ? AUTO_FIELDS.drive
             : "";
+  // One distinct icon per filter step — gives the label above the chip grid
+  // (and each chip's own top accent, below) a clear, scannable identity
+  // instead of every step reading as the same plain muted line of text.
+  const currentStepIcon = isSelectingVolume
+    ? Gauge
+    : isSelectingPower
+      ? Zap
+      : isSelectingGearbox
+        ? Settings2
+        : isSelectingDrive
+          ? Compass
+          : null;
 
   const formatStepValue = (value: string) => {
     if (isSelectingVolume) return `${value} ${UNIT_LITERS}`;
@@ -696,22 +717,27 @@ const CarModifications: React.FC<Props> = ({
       {/* Header — matches the "Вибір із N моделей автомобілів" row in
           CarModels.tsx; pagination now lives as edge arrows around the grid
           (below), the same as the model-selection step, instead of a
-          separate pill control up here. */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-indigo-200/80 bg-indigo-50 text-indigo-700 shadow-[0_6px_14px_rgba(99,102,241,0.09)]">
-            <SlidersHorizontal size={14} strokeWidth={2.2} aria-hidden />
-          </span>
-          <div className="flex min-w-0 flex-col">
-            <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 leading-none">
-              {LABEL_SELECT_FROM}
+          separate pill control up here. Hidden when hosted (onYearMetaChange
+          provided): the parent already shows a "Виберіть модифікацію ..."
+          heading of its own there, and stacking this on top of it just
+          duplicated the same "here's the count" message twice. */}
+      {!onYearMetaChange && (
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-indigo-200/80 bg-indigo-50 text-indigo-700 shadow-[0_6px_14px_rgba(99,102,241,0.09)]">
+              <SlidersHorizontal size={14} strokeWidth={2.2} aria-hidden />
             </span>
-            <span className={`font-bold text-slate-800 leading-tight ${isCompact ? "text-[12px]" : "text-[13px]"}`}>
-              {headerCount} {LABEL_MODS}
-            </span>
+            <div className="flex min-w-0 flex-col">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 leading-none">
+                {LABEL_SELECT_FROM}
+              </span>
+              <span className={`font-bold text-slate-800 leading-tight ${isCompact ? "text-[12px]" : "text-[13px]"}`}>
+                {headerCount} {LABEL_MODS}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Breadcrumb: selected values */}
       {(selectedYear || filters.volume || filters.power || filters.gearbox || filters.drive) && (
@@ -719,7 +745,7 @@ const CarModifications: React.FC<Props> = ({
           {selectedYear && (
             <button
               type="button"
-              onClick={() => { setSelectedYear(""); setPendingYear(""); onYearChange?.(null); setFilters({ volume: "", power: "", gearbox: "", drive: "" }); }}
+              onClick={() => { setSelectedYear(""); onYearChange?.(null); setFilters({ volume: "", power: "", gearbox: "", drive: "" }); }}
               className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-[10px] font-semibold text-sky-700 transition-all duration-150 hover:bg-sky-100 hover:border-sky-300"
             >
               {LABEL_YEAR}: {selectedYear}
@@ -784,99 +810,114 @@ const CarModifications: React.FC<Props> = ({
         <div
           className={`flex flex-col justify-center ${isCompact ? "min-h-[176px]" : "min-h-[212px]"}`}
         >
-          {/* Step label */}
+          {/* Step label — icon + bold label + hairline, matching the site's
+              eyebrow pattern, instead of a small muted line easy to miss. */}
           {!showResults && currentStepLabel && (
-            <p className={`mb-2 font-semibold uppercase tracking-[0.10em] text-slate-400 ${isCompact ? "text-[9px]" : "text-[10px]"}`}>
-              {currentStepLabel}
-            </p>
+            <div className="mb-2.5 flex items-center gap-2">
+              {currentStepIcon && (
+                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-sky-200/80 bg-sky-50 text-sky-600">
+                  {React.createElement(currentStepIcon, { size: 13, strokeWidth: 2.4, "aria-hidden": true })}
+                </span>
+              )}
+              <span className={`font-black uppercase tracking-[0.1em] text-slate-700 ${isCompact ? "text-[10.5px]" : "text-[11.5px]"}`}>
+                {currentStepLabel}
+              </span>
+              <span className="h-px flex-1 bg-gradient-to-r from-sky-200/70 to-transparent" aria-hidden="true" />
+            </div>
           )}
 
-          {/* Year counter — matches the digit stepper under the brand/model
-              step navigation in Auto.tsx, instead of a scrollable chip grid. */}
+          {/* Year counter. Hosted (onYearMetaChange provided): the parent
+              renders the same "Рік" widget it already uses for CarModels in
+              its search panel, driven by the meta reported above — this
+              slot just prompts toward it instead of duplicating a second
+              digit stepper on the page. Otherwise: the stepper itself,
+              matching the one under the brand/model step navigation in
+              Auto.tsx, instead of a scrollable chip grid. */}
           {isSelectingYear && yearOptions.length > 0 && (
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <CalendarRange size={13} strokeWidth={2.3} className="shrink-0 text-sky-500" aria-hidden />
-                <span className="min-w-0 truncate text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
-                  {typeof pendingYear === "number" ? `Рік випуску: ${pendingYear}` : "Рік випуску: будь-який"}
-                </span>
-                {yearBounds && (
-                  <span className="shrink-0 text-[10px] font-bold tabular-nums text-slate-400">
-                    ({yearBounds.min}–{yearBounds.max})
-                  </span>
-                )}
-              </div>
-              <div className="inline-flex flex-wrap items-center gap-2 rounded-xl border border-sky-200 bg-[radial-gradient(circle_at_50%_-30%,rgba(125,211,252,0.35),transparent_60%),linear-gradient(150deg,#ffffff_0%,#f3faff_55%,#eaf7ff_100%)] px-2.5 py-2 shadow-[0_6px_16px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/80">
-                <div className="flex items-center">
-                  {yearDigits.map((digit, place) => {
-                    const isSet = digit !== "";
-                    return (
-                      <div key={place} className="flex flex-col items-center">
-                        <button
-                          type="button"
-                          onClick={() => adjustYearDigit(place, 1)}
-                          disabled={!canAdjustYearDigit(place, 1)}
-                          aria-label="Збільшити розряд року"
-                          className="flex h-3.5 w-4 items-center justify-center text-slate-500 transition-colors duration-150 hover:text-sky-700 active:scale-90 disabled:opacity-25 disabled:hover:text-slate-500"
-                        >
-                          <ChevronUp size={12} strokeWidth={3} />
-                        </button>
-                        <input
-                          ref={(el) => {
-                            yearDigitRefs.current[place] = el;
-                          }}
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={digit}
-                          placeholder={yearPlaceholderDigits[place]}
-                          onChange={(e) => handleYearDigitType(place, e.target.value)}
-                          onKeyDown={(e) => handleYearDigitKeyDown(place, e)}
-                          onFocus={(e) => e.currentTarget.select()}
-                          aria-label={`Розряд року ${place + 1}`}
-                          className={`w-4 border-0 border-b-2 bg-transparent text-center text-[15px] font-black leading-none tabular-nums outline-none transition-colors duration-200 focus:border-sky-500 ${
-                            isSet ? "border-sky-300 text-sky-700" : "border-slate-300 text-slate-800 placeholder:font-bold placeholder:text-slate-400"
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => adjustYearDigit(place, -1)}
-                          disabled={!canAdjustYearDigit(place, -1)}
-                          aria-label="Зменшити розряд року"
-                          className="flex h-3.5 w-4 items-center justify-center text-slate-500 transition-colors duration-150 hover:text-sky-700 active:scale-90 disabled:opacity-25 disabled:hover:text-slate-500"
-                        >
-                          <ChevronDown size={12} strokeWidth={3} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-                <button
-                  type="button"
-                  onClick={clearYearDigits}
-                  disabled={!selectedYear && yearDigits.every((d) => d === "")}
-                  aria-label="Скинути рік випуску"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-bold text-slate-600 transition-colors duration-150 hover:text-sky-700 disabled:opacity-35"
-                >
-                  <X size={12} strokeWidth={3} />
-                  Скинути
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={commitYear}
-                disabled={typeof pendingYear !== "number"}
-                className="w-full max-w-[220px] rounded-xl border border-blue-300/60 bg-gradient-to-r from-blue-500 to-sky-500 px-4 py-2 text-[12.5px] font-bold text-white shadow-[0_4px_16px_rgba(59,130,246,0.28)] transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-[1px] hover:shadow-[0_8px_24px_rgba(59,130,246,0.42)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {LABEL_CONFIRM} рік
-              </button>
-              <div className="flex items-center gap-1.5">
-                <Info size={12} strokeWidth={2.5} className="shrink-0 text-sky-500" aria-hidden />
-                <p className="text-center text-[11px] font-semibold text-slate-600">
-                  {"Клікніть на цифру і введіть рік або скористайтесь стрілочками, потім підтвердіть"}
+            onYearMetaChange ? (
+              <div className="flex flex-col items-center gap-2 rounded-[16px] border border-dashed border-sky-200/80 bg-sky-50/40 px-4 py-10 text-center">
+                <CalendarRange size={22} strokeWidth={1.8} className="text-sky-400" aria-hidden />
+                <p className="max-w-[32ch] text-[13px] font-semibold text-slate-500">
+                  Оберіть рік випуску в полі «Рік» у блоці пошуку праворуч
                 </p>
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <CalendarRange size={13} strokeWidth={2.3} className="shrink-0 text-sky-500" aria-hidden />
+                  <span className="min-w-0 truncate text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                    {typeof selectedYear === "number" ? `Рік випуску: ${selectedYear}` : "Рік випуску: будь-який"}
+                  </span>
+                  {yearBounds && (
+                    <span className="shrink-0 text-[10px] font-bold tabular-nums text-slate-400">
+                      ({yearBounds.min}–{yearBounds.max})
+                    </span>
+                  )}
+                </div>
+                <div className="inline-flex flex-wrap items-center gap-2 rounded-xl border border-sky-200 bg-[radial-gradient(circle_at_50%_-30%,rgba(125,211,252,0.35),transparent_60%),linear-gradient(150deg,#ffffff_0%,#f3faff_55%,#eaf7ff_100%)] px-2.5 py-2 shadow-[0_6px_16px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/80">
+                  <div className="flex items-center">
+                    {yearDigits.map((digit, place) => {
+                      const isSet = digit !== "";
+                      return (
+                        <div key={place} className="flex flex-col items-center">
+                          <button
+                            type="button"
+                            onClick={() => adjustYearDigit(place, 1)}
+                            disabled={!canAdjustYearDigit(place, 1)}
+                            aria-label="Збільшити розряд року"
+                            className="flex h-3.5 w-4 items-center justify-center text-slate-500 transition-colors duration-150 hover:text-sky-700 active:scale-90 disabled:opacity-25 disabled:hover:text-slate-500"
+                          >
+                            <ChevronUp size={12} strokeWidth={3} />
+                          </button>
+                          <input
+                            ref={(el) => {
+                              yearDigitRefs.current[place] = el;
+                            }}
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={1}
+                            value={digit}
+                            placeholder={yearPlaceholderDigits[place]}
+                            onChange={(e) => handleYearDigitType(place, e.target.value)}
+                            onKeyDown={(e) => handleYearDigitKeyDown(place, e)}
+                            onFocus={(e) => e.currentTarget.select()}
+                            aria-label={`Розряд року ${place + 1}`}
+                            className={`w-4 border-0 border-b-2 bg-transparent text-center text-[15px] font-black leading-none tabular-nums outline-none transition-colors duration-200 focus:border-sky-500 ${
+                              isSet ? "border-sky-300 text-sky-700" : "border-slate-300 text-slate-800 placeholder:font-bold placeholder:text-slate-400"
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => adjustYearDigit(place, -1)}
+                            disabled={!canAdjustYearDigit(place, -1)}
+                            aria-label="Зменшити розряд року"
+                            className="flex h-3.5 w-4 items-center justify-center text-slate-500 transition-colors duration-150 hover:text-sky-700 active:scale-90 disabled:opacity-25 disabled:hover:text-slate-500"
+                          >
+                            <ChevronDown size={12} strokeWidth={3} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearYearDigits}
+                    disabled={!selectedYear && yearDigits.every((d) => d === "")}
+                    aria-label="Скинути рік випуску"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-bold text-slate-600 transition-colors duration-150 hover:text-sky-700 disabled:opacity-35"
+                  >
+                    <X size={12} strokeWidth={3} />
+                    Скинути
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Info size={12} strokeWidth={2.5} className="shrink-0 text-sky-500" aria-hidden />
+                  <p className="text-center text-[11px] font-semibold text-slate-600">
+                    {"Клікніть на цифру і введіть рік або скористайтесь стрілочками"}
+                  </p>
+                </div>
+              </div>
+            )
           )}
 
           {/* Filter step chips — edge-arrow pagination matches the model grid
@@ -886,16 +927,20 @@ const CarModifications: React.FC<Props> = ({
               <div className="py-4 text-center text-xs text-slate-400">{LABEL_EMPTY_MODS}</div>
             ) : (
               <>
-                <div className="relative px-7 sm:px-10">
+                <div className="relative px-7 sm:px-9">
+                  {/* Bordered circular buttons — was a bare icon + drop-shadow,
+                      which read as much fainter/less defined than the arrow
+                      style already established elsewhere on the site (e.g.
+                      HorizontalDirectoryRail's rail arrows). */}
                   {totalOptionPages > 1 && (
                     <button
                       type="button"
                       onClick={() => { if (canGoPrev) { const next = safeOptionPage - 1; setOptionPage(next); scrollToOptionPage(next); } }}
                       disabled={!canGoPrev}
-                      className="absolute left-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
+                      className="absolute left-0 top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-800 shadow-[0_10px_22px_-8px_rgba(14,165,233,0.3)] transition-[border-color,box-shadow,background-color,color,transform] duration-200 active:scale-[0.92] hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900 hover:shadow-[0_14px_26px_-8px_rgba(14,165,233,0.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60 disabled:pointer-events-none disabled:opacity-30 sm:h-11 sm:w-11"
                       aria-label={LABEL_PREV_PAGE}
                     >
-                      <ChevronLeft size={34} strokeWidth={2.6} />
+                      <ChevronLeft size={20} strokeWidth={2.8} />
                     </button>
                   )}
                   <div
@@ -912,10 +957,15 @@ const CarModifications: React.FC<Props> = ({
                                 key={value}
                                 type="button"
                                 onClick={() => handleStepSelect(value)}
-                                className={`group/category relative flex min-h-[72px] flex-col items-center justify-center overflow-hidden rounded-[16px] border px-2.5 py-2.5 text-center transition-[border-color,background-color,box-shadow] duration-500 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:min-h-[86px] sm:px-3 border-sky-200/95 bg-[radial-gradient(circle_at_50%_-8%,rgba(125,211,252,0.44),transparent_48%),linear-gradient(150deg,#ffffff_0%,#f3faff_50%,#e9f8ff_100%)] text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.09),0_3px_9px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 hover:border-sky-500 hover:bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] hover:shadow-[0_22px_40px_rgba(2,132,199,0.26),0_0_0_3px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,1)]`}
+                                className="group/category relative flex min-h-[76px] min-w-0 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[16px] border border-sky-200/95 bg-[radial-gradient(circle_at_50%_-8%,rgba(125,211,252,0.44),transparent_48%),linear-gradient(150deg,#ffffff_0%,#f3faff_50%,#e9f8ff_100%)] px-2.5 py-2.5 text-center shadow-[0_10px_24px_rgba(15,23,42,0.09),0_3px_9px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 transition-[border-color,background-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:border-sky-500 hover:bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] hover:shadow-[0_20px_36px_rgba(2,132,199,0.24),0_0_0_3px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,1)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:min-h-[92px] sm:px-3"
                               >
-                                <span className="pointer-events-none absolute inset-0 shadow-[inset_0_2px_6px_rgba(15,23,42,0.06)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.10),inset_0_0_0_1px_rgba(2,132,199,0.06)]" />
-                                <span className="relative line-clamp-2 w-full text-[11px] font-semibold uppercase leading-tight tracking-[0.02em] text-slate-800 transition-colors duration-300 ease-out group-hover/category:text-sky-900 sm:text-[14px]">
+                                <span className="pointer-events-none absolute inset-x-6 top-0 h-[3px] rounded-full bg-[linear-gradient(90deg,transparent,#0ea5e9_30%,#e0f2fe_50%,#38bdf8_70%,transparent)] opacity-0 transition-opacity duration-300 group-hover/category:opacity-100" />
+                                {currentStepIcon && (
+                                  <span className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600 transition-colors duration-300 ease-out group-hover/category:bg-sky-600 group-hover/category:text-white sm:h-7 sm:w-7">
+                                    {React.createElement(currentStepIcon, { size: 13, strokeWidth: 2.4, "aria-hidden": true })}
+                                  </span>
+                                )}
+                                <span className="relative line-clamp-2 w-full text-[13px] font-black uppercase leading-tight tracking-[0.01em] text-slate-800 transition-colors duration-300 ease-out group-hover/category:text-sky-900 sm:text-[16px]">
                                   {formatStepValue(value)}
                                 </span>
                               </button>
@@ -930,10 +980,10 @@ const CarModifications: React.FC<Props> = ({
                       type="button"
                       onClick={() => { if (canGoNext) { const next = safeOptionPage + 1; setOptionPage(next); scrollToOptionPage(next); } }}
                       disabled={!canGoNext}
-                      className="absolute right-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
+                      className="absolute right-0 top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-800 shadow-[0_10px_22px_-8px_rgba(14,165,233,0.3)] transition-[border-color,box-shadow,background-color,color,transform] duration-200 active:scale-[0.92] hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900 hover:shadow-[0_14px_26px_-8px_rgba(14,165,233,0.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60 disabled:pointer-events-none disabled:opacity-30 sm:h-11 sm:w-11"
                       aria-label={LABEL_NEXT_PAGE}
                     >
-                      <ChevronRight size={34} strokeWidth={2.6} />
+                      <ChevronRight size={20} strokeWidth={2.8} />
                     </button>
                   )}
                 </div>

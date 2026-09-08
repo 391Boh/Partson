@@ -87,8 +87,11 @@ const GoogleLogo = ({ className = "" }: { className?: string }) => (
   </svg>
 );
 
+// Google gets its own brand-tinted hover/focus (blue, matching the "G") and a
+// slim 4-color top accent instead of the generic sky tint every other
+// secondary button uses — see auth-social-button--google in globals.css.
 const socialButtonClass =
-  "auth-social-button group inline-flex min-h-[44px] w-full min-w-0 items-center justify-center gap-1.5 rounded-[16px] border border-white/80 bg-white/92 px-2 py-2 text-sm font-extrabold text-slate-800 shadow-[0_14px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70 hover:border-sky-200 hover:bg-sky-50/80 hover:shadow-[0_20px_40px_rgba(14,165,233,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-wait disabled:opacity-70";
+  "auth-social-button auth-social-button--google group relative inline-flex min-h-[44px] w-full min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-[16px] border border-white/80 bg-white/92 px-2 py-2 text-sm font-extrabold text-slate-800 shadow-[0_14px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70 focus-visible:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:opacity-70";
 
 const socialIconShellClass =
   "relative z-[2] inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-white shadow-[0_8px_16px_rgba(15,23,42,0.08)] transition-[transform,border-color,box-shadow] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110 group-hover:border-sky-200 group-hover:shadow-[0_10px_18px_rgba(14,165,233,0.16)]";
@@ -800,6 +803,13 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 disabled={isGoogleLoading || isGoogleRedirectPending}
                 className={socialButtonClass}
               >
+                {/* Google's own 4-color accent, as a thin top strip instead of
+                    tinting the whole pill — the multi-color logo already
+                    carries the brand, this just echoes it on hover/focus. */}
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 top-0 h-[3px] scale-x-0 bg-[linear-gradient(90deg,#4285f4_0%,#ea4335_34%,#fbbc05_67%,#34a853_100%)] transition-transform duration-300 ease-out group-hover:scale-x-100 group-focus-visible:scale-x-100"
+                />
                 <span className={socialIconShellClass}>
                   <GoogleLogo className="h-5 w-5" />
                 </span>

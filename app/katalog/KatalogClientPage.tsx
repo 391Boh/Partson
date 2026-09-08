@@ -225,7 +225,9 @@ const Katalog: React.FC<KatalogProps> = ({
       currentSearchParams.get('search')
   );
   const hasExplicitCatalogFilterRef = useRef(hasExplicitCatalogFilter);
-  hasExplicitCatalogFilterRef.current = hasExplicitCatalogFilter;
+  useEffect(() => {
+    hasExplicitCatalogFilterRef.current = hasExplicitCatalogFilter;
+  }, [hasExplicitCatalogFilter]);
   const router = useRouter();
   const pathname = usePathname() || '/katalog';
   const skipRemoteLoadRef = useRef(false);
@@ -300,7 +302,9 @@ const Katalog: React.FC<KatalogProps> = ({
     [pathname, router, searchParamsKey]
   );
   const handleCarSelectionChangeRef = useRef(handleCarSelectionChange);
-  handleCarSelectionChangeRef.current = handleCarSelectionChange;
+  useEffect(() => {
+    handleCarSelectionChangeRef.current = handleCarSelectionChange;
+  }, [handleCarSelectionChange]);
 
   const carSummary = useMemo(() => {
     if (!selectedCarSelection) return '';

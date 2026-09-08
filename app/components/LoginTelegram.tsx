@@ -83,8 +83,11 @@ const buildTelegramErrorMessage = (error: string | undefined) => {
   }
 };
 
+// Telegram's own brand blue for hover/focus instead of the generic sky tint
+// the Google button used to share with it — see auth-social-button--telegram
+// in globals.css.
 const socialButtonClass =
-  "auth-social-button group inline-flex min-h-[44px] w-full min-w-0 items-center justify-center gap-1.5 rounded-[16px] border border-white/80 bg-white/92 px-2 py-2 text-sm font-extrabold text-slate-800 shadow-[0_14px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70 hover:border-sky-200 hover:bg-sky-50/80 hover:text-sky-950 hover:shadow-[0_20px_40px_rgba(14,165,233,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-wait disabled:opacity-70";
+  "auth-social-button auth-social-button--telegram group inline-flex min-h-[44px] w-full min-w-0 items-center justify-center gap-1.5 rounded-[16px] border border-white/80 bg-white/92 px-2 py-2 text-sm font-extrabold text-slate-800 shadow-[0_14px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70 focus-visible:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:opacity-70";
 
 const socialIconShellClass =
   "relative z-[2] inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sky-100 bg-[#229ED9] text-white shadow-[0_10px_20px_rgba(34,158,217,0.24)] transition-[transform,box-shadow] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110 group-hover:shadow-[0_12px_24px_rgba(34,158,217,0.3)]";

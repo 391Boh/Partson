@@ -55,12 +55,9 @@ export const buildUrlSetXml = (siteUrl: string, entries: SitemapXmlPathEntry[]) 
       if (!image.loc) continue;
       lines.push("    <image:image>");
       lines.push(`      <image:loc>${escapeXml(toAbsoluteSitePath(siteUrl, image.loc))}</image:loc>`);
-      if (image.title) {
-        lines.push(`      <image:title>${escapeXml(image.title)}</image:title>`);
-      }
-      if (image.caption) {
-        lines.push(`      <image:caption>${escapeXml(image.caption)}</image:caption>`);
-      }
+      // Google deprecated image:title and image:caption. Keep only the
+      // required image:loc so the sitemap follows the current extension
+      // specification and avoids redundant, ignored payload.
       lines.push("    </image:image>");
     }
 

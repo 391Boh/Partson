@@ -3,7 +3,6 @@
 import type { ComponentType, ReactNode } from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import type { Auth } from "firebase/auth";
 import type { Firestore } from "firebase/firestore";
 import Header from "./Header";
 import NavigationProgress from "./NavigationProgress";
@@ -15,6 +14,7 @@ import {
   CATALOG_PRODUCTS_CACHE_TTL_MS,
 } from "app/lib/catalog-client-cache";
 import { GOOGLE_REDIRECT_PENDING_KEY } from "app/lib/auth-storage";
+import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 
 const ProductCreateModal = dynamic(() => import("./ProductCreateModal"), {
   ssr: false,
@@ -50,12 +50,10 @@ type RouteViewState = {
 };
 
 type LayoutFirebaseDeps = {
-  auth: Auth;
   db: Firestore;
   collection: typeof import("firebase/firestore").collection;
   doc: typeof import("firebase/firestore").doc;
   getDoc: typeof import("firebase/firestore").getDoc;
-  onAuthStateChanged: typeof import("firebase/auth").onAuthStateChanged;
   onSnapshot: typeof import("firebase/firestore").onSnapshot;
   query: typeof import("firebase/firestore").query;
   setDoc: typeof import("firebase/firestore").setDoc;
@@ -67,15 +65,12 @@ let layoutFirebaseDepsPromise: Promise<LayoutFirebaseDeps> | null = null;
 const loadLayoutFirebaseDeps = () => {
   layoutFirebaseDepsPromise ??= Promise.all([
     import("../../firebase"),
-    import("firebase/auth"),
     import("firebase/firestore"),
-  ]).then(([firebaseModule, authModule, firestoreModule]) => ({
-    auth: firebaseModule.auth,
+  ]).then(([firebaseModule, firestoreModule]) => ({
     db: firebaseModule.db,
     collection: firestoreModule.collection,
     doc: firestoreModule.doc,
     getDoc: firestoreModule.getDoc,
-    onAuthStateChanged: authModule.onAuthStateChanged,
     onSnapshot: firestoreModule.onSnapshot,
     query: firestoreModule.query,
     setDoc: firestoreModule.setDoc,
@@ -308,6 +303,8 @@ function RouteViewStateSync({
 }
 
 export default function LayoutHost({ children }: LayoutHostProps) {
+  const { ready: firebaseAuthReady, user: firebaseUser } =
+    useFirebaseAuthState();
   const [AdminChatPanelComponent, setAdminChatPanelComponent] =
     useState<ComponentType<AdminChatPanelComponentProps> | null>(null);
   const [TelegramChatComponent, setTelegramChatComponent] =
@@ -331,6 +328,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     isEmbeddedProductView: false,
   });
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [isPageAtTop, setIsPageAtTop] = useState(true);
 
   const router = useRouter();
   const pathnameValue = usePathname();
@@ -341,18 +339,51 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const previousPathnameRef = useRef(pathname);
   const adminPanelPathnameRef = useRef(pathname);
   const scrollTopSentinelRef = useRef<HTMLSpanElement | null>(null);
+  const isPageAtTopRef = useRef(true);
   const isDevelopment = process.env.NODE_ENV !== "production";
   const enableAggressiveWarmup =
     process.env.NEXT_PUBLIC_ENABLE_AGGRESSIVE_WARMUP === "1";
-  const enableIdleFirebase =
-    process.env.NEXT_PUBLIC_ENABLE_IDLE_FIREBASE === "1";
   const { isEmbeddedProductView } = routeViewState;
-  const openChat = useCallback(() => {
-    setIsChatOpen(true);
+  const requestLayoutFirebaseDeps = useCallback(() => {
+    void loadLayoutFirebaseDeps()
+      .then(setFirebaseDeps)
+      .catch((error) => {
+        console.error("Failed to load layout Firebase deps:", error);
+      });
   }, []);
+  const openChat = useCallback(() => {
+    requestLayoutFirebaseDeps();
+    setIsChatOpen(true);
+  }, [requestLayoutFirebaseDeps]);
   const closeChat = useCallback(() => {
     setIsChatOpen(false);
   }, []);
+
+  // Drive the transparent homepage header from the same top sentinel used by
+  // the scroll-to-top affordance. IntersectionObserver runs off the main
+  // scroll path, so this avoids a React state check and an extra rAF for every
+  // wheel/touch frame while still handling reload and bfcache restoration.
+  useEffect(() => {
+    if (typeof window === "undefined" || pathname !== "/") return;
+    const sentinel = scrollTopSentinelRef.current;
+    if (!sentinel || typeof IntersectionObserver === "undefined") return;
+
+    const update = (nextIsAtTop: boolean) => {
+      if (nextIsAtTop === isPageAtTopRef.current) return;
+      isPageAtTopRef.current = nextIsAtTop;
+      setIsPageAtTop(nextIsAtTop);
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => update(Boolean(entry?.isIntersecting)),
+      { threshold: 0.01 }
+    );
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [pathname]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -385,6 +416,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       endTimer = null;
       scrolling = false;
       root.classList.remove("is-scrolling");
+    };
+
+    const settleAfterScroll = () => {
+      if (endTimer !== null) window.clearTimeout(endTimer);
+      // Give the final compositor frame time to land before hover shadows and
+      // clarity filters become eligible again under a stationary pointer.
+      endTimer = window.setTimeout(finishScroll, 80);
     };
 
     const beginScroll = () => {
@@ -426,13 +464,13 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     window.addEventListener("touchmove", handleScrollIntent, { passive: true });
     window.addEventListener("scroll", handleScroll, { passive: true });
     if (supportsScrollEnd) {
-      window.addEventListener("scrollend", finishScroll, { passive: true });
+      window.addEventListener("scrollend", settleAfterScroll, { passive: true });
     }
     return () => {
       window.removeEventListener("wheel", handleScrollIntent);
       window.removeEventListener("touchmove", handleScrollIntent);
       window.removeEventListener("scroll", handleScroll);
-      if (supportsScrollEnd) window.removeEventListener("scrollend", finishScroll);
+      if (supportsScrollEnd) window.removeEventListener("scrollend", settleAfterScroll);
       if (endTimer !== null) window.clearTimeout(endTimer);
       root.classList.remove("is-scrolling");
     };
@@ -480,44 +518,12 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   useEffect(() => {
     if (typeof window === "undefined" || firebaseDeps) return;
 
-    let cancelled = false;
-    const loadDeps = () => {
-      void loadLayoutFirebaseDeps()
-        .then((deps) => {
-          if (!cancelled) {
-            setFirebaseDeps(deps);
-          }
-        })
-        .catch((error) => {
-          console.error("Failed to load layout Firebase deps:", error);
-        });
-    };
-
     let timeoutId: number | null = null;
-    const idleId: number | null = null;
-    const triggerDepsLoad = (event?: Event) => {
-      if (event?.type === "click" && isNavigationClick(event)) {
-        return;
-      }
-      window.removeEventListener("click", triggerDepsLoad);
-      window.removeEventListener("keydown", triggerDepsLoad);
-      if (timeoutId != null) window.clearTimeout(timeoutId);
-      if (idleId != null && "cancelIdleCallback" in window) {
-        (window as Window & { cancelIdleCallback?: (id: number) => void })
-          .cancelIdleCallback?.(idleId);
-      }
-      loadDeps();
-    };
+    let idleId: number | null = null;
 
-    window.addEventListener("click", triggerDepsLoad, {
-      once: true,
-      passive: true,
-    });
-    window.addEventListener("keydown", triggerDepsLoad, { once: true });
-
-    // Guests (no user_id in localStorage) get no proactive timer — Firebase loads
-    // only on first interaction. This removes auth/iframe.js from the LCP critical
-    // path for anonymous visitors. Logged-in users keep the original short delay.
+    // Guest homepage visits do not need Firestore for rendering. Chat opens
+    // it explicitly through openChat(); returning users get the cached role
+    // shell immediately and verify it only when the browser is genuinely idle.
     const isLikelyLoggedIn = (() => {
       try {
         return Boolean(
@@ -528,22 +534,40 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         return false;
       }
     })();
-    if (isLikelyLoggedIn) {
-      const delayMs = enableIdleFirebase ? 3500 : 1800;
-      timeoutId = window.setTimeout(triggerDepsLoad, delayMs);
+    if (!isLikelyLoggedIn) return;
+
+    const triggerDepsLoad = () => {
+      if (document.documentElement.classList.contains("is-scrolling")) {
+        timeoutId = window.setTimeout(triggerDepsLoad, 240);
+        return;
+      }
+      requestLayoutFirebaseDeps();
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(triggerDepsLoad, {
+        timeout: pathname === "/" ? 4_500 : 2_200,
+      });
+    } else {
+      timeoutId = window.setTimeout(
+        triggerDepsLoad,
+        pathname === "/" ? 2_200 : 900
+      );
     }
 
     return () => {
-      cancelled = true;
-      window.removeEventListener("click", triggerDepsLoad);
-      window.removeEventListener("keydown", triggerDepsLoad);
       if (timeoutId != null) window.clearTimeout(timeoutId);
-      if (idleId != null && "cancelIdleCallback" in window) {
-        (window as Window & { cancelIdleCallback?: (id: number) => void })
-          .cancelIdleCallback?.(idleId);
-      }
+      if (idleId != null) window.cancelIdleCallback?.(idleId);
     };
-  }, [enableIdleFirebase, firebaseDeps]);
+  }, [firebaseDeps, pathname, requestLayoutFirebaseDeps]);
+
+  // A guest can become authenticated after the initial scheduling effect has
+  // intentionally opted out. At that point the login action is complete, so
+  // load the role/chat data directly instead of waiting for another page load.
+  useEffect(() => {
+    if (!firebaseUser || firebaseDeps) return;
+    requestLayoutFirebaseDeps();
+  }, [firebaseDeps, firebaseUser, requestLayoutFirebaseDeps]);
 
   useEffect(() => {
     if (typeof window === "undefined" || ChatButtonComponent) return;
@@ -817,11 +841,23 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     primaryRoutePrefetchStartedRef.current = true;
 
     let idleId: number | null = null;
+    let retryId: number | null = null;
     let didWarmRoutes = false;
     const delayId = window.setTimeout(() => {
       const warmRoutes = () => {
+        // Never compete with an active gesture, a just-mounted deferred home
+        // section, or work in a background tab. SmartLink still prefetches on
+        // pointer intent, so postponing this speculative batch cannot slow a
+        // real click.
+        if (
+          document.visibilityState === "hidden" ||
+          document.documentElement.classList.contains("is-scrolling")
+        ) {
+          retryId = window.setTimeout(warmRoutes, 1200);
+          return;
+        }
         didWarmRoutes = true;
-        const routeLimit = shouldUseLightNetworkWarmup() ? 3 : 5;
+        const routeLimit = shouldUseLightNetworkWarmup() ? 2 : 3;
         PRIMARY_WARMUP_ROUTES
           .filter((route) => route !== pathname)
           .slice(0, routeLimit)
@@ -836,10 +872,11 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       } else {
         warmRoutes();
       }
-    }, pathname === "/" ? 1800 : 350);
+    }, pathname === "/" ? 3200 : 700);
 
     return () => {
       window.clearTimeout(delayId);
+      if (retryId !== null) window.clearTimeout(retryId);
       if (idleId !== null && typeof window.cancelIdleCallback === "function") {
         window.cancelIdleCallback(idleId);
       }
@@ -1140,17 +1177,17 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!firebaseDeps) return;
+    if (!firebaseDeps || !firebaseAuthReady) return;
 
-    const { auth, db, doc, getDoc, onAuthStateChanged, setDoc } = firebaseDeps;
+    const { db, doc, getDoc, setDoc } = firebaseDeps;
+    let cancelled = false;
 
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      setAuthUserUid(currentUser.uid);
+    if (firebaseUser) {
+      setAuthUserUid(firebaseUser.uid);
       // Optimistic instant paint for a returning admin on the same device;
       // the authoritative check (custom claims / Firestore role / the
-      // server-side email allowlist) still runs below via onAuthStateChanged.
-      if (readRememberedAdminAccess(currentUser.uid)) {
+      // server-side email allowlist) still runs below.
+      if (readRememberedAdminAccess(firebaseUser.uid)) {
         setIsAdmin(true);
       }
     }
@@ -1167,7 +1204,8 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       setLoading(false);
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const syncAuthState = async () => {
+      const user = firebaseUser;
       if (user) {
         setAdminCheckReady(false);
         setAuthUserUid(user.uid);
@@ -1175,29 +1213,37 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           setIsAdmin(true);
         }
         const userRef = doc(db, "users", user.uid);
-        let userData: Record<string, unknown> | undefined;
-
-        try {
-          const userSnap = await getDoc(userRef);
-          userData = userSnap.exists()
-            ? (userSnap.data() as Record<string, unknown>)
-            : undefined;
-        } catch (error) {
-          if (!isPermissionDeniedError(error)) {
-            console.error("Failed to load user profile for role detection:", error);
-          }
-          userData = undefined;
-        }
-
-        let claims: Record<string, unknown> = {};
-        let idToken = "";
-        try {
-          const token = await user.getIdTokenResult(true);
-          claims = (token?.claims ?? {}) as Record<string, unknown>;
-          idToken = token?.token ?? "";
-        } catch {
-          claims = {};
-        }
+        // Profile and token are independent. Reading them in parallel avoids
+        // making the role check wait on two serial network/IndexedDB trips.
+        // A cached token is sufficient here; the live user-doc listener below
+        // still applies role changes immediately without a forced refresh.
+        const userDataPromise = getDoc(userRef)
+          .then((userSnap) =>
+            userSnap.exists()
+              ? (userSnap.data() as Record<string, unknown>)
+              : undefined
+          )
+          .catch((error) => {
+            if (!isPermissionDeniedError(error)) {
+              console.error("Failed to load user profile for role detection:", error);
+            }
+            return undefined;
+          });
+        const tokenPromise = user
+          .getIdTokenResult()
+          .then((token) => ({
+            claims: (token?.claims ?? {}) as Record<string, unknown>,
+            idToken: token?.token ?? "",
+          }))
+          .catch(() => ({
+            claims: {} as Record<string, unknown>,
+            idToken: "",
+          }));
+        const [userData, { claims, idToken }] = await Promise.all([
+          userDataPromise,
+          tokenPromise,
+        ]);
+        if (cancelled) return;
 
         const isAdminRole =
           hasAdminAccess(userData) ||
@@ -1209,6 +1255,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           hasAdminRole(claims.permissions);
 
         const isAdminEmail = idToken ? await checkIsAdminOnServer(idToken) : false;
+        if (cancelled) return;
         isAdminEmailRef.current = isAdminEmail;
 
         const lastAuthenticatedUid = normalizeStoredId(
@@ -1286,10 +1333,14 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       }
 
       setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
-  }, [firebaseDeps]);
+    void syncAuthState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firebaseAuthReady, firebaseDeps, firebaseUser]);
 
   // Promoting/demoting a user's role from the admin panel writes straight to
   // their users/{uid} Firestore doc. Without a live listener, the affected
@@ -1547,7 +1598,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     <div style={{ ["--header-height" as string]: "4rem" }}>
       <span
         ref={scrollTopSentinelRef}
-        className="pointer-events-none absolute left-0 top-0 h-px w-px"
+        className="pointer-events-none absolute left-0 top-0 h-[25px] w-px"
         aria-hidden="true"
       />
       <Suspense fallback={null}>
@@ -1557,14 +1608,16 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       <NavigationProgress />
 
       {!isEmbeddedProductView && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-[var(--header-height,4rem)] bg-slate-800">
-          <Header />
+        <div className="fixed top-0 left-0 right-0 z-50 h-[var(--header-height,4rem)]">
+          <Header transparentAtTop={pathname === "/" && isPageAtTop} />
         </div>
       )}
 
       <main
         className={
-          isEmbeddedProductView ? "min-h-screen" : "min-h-screen pt-header-offset"
+          isEmbeddedProductView || pathname === "/"
+            ? "min-h-screen"
+            : "min-h-screen pt-header-offset"
         }
       >
         <div className={pathname === "/" ? undefined : "route-transition-shell"}>

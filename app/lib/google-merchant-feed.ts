@@ -325,7 +325,7 @@ const toGoogleMerchantFeedItem = (
 
   // Google Merchant Center policy requires the image to depict the actual
   // product. Photo-less items used to fall back to one shared generic photo
-  // (/partson-logo-v2.webp) — hundreds of different SKUs pointing at the
+  // (/partson-mark-v3.webp) — hundreds of different SKUs pointing at the
   // exact same image, which reads as exactly the kind of generic/stock
   // image the policy prohibits and risks item- or account-level
   // disapprovals. Drop them from the ads feed instead; that same fallback

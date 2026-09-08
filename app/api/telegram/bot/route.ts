@@ -46,7 +46,8 @@ import {
   type NavButton,
   type NavMenu,
 } from "app/lib/telegram-catalog-nav";
-import { createChatMessageServer } from "app/lib/chat-message";
+import { createChatMessageServer, createManagerChatMessageServer } from "app/lib/chat-message";
+import { readTelegramNotifyChatIds } from "app/lib/telegram-notify";
 import { downloadTelegramPhotoToStorage } from "app/lib/telegram-file";
 import { buildContactsCard, getShopCoordinates } from "app/lib/telegram-shop-info";
 import { createStockWatch, findProductForWatch } from "app/lib/telegram-stock-watch";
@@ -86,6 +87,7 @@ type TelegramMessage = {
   text?: string;
   caption?: string;
   photo?: { file_id: string; file_unique_id: string; width: number; height: number; file_size?: number }[];
+  reply_to_message?: { message_id?: number };
   contact?: {
     phone_number?: string;
     user_id?: number | string;
@@ -183,6 +185,152 @@ const getTelegramUserPatch = (from: TelegramUser, chatId: string) => ({
   authProvider: "telegram",
   updatedAt: new Date().toISOString(),
 });
+
+const readNpDescription = (raw: unknown) => {
+  if (raw && typeof raw === "object") {
+    const value = (raw as Record<string, unknown>).Description;
+    if (typeof value === "string") return value.trim();
+  }
+  return "";
+};
+
+// Same shape-handling as HeroAccountClient.tsx's normalizeCars/normalizeVins
+// (and AccountInfo.tsx before it) — legacy docs can hold these as a
+// comma/semicolon string or a map instead of a clean string[], so a plain
+// Array.isArray check silently dropped them. Kept in sync with those so the
+// bot never shows a shorter/emptier list than the site does for the same
+// user.
+const normalizeStringListField = (raw: unknown, splitOnDelimiters: boolean): string[] => {
+  if (!raw) return [];
+
+  if (typeof raw === "string") {
+    if (!splitOnDelimiters) return raw.trim() ? [raw.trim()] : [];
+    return raw
+      .split(/[,;\n]/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof raw === "object") {
+    return Object.values(raw as Record<string, unknown>)
+      .map((value) => {
+        if (typeof value === "string") return value.trim();
+        if (typeof value === "number" && Number.isFinite(value)) return String(value);
+        return "";
+      })
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+// Cars are written as human-readable labels (e.g. "BMW 3 (E90), 2008, 2.0
+// дизель") that themselves contain commas, so — unlike VINs — a comma/
+// semicolon string is never split into multiple cars, only trimmed.
+const normalizeCars = (raw: unknown): string[] => {
+  const list = normalizeStringListField(raw, false);
+  return list.filter((car, index, all) => all.indexOf(car) === index);
+};
+
+const normalizeVins = (raw: unknown): string[] => {
+  const list = normalizeStringListField(raw, true);
+  return list.filter((vin, index, all) => all.indexOf(vin) === index);
+};
+
+// Same "prefer avto.cars, fall back to the legacy top-level field only when
+// avto.cars is empty" precedence HeroAccountClient.tsx uses — this used to
+// check `Array.isArray(data.selectedCars)` first regardless of whether it
+// was empty, so a user whose cars only lived under `avto.cars` (the shape
+// Auto.tsx's standalone persistence writes) saw "не вказано" here while the
+// site's own account panel showed their car(s) fine.
+const resolveSavedCarLabels = (data: Record<string, unknown> | null | undefined): string[] => {
+  if (!data) return [];
+  const avto =
+    data.avto && typeof data.avto === "object" ? (data.avto as Record<string, unknown>) : null;
+  const avtoCars = normalizeCars(avto?.cars);
+  return avtoCars.length ? avtoCars : normalizeCars(data.selectedCars);
+};
+
+const resolveSavedVins = (data: Record<string, unknown> | null | undefined): string[] => {
+  if (!data) return [];
+  return normalizeVins(data.vins ?? data.VIN ?? data.vin);
+};
+
+// Prefers the site's fuller PersistedCarSelection (selectedCarSelection /
+// avto.selection — carries brand+model+year+engine) so a car chosen on the
+// website shows here too; falls back to the bot's own brand+model pick
+// (botSelectedCarBrand/Model), then to the first saved catalog car label
+// (resolveSavedCarLabels, so this stays in sync with the same avto.cars-
+// first precedence used for the full list).
+const resolveSavedCarLabel = (data: Record<string, unknown> | null | undefined): string | null => {
+  if (!data) return null;
+  const avto =
+    data.avto && typeof data.avto === "object" ? (data.avto as Record<string, unknown>) : null;
+  const selection =
+    (data.selectedCarSelection && typeof data.selectedCarSelection === "object"
+      ? (data.selectedCarSelection as Record<string, unknown>)
+      : null) ||
+    (avto?.selection && typeof avto.selection === "object"
+      ? (avto.selection as Record<string, unknown>)
+      : null);
+  if (selection) {
+    const label = normalizeText(selection.label, 140);
+    if (label) return label;
+    const parts = [normalizeText(selection.brand, 60), normalizeText(selection.model, 60)].filter(Boolean);
+    if (parts.length) return parts.join(" ");
+  }
+  const botBrand = normalizeText(data.botSelectedCarBrand, 80);
+  const botModel = normalizeText(data.botSelectedCarModel, 80);
+  if (botBrand && botModel) return `${botBrand} ${botModel}`;
+  if (botBrand) return botBrand;
+  return resolveSavedCarLabels(data)[0] ?? null;
+};
+
+// Saved delivery is written by app/partnership/PartnershipDeliveryClient.tsx
+// onto the same users/{uid} doc.
+const resolveSavedDeliveryLabel = (
+  data: Record<string, unknown> | null | undefined
+): string | null => {
+  if (!data) return null;
+  const method = normalizeText(data.deliveryMethod, 40);
+  if (!method) return null;
+  if (method === "Нова Пошта") {
+    const detail = [readNpDescription(data.deliveryCity), readNpDescription(data.deliveryWarehouse)]
+      .filter(Boolean)
+      .join(", ");
+    return detail ? `${method} — ${detail}` : method;
+  }
+  if (method === "Доставка у Львові") {
+    const street = normalizeText(data.deliveryLvivStreet, 200);
+    return street ? `${method} — ${street}` : method;
+  }
+  if (method === "Самовивіз") return `${method} — вул. Перфецького, 8`;
+  return method;
+};
+
+// True when the saved delivery has everything the checkout needs to skip
+// straight to confirmation without re-asking.
+const hasCompleteSavedDelivery = (data: Record<string, unknown> | null | undefined) => {
+  if (!data) return false;
+  const method = normalizeText(data.deliveryMethod, 40);
+  if (method === "Самовивіз") return true;
+  if (method === "Доставка у Львові") return Boolean(normalizeText(data.deliveryLvivStreet, 200));
+  if (method === "Нова Пошта") {
+    const city = data.deliveryCity as Record<string, unknown> | null | undefined;
+    const wh = data.deliveryWarehouse as Record<string, unknown> | null | undefined;
+    return Boolean(
+      city && typeof city.Ref === "string" && wh && typeof wh.Ref === "string"
+    );
+  }
+  return false;
+};
 
 const findUserByTelegramId = async (telegramId: string) => {
   const db = getFirebaseAdminDb();
@@ -293,16 +441,21 @@ const finishProfile = (chatId: string | number) =>
 const sendWelcomeBack = async (
   chatId: string | number,
   from: TelegramUser,
-  botCar?: { brand: string; model: string } | null
+  savedCar?: string | null,
+  savedDelivery?: string | null
 ) => {
   const siteUrl = getSiteUrl();
   const text = [
     `<b>Привіт, ${escapeTelegramHtml(getDisplayName(from))}! 👋</b>`,
     "Я допоможу знайти й замовити автозапчастини без зайвих кроків.",
     "",
-    botCar
-      ? `🚗 Ваше авто в боті: <b>${escapeTelegramHtml(botCar.brand)} ${escapeTelegramHtml(botCar.model)}</b>`
+    savedCar
+      ? `🚗 Ваше авто: <b>${escapeTelegramHtml(savedCar)}</b>`
       : null,
+    savedDelivery
+      ? `🚚 Доставка: <b>${escapeTelegramHtml(savedDelivery)}</b>`
+      : null,
+    savedCar || savedDelivery ? "" : null,
     "🔎 Напишіть назву або артикул — знайду товар.",
     "📂 Або відкрийте каталог за категорією, авто чи виробником.",
     "🛒 Додавайте позиції в кошик та оформлюйте замовлення прямо тут.",
@@ -311,7 +464,7 @@ const sendWelcomeBack = async (
   ]
     .filter((line) => line !== null)
     .join("\n");
-  const replyMarkup = botCar
+  const replyMarkup = savedCar
     ? {
         inline_keyboard: [
           [
@@ -385,10 +538,12 @@ const handleStart = async (
 
   if (alreadyComplete && !token) {
     await userRef.set(getTelegramUserPatch(from, chatId), { merge: true });
-    const botCarBrand = normalizeText(existingData?.botSelectedCarBrand, 80);
-    const botCarModel = normalizeText(existingData?.botSelectedCarModel, 80);
-    const botCar = botCarBrand && botCarModel ? { brand: botCarBrand, model: botCarModel } : null;
-    await sendWelcomeBack(message.chat?.id || chatId, from, botCar);
+    await sendWelcomeBack(
+      message.chat?.id || chatId,
+      from,
+      resolveSavedCarLabel(existingData),
+      resolveSavedDeliveryLabel(existingData)
+    );
     return;
   }
 
@@ -480,6 +635,14 @@ const handleProfile = async (from: TelegramUser, chatId: string) => {
   const name = escapeTelegramHtml(normalizeText(data?.name, 120) || getDisplayName(from));
   const phone = normalizeText(data?.phone, 40);
   const email = normalizeText(data?.email, 120);
+  // Full lists, not just resolveSavedCarLabel's single pick — this is the
+  // dedicated "show what's saved" command, so it should match exactly what
+  // HeroAccountClient.tsx lists on the site (every saved car, every added
+  // VIN), not just the one car shown inline elsewhere (e.g. the /start
+  // welcome-back greeting, where a single line is the right amount of info).
+  const carLabels = resolveSavedCarLabels(data);
+  const vins = resolveSavedVins(data);
+  const deliveryLabel = resolveSavedDeliveryLabel(data);
 
   await sendTelegramMessage(
     chatId,
@@ -489,6 +652,13 @@ const handleProfile = async (from: TelegramUser, chatId: string) => {
       `Ім'я: <b>${name}</b>`,
       `📞 Телефон: ${phone ? `<code>${escapeTelegramHtml(phone)}</code>` : "не вказано"}`,
       `✉️ Email: ${email ? `<code>${escapeTelegramHtml(email)}</code>` : "не вказано"}`,
+      carLabels.length
+        ? `🚗 Авто:\n${carLabels.map((label) => `• <b>${escapeTelegramHtml(label)}</b>`).join("\n")}`
+        : "🚗 Авто: не вказано",
+      vins.length
+        ? `🔑 VIN:\n${vins.map((vin) => `• <code>${escapeTelegramHtml(vin)}</code>`).join("\n")}`
+        : "🔑 VIN: не додано",
+      `🚚 Доставка: ${deliveryLabel ? `<b>${escapeTelegramHtml(deliveryLabel)}</b>` : "не налаштовано"}`,
     ].join("\n"),
     { parseMode: "HTML", replyMarkup: buildCatalogKeyboard(getSiteUrl()) }
   );
@@ -643,8 +813,30 @@ const endSupportMode = async (from: TelegramUser, chatId: string) => {
   });
 };
 
+// Pin the customer's current Telegram chat onto their user doc before
+// relaying — that's the chat notifyTelegramChatMessage() sends the admin's
+// reply back to. Without it, a customer who reached support without ever
+// running /start (e.g. linked via profile token, then straight to
+// /support) had no telegramChatId, so the admin's reply was silently
+// dropped ("✅ надіслано" but nothing arrived).
+const ensureCustomerTelegramChatId = (userId: string, chatId: string) =>
+  getFirebaseAdminDb()
+    .collection("users")
+    .doc(userId)
+    .set({ telegramChatId: chatId }, { merge: true })
+    .catch(() => undefined);
+
 const relaySupportText = async (userId: string, chatId: string, text: string) => {
-  const result = await createChatMessageServer({ userId, text, type: "text" });
+  await ensureCustomerTelegramChatId(userId, chatId);
+  const result = await createChatMessageServer({
+    userId,
+    text,
+    type: "text",
+    // We're already inside the webhook's background work; run the admin
+    // notification + reply-thread mapping here so a nested `after()` can't
+    // drop them (that's what lets the admin Reply to this message later).
+    runSideEffectsInline: true,
+  });
   await sendTelegramMessage(
     chatId,
     result.ok
@@ -655,6 +847,7 @@ const relaySupportText = async (userId: string, chatId: string, text: string) =>
 };
 
 const relaySupportPhoto = async (userId: string, chatId: string, fileId: string, caption: string) => {
+  await ensureCustomerTelegramChatId(userId, chatId);
   const imageUrl = await downloadTelegramPhotoToStorage(fileId, userId);
   if (!imageUrl) {
     await sendTelegramMessage(chatId, "⚠️ Не вдалося завантажити фото. Спробуйте ще раз.");
@@ -666,6 +859,7 @@ const relaySupportPhoto = async (userId: string, chatId: string, fileId: string,
     type: "image",
     imageUrl,
     imageName: "Фото",
+    runSideEffectsInline: true,
   });
   await sendTelegramMessage(
     chatId,
@@ -940,14 +1134,33 @@ const handleSetBotCar = async (
     return;
   }
 
+  const carLabel = `${resolved.brand.name} ${model.name}`;
   await userRef.set(
-    { botSelectedCarBrand: resolved.brand.name, botSelectedCarModel: model.name },
+    {
+      botSelectedCarBrand: resolved.brand.name,
+      botSelectedCarModel: model.name,
+      // Sync to the website's fuller car-selection shape so the same car is
+      // active in the web catalog filter and the homepage Hero. The bot's
+      // car flow only collects brand + model, so the engine-level fields
+      // stay null (the site UI treats that as a model-level pick).
+      selectedCarSelection: {
+        brand: resolved.brand.name,
+        model: model.name,
+        label: carLabel,
+        year: null,
+        volume: null,
+        power: null,
+        gearbox: null,
+        drive: null,
+      },
+      selectedCars: FieldValue.arrayUnion(carLabel),
+    },
     { merge: true }
   );
 
   await sendTelegramMessage(
     chatId,
-    `🚗 Готово! Ваше авто в боті: <b>${escapeTelegramHtml(resolved.brand.name)} ${escapeTelegramHtml(model.name)}</b>`,
+    `🚗 Готово! Ваше авто: <b>${escapeTelegramHtml(resolved.brand.name)} ${escapeTelegramHtml(model.name)}</b>`,
     {
       parseMode: "HTML",
       replyMarkup: {
@@ -965,15 +1178,29 @@ const handleResetBotCar = async (chatId: string, from?: TelegramUser) => {
     return;
   }
 
-  await userRef.set(
-    {
-      botSelectedCarBrand: FieldValue.delete(),
-      botSelectedCarModel: FieldValue.delete(),
-    },
-    { merge: true }
-  );
+  const snap = await userRef.get();
+  const data = snap.exists ? snap.data() : null;
+  const botBrand = normalizeText(data?.botSelectedCarBrand, 80);
+  const botModel = normalizeText(data?.botSelectedCarModel, 80);
 
-  await sendTelegramMessage(chatId, "❌ Авто в боті скинуто.", {
+  const patch: Record<string, unknown> = {
+    botSelectedCarBrand: FieldValue.delete(),
+    botSelectedCarModel: FieldValue.delete(),
+  };
+  if (botBrand && botModel) {
+    const carLabel = `${botBrand} ${botModel}`;
+    const selection = data?.selectedCarSelection as Record<string, unknown> | null | undefined;
+    // Only clear the synced site selection if it's the one this bot car set
+    // (a bot-created model-level pick); never wipe a richer engine-level
+    // selection the user built on the website.
+    if (selection && normalizeText(selection.label, 140) === carLabel) {
+      patch.selectedCarSelection = FieldValue.delete();
+    }
+    patch.selectedCars = FieldValue.arrayRemove(carLabel);
+  }
+  await userRef.set(patch, { merge: true });
+
+  await sendTelegramMessage(chatId, "❌ Авто скинуто.", {
     replyMarkup: { inline_keyboard: [[{ text: "🚗 Обрати авто", callback_data: "a:0" }]] },
   });
 };
@@ -1073,20 +1300,34 @@ const handleCheckoutStart = async (chatId: string, from?: TelegramUser) => {
   }
 
   await linked.ref.set({ checkoutStep: "delivery" }, { merge: true });
+
+  // Offer the address saved on the website / partnership page as a one-tap
+  // option so a returning customer skips the whole city→warehouse dance.
+  const savedDeliveryLabel = hasCompleteSavedDelivery(linked.data)
+    ? resolveSavedDeliveryLabel(linked.data)
+    : null;
+  const inlineKeyboard: { text: string; callback_data: string }[][] = [];
+  if (savedDeliveryLabel) {
+    inlineKeyboard.push([
+      {
+        text: `📍 ${savedDeliveryLabel.length > 56 ? `${savedDeliveryLabel.slice(0, 55)}…` : savedDeliveryLabel}`,
+        callback_data: "cdlv:saved",
+      },
+    ]);
+  }
+  inlineKeyboard.push(
+    [{ text: DELIVERY_LABELS["Нова Пошта"], callback_data: "cdlv:np" }],
+    [{ text: DELIVERY_LABELS["Доставка у Львові"], callback_data: "cdlv:lviv" }],
+    [{ text: DELIVERY_LABELS["Самовивіз"], callback_data: "cdlv:pickup" }],
+    [{ text: "❌ Скасувати", callback_data: "ccancel" }]
+  );
+
   await sendTelegramMessage(
     chatId,
-    "<b>🚚 Оберіть спосіб доставки:</b>",
-    {
-      parseMode: "HTML",
-      replyMarkup: {
-        inline_keyboard: [
-          [{ text: DELIVERY_LABELS["Нова Пошта"], callback_data: "cdlv:np" }],
-          [{ text: DELIVERY_LABELS["Доставка у Львові"], callback_data: "cdlv:lviv" }],
-          [{ text: DELIVERY_LABELS["Самовивіз"], callback_data: "cdlv:pickup" }],
-          [{ text: "❌ Скасувати", callback_data: "ccancel" }],
-        ],
-      },
-    }
+    savedDeliveryLabel
+      ? "<b>🚚 Доставка:</b>\nНадіслати на збережену адресу чи обрати іншу?"
+      : "<b>🚚 Оберіть спосіб доставки:</b>",
+    { parseMode: "HTML", replyMarkup: { inline_keyboard: inlineKeyboard } }
   );
 };
 
@@ -1144,11 +1385,77 @@ const sendCheckoutConfirmPrompt = async (chatId: string, uid: string) => {
   await sendTelegramMessage(chatId, view.text, { parseMode: "HTML", replyMarkup: view.keyboard });
 };
 
-const handleDeliveryChoice = async (chatId: string, method: "np" | "pickup" | "lviv", from?: TelegramUser) => {
+const handleDeliveryChoice = async (
+  chatId: string,
+  method: "np" | "pickup" | "lviv" | "saved",
+  from?: TelegramUser
+) => {
   if (!from) return;
   const linked = await resolveLinkedUser(from);
   if (!linked) return;
   const uid = linked.ref.id;
+
+  if (method === "saved") {
+    if (!hasCompleteSavedDelivery(linked.data)) {
+      await sendTelegramMessage(
+        chatId,
+        "⚠️ Збережена адреса неповна — оберіть спосіб доставки нижче.",
+        {
+          replyMarkup: {
+            inline_keyboard: [
+              [{ text: DELIVERY_LABELS["Нова Пошта"], callback_data: "cdlv:np" }],
+              [{ text: DELIVERY_LABELS["Доставка у Львові"], callback_data: "cdlv:lviv" }],
+              [{ text: DELIVERY_LABELS["Самовивіз"], callback_data: "cdlv:pickup" }],
+            ],
+          },
+        }
+      );
+      return;
+    }
+    const d = linked.data;
+    const savedMethod = normalizeText(d.deliveryMethod, 40) as DeliveryMethod;
+    if (savedMethod === "Нова Пошта") {
+      const city = d.deliveryCity as Record<string, unknown>;
+      const wh = d.deliveryWarehouse as Record<string, unknown>;
+      await linked.ref.set(
+        {
+          checkoutDeliveryMethod: "Нова Пошта",
+          checkoutCity: String(city.Description || ""),
+          checkoutCityRef: String(city.Ref || ""),
+          checkoutWarehouse: String(wh.Description || ""),
+          checkoutWarehouseRef: String(wh.Ref || ""),
+          checkoutLvivStreet: null,
+        },
+        { merge: true }
+      );
+    } else if (savedMethod === "Доставка у Львові") {
+      await linked.ref.set(
+        {
+          checkoutDeliveryMethod: "Доставка у Львові",
+          checkoutLvivStreet: normalizeText(d.deliveryLvivStreet, 200),
+          checkoutCity: null,
+          checkoutCityRef: null,
+          checkoutWarehouse: null,
+          checkoutWarehouseRef: null,
+        },
+        { merge: true }
+      );
+    } else {
+      await linked.ref.set(
+        {
+          checkoutDeliveryMethod: "Самовивіз",
+          checkoutCity: null,
+          checkoutCityRef: null,
+          checkoutWarehouse: null,
+          checkoutWarehouseRef: null,
+          checkoutLvivStreet: null,
+        },
+        { merge: true }
+      );
+    }
+    await sendCheckoutConfirmPrompt(chatId, uid);
+    return;
+  }
 
   if (method === "pickup") {
     await linked.ref.set(
@@ -1370,6 +1677,23 @@ const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
     return;
   }
 
+  if (data === "areply") {
+    await answerTelegramCallback(callback.id, "Напишіть відповідь").catch(() => undefined);
+    await handleAdminReplyStart(callback).catch((error) => {
+      console.error("Admin reply start failed:", error);
+    });
+    return;
+  }
+
+  if (data === "areply_cancel") {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    if (readTelegramNotifyChatIds().includes(chatId)) {
+      await clearAdminReplyState(chatId);
+      await sendTelegramMessage(chatId, "Скасовано — відповідь не надіслана.");
+    }
+    return;
+  }
+
   if (data === "support:start") {
     await answerTelegramCallback(callback.id).catch(() => undefined);
     const from = callback.from;
@@ -1507,7 +1831,7 @@ const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
   if (data.startsWith("cdlv:")) {
     await answerTelegramCallback(callback.id).catch(() => undefined);
     const method = data.slice("cdlv:".length);
-    if (method === "np" || method === "pickup" || method === "lviv") {
+    if (method === "np" || method === "pickup" || method === "lviv" || method === "saved") {
       await handleDeliveryChoice(chatId, method, callback.from).catch((error) => {
         console.error("Delivery choice failed:", error);
       });
@@ -1641,6 +1965,198 @@ const handleEmail = async (
   await finishProfile(chatId);
 };
 
+// ── Admin → customer replies from the notify chat ───────────────────────
+// Two ways in, both end at deliverAdminReplyToCustomer:
+//   1. Tap "✍️ Відповісти клієнту" under a "💬 Нове повідомлення" card →
+//      handleAdminReplyStart arms telegramAdminReplyState/{adminChatId};
+//      the admin's next message is routed to that customer.
+//   2. A native Telegram Reply on the notification card.
+// The customer↔notification link lives in telegramSupportThreads, written
+// by chat-message.ts dispatchInboundChatSideEffects.
+
+const ADMIN_REPLY_STATE_TTL_MS = 30 * 60 * 1000;
+
+const adminReplyConfirmation = (
+  result: Awaited<ReturnType<typeof createManagerChatMessageServer>>,
+  noun: string
+) => {
+  if (!result.ok) return "⚠️ Не вдалося надіслати. Спробуйте ще раз.";
+  return result.telegramDelivered
+    ? `✅ ${noun} доставлено клієнту в Telegram.`
+    : `✅ ${noun} збережено в чаті на сайті. У клієнта не привʼязаний Telegram — у бот воно не піде.`;
+};
+
+const resolveSupportThreadUserId = async (chatId: string, notificationMessageId: number) => {
+  const snap = await getFirebaseAdminDb()
+    .collection("telegramSupportThreads")
+    .doc(`${chatId}:${notificationMessageId}`)
+    .get();
+  return snap.exists ? normalizeText(snap.data()?.userId, 200) : "";
+};
+
+const deliverAdminReplyToCustomer = async (
+  message: TelegramMessage,
+  adminChatId: string,
+  targetUserId: string
+) => {
+  const photos = message.photo;
+  if (photos?.length) {
+    const largest = photos[photos.length - 1];
+    const imageUrl = await downloadTelegramPhotoToStorage(largest.file_id, targetUserId);
+    if (!imageUrl) {
+      await sendTelegramMessage(adminChatId, "⚠️ Не вдалося обробити фото. Спробуйте ще раз.");
+      return;
+    }
+    const result = await createManagerChatMessageServer({
+      userId: targetUserId,
+      text: normalizeText(message.caption, 3000) || "Фото",
+      type: "image",
+      imageUrl,
+      imageName: "Фото",
+    });
+    await sendTelegramMessage(adminChatId, adminReplyConfirmation(result, "Фото"));
+    return;
+  }
+
+  const text = normalizeText(message.text, 3000);
+  if (!text) {
+    await sendTelegramMessage(adminChatId, "✍️ Порожньо. Напишіть текст відповіді для клієнта.");
+    return;
+  }
+  const result = await createManagerChatMessageServer({ userId: targetUserId, text });
+  await sendTelegramMessage(adminChatId, adminReplyConfirmation(result, "Відповідь"));
+};
+
+// Callback: admin tapped "✍️ Відповісти клієнту" under a notification card.
+const handleAdminReplyStart = async (callback: TelegramCallbackQuery) => {
+  const adminChatId = normalizeId(callback.message?.chat?.id);
+  const notificationMessageId = callback.message?.message_id;
+  // Can't report anything without a chat to send to — genuinely nothing to
+  // do here (Telegram didn't give us a chat/message id on the callback).
+  if (!adminChatId || !notificationMessageId) return;
+
+  // Was a silent `return` — a tap from a chat not in TELEGRAM_NOTIFY_CHAT_IDS
+  // produced only the transient "Напишіть відповідь" toast from
+  // handleCallbackQuery and then nothing else, which reads exactly like the
+  // button "does nothing". Whoever is tapping this button is already looking
+  // at a message the bot sent to *some* notify chat, so telling them why
+  // isn't a new information leak — it's the one piece of feedback that
+  // actually explains a silent failure.
+  if (!readTelegramNotifyChatIds().includes(adminChatId)) {
+    await sendTelegramMessage(
+      adminChatId,
+      "⚠️ Цей чат не в списку TELEGRAM_NOTIFY_CHAT_IDS — відповіді звідси не приймаються."
+    ).catch(() => undefined);
+    return;
+  }
+
+  // Was unguarded — any failure here (Firestore write, the lookup below)
+  // just vanished into the `.catch(console.error)` around this whole
+  // function in handleCallbackQuery, leaving the admin with nothing beyond
+  // that same transient toast. Report failures into the chat instead.
+  try {
+    const targetUserId = await resolveSupportThreadUserId(adminChatId, notificationMessageId);
+    if (!targetUserId) {
+      await sendTelegramMessage(
+        adminChatId,
+        "⚠️ Не знайшов клієнта для цього повідомлення (застаріло). Відкрийте новіше сповіщення."
+      );
+      return;
+    }
+
+    await getFirebaseAdminDb()
+      .collection("telegramAdminReplyState")
+      .doc(adminChatId)
+      .set({ targetUserId, createdAt: new Date().toISOString() });
+
+    await sendTelegramMessage(
+      adminChatId,
+      [
+        "✍️ <b>Напишіть відповідь клієнту.</b>",
+        "Наступне ваше повідомлення (текст або фото) я одразу передам йому.",
+      ].join("\n"),
+      {
+        parseMode: "HTML",
+        replyMarkup: { inline_keyboard: [[{ text: "✖️ Скасувати", callback_data: "areply_cancel" }]] },
+      }
+    );
+  } catch (error) {
+    console.error("handleAdminReplyStart failed:", error);
+    await sendTelegramMessage(
+      adminChatId,
+      `⚠️ Помилка: ${error instanceof Error ? error.message : "не вдалося почати відповідь"}.`
+    ).catch(() => undefined);
+  }
+};
+
+const clearAdminReplyState = (adminChatId: string) =>
+  getFirebaseAdminDb()
+    .collection("telegramAdminReplyState")
+    .doc(adminChatId)
+    .delete()
+    .catch(() => undefined);
+
+// Runs before the normal message flow for any message in the notify chat.
+const handleAdminReply = async (
+  message: TelegramMessage,
+  chatId: string
+): Promise<boolean> => {
+  const notifyChatIds = readTelegramNotifyChatIds();
+  if (notifyChatIds.length === 0 || !notifyChatIds.includes(chatId)) return false;
+
+  const text = (message.text || "").trim();
+  const isNativeReply = Boolean(message.reply_to_message?.message_id);
+
+  // Path 1 — armed by the "✍️ Відповісти клієнту" button. Skipped when this
+  // message is itself a native Reply: then Path 2 resolves the target from
+  // the exact card the admin replied to, which is less ambiguous than a
+  // stale armed state.
+  const stateSnap = isNativeReply
+    ? null
+    : await getFirebaseAdminDb().collection("telegramAdminReplyState").doc(chatId).get();
+  if (stateSnap?.exists) {
+    const state = stateSnap.data();
+    const targetUserId = normalizeText(state?.targetUserId, 200);
+    const fresh = Date.now() - Date.parse(String(state?.createdAt || "")) < ADMIN_REPLY_STATE_TTL_MS;
+
+    if (!fresh || !targetUserId) {
+      await clearAdminReplyState(chatId);
+    } else if (text === "/cancel" || text === "/cancel_reply") {
+      await clearAdminReplyState(chatId);
+      await sendTelegramMessage(chatId, "Скасовано — відповідь не надіслана.");
+      return true;
+    } else if (text.startsWith("/")) {
+      // Admin ran a command instead of answering — drop the armed state and
+      // let the command through.
+      await clearAdminReplyState(chatId);
+      return false;
+    } else {
+      await clearAdminReplyState(chatId);
+      await deliverAdminReplyToCustomer(message, chatId, targetUserId);
+      return true;
+    }
+  }
+
+  // Path 2 — native Reply on the notification card.
+  const replyToId = message.reply_to_message?.message_id;
+  if (!replyToId) return false;
+  if (text.startsWith("/")) return false;
+
+  const targetUserId = await resolveSupportThreadUserId(chatId, replyToId);
+  if (!targetUserId) {
+    // A Reply in the admin chat is meant as an answer — consume it so a
+    // mis-targeted one never leaks into catalog search as stray cards.
+    await sendTelegramMessage(
+      chatId,
+      "↩️ Не бачу, кому це адресовано. Натисніть «✍️ Відповісти клієнту» під потрібним сповіщенням."
+    );
+    return true;
+  }
+
+  await deliverAdminReplyToCustomer(message, chatId, targetUserId);
+  return true;
+};
+
 export async function POST(req: NextRequest) {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
   if (secret) {
@@ -1696,6 +2212,8 @@ const classifyTelegramUpdate = (update: TelegramUpdate) => {
     if (callbackData.startsWith("watch:")) return "stock_watch";
     if (callbackData.startsWith(FIND_CALLBACK_PREFIX)) return "search_pagination";
     if (callbackData === "support:start") return "support_start";
+    if (callbackData === "areply") return "admin_reply_start";
+    if (callbackData === "areply_cancel") return "admin_reply_cancel";
     if (callbackData === "contacts") return "contacts_open";
     if (callbackData.startsWith("gp:") || callbackData.startsWith("pp:") || callbackData.startsWith("mp:")) return "product_list_open";
     return "catalog_navigation";
@@ -1727,6 +2245,12 @@ const processUpdate = async (update: TelegramUpdate) => {
   const fromId = normalizeId(from?.id);
 
   if (!message || !from || !chatId || !fromId) {
+    return;
+  }
+
+  // Admin answering a customer from the notify chat (via the "✍️ Відповісти
+  // клієнту" button or a native Reply).
+  if (await handleAdminReply(message, chatId).catch(() => false)) {
     return;
   }
 

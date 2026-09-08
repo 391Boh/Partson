@@ -7,7 +7,7 @@ import { catalogPageBackgroundClass } from "app/components/catalog-directory-sty
 import GroupsDirectoryClient from "app/groups/GroupsDirectoryClient";
 import { getFullGroupsDirectoryData } from "app/lib/groups-directory-data";
 import { buildVisibleProductName } from "app/lib/product-url";
-import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContactLast, buildPageMetadata } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { pluralizeGroups, pluralizeSubgroups, pluralizeUk } from "app/lib/pluralize-uk";
@@ -16,7 +16,7 @@ export const revalidate = 21600;
 
 const catalogShellClass = "page-shell-inline";
 
-const groupsDescription = appendSeoContact(
+const groupsDescription = appendSeoContactLast(
   "Категорії автозапчастин PartsON: групи, підгрупи, бренди й товари для швидкого підбору за назвою, артикулом або VIN з доставкою по Україні."
 );
 
@@ -36,7 +36,7 @@ const buildGroupsPageDescription = (
       ? ` Каталог охоплює щонайменше ${indexedProductCount.toLocaleString("uk-UA")} ${pluralizeUk(indexedProductCount, "проіндексовану товарну позицію", "проіндексовані товарні позиції", "проіндексованих товарних позицій")}.`
       : "";
 
-  return appendSeoContact(
+  return appendSeoContactLast(
     `Категорії автозапчастин PartsON: ${countSummary} для підбору деталей за групою, назвою, артикулом або VIN. Самовивіз у Львові й доставка по Україні.${indexedSummary}`
   );
 };
@@ -78,7 +78,7 @@ export async function generateMetadata(): Promise<Metadata> {
     ],
     openGraphTitle: "Категорії автозапчастин і групи товарів | PartsON",
     image: {
-      url: "/opengraph-partson-v2.png",
+      url: "/opengraph-partson-v3.png",
       alt: "PartsON - категорії автозапчастин",
     },
   });

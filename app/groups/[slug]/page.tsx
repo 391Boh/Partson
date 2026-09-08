@@ -28,6 +28,7 @@ import { getBrandLogoMap, getProducerInitials, resolveProducerLogo } from "app/l
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
+import { getGroupProductPreview } from "app/lib/group-product-image";
 import {
   pluralizeCategories,
   pluralizeManufacturers,
@@ -39,7 +40,7 @@ import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { getGroupSeoCopy } from "app/lib/seo-copy";
-import { appendSeoContact, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContactLast, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
@@ -177,7 +178,7 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
 // buildAdaptiveSeoTitle drops the decorative suffix rather than risk a
 // Google-truncated title once the layout's " | PartsON" template is added.
 const buildGroupTitle = (label: string) =>
-  buildAdaptiveSeoTitle(buildVisibleProductName(label), " — купити у Львові");
+  buildAdaptiveSeoTitle(buildVisibleProductName(label), " — каталог запчастин");
 
 const buildGroupDescription = (
   label: string,
@@ -194,7 +195,7 @@ const buildGroupDescription = (
       ? ` і ${subgroupsCount.toLocaleString("uk-UA")} ${pluralizeSubgroups(subgroupsCount)} каталогу`
       : "";
 
-  return appendSeoContact(
+  return appendSeoContactLast(
     `${visibleLabel} у PartsON: ${productLabel}${subgroupLabel}. Каталог із цінами, наявністю, підбором за назвою, артикулом і VIN.`
   );
 };
@@ -336,6 +337,7 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
   );
   const canonicalPath = buildGroupPagePath(group.slug);
   const categoryIconPath = getCategoryIconPath(group.label);
+  const productPreview = getGroupProductPreview({ categoryLabel: group.label });
 
   return buildPageMetadata({
     title: buildGroupTitle(group.label),
@@ -352,13 +354,20 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
       `ціна ${group.label}`,
       "групи автозапчастин",
     ],
-    openGraphTitle: `${buildVisibleProductName(group.label)} - купити автозапчастини | PartsON`,
+    openGraphTitle: `${buildVisibleProductName(group.label)} — каталог автозапчастин | PartsON`,
     image: {
-      url: categoryIconPath,
-      width: 512,
-      height: 512,
-      alt: `Каталог автозапчастин ${group.label} | PartsON`,
+      url: productPreview?.url || categoryIconPath,
+      width: productPreview?.width ?? 512,
+      height: productPreview?.height ?? 512,
+      alt:
+        productPreview?.alt ||
+        `Каталог автозапчастин «${buildVisibleProductName(group.label)}»`,
     },
+    // A group may legitimately have no generated product preview. Its
+    // category icon is still a valid representative image, so keep the
+    // landing page indexable instead of hiding it behind noindex.
+    index: true,
+    follow: true,
   });
 }
 
@@ -386,7 +395,11 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   }));
   const canonicalPageUrl = `${siteUrl}${pagePath}`;
   const categoryIconPath = getCategoryIconPath(group.label);
-  const categoryIconUrl = `${siteUrl}${categoryIconPath}`;
+  const productPreview = getGroupProductPreview({ categoryLabel: group.label });
+  const primaryImagePath = productPreview?.url || categoryIconPath;
+  const primaryImageUrl = `${siteUrl}${primaryImagePath}`;
+  const primaryImageAlt =
+    productPreview?.alt || `Категорія автозапчастин «${buildVisibleProductName(group.label)}»`;
   const visibleGroupLabel = buildVisibleProductName(group.label);
   const hasSubgroups = group.subgroups.length > 0;
   const description = buildGroupDescription(
@@ -412,7 +425,22 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
     name: pageTitle,
     url: canonicalPageUrl,
     description,
-    image: categoryIconUrl,
+    image: {
+      "@type": "ImageObject",
+      url: primaryImageUrl,
+      contentUrl: primaryImageUrl,
+      width: productPreview?.width ?? 512,
+      height: productPreview?.height ?? 512,
+      caption: primaryImageAlt,
+    },
+    primaryImageOfPage: {
+      "@type": "ImageObject",
+      url: primaryImageUrl,
+      contentUrl: primaryImageUrl,
+      width: productPreview?.width ?? 512,
+      height: productPreview?.height ?? 512,
+      caption: primaryImageAlt,
+    },
     inLanguage: "uk-UA",
     about: {
       "@type": "Thing",
@@ -459,42 +487,6 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
     ],
   };
 
-  const webPageJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    name: pageTitle,
-    url: canonicalPageUrl,
-    description,
-    inLanguage: "uk-UA",
-    primaryImageOfPage: {
-      "@type": "ImageObject",
-      url: categoryIconUrl,
-      name: `Іконка категорії ${visibleGroupLabel}`,
-    },
-    isPartOf: {
-      "@type": "WebSite",
-      name: "PartsON",
-      url: siteUrl,
-    },
-    about: {
-      "@type": "Thing",
-      name: group.label,
-    },
-  };
-
-  const offerCatalogJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "OfferCatalog",
-    name: `Каталог групи ${visibleGroupLabel}`,
-    url: canonicalPageUrl,
-    itemListElement: group.subgroups.slice(0, 120).map((subgroup, index) => ({
-      "@type": "ListItem",
-      position: index + 1,
-      name: subgroup.label,
-      url: `${siteUrl}${buildGroupItemPath(group.slug, subgroup.slug)}`,
-    })),
-  };
-
   return (
     <main className="catalog-directory-page page-shell-inline py-5 sm:py-7">
       <div className="space-y-4 sm:space-y-5">
@@ -525,14 +517,15 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
 
           <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
-              <div className="flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/90 bg-white/86 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-teal-100/80 sm:h-28 sm:w-28">
+              <div className="flex h-24 w-36 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/86 p-2 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-teal-100/80 sm:h-28 sm:w-44 sm:p-3">
                 <Image
-                  src={categoryIconPath}
-                  alt={`Іконка категорії ${visibleGroupLabel}`}
-                  width={48}
-                  height={48}
-                  sizes="48px"
-                  className="max-h-full max-w-full object-contain"
+                  src={primaryImagePath}
+                  alt={primaryImageAlt}
+                  width={productPreview?.width ?? 48}
+                  height={productPreview?.height ?? 48}
+                  sizes="(min-width: 640px) 176px, 144px"
+                  className="h-full w-full object-contain"
+                  unoptimized={Boolean(productPreview)}
                   priority
                 />
               </div>
@@ -780,14 +773,6 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(webPageJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(offerCatalogJsonLd) }}
       />
     </main>
   );

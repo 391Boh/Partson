@@ -1,5 +1,7 @@
 import "server-only";
 
+import { readTelegramNotifyChatIds } from "app/lib/telegram-notify";
+
 type TelegramBotResult<T = unknown> = {
   ok: boolean;
   data?: T;
@@ -109,6 +111,42 @@ export const sendTelegramPhoto = (
 // "🗺 Маршрут" link button, which only opens Google Maps externally.
 export const sendTelegramLocation = (chatId: string | number, lat: number, lng: number) =>
   callTelegramBotApi("sendLocation", { chat_id: chatId, latitude: lat, longitude: lng });
+
+// The customer-support notification to the admin chat(s), sent through the
+// *bot* (same token as the webhook) so the "✍️ Відповісти клієнту" button
+// and any Reply land back on this bot's webhook. Returns the delivered
+// message ids so bot/route.ts can map them to the customer for the reply
+// (telegramSupportThreads).
+export const sendAdminInboundNotification = async (
+  text: string
+): Promise<{ chatId: string; messageId: number }[]> => {
+  const chatIds = readTelegramNotifyChatIds();
+  const body = text.trim().slice(0, 3900);
+  if (chatIds.length === 0 || !getTelegramBotToken() || !body) return [];
+
+  const results = await Promise.allSettled(
+    chatIds.map(async (chatId) => {
+      const res = await callTelegramBotApi<{ result?: { message_id?: number } }>("sendMessage", {
+        chat_id: chatId,
+        text: body,
+        disable_web_page_preview: true,
+        reply_markup: {
+          inline_keyboard: [[{ text: "✍️ Відповісти клієнту", callback_data: "areply" }]],
+        },
+      });
+      if (!res.ok) throw new Error(res.error || "admin notification failed");
+      const messageId = Number(res.data?.result?.message_id) || 0;
+      return { chatId, messageId };
+    })
+  );
+
+  return results
+    .filter(
+      (r): r is PromiseFulfilledResult<{ chatId: string; messageId: number }> =>
+        r.status === "fulfilled"
+    )
+    .map((r) => r.value);
+};
 
 export const sendTelegramChatAction = (
   chatId: string | number,

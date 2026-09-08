@@ -803,7 +803,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                               const image = event.currentTarget;
                               if (image.dataset.fallbackApplied === '1') return;
                               image.dataset.fallbackApplied = '1';
-                              image.src = '/favicon-partson-v2-48.png';
+                              image.src = '/partson-mark-v3.webp';
                             }}
                           />
                         ) : (

@@ -21,7 +21,7 @@ export async function GET() {
       priority: 0.78,
       images: [
         {
-          loc: "/opengraph-partson-v2.png",
+          loc: "/opengraph-partson-v3.png",
           title: "Блог PartsON про автозапчастини та сервіс",
           caption: "Поради PartsON щодо підбору запчастин, діагностики і догляду за авто",
         },
@@ -31,7 +31,7 @@ export async function GET() {
       const articleImage =
         post.imageDataUrl && isStorageMediaUrl(post.imageDataUrl)
           ? post.imageDataUrl
-          : "/opengraph-partson-v2.png";
+          : "/opengraph-partson-v3.png";
 
       return {
         path: `/blog/${post.slug}`,

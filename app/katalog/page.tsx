@@ -1257,7 +1257,7 @@ export async function generateMetadata({ searchParams }: KatalogPageProps): Prom
     ],
     openGraphTitle: `${title} | PartsON`,
     image: {
-      url: "/opengraph-partson-v2.png",
+      url: "/opengraph-partson-v3.png",
       alt: `${title} | PartsON`,
     },
     index: indexable,

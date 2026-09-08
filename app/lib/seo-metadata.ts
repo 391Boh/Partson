@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 const DEFAULT_IMAGE = {
-  url: "/opengraph-partson-v2.png",
+  url: "/opengraph-partson-v3.png",
   width: 1200,
   height: 630,
   alt: "PartsON - автозапчастини",
@@ -13,11 +13,10 @@ export const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
 export const STORE_PHONE_SEO_LABEL = `☎️ ${STORE_PHONE_DISPLAY}`;
 export const STORE_ADDRESS_SEO_LABEL = `📍 ${STORE_ADDRESS}`;
 export const SEO_DESCRIPTION_MAX_LENGTH = 160;
-// Google truncates around ~60 chars in search results. The root layout's
-// title template ("%s | PartsON", see app/layout.tsx) tacks on 10 more
-// characters after every page title, so that has to come out of the budget
-// too — otherwise a title that reads fine on its own (e.g. a long producer
-// or category name plus a short suffix) still gets cut off once rendered.
+// Google has no fixed title character limit (it truncates by rendered width),
+// but 60 characters is a useful editorial target for common result layouts.
+// The root layout's "%s | PartsON" template adds 10 characters, so reserve
+// that space when composing variable category and producer titles.
 export const SEO_TITLE_MAX_LENGTH = 60;
 const TITLE_TEMPLATE_SUFFIX_LENGTH = " | PartsON".length;
 
@@ -125,6 +124,21 @@ export const appendSeoContact = (
   const base = trimSeoDescription(normalizedValue, baseMaxLength);
 
   return trimSeoDescription(`${contactLine} ${base}`, maxLength);
+};
+
+// Directory pages need their differentiating topic first in the snippet.
+// Keep the shared store contact after the unique copy so related pages don't
+// all begin with identical boilerplate.
+export const appendSeoContactLast = (
+  value: string,
+  maxLength = SEO_DESCRIPTION_MAX_LENGTH
+) => {
+  const contactLine = buildSeoContactLine();
+  const normalizedValue = value.replace(/\s+/g, " ").trim();
+  const baseMaxLength = Math.max(72, maxLength - contactLine.length - 1);
+  const base = trimSeoDescription(normalizedValue, baseMaxLength);
+
+  return trimSeoDescription(`${base} ${contactLine}`, maxLength);
 };
 
 type BuildPageMetadataOptions = {

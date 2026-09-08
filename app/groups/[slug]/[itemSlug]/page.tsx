@@ -42,12 +42,13 @@ import { producerDescriptions } from "app/lib/producer-descriptions";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { pluralizeCategories, pluralizeManufacturers, pluralizeProducts } from "app/lib/pluralize-uk";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
+import { getGroupProductPreview } from "app/lib/group-product-image";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildProductSeoImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getGroupItemSeoCopy } from "app/lib/seo-copy";
-import { appendSeoContact, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContactLast, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
@@ -615,12 +616,12 @@ const buildGroupItemDescription = (item: GroupItemPageData) => {
       : "бренди й аналоги";
 
   if (item.parentSubgroupLabel) {
-    return appendSeoContact(
+    return appendSeoContactLast(
       `${visibleLabel} у PartsON: ${productCountLabel}, ${producersLabel}, група ${visibleGroupLabel}${visibleParentLabel ? `, підгрупа ${visibleParentLabel}` : ""}. Підбір за артикулом, VIN і доставка по Україні.`
     );
   }
 
-  return appendSeoContact(
+  return appendSeoContactLast(
     `Автозапчастини ${visibleLabel} у групі ${visibleGroupLabel}: ${productCountLabel}, ${producersLabel}, підбір за назвою, кодом і VIN, самовивіз у Львові та доставка по Україні.`
   );
 };
@@ -652,7 +653,22 @@ const buildStaticSlugCandidates = (
 // " | PartsON" template is added.
 const buildGroupItemTitle = (item: GroupItemPageData) => {
   const visibleLabel = buildVisibleProductName(item.label);
-  return buildAdaptiveSeoTitle(visibleLabel, " — купити у Львові");
+  const visibleContext = buildVisibleProductName(
+    item.parentSubgroupLabel || item.groupLabel
+  );
+  const hasDistinctContext =
+    visibleContext.toLocaleLowerCase("uk-UA") !==
+    visibleLabel.toLocaleLowerCase("uk-UA");
+
+  if (hasDistinctContext) {
+    const contextualTitle = buildAdaptiveSeoTitle(
+      visibleLabel,
+      ` — ${visibleContext}`
+    );
+    if (contextualTitle !== visibleLabel) return contextualTitle;
+  }
+
+  return buildAdaptiveSeoTitle(visibleLabel, " — купити запчастини");
 };
 
 const buildChildCategoryLead = (options: {
@@ -757,6 +773,11 @@ export async function generateMetadata({ params }: GroupItemPageProps): Promise<
 
   const title = buildGroupItemTitle(item);
   const categoryIconPath = getCategoryIconPath(item.groupLabel);
+  const productPreview = getGroupProductPreview({
+    categoryLabel: item.groupLabel,
+    parentLabel: item.parentSubgroupLabel || item.groupLabel,
+    itemLabel: item.label,
+  });
 
   return buildPageMetadata({
     title,
@@ -775,11 +796,17 @@ export async function generateMetadata({ params }: GroupItemPageProps): Promise<
     ],
     openGraphTitle: `${title} | PartsON`,
     image: {
-      url: categoryIconPath,
-      width: 512,
-      height: 512,
-      alt: `${title} | PartsON`,
+      url: productPreview?.url || categoryIconPath,
+      width: productPreview?.width ?? 512,
+      height: productPreview?.height ?? 512,
+      alt:
+        productPreview?.alt ||
+        `Категорія автозапчастин «${buildVisibleProductName(item.label)}»`,
     },
+    // Use the parent category icon when this group has no product preview and
+    // keep the landing page available for search and navigation.
+    index: true,
+    follow: true,
   });
 }
 
@@ -817,10 +844,18 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   const groupPagePath = buildGroupPagePath(item.groupSlug);
   const canonicalPageUrl = `${siteUrl}${pagePath}`;
   const categoryIconPath = getCategoryIconPath(item.groupLabel);
-  const categoryIconUrl = `${siteUrl}${categoryIconPath}`;
+  const productPreview = getGroupProductPreview({
+    categoryLabel: item.groupLabel,
+    parentLabel: item.parentSubgroupLabel || item.groupLabel,
+    itemLabel: item.label,
+  });
+  const primaryImagePath = productPreview?.url || categoryIconPath;
+  const primaryImageUrl = `${siteUrl}${primaryImagePath}`;
   const visibleLabel = buildVisibleProductName(item.label);
   const visibleGroupLabel = buildVisibleProductName(item.groupLabel);
   const visibleParentLabel = buildVisibleProductName(item.parentSubgroupLabel);
+  const primaryImageAlt =
+    productPreview?.alt || `Категорія автозапчастин «${visibleLabel}»`;
   const pageDescription = item.parentSubgroupLabel
     ? `Кінцева категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel}. Тут можна перейти до товарів, брендів, аналогів і перевірити наявність у каталозі.`
     : `Підгрупа ${visibleLabel} у групі ${visibleGroupLabel} з прямим переходом до товарів, виробників і суміжних категорій автозапчастин.`;
@@ -851,7 +886,14 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     name: buildGroupItemTitle(item),
     url: canonicalPageUrl,
     description: buildGroupItemDescription(item),
-    image: categoryIconUrl,
+    image: {
+      "@type": "ImageObject",
+      url: primaryImageUrl,
+      contentUrl: primaryImageUrl,
+      width: productPreview?.width ?? 512,
+      height: productPreview?.height ?? 512,
+      caption: primaryImageAlt,
+    },
     inLanguage: "uk-UA",
     about: [
       { "@type": "Thing", name: item.groupLabel },
@@ -859,8 +901,11 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     ],
     primaryImageOfPage: {
       "@type": "ImageObject",
-      url: categoryIconUrl,
-      name: `Іконка категорії ${visibleGroupLabel}`,
+      url: primaryImageUrl,
+      contentUrl: primaryImageUrl,
+      width: productPreview?.width ?? 512,
+      height: productPreview?.height ?? 512,
+      caption: primaryImageAlt,
     },
     isPartOf: {
       "@type": "WebSite",
@@ -1013,14 +1058,15 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
 
           <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
-              <div className="flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/90 bg-white/86 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-teal-100/80 sm:h-28 sm:w-28">
+              <div className="flex h-24 w-36 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/86 p-2 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-teal-100/80 sm:h-28 sm:w-44 sm:p-3">
                 <Image
-                  src={categoryIconPath}
-                  alt={`Іконка категорії ${visibleGroupLabel}`}
-                  width={48}
-                  height={48}
-                  sizes="48px"
-                  className="max-h-full max-w-full object-contain"
+                  src={primaryImagePath}
+                  alt={primaryImageAlt}
+                  width={productPreview?.width ?? 48}
+                  height={productPreview?.height ?? 48}
+                  sizes="(min-width: 640px) 176px, 144px"
+                  className="h-full w-full object-contain"
+                  unoptimized={Boolean(productPreview)}
                   priority
                 />
               </div>

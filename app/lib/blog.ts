@@ -23,6 +23,27 @@ export type BlogPost = {
 };
 
 const BLOG_REVALIDATE_SECONDS = 60 * 10;
+// A temporarily unreachable Firestore endpoint must not hold an entire page
+// render (or a production build worker) until gRPC's ~60s transport timeout.
+// Failed requests are not stored in unstable_cache, so the next request can
+// retry normally instead of caching an empty blog after a transient outage.
+const BLOG_QUERY_TIMEOUT_MS = 4_500;
+
+const withBlogQueryTimeout = async <T>(promise: Promise<T>, label: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error(`Blog ${label} timed out after ${BLOG_QUERY_TIMEOUT_MS}ms`)),
+      BLOG_QUERY_TIMEOUT_MS
+    );
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+  }
+};
 
 const toIsoString = (value: unknown): string | undefined => {
   if (!value) return undefined;
@@ -64,41 +85,37 @@ const snapshotToBlogPost = (id: string, data: DocumentData): BlogPost => ({
 });
 
 const fetchPublishedBlogPosts = async (): Promise<BlogPost[]> => {
-  try {
-    const snapshot = await getFirebaseAdminDb()
+  const snapshot = await withBlogQueryTimeout(
+    getFirebaseAdminDb()
       .collection("blogPosts")
       .where("status", "==", "published")
       .limit(100)
-      .get();
+      .get(),
+    "posts query"
+  );
 
-    return snapshot.docs
-      .map((doc) => snapshotToBlogPost(doc.id, doc.data()))
-      .sort((a, b) => {
-        const aTime = new Date(a.publishedAt || a.createdAt || 0).getTime();
-        const bTime = new Date(b.publishedAt || b.createdAt || 0).getTime();
-        return bTime - aTime;
-      });
-  } catch (error) {
-    console.error("Failed to load blog posts", error);
-    return [];
-  }
+  return snapshot.docs
+    .map((doc) => snapshotToBlogPost(doc.id, doc.data()))
+    .sort((a, b) => {
+      const aTime = new Date(a.publishedAt || a.createdAt || 0).getTime();
+      const bTime = new Date(b.publishedAt || b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
 };
 
 const fetchPublishedBlogPostBySlug = async (slug: string): Promise<BlogPost | null> => {
   const normalizedSlug = slug.trim();
   if (!normalizedSlug) return null;
 
-  try {
-    const doc = await getFirebaseAdminDb().collection("blogPosts").doc(normalizedSlug).get();
-    if (!doc.exists) return null;
+  const doc = await withBlogQueryTimeout(
+    getFirebaseAdminDb().collection("blogPosts").doc(normalizedSlug).get(),
+    `post query (${normalizedSlug})`
+  );
+  if (!doc.exists) return null;
 
-    const data = doc.data() ?? {};
-    if (data.status !== "published") return null;
-    return snapshotToBlogPost(doc.id, data);
-  } catch (error) {
-    console.error(`Failed to load blog post "${normalizedSlug}"`, error);
-    return null;
-  }
+  const data = doc.data() ?? {};
+  if (data.status !== "published") return null;
+  return snapshotToBlogPost(doc.id, data);
 };
 
 const getPublishedBlogPostsCached = unstable_cache(
@@ -110,8 +127,20 @@ const getPublishedBlogPostsCached = unstable_cache(
   }
 );
 
-export const getPublishedBlogPosts = cache(async () => getPublishedBlogPostsCached());
+export const getPublishedBlogPosts = cache(async () => {
+  try {
+    return await getPublishedBlogPostsCached();
+  } catch (error) {
+    console.error("Failed to load blog posts", error);
+    return [];
+  }
+});
 
-export const getPublishedBlogPostBySlug = cache(async (slug: string) =>
-  fetchPublishedBlogPostBySlug(slug)
-);
+export const getPublishedBlogPostBySlug = cache(async (slug: string) => {
+  try {
+    return await fetchPublishedBlogPostBySlug(slug);
+  } catch (error) {
+    console.error(`Failed to load blog post "${slug}"`, error);
+    return null;
+  }
+});

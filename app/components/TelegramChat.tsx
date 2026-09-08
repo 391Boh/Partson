@@ -10,6 +10,8 @@ import {
   onSnapshot,
   orderBy,
   updateDoc,
+  addDoc,
+  serverTimestamp,
   doc,
   Timestamp,
 } from 'firebase/firestore';
@@ -251,7 +253,7 @@ async function optimizeChatImage(file: File): Promise<File> {
   });
 }
 
-async function createChatMessage(payload: {
+async function persistChatMessage(payload: {
   userId: string;
   text: string;
   type: 'text' | 'image';
@@ -259,15 +261,38 @@ async function createChatMessage(payload: {
   imageName?: string;
   clientMessageId?: string;
 }) {
-  const response = await fetch('/api/chat/message', {
+  const messageDoc: Record<string, unknown> = {
+    text: payload.text,
+    sender: 'user',
+    userId: payload.userId,
+    createdAt: serverTimestamp(),
+    textRead: true,
+    type: payload.type,
+  };
+  if (payload.clientMessageId) messageDoc.clientMessageId = payload.clientMessageId;
+  if (payload.type === 'image' && payload.imageUrl) {
+    messageDoc.imageUrl = payload.imageUrl;
+    messageDoc.imageName = payload.imageName || 'Фото';
+  }
+
+  // Write straight to Firestore: the local onSnapshot fires with this doc
+  // almost immediately (latency compensation), so the message reads as
+  // "sent" without a server round-trip. `messages` allows client creates
+  // (firestore.rules), same as the admin panel already does.
+  await addDoc(collection(db, 'messages'), messageDoc);
+
+  // The manager notification, auto-reply and bot reply-thread mapping run
+  // server-side — but the UI must never wait on them.
+  void fetch('/api/chat/inbound-notify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(`CHAT_MESSAGE_FAILED_${response.status}`);
-  }
+    body: JSON.stringify({
+      userId: payload.userId,
+      text: payload.text,
+      type: payload.type,
+    }),
+    keepalive: true,
+  }).catch(() => {});
 }
 
 function createClientMessageId() {
@@ -343,7 +368,10 @@ export default function TelegramChat({
 
     const unsub = onSnapshot(q, (snap) => {
       const list: Message[] = snap.docs.map((d) => {
-        const data = d.data();
+        // `estimate`: a just-sent local write has a pending serverTimestamp;
+        // without this it reads back as null and the message jumps to the
+        // top of the thread for a moment before the server value lands.
+        const data = d.data({ serverTimestamps: 'estimate' });
         return {
           id: d.id,
           text: data.text,
@@ -558,7 +586,7 @@ export default function TelegramChat({
       ]);
 
       try {
-        await createChatMessage({
+        await persistChatMessage({
           text: trimmedText,
           userId,
           type: 'text',
@@ -630,7 +658,7 @@ export default function TelegramChat({
           return;
         }
 
-        await createChatMessage({
+        await persistChatMessage({
           text: trimmedName || 'Фото',
           userId,
           type: 'image',

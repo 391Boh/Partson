@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import SmartLink from "app/components/SmartLink";
@@ -38,10 +38,15 @@ type SuggestionProduct = {
   hasPhoto?: boolean;
 };
 
+type SuggestionResult = {
+  items: SuggestionProduct[];
+  totalCount: number | null;
+};
+
 const MAX_HISTORY          = 8;
-const SUGGESTION_COUNT     = 5;
+const SUGGESTION_COUNT     = 4;
 const SUGGESTION_MIN_CHARS = 2;
-const DEBOUNCE_MS          = 180;
+const DEBOUNCE_MS          = 90;
 const DEFAULT_EURO_RATE    = 50;
 const EURO_RATE_CACHE_KEY  = "partson:v1:euro-rate";
 
@@ -58,23 +63,57 @@ const FILTER_ITEMS: { value: SearchFilter; label: string }[] = [
 
 // ── module-level suggestion cache ──────────────────────────────────────────
 const CACHE_MAX   = 60;
-const CACHE_TTL   = 90_000;
-const sCache      = new Map<string, SuggestionProduct[]>();
+const CACHE_TTL   = 10 * 60_000;
+const sCache      = new Map<string, SuggestionResult>();
 const sCacheTimes = new Map<string, number>();
+const sPending    = new Map<string, Promise<SuggestionResult>>();
 
-const ck  = (q: string, f: SearchFilter) => `${f}:${q}`;
-const cGet = (key: string): SuggestionProduct[] | null => {
+const normalizeSearchKey = (value: string) =>
+  value.replace(/\s+/g, " ").trim().toLocaleLowerCase("uk-UA");
+const ck  = (q: string, f: SearchFilter) => `${f}:${normalizeSearchKey(q)}`;
+const cGet = (key: string): SuggestionResult | null => {
   const t = sCacheTimes.get(key);
   if (!t || Date.now() - t > CACHE_TTL) return null;
   return sCache.get(key) ?? null;
 };
-const cSet = (key: string, val: SuggestionProduct[]) => {
+const cSet = (key: string, val: SuggestionResult) => {
   if (sCache.size >= CACHE_MAX) {
     const oldest = [...sCacheTimes.entries()].sort((a, b) => a[1] - b[1])[0]?.[0];
     if (oldest) { sCache.delete(oldest); sCacheTimes.delete(oldest); }
   }
   sCache.set(key, val);
   sCacheTimes.set(key, Date.now());
+};
+
+const getPrefixCache = (query: string, filter: SearchFilter) => {
+  const normalizedQuery = normalizeSearchKey(query);
+  let best: SuggestionResult | null = null;
+  let bestLength = 0;
+
+  for (const [key, products] of sCache) {
+    const prefix = `${filter}:`;
+    if (!key.startsWith(prefix)) continue;
+    const cachedQuery = key.slice(prefix.length);
+    if (
+      cachedQuery.length < SUGGESTION_MIN_CHARS ||
+      cachedQuery.length >= normalizedQuery.length ||
+      !normalizedQuery.startsWith(cachedQuery) ||
+      cachedQuery.length <= bestLength
+    ) continue;
+    const cachedAt = sCacheTimes.get(key) ?? 0;
+    if (Date.now() - cachedAt > CACHE_TTL) continue;
+    best = products;
+    bestLength = cachedQuery.length;
+  }
+
+  if (!best) return null;
+  const matches = best.items.filter((product) =>
+    [product.name, product.article, product.code, product.producer]
+      .some((value) => normalizeSearchKey(value || "").includes(normalizedQuery))
+  );
+  return matches.length > 0
+    ? { items: matches.slice(0, SUGGESTION_COUNT), totalCount: null }
+    : null;
 };
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -96,26 +135,62 @@ const formatUAH = (eur: number | null | undefined, rate: number): string | null 
   return Math.round(eur * rate).toLocaleString("uk-UA") + " ₴";
 };
 
-const CYR: Record<string, string> = {
-  й:"q",ц:"w",у:"e",к:"r",е:"t",н:"y",г:"u",ш:"i",щ:"o",з:"p",
-  ф:"a",і:"s",в:"d",а:"f",п:"g",р:"h",о:"j",л:"k",д:"l",
-  я:"z",ч:"x",с:"c",м:"v",и:"b",т:"n",ь:"m",
+// Physical Ukrainian ↔ English keyboard positions. This corrects queries
+// typed with the wrong input language (for example "руддщ" → "hello"),
+// rather than linguistically transliterating words.
+const ENGLISH_KEYS = "qwertyuiop[]asdfghjkl;'zxcvbnm,.`";
+const UKRAINIAN_KEYS = "йцукенгшщзхїфівапролджєячсмитьбю'";
+const CYR: Record<string, string> = Object.fromEntries(
+  Array.from(UKRAINIAN_KEYS, (character, index) => [character, ENGLISH_KEYS[index] ?? character])
+);
+const LAT: Record<string, string> = Object.fromEntries(
+  Array.from(ENGLISH_KEYS, (character, index) => [character, UKRAINIAN_KEYS[index] ?? character])
+);
+
+const swapKeyboardLayout = (value: string) => {
+  const normalized = value.toLocaleLowerCase("uk-UA");
+  const hasUkrainian = /[а-яіїєґ]/i.test(normalized);
+  const hasEnglish = /[a-z]/i.test(normalized);
+  if (hasUkrainian === hasEnglish) return "";
+
+  const map = hasUkrainian ? CYR : LAT;
+  return Array.from(normalized, (character) => map[character] ?? character)
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
 };
+
 const toArticle = (v: string) =>
   v.toLowerCase().replace(/[Ѐ-ӿ]/g, ch => CYR[ch] ?? "").replace(/[^a-z0-9/]/g, "");
 
 const fetchSuggestions = async (
   query: string, filter: SearchFilter, signal: AbortSignal
-): Promise<SuggestionProduct[]> => {
-  const res = await fetch("/api/catalog-page", {
+): Promise<SuggestionResult> => {
+  const key = ck(query, filter);
+  const existing = sPending.get(key);
+  if (existing) return existing;
+
+  const request = fetch("/api/catalog-page", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ searchQuery: query, searchFilter: filter, page: 1, limit: SUGGESTION_COUNT }),
     signal,
+  }).then(async (res) => {
+    if (!res.ok) return { items: [], totalCount: null };
+    const data = await res.json() as { items?: SuggestionProduct[]; totalCount?: number | null };
+    return {
+      items: (data.items ?? []).slice(0, SUGGESTION_COUNT),
+      totalCount:
+        typeof data.totalCount === "number" && Number.isFinite(data.totalCount)
+          ? Math.max(0, data.totalCount)
+          : null,
+    };
+  }).finally(() => {
+    sPending.delete(key);
   });
-  if (!res.ok) return [];
-  const data = await res.json() as { items?: SuggestionProduct[] };
-  return (data.items ?? []).slice(0, SUGGESTION_COUNT);
+
+  sPending.set(key, request);
+  return request;
 };
 
 // ── SuggestionImage ─────────────────────────────────────────────────────────
@@ -126,14 +201,14 @@ const SuggestionImage: React.FC<{ code: string; article: string; name: string; h
   const src = buildProductImagePath(code, article, { catalog: true });
   if (hasPhoto === false || failed || !src) {
     return (
-      <div className="flex h-full w-full items-center justify-center rounded-lg border border-white/8 bg-slate-700/60">
-        <ImageOff size={13} className="text-slate-500" strokeWidth={1.5} />
+      <div className="flex h-full w-full items-center justify-center rounded-xl border border-white/10 bg-[image:linear-gradient(145deg,rgba(51,65,85,0.72),rgba(15,23,42,0.88))] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+        <ImageOff size={16} className="text-slate-500" strokeWidth={1.5} aria-hidden="true" />
       </div>
     );
   }
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg border border-white/8 bg-slate-700/60">
-      <Image src={src} alt={name} fill sizes="44px" className="object-contain p-0.5" onError={() => setFailed(true)} />
+    <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/12 bg-white/[0.94] shadow-[0_5px_14px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.85)]">
+      <Image src={src} alt={name} fill sizes="(max-width: 640px) 48px, 56px" className="object-contain p-1" onError={() => setFailed(true)} />
     </div>
   );
 };
@@ -147,6 +222,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const [filterOpen, setFilterOpen] = useState(false);
 
   const [suggestions, setSuggestions] = useState<SuggestionProduct[]>([]);
+  const [totalCount,  setTotalCount]  = useState<number | null>(null);
   const [loading,     setLoading]     = useState(false);
   const [fallback,    setFallback]    = useState<string | null>(null);
   const [euroRate,    setEuroRate]    = useState(DEFAULT_EURO_RATE);
@@ -155,14 +231,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapperRef  = useRef<HTMLDivElement>(null);
   const inputRef    = useRef<HTMLInputElement>(null);
-  const prefetched  = useRef(false);
   const router = useRouter();
-
-  const prefetch = useCallback(() => {
-    if (prefetched.current) return;
-    prefetched.current = true;
-    router.prefetch("/katalog");
-  }, [router]);
 
   // init
   useEffect(() => {
@@ -195,11 +264,12 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   // suggestions with cache
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    const trimmed = query.trim();
+    abortRef.current?.abort();
+    abortRef.current = null;
+    const trimmed = query.replace(/\s+/g, " ").trim();
 
     if (trimmed.length < SUGGESTION_MIN_CHARS) {
-      setSuggestions([]); setLoading(false); setFallback(null);
-      abortRef.current?.abort();
+      setSuggestions([]); setTotalCount(null); setLoading(false); setFallback(null);
       return;
     }
 
@@ -208,14 +278,17 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     const cached = cGet(key);
 
     if (cached) {
-      setSuggestions(cached); setLoading(false); setFallback(null);
+      setSuggestions(cached.items); setTotalCount(cached.totalCount); setLoading(false); setFallback(null);
       return;
     }
 
+    const prefixCached = getPrefixCache(trimmed, ef);
+    if (prefixCached) setSuggestions(prefixCached.items);
+    setTotalCount(null);
+    setFallback(null);
     setLoading(true);
 
     debounceRef.current = setTimeout(async () => {
-      abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
 
@@ -223,37 +296,41 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         const results = await fetchSuggestions(trimmed, ef, ctrl.signal);
         if (ctrl.signal.aborted) return;
 
-        if (results.length > 0) {
+        if (results.items.length > 0) {
           cSet(key, results);
-          setSuggestions(results); setFallback(null);
+          setSuggestions(results.items); setTotalCount(results.totalCount); setFallback(null);
           return;
         }
 
-        // fallback: cyrillic → article transliteration
-        if (ef === "all" || ef === "name") {
-          const artQ = toArticle(trimmed);
-          if (artQ.length >= 2 && artQ !== trimmed && /\d/.test(artQ)) {
-            const artKey = ck(artQ, "name");
-            const artCached = cGet(artKey);
-            const artRes = artCached ?? await fetchSuggestions(artQ, "name", ctrl.signal);
+        // Exactly one fallback request corrects a forgotten UA/EN keyboard
+        // switch while preserving the user's active search filter.
+        const layoutQuery = swapKeyboardLayout(trimmed);
+        if (layoutQuery.length >= SUGGESTION_MIN_CHARS && layoutQuery !== normalizeSearchKey(trimmed)) {
+            const layoutKey = ck(layoutQuery, ef);
+            const layoutCached = cGet(layoutKey);
+            const layoutResult = layoutCached ?? await fetchSuggestions(layoutQuery, ef, ctrl.signal);
             if (ctrl.signal.aborted) return;
-            if (artRes.length > 0) {
-              if (!artCached) cSet(artKey, artRes);
-              setSuggestions(artRes); setFallback(artQ);
+            if (layoutResult.items.length > 0) {
+              if (!layoutCached) cSet(layoutKey, layoutResult);
+              setSuggestions(layoutResult.items);
+              setTotalCount(layoutResult.totalCount);
+              setFallback(layoutQuery);
               return;
             }
-          }
         }
 
-        setSuggestions([]); setFallback(null);
+        setSuggestions([]); setTotalCount(0); setFallback(null);
       } catch {
-        if (!ctrl.signal.aborted) { setSuggestions([]); setFallback(null); }
+        if (!ctrl.signal.aborted) { setSuggestions([]); setTotalCount(null); setFallback(null); }
       } finally {
         if (!ctrl.signal.aborted) setLoading(false);
       }
     }, DEBOUNCE_MS);
 
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      abortRef.current?.abort();
+    };
   }, [query, filter]);
 
   const saveHistory = (q: string) => {
@@ -264,12 +341,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   };
 
   const doSearch = (overrideQuery?: string) => {
-    const raw = overrideQuery ?? query;
+    const raw = overrideQuery ?? fallback ?? query;
     const sanitized = filter === "article"
       ? toArticle(raw)
       : raw.replace(/\s+/g, " ").trim();
     if (!sanitized) return;
-    prefetch();
     const ef: SearchFilter = filter === "article" ? "name" : filter;
     const analyticsSearchTerm = sanitizeAnalyticsSearchTerm(sanitized);
     if (analyticsSearchTerm) {
@@ -289,10 +365,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
 
   const activeLabel = FILTER_ITEMS.find(f => f.value === filter)?.label ?? "Всі";
   const hasSugg     = query.trim().length >= SUGGESTION_MIN_CHARS;
+  const formattedTotalCount = totalCount?.toLocaleString("uk-UA") ?? null;
 
   // shared dropdown class
   const dropClass =
-    "absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-2xl border border-white/[0.09] bg-[rgba(8,13,28,0.97)] shadow-[0_28px_64px_rgba(2,6,23,0.65),0_8px_24px_rgba(2,6,23,0.40),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl animate-fadeIn";
+    "absolute left-0 right-0 z-50 mt-2.5 overflow-hidden rounded-[20px] border border-sky-100/25 bg-[image:radial-gradient(circle_at_12%_-10%,rgba(125,211,252,0.20),transparent_38%),radial-gradient(circle_at_92%_110%,rgba(45,212,191,0.10),transparent_38%),linear-gradient(155deg,#243754_0%,#182a45_48%,#12233c_100%)] shadow-[0_32px_76px_rgba(2,6,23,0.58),0_12px_28px_rgba(2,6,23,0.36),0_0_0_1px_rgba(125,211,252,0.06),inset_0_1px_0_rgba(255,255,255,0.15)] ring-1 ring-black/10 animate-fadeIn";
 
   // active state for search bar
   const barActive = dropdown && (hasSugg || history.length > 0);
@@ -306,16 +383,25 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         so the filter DROPDOWN is rendered as a sibling BELOW this div.
         The filter BUTTON stays inside for correct visual placement.
       */}
-      <div className={`group/search font-ui flex h-10 w-full items-center overflow-hidden rounded-[14px] border transition-[background-color,border-color,box-shadow] duration-300 ease-out ${
+      <div className={`group/search font-ui relative isolate flex h-11 w-full items-center overflow-hidden rounded-[16px] border transition-[background-color,border-color,box-shadow] duration-300 ease-out ${
         barActive
-          ? "border-sky-400/55 bg-slate-900/90 shadow-[0_0_0_3px_rgba(56,189,248,0.10),0_8px_24px_rgba(0,0,0,0.28)]"
-          : "border-white/15 bg-white/[0.07] shadow-[0_4px_16px_rgba(0,0,0,0.18)] hover:border-white/25 hover:bg-white/[0.09] hover:shadow-[0_6px_20px_rgba(0,0,0,0.22)] focus-within:border-sky-400/55 focus-within:bg-white/[0.09] focus-within:shadow-[0_0_0_3px_rgba(56,189,248,0.10),0_6px_20px_rgba(0,0,0,0.22)]"
+          ? "border-sky-300/65 bg-[image:linear-gradient(180deg,rgba(15,31,58,0.98)_0%,rgba(8,18,39,0.98)_100%)] shadow-[0_0_0_3px_rgba(56,189,248,0.13),0_12px_28px_rgba(2,6,23,0.44),0_4px_8px_rgba(2,6,23,0.34),inset_0_1px_0_rgba(255,255,255,0.13),inset_0_-1px_0_rgba(2,6,23,0.72)]"
+          : "border-white/25 bg-[image:linear-gradient(180deg,rgba(30,45,72,0.94)_0%,rgba(12,24,48,0.96)_100%)] shadow-[0_9px_22px_rgba(2,6,23,0.38),0_3px_7px_rgba(2,6,23,0.30),inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-1px_0_rgba(2,6,23,0.66)] hover:border-sky-200/40 hover:shadow-[0_13px_28px_rgba(2,6,23,0.44),0_4px_9px_rgba(2,6,23,0.34),inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-1px_0_rgba(2,6,23,0.70)] focus-within:border-sky-300/65 focus-within:shadow-[0_0_0_3px_rgba(56,189,248,0.13),0_12px_28px_rgba(2,6,23,0.44),0_4px_8px_rgba(2,6,23,0.34),inset_0_1px_0_rgba(255,255,255,0.15)]"
       }`}>
 
-        {/* search icon */}
-        <span className="pointer-events-none shrink-0 pl-3.5 pr-2 text-slate-400 transition-colors duration-300 ease-out group-focus-within/search:text-sky-400">
-          <Search size={16} strokeWidth={2.2} aria-hidden="true" />
-        </span>
+        {/* One combined search action on the left: the old passive icon and
+            the submit button duplicated the same magnifier at both ends. */}
+        <button
+          type="submit"
+          aria-label="Пошук"
+          className="group relative flex min-w-10 self-stretch shrink-0 cursor-pointer items-center justify-center gap-1.5 overflow-hidden rounded-l-[15px] border-r border-rose-200/25 bg-[image:linear-gradient(145deg,#fb7185_0%,#e11d48_42%,#9f1239_100%)] px-3 text-white [text-shadow:0_1px_2px_rgba(76,5,25,0.7)] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),inset_0_-3px_5px_rgba(76,5,25,0.34),4px_0_12px_rgba(225,29,72,0.18)] transition-[background-image,box-shadow,filter,transform] duration-200 ease-out before:pointer-events-none before:absolute before:inset-x-2 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/70 before:to-transparent hover:brightness-110 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.42),inset_0_-3px_5px_rgba(76,5,25,0.26),5px_0_18px_rgba(244,63,94,0.30)] active:translate-y-px active:brightness-95 active:shadow-[inset_0_3px_7px_rgba(76,5,25,0.40),2px_0_8px_rgba(225,29,72,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80 sm:min-w-20 sm:px-3.5"
+          onClick={() => doSearch()}
+        >
+          <Search size={15} strokeWidth={2.5} className="relative" aria-hidden="true" />
+          <span className="relative hidden text-[11.5px] font-bold tracking-[0.05em] sm:inline">
+            Пошук
+          </span>
+        </button>
 
         {/* input */}
         <input
@@ -326,10 +412,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           autoCorrect="off"
           autoCapitalize="off"
           spellCheck={false}
-          className="font-ui min-w-0 flex-1 bg-transparent py-1.5 text-[16px] font-semibold tracking-[-0.005em] text-slate-100 outline-none placeholder:font-normal placeholder:text-slate-400/70 sm:text-[13px]"
+          className="font-ui min-w-0 self-stretch flex-1 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.025),transparent_45%,rgba(2,6,23,0.10))] px-3 py-1.5 text-[16px] font-semibold tracking-[-0.005em] text-slate-50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.025),inset_0_-2px_5px_rgba(2,6,23,0.20)] outline-none placeholder:font-normal placeholder:text-slate-400/75 sm:text-[13px]"
           value={query}
-          onChange={e => { prefetch(); setQuery(e.target.value); setDropdown(true); }}
-          onFocus={() => { prefetch(); setDropdown(true); }}
+          onChange={e => { setQuery(e.target.value); setDropdown(true); }}
+          onFocus={() => setDropdown(true)}
           onKeyDown={onKey}
           data-search="true"
         />
@@ -351,12 +437,12 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           type="button"
           aria-label="Фільтр пошуку"
           onClick={() => { setFilterOpen(v => !v); setDropdown(false); }}
-          className={`flex min-w-10 self-stretch shrink-0 items-center justify-center gap-1 border-l border-white/10 px-2.5 text-[11px] font-bold uppercase tracking-[0.06em] transition-[background-color,color] duration-300 ease-out sm:min-w-12 ${
+          className={`flex min-w-10 self-stretch shrink-0 items-center justify-center gap-1 border-l border-white/12 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.015))] px-2.5 text-[11px] font-bold uppercase tracking-[0.06em] shadow-[inset_1px_0_0_rgba(255,255,255,0.025),inset_0_1px_0_rgba(255,255,255,0.07)] transition-[background-color,color,box-shadow] duration-300 ease-out sm:min-w-12 ${
             filterOpen
-              ? "bg-sky-500/10 text-sky-300"
+              ? "!bg-sky-500/15 text-sky-200 shadow-[inset_0_3px_8px_rgba(2,6,23,0.30),inset_1px_0_0_rgba(255,255,255,0.04)]"
               : filter !== "all"
-              ? "text-sky-400 hover:text-sky-200"
-              : "text-slate-400 hover:text-slate-200"
+              ? "text-sky-300 hover:bg-white/[0.06] hover:text-sky-100"
+              : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
           }`}
         >
           {filter === "all"
@@ -369,26 +455,14 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           />
         </button>
 
-        {/* ── submit ─────────────────────────────────────────────────── */}
-        <button
-          type="submit"
-          aria-label="Пошук"
-          className="group relative flex min-w-10 self-stretch shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-r-[13px] bg-rose-600 px-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] transition-[background-color,box-shadow,color] duration-300 ease-out hover:bg-rose-500 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_0_18px_rgba(244,63,94,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70 sm:min-w-20 sm:px-3.5"
-          onClick={() => doSearch()}
-        >
-          <Search size={15} strokeWidth={2.5} className="relative" />
-          <span className="relative hidden text-[11.5px] font-bold tracking-[0.05em] sm:inline">
-            Пошук
-          </span>
-        </button>
       </div>
 
       {/* ── Filter dropdown ─────────────────────────────────────────────
           Rendered OUTSIDE overflow-hidden so it's not clipped.
-          Positioned to align with the filter button (right of submit btn).
+          Positioned to align with the filter button at the right edge.
       ───────────────────────────────────────────────────────────────── */}
       {filterOpen && (
-        <div className="absolute right-[52px] top-[calc(100%+5px)] z-[60] min-w-[130px] overflow-hidden rounded-[14px] border border-white/[0.10] bg-[rgba(9,14,30,0.98)] py-1 shadow-[0_18px_44px_rgba(2,6,23,0.58),0_6px_16px_rgba(2,6,23,0.32),inset_0_1px_0_rgba(255,255,255,0.07)] backdrop-blur-2xl animate-fadeIn">
+        <div className="absolute right-0 top-[calc(100%+5px)] z-[60] min-w-[130px] overflow-hidden rounded-[14px] border border-white/[0.10] bg-[rgba(9,14,30,0.98)] py-1 shadow-[0_18px_44px_rgba(2,6,23,0.58),0_6px_16px_rgba(2,6,23,0.32),inset_0_1px_0_rgba(255,255,255,0.07)] backdrop-blur-2xl animate-fadeIn">
           {FILTER_ITEMS.map(f => (
             <button
               key={f.value}
@@ -414,37 +488,52 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         <div className={dropClass}>
 
           {/* header */}
-          <div className="flex items-center justify-between border-b border-white/[0.07] bg-white/[0.03] px-4 py-2.5">
-            <span className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.10em] text-slate-500">
-              <Search size={10} className="text-sky-500" strokeWidth={2.5} />
+          <div className="flex min-h-12 items-center justify-between border-b border-white/[0.08] bg-white/[0.035] px-3.5 py-2.5 sm:px-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.13em] text-sky-300/90">
               {fallback
-                ? <><span>Артикул:</span><span className="font-mono normal-case tracking-normal text-amber-400">&nbsp;{fallback}</span></>
+                ? <><span>Виправлена розкладка:</span><span className="font-mono normal-case tracking-normal text-amber-300">&nbsp;{fallback}</span></>
                 : filter !== "all"
-                ? <span className="normal-case tracking-[0.04em] capitalize text-sky-400/80">{activeLabel}</span>
-                : "Швидкий пошук"
+                ? <span>Результати · {activeLabel}</span>
+                : "Знайдені товари"
               }
-            </span>
+              </p>
+              <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">Оберіть товар або перегляньте всі результати</p>
+            </div>
             {loading
-              ? <span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-slate-600 border-t-sky-400" />
-              : suggestions.length > 0
-              ? <span className="text-[10.5px] text-slate-600">{suggestions.length}/{SUGGESTION_COUNT}</span>
+              ? <span className="ml-3 inline-flex items-center gap-2 rounded-full border border-sky-300/10 bg-sky-400/[0.06] px-2.5 py-1 text-[10px] font-semibold text-sky-300/80"><span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-slate-600 border-t-sky-400" />Оновлення</span>
               : null
             }
           </div>
 
           {/* empty */}
+          {loading && suggestions.length === 0 && (
+            <div className="space-y-1.5 p-2" aria-label="Завантаження товарів" aria-live="polite">
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="flex animate-pulse items-center gap-3 rounded-[15px] border border-white/[0.04] bg-white/[0.025] p-2.5">
+                  <span className="h-12 w-12 shrink-0 rounded-xl bg-white/[0.07] sm:h-14 sm:w-14" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block h-3 w-[82%] rounded-full bg-white/[0.08]" />
+                    <span className="mt-2 block h-2.5 w-[48%] rounded-full bg-white/[0.05]" />
+                  </span>
+                  <span className="h-5 w-16 rounded-full bg-emerald-300/[0.07]" />
+                </div>
+              ))}
+            </div>
+          )}
+
           {!loading && suggestions.length === 0 && (
-            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.05]">
-                <Search size={18} className="text-slate-600" strokeWidth={1.5} />
+            <div className="flex flex-col items-center gap-2.5 px-4 py-9 text-center">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                <PackageX size={19} className="text-slate-500" strokeWidth={1.6} aria-hidden="true" />
               </span>
-              <p className="text-[12.5px] font-semibold text-slate-500">Нічого не знайдено</p>
-              <p className="text-[11px] text-slate-600">Спробуйте змінити запит або фільтр</p>
+              <p className="text-[13px] font-bold text-slate-300">Товарів за цим запитом немає</p>
+              <p className="max-w-[28ch] text-[11px] leading-relaxed text-slate-500">Перевірте артикул або спробуйте коротшу назву</p>
             </div>
           )}
 
           {/* items */}
-          <div className="max-h-[min(60svh,360px)] overflow-y-auto overscroll-contain">
+          <div className="max-h-[min(62svh,410px)] space-y-1 overflow-y-auto overscroll-contain p-1.5 [scrollbar-gutter:stable] sm:p-2">
           {suggestions.map((p, i) => {
             const priceStr = formatUAH(p.priceEuro, euroRate);
             const inStock  = typeof p.quantity === "number" ? p.quantity > 0 : true;
@@ -458,9 +547,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
               <SmartLink
                 key={p.code}
                 href={productHref}
-                className={`font-ui group flex w-full cursor-pointer items-center gap-2.5 px-3 py-3 text-left transition-colors duration-300 ease-out hover:bg-white/[0.055] active:bg-white/[0.08] sm:gap-3 sm:px-3.5 sm:py-3.5 ${
-                  i < suggestions.length - 1 ? "border-b border-white/[0.05]" : ""
-                }`}
+                className="font-ui group relative flex w-full cursor-pointer items-center gap-2.5 overflow-hidden rounded-[15px] border border-transparent bg-white/[0.025] px-2.5 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-px hover:border-sky-300/15 hover:bg-sky-300/[0.065] hover:shadow-[0_9px_22px_rgba(2,6,23,0.22),inset_0_1px_0_rgba(255,255,255,0.045)] active:translate-y-0 active:bg-white/[0.08] sm:gap-3 sm:px-3 sm:py-3"
                 onClick={() => {
                   const price =
                     typeof p.priceEuro === "number" &&
@@ -489,35 +576,35 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
                   setDropdown(false); setQuery(""); onSearch(p.name, "name");
                 }}
               >
-                <div className="h-10 w-10 shrink-0 sm:h-11 sm:w-11">
+                <div className="h-12 w-12 shrink-0 sm:h-14 sm:w-14">
                   <SuggestionImage code={p.code} article={p.article} name={p.name} hasPhoto={p.hasPhoto} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[12px] font-semibold leading-snug text-slate-100 group-hover:text-white sm:text-[13px]">
+                  <p className="line-clamp-2 text-[12.5px] font-bold leading-[1.3] tracking-[-0.01em] text-slate-100 transition-colors group-hover:text-white sm:text-[13.5px]">
                     {p.name.replace(/\s*\(.*?\)\s*/g, " ").trim()}
                   </p>
-                  <div className="mt-0.5 flex items-center gap-1">
+                  <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
                     {p.article && (
-                      <span className="rounded bg-white/[0.07] px-1.5 py-px font-mono text-[10px] text-slate-400">
+                      <span className="rounded-md border border-white/[0.07] bg-white/[0.055] px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-slate-400">
                         {p.article}
                       </span>
                     )}
                     {p.producer && (
-                      <span className="max-w-[70px] truncate text-[10px] text-sky-400/75 sm:max-w-[120px]">
+                      <span className="max-w-[90px] truncate rounded-md bg-sky-400/[0.07] px-1.5 py-0.5 text-[9.5px] font-bold text-sky-300/80 sm:max-w-[150px]">
                         {p.producer}
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
+                <div className="ml-0.5 flex max-w-[104px] shrink-0 flex-col items-end justify-center gap-1.5 self-stretch sm:ml-1 sm:max-w-none">
                   {priceStr
-                    ? <span className="whitespace-nowrap text-[11.5px] font-bold tracking-tight text-emerald-400 sm:text-[12.5px]">{priceStr}</span>
-                    : <span className="text-[10px] text-slate-700">—</span>
+                    ? <span className="whitespace-nowrap text-[12px] font-black tracking-[-0.02em] text-emerald-300 sm:text-[13.5px]">{priceStr}</span>
+                    : <span className="text-right text-[9px] font-semibold leading-tight text-slate-600 sm:text-[10px]">Ціна за запитом</span>
                   }
-                  <span className={`flex items-center gap-0.5 text-[10px] font-semibold ${inStock ? "text-emerald-500/75" : "text-red-400/70"}`}>
+                  <span className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${inStock ? "border-emerald-300/10 bg-emerald-400/[0.07] text-emerald-400/90" : "border-rose-300/10 bg-rose-400/[0.07] text-rose-300/80"}`}>
                     {inStock
-                      ? <><PackageCheck size={10} strokeWidth={2.5} /><span className="hidden sm:inline"> В наявн.</span></>
-                      : <><PackageX size={10} strokeWidth={2.5} /><span className="hidden sm:inline"> Немає</span></>
+                      ? <><PackageCheck size={10} strokeWidth={2.5} aria-hidden="true" /><span className="max-[360px]:hidden">В наявності</span></>
+                      : <><PackageX size={10} strokeWidth={2.5} aria-hidden="true" /><span>Немає</span></>
                     }
                   </span>
                 </div>
@@ -527,15 +614,21 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           </div>
 
           {/* show all */}
-          <button
+          {suggestions.length > 0 ? <button
             type="button"
-            className="font-ui group flex w-full items-center justify-center gap-2 border-t border-white/[0.07] bg-white/[0.025] px-4 py-3 text-[12px] font-semibold text-sky-400 transition-colors duration-100 hover:bg-white/[0.06] hover:text-sky-300 cursor-pointer"
-            onClick={() => doSearch()}
+            className="font-ui group flex w-full cursor-pointer items-center justify-center gap-2.5 border-t border-white/[0.08] bg-[image:linear-gradient(180deg,rgba(255,255,255,0.035),rgba(56,189,248,0.045))] px-4 py-3.5 text-[12px] font-bold text-sky-300 transition-[background-color,color] duration-200 hover:bg-sky-400/[0.09] hover:text-sky-100"
+            onClick={() => doSearch(fallback || undefined)}
           >
-            <Search size={12} strokeWidth={2.5} />
-            Показати всі результати
+            <span>Показати всі результати</span>
+            {formattedTotalCount !== null ? (
+              <span className="inline-flex min-w-7 items-center justify-center rounded-full border border-sky-200/15 bg-sky-300/[0.10] px-2 py-0.5 text-[10.5px] font-black tabular-nums text-sky-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors group-hover:bg-sky-200/[0.16]">
+                {formattedTotalCount}
+              </span>
+            ) : loading ? (
+              <span className="h-5 w-9 animate-pulse rounded-full bg-white/[0.07]" aria-hidden="true" />
+            ) : null}
             <ChevronRight size={12} strokeWidth={2.5} className="transition-colors duration-300 group-hover:text-sky-200" />
-          </button>
+          </button> : null}
         </div>
       )}
 

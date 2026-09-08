@@ -634,10 +634,14 @@ const buildProductItemPageJsonLd = (options: {
       name: "PartsON",
       url: siteUrl,
     },
-    primaryImageOfPage: {
-      "@type": "ImageObject",
-      url: imageUrl,
-    },
+    ...(imageUrl
+      ? {
+          primaryImageOfPage: {
+            "@type": "ImageObject",
+            url: imageUrl,
+          },
+        }
+      : {}),
     mainEntity: hasProductSchema
       ? {
           "@id": `${canonicalUrl}#product`,
@@ -1681,7 +1685,7 @@ export async function generateMetadata({
     ? buildCanonicalProductPath(routeProduct, resolvedCode || fallbackCode)
     : `/product/${encodeURIComponent(decodedParam || resolvedCode || fallbackCode || "")}`;
 
-  const productImagePath = routeProduct && routeProduct.hasPhoto !== false
+  const productImagePath = routeProduct?.hasPhoto === true
     ? buildProductSeoImagePath(routeProduct.code || resolvedCode, routeProduct.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const siteUrl = getSiteUrl();
@@ -2042,7 +2046,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
     .filter(Boolean)
     .join(" → ");
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
-  const productHasKnownPhoto = product.hasPhoto !== false;
+  // Only confirmed catalog photos are safe for Google-facing image URLs. An
+  // unknown/false flag must never turn the generic fallback logo into a
+  // product image in Product/ItemPage structured data.
+  const productHasKnownPhoto = product.hasPhoto === true;
   const productSeoImagePath = productHasKnownPhoto
     ? buildProductSeoImagePath(product.code || resolvedCode, product.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
@@ -2067,7 +2074,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     initialPriceUah != null ||
     Boolean(initialReviews && initialReviews.length > 0) ||
     Boolean(reviewStats && reviewStats.ratingCount >= 3);
-  const jsonLd = shouldEmitProductStructuredData && hasProductSchemaSignal
+  const jsonLd = shouldEmitProductStructuredData && productHasKnownPhoto && hasProductSchemaSignal
     ? buildProductJsonLd({
         name: product.name,
         visibleName: visibleProductName,
@@ -2090,7 +2097,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     canonicalUrl,
     name: visibleProductName,
     description: schemaDescription,
-    imageUrl: productSeoImageUrl,
+    imageUrl: productHasKnownPhoto ? productSeoImageUrl : "",
     hasProductSchema: Boolean(jsonLd),
   });
   const breadcrumbJsonLd = buildProductBreadcrumbJsonLd({

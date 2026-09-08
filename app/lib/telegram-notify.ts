@@ -1,14 +1,20 @@
 import "server-only";
 
+type TelegramNotificationDelivery = { chatId: string; messageId: number };
+
 type TelegramNotificationResult = {
   ok: boolean;
   skipped?: boolean;
   error?: string;
+  // One entry per admin chat the message actually landed in — used to map a
+  // later "Reply" in that chat back to the customer it was about
+  // (see app/api/telegram/bot/route.ts handleAdminReply).
+  deliveries?: TelegramNotificationDelivery[];
 };
 
 const TELEGRAM_NOTIFY_TIMEOUT_MS = 6_000;
 
-const readNotifyChatIds = () => {
+export const readTelegramNotifyChatIds = () => {
   const raw =
     process.env.TELEGRAM_NOTIFY_CHAT_IDS ||
     process.env.TELEGRAM_NOTIFY_CHAT_ID ||
@@ -31,7 +37,7 @@ export const isTelegramNotifyConfigured = () =>
       process.env.TELEGRAM_ADMIN_BOT_TOKEN ||
       process.env.BOT_TOKEN
   ) &&
-  readNotifyChatIds().length > 0;
+  readTelegramNotifyChatIds().length > 0;
 
 export const sendTelegramNotification = async (
   text: string
@@ -40,7 +46,7 @@ export const sendTelegramNotification = async (
     process.env.TELEGRAM_BOT_TOKEN ||
     process.env.TELEGRAM_ADMIN_BOT_TOKEN ||
     process.env.BOT_TOKEN;
-  const chatIds = readNotifyChatIds();
+  const chatIds = readTelegramNotifyChatIds();
 
   if (!token || chatIds.length === 0) {
     return { ok: true, skipped: true };
@@ -53,7 +59,7 @@ export const sendTelegramNotification = async (
 
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
   const results = await Promise.allSettled(
-    chatIds.map(async (chatId) => {
+    chatIds.map(async (chatId): Promise<TelegramNotificationDelivery> => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), TELEGRAM_NOTIFY_TIMEOUT_MS);
 
@@ -73,12 +79,23 @@ export const sendTelegramNotification = async (
         const errorText = await response.text().catch(() => "");
         throw new Error(errorText || `Telegram send failed: ${response.status}`);
       }
+
+      const payload = (await response.json().catch(() => null)) as
+        | { result?: { message_id?: number } }
+        | null;
+      return { chatId, messageId: Number(payload?.result?.message_id) || 0 };
     })
   );
 
-  const deliveredCount = results.filter((result) => result.status === "fulfilled").length;
-  if (deliveredCount > 0) {
-    return { ok: true };
+  const deliveries = results
+    .filter(
+      (result): result is PromiseFulfilledResult<TelegramNotificationDelivery> =>
+        result.status === "fulfilled"
+    )
+    .map((result) => result.value);
+
+  if (deliveries.length > 0) {
+    return { ok: true, deliveries };
   }
 
   const failed = results.find((result) => result.status === "rejected");

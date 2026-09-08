@@ -1,5 +1,60 @@
 import http from "node:http";
 import https from "node:https";
+import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
+
+// --- Development-only disk cache -------------------------------------------
+// In `next dev`, the in-memory response cache below is wiped whenever a server
+// module is hot-reloaded or the dev server restarts, so a cold hit for the
+// full category tree / car list costs a multi-second 1C round trip before the
+// page can hydrate. Only those two endpoints are mirrored to `.cache/onec-dev/`
+// — they are big, slow, and keyed stably. Everything else (catalog pages,
+// image lookups, …) is left to the in-memory cache: it has thousands of
+// distinct keys and a sync write per response would stall the dev server.
+// Never active in production; disable with ONEC_DEV_DISK_CACHE=0.
+const DEV_DISK_CACHE =
+  process.env.NODE_ENV === "development" &&
+  process.env.ONEC_DEV_DISK_CACHE !== "0";
+const DEV_DISK_CACHE_ENDPOINTS = new Set(["getprod", "getauto"]);
+const DEV_DISK_CACHE_DIR = path.join(process.cwd(), ".cache", "onec-dev");
+const DEV_DISK_CACHE_TTL_MS = parsePositiveIntEnv(
+  "ONEC_DEV_DISK_CACHE_TTL_MS",
+  1000 * 60 * 60 * 24
+);
+
+function devDiskCachePath(key) {
+  const hash = crypto.createHash("sha1").update(key).digest("hex");
+  return path.join(DEV_DISK_CACHE_DIR, `${hash}.json`);
+}
+
+function readDevDiskCache(endpoint, key) {
+  if (!DEV_DISK_CACHE || !DEV_DISK_CACHE_ENDPOINTS.has(endpoint)) return null;
+  try {
+    const file = devDiskCachePath(key);
+    const stat = fs.statSync(file);
+    if (nowMs() - stat.mtimeMs > DEV_DISK_CACHE_TTL_MS) return null;
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (parsed && typeof parsed.text === "string") return parsed;
+  } catch {
+    // missing / unreadable / corrupt — treat as a miss
+  }
+  return null;
+}
+
+function writeDevDiskCache(endpoint, key, value) {
+  if (!DEV_DISK_CACHE || !DEV_DISK_CACHE_ENDPOINTS.has(endpoint)) return;
+  const payload = JSON.stringify({
+    status: value.status,
+    text: value.text,
+    contentType: value.contentType || "",
+  });
+  // fire-and-forget so the disk write never sits on the request path
+  fs.promises
+    .mkdir(DEV_DISK_CACHE_DIR, { recursive: true })
+    .then(() => fs.promises.writeFile(devDiskCachePath(key), payload))
+    .catch(() => {});
+}
 
 function parsePositiveIntEnv(name, fallbackValue) {
   const numeric = Number(process.env[name]);
@@ -260,6 +315,13 @@ export function clearOneCCacheForProduct(catalogNumber) {
 export function clearAllOneCCache() {
   const size = responseCache.size;
   responseCache.clear();
+  if (DEV_DISK_CACHE) {
+    try {
+      fs.rmSync(DEV_DISK_CACHE_DIR, { recursive: true, force: true });
+    } catch {
+      // best effort
+    }
+  }
   return size;
 }
 
@@ -294,6 +356,11 @@ export async function oneCRequest(endpoint, options = {}) {
   if (cacheTtlMs > 0) {
     const cached = getCached(resolvedCacheKey);
     if (cached) return cached;
+    const disk = readDevDiskCache(endpoint, resolvedCacheKey);
+    if (disk) {
+      setCached(resolvedCacheKey, disk, cacheTtlMs);
+      return disk;
+    }
   }
 
   const inFlight = inFlightRequests.get(resolvedCacheKey);
@@ -383,6 +450,7 @@ export async function oneCRequest(endpoint, options = {}) {
 
         if (cacheTtlMs > 0 && result.status >= 200 && result.status < 300) {
           setCached(resolvedCacheKey, result, cacheTtlMs);
+          writeDevDiskCache(endpoint, resolvedCacheKey, result);
         }
 
         return result;

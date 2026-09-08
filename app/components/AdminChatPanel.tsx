@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   ChatBubbleBottomCenterTextIcon,
   ShoppingBagIcon,
@@ -322,9 +322,15 @@ export default function AdminChatPanel({
   const [userSearch, setUserSearch] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const managerPresenceSessionRef = useRef(
-    `admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-  );
+  const managerPresenceSessionId = `admin_${useId().replace(/:/g, "")}`;
+  const [presenceNowMs, setPresenceNowMs] = useState(0);
+
+  useEffect(() => {
+    const updatePresenceClock = () => setPresenceNowMs(Date.now());
+    updatePresenceClock();
+    const intervalId = window.setInterval(updatePresenceClock, 30_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     return onSnapshot(
@@ -455,7 +461,7 @@ export default function AdminChatPanel({
     if (!isOpen || tab !== 'messages' || !selectedUserId) return;
 
     const presenceRef = doc(db, 'chatPresence', selectedUserId);
-    const sessionId = managerPresenceSessionRef.current;
+    const sessionId = managerPresenceSessionId;
 
     const publishPresence = async () => {
       try {
@@ -497,7 +503,7 @@ export default function AdminChatPanel({
         console.error('Не вдалося очистити присутність менеджера в чаті.');
       });
     };
-  }, [isOpen, selectedUserId, tab]);
+  }, [isOpen, managerPresenceSessionId, selectedUserId, tab]);
 
   const openChat = async (uid: string) => {
     setSelectedUserId(uid);
@@ -567,7 +573,7 @@ export default function AdminChatPanel({
     if (presence.isOnline !== true) return false;
     const lastSeenMs = getTimestampMs(presence.lastSeenAt);
     if (!lastSeenMs) return true;
-    return Date.now() - lastSeenMs <= 1000 * 90;
+    return presenceNowMs === 0 || presenceNowMs - lastSeenMs <= 1000 * 90;
   };
 
   const getUserLabel = (uid: string) => {

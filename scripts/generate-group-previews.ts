@@ -12,6 +12,7 @@ const outputPath = path.join(projectRoot, "app", "generated", "group-preview-man
 const previewDirectory = path.join(projectRoot, "public", "group-previews");
 const concurrency = 4;
 const previewGenerationVersion = "v2-white-background";
+const refreshExistingPreviews = process.env.GROUP_PREVIEWS_REFRESH === "1";
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
@@ -100,7 +101,9 @@ const resolvePairPreview = async (parent: string, child: string) => {
     group: parent,
     subcategory: child,
     expandHierarchy: true,
-    sortOrder: "none",
+    // Expensive-first — priced (and therefore more often photographed)
+    // products come back on the first page, so fewer round-trips per pair.
+    sortOrder: "desc",
     timeoutMs: 8_000,
     retries: 0,
     retryDelayMs: 100,
@@ -157,6 +160,7 @@ const resolvePairs = async (
   let cursor = 0;
   let resolved = 0;
   let skippedForBudget = 0;
+  let reused = 0;
   const startedAt = Date.now();
 
   const workers = Array.from({ length: Math.min(concurrency, pairs.length) }, async () => {
@@ -168,6 +172,14 @@ const resolvePairs = async (
       }
       const pair = pairs[cursor++];
       const key = previewKey(pair.parent, pair.child);
+      // Verified previews are content-addressed and safe to reuse. Rechecking
+      // every existing pair made each production build spend most of its
+      // budget downloading the same images while newer groups never got a
+      // turn. Set GROUP_PREVIEWS_REFRESH=1 for an intentional full refresh.
+      if (!refreshExistingPreviews && manifest[key]) {
+        reused += 1;
+        continue;
+      }
       try {
         const src = await resolvePairPreview(pair.parent, pair.child);
         if (src) {
@@ -185,6 +197,9 @@ const resolvePairs = async (
     console.warn(
       `[group-previews] time budget (${RUN_BUDGET_MS / 1000}s) exhausted — skipped ${skippedForBudget}/${pairs.length} remaining pairs this run (kept previous entries where available)`
     );
+  }
+  if (reused > 0) {
+    console.log(`[group-previews] reused ${reused} existing previews`);
   }
   return resolved;
 };

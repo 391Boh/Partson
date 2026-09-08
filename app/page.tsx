@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 
-import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
-import { getProductTreeNodes } from "app/lib/product-tree";
 import { buildSeoContactLine, buildPageMetadata } from "app/lib/seo-metadata";
 import HomePageContent from "./components/HomePageContent";
 import AdvantagesSection from "./components/AdvantagesSection";
@@ -37,44 +35,21 @@ export const metadata: Metadata = {
   ],
   openGraphTitle: `${homeTitle} | PartsON`,
   image: {
-    url: "/opengraph-partson-v2.png",
+    url: "/opengraph-partson-v3.png",
     alt: "Інтернет-магазин автозапчастин у Львові PartsON",
   },
   }),
 };
 
-export default async function HomePage() {
-  // Same cached lookup already used by /manufacturers and the
-  // /api/manufacturer-counts route (unstable_cache-backed, reads the
-  // pre-generated SEO snapshot — not a live 1C call), so this doesn't add a
-  // slow request to the page. Feeding it in as initialSyncedBrands lets
-  // Brands.tsx skip its own client-side fetch to that same endpoint, which
-  // previously left every brand tile showing zero counts until that request
-  // resolved after hydration — the "manufacturers load slowly the first
-  // time" symptom.
-  const [{ clientProducers }, initialProductTree] = await Promise.all([
-    getFullManufacturersDirectoryData().catch(() => ({ clientProducers: [] })),
-    getProductTreeNodes().catch(() => []),
-  ]);
-  const initialSyncedBrands = clientProducers.map((producer) => ({
-    name: producer.label,
-    logo: producer.logoPath,
-    description: producer.description || `${producer.label} у каталозі PartsON.`,
-    productCount: producer.productCount,
-    groupsCount: producer.groupsCount,
-  }));
-
-  // Keep the complete page structure stable from the first HTML response.
-  // A streamed, page-sized fallback previously got replaced after first paint;
-  // its estimated heights diverged from the real responsive sections and was
-  // the dominant source of homepage CLS. Lower interactive sections still
-  // fetch their data lazily through their existing client caches.
+export default function HomePage() {
+  // The interactive catalogue modules are intentionally not hydrated from a
+  // page-sized server payload. HomeDeferredStack reserves their responsive
+  // geometry and loads each module shortly before it reaches the viewport.
+  // This keeps the hero response small and removes catalogue/brand lookups
+  // from the homepage's critical rendering path.
   return (
     <HomePageContent>
-      <HomeDeferredStack
-        initialSyncedBrands={initialSyncedBrands}
-        initialProductTree={initialProductTree}
-      />
+      <HomeDeferredStack />
       <div className="home-section-stage home-section-stage-static">
         <AdvantagesSection />
       </div>

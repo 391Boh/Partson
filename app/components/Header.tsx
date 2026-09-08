@@ -54,9 +54,28 @@ const SearchBar = dynamic<SearchBarComponentProps>(() => import('./Search'), {
   ),
 });
 
-const Header: React.FC = () => {
+type HeaderProps = {
+  transparentAtTop?: boolean;
+};
+
+// Was a flat vertical navy gradient with a static sheen overlay. Redesigned
+// as a diagonal, glass-morphism style header with three soft color
+// accents (sky-blue top-left, teal bottom-right, blue top-center) instead
+// of one flat tone — reads as noticeably more contemporary while staying
+// visually stable. The opaque layered surface deliberately avoids a fixed
+// backdrop-filter, which is costly on Windows GPUs during vertical scroll.
+const HEADER_BACKGROUND_LAYERS = [
+  "linear-gradient(100deg, rgba(255,255,255,0.14) 0%, transparent 20%, transparent 80%, rgba(255,255,255,0.08) 100%)",
+  "radial-gradient(ellipse 65% 140% at 6% -20%, rgba(56,189,248,0.36) 0%, transparent 55%)",
+  "radial-gradient(ellipse 55% 130% at 96% 120%, rgba(45,212,191,0.28) 0%, transparent 55%)",
+  "radial-gradient(ellipse 85% 90% at 50% -30%, rgba(37,99,235,0.24) 0%, transparent 62%)",
+  "radial-gradient(ellipse 100% 60% at 50% 150%, rgba(59,130,246,0.16) 0%, transparent 60%)",
+  "linear-gradient(120deg, rgba(22,32,56,0.80) 0%, rgba(30,42,68,0.82) 30%, rgba(26,54,88,0.84) 55%, rgba(28,40,66,0.82) 80%, rgba(22,32,56,0.80) 100%)",
+].join(", ");
+
+const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
   const { cartItems } = useCart();
-  const logoFallbackPath = '/favicon-partson-v2-192.png';
+  const logoFallbackPath = '/partson-mark-v3.webp';
   const [hasMounted, setHasMounted] = useState(false);
   const { user } = useFirebaseAuthState();
 
@@ -341,20 +360,49 @@ const Header: React.FC = () => {
   // exactly the "laggy in Chrome, fine in Safari" split reported for this
   // header. A flat, slightly more opaque fill reads the same visually
   // without needing a live blur.
+  // Was a flat bg-white/[0.16] fill with a thin border — against the
+  // busier, more colorful header gradient (see HEADER_BACKGROUND_LAYERS)
+  // that read as washed out. A subtle diagonal glass gradient fill plus a
+  // brighter border and bolder text give these buttons a defined edge
+  // against the background instead of blending into it.
   const buttonBaseClass =
-    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.20] bg-white/[0.16] text-[10px] font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.16)] transition-all duration-200 whitespace-nowrap hover:border-sky-300/50 hover:bg-sky-400/[0.18] hover:text-sky-100 hover:shadow-[0_6px_18px_rgba(14,165,233,0.22),0_2px_8px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(125,211,252,0.22)] active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[13px] touch-manipulation';
+    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.30] bg-[image:linear-gradient(150deg,rgba(255,255,255,0.18)_0%,rgba(255,255,255,0.05)_100%)] text-[10px] font-bold tracking-[0.01em] text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.45)] shadow-[0_2px_10px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.24)] transition-all duration-200 whitespace-nowrap hover:border-sky-300/65 hover:bg-[image:linear-gradient(150deg,rgba(56,189,248,0.28)_0%,rgba(56,189,248,0.08)_100%)] hover:text-sky-100 hover:shadow-[0_6px_18px_rgba(14,165,233,0.28),0_2px_8px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(125,211,252,0.28)] active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[13px] touch-manipulation';
 
   const rightActionBaseClass =
-    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.20] bg-white/[0.16] text-[10px] font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.16)] transition-[background-color,border-color,color,box-shadow,filter,transform] duration-[420ms] ease-[cubic-bezier(0.16,1,0.3,1)] whitespace-nowrap hover:border-sky-300/40 hover:bg-sky-400/[0.15] hover:text-sky-100 hover:shadow-[0_5px_15px_rgba(14,165,233,0.17),0_2px_7px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(125,211,252,0.20)] active:scale-[0.97] active:duration-150 active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-[13px] touch-manipulation';
+    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.30] bg-[image:linear-gradient(150deg,rgba(255,255,255,0.18)_0%,rgba(255,255,255,0.05)_100%)] text-[10px] font-bold tracking-[0.01em] text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.45)] shadow-[0_2px_10px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.24)] transition-[background-color,background-image,border-color,color,box-shadow,filter,transform] duration-[420ms] ease-[cubic-bezier(0.16,1,0.3,1)] whitespace-nowrap hover:border-sky-300/55 hover:bg-[image:linear-gradient(150deg,rgba(56,189,248,0.24)_0%,rgba(56,189,248,0.07)_100%)] hover:text-sky-100 hover:shadow-[0_5px_15px_rgba(14,165,233,0.22),0_2px_7px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(125,211,252,0.24)] active:scale-[0.97] active:duration-150 active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-[13px] touch-manipulation';
 
   const rightActionActiveClass =
-    '!border-sky-300/55 !bg-sky-500/[0.22] !text-sky-100 !shadow-[0_4px_14px_rgba(14,165,233,0.24),inset_0_1px_0_rgba(125,211,252,0.24)] !-translate-y-0';
+    '!border-sky-300/65 !bg-[image:linear-gradient(150deg,rgba(56,189,248,0.32)_0%,rgba(56,189,248,0.12)_100%)] !text-sky-100 !shadow-[0_4px_14px_rgba(14,165,233,0.28),inset_0_1px_0_rgba(125,211,252,0.28)] !-translate-y-0';
 
+  // Was a 2-stop gradient with a hard-ish jump between deep crimson and
+  // bright rose. A wider 4-stop spread across a gentler diagonal reads as
+  // one smooth blend instead of two colors stitched together.
+  //
+  // Needs `!` on background/border/shadow: rightActionBaseClass also sets
+  // background-image now (the glass gradient added for button crispness),
+  // so without `!important` the two bg-[image:...] utilities collide and
+  // whichever one Tailwind happened to generate later in the stylesheet
+  // wins — not necessarily this one, regardless of prop order in the
+  // className string. contactActionActiveClass already did this correctly;
+  // this base class just hadn't needed it before that glass-gradient change.
   const contactActionClass =
-    'border-rose-200/50 bg-[image:linear-gradient(145deg,rgba(190,18,60,0.94),rgba(225,29,72,0.92)_54%,rgba(244,63,94,0.88))] text-white shadow-[0_4px_14px_rgba(190,18,60,0.26),0_2px_6px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] hover:border-rose-100/60 hover:brightness-[1.035] hover:shadow-[0_6px_18px_rgba(225,29,72,0.28),0_2px_7px_rgba(0,0,0,0.17),inset_0_1px_0_rgba(255,255,255,0.25)]';
+    '!border-rose-200/45 !bg-[image:linear-gradient(140deg,rgba(159,18,57,0.90)_0%,rgba(190,24,70,0.90)_32%,rgba(225,29,72,0.88)_64%,rgba(251,113,133,0.82)_100%)] !text-white !shadow-[0_4px_16px_rgba(190,18,60,0.24),0_2px_6px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.24)] hover:!border-rose-100/60 hover:brightness-[1.04] hover:!shadow-[0_6px_20px_rgba(225,29,72,0.28),0_2px_7px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.28)]';
 
   const contactActionActiveClass =
-    '!border-rose-100/80 !bg-[image:linear-gradient(145deg,rgba(225,29,72,0.99),rgba(244,63,94,0.97)_50%,rgba(251,113,133,0.94))] !text-white !shadow-[0_10px_24px_rgba(225,29,72,0.30),inset_0_1px_0_rgba(255,255,255,0.28)] !translate-y-0';
+    '!border-rose-100/75 !bg-[image:linear-gradient(140deg,rgba(190,24,70,0.96)_0%,rgba(225,29,72,0.95)_45%,rgba(251,113,133,0.90)_100%)] !text-white !shadow-[0_10px_26px_rgba(225,29,72,0.28),inset_0_1px_0_rgba(255,255,255,0.30)] !translate-y-0';
+
+  // Same structure/treatment as contactActionClass (same rightActionBaseClass
+  // + a colored `!` override, same active-state pairing) — the search
+  // button used to be a one-off icon-only button with its own hardcoded
+  // size overrides and no text label, standing apart from every other
+  // header button visually. Kept the hue sky/blue (search's own identity)
+  // instead of copying Контакти's red so the two don't read as the same
+  // action.
+  const searchActionClass =
+    '!border-sky-300/45 !bg-[image:linear-gradient(140deg,rgba(3,105,161,0.85)_0%,rgba(2,132,199,0.85)_32%,rgba(14,165,233,0.82)_64%,rgba(56,189,248,0.75)_100%)] !text-white !shadow-[0_4px_16px_rgba(14,165,233,0.24),0_2px_6px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.24)] hover:!border-sky-100/60 hover:brightness-[1.04] hover:!shadow-[0_6px_20px_rgba(56,189,248,0.28),0_2px_7px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.28)]';
+
+  const searchActionActiveClass =
+    '!border-sky-100/75 !bg-[image:linear-gradient(140deg,rgba(2,132,199,0.96)_0%,rgba(14,165,233,0.95)_45%,rgba(56,189,248,0.90)_100%)] !text-white !shadow-[0_10px_26px_rgba(56,189,248,0.28),inset_0_1px_0_rgba(255,255,255,0.30)] !translate-y-0';
 
   const dropdownBaseClass =
     'app-header-dropdown font-ui fixed inset-x-3 top-[calc(var(--header-height,4rem)+0.55rem)] z-[90] max-h-[calc(100svh-var(--header-height,4rem)-1rem)] origin-top overflow-y-auto rounded-[20px] border border-sky-100/16 p-2 text-white shadow-[0_18px_42px_rgba(2,6,23,0.34),0_12px_28px_rgba(2,6,23,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-sky-100/10 backdrop-blur-xl select-none transition-all duration-150 ease-out sm:absolute sm:inset-x-auto sm:left-1/2 sm:top-auto sm:mt-5 sm:-translate-x-1/2 sm:rounded-[18px] sm:p-1.5';
@@ -403,6 +451,24 @@ const Header: React.FC = () => {
       suppressHydrationWarning
       className="site-header-shell font-ui relative z-50 flex w-full items-center justify-center text-white"
     >
+      {/* Fades in on scroll (see LayoutHost.tsx's isPageAtTop) — gone
+          entirely at the very top of the homepage, revealing the hero
+          photo behind the fixed header; reappears once the page scrolls
+          away from the top, on every page including the homepage. */}
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-0 transition-opacity duration-300 ease-out ${
+          transparentAtTop ? "opacity-0" : "opacity-100"
+        }`}
+        style={{
+          backgroundColor: "#1e293b",
+          backgroundImage: HEADER_BACKGROUND_LAYERS,
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "100% 100%",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(56,189,248,0.22), 0 8px 22px rgba(15,23,42,0.18), 0 1px 0 rgba(56,189,248,0.14)",
+        }}
+      />
 
       <div className="page-shell-inline flex items-center justify-between gap-2 sm:gap-4">
 
@@ -422,15 +488,15 @@ const Header: React.FC = () => {
             draggable={false}
           >
             <Image
-              src="/partson-logo-v2.webp"
+              src="/partson-logo-v3.webp"
               alt="Логотип інтернет-магазину автозапчастин PartsON"
-              width={98}
-              height={49}
-              quality={85}
+              width={184}
+              height={100}
+              quality={100}
               priority
               fetchPriority="high"
-              sizes="(max-width: 768px) 65px, 85px"
-              className="pointer-events-none h-auto w-[65px] select-none object-contain md:w-[85px]"
+              sizes="(max-width: 639px) 65px, (max-width: 767px) 82px, 92px"
+              className="pointer-events-none h-auto w-[65px] select-none object-contain drop-shadow-[0_3px_10px_rgba(2,132,199,0.28)] sm:w-[82px] md:w-[92px]"
               onError={handleLogoLoadError}
               onContextMenu={preventLogoAssetInteraction}
               draggable={false}
@@ -451,7 +517,7 @@ const Header: React.FC = () => {
                     activeMenu === "menu" ? rightActionActiveClass : ''
                   }`}
                 >
-                  <Menu size={16} className="sm:size-4" aria-hidden="true" />
+                  <Menu size={16} strokeWidth={2.4} className="sm:size-4" aria-hidden="true" />
                   <span className="hidden md:inline cursor-pointer select-none">Меню</span>
                 </button>
 
@@ -513,7 +579,7 @@ const Header: React.FC = () => {
                     activeMenu === "info" ? rightActionActiveClass : ''
                   }`}
                 >
-                  <Info size={16} className="sm:size-4 " aria-hidden="true" />
+                  <Info size={16} strokeWidth={2.4} className="sm:size-4 " aria-hidden="true" />
                   <span className="hidden md:inline cursor-pointer select-none">Інформація</span>
                 </button>
 
@@ -547,19 +613,18 @@ const Header: React.FC = () => {
 
           <button
             aria-label="Пошук"
-            className={`group lg:hidden !h-12 !w-12 !rounded-[16px] font-ui relative inline-flex shrink-0 cursor-pointer select-none items-center justify-center transition-all duration-200 touch-manipulation ${
-              showSearchModal
-                ? 'border border-sky-300/65 bg-sky-500/[0.22] text-sky-100 shadow-[0_4px_16px_rgba(14,165,233,0.26),inset_0_1px_0_rgba(125,211,252,0.26)]'
-                : 'border border-sky-400/[0.30] bg-[image:linear-gradient(145deg,rgba(12,74,110,0.38),rgba(7,89,133,0.32))] text-sky-100 shadow-[0_2px_10px_rgba(14,165,233,0.14),inset_0_1px_0_rgba(125,211,252,0.18)] hover:border-sky-300/55 hover:bg-[image:linear-gradient(145deg,rgba(12,74,110,0.52),rgba(7,89,133,0.46))] hover:shadow-[0_6px_20px_rgba(14,165,233,0.28),inset_0_1px_0_rgba(125,211,252,0.24)] active:scale-[0.96]'
+            className={`group lg:hidden ${rightActionBaseClass} ${searchActionClass} ${
+              showSearchModal ? searchActionActiveClass : ''
             }`}
             onClick={toggleSearchModal}
             ref={searchButtonRef}
           >
             <Search
-              size={18}
-              className="transition-transform duration-200 ease-out group-hover:scale-[1.12] group-active:scale-90"
+              size={17}
               strokeWidth={2.4}
+              className="sm:size-4 transition-transform duration-200 ease-out group-hover:scale-[1.12] group-active:scale-90"
             />
+            <span className="hidden sm:inline cursor-pointer select-none">Пошук</span>
           </button>
         </div>
 
@@ -584,7 +649,7 @@ const Header: React.FC = () => {
                 : ''
             }`}
           >
-            <User size={17} className="sm:size-4" />
+            <User size={17} strokeWidth={2.4} className="sm:size-4" />
             <span className="hidden sm:inline cursor-pointer select-none">Профіль</span>
           </button>
 
@@ -601,7 +666,7 @@ const Header: React.FC = () => {
               modals.order ? rightActionActiveClass : ''
             }`}
           >
-            <ShoppingCart size={17} className="sm:size-4" />
+            <ShoppingCart size={17} strokeWidth={2.4} className="sm:size-4" />
             <span className="hidden sm:inline cursor-pointer select-none">Замовлення</span>
 
             {hasMounted && cartItems.length > 0 && (
@@ -626,7 +691,7 @@ const Header: React.FC = () => {
                 : ''
             }`}
           >
-            <Phone size={17} className="sm:size-4" />
+            <Phone size={17} strokeWidth={2.4} className="sm:size-4" />
             <span className="hidden sm:inline cursor-pointer select-none">Контакти</span>
           </button>
         </div>

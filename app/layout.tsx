@@ -61,7 +61,7 @@ const siteUrlObject = (() => {
 
 const organizationId = `${siteUrl}#organization`;
 const localBusinessId = `${siteUrl}#local-business`;
-const organizationLogoUrl = `${siteUrl}/google-logo-partson-v2.png`;
+const organizationLogoUrl = `${siteUrl}/google-logo-partson-v3.png`;
 
 const parseNumericEnv = (value: string | undefined) => {
   if (!value) return null;
@@ -202,11 +202,12 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: "/favicon-partson-v2-48.png", type: "image/png", sizes: "48x48" },
-      { url: "/favicon-partson-v2-192.png", type: "image/png", sizes: "192x192" },
-      { url: "/favicon-partson-v2-512.png", type: "image/png", sizes: "512x512" },
+      { url: "/favicon-partson-v3-48.png", type: "image/png", sizes: "48x48" },
+      { url: "/favicon-partson-v3-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/favicon-partson-v3-512.png", type: "image/png", sizes: "512x512" },
     ],
-    apple: [{ url: "/apple-touch-partson-v2.png", type: "image/png", sizes: "180x180" }],
+    shortcut: [{ url: "/favicon-partson-v3.ico", type: "image/x-icon" }],
+    apple: [{ url: "/apple-touch-partson-v3.png", type: "image/png", sizes: "180x180" }],
   },
   openGraph: {
     type: "website",
@@ -217,7 +218,7 @@ export const metadata: Metadata = {
     description: rootSocialDescription,
     images: [
       {
-        url: "/opengraph-partson-v2.png",
+        url: "/opengraph-partson-v3.png",
         width: 1200,
         height: 630,
         alt: "PartsON - автозапчастини",
@@ -228,7 +229,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PartsON - Магазин автозапчастин",
     description: rootSocialDescription,
-    images: [{ url: "/opengraph-partson-v2.png", width: 1200, height: 630, alt: "PartsON - автозапчастини" }],
+    images: [{ url: "/opengraph-partson-v3.png", width: 1200, height: 630, alt: "PartsON - автозапчастини" }],
   },
 };
 
@@ -323,8 +324,8 @@ const organizationJsonLd = {
   logo: {
     "@type": "ImageObject",
     url: `${organizationLogoUrl}`,
-    width: 1024,
-    height: 1024,
+    width: 600,
+    height: 600,
   },
   image: [`${organizationLogoUrl}`],
   sameAs: sameAsLinks.length > 0 ? sameAsLinks : undefined,

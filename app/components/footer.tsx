@@ -157,21 +157,20 @@ export default function Footer() {
               className={`mx-auto flex max-w-[240px] flex-col items-center gap-1.5 text-center transition-opacity duration-700 ease-out ${bottomReveal}`}
             >
               <Image
-                src="/partson-logo-v2.png"
+                src="/partson-logo-v3.webp"
                 alt="Логотип інтернет-магазину автозапчастин PartsON"
-                width={96}
-                height={60}
-                sizes="(max-width: 640px) 76px, 94px"
-                quality={85}
-                className="h-auto w-[76px] object-contain drop-shadow-[0_10px_18px_rgba(14,165,233,0.16)] sm:w-[94px]"
+                width={184}
+                height={100}
+                sizes="(max-width: 640px) 118px, 138px"
+                quality={100}
+                className="h-auto w-[118px] object-contain drop-shadow-[0_10px_18px_rgba(14,165,233,0.16)] sm:w-[138px]"
                 onError={(e) => {
                   const img = e.currentTarget;
                   if (img.dataset.fallbackApplied === "1") return;
                   img.dataset.fallbackApplied = "1";
-                  img.src = "/favicon-partson-v2-192.png";
+                  img.src = "/partson-mark-v3.webp";
                 }}
               />
-              <span className="text-xl font-bold tracking-tight text-slate-900">PartsON</span>
               <p className="text-sm leading-5 text-slate-600">Інтернет-магазин автозапчастин</p>
             </SmartLink>
 

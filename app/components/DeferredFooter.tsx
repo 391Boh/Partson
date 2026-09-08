@@ -12,6 +12,7 @@ export default function DeferredFooter() {
     if (!anchor || FooterComponent) return;
 
     let cancelled = false;
+    let settleTimer: number | null = null;
     const loadFooter = () => {
       void import("./footer").then((module) => {
         // This mount is triggered by the user scrolling the footer into
@@ -23,10 +24,20 @@ export default function DeferredFooter() {
       });
     };
 
-    if (typeof IntersectionObserver === "undefined") {
+    const loadFooterWhenScrollSettles = () => {
+      if (cancelled) return;
+      if (document.documentElement.classList.contains("is-scrolling")) {
+        settleTimer = window.setTimeout(loadFooterWhenScrollSettles, 120);
+        return;
+      }
       loadFooter();
+    };
+
+    if (typeof IntersectionObserver === "undefined") {
+      loadFooterWhenScrollSettles();
       return () => {
         cancelled = true;
+        if (settleTimer !== null) window.clearTimeout(settleTimer);
       };
     }
 
@@ -34,7 +45,7 @@ export default function DeferredFooter() {
       ([entry]) => {
         if (!entry?.isIntersecting) return;
         observer.disconnect();
-        loadFooter();
+        loadFooterWhenScrollSettles();
       },
       { rootMargin: "400px 0px", threshold: 0.01 }
     );
@@ -43,6 +54,7 @@ export default function DeferredFooter() {
     return () => {
       cancelled = true;
       observer.disconnect();
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
     };
   }, [FooterComponent]);
 

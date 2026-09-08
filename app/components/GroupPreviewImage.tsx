@@ -121,7 +121,11 @@ export const loadGroupPreview = (category: string, group: string) => {
           group: category,
           subcategory: group,
           expandHierarchy: true,
-          sortOrder: "none",
+          // Expensive-first: priced products sort ahead of price-less ones and
+          // are far more likely to be photographed, so a representative photo
+          // is usually found in the first page instead of after several
+          // paging + verification round-trips.
+          sortOrder: "desc",
         }),
       });
       if (!response.ok) return null;
@@ -196,7 +200,7 @@ export const loadGroupPreview = (category: string, group: string) => {
   return request;
 };
 
-const GroupPreviewImage = React.memo(({ category, group }: { category: string; group: string }) => {
+const GroupPreviewImage = React.memo(({ category, group, bare = false }: { category: string; group: string; bare?: boolean }) => {
   const cacheKey = `${category.trim().toLowerCase()}::${group.trim().toLowerCase()}`;
   const [src, setSrc] = useState<string | null | undefined>(() =>
     groupPreviewCache.get(cacheKey) ?? groupPreviewManifest[cacheKey]
@@ -214,12 +218,21 @@ const GroupPreviewImage = React.memo(({ category, group }: { category: string; g
 
   if (src === undefined) {
     return (
-      <span className="relative block h-[88px] w-full overflow-hidden border-b border-sky-100 bg-[linear-gradient(110deg,#f8fcff_20%,#e5f6ff_42%,#f4fbff_64%)] bg-[length:220%_100%] motion-safe:animate-pulse sm:h-[104px]" aria-hidden="true" />
+      <span
+        className={`relative block h-[88px] w-full overflow-hidden bg-[linear-gradient(110deg,#f8fcff_20%,#e5f6ff_42%,#f4fbff_64%)] bg-[length:220%_100%] motion-safe:animate-pulse sm:h-[104px] ${bare ? "" : "border-b border-sky-100"}`}
+        aria-hidden="true"
+      />
     );
   }
 
   return (
-    <span className="relative block h-[88px] w-full overflow-hidden border-b border-sky-100/90 bg-[radial-gradient(circle_at_72%_12%,rgba(125,211,252,0.28),transparent_43%),linear-gradient(145deg,#ffffff_0%,#f5fbff_55%,#eaf8ff_100%)] shadow-[inset_0_2px_6px_rgba(15,23,42,0.08),inset_0_-4px_12px_rgba(2,132,199,0.10),inset_0_0_0_1px_rgba(15,23,42,0.03)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.16),inset_0_-8px_20px_rgba(2,132,199,0.22),inset_0_0_0_1px_rgba(2,132,199,0.08)] sm:h-[104px]">
+    <span
+      className={
+        bare
+          ? "relative block h-[88px] w-full overflow-hidden bg-transparent sm:h-[104px]"
+          : "relative block h-[88px] w-full overflow-hidden border-b border-sky-100/90 bg-[radial-gradient(circle_at_72%_12%,rgba(125,211,252,0.28),transparent_43%),linear-gradient(145deg,#ffffff_0%,#f5fbff_55%,#eaf8ff_100%)] shadow-[inset_0_2px_6px_rgba(15,23,42,0.08),inset_0_-4px_12px_rgba(2,132,199,0.10),inset_0_0_0_1px_rgba(15,23,42,0.03)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.16),inset_0_-8px_20px_rgba(2,132,199,0.22),inset_0_0_0_1px_rgba(2,132,199,0.08)] sm:h-[104px]"
+      }
+    >
       <Image
         src={src}
         alt={`Автозапчастини групи «${group}» у категорії «${category}»`}

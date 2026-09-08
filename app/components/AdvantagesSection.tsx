@@ -1,360 +1,194 @@
-"use client";
-
-import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
 import {
-  ArrowRight, CheckCircle2, MapPin, MessageCircle, XCircle,
+  ArrowRight, MapPin, MessageCircle,
   PackageSearch, Star, Truck, Wrench,
 } from "lucide-react";
+import DeferredSeoPhotosBackdrop, { DeferredStoreMap } from "./DeferredHomeVisuals";
 import OpenChatButton from "./OpenChatButton";
+import StoreOpenStatus from "./StoreOpenStatus";
 
 const STORE_MAPS_URL = "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu";
+const STORE_MAP_EMBED_URL = "https://www.google.com/maps?q=PartsON,+вул.+Перфецького,+8,+Львів&output=embed";
 
-const galleryItems = [
-  ["partson-store-1.jpg", "Магазин автозапчастин PartsON у Львові на вулиці Перфецького, 8", "Магазин у Львові"],
-  ["partson-store-4.jpg", "Моторні оливи GM, Mercedes-Benz, Ford, ELF і Mobil у магазині PartsON", "Моторні оливи"],
-  ["partson-store-2.jpg", "Автотовари Bosch і Vitol, компресори, домкрати та пускові пристрої", "Автотовари й інструмент"],
-  ["partson-store-3.jpg", "Асортимент запчастин та витратних матеріалів у магазині PartsON", "Запчастини в наявності"],
-  ["partson-store-5.jpg", "Торговий зал інтернет-магазину автозапчастин PartsON у Львові", "Консультація на місці"],
-  ["partson-store-6.jpg", "Оригінальні автозапчастини та перевірені аналоги в каталозі PartsON", "Оригінали й аналоги"],
-  ["partson-store-7.jpg", "Автомобільні комплектуючі з доставкою зі Львова по Україні", "Доставка по Україні"],
-] as const;
-
-const seoCatalogGroups = [
+// One quiet, keyword-rich list of what the catalog covers — replaces the
+// old three mini-cards that visually duplicated the service cards below.
+const catalogScope = [
   {
-    title: "ТО та деталі двигуна",
-    eyebrow: "Регулярне обслуговування",
-    icon: Wrench,
-    text: "Фільтри, моторні оливи, ремені ГРМ, ролики, натяжники, прокладки, сальники, помпи, термостати, радіатори та патрубки охолодження.",
-    tone: "sky" as const,
+    label: "Двигун і ТО",
+    items: "олива, фільтри, ремені та ролики ГРМ, помпи, термостати, свічки, радіатори, патрубки",
   },
   {
-    title: "Підвіска і гальма",
-    eyebrow: "Безпека та керованість",
-    icon: CheckCircle2,
-    text: "Амортизатори, опори, пружини, важелі, сайлентблоки, кульові опори, підшипники, гальмівні диски, колодки, супорти та шланги.",
-    tone: "cyan" as const,
+    label: "Ходова і гальма",
+    items: "амортизатори, пружини, важелі, сайлентблоки, кульові опори, підшипники, диски, колодки, супорти",
   },
   {
-    title: "Електрика та кузов",
-    eyebrow: "Ремонт і догляд",
-    icon: PackageSearch,
-    text: "Датчики, свічки, котушки, стартери, генератори, фари, ліхтарі, дзеркала, склоочисники, автохімія та аксесуари для автомобіля.",
-    tone: "blue" as const,
+    label: "Електрика і кузов",
+    items: "датчики, котушки, стартери, генератори, фари, ліхтарі, дзеркала, склоочисники, автохімія",
   },
 ] as const;
 
-const seoCatalogTones = {
-  sky: "border-sky-200/90 from-white via-sky-50/80 to-blue-50/80 text-sky-700 hover:border-sky-400 hover:from-sky-50 hover:to-cyan-50",
-  cyan: "border-cyan-200/90 from-white via-cyan-50/75 to-emerald-50/70 text-cyan-700 hover:border-cyan-400 hover:from-cyan-50 hover:to-emerald-50",
-  blue: "border-blue-200/90 from-white via-blue-50/75 to-indigo-50/70 text-blue-700 hover:border-blue-400 hover:from-blue-50 hover:to-violet-50",
-} as const;
-
+// Three non-overlapping steps: підбір → наявність → отримання. Each links to
+// a distinct set of routes; the copy no longer restates the others.
 const serviceCards = [
   {
-    title: "Підбір автозапчастин",
-    eyebrow: "VIN, артикул або код деталі",
+    title: "Підбір за авто чи артикулом",
+    eyebrow: "VIN · артикул · модель",
     icon: PackageSearch,
-    text: "Допоможемо перевірити сумісність запчастини з конкретною моделлю, роком випуску та модифікацією автомобіля. Пояснимо різницю між оригінальною деталлю і якісним аналогом.",
-    links: [["/auto", "Підібрати за авто"], ["/katalog", "Знайти за артикулом"], ["/inform/warranty", "Гарантія"]],
+    text: "Перевіримо, чи підходить деталь до вашої моделі, року й модифікації, та підкажемо різницю між оригіналом і аналогом.",
+    links: [["/auto", "Підбір за авто"], ["/katalog", "Пошук за артикулом"], ["/groups", "Групи товарів"]],
     tone: "sky" as const,
   },
   {
-    title: "Перевірка перед покупкою",
-    eyebrow: "Менше ризику помилитися",
+    title: "Наявність і аналоги",
+    eyebrow: "Актуальні залишки складу",
     icon: Wrench,
-    text: "Уточнимо виробника, характеристики й актуальну наявність. Якщо потрібної позиції немає, запропонуємо сумісний варіант у відповідному ціновому діапазоні.",
-    links: [["/groups", "Групи товарів"], ["/manufacturers", "Виробники"], ["/blog", "Поради фахівців"]],
+    text: "Уточнимо виробника, характеристики та залишок на складі. Якщо позиції немає — запропонуємо сумісний аналог у вашому бюджеті.",
+    links: [["/manufacturers", "Виробники"], ["/blog", "Поради фахівців"], ["/inform/warranty", "Гарантія"]],
     tone: "cyan" as const,
   },
   {
-    title: "Купівля та отримання",
-    eyebrow: "Львів і доставка по Україні",
+    title: "Оплата та доставка",
+    eyebrow: "Львів і вся Україна",
     icon: Truck,
-    text: "Замовлення можна отримати самовивозом у Львові або оформити доставку по Україні. Доступна консультація щодо термінів, способів оплати, гарантії та повернення.",
+    text: "Самовивіз із магазину на вул. Перфецького або доставка Новою поштою по Україні. Підкажемо щодо оплати, термінів і повернення.",
     links: [["/inform/delivery", "Доставка"], ["/inform/payment", "Оплата"], ["/inform/returns", "Повернення"]],
     tone: "blue" as const,
   },
 ] as const;
 
 const cardTones = {
-  sky: { icon: "border-sky-200 bg-sky-100 text-sky-700", link: "text-sky-700 hover:text-sky-500", dot: "bg-sky-500" },
-  cyan: { icon: "border-cyan-200 bg-cyan-100 text-cyan-700", link: "text-cyan-700 hover:text-cyan-500", dot: "bg-cyan-500" },
-  blue: { icon: "border-blue-200 bg-blue-100 text-blue-700", link: "text-blue-700 hover:text-blue-500", dot: "bg-blue-500" },
+  sky: { chip: "from-sky-500 to-cyan-400", glow: "rgba(14,165,233,0.5)", link: "text-sky-700 hover:text-sky-500", dot: "bg-sky-500", hoverText: "group-hover/service:text-sky-900" },
+  cyan: { chip: "from-teal-500 to-cyan-400", glow: "rgba(13,148,136,0.5)", link: "text-teal-700 hover:text-teal-500", dot: "bg-teal-500", hoverText: "group-hover/service:text-teal-900" },
+  blue: { chip: "from-blue-600 to-indigo-400", glow: "rgba(79,70,229,0.5)", link: "text-blue-700 hover:text-blue-500", dot: "bg-blue-500", hoverText: "group-hover/service:text-blue-900" },
 } as const;
 
 type Props = { googleRatingValue?: number; googleReviewCount?: number };
 
 export default function AdvantagesSection({ googleRatingValue = 4.3, googleReviewCount = 12 }: Props) {
-  const galleryRailRef = useRef<HTMLDivElement | null>(null);
-  const galleryPausedRef = useRef(false);
-  const [isStoreOpen, setIsStoreOpen] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    const updateStoreStatus = () => {
-      const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: "Europe/Kyiv",
-        weekday: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-        hourCycle: "h23",
-      }).formatToParts(new Date());
-      const readPart = (type: Intl.DateTimeFormatPartTypes) =>
-        parts.find((part) => part.type === type)?.value ?? "";
-      const weekday = readPart("weekday");
-      const hour = Number(readPart("hour"));
-      const minute = Number(readPart("minute"));
-      const currentMinutes = hour * 60 + minute;
-      const closingMinutes = weekday === "Sun" ? 16 * 60 : 18 * 60;
-
-      setIsStoreOpen(currentMinutes >= 8 * 60 && currentMinutes < closingMinutes);
-    };
-
-    updateStoreStatus();
-    const intervalId = window.setInterval(updateStoreStatus, 60_000);
-    return () => window.clearInterval(intervalId);
-  }, []);
-
-  useEffect(() => {
-    const rail = galleryRailRef.current;
-    if (!rail) return;
-
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let animationFrame = 0;
-    let previousTime = performance.now();
-    let loopPoint = 0;
-    let isRailVisible = false;
-    const speedPxPerSecond = 16;
-
-    const measureLoopPoint = () => {
-      const cards = rail.querySelectorAll<HTMLElement>("[data-seo-gallery-card]");
-      const firstCard = cards[0];
-      const firstDuplicate = cards[galleryItems.length];
-      loopPoint =
-        firstCard && firstDuplicate
-          ? firstDuplicate.offsetLeft - firstCard.offsetLeft
-          : rail.scrollWidth / 2;
-    };
-
-    measureLoopPoint();
-    const resizeObserver =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(measureLoopPoint)
-        : null;
-    resizeObserver?.observe(rail);
-    const visibilityObserver = new IntersectionObserver(
-      ([entry]) => {
-        isRailVisible = entry?.isIntersecting === true;
-        previousTime = performance.now();
-        if (isRailVisible && animationFrame === 0) {
-          animationFrame = window.requestAnimationFrame(animate);
-        } else if (!isRailVisible && animationFrame !== 0) {
-          window.cancelAnimationFrame(animationFrame);
-          animationFrame = 0;
-        }
-      },
-      { rootMargin: "80px 0px", threshold: 0.01 }
-    );
-
-    const animate = (time: number) => {
-      animationFrame = 0;
-      const elapsed = Math.min(64, time - previousTime);
-      previousTime = time;
-
-      if (
-        isRailVisible &&
-        !galleryPausedRef.current &&
-        !reducedMotion.matches &&
-        !document.documentElement.classList.contains("is-scrolling") &&
-        document.visibilityState === "visible"
-      ) {
-        rail.scrollLeft += (speedPxPerSecond * elapsed) / 1000;
-        if (loopPoint > 0 && rail.scrollLeft >= loopPoint) {
-          rail.scrollLeft -= loopPoint;
-        }
-      }
-
-      if (isRailVisible) {
-        animationFrame = window.requestAnimationFrame(animate);
-      }
-    };
-
-    // Resuming the auto-scroll the instant a pointer lifts fights touch
-    // momentum scrolling — the browser keeps animating scrollLeft on its own
-    // for a while after pointerup, and the auto-scroll's own scrollLeft
-    // writes then collide with that momentum, producing a visible jump. Wait
-    // for the rail's own scrollend (or a short timeout fallback where
-    // scrollend isn't supported) before resuming, mirroring the page-scroll
-    // "is-scrolling" intent detection in LayoutHost.tsx.
-    const supportsScrollEnd = "onscrollend" in window;
-    let resumeTimer: number | null = null;
-    const clearResumeTimer = () => {
-      if (resumeTimer !== null) {
-        window.clearTimeout(resumeTimer);
-        resumeTimer = null;
-      }
-    };
-    const handlePointerDown = () => {
-      galleryPausedRef.current = true;
-      clearResumeTimer();
-    };
-    const handlePointerRelease = () => {
-      if (supportsScrollEnd) return; // scrollend below owns the resume
-      clearResumeTimer();
-      resumeTimer = window.setTimeout(() => {
-        galleryPausedRef.current = false;
-      }, 150);
-    };
-    const handleScrollEnd = () => {
-      clearResumeTimer();
-      galleryPausedRef.current = false;
-    };
-    const handleFocusIn = () => {
-      galleryPausedRef.current = true;
-      clearResumeTimer();
-    };
-    const handleFocusOut = () => {
-      galleryPausedRef.current = false;
-    };
-
-    rail.addEventListener("pointerdown", handlePointerDown, { passive: true });
-    rail.addEventListener("pointerup", handlePointerRelease, { passive: true });
-    rail.addEventListener("pointercancel", handlePointerRelease, { passive: true });
-    if (supportsScrollEnd) rail.addEventListener("scrollend", handleScrollEnd, { passive: true });
-    rail.addEventListener("focusin", handleFocusIn);
-    rail.addEventListener("focusout", handleFocusOut);
-
-    visibilityObserver.observe(rail);
-    return () => {
-      if (animationFrame !== 0) window.cancelAnimationFrame(animationFrame);
-      resizeObserver?.disconnect();
-      visibilityObserver.disconnect();
-      clearResumeTimer();
-      rail.removeEventListener("pointerdown", handlePointerDown);
-      rail.removeEventListener("pointerup", handlePointerRelease);
-      rail.removeEventListener("pointercancel", handlePointerRelease);
-      if (supportsScrollEnd) rail.removeEventListener("scrollend", handleScrollEnd);
-      rail.removeEventListener("focusin", handleFocusIn);
-      rail.removeEventListener("focusout", handleFocusOut);
-    };
-  }, []);
-
   return (
-    <section className="font-ui group/seo relative isolate w-full overflow-hidden bg-[radial-gradient(ellipse_at_8%_0%,rgba(14,165,233,0.24),transparent_34%),radial-gradient(ellipse_at_92%_8%,rgba(45,212,191,0.22),transparent_32%),linear-gradient(145deg,#c8e1ec_0%,#e5f6fb_42%,#d7e9ff_100%)] py-5 text-slate-800 sm:py-8">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_6%,rgba(14,165,233,0.3),transparent_32%),radial-gradient(circle_at_92%_16%,rgba(20,184,166,0.24),transparent_34%),linear-gradient(115deg,rgba(255,255,255,0.3),rgba(59,130,246,0.06)_48%,rgba(45,212,191,0.1))] opacity-65" />
-      <div className="home-scroll-decor pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_18%_10%,rgba(2,132,199,0.34),transparent_38%),radial-gradient(ellipse_at_84%_18%,rgba(13,148,136,0.3),transparent_40%),linear-gradient(125deg,rgba(186,230,253,0.34),rgba(224,242,254,0.1)_44%,rgba(167,243,208,0.28))] opacity-0 transition-opacity duration-500 ease-out group-hover/seo:opacity-100" />
-      <div className="page-shell-inline relative z-10">
-        <div className="relative overflow-hidden rounded-[28px] border border-white bg-white/90 shadow-[0_30px_80px_rgba(15,56,86,0.18),0_8px_24px_rgba(14,116,144,0.12),inset_0_1px_0_white] ring-1 ring-sky-200/80 transition-[box-shadow,border-color] duration-500 group-hover/seo:border-sky-100 group-hover/seo:shadow-[0_36px_90px_rgba(15,56,86,0.22),0_10px_30px_rgba(14,116,144,0.15),inset_0_1px_0_white]">
-          <span className="pointer-events-none absolute inset-x-12 top-0 z-20 h-[3px] rounded-b-full bg-gradient-to-r from-transparent via-sky-500 to-cyan-400 shadow-[0_4px_18px_rgba(14,165,233,0.45)]" />
-          <header className="relative grid gap-5 overflow-hidden border-b border-sky-100/90 bg-[radial-gradient(circle_at_12%_0%,rgba(125,211,252,0.24),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.99),rgba(239,249,255,0.97),rgba(224,242,254,0.92))] px-5 py-6 sm:px-7 sm:py-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.65fr)] lg:items-end lg:gap-8">
-            <div className="min-w-0">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] bg-gradient-to-br from-sky-600 to-cyan-400 text-white shadow-[0_10px_22px_rgba(14,165,233,0.3),inset_0_1px_0_rgba(255,255,255,0.35)]">
-                  <PackageSearch className="h-5 w-5" strokeWidth={2.4} />
-                </span>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.17em] text-sky-700 sm:text-[10px]">Магазин автозапчастин PartsON</p>
-                  <h2 className="mt-0.5 max-w-4xl font-display text-[22px] font-black leading-[1.08] tracking-[-0.035em] text-slate-950 sm:text-[27px] lg:text-[31px]">Автозапчастини у Львові</h2>
-                </div>
-              </div>
-              <p className="mt-4 max-w-4xl text-[13.5px] font-medium leading-[1.65] text-slate-600 sm:text-[14px]">
-                Допомагаємо купити <strong className="font-extrabold text-slate-900">оригінальні автозапчастини та перевірені аналоги</strong>, підібрати деталь за VIN-кодом, артикулом або параметрами автомобіля та перевірити сумісність перед замовленням.
-              </p>
-
-              <div className="mt-4 grid gap-2.5 sm:grid-cols-3">
-                {seoCatalogGroups.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <article key={item.title} data-tone={item.tone} className={`seo-topic-card group/seo-card rounded-[17px] border bg-gradient-to-br p-3.5 shadow-[0_8px_20px_rgba(15,23,42,0.06),inset_0_1px_0_white] transition-[transform,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_18px_34px_rgba(14,116,144,0.2),0_0_0_3px_rgba(56,189,248,0.1),inset_0_1px_0_white] ${seoCatalogTones[item.tone]}`}>
-                      <div className="flex items-center gap-2.5">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px] border border-current/20 bg-white/80 shadow-sm transition-transform duration-300 group-hover/seo-card:scale-110 group-hover/seo-card:-rotate-3">
-                          <Icon className="h-4 w-4" strokeWidth={2.4} />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-[8px] font-black uppercase tracking-[0.12em] opacity-70">{item.eyebrow}</p>
-                          <h3 className="mt-0.5 text-[13px] font-black leading-tight text-slate-800">{item.title}</h3>
-                        </div>
-                      </div>
-                      <p className="mt-2.5 text-[11.5px] font-semibold leading-[1.52] text-slate-600">{item.text}</p>
-                    </article>
-                  );
-                })}
-              </div>
+    <section className="font-ui group/seo relative isolate w-full overflow-hidden border-y border-teal-100/70 bg-[radial-gradient(150%_120%_at_-25%_-25%,rgba(13,148,136,0.1),transparent_66%),radial-gradient(150%_120%_at_125%_130%,rgba(34,211,238,0.09),transparent_64%),linear-gradient(168deg,#e3f4f1_0%,#ebf6f8_44%,#e2eefc_100%)] pb-5 pt-5 text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(13,148,136,0.1),0_18px_40px_-18px_rgba(15,56,86,0.16)] sm:pb-6 sm:pt-6">
+      <DeferredSeoPhotosBackdrop />
+      {/* top bridge — melts the manufacturers section's mint edge into this one */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-16 bg-[linear-gradient(to_bottom,rgba(227,244,241,0.85)_0%,rgba(227,244,241,0.22)_58%,transparent_100%)]" />
+      {/* section hover — the panel lights up: a teal / cyan bloom swells in and a
+          bright band sweeps across */}
+      <div className="home-scroll-decor pointer-events-none absolute -inset-8 z-[1] opacity-0 transition-[opacity,transform] duration-[600ms] ease-out group-hover/seo:opacity-100 group-hover/seo:scale-[1.04] bg-[radial-gradient(circle_at_8%_10%,rgba(13,148,136,0.3),transparent_42%),radial-gradient(circle_at_92%_86%,rgba(34,211,238,0.26),transparent_40%),radial-gradient(circle_at_50%_-8%,rgba(56,189,248,0.18),transparent_44%),radial-gradient(circle_at_52%_112%,rgba(45,212,191,0.16),transparent_58%)]" />
+      <div className="home-scroll-decor pointer-events-none absolute inset-y-0 -left-1/3 z-[1] w-2/3 -translate-x-1/4 opacity-0 transition-[opacity,transform] duration-[900ms] ease-out group-hover/seo:translate-x-[70%] group-hover/seo:opacity-100 bg-[linear-gradient(105deg,transparent_0%,rgba(94,234,212,0.16)_38%,rgba(255,255,255,0.34)_50%,rgba(56,189,248,0.14)_62%,transparent_100%)]" />
+      {/* machined panel edges + one diagonal light streak — a touch of metal */}
+      <span className="home-scroll-decor pointer-events-none absolute inset-x-0 top-0 z-[2] h-[3px] bg-[linear-gradient(to_bottom,rgba(255,255,255,0.95),rgba(255,255,255,0.32)_46%,transparent)] transition-[box-shadow] duration-500 group-hover/seo:shadow-[0_0_22px_rgba(13,148,136,0.7)]" />
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[2px] bg-[linear-gradient(to_top,rgba(15,118,110,0.18),transparent)]" />
+      <span className="pointer-events-none absolute inset-0 z-[1] opacity-50 bg-[linear-gradient(101deg,transparent_0%,transparent_34%,rgba(255,255,255,0.22)_48%,rgba(255,255,255,0.3)_50%,rgba(255,255,255,0.18)_52%,transparent_66%,transparent_100%)]" />
+      <div className="section-reveal-advantages is-revealed page-shell-inline relative z-10 max-w-[1200px] space-y-7 sm:space-y-10">
+        {/* ---- Header + store card: one balanced two-column row ---- */}
+        <div className="grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8 xl:gap-10">
+          <div className="reveal-adv-copy relative min-w-0 rounded-[24px] border border-white/80 bg-white/78 p-5 shadow-[0_18px_42px_-20px_rgba(15,56,86,0.28),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm sm:p-7 lg:min-h-[520px] lg:p-8">
+            {/* Soft glow behind the heading — light, blurred wash lifting
+                the title off the section background, same treatment as the
+                other homepage sections' card headings. */}
+            <span className="pointer-events-none absolute -left-6 top-10 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(13,148,136,0.22),transparent_70%)] blur-2xl" aria-hidden="true" />
+            <div className="flex items-center gap-3">
+              <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-teal-500 via-sky-500 to-sky-400 text-white shadow-[0_13px_30px_-8px_rgba(13,148,136,0.6),inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-2px_6px_-2px_rgba(4,47,46,0.45)] after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.6),transparent_52%)] sm:h-11 sm:w-11">
+                {/* Original simple line-art open-box mark — the anchor for
+                    this whole icon family: same style language (viewBox 24,
+                    thin round-cap stroke, no fill) as HeroIntroCard's own
+                    custom eyebrow SVG, now shared by every homepage
+                    section's eyebrow badge instead of four different
+                    lucide-react glyphs. */}
+                <svg viewBox="0 0 24 24" className="relative h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3.5 8.2 12 3.5l8.5 4.7" />
+                  <path d="M3.5 8.2v8.4L12 21l8.5-4.4V8.2" />
+                  <path d="M12 12.6 20.5 8.2M12 12.6 3.5 8.2M12 12.6V21" />
+                </svg>
+              </span>
+              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase leading-snug tracking-[0.14em] text-teal-600 sm:text-[11px] sm:tracking-[0.18em]">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-teal-500 shadow-[0_0_10px_rgba(13,148,136,0.6)]" />
+                PartsON · Львів
+              </span>
             </div>
-            <div className="overflow-hidden rounded-[20px] border border-white bg-white shadow-[0_16px_34px_rgba(15,56,86,0.16)] ring-1 ring-sky-200/80">
-              <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" className="group/map relative block aspect-[16/8] cursor-zoom-in overflow-hidden bg-sky-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-400/60">
-                <Image src="/storefront/partson-location-map-v7.svg" alt="Карта: PartsON, Львів, вул. Перфецького, 8" fill sizes="(max-width: 1024px) 100vw, 360px" unoptimized className="object-cover transition-transform duration-500 ease-out group-hover/map:scale-[1.015]" />
-                <span className="pointer-events-none absolute left-1/2 top-[39%] z-[2] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center drop-shadow-[0_10px_14px_rgba(7,89,133,0.28)] transition-transform duration-300 group-hover/map:-translate-y-[56%]">
-                  <span className="flex h-[46px] w-[76px] items-center justify-center rounded-[14px] border-[3px] border-sky-700 bg-white px-2 shadow-[inset_0_1px_0_white]">
-                    <Image src="/partson-logo-v2.webp" alt="" width={1024} height={604} sizes="70px" quality={85} className="h-auto w-full object-contain" />
+            <h2 className="relative mt-3.5 max-w-[20ch] font-display text-[27px] font-black leading-[1.08] tracking-[-0.025em] text-slate-950 min-[480px]:text-[30px] sm:text-[34px] lg:text-[31px] xl:text-[35px]">
+              Інтернет-магазин <span className="text-teal-600">автозапчастин у Львові</span>
+            </h2>
+            <span className="mt-4 block h-[3px] w-24 rounded-full bg-[linear-gradient(90deg,#0d9488_0%,#14b8a6_26%,#ccfbf1_46%,#38bdf8_64%,transparent_100%)] shadow-[0_1px_2px_rgba(15,118,110,0.28)]" />
+            <p className="mt-3.5 max-w-[50ch] text-[15px] font-medium leading-[1.68] text-slate-700 sm:text-[16px]">
+              <strong className="font-extrabold text-slate-900">PartsON підбирає оригінальні деталі та перевірені аналоги</strong> для легкових авто. Шукайте за VIN, артикулом або моделлю — заберіть у Львові чи замовте доставку по Україні.
+            </p>
+
+            <div className="mt-5 rounded-[18px] border border-slate-200/90 bg-slate-50/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:mt-6 sm:p-5">
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-teal-700">Що знайдете в каталозі</p>
+              <dl className="mt-3.5 space-y-3.5">
+                {catalogScope.map((row) => (
+                  <div key={row.label} className="grid gap-1 border-b border-slate-200/80 pb-3 last:border-0 last:pb-0 sm:grid-cols-[138px_minmax(0,1fr)] sm:gap-4">
+                    <dt className="text-[13px] font-black leading-snug text-slate-900">{row.label}</dt>
+                    <dd className="text-[13px] leading-[1.58] text-slate-600">{row.items}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </div>
+
+          {/* store / map card — frosted glass, height roughly matches the column */}
+          <div className="reveal-adv-map flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/75 bg-white/70 shadow-[0_26px_58px_-20px_rgba(15,56,86,0.34),inset_0_1px_0_rgba(255,255,255,0.95)] ring-1 ring-white/55">
+            <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" className="group/map relative block aspect-[16/9] min-h-[220px] flex-1 cursor-zoom-in overflow-hidden bg-sky-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-400/60 lg:aspect-auto lg:min-h-[360px]">
+              <DeferredStoreMap src={STORE_MAP_EMBED_URL} title="Карта розташування PartsON у Львові" />
+              <span className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-white/10" />
+              <span className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 rounded-[14px] border border-white/35 bg-slate-950/78 px-3 py-2.5 text-white shadow-lg backdrop-blur-md transition-[transform,background-color] duration-200 group-hover/map:-translate-y-0.5 group-hover/map:bg-sky-950/90">
+                <span className="flex min-w-0 items-center gap-2.5"><MapPin className="h-5 w-5 shrink-0 text-cyan-300" /><span><strong className="block text-[12px] font-black">Львів, вул. Перфецького, 8</strong><small className="block text-[10px] font-semibold text-sky-100/80">Відкрити маршрут у Google Maps</small></span></span><ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover/map:translate-x-1" />
+              </span>
+            </a>
+            <div className="grid grid-cols-2 divide-x divide-white/60 border-t border-white/60">
+              <a href="tel:+380634211851" className="group/phone flex items-center justify-center gap-2 px-3 py-3.5 text-[12px] font-black text-slate-700 transition-colors hover:bg-white/60 hover:text-sky-800"><MessageCircle className="h-4 w-4 text-sky-600 transition-transform group-hover/phone:scale-110" />+38 (063) 421-18-51</a>
+              <StoreOpenStatus />
+            </div>
+            {googleReviewCount > 0 && <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" aria-label={`Переглянути ${googleReviewCount} відгуків PartsON у Google`} className="group/reviews flex cursor-pointer items-center justify-center gap-2 border-t border-amber-200/70 bg-[linear-gradient(135deg,rgba(255,253,245,0.85),rgba(255,247,214,0.8))] px-3 py-3 text-[12px] font-extrabold text-amber-900 transition-[background-color,color,box-shadow] duration-200 hover:bg-[linear-gradient(135deg,#fff8d8,#ffed9c)] hover:text-amber-950 hover:shadow-[inset_0_3px_0_rgba(245,158,11,0.55),0_-8px_20px_rgba(245,158,11,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-400 text-white shadow-[0_5px_12px_rgba(245,158,11,0.28)] transition-[transform,background-color] duration-200 group-hover/reviews:-translate-y-0.5 group-hover/reviews:scale-110 group-hover/reviews:bg-amber-500"><Star className="h-3.5 w-3.5 fill-current" /></span><span>{googleRatingValue.toFixed(1)} · {googleReviewCount} відгуків Google</span><ArrowRight className="h-3.5 w-3.5 text-amber-600 opacity-60 transition-[transform,opacity] group-hover/reviews:translate-x-1 group-hover/reviews:opacity-100" /></a>}
+          </div>
+        </div>
+
+        {/* ---- Services: three non-overlapping steps, cards aligned ---- */}
+        <div className="reveal-adv-cards grid gap-4 lg:grid-cols-3">
+          {serviceCards.map((item) => {
+            const Icon = item.icon;
+            const tone = cardTones[item.tone];
+            return (
+              <article key={item.title} className="card-metal group/service relative flex h-full flex-col overflow-hidden rounded-[20px] border border-white/55 bg-white/40 p-5 shadow-[0_14px_32px_-12px_rgba(15,56,86,0.22),inset_0_1px_0_rgba(255,255,255,0.7)] transition-[transform,box-shadow,background-color] duration-300 ease-out hover:-translate-y-1 hover:bg-white/70 hover:shadow-[0_26px_50px_-16px_rgba(14,116,144,0.34),inset_0_1px_0_white] sm:p-6">
+                <div className="relative z-[3] flex items-start gap-3.5">
+                  <span
+                    className={`relative inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[15px] bg-gradient-to-br text-white transition-transform duration-300 group-hover/service:-translate-y-0.5 group-hover/service:scale-110 ${tone.chip} after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.6),transparent_52%)]`}
+                    style={{ boxShadow: `0 12px 26px -8px ${tone.glow}, inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -2px 6px -2px rgba(4,32,46,0.4)` }}
+                  >
+                    <Icon className="relative h-[21px] w-[21px]" strokeWidth={2.2} />
                   </span>
-                  <span className="-mt-1 h-4 w-4 rotate-45 border-b-[3px] border-r-[3px] border-sky-700 bg-white" />
-                  <span className="mt-1 h-2.5 w-8 rounded-full bg-sky-900/20 blur-[2px]" />
-                </span>
-                <span className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-white/10" />
-                <span className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 rounded-[14px] border border-white/35 bg-slate-950/78 px-3 py-2.5 text-white shadow-lg backdrop-blur-md transition-[transform,background-color] duration-200 group-hover/map:-translate-y-0.5 group-hover/map:bg-sky-950/90">
-                  <span className="flex min-w-0 items-center gap-2.5"><MapPin className="h-5 w-5 shrink-0 text-cyan-300" /><span><strong className="block text-[12px] font-black">Львів, вул. Перфецького, 8</strong><small className="block text-[10px] font-semibold text-sky-100/80">Відкрити маршрут у Google Maps</small></span></span><ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover/map:translate-x-1" />
-                </span>
-              </a>
-              <div className="grid grid-cols-2 divide-x divide-sky-100 border-t border-sky-100">
-                <a href="tel:+380634211851" className="group/phone flex items-center gap-2 px-3 py-3 text-[11px] font-black text-slate-700 transition-colors hover:bg-sky-50 hover:text-sky-800"><MessageCircle className="h-4 w-4 text-sky-600 transition-transform group-hover/phone:scale-110" />+38 (063) 421-18-51</a>
-                <div className={`flex items-center justify-center gap-2 px-3 py-3 text-[11px] font-black transition-colors ${isStoreOpen === false ? "bg-rose-50/80 text-rose-800" : "bg-emerald-50/70 text-emerald-800"}`} suppressHydrationWarning>
-                  <span className={`h-2.5 w-2.5 rounded-full shadow-[0_0_0_3px_rgba(15,23,42,0.06)] ${isStoreOpen === false ? "bg-rose-500" : "bg-emerald-500"}`} />
-                  {isStoreOpen === false ? <XCircle className="h-4 w-4 text-rose-600" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-                  {isStoreOpen === null ? "Перевіряємо…" : isStoreOpen ? "Працюємо" : "Зачинено"}
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">{item.eyebrow}</p>
+                    <h3 className={`mt-1 font-display text-[19px] font-black leading-[1.12] tracking-[-0.015em] text-slate-900 transition-colors sm:text-[21px] ${tone.hoverText}`}>{item.title}</h3>
+                  </div>
                 </div>
-              </div>
-              {googleReviewCount > 0 && <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" aria-label={`Переглянути ${googleReviewCount} відгуків PartsON у Google`} className="group/reviews flex cursor-pointer items-center justify-center gap-2 border-t border-amber-200/80 bg-[linear-gradient(135deg,#fffdf5,#fff7d6)] px-3 py-2.5 text-[11px] font-extrabold text-amber-900 transition-[background-color,color,box-shadow] duration-200 hover:bg-[linear-gradient(135deg,#fff8d8,#ffed9c)] hover:text-amber-950 hover:shadow-[inset_0_3px_0_rgba(245,158,11,0.55),0_-8px_20px_rgba(245,158,11,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-400 text-white shadow-[0_5px_12px_rgba(245,158,11,0.28)] transition-[transform,background-color] duration-200 group-hover/reviews:-translate-y-0.5 group-hover/reviews:scale-110 group-hover/reviews:bg-amber-500"><Star className="h-3.5 w-3.5 fill-current" /></span><span>{googleRatingValue.toFixed(1)} · {googleReviewCount} відгуків Google</span><ArrowRight className="h-3.5 w-3.5 text-amber-600 opacity-60 transition-[transform,opacity] group-hover/reviews:translate-x-1 group-hover/reviews:opacity-100" /></a>}
-            </div>
-          </header>
-
-          <div className="px-4 py-5 sm:px-6 sm:py-6">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-sky-600">PartsON наживо</p>
-                <h3 className="mt-1 font-display text-[20px] font-black tracking-[-0.025em] text-slate-800 sm:text-[23px]">
-                  Магазин та асортимент
-                </h3>
-              </div>
-              <span className="hidden text-[11px] font-bold text-slate-500 sm:inline">Гортайте фотографії горизонтально →</span>
-            </div>
-            <div
-              ref={galleryRailRef}
-              className="no-scrollbar mt-4 flex gap-3 overflow-x-auto overscroll-x-contain pb-2 [-webkit-overflow-scrolling:touch]"
-              role="region"
-              aria-label="Фотографії магазину та асортименту"
-            >
-              {[0, 1].map((setIndex) => (
-                <div
-                  key={setIndex}
-                  className="contents"
-                  aria-hidden={setIndex === 1 ? "true" : undefined}
-                >
-                  {galleryItems.map(([file, alt, label]) => (
-                    <figure data-seo-gallery-card key={`${setIndex}-${file}`} className="relative aspect-[16/10] w-[82vw] max-w-[360px] shrink-0 overflow-hidden rounded-[18px] border border-white bg-slate-100 shadow-[0_10px_22px_rgba(15,23,42,0.1)] sm:w-[310px]">
-                      <Image src={`/storefront/photos/${file}`} alt={setIndex === 0 ? alt : ""} fill loading="lazy" quality={72} sizes="(max-width: 640px) 82vw, 310px" className="object-cover" />
-                      <figcaption className="absolute inset-x-2 bottom-2 rounded-[11px] bg-slate-950/72 px-3 py-2 text-[11px] font-bold text-white shadow-sm">{label}</figcaption>
-                    </figure>
+                <p className="relative z-[3] mt-3.5 text-[14px] font-medium leading-[1.68] text-slate-600 sm:text-[14.5px]">{item.text}</p>
+                <div className="relative z-[3] mt-auto flex flex-wrap gap-x-4 gap-y-2 pt-5">
+                  {item.links.map(([href, label]) => (
+                    <Link key={href} href={href} className={`group inline-flex items-center gap-1.5 text-[12.5px] font-extrabold ${tone.link}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
+                      {label}
+                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                    </Link>
                   ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </article>
+            );
+          })}
+        </div>
 
-          <div className="grid border-t border-sky-100/90 lg:grid-cols-3 lg:divide-x lg:divide-sky-100/90">
-            {serviceCards.map((item) => { const Icon = item.icon; const tone = cardTones[item.tone]; return <article key={item.title} className="group/service border-b border-sky-100/90 px-5 py-5 transition-[background-color,box-shadow] duration-200 last:border-b-0 hover:bg-sky-50/75 hover:shadow-[inset_0_3px_0_rgba(14,165,233,0.55)] sm:px-6 sm:py-6 lg:border-b-0"><div className="flex items-start gap-3.5"><span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] border transition-transform duration-200 group-hover/service:-translate-y-0.5 group-hover/service:scale-110 ${tone.icon}`}><Icon className="h-[18px] w-[18px]" strokeWidth={2.2} /></span><div><p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">{item.eyebrow}</p><h3 className="mt-1 text-[19px] font-black leading-tight tracking-[-0.025em] text-slate-800 transition-colors group-hover/service:text-sky-900">{item.title}</h3></div></div><p className="mt-3 text-[13px] font-medium leading-[1.65] text-slate-600 sm:text-[13.5px]">{item.text}</p><div className="mt-4 space-y-2">{item.links.map(([href, label]) => <Link key={href} href={href} className={`group flex items-center gap-2 text-[11.5px] font-extrabold ${tone.link}`}><span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />{label}<ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></Link>)}</div></article>; })}
+        {/* ---- CTA ---- */}
+        <div className="reveal-adv-cta grid gap-4 overflow-hidden rounded-[22px] border border-white/55 bg-white/45 px-5 py-6 shadow-[0_18px_40px_-16px_rgba(15,56,86,0.24),inset_0_1px_0_rgba(255,255,255,0.75)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-8 sm:py-7">
+          <div>
+            <h3 className="font-display text-[20px] font-black tracking-[-0.015em] text-slate-950 [text-shadow:0_1px_0_#fff] sm:text-[23px]">Не знайшли потрібну деталь?</h3>
+            <p className="mt-1.5 text-[14px] leading-[1.62] text-slate-600 sm:text-[15px]">Напишіть менеджеру — підкажемо сумісний аналог, перевіримо наявність і порахуємо вартість доставки.</p>
           </div>
-
-          <footer className="grid gap-3 border-t border-sky-100/90 bg-[linear-gradient(135deg,#f8fdff,#eef9ff)] px-5 py-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-7">
-            <div><h3 className="text-[17px] font-black tracking-[-0.02em] text-slate-800">Потрібна допомога з вибором запчастини?</h3><p className="mt-1 text-[12.5px] leading-relaxed text-slate-600">Надішліть VIN-код або артикул — менеджер перевірить застосування, наявність і доступні варіанти.</p></div>
-            <OpenChatButton
-              message="Допоможіть підібрати автозапчастину за VIN-кодом або артикулом."
-              label="Написати для підбору"
-              title="Відкрити чат для підбору автозапчастини"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-gradient-to-r from-sky-600 to-cyan-500 px-5 text-[12px] font-black text-white shadow-[0_9px_20px_rgba(14,165,233,0.24)] hover:brightness-105"
-            />
-          </footer>
+          <OpenChatButton
+            message="Допоможіть підібрати автозапчастину."
+            label="Написати менеджеру"
+            title="Відкрити чат для підбору автозапчастини"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-[14px] bg-gradient-to-r from-teal-600 via-sky-600 to-cyan-500 px-6 text-[13px] font-black text-white shadow-[0_14px_30px_-8px_rgba(13,148,136,0.5),inset_0_1px_0_rgba(255,255,255,0.4)] transition-[filter,box-shadow] hover:brightness-105 hover:shadow-[0_18px_38px_-8px_rgba(13,148,136,0.55),inset_0_1px_0_rgba(255,255,255,0.5)]"
+          />
         </div>
       </div>
     </section>

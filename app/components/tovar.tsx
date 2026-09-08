@@ -3,10 +3,11 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { ProductNode } from "./FlipCard";
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
-import { ArrowLeft, Search, Layers3, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useSectionReveal } from "app/lib/use-section-reveal";
+import { ArrowLeft, Search, LayoutGrid, X, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   fetchCatalogVersionHash,
   readCatalogBrowserCache,
@@ -18,6 +19,7 @@ import { safeSetStorageItem } from "app/lib/safe-storage";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { transliterateLatinToUkrainian, stripSoftSign, fixLayoutEnglishToUkrainian } from "app/lib/transliterate";
 import GroupPreviewImage, { loadGroupPreview } from "app/components/GroupPreviewImage";
+import TovarPartsBackdrop from "app/components/TovarPartsBackdrop";
 
 interface CategoryRow {
   group: string;
@@ -328,8 +330,10 @@ const toProductNodes = (value: unknown): ProductNode[] => {
   return transformData(value);
 };
 
-const MOBILE_ITEMS_PER_PAGE = 2;
-const DESKTOP_ITEMS_PER_PAGE = 4;
+// Up to xl the grid is 2 columns (2×2 = 4 per page); from xl it opens to a
+// third column (3×2 = 6 per page).
+const MOBILE_ITEMS_PER_PAGE = 4;
+const DESKTOP_ITEMS_PER_PAGE = 6;
 const QUICK_SEARCH_MAX_ROWS = 5;
 const warmedGroupPreviewImages = new Set<string>();
 
@@ -421,10 +425,14 @@ type ProductSearchInputProps = {
   searchTerm: string;
   onSearchChange: (value: string) => void;
   suggestions: string[];
+  // Collapse-to-button is owned by the parent (the "Швидкий пошук" trigger
+  // — see reveal-head below), same pattern as Auto.tsx's brand search: this
+  // field only asks to be collapsed, it doesn't manage the toggle itself.
+  onCollapse?: () => void;
 };
 
 const ProductSearchInput = React.memo(
-  ({ searchTerm, onSearchChange, suggestions }: ProductSearchInputProps) => {
+  ({ searchTerm, onSearchChange, suggestions, onCollapse }: ProductSearchInputProps) => {
     const [animatedPlaceholder, setAnimatedPlaceholder] = useState("Введіть назву запчастини");
 
     useEffect(() => {
@@ -463,9 +471,9 @@ const ProductSearchInput = React.memo(
     }, [searchTerm, suggestions]);
 
     return (
-      <label className="relative mb-2 block rounded-[18px] bg-[linear-gradient(135deg,#0284c7,#22d3ee)] p-[2px] shadow-[0_12px_28px_rgba(2,132,199,0.2),0_0_0_3px_rgba(255,255,255,0.78)] transition-[box-shadow,background-image] duration-300 focus-within:bg-[linear-gradient(135deg,#0ea5e9_0%,#38bdf8_48%,#2dd4bf_100%)] focus-within:shadow-[0_15px_34px_rgba(14,165,233,0.24),0_0_0_4px_rgba(125,211,252,0.14)]">
-        <span className="pointer-events-none absolute left-4 top-1/2 z-10 inline-flex -translate-y-1/2 items-center justify-center text-sky-700">
-          <Search size={19} strokeWidth={2.2} />
+      <label className="group/psearch relative block overflow-hidden rounded-[15px] bg-[linear-gradient(135deg,#1d4ed8_0%,#3b82f6_45%,#38bdf8_100%)] bg-[length:180%_180%] bg-[position:0%_50%] p-[1.5px] shadow-[0_10px_26px_-10px_rgba(37,99,235,0.4),inset_0_1px_0_rgba(255,255,255,0.35)] transition-[box-shadow,background-position] duration-300 ease-out hover:bg-[position:100%_50%] hover:shadow-[0_16px_36px_-12px_rgba(37,99,235,0.5)] focus-within:bg-[linear-gradient(135deg,#2563eb_0%,#38bdf8_50%,#22d3ee_100%)] focus-within:shadow-[0_16px_36px_-10px_rgba(37,99,235,0.45),0_0_0_3px_rgba(59,130,246,0.18)]">
+        <span className="pointer-events-none absolute left-3.5 top-1/2 z-10 inline-flex -translate-y-1/2 items-center justify-center text-blue-600 transition-colors duration-300 group-focus-within/psearch:text-blue-700">
+          <Search size={17} strokeWidth={2.3} />
         </span>
         <input
           type="text"
@@ -474,19 +482,37 @@ const ProductSearchInput = React.memo(
           onTouchStart={(e) => {
             e.currentTarget.focus();
           }}
+          onBlur={() => {
+            if (!searchTerm) onCollapse?.();
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") return;
+            if (searchTerm) {
+              onSearchChange("");
+            } else {
+              onCollapse?.();
+            }
+          }}
           placeholder={animatedPlaceholder}
+          autoComplete="off"
+          spellCheck={false}
+          autoFocus
           aria-label="\u0412\u0432\u0435\u0434\u0456\u0442\u044c \u043d\u0430\u0437\u0432\u0443 \u0433\u0440\u0443\u043f\u0438 \u0430\u0431\u043e \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u0457"
-          className="h-11 w-full rounded-[16px] border-0 bg-white pl-11 pr-10 text-[15px] font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,1)] outline-none transition-[background-color,box-shadow] duration-300 placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:text-slate-800 focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,1)] select-text sm:h-12"
+          className="h-10 w-full rounded-[13.5px] border-0 bg-white pl-10 pr-9 text-[14px] font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,1)] outline-none transition-[color] duration-300 placeholder:font-medium placeholder:text-slate-400 focus:text-slate-900 select-text sm:h-11"
           data-search="true"
         />
         {searchTerm && (
           <button
             type="button"
-            onClick={() => onSearchChange("")}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              onSearchChange("");
+              onCollapse?.();
+            }}
             aria-label="\u041e\u0447\u0438\u0441\u0442\u0438\u0442\u0438 \u043f\u043e\u0448\u0443\u043a"
-            className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
-            <X size={16} />
+            <X size={15} />
           </button>
         )}
       </label>
@@ -540,32 +566,23 @@ const ProductFetcher: React.FC<Props> = ({
 }) => {
   const hasExternalProducts = Array.isArray(products);
   const [isHydrated, setIsHydrated] = useState(false);
-  const [isLoading, setIsLoading] = useState(() => {
-    if (hasExternalProducts) return false;
-    const cache = readCachedProducts();
-    return !(cache.usable && cache.nodes.length > 0);
-  });
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(() => {
-    if (hasExternalProducts) return true;
-    const cache = readCachedProducts();
-    return cache.usable && cache.nodes.length > 0;
-  });
+  // Keep the server and first browser render identical. Browser storage is
+  // intentionally read in the post-hydration effect below; reading it inside
+  // these initializers made SSR markup depend on whether this device happened
+  // to have an old catalog cache.
+  const [isLoading, setIsLoading] = useState(!hasExternalProducts);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(hasExternalProducts);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [productNodes, setProductNodes] = useState<ProductNode[]>(() => {
     if (hasExternalProducts) return toProductNodes(products);
-    const cache = readCachedProducts();
-    if (cache.usable && cache.nodes.length > 0) {
-      if (!cachedProducts) {
-        cachedProducts = cache.nodes;
-        cachedProductsHash = cache.hash;
-      }
-      return cache.nodes;
-    }
     return [];
   });
   const productLoadError = hasExternalProducts ? null : loadError;
 
   const [searchTerm, setSearchTerm] = useState("");
+  // Search starts collapsed to a trigger button, same "Швидкий пошук" pattern
+  // as Auto.tsx's brand search — expands into the field on click.
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<ProductNode | null>(null);
   const [browseTrail, setBrowseTrail] = useState<ProductNode[]>([]);
@@ -573,6 +590,8 @@ const ProductFetcher: React.FC<Props> = ({
   const [itemsPerPage, setItemsPerPage] = useState(MOBILE_ITEMS_PER_PAGE);
   const lastFocusVersionCheckRef = useRef<number>(0);
   const sectionRef = useRef<HTMLElement | null>(null);
+  const { ref: catsRevealRef, className: catsRevealClassName } =
+    useSectionReveal<HTMLDivElement>();
   const shouldReduceMotion = useReducedMotion() ?? false;
   const shouldAnimate = !shouldReduceMotion && playEntranceAnimations;
   const isBooting = !hasExternalProducts && !isHydrated;
@@ -763,7 +782,7 @@ const ProductFetcher: React.FC<Props> = ({
   }, []);
 
   useEffect(() => {
-    const media = window.matchMedia("(min-width: 640px)");
+    const media = window.matchMedia("(min-width: 1280px)");
     const updateItemsPerPage = () => {
       setItemsPerPage(
         media.matches ? DESKTOP_ITEMS_PER_PAGE : MOBILE_ITEMS_PER_PAGE
@@ -1038,46 +1057,173 @@ const ProductFetcher: React.FC<Props> = ({
   return (
     <section
       ref={sectionRef}
-      className="home-fade-in group/selector home-glow-section home-glow-section-sky font-ui relative tovar-touch min-h-[390px] w-full overflow-hidden border-y border-sky-200/70 bg-[radial-gradient(circle_at_8%_12%,rgba(56,189,248,0.2),transparent_34%),radial-gradient(circle_at_92%_78%,rgba(99,102,241,0.12),transparent_32%),linear-gradient(180deg,#e5f5ff_0%,#f0f3ff_48%,#e4f8ff_100%)] pb-3 pt-4 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.98),inset_0_-1px_0_rgba(14,116,144,0.14),0_14px_36px_rgba(30,64,175,0.08)] transition-[border-color,box-shadow] duration-500 hover:border-sky-300 hover:shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(14,116,144,0.18),0_20px_48px_rgba(30,64,175,0.13)] sm:pb-0"
+      // A muted ocean-blue palette now bridges the indigo car picker and the
+      // teal manufacturers section without the previous sharp purple band.
+      className="home-fade-in group/selector home-glow-section home-glow-section-sky font-ui relative tovar-touch min-h-[390px] w-full overflow-hidden border-y border-sky-100 bg-[radial-gradient(150%_120%_at_-25%_-30%,rgba(14,165,233,0.09),transparent_66%),radial-gradient(150%_120%_at_125%_130%,rgba(103,232,249,0.07),transparent_64%),linear-gradient(178deg,#edf7fb_0%,#f5fbfd_50%,#edf8f8_100%)] pb-5 pt-5 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(3,105,161,0.07),0_14px_36px_-16px_rgba(8,145,178,0.09)] transition-[border-color,box-shadow] duration-500 hover:border-sky-200 hover:shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(3,105,161,0.11),inset_0_0_120px_-46px_rgba(56,189,248,0.22),0_24px_54px_-20px_rgba(8,145,178,0.13)] sm:pb-6 sm:pt-6"
     >
-      {/* top bridge — receives hero's sky-blue fade */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[image:linear-gradient(to_bottom,rgba(186,230,253,0.22)_0%,rgba(186,230,253,0.06)_55%,transparent_100%)]" />
-      {/* bottom bridge — eases into Auto's white/sky top */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-10 bg-[image:linear-gradient(to_bottom,transparent_0%,rgba(186,230,253,0.18)_100%)]" />
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_14%_16%,rgba(14,165,233,0.24),transparent_36%),radial-gradient(circle_at_84%_72%,rgba(34,211,238,0.18),transparent_34%),linear-gradient(115deg,rgba(255,255,255,0.18),rgba(129,140,248,0.08),rgba(255,255,255,0.14))] opacity-0 transition-opacity duration-500 group-hover/selector:opacity-100" />
-      <div className="page-shell-inline relative z-10 flex flex-col gap-4">
+      <TovarPartsBackdrop />
+      {/* top bridge — receives the car-picker's indigo fade */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[image:linear-gradient(to_bottom,rgba(206,216,255,0.5)_0%,rgba(206,216,255,0.08)_55%,transparent_100%)]" />
+      {/* bottom bridge — eases into the manufacturers section */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-10 bg-[image:linear-gradient(to_bottom,transparent_0%,rgba(214,238,246,0.5)_100%)]" />
+      {/* Soft sky/cyan blooms keep the hover lively without a neon cast. */}
+      <div className="home-scroll-decor pointer-events-none absolute -inset-8 z-0 opacity-0 transition-[opacity,transform] duration-[600ms] ease-out group-hover/selector:opacity-100 group-hover/selector:scale-[1.04] bg-[radial-gradient(circle_at_10%_14%,rgba(14,165,233,0.18),transparent_42%),radial-gradient(circle_at_90%_84%,rgba(103,232,249,0.14),transparent_40%),radial-gradient(circle_at_50%_-8%,rgba(56,189,248,0.1),transparent_44%),radial-gradient(circle_at_52%_112%,rgba(8,145,178,0.09),transparent_58%)]" />
+      <div className="home-scroll-decor pointer-events-none absolute inset-y-0 -left-1/3 z-[1] w-2/3 -translate-x-1/4 opacity-0 transition-[opacity,transform] duration-[900ms] ease-out group-hover/selector:translate-x-[70%] group-hover/selector:opacity-100 bg-[linear-gradient(105deg,transparent_0%,rgba(207,250,254,0.14)_38%,rgba(255,255,255,0.34)_50%,rgba(56,189,248,0.09)_62%,transparent_100%)]" />
+      {/* machined panel edges + one diagonal light streak — a touch of metal */}
+      <span className="home-scroll-decor pointer-events-none absolute inset-x-0 top-0 z-[2] h-[3px] bg-[linear-gradient(to_bottom,rgba(255,255,255,0.95),rgba(255,255,255,0.32)_46%,transparent)] transition-[box-shadow] duration-500 group-hover/selector:shadow-[0_0_22px_rgba(56,189,248,0.38)]" />
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[2px] bg-[linear-gradient(to_top,rgba(14,116,144,0.16),transparent)]" />
+      <span className="pointer-events-none absolute inset-0 z-[1] opacity-60 bg-[linear-gradient(101deg,transparent_0%,transparent_33%,rgba(255,255,255,0.24)_47%,rgba(255,255,255,0.32)_50%,rgba(255,255,255,0.2)_53%,transparent_66%,transparent_100%)]" />
+      {/* Heading + search now sit in the left, wide (1.08fr) slot and the
+          category grid in the right, narrow (0.92fr) slot — the two swapped
+          which slot they occupy, the track widths themselves are unchanged. */}
+      <div
+        ref={catsRevealRef}
+        className={`section-reveal-cats ${catsRevealClassName} page-shell-inline relative z-10 grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8 xl:gap-10`}
+      >
         <motion.aside
         {...entryMotion}
-        className="group/search relative z-10 w-full min-w-0 overflow-hidden rounded-[22px] border border-sky-300 bg-[radial-gradient(circle_at_0%_0%,rgba(56,189,248,0.2),transparent_32%),radial-gradient(circle_at_100%_100%,rgba(45,212,191,0.12),transparent_28%),linear-gradient(125deg,#ffffff_0%,#f8fcff_48%,#edf7ff_100%)] px-3 pb-3 pt-3 text-gray-800 shadow-[0_18px_46px_rgba(14,116,144,0.18),0_4px_14px_rgba(15,23,42,0.06),inset_0_1px_0_#fff] ring-1 ring-white/90 transition-[border-color,box-shadow] duration-300 hover:border-sky-400 hover:shadow-[0_23px_54px_rgba(2,132,199,0.24),0_5px_16px_rgba(15,23,42,0.07),inset_0_1px_0_#fff] sm:px-4 sm:py-4"
+        className="group/search relative z-10 w-full min-w-0 lg:self-center"
       >
-            <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-cyan-200/25 blur-3xl transition-opacity duration-300 group-hover/search:opacity-80" />
-            <div className="relative">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
-                <div className="order-1 min-w-0 sm:order-1 sm:flex-1 sm:pr-5 sm:text-right">
-                  <div className="flex items-center gap-2 sm:justify-end sm:gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-2xl bg-gradient-to-br from-sky-500/90 to-cyan-400/90 text-white shadow-[0_10px_20px_rgba(14,165,233,0.4),inset_0_1px_0_rgba(255,255,255,0.4)] ring-2 ring-white/50 sm:h-12 sm:w-12 sm:rounded-[19px]">
-                      <Layers3 size={19} strokeWidth={2.3} aria-hidden className="sm:h-[23px] sm:w-[23px]" />
-                    </span>
-                    <h2 className="font-display text-[15px] leading-[1.12] tracking-[-0.025em] text-slate-700 min-[480px]:text-[18px] sm:text-[22px]">
-                      Великий асортимент товарів поділений на категорії
-                    </h2>
-                  </div>
-                  <p className="mt-1 hidden text-[11px] leading-relaxed text-slate-500 sm:block">Швидкий пошук групи та перехід в каталог</p>
-                </div>
-                <div className="order-2 w-full min-w-0 sm:order-2 sm:w-[400px] sm:max-w-[400px] sm:shrink-0 sm:border-l sm:border-sky-200/80 sm:pl-5">
-                  <ProductSearchInput
-                    searchTerm={searchTerm}
-                    onSearchChange={setSearchTerm}
-                    suggestions={searchSuggestions}
-                  />
-                  <span className="mt-1.5 block px-1 text-[10px] font-medium text-slate-500">
-                    {searchTerm.trim() ? "Знайдено " : "Доступно для пошуку: "}
-                    <strong className="font-extrabold tabular-nums text-sky-700">
-                      {showSkeleton ? "—" : filteredRows.length}
-                    </strong>
-                    {!showSkeleton && <> {pluralWord(filteredRows.length, "група", "групи", "груп")}</>}
-                  </span>
-                </div>
+            <div className="reveal-head relative max-w-[440px] overflow-hidden rounded-[26px] border border-sky-200/70 bg-[linear-gradient(165deg,rgba(255,255,255,0.95)_0%,rgba(240,249,255,0.86)_58%,rgba(236,254,255,0.80)_100%)] p-5 shadow-[0_18px_46px_-26px_rgba(3,105,161,0.28),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-6 lg:max-w-none lg:p-7">
+              {/* One framed card now holds eyebrow → heading → search →
+                  all-groups link as a single cohesive block, instead of the
+                  four sitting loose on the section background — gives the
+                  heading and search button the same visual weight as the
+                  category cards next to them. */}
+              <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
+              {/* Soft glow behind the heading — light, blurred wash lifting
+                  the title off the card, clipped by overflow-hidden. */}
+              <span className="pointer-events-none absolute -left-6 top-10 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(14,165,233,0.22),transparent_70%)] blur-2xl" aria-hidden="true" />
+              {/* Simple icon + text, matching HeroIntroCard's eyebrow —
+                  dropped the glowing dot and trailing hairline, and sized
+                  the icon square the same as Auto.tsx/Brands.tsx (h-10 w-10)
+                  instead of a slightly smaller one, for one consistent
+                  eyebrow across all the homepage's picker sections. */}
+              <div className="flex items-center gap-3">
+                <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-sky-500 to-cyan-400 text-white shadow-[0_12px_28px_-8px_rgba(14,165,233,0.40),inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-2px_6px_-2px_rgba(3,105,161,0.32)] after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.6),transparent_52%)]">
+                  {/* Original simple line-art categories mark (four rounded
+                      tiles) — same style language as HeroIntroCard's own
+                      custom eyebrow SVG and the other homepage sections'
+                      eyebrow icons, instead of a generic lucide-react glyph. */}
+                  <svg viewBox="0 0 24 24" className="relative h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.6" />
+                    <rect x="13" y="3.5" width="7.5" height="7.5" rx="1.6" />
+                    <rect x="3.5" y="13" width="7.5" height="7.5" rx="1.6" />
+                    <rect x="13" y="13" width="7.5" height="7.5" rx="1.6" />
+                  </svg>
+                </span>
+                <span className="text-[11px] font-extrabold uppercase leading-none tracking-[0.2em] text-sky-700">
+                  Каталог
+                </span>
+              </div>
+
+              {/* title — oversized display, two-tone */}
+              <h2 className="relative mt-4 font-display text-[25px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 [text-shadow:0_1px_0_#fff] min-[480px]:text-[28px] sm:text-[33px] lg:text-[28px] xl:text-[32px]">
+                Каталог автозапчастин
+                <br className="hidden min-[420px]:block" />{" "}
+                <span className="text-sky-700">за категоріями</span>
+              </h2>
+
+              <span className="reveal-bar mt-4 block h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#0369a1_0%,#0ea5e9_28%,#e0f2fe_48%,#67e8f9_68%,transparent_100%)] shadow-[0_1px_2px_rgba(3,105,161,0.18)]" />
+
+              {/* lead */}
+              <p className="mt-4 max-w-[48ch] text-[15px] font-medium leading-[1.72] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
+                Весь каталог розкладено за{" "}
+                <span className="font-semibold text-slate-800">категоріями та групами</span>{" "}
+                — оберіть напрям поруч або знайдіть деталь через{" "}
+                <span className="font-semibold text-sky-700">пошук</span>.
+              </p>
+
+              {/* search — the primary action. Same collapse-to-button
+                  pattern as Auto.tsx's "Швидкий пошук": starts as a
+                  trigger pill, expands into the field on click, tinted
+                  sky blue to match this section instead of Auto's dark
+                  glass panel (this heading sits directly on a light
+                  card, not inside a dark nav panel). */}
+              <div className="mt-5">
+                <AnimatePresence mode="wait" initial={false}>
+                  {!isSearchOpen ? (
+                    <motion.div
+                      key="buttons"
+                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
+                      className="grid grid-cols-1 min-[420px]:grid-cols-2 items-stretch gap-2.5"
+                    >
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.currentTarget.blur();
+                          setIsSearchOpen(true);
+                        }}
+                        onMouseLeave={(event) => event.currentTarget.blur()}
+                        className="group/trigger inline-flex items-center gap-3 rounded-[16px] border border-sky-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(3,105,161,0.24)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-sky-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+                      >
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/70 bg-sky-100 text-sky-700 shadow-[0_0_16px_rgba(56,189,248,0.13)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/trigger:scale-[1.06] group-hover/trigger:border-sky-300 group-hover/trigger:bg-sky-200">
+                          <Search size={16} strokeWidth={2.2} aria-hidden />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-[9.5px] font-black uppercase tracking-[0.14em] text-sky-600/80">Пошук у каталозі</span>
+                          <span className="block text-[14.5px] font-black leading-tight text-slate-800">Швидкий пошук</span>
+                        </span>
+                        <ChevronRight
+                          size={16}
+                          strokeWidth={3}
+                          aria-hidden
+                          className="shrink-0 text-sky-500 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
+                        />
+                      </button>
+
+                      {/* Same card design as the search trigger beside it, so
+                          the two read as one consistent action set (like "Усі
+                          марки автомобілів" beside Auto.tsx's search field). */}
+                      <Link
+                        href="/groups"
+                        onClick={(event) => event.currentTarget.blur()}
+                        onMouseLeave={(event) => event.currentTarget.blur()}
+                        className="group/allgroups inline-flex items-center gap-3 rounded-[16px] border border-sky-200/80 bg-white/70 px-3.5 py-3 shadow-[0_10px_26px_-14px_rgba(3,105,161,0.24)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-sky-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+                      >
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/70 bg-sky-100 text-sky-700 shadow-[0_0_16px_rgba(56,189,248,0.13)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/allgroups:scale-[1.06] group-hover/allgroups:border-sky-300 group-hover/allgroups:bg-sky-200">
+                          <LayoutGrid size={16} strokeWidth={2.2} aria-hidden />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-[9.5px] font-black uppercase tracking-[0.14em] text-sky-600/80">Весь каталог</span>
+                          <span className="block text-[14.5px] font-black leading-tight text-slate-800">Усі групи товарів</span>
+                        </span>
+                        <ChevronRight
+                          size={16}
+                          strokeWidth={3}
+                          aria-hidden
+                          className="shrink-0 text-sky-500 transition-transform duration-200 ease-out group-hover/allgroups:translate-x-1"
+                        />
+                      </Link>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="field"
+                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
+                    >
+                      <ProductSearchInput
+                        searchTerm={searchTerm}
+                        onSearchChange={setSearchTerm}
+                        suggestions={searchSuggestions}
+                        onCollapse={() => setIsSearchOpen(false)}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <span className="mt-2.5 block px-0.5 text-[11px] font-medium text-slate-600">
+                  {searchTerm.trim() ? "Знайдено " : "Доступно для пошуку: "}
+                  <strong className="font-extrabold tabular-nums text-sky-700">
+                    {showSkeleton ? "—" : filteredRows.length}
+                  </strong>
+                  {!showSkeleton && <> {pluralWord(filteredRows.length, "група", "групи", "груп")}</>}
+                </span>
               </div>
 
               <div className="hidden" aria-hidden="true">
@@ -1212,57 +1358,48 @@ const ProductFetcher: React.FC<Props> = ({
 
         <motion.div {...entryMotion} className="relative z-10 min-w-0">
         {filteredGroups.length > 0 ? (
-          <div className="relative px-1.5 pb-6 pt-1 sm:px-3 sm:pb-8">
-            <div className="relative px-7 sm:px-10">
-              <button
-                type="button"
-                onClick={prevPage}
-                disabled={page <= 1}
-                className="absolute left-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
-                aria-label="Попередня сторінка"
-              >
-                <ChevronLeft size={34} strokeWidth={2.6} />
-              </button>
-
+          <div className="relative px-1 pb-4 pt-2 sm:px-2 sm:pb-5 sm:pt-2.5">
+            {/* No more edge arrows flanking the grid — they moved down next
+                to the "Сторінка X/Y" readout below, so the grid itself no
+                longer needs the px-6/px-8 side padding that used to clear
+                them; it now sits flush with the rest of this column. */}
+            <div className="relative">
               <div
                 ref={groupPagesRef}
                 onScroll={handleGroupPagesScroll}
                 className="no-scrollbar overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [touch-action:pan-x_pan-y] [-webkit-overflow-scrolling:touch] [scrollbar-width:none]"
               >
               <div className="flex">
-              {groupPages.map((pageGroups, pageIndex) => (
-                <div key={pageIndex} data-group-page className="w-full min-w-full flex-none snap-start px-1.5 pb-3 [scroll-snap-stop:always] sm:px-2 sm:pb-4">
-                  <div className={activeCategory && !searchTerm.trim()
-                    ? "grid min-h-[170px] grid-cols-2 grid-rows-1 gap-3 sm:min-h-[190px] sm:grid-cols-4 sm:gap-3.5"
-                    : "flex min-h-[170px] flex-nowrap gap-3 sm:min-h-[190px] sm:gap-3.5"}>
-                    {pageGroups.length === 0 ? (
-                      <div className="col-span-full flex min-h-[140px] w-full flex-1 items-center justify-center rounded-[18px] border border-dashed border-sky-300/80 bg-white/55 px-5 text-center shadow-[inset_0_1px_0_#fff]">
-                        <div>
-                          <p className="text-sm font-extrabold text-slate-700">Нічого не знайдено</p>
-                          <p className="mt-1 text-xs font-medium text-slate-500">Змініть запит — список оновиться одразу</p>
-                        </div>
-                      </div>
-                    ) : null}
-                    {pageGroups.map((group, index) => {
+              {groupPages.map((pageGroups, pageIndex) => {
+                const cardElements = pageGroups.map((group, index) => {
                       const id = pageIndex * browseItemsPerPage + index;
                       const label = buildVisibleProductName(group.name);
                       const isSearchActive = Boolean(searchTerm.trim());
                       const searchCategory = isSearchActive ? searchGroupParents.get(group) : undefined;
+                      // Frameless cards: no border/ring, near-transparent at
+                      // rest, a soft frosted surface + lift on hover. Hover
+                      // glow uses the section's quieter sky-blue accent
+                      // and tightened (was 44px blur / -16px spread, same
+                      // "reach past the card" issue fixed on the brand
+                      // buttons in Auto.tsx) for a crisper, more contained
+                      // hover instead of a wide diffuse bloom.
+                      const cardBase =
+                        "card-metal group/category relative flex h-[170px] min-w-0 overflow-hidden rounded-[18px] bg-white/35 shadow-[0_3px_10px_-3px_rgba(14,165,233,0.10),inset_0_1px_0_rgba(255,255,255,0.6)] transition-[background-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-[0_10px_26px_-10px_rgba(14,165,233,0.28),inset_0_1px_0_rgba(255,255,255,0.95)] sm:h-[190px]";
                       const cardClass = searchCategory
-                        ? "group/category relative flex h-[170px] min-w-0 shrink-0 basis-[calc((100%_-_0.75rem)/2)] flex-col overflow-hidden rounded-[20px] border border-sky-200/95 bg-white text-left shadow-[0_10px_24px_rgba(15,23,42,0.09)] ring-1 ring-white/90 transition-[border-color,background-color,box-shadow] duration-500 ease-out hover:border-sky-500 hover:bg-cyan-50/50 hover:shadow-[0_20px_38px_rgba(2,132,199,0.24),0_0_0_3px_rgba(34,211,238,0.14)] sm:h-[190px] sm:basis-[calc((100%_-_2.625rem)/4)]"
+                        ? `${cardBase} flex-col text-left`
                         : activeCategory
-                          ? "group/category relative flex h-[170px] min-w-0 flex-col overflow-hidden rounded-[18px] border border-sky-300/90 bg-white text-left shadow-[0_8px_22px_rgba(15,23,42,0.09),0_2px_6px_rgba(2,132,199,0.07),inset_0_1px_0_#fff] ring-1 ring-white/90 transition-[border-color,background-color,box-shadow] duration-500 ease-out hover:border-cyan-500 hover:bg-sky-50/40 hover:shadow-[0_18px_36px_rgba(2,132,199,0.22),0_0_0_3px_rgba(34,211,238,0.14),inset_0_1px_0_#fff] sm:h-[190px]"
-                        : "group/category relative flex h-[170px] min-w-0 shrink-0 basis-[calc((100%_-_0.75rem)/2)] flex-col items-center justify-center overflow-hidden rounded-[20px] border border-sky-200/95 bg-[radial-gradient(circle_at_50%_-8%,rgba(125,211,252,0.44),transparent_48%),linear-gradient(150deg,#ffffff_0%,#f3faff_50%,#e9f8ff_100%)] px-3 text-center shadow-[0_10px_24px_rgba(15,23,42,0.09),0_3px_9px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 transition-[border-color,background-color,box-shadow] duration-500 ease-out hover:border-sky-500 hover:bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] hover:shadow-[0_22px_40px_rgba(2,132,199,0.26),0_0_0_3px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,1)] sm:h-[190px] sm:basis-[calc((100%_-_2.625rem)/4)]";
+                          ? `${cardBase} flex-col text-left`
+                          : `${cardBase} flex-col items-center justify-center px-3 text-center`;
 
                       if (searchCategory) {
                         const hasChildren = Boolean(group.children?.length);
                         const content = (
                           <>
-                            <GroupPreviewImage category={searchCategory.name} group={group.name} />
-                            <span className="relative flex min-h-0 flex-1 items-center justify-between gap-2.5 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] px-3 py-2.5">
+                            <GroupPreviewImage category={searchCategory.name} group={group.name} bare />
+                            <span className="relative flex min-h-0 flex-1 items-center justify-between gap-2.5 bg-transparent px-3 py-2.5 transition-colors duration-300 group-hover/category:bg-white/40">
                               <span className="min-w-0">
-                                <span className="line-clamp-2 text-[13px] font-extrabold leading-tight text-slate-800 transition-colors duration-300 group-hover/category:text-sky-900 sm:text-sm">{label}</span>
-                                <span className="mt-1 block truncate text-[10px] font-semibold text-sky-600">{buildVisibleProductName(searchCategory.name)}</span>
+                                <span className="line-clamp-2 text-[13px] font-extrabold leading-tight text-slate-800 transition-colors duration-300 group-hover/category:text-sky-900 sm:text-[14px]">{label}</span>
+                                <span className="mt-1 block truncate text-[10px] font-semibold text-sky-700">{buildVisibleProductName(searchCategory.name)}</span>
                               </span>
                               <ChevronRight size={18} className="shrink-0 text-sky-700 transition-colors duration-300 group-hover/category:text-cyan-600" />
                             </span>
@@ -1303,9 +1440,8 @@ const ProductFetcher: React.FC<Props> = ({
                             onFocus={() => preloadChildPreviews(group)}
                             className={cardClass}
                           >
-                            <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_22%,rgba(255,255,255,0.9),transparent_46%),linear-gradient(180deg,rgba(34,211,238,0.08),rgba(59,130,246,0.1))] opacity-0 transition-opacity duration-300 group-hover/category:opacity-100" />
-                            <span className="pointer-events-none absolute inset-x-6 top-0 h-[3px] rounded-full bg-gradient-to-r from-transparent via-sky-500 to-cyan-400 opacity-55 transition-opacity duration-300 group-hover/category:opacity-100" />
-                            <span className="pointer-events-none absolute inset-0 shadow-[inset_0_2px_6px_rgba(15,23,42,0.06)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.10),inset_0_0_0_1px_rgba(2,132,199,0.06)]" />
+                            <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(125,211,252,0.18),transparent_58%)] opacity-0 transition-opacity duration-300 group-hover/category:opacity-100" />
+                            <span className="pointer-events-none absolute inset-x-8 top-0 h-[3px] rounded-full bg-gradient-to-r from-transparent via-sky-500 to-cyan-400 opacity-30 transition-opacity duration-300 group-hover/category:opacity-100" />
                             <span className="relative mb-2 flex h-[70px] w-full items-center justify-center sm:h-[82px]">
                               <Image
                                 src={getCategoryIconPath(label)}
@@ -1315,13 +1451,13 @@ const ProductFetcher: React.FC<Props> = ({
                                 sizes="(min-width: 640px) 76px, 64px"
                                 quality={80}
                                 priority={pageIndex === 0 && index < 3}
-                                className="relative h-16 w-16 object-contain drop-shadow-[0_7px_12px_rgba(14,116,144,0.14)] transition-[filter,opacity,transform] duration-500 ease-out group-hover/category:scale-[1.08] group-hover/category:brightness-[1.06] group-hover/category:saturate-[1.12] group-hover/category:drop-shadow-[0_12px_20px_rgba(2,132,199,0.32)] sm:h-[76px] sm:w-[76px]"
+                                className="relative h-16 w-16 object-contain drop-shadow-[0_7px_12px_rgba(3,105,161,0.10)] transition-[filter,opacity,transform] duration-500 ease-out group-hover/category:scale-[1.08] group-hover/category:brightness-[1.06] group-hover/category:saturate-[1.08] group-hover/category:drop-shadow-[0_12px_20px_rgba(14,165,233,0.20)] sm:h-[76px] sm:w-[76px]"
                               />
                             </span>
                             <span className="relative line-clamp-2 text-sm font-extrabold leading-tight text-slate-800 transition-colors duration-300 group-hover/category:text-sky-900 sm:text-[15px]">
                               {label}
                             </span>
-                            <span className="relative mt-1.5 inline-flex items-center gap-1 rounded-full border border-sky-100 bg-white/80 px-2 py-0.5 text-[10px] font-bold text-slate-500 transition-[border-color,color,background-color,box-shadow] duration-300 group-hover/category:border-cyan-400 group-hover/category:bg-cyan-50 group-hover/category:text-sky-800 group-hover/category:shadow-[0_5px_14px_rgba(8,145,178,0.14)] sm:text-[10px]">
+                            <span className="relative mt-1.5 inline-flex items-center gap-1 rounded-full bg-sky-100/70 px-2 py-0.5 text-[10px] font-bold text-slate-500 transition-[color,background-color] duration-300 group-hover/category:bg-cyan-100 group-hover/category:text-sky-800 sm:text-[10px]">
                               {group.children?.length ?? 0}{" "}
                               {pluralWord(group.children?.length ?? 0, "група", "групи", "груп")}
                               <ChevronRight size={11} />
@@ -1334,21 +1470,21 @@ const ProductFetcher: React.FC<Props> = ({
                       const catalogParentName = currentBrowseNode?.name || activeCategory.name;
                       const groupCardContent = (
                         <>
-                          <span className="pointer-events-none absolute inset-x-5 top-0 z-10 h-[3px] rounded-b-full bg-gradient-to-r from-sky-500 via-cyan-400 to-blue-500 opacity-80 transition-opacity duration-300 group-hover/category:opacity-100" />
+                          <span className="pointer-events-none absolute inset-x-8 top-0 z-10 h-[3px] rounded-b-full bg-gradient-to-r from-sky-500 via-cyan-400 to-teal-400 opacity-30 transition-opacity duration-300 group-hover/category:opacity-100" />
                           {pageIndex === page - 1 ? (
-                            <GroupPreviewImage category={catalogParentName} group={group.name} />
+                            <GroupPreviewImage category={catalogParentName} group={group.name} bare />
                           ) : null}
-                          <span className="relative flex min-h-0 flex-1 items-center justify-between gap-2.5 bg-[linear-gradient(145deg,#ffffff_0%,#f4faff_100%)] px-3.5 py-2.5 transition-colors duration-300 group-hover/category:bg-sky-50/80">
+                          <span className="relative flex min-h-0 flex-1 items-center justify-between gap-2.5 bg-transparent px-3.5 py-2.5 transition-colors duration-300 group-hover/category:bg-white/40">
                             <span className="min-w-0">
-                              <span className="line-clamp-2 text-[12px] font-black leading-[1.22] text-slate-700 transition-colors duration-300 group-hover/category:text-sky-700 sm:text-[13px]">{label}</span>
+                              <span className="line-clamp-2 text-[13px] font-extrabold leading-[1.22] text-slate-700 transition-colors duration-300 group-hover/category:text-sky-800 sm:text-[14px]">{label}</span>
                               {hasChildren ? (
-                                <span className="mt-1 block text-[10px] font-semibold text-sky-600">
+                                <span className="mt-1 block text-[10px] font-semibold text-sky-700">
                                   {group.children?.length ?? 0}{" "}
                                   {pluralWord(group.children?.length ?? 0, "підгрупа", "підгрупи", "підгруп")}
                                 </span>
                               ) : null}
                             </span>
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700 transition-[color,background-color,box-shadow] duration-300 group-hover/category:bg-cyan-100 group-hover/category:text-cyan-800 group-hover/category:shadow-[0_4px_12px_rgba(8,145,178,0.18)]">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100/80 text-sky-700 transition-[color,background-color] duration-300 group-hover/category:bg-cyan-100 group-hover/category:text-sky-800">
                               <ChevronRight size={17} strokeWidth={2.5} />
                             </span>
                           </span>
@@ -1380,80 +1516,145 @@ const ProductFetcher: React.FC<Props> = ({
                           {groupCardContent}
                         </CatalogPrefetchLink>
                       );
-                    })}
+                });
+                // Partial last row: itemsPerPage is chosen per the same
+                // 1280px breakpoint that drives xl:grid-cols-3 below, so
+                // columns computed from it here always matches the grid
+                // that actually renders. A short last page used to sit
+                // packed top-left with empty trailing cells — split off
+                // and centered as its own flex row instead, sized to match
+                // the grid's own column width exactly.
+                const columns = itemsPerPage === DESKTOP_ITEMS_PER_PAGE ? 3 : 2;
+                const remainderCount = cardElements.length % columns;
+                const fullCount = cardElements.length - remainderCount;
+                const fullElements = fullCount > 0 ? cardElements.slice(0, fullCount) : [];
+                const remainderElements = remainderCount > 0 ? cardElements.slice(fullCount) : [];
+                const remainderBasisClass =
+                  columns === 3
+                    ? "basis-[calc((100%_-_2*0.625rem)/3)] sm:basis-[calc((100%_-_2*0.75rem)/3)]"
+                    : "basis-[calc((100%_-_1*0.625rem)/2)] sm:basis-[calc((100%_-_1*0.75rem)/2)]";
+
+                return (
+                <div key={pageIndex} data-group-page className="w-full min-w-full flex-none snap-start px-1 pb-3 [scroll-snap-stop:always] sm:px-1.5 sm:pb-4">
+                  <div className={`grid grid-cols-2 grid-rows-2 gap-2.5 sm:gap-3 xl:grid-cols-3${pageIndex === 0 ? " reveal-grid" : ""}`}>
+                    {pageGroups.length === 0 ? (
+                      <div className="col-span-full flex min-h-[140px] w-full flex-1 items-center justify-center rounded-[18px] bg-white/40 px-5 text-center">
+                        <div>
+                          <p className="text-sm font-extrabold text-slate-700">Нічого не знайдено</p>
+                          <p className="mt-1 text-xs font-medium text-slate-500">Змініть запит — список оновиться одразу</p>
+                        </div>
+                      </div>
+                    ) : null}
+                    {fullElements}
+                    {remainderElements.length > 0 && (
+                      <div className="col-span-full flex justify-center gap-2.5 sm:gap-3">
+                        {remainderElements.map((element, remainderIndex) => (
+                          <div key={remainderIndex} className={`shrink-0 grow-0 ${remainderBasisClass}`}>
+                            {element}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
               </div>
               </div>
-
-              <button
-                type="button"
-                onClick={nextPage}
-                disabled={page >= totalPages}
-                className="absolute right-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
-                aria-label="Наступна сторінка"
-              >
-                <ChevronRight size={34} strokeWidth={2.6} />
-              </button>
             </div>
             {activeCategory && !searchTerm.trim() ? (
-              <div className="relative mt-2 flex min-h-10 items-center justify-between gap-2.5 px-2 sm:gap-3 sm:px-3">
+              <div className="reveal-tail relative mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 sm:px-3">
+                {/* Same 1fr/auto/1fr grid as the counter row below — the
+                    pagination used to be absolutely centered over this row,
+                    which could collide with the category name on the right
+                    the same way it could with the counter. Explicit
+                    col-start on every item (not left to DOM-order
+                    auto-placement) since the middle item — the pagination —
+                    doesn't render at all when there's only one page, which
+                    would otherwise shift the name into the middle column. */}
                 <button
                   type="button"
                   onClick={closeCategory}
-                  className="group/back inline-flex min-h-10 shrink-0 items-center gap-1.5 border-0 bg-transparent px-1 text-xs font-extrabold text-sky-700 shadow-none transition-colors duration-300 hover:text-cyan-600 focus-visible:outline-none focus-visible:text-cyan-600 focus-visible:underline focus-visible:decoration-2 focus-visible:underline-offset-4"
+                  className="group/back col-start-1 inline-flex min-h-10 min-w-0 shrink-0 items-center gap-1.5 justify-self-start border-0 bg-transparent px-1 text-xs font-extrabold text-sky-700 shadow-none transition-colors duration-300 hover:text-cyan-600 focus-visible:outline-none focus-visible:text-cyan-600 focus-visible:underline focus-visible:decoration-2 focus-visible:underline-offset-4"
                 >
                   <ArrowLeft size={16} strokeWidth={2.4} className="text-cyan-600 transition-[color,transform] duration-300 group-hover/back:-translate-x-0.5 group-hover/back:text-cyan-600" />
                   {browseTrail.length > 0 ? "Назад" : "Категорії"}
                 </button>
-                <div className="ml-auto min-w-0 max-w-[38%] text-right sm:max-w-[42%]">
+                {totalPages > 1 ? (
+                  <div className="col-start-2 inline-flex items-center gap-1.5 justify-self-center whitespace-nowrap text-[11px] font-bold tabular-nums sm:gap-2 sm:text-xs">
+                    <button
+                      type="button"
+                      onClick={prevPage}
+                      disabled={page <= 1}
+                      aria-label="Попередня сторінка"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200/80 bg-white/70 text-sky-700 shadow-[0_4px_12px_rgba(3,105,161,0.10)] transition-colors duration-200 hover:border-cyan-300 hover:text-cyan-700 disabled:pointer-events-none disabled:opacity-35"
+                    >
+                      <ChevronLeft size={14} strokeWidth={2.8} />
+                    </button>
+                    <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
+                    <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(3,105,161,0.11)]">{page}</span>
+                    <span className="font-semibold text-cyan-500">/</span>
+                    <span className="font-extrabold text-slate-500">{totalPages}</span>
+                    <button
+                      type="button"
+                      onClick={nextPage}
+                      disabled={page >= totalPages}
+                      aria-label="Наступна сторінка"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200/80 bg-white/70 text-sky-700 shadow-[0_4px_12px_rgba(3,105,161,0.10)] transition-colors duration-200 hover:border-cyan-300 hover:text-cyan-700 disabled:pointer-events-none disabled:opacity-35"
+                    >
+                      <ChevronRight size={14} strokeWidth={2.8} />
+                    </button>
+                  </div>
+                ) : null}
+                <div className="col-start-3 min-w-0 justify-self-end text-right">
                   <p className="truncate text-sm font-extrabold text-slate-700 sm:text-base">
                     {buildVisibleProductName(currentBrowseNode?.name || activeCategory.name)}
                   </p>
                 </div>
-                {totalPages > 1 ? (
-                  <div className="absolute left-1/2 top-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">
-                    <span className="h-px w-4 bg-gradient-to-r from-transparent to-cyan-500/75 sm:w-6" />
-                    <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
-                    <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(14,116,144,0.14)]">{page}</span>
-                    <span className="font-semibold text-cyan-400">/</span>
-                    <span className="font-extrabold text-slate-500">{totalPages}</span>
-                    <span className="h-px w-4 bg-gradient-to-l from-transparent to-cyan-500/75 sm:w-6" />
-                  </div>
-                ) : null}
               </div>
             ) : (
-              <div className="relative mt-2 flex min-h-10 items-center px-2 sm:px-3">
-                <div className="min-w-0 max-w-[calc(50%_-_38px)]">
-                  <h3 className="text-base font-extrabold text-slate-700 sm:text-lg">
-                    <span className="text-sky-700 tabular-nums">{browseNodes.length}</span>{" "}
+              <div className="reveal-tail relative mt-3 flex min-h-10 items-center gap-3 px-2 sm:px-3">
+                {/* Pagination now sits directly beside the counter text
+                    instead of centered across the whole row — a plain flex
+                    row, no grow on either side, so it reads as one group
+                    instead of two things pinned to opposite/centered spots.
+                    The counter still caps its own width and truncates, so
+                    an unusually long count can't push the pagination out
+                    of the row. */}
+                <div className="min-w-0 max-w-[65%]">
+                  <h3 className="truncate text-[17px] font-black tracking-[-0.02em] text-slate-800 sm:text-xl">
+                    <span className="text-sky-600 tabular-nums">{browseNodes.length}</span>{" "}
                     {searchTerm.trim()
                       ? pluralWord(browseNodes.length, "група", "групи", "груп")
                       : `${pluralWord(browseNodes.length, "категорія", "категорії", "категорій")} товарів`}
                   </h3>
                 </div>
                 {totalPages > 1 ? (
-                  <div className="absolute left-1/2 top-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">
-                    <span className="h-px w-4 bg-gradient-to-r from-transparent to-cyan-500/75 sm:w-6" />
+                  <div className="shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-bold tabular-nums sm:gap-2 sm:text-xs">
+                    <button
+                      type="button"
+                      onClick={prevPage}
+                      disabled={page <= 1}
+                      aria-label="Попередня сторінка"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200/80 bg-white/70 text-sky-700 shadow-[0_4px_12px_rgba(3,105,161,0.10)] transition-colors duration-200 hover:border-cyan-300 hover:text-cyan-700 disabled:pointer-events-none disabled:opacity-35"
+                    >
+                      <ChevronLeft size={14} strokeWidth={2.8} />
+                    </button>
                     <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
-                    <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(14,116,144,0.14)]">{page}</span>
-                    <span className="font-semibold text-cyan-400">/</span>
+                    <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(3,105,161,0.11)]">{page}</span>
+                    <span className="font-semibold text-cyan-500">/</span>
                     <span className="font-extrabold text-slate-500">{totalPages}</span>
-                    <span className="h-px w-4 bg-gradient-to-l from-transparent to-cyan-500/75 sm:w-6" />
+                    <button
+                      type="button"
+                      onClick={nextPage}
+                      disabled={page >= totalPages}
+                      aria-label="Наступна сторінка"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200/80 bg-white/70 text-sky-700 shadow-[0_4px_12px_rgba(3,105,161,0.10)] transition-colors duration-200 hover:border-cyan-300 hover:text-cyan-700 disabled:pointer-events-none disabled:opacity-35"
+                    >
+                      <ChevronRight size={14} strokeWidth={2.8} />
+                    </button>
                   </div>
                 ) : null}
-                <Link
-                  href="/groups"
-                  className="group/all-groups ml-auto inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-extrabold text-sky-700 transition-colors duration-300 hover:text-cyan-600 focus-visible:outline-none focus-visible:text-cyan-600 focus-visible:underline focus-visible:decoration-2 focus-visible:underline-offset-4"
-                >
-                  Усі групи товарів
-                  <ChevronRight
-                    size={15}
-                    strokeWidth={2.6}
-                    className="transition-transform duration-300 group-hover/all-groups:translate-x-0.5"
-                  />
-                </Link>
               </div>
             )}
           </div>
@@ -1472,7 +1673,7 @@ const ProductFetcher: React.FC<Props> = ({
                 does. It's a sibling above the grid now, so every cell below
                 is a uniform placeholder card, same shape the real cards
                 render into. */}
-            <div className="grid min-h-[170px] grid-cols-2 grid-rows-1 gap-3 sm:min-h-[190px] sm:grid-cols-4 sm:gap-3.5">
+            <div className="grid grid-cols-2 grid-rows-2 gap-2.5 sm:gap-3 xl:grid-cols-3">
               {Array.from({ length: itemsPerPage }).map((_, index) => (
                 <div
                   key={`card-skeleton-${index}`}
@@ -1489,7 +1690,7 @@ const ProductFetcher: React.FC<Props> = ({
             </div>
           </div>
         ) : productLoadError ? (
-          <div className="grid min-h-[170px] grid-cols-2 grid-rows-1 gap-3 sm:min-h-[190px] sm:grid-cols-4 sm:gap-3.5">
+          <div className="grid grid-cols-2 grid-rows-2 gap-2.5 sm:gap-3 xl:grid-cols-3">
                 <div className="col-span-full flex min-h-[150px] items-center justify-center rounded-[22px] border border-sky-200/90 bg-white/80 px-5 py-6 text-center shadow-[0_12px_30px_rgba(14,116,144,0.1)]">
                   <div>
                     <p className="text-sm font-extrabold text-slate-800">Не вдалося завантажити категорії</p>
@@ -1506,7 +1707,7 @@ const ProductFetcher: React.FC<Props> = ({
                 </div>
           </div>
         ) : (
-          <div className="grid min-h-[170px] grid-cols-2 grid-rows-1 gap-3 sm:min-h-[190px] sm:grid-cols-4 sm:gap-3.5">
+          <div className="grid grid-cols-2 grid-rows-2 gap-2.5 sm:gap-3 xl:grid-cols-3">
                 <motion.div
                   key="empty"
                   initial={shouldAnimate ? { opacity: 0 } : false}

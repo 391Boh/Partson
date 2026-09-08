@@ -1,40 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import SectionBoundary from "./SectionBoundary";
-
-// Keep the placeholders close to the rendered height at every layout
-// breakpoint. The sections become much taller in the one/two-column layouts;
-// using only the desktop height here causes a large layout shift on phones and
-// tablets as soon as the dynamic chunk resolves.
-function HomeSectionFallback({
-  ready = false,
-  tone,
-}: {
-  ready?: boolean;
-  tone: "product" | "auto" | "brands";
-}) {
-  return (
-    <div
-      className={`home-section-skeleton home-section-skeleton-${tone} ${ready ? "is-ready" : ""}`}
-      aria-hidden="true"
-    />
-  );
-}
 
 const loadProductSection = () => import("./tovar");
 const loadAutoSection = () => import("./Auto");
 const loadBrandsSection = () => import("./Brands");
 
 const ProductFetcher = dynamic(loadProductSection, {
-  // ProductFetcher derives parts of its first state from sessionStorage and
-  // responsive media queries. Rendering it on the server can therefore
-  // produce markup that differs from the first browser render on another
-  // device or with a populated catalog cache, causing React hydration errors.
-  // Keep only this interactive catalog browser client-only; the SEO section
-  // below it is rendered as server HTML in app/page.tsx.
   ssr: false,
   loading: () => null,
 });
@@ -42,92 +17,195 @@ const Auto = dynamic(loadAutoSection, {
   ssr: false,
   loading: () => null,
 });
-// Unlike ProductFetcher/Auto, BrandCarousel's first-render state comes
-// entirely from the initialSyncedBrands prop passed down from the server —
-// no sessionStorage/media-query read, so no hydration-mismatch risk. Leaving
-// ssr enabled (the dynamic() default) lets its manufacturer-logo <Image>
-// tags go out in the initial server HTML instead of waiting for the client
-// JS chunk to load and execute before those requests are even discovered.
 const BrandCarousel = dynamic(loadBrandsSection, {
+  ssr: false,
   loading: () => null,
 });
 
-type InitialSyncedBrand = {
-  name: string;
-  logo: string | null;
-  description: string;
-  productCount?: number;
-  groupsCount?: number;
+type DeferredHomeSectionProps = {
+  children: (onReady: () => void) => ReactNode;
+  className: string;
+  label: string;
+  tone: "auto" | "product" | "brands";
 };
 
-export default function HomeDeferredStack({
-  initialSyncedBrands,
-  initialProductTree,
-}: {
-  initialSyncedBrands?: InitialSyncedBrand[];
-  initialProductTree?: unknown;
-}) {
-  const [readySections, setReadySections] = useState(0);
+function DeferredHomeSection({
+  children,
+  className,
+  label,
+  tone,
+}: DeferredHomeSectionProps) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const [shouldMount, setShouldMount] = useState(false);
+  const [ready, setReady] = useState(false);
+  const markReady = useCallback(() => setReady(true), []);
 
-  // The three dynamic components below mount during the same render, so Next
-  // requests their chunks in parallel. Do not gate them behind a preliminary
-  // Promise: that used to add an extra render and made every section wait for
-  // the slowest chunk before any useful content could appear.
   useEffect(() => {
-    // Error boundaries must never remain covered by a loading veil. This is a
-    // fallback only; normal sections reveal themselves on their first stable
-    // layout, usually hundreds of milliseconds earlier.
-    const safetyTimer = window.setTimeout(() => setReadySections(7), 4_000);
-    return () => window.clearTimeout(safetyTimer);
-  }, []);
+    const section = sectionRef.current;
+    if (!section) return;
 
-  const markSectionReady = useCallback((flag: number) => {
-    setReadySections((current) => current | flag);
-  }, []);
-  const handleProductReady = useCallback(() => markSectionReady(1), [markSectionReady]);
-  const handleAutoReady = useCallback(() => markSectionReady(2), [markSectionReady]);
-  const handleBrandsReady = useCallback(() => markSectionReady(4), [markSectionReady]);
-
-  const renderSectionState = (flag: number) => {
-    const ready = (readySections & flag) === flag;
-    return {
-      ready,
-      contentClassName: `home-deferred-content ${ready ? "is-ready" : ""}`,
-      slotClassName: ready ? "home-slot-ready" : "",
+    let mountTimer: number | null = null;
+    const mountWhenScrollSettles = () => {
+      if (document.documentElement.classList.contains("is-scrolling")) {
+        mountTimer = window.setTimeout(mountWhenScrollSettles, 100);
+        return;
+      }
+      startTransition(() => setShouldMount(true));
     };
-  };
-  const productState = renderSectionState(1);
-  const autoState = renderSectionState(2);
-  const brandsState = renderSectionState(4);
+
+    if (typeof IntersectionObserver === "undefined") {
+      mountWhenScrollSettles();
+      return () => {
+        if (mountTimer !== null) window.clearTimeout(mountTimer);
+      };
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        observer.disconnect();
+        // Parsing/mounting a large catalogue tree in the middle of a wheel or
+        // momentum gesture is the most visible source of dropped frames.
+        // Wait for the shared scroll state to settle; the reserved skeleton
+        // keeps geometry stable during this short delay.
+        mountWhenScrollSettles();
+      },
+      // Start the network request before the section is visible without
+      // competing with the hero image/font during the initial paint.
+      { rootMargin: "250px 0px", threshold: 0 }
+    );
+    observer.observe(section);
+    return () => {
+      observer.disconnect();
+      if (mountTimer !== null) window.clearTimeout(mountTimer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!shouldMount || ready) return;
+    // Never leave an error-boundary message hidden behind the preparation
+    // layer if a data request or a chunk stalls on a poor connection.
+    const safetyTimer = window.setTimeout(markReady, 8_000);
+    return () => window.clearTimeout(safetyTimer);
+  }, [markReady, ready, shouldMount]);
+
+  return (
+    <section
+      ref={sectionRef}
+      className={`section-reveal home-section-stage ${className} relative w-full ${ready ? "home-slot-ready" : ""}`}
+      aria-busy={!ready}
+      aria-label={label}
+    >
+      {shouldMount ? (
+        <div className={`home-deferred-content ${ready ? "is-ready" : ""}`}>
+          {children(markReady)}
+        </div>
+      ) : null}
+      <div
+        className={`home-section-skeleton home-section-skeleton-${tone} ${ready ? "is-ready" : ""}`}
+        aria-hidden="true"
+      />
+    </section>
+  );
+}
+
+type LegacyInitialDataProps = {
+  initialSyncedBrands?: unknown;
+  initialProductTree?: unknown;
+};
+
+export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataProps = {}) {
+  // Kept temporarily for the older HomeBelowFoldClient call site; the data is
+  // no longer serialized into the active homepage route.
+  void _legacyInitialData;
+
+  useEffect(() => {
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    if (
+      connection?.saveData ||
+      connection?.effectiveType === "slow-2g" ||
+      connection?.effectiveType === "2g"
+    ) {
+      return;
+    }
+
+    let idleId: number | null = null;
+    let cancelled = false;
+    const timers: number[] = [];
+    const preloadBelowFoldChunks = () => {
+      if (cancelled) return;
+      // requestIdleCallback's timeout is allowed to fire while the browser is
+      // busy. Re-check the real page state so a timeout never turns three
+      // speculative module parses into dropped frames during a gesture.
+      if (
+        document.visibilityState === "hidden" ||
+        document.documentElement.classList.contains("is-scrolling")
+      ) {
+        timers.push(window.setTimeout(preloadBelowFoldChunks, 700));
+        return;
+      }
+      // Download code while the main thread/network are idle, but keep the
+      // sections unmounted so their data requests and React work still happen
+      // only near the viewport. Staggering avoids one large parse burst.
+      void loadAutoSection();
+      timers.push(window.setTimeout(() => void loadProductSection(), 500));
+      timers.push(window.setTimeout(() => void loadBrandsSection(), 1000));
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(preloadBelowFoldChunks, {
+        timeout: 3500,
+      });
+    } else {
+      timers.push(window.setTimeout(preloadBelowFoldChunks, 1800));
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId !== null) window.cancelIdleCallback?.(idleId);
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
 
   return (
     <>
-      <section className={`section-reveal home-section-stage home-slot-product relative w-full ${productState.slotClassName}`} aria-busy={!productState.ready}>
-        <div className={productState.contentClassName}>
-          <SectionBoundary title="Модуль товарів тимчасово недоступний">
-            <ProductFetcher products={initialProductTree} playEntranceAnimations={false} onReady={handleProductReady} />
-          </SectionBoundary>
-        </div>
-        <HomeSectionFallback tone="product" ready={productState.ready} />
-      </section>
-
-      <section className={`section-reveal home-section-stage home-slot-auto relative w-full ${autoState.slotClassName}`} aria-busy={!autoState.ready}>
-        <div className={autoState.contentClassName}>
+      <DeferredHomeSection
+        className="home-slot-auto"
+        label="Підбір запчастин за автомобілем"
+        tone="auto"
+      >
+        {(onReady) => (
           <SectionBoundary title="Модуль підбору авто тимчасово недоступний">
-            <Auto playEntranceAnimations={false} showSummary onReady={handleAutoReady} />
+            <Auto playEntranceAnimations={false} showSummary onReady={onReady} />
           </SectionBoundary>
-        </div>
-        <HomeSectionFallback tone="auto" ready={autoState.ready} />
-      </section>
+        )}
+      </DeferredHomeSection>
 
-      <section className={`section-reveal home-section-stage home-slot-brands relative w-full ${brandsState.slotClassName}`} aria-busy={!brandsState.ready}>
-        <div className={brandsState.contentClassName}>
-          <SectionBoundary title="Модуль брендів тимчасово недоступний">
-            <BrandCarousel playEntranceAnimations={false} initialSyncedBrands={initialSyncedBrands} onReady={handleBrandsReady} />
+      <DeferredHomeSection
+        className="home-slot-product"
+        label="Каталог груп товарів"
+        tone="product"
+      >
+        {(onReady) => (
+          <SectionBoundary title="Модуль товарів тимчасово недоступний">
+            <ProductFetcher playEntranceAnimations={false} onReady={onReady} />
           </SectionBoundary>
-        </div>
-        <HomeSectionFallback tone="brands" ready={brandsState.ready} />
-      </section>
+        )}
+      </DeferredHomeSection>
+
+      <DeferredHomeSection
+        className="home-slot-brands"
+        label="Виробники автозапчастин"
+        tone="brands"
+      >
+        {(onReady) => (
+          <SectionBoundary title="Модуль брендів тимчасово недоступний">
+            <BrandCarousel playEntranceAnimations={false} onReady={onReady} />
+          </SectionBoundary>
+        )}
+      </DeferredHomeSection>
     </>
   );
 }

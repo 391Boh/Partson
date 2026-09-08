@@ -119,8 +119,13 @@ const scheduleFirebaseAuthSubscription = () => {
   let idleId: number | null = null;
 
   const start = () => {
-    window.removeEventListener("pointerdown", start);
-    window.removeEventListener("keydown", start);
+    // Firebase module evaluation and IndexedDB restoration can occupy the
+    // main thread for several frames. Never begin that work in the middle of
+    // a wheel/touch scroll; LayoutHost owns this short-lived compositor hint.
+    if (document.documentElement.classList.contains("is-scrolling")) {
+      timeoutId = window.setTimeout(start, 240);
+      return;
+    }
     if (timeoutId != null) {
       window.clearTimeout(timeoutId);
       timeoutId = null;
@@ -132,10 +137,14 @@ const scheduleFirebaseAuthSubscription = () => {
     ensureFirebaseAuthSubscription();
   };
 
-  window.addEventListener("pointerdown", start, { once: true, passive: true });
-  window.addEventListener("keydown", start, { once: true });
-
-  timeoutId = window.setTimeout(start, 500);
+  // Returning users get their cached shell instantly; the authoritative
+  // Firebase session is restored in idle time. Explicit protected actions
+  // call waitForFirebaseAuthReady(), which still starts this immediately.
+  if (typeof win.requestIdleCallback === "function") {
+    idleId = win.requestIdleCallback(start, { timeout: 2_600 });
+  } else {
+    timeoutId = window.setTimeout(start, 1_200);
+  }
 };
 
 const hasPersistedAuthIntent = () => {
@@ -154,11 +163,10 @@ export const getFirebaseAuthSnapshot = () => snapshot;
 
 // Admin-action call sites (getAdminToken in Data.tsx and friends) used to
 // read getFirebaseAuthSnapshot() synchronously. The real Firebase Auth
-// subscription is deliberately deferred until the first pointerdown/keydown
-// or a 500ms timeout (see scheduleFirebaseAuthSubscription) to keep it off
-// the critical path for guests. The bug: clicking an admin "edit" button IS
-// that first pointerdown — it kicks off the deferred subscription AND, in
-// the same synchronous handler, immediately reads the still-stale snapshot
+// subscription is deliberately deferred to browser idle time (see
+// scheduleFirebaseAuthSubscription) to keep it off the critical rendering
+// path. A protected action can therefore happen before the async Firebase
+// restore has resolved and would otherwise read a still-stale snapshot
 // before the async Firebase load has resolved. A genuinely logged-in admin
 // clicking edit as their first interaction on the page would see "Не
 // авторизовано" even though they're authenticated, because the check ran
@@ -193,9 +201,14 @@ export const subscribeToFirebaseAuthState = (
   listener(snapshot);
 
   // Don't pre-load Firebase for guests (no user_id in localStorage → snapshot is ready+null).
-  // Only schedule when user might be logged in (snapshot not yet resolved, or user is set).
+  // A returning user, however, has auth-dependent content above the fold in
+  // the hero and header. Start restoring that persisted session immediately:
+  // delaying it until requestIdleCallback's 2.6s timeout made the account
+  // panel look stuck even though the browser already knew a session existed.
   if (!snapshot.ready && !hasPersistedAuthIntent()) {
     emitSnapshot({ ready: true, user: null });
+  } else if (!snapshot.ready && hasPersistedAuthIntent()) {
+    ensureFirebaseAuthSubscription();
   } else if (!snapshot.ready || snapshot.user !== null) {
     scheduleFirebaseAuthSubscription();
   }

@@ -163,7 +163,7 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
   const socialImage =
     post.imageDataUrl && isStorageMediaUrl(post.imageDataUrl)
       ? post.imageDataUrl
-      : "/opengraph-partson-v2.png";
+      : "/opengraph-partson-v3.png";
   return buildPageMetadata({
     title: post.title,
     description: appendSeoContact(post.excerpt),
@@ -187,7 +187,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const seoImage =
     post.imageDataUrl && isStorageMediaUrl(post.imageDataUrl)
       ? post.imageDataUrl
-      : `${siteUrl.replace(/\/$/, "")}/opengraph-partson-v2.png`;
+      : `${siteUrl.replace(/\/$/, "")}/opengraph-partson-v3.png`;
 
   const contentBlocks = parseContent(post.content);
   const extraImages = post.extraImages ?? [];
@@ -218,7 +218,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     publisher: {
       "@type": "Organization",
       name: "PartsON",
-      logo: { "@type": "ImageObject", url: `${siteUrl.replace(/\/$/, "")}/google-logo-partson-v2.png` },
+      logo: { "@type": "ImageObject", url: `${siteUrl.replace(/\/$/, "")}/google-logo-partson-v3.png` },
     },
     mainEntityOfPage: canonicalUrl,
   };

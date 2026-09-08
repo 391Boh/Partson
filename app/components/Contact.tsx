@@ -181,16 +181,16 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
     });
 
     if (action === "viber") {
-      window.location.href = `viber://chat?number=%2B${cleanPhone}`;
+      window.location.assign(`viber://chat?number=%2B${cleanPhone}`);
       return;
     }
 
     if (action === "telegram") {
-      window.location.href = `https://t.me/+${cleanPhone}`;
+      window.location.assign(`https://t.me/+${cleanPhone}`);
       return;
     }
 
-    window.location.href = `tel:+${cleanPhone}`;
+    window.location.assign(`tel:+${cleanPhone}`);
   };
 
   const handleCopyPhone = async (phone: string) => {

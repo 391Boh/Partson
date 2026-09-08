@@ -154,7 +154,7 @@ export default function PartnershipPage() {
             <div className="relative divide-y divide-sky-100/50">
 
               {/* доставка */}
-              <div className="p-5 sm:p-6">
+              <div id="delivery" className="scroll-mt-24 p-5 sm:p-6">
                 <p className="mb-1 text-[10.5px] font-bold uppercase tracking-[0.20em] text-sky-500/80">Доставка</p>
                 <h2 className="mb-4 text-[1.05rem] font-extrabold tracking-tight text-slate-900">Отримуйте запчастини зручним способом</h2>
                 <div className="grid gap-3 sm:grid-cols-2">
