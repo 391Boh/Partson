@@ -5,6 +5,16 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
+import {
+  BadgeCheck,
+  ChevronRight,
+  CircleCheck,
+  MapPin,
+  PackageSearch,
+  ShieldCheck,
+  Star,
+  Truck,
+} from "lucide-react";
 
 import {
   type CatalogProduct,
@@ -43,6 +53,7 @@ import {
 } from "app/lib/product-route-resolver";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
+import { buildProductFaqJsonLd } from "app/lib/product-faq";
 import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { SEO_TITLE_MAX_LENGTH } from "app/lib/seo-metadata";
@@ -55,7 +66,6 @@ import {
   type ProductSitemapEntry,
 } from "app/lib/product-sitemap";
 import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
-import { producerDescriptions } from "app/lib/producer-descriptions";
 import {
   getProductReviews,
   getProductReviewStats,
@@ -75,11 +85,27 @@ import {
 // is far cheaper than wrongly 404ing a real product.
 const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 4000;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 4000;
+// Used instead of the full budget above when a sitemap-snapshot product is
+// already available as a fallback — see the call site for why a short
+// timeout is safe there specifically. Measured live: this consistently hit
+// its full budget without the 1C call actually resolving in time (900ms
+// wasn't "usually enough, sometimes not" — it was "never enough"), so a
+// shorter cap here loses nothing observed while capping the worst case
+// further.
+const PRODUCT_PAGE_PRODUCT_REFRESH_TIMEOUT_MS = 500;
 const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 4000;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 80;
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 4000;
-const PRODUCT_PAGE_REVIEWS_TIMEOUT_MS = 220;
-const PRODUCT_PAGE_GALLERY_TIMEOUT_MS = 250;
+// Both run concurrently via Promise.all below, so raising either only caps
+// that one promise's own worst case — it doesn't add to the other's wait.
+// 220-250ms was too tight for a real Firestore round-trip (a cold/network-
+// bound admin-SDK read routinely exceeds that), which was silently dropping
+// the gallery images array from SSR/JSON-LD on every render, not just slow
+// ones — the client-side ProductGallery component does eventually recover
+// via its own fetch, but the JSON-LD image list and first-paint gallery
+// state were wrong far more often than intended.
+const PRODUCT_PAGE_REVIEWS_TIMEOUT_MS = 900;
+const PRODUCT_PAGE_GALLERY_TIMEOUT_MS = 900;
 
 // Extra photos live in Firestore (see app/components/ProductGallery.tsx,
 // which reads the same collection client-side for the live-updating strip
@@ -156,13 +182,22 @@ const ProductPurchasePanelClient = dynamic(
   () => import("app/components/ProductPurchasePanelClient"),
   {
     loading: () => (
-      <section className="flex h-full flex-col rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_14px_28px_rgba(15,23,42,0.05)] sm:rounded-[24px] sm:p-4">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="h-[76px] animate-pulse rounded-[16px] bg-slate-100" />
-          <div className="h-[76px] animate-pulse rounded-[16px] bg-slate-100" />
+      <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_18px_46px_rgba(15,23,42,0.08)] sm:rounded-[24px]">
+        <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(190px,0.72fr)_minmax(290px,1.28fr)] xl:items-center xl:gap-6">
+          <div>
+            <div className="h-3 w-20 animate-pulse rounded-full bg-sky-100 motion-reduce:animate-none" />
+            <div className="mt-2 h-10 w-44 animate-pulse rounded-xl bg-slate-100 motion-reduce:animate-none" />
+            <div className="mt-3 h-7 w-36 animate-pulse rounded-full bg-emerald-50 motion-reduce:animate-none" />
+          </div>
+          <div className="xl:border-l xl:border-slate-200 xl:pl-6">
+            <div className="h-4 w-11/12 animate-pulse rounded-full bg-slate-100 motion-reduce:animate-none" />
+            <div className="mt-3 h-[52px] animate-pulse rounded-[16px] bg-slate-100 motion-reduce:animate-none" />
+          </div>
         </div>
-        <div className="mt-2.5 h-4 w-3/4 animate-pulse rounded-full bg-slate-100" />
-        <div className="mt-2.5 h-12 animate-pulse rounded-2xl bg-slate-100" />
+        <div className="grid border-t border-slate-200 bg-slate-50/80 sm:grid-cols-2">
+          <div className="h-[62px] border-b border-slate-200 sm:border-b-0 sm:border-r" />
+          <div className="h-[62px]" />
+        </div>
       </section>
     ),
   }
@@ -199,6 +234,24 @@ const OpenChatButton = dynamic(() => import("app/components/OpenChatButton"), {
 const ProductReviewsSection = dynamic(
   () => import("app/components/ProductReviewsSection"),
   { loading: () => null }
+);
+
+const ProductFaqSection = dynamic(
+  () => import("app/components/ProductFaqSection"),
+  {
+    loading: () => (
+      <div className="overflow-hidden rounded-[22px] border border-teal-100 bg-white/92 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.06)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
+        <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+          <div className="h-9 w-9 shrink-0 animate-pulse rounded-xl bg-teal-100" />
+          <div className="h-6 w-56 max-w-full animate-pulse rounded-full bg-slate-100" />
+        </div>
+        <div className="mt-3 space-y-2">
+          <div className="h-4 w-full animate-pulse rounded-full bg-slate-100" />
+          <div className="h-4 w-11/12 animate-pulse rounded-full bg-slate-100" />
+        </div>
+      </div>
+    ),
+  }
 );
 
 const ProductDeferredRecommendations = dynamic(
@@ -730,62 +783,6 @@ const buildProductBreadcrumbJsonLd = (options: {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement,
-  };
-};
-
-const buildProductFaqJsonLd = (options: {
-  name: string;
-  producer: string;
-  group: string;
-  subGroup: string;
-  hasPrice: boolean;
-  quantity: number;
-}) => {
-  const { name, producer, group, subGroup, hasPrice, quantity } = options;
-  const productLabel = name || "цього товару";
-  const producerLabel = producer || "виробника";
-  const groupLabel = subGroup || group || "запчастин";
-  const availLabel = quantity > 0 ? `є в наявності ${quantity} шт.` : "доступний під замовлення";
-
-  return {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: [
-      {
-        "@type": "Question",
-        name: `Як замовити ${productLabel} у Львові?`,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: hasPrice
-            ? `Додайте ${productLabel} у кошик прямо на сторінці. Оплата: готівка, картка (термінал), онлайн або безготівково для юридичних осіб. Доставка Нова Пошта, Укрпошта, Meest по Україні або самовивіз у Львові.`
-            : `Для уточнення ціни на ${productLabel} надішліть запит менеджеру через чат. Ми підберемо оптимальний варіант від перевіреного постачальника.`,
-        },
-      },
-      {
-        "@type": "Question",
-        name: `Як перевірити сумісність ${productLabel} з моїм авто?`,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: `Для перевірки сумісності ${productLabel} від ${producerLabel} надайте VIN-код або марку, модель і рік авто. Менеджер PartsON безкоштовно підбере запчастину категорії ${groupLabel}. Підбір також за оригінальним артикулом або кодом.`,
-        },
-      },
-      {
-        "@type": "Question",
-        name: `Яка наявність і терміни доставки ${productLabel}?`,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: `Зараз ${productLabel} ${availLabel}. Доставка по Львову — кур'єром у день замовлення. По Україні — Нова Пошта, Укрпошта або Meest, 1–3 дні. Самовивіз у нашому магазині у Львові.`,
-        },
-      },
-      {
-        "@type": "Question",
-        name: `Чи є гарантія на ${productLabel}?`,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: `Так, PartsON надає гарантію якості на всі запчастини від перевірених постачальників. Продаємо оригінальні та аналогові деталі — ${producerLabel} та інших брендів. У разі питань менеджер допоможе з поверненням або заміною.`,
-        },
-      },
-    ],
   };
 };
 
@@ -1846,14 +1843,51 @@ export default async function ProductPage({ params }: ProductPageProps) {
   let resolvedCode = (routeData.code || (canUseDirectFallbackCode ? fallbackCodeFromRoute : "") || "").trim();
   let product = routeData.product;
 
+  // Reviews and gallery only depend on the resolved code string, not on the
+  // (possibly fresher) product object below — and in the common case
+  // (sitemap already gave us both a code and a product), resolvedCode here
+  // is already final; every fallback branch between here and the later
+  // notFound() check is gated on `!resolvedCode`/`!product` and is a no-op
+  // once those are already set. So it's safe to fire these Firestore reads
+  // now, in parallel with the freshProduct 1C refresh below, instead of
+  // waiting for that to finish first — the two 900ms-capped waits then
+  // overlap instead of adding up to ~1.8s of pure sequential wait. The
+  // later declaration re-checks resolvedCode/product didn't change before
+  // reusing these, and falls back to a fresh fetch on the rare recovery
+  // path where they did.
+  const earlyResolvedCode = resolvedCode;
+  const earlyHasProduct = Boolean(product);
+  const earlyReviewsPromise = earlyResolvedCode
+    ? Promise.all([
+        getProductReviewStats(earlyResolvedCode),
+        getProductReviews(earlyResolvedCode),
+      ]).catch(() => [null, null] as const)
+    : null;
+  const earlyGalleryImagesPromise = earlyResolvedCode
+    ? fetchProductGalleryImageUrls(earlyResolvedCode).catch(() => [])
+    : null;
+
   if (resolvedCode) {
+    // A live 1C lookup here (name/price/quantity refresh) routinely takes
+    // 1.9-3.7s — the documented per-call latency elsewhere in this file.
+    // When the sitemap snapshot already gave us a product to show, that's
+    // real, recently-indexed data, not a placeholder — it's worth a short
+    // wait for something fresher, but not worth blocking the whole page's
+    // TTFB on 1C's full budget. The purchase panel already re-verifies price
+    // live client-side (see ProductPurchasePanelClient's own /api/product-
+    // price fetch), so a slightly-stale SSR price here self-corrects within
+    // a second of hydration regardless. Only when there's no fallback to
+    // show at all does this still need the full budget.
+    const freshProductTimeoutMs = product
+      ? PRODUCT_PAGE_PRODUCT_REFRESH_TIMEOUT_MS
+      : PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS;
     const freshProduct = await resolveWithTimeout(
       () =>
         directCodeProductPromise && resolvedCode === fallbackCodeFromRoute
           ? directCodeProductPromise
           : getCatalogProduct(resolvedCode),
       null,
-      PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
+      freshProductTimeoutMs
     );
     if (freshProduct) product = freshProduct;
   }
@@ -1974,18 +2008,30 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const visibleProductGroup = buildVisibleCategoryLabel(productGroup);
   const visibleProductSubgroup = buildVisibleCategoryLabel(productSubgroup);
   const siteUrl = getSiteUrl();
+  // Reuse the promises kicked off before the freshProduct refetch when
+  // nothing that would change their inputs happened in between (the
+  // common case) — only fall back to firing them fresh here on the rare
+  // recovery path where resolvedCode/product changed after that point.
+  const canReuseEarlyPromises =
+    earlyHasProduct && resolvedCode === earlyResolvedCode;
   const reviewsPromise: Promise<
     readonly [
       Awaited<ReturnType<typeof getProductReviewStats>>,
       ProductReview[] | null,
     ]
-  > = resolvedCode
-    ? Promise.all([
-        getProductReviewStats(resolvedCode),
-        getProductReviews(resolvedCode),
-      ]).catch(() => [null, null] as const)
-    : Promise.resolve([null, []]);
-  const galleryImagesPromise = fetchProductGalleryImageUrls(resolvedCode).catch(() => []);
+  > =
+    canReuseEarlyPromises && earlyReviewsPromise
+      ? earlyReviewsPromise
+      : resolvedCode
+        ? Promise.all([
+            getProductReviewStats(resolvedCode),
+            getProductReviews(resolvedCode),
+          ]).catch(() => [null, null] as const)
+        : Promise.resolve([null, []]);
+  const galleryImagesPromise =
+    canReuseEarlyPromises && earlyGalleryImagesPromise
+      ? earlyGalleryImagesPromise
+      : fetchProductGalleryImageUrls(resolvedCode).catch(() => []);
   const [pagePrice, brandLogoMap] = await Promise.all([
     resolveProductSeoPrice(inlineInitialPriceEuro),
     getBrandLogoMap().catch(() => new Map<string, string>()),
@@ -2014,9 +2060,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const producerLogoPath = product.producer
     ? resolveProducerLogo(product.producer, brandLogoMap)
     : null;
-  const producerDescription = product.producer
-    ? (producerDescriptions[product.producer] ?? null)
-    : null;
   const categoryCatalogPath = categoryCatalogGroupValue
     ? buildCatalogCategoryPath(categoryCatalogGroupValue, categoryCatalogSubcategoryValue)
     : "/katalog";
@@ -2034,17 +2077,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
     productCategory.toLowerCase() !== productGroup.toLowerCase()
       ? buildGroupPath(productCategory)
       : null;
-  const categoryHierarchyParts = [
-    topCategoryPath ? productCategory : null,
-    productGroup || null,
-    productSubgroup && productSubgroup.toLowerCase() !== productGroup.toLowerCase()
-      ? productSubgroup
-      : null,
-  ].filter(Boolean) as string[];
-  const categoryHierarchyText = categoryHierarchyParts
-    .map(buildVisibleProductName)
-    .filter(Boolean)
-    .join(" → ");
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
   // Only confirmed catalog photos are safe for Google-facing image URLs. An
   // unknown/false flag must never turn the generic fallback logo into a
@@ -2112,20 +2144,22 @@ export default async function ProductPage({ params }: ProductPageProps) {
     subGroupPath: productSubgroup ? categoryLandingHref : null,
   });
   const isInStock = Number.isFinite(product.quantity) && product.quantity > 0;
-  const faqJsonLd = buildProductFaqJsonLd({
-    name: visibleProductName,
-    producer: product.producer,
-    group: productGroup,
-    subGroup: productSubgroup,
-    hasPrice: initialPriceUah != null,
-    quantity: product.quantity,
-  });
+  const faqJsonLd = !isModalView
+    ? buildProductFaqJsonLd({
+        name: visibleProductName,
+        producer: product.producer,
+        group: productGroup,
+        subGroup: productSubgroup,
+        hasPrice: initialPriceUah != null,
+        quantity: product.quantity,
+      })
+    : null;
   const contentGridClass = isModalView
     ? "grid gap-2.5 p-2.5 sm:p-3"
     : "grid gap-3 p-2.5 sm:gap-3.5 sm:p-3.5 lg:p-4";
   const heroProductImageClass = isModalView
     ? "mx-auto aspect-square w-full max-w-[260px] rounded-[18px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.98))]"
-    : "mx-auto aspect-square w-full max-w-[320px] rounded-[18px] border border-sky-100/70 bg-[radial-gradient(circle_at_top,rgba(224,242,254,0.9),rgba(255,255,255,0.98)_48%,rgba(241,245,249,0.96))] sm:max-w-[360px] xl:max-w-full";
+    : "mx-auto aspect-square w-full max-w-[360px] rounded-[20px] border border-sky-100/70 bg-[radial-gradient(circle_at_top,rgba(224,242,254,0.9),rgba(255,255,255,0.98)_48%,rgba(241,245,249,0.96))] sm:max-w-[460px] lg:max-w-[520px]";
   const descriptionTextClass = isModalView
     ? "mt-1.5 space-y-2 break-words text-sm font-medium leading-relaxed text-slate-700"
     : "mt-2.5 space-y-2.5 break-words text-[14px] font-medium leading-[1.62] text-slate-700 sm:text-[15px]";
@@ -2174,90 +2208,26 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const productIdentifierHint = hasDistinctProductCode
     ? `Код товару: ${normalizedProductCode}`
     : null;
-  const productHeaderInfoItems = [
-    product.producer
-      ? {
-          label: "Виробник",
-          value: product.producer,
-          href: producerLandingPath,
-        }
-      : null,
-    visibleProductSubgroup || visibleProductGroup
-      ? {
-          label: visibleProductSubgroup
-            ? "Підкатегорія"
-            : topCategoryPath
-              ? "Група"
-              : "Категорія",
-          value: visibleProductSubgroup || visibleProductGroup,
-          href: categoryLandingHref,
-        }
-      : null,
-  ].filter(Boolean) as Array<{ label: string; value: string; href?: string | null }>;
-  const productHeaderMetaGridClass = productHeaderInfoItems.length > 0
-    ? "mt-3 grid gap-2 sm:grid-cols-[minmax(210px,0.85fr)_minmax(0,1.15fr)]"
-    : "mt-3 max-w-[380px]";
   const productHeadingText = buildFrontendProductHeading(product.name, {
     producer: product.producer,
     article: product.article,
     group: productGroup,
     subGroup: productSubgroup,
   });
-  const productFitmentText = [
-    categoryHierarchyText
-      ? `Розділ каталогу: ${categoryHierarchyText}.`
-      : visibleProductSubgroup || visibleProductGroup
-        ? `Розділ каталогу: ${visibleProductSubgroup || visibleProductGroup}.`
-        : null,
-    "Надішліть VIN або дані авто в чат — менеджер перевірить сумісність, підбере аналоги та підкаже по наявності.",
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const productSeoDetails = {
-    title: "Підбір і важливі деталі",
-    items: [
-      productIdentifierValue !== "-"
-        ? `Основний ідентифікатор для пошуку: ${productIdentifierValue}. За ним можна звірити товар у каталозі або швидко поставити питання менеджеру.`
-        : "Товар можна підібрати за назвою, виробником, VIN-кодом або параметрами авто.",
-      product.producer
-        ? `Виробник: ${product.producer}. Якщо потрібен аналог, менеджер підбере сумісну заміну цього бренду або альтернативного виробника.`
-        : "Для позицій без явного виробника перевіряємо сумісність за артикулом, кодом і описом з 1С.",
-      visibleProductSubgroup || visibleProductGroup
-        ? `Категорія: ${categoryHierarchyText || visibleProductSubgroup || visibleProductGroup}. Це допомагає швидко перейти до суміжних товарів і груп каталогу.`
-        : "Сторінка товару доповнена описом, щоб його було легше знайти за кодом, артикулом і назвою.",
-      product.quantity > 0
-        ? "Наявність показана в картці товару, але перед оформленням замовлення ціну й залишок можна уточнити."
-        : "Якщо товар не показує залишок, можна надіслати запит: менеджер уточнить термін постачання і запропонує аналоги.",
-    ],
-  };
-  const productHeroHighlights = Array.from(
-    new Set(
-      [
-        "VIN-підбір",
-        "Аналоги",
-        "Самовивіз Львів",
-        "Доставка",
-      ].filter(Boolean)
-    )
-  ).slice(0, 5);
-  const faqItems = [
+  const productFitmentText =
+    "Не впевнені у сумісності? Надішліть VIN або дані автомобіля в чат — менеджер перевірить деталь і за потреби запропонує аналог.";
+  const productHeroHighlights = [
     {
-      question: "Як замовити та оплатити?",
-      answer: [
-        isInStock
-          ? `Є в наявності ${product.quantity} шт. — можна оформити відразу.`
-          : "Доступно під замовлення — менеджер уточнить термін.",
-        "Оплата: готівка, термінал, онлайн на сайті або рахунок для юросіб.",
-      ].join(" "),
+      label: "Перевіримо за VIN",
+      icon: ShieldCheck,
     },
     {
-      question: "Як перевірити сумісність?",
-      answer: `Надайте VIN-код або марку/модель/рік авто — менеджер безкоштовно підбере ${visibleProductName} з перевіркою сумісності. Також підбираємо за артикулом${product.article ? ` ${product.article}` : ""} або кодом.`,
+      label: "Самовивіз у Львові",
+      icon: MapPin,
     },
     {
-      question: "Доставка та самовивіз?",
-      answer:
-        "Доставка: Нова Пошта, Укрпошта або Meest по всій Україні (1–3 дні). Кур'єром по Львову. Самовивіз у магазині — в день замовлення.",
+      label: "Доставка 1–3 дні",
+      icon: Truck,
     },
   ];
   return (
@@ -2273,27 +2243,28 @@ export default async function ProductPage({ params }: ProductPageProps) {
         }
       >
         <article
-          className={`overflow-hidden border border-white/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.97),rgba(255,255,255,1))] shadow-[0_30px_80px_rgba(15,23,42,0.11),0_8px_24px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 ${
-            isModalView ? "rounded-2xl" : "rounded-[26px] sm:rounded-[30px]"
+          className={`overflow-hidden border border-slate-200/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)] ${
+            isModalView ? "rounded-2xl" : "rounded-[24px] sm:rounded-[32px]"
           }`}
         >
-          <header className="relative m-2 block h-auto min-h-0 overflow-hidden rounded-[22px] border border-sky-100/90 bg-[linear-gradient(135deg,rgba(248,252,255,0.99),rgba(238,249,255,0.97)_45%,rgba(246,253,251,0.96)_100%)] px-3 py-3 shadow-[0_20px_54px_rgba(15,23,42,0.085)] ring-1 ring-white sm:m-3 sm:rounded-[27px] sm:px-5 sm:py-5">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_4%,rgba(14,165,233,0.16),transparent_31%),radial-gradient(circle_at_94%_8%,rgba(20,184,166,0.11),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.45),transparent_60%)]" />
-            <div className="pointer-events-none absolute inset-y-7 left-0 w-[3px] rounded-full bg-gradient-to-b from-sky-400 via-cyan-300 to-teal-400" />
-            <div className="pointer-events-none absolute left-6 right-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-red-200/70" />
-            <div className="pointer-events-none absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-sky-200/30 via-white to-transparent" />
-            <div className="pointer-events-none absolute right-8 top-6 h-20 w-20 rounded-full border border-white/50 bg-[radial-gradient(circle,rgba(255,255,255,0.82)_0%,rgba(224,242,254,0.4)_52%,transparent_74%)]" />
-            <div className="relative">
+          <header className="relative overflow-hidden border-b border-slate-200/80 bg-[linear-gradient(145deg,#f8fbff_0%,#ffffff_48%,#f0fdfa_100%)] px-3 pb-4 pt-3 sm:px-5 sm:pb-6 sm:pt-4 lg:px-7 lg:pb-7">
+            <div className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full bg-sky-200/30 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-teal-100/50 blur-3xl" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,#0ea5e9,#22d3ee_45%,#14b8a6)]" />
+
+            <div className="relative mx-auto max-w-[1280px]">
               {!isModalView && (
-                <nav aria-label="Навігаційні хлібні крихти">
-                  <ol className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-slate-500 sm:text-[12px]">
+                <nav aria-label="Навігаційні хлібні крихти" className="mb-3 sm:mb-4">
+                  <ol className="flex items-center gap-1 overflow-x-auto whitespace-nowrap pb-1 text-[11px] font-semibold text-slate-500 [scrollbar-width:none] sm:text-[12px] [&::-webkit-scrollbar]:hidden">
                     {breadcrumbItems.map((item, index) => (
                       <li
                         key={`${item.href}:${item.label}:${index}`}
-                        className="inline-flex items-center gap-2"
+                        className="inline-flex items-center gap-1"
                       >
-                        {index > 0 ? <span className="text-slate-300" aria-hidden="true">/</span> : null}
-                        <Link href={item.href} className="transition hover:text-sky-700">
+                        {index > 0 ? (
+                          <ChevronRight size={13} className="text-slate-300" aria-hidden="true" />
+                        ) : null}
+                        <Link href={item.href} className="rounded-md px-1.5 py-1 transition hover:bg-white hover:text-sky-700">
                           {item.label}
                         </Link>
                       </li>
@@ -2301,21 +2272,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </ol>
                 </nav>
               )}
-              <div className="grid gap-3.5 lg:grid-cols-[minmax(210px,0.78fr)_minmax(300px,1.45fr)_minmax(275px,0.92fr)] lg:items-stretch xl:grid-cols-[minmax(220px,0.78fr)_minmax(0,1.5fr)_310px]">
-                <div className="order-1 min-w-0 self-stretch">
-                  <div className="group/photo relative flex h-full flex-col overflow-hidden rounded-[22px] border border-white bg-white/95 shadow-[inset_0_1px_0_rgba(255,255,255,1),0_18px_42px_rgba(14,165,233,0.12)] transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[inset_0_1px_0_rgba(255,255,255,1),0_24px_50px_rgba(14,165,233,0.17)]">
-                    <span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 -z-10 rounded-[22px] bg-[radial-gradient(circle_at_18%_-8%,rgba(56,189,248,0.26),transparent_55%),radial-gradient(circle_at_100%_100%,rgba(45,212,191,0.18),transparent_50%),linear-gradient(150deg,rgba(224,242,254,0.65)_0%,rgba(240,253,250,0.4)_55%,rgba(255,255,255,0)_100%)] opacity-0 transition-opacity duration-500 ease-out group-hover/photo:opacity-100"
-                    />
-                    <span className="pointer-events-none absolute left-3 top-3 z-10 rounded-full border border-white/90 bg-white/85 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-sky-700 shadow-sm backdrop-blur-md">
-                      Фото товару
-                    </span>
-                    <div className="flex min-h-[220px] flex-1 items-center justify-center p-1.5 sm:min-h-[260px] xl:min-h-0">
+
+              <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(340px,0.92fr)_minmax(0,1.08fr)] lg:gap-x-6 lg:gap-y-4 xl:grid-cols-[minmax(410px,0.9fr)_minmax(0,1.1fr)] xl:gap-x-8">
+                {/* Photo first on mobile (order-1) — the standard "see the
+                    product before reading about it" pattern; the info block
+                    below used to come first, pushing the actual photo past
+                    the title/rating/producer text on a phone. Desktop keeps
+                    its original side-by-side order (lg:order-1) since that
+                    layout doesn't have this stacking problem. */}
+                <div className="order-1 min-w-0 lg:order-1 lg:row-span-2">
+                  <div className="group/photo relative flex h-full min-h-[310px] flex-col overflow-hidden rounded-[22px] border border-white bg-white shadow-[0_18px_48px_rgba(15,23,42,0.09)] ring-1 ring-slate-200/70 sm:min-h-[410px] sm:rounded-[26px] lg:min-h-[520px]">
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(224,242,254,0.78),transparent_48%),linear-gradient(155deg,rgba(255,255,255,0)_55%,rgba(20,184,166,0.07))]" />
+                    <span className="pointer-events-none absolute -left-1/2 top-0 z-10 h-full w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/70 to-transparent transition-transform duration-1000 ease-out group-hover/photo:translate-x-[520%] motion-reduce:hidden" />
+                    <div className="relative flex min-h-[270px] flex-1 items-center justify-center p-3 sm:min-h-[350px] sm:p-6 lg:min-h-[430px]">
                       <ProductImageWithFallback
                         alt={`Фото товару ${product.name}`}
-                        width={640}
-                        height={640}
+                        width={720}
+                        height={720}
                         loading="eager"
                         decoding="async"
                         fetchPriority="high"
@@ -2325,6 +2298,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         hasKnownPhoto={productHasKnownPhoto}
                         preferCachedPreview
                         unoptimized
+                        syncWithProductGallery
                         className={heroProductImageClass}
                       />
                     </div>
@@ -2336,143 +2310,117 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </div>
                 </div>
 
-                <div className="group/info relative overflow-hidden order-2 flex h-full min-w-0 flex-col justify-center rounded-[22px] border border-white bg-white/88 p-4 shadow-[0_16px_38px_rgba(15,23,42,0.065)] ring-1 ring-slate-200/45 backdrop-blur-sm transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white/95 hover:shadow-[0_22px_46px_rgba(15,23,42,0.09)] sm:p-5">
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 -z-10 rounded-[22px] bg-[radial-gradient(circle_at_82%_-12%,rgba(56,189,248,0.22),transparent_52%),radial-gradient(circle_at_-4%_100%,rgba(45,212,191,0.16),transparent_48%),linear-gradient(160deg,rgba(224,242,254,0.6)_0%,rgba(240,253,250,0.35)_58%,rgba(255,255,255,0)_100%)] opacity-0 transition-opacity duration-500 ease-out group-hover/info:opacity-100"
-                  />
-                  <div className="relative flex flex-wrap items-center gap-1.5">
+                <div className="order-2 min-w-0 lg:order-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700">
+                      Деталь для автомобіля
+                    </span>
+                    <span className="h-1 w-1 rounded-full bg-slate-300" aria-hidden="true" />
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded-[13px] border px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.09em] shadow-[0_8px_18px_rgba(15,23,42,0.07)] ${
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold ${
                         isInStock
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-amber-200 bg-amber-50 text-amber-700"
+                          ? "bg-emerald-50 text-emerald-800"
+                          : "bg-amber-50 text-amber-800"
                       }`}
                     >
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          isInStock ? "bg-emerald-500" : "bg-amber-500"
-                        }`}
-                        aria-hidden="true"
-                      />
-                      {isInStock ? "В наявності" : "Під замовлення"}
+                      <CircleCheck size={13} aria-hidden="true" />
+                      {isInStock ? `В наявності${product.quantity > 0 ? ` · ${product.quantity} шт.` : ""}` : "Під замовлення"}
                     </span>
-                    {product.producer ? (
-                      <span className="inline-flex rounded-[13px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(248,250,252,0.96))] px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.09em] text-slate-600 shadow-[0_2px_4px_rgba(15,23,42,0.04),0_6px_14px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,1)]">
-                        {product.producer}
-                      </span>
-                    ) : null}
                   </div>
 
-                  <h1
-                    style={{ fontStyle: "normal" }}
-                    className="font-display mt-3 max-w-none break-words text-[clamp(1.35rem,2.15vw,2rem)] font-extrabold leading-[1.14] tracking-[-0.025em] text-slate-800 [overflow-wrap:anywhere] [text-wrap:pretty] xl:max-w-[38ch]"
-                  >
-                    {productHeadingText}
-                  </h1>
-                  <div className={productHeaderMetaGridClass}>
-                    <div className="rounded-[14px] border border-sky-200/80 bg-[linear-gradient(145deg,rgba(240,249,255,0.98),rgba(255,255,255,0.94))] px-3 py-2.5 shadow-[0_8px_18px_rgba(14,165,233,0.07)]">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-sky-700">
-                        {productIdentifierLabel}
-                      </p>
-                      <p className="mt-1 font-mono text-[13px] font-extrabold leading-5 tracking-normal text-slate-800 [overflow-wrap:anywhere]">
-                        {productIdentifierValue}
-                      </p>
-                      {productIdentifierHint ? (
-                        <p className="mt-0.5 text-[11px] font-medium leading-4 text-slate-500">
-                          {productIdentifierHint}
-                        </p>
-                      ) : null}
-                    </div>
+                  <div className="relative mt-3 border-l-[3px] border-sky-500 pl-3.5 sm:mt-4 sm:pl-4">
+                    <h1
+                      style={{ fontStyle: "normal" }}
+                      className="font-display max-w-[27ch] break-words text-[clamp(1.65rem,3.2vw,2.8rem)] font-extrabold leading-[1.06] tracking-[-0.042em] text-slate-950 [overflow-wrap:anywhere] [text-wrap:balance]"
+                    >
+                      {productHeadingText}
+                    </h1>
+                    <span className="mt-3 block h-1 w-20 rounded-full bg-[linear-gradient(90deg,#0ea5e9,#22d3ee,#14b8a6)]" aria-hidden="true" />
+                  </div>
 
-                    {productHeaderInfoItems.length > 0 ? (
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {productHeaderInfoItems.map((item) => (
-                          item.label === "Виробник" ? (
-                            producerLogoPath ? (
-                              <div
-                                key="producer-card"
-                                className="flex items-center justify-center overflow-hidden rounded-[14px] border border-slate-200/90 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(248,250,252,0.97),rgba(240,249,255,0.93))] shadow-[0_4px_12px_rgba(15,23,42,0.06)] transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_6px_16px_rgba(14,165,233,0.09)]"
-                              >
-                                {producerLandingPath ? (
-                                  <Link href={producerLandingPath} className="flex items-center justify-center px-3 py-2.5" title={product.producer}>
-                                    <Image
-                                      src={producerLogoPath}
-                                      alt={`Логотип виробника ${product.producer}`}
-                                      width={72}
-                                      height={38}
-                                      className="h-8 w-auto max-w-[72px] object-contain"
-                                      loading="lazy"
-                                    />
-                                  </Link>
-                                ) : (
-                                  <div className="flex items-center justify-center px-3 py-2.5">
-                                    <Image
-                                      src={producerLogoPath}
-                                      alt={`Логотип виробника ${product.producer}`}
-                                      width={72}
-                                      height={38}
-                                      className="h-8 w-auto max-w-[72px] object-contain"
-                                      loading="lazy"
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            ) : null
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] sm:mt-4 sm:text-[13px]">
+                    <a href="#product-reviews" className="inline-flex items-center gap-1.5 rounded-full text-slate-600 transition hover:text-sky-700">
+                      <Star size={16} className="fill-amber-400 text-amber-400" aria-hidden="true" />
+                      {reviewStats ? (
+                        <>
+                          <strong className="text-slate-900">{reviewStats.avgRating.toFixed(1)}</strong>
+                          <span>· {reviewStats.ratingCount} відгуків</span>
+                        </>
+                      ) : (
+                        <span>Залишити перший відгук</span>
+                      )}
+                    </a>
+                    <span className="h-4 w-px bg-slate-200" aria-hidden="true" />
+                    <span className="text-slate-500">
+                      {productIdentifierLabel}: <strong className="font-mono text-slate-800">{productIdentifierValue}</strong>
+                    </span>
+                    {productIdentifierHint ? <span className="text-slate-500">{productIdentifierHint}</span> : null}
+                  </div>
+
+                  <div className="mt-4 grid overflow-hidden rounded-[18px] border border-slate-200/80 bg-white/80 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:grid-cols-2">
+                    {product.producer ? (
+                      <div className="flex min-h-[72px] items-center gap-3 border-b border-slate-200/80 px-3.5 py-3 sm:border-b-0 sm:border-r">
+                        {producerLogoPath ? (
+                          <div className="grid h-11 w-16 shrink-0 place-items-center rounded-xl border border-slate-100 bg-white p-1.5 shadow-sm">
+                            <Image
+                              src={producerLogoPath}
+                              alt={`Логотип виробника ${product.producer}`}
+                              width={64}
+                              height={36}
+                              className="h-8 w-full object-contain"
+                              loading="lazy"
+                            />
+                          </div>
+                        ) : (
+                          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
+                            <BadgeCheck size={21} aria-hidden="true" />
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">Виробник</p>
+                          {producerLandingPath ? (
+                            <Link href={producerLandingPath} className="mt-1 block truncate text-[13px] font-extrabold text-slate-900 transition hover:text-sky-700">{product.producer}</Link>
                           ) : (
-                            <div
-                              key={item.label}
-                              className="rounded-[14px] border border-slate-200 bg-white/95 px-3 py-2.5 shadow-[0_4px_10px_rgba(15,23,42,0.05)] transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-200 hover:bg-sky-50/40 hover:shadow-[0_8px_18px_rgba(14,165,233,0.08)]"
-                            >
-                              <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500">
-                                {item.label}
-                              </p>
-                              {item.href ? (
-                                <Link
-                                  href={item.href}
-                                  className="mt-1 block text-[13px] font-bold leading-5 text-slate-900 transition hover:text-sky-700 [overflow-wrap:anywhere]"
-                                >
-                                  {item.value}
-                                </Link>
-                              ) : (
-                                <p className="mt-1 text-[13px] font-bold leading-5 text-slate-900 [overflow-wrap:anywhere]">
-                                  {item.value}
-                                </p>
-                              )}
-                            </div>
-                          )
-                        ))}
+                            <p className="mt-1 truncate text-[13px] font-extrabold text-slate-900">{product.producer}</p>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                    {visibleProductSubgroup || visibleProductGroup ? (
+                      <div className={`flex min-h-[72px] items-center gap-3 px-3.5 py-3 ${!product.producer ? "sm:col-span-2" : ""}`}>
+                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700">
+                          <PackageSearch size={21} aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">Категорія</p>
+                          <Link href={categoryLandingHref} className="mt-1 block truncate text-[13px] font-extrabold text-slate-900 transition hover:text-sky-700">
+                            {visibleProductSubgroup || visibleProductGroup}
+                          </Link>
+                        </div>
                       </div>
                     ) : null}
                   </div>
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {productHeroHighlights.map((item) => (
-                      <span
-                        key={item}
-                        className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/90 px-2.5 py-1 text-[10px] font-bold tracking-normal text-slate-600 shadow-[0_5px_12px_rgba(15,23,42,0.045)] transition hover:border-sky-200 hover:text-sky-700"
-                      >
-                        <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-br from-sky-400 to-teal-400" aria-hidden="true" />
-                        {item}
+                </div>
+
+                <div className="order-3 min-w-0 lg:order-3">
+                  <ProductPurchasePanelClient
+                    lookupKeys={lookupKeys}
+                    isModalView={isModalView}
+                    initialPriceUah={initialPriceUah}
+                    initialCostPriceUah={initialCostPriceUah}
+                    hasKnownNoPrice={product.priceEuro === null}
+                    resolvedCode={resolvedCode}
+                    product={product}
+                    isInStock={isInStock}
+                  />
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[15px] border border-white bg-white/65 px-3.5 py-3 text-[10px] font-bold text-slate-600 shadow-[0_8px_20px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
+                    {productHeroHighlights.map(({ label, icon: HighlightIcon }) => (
+                      <span key={label} className="inline-flex items-center gap-1.5">
+                        <HighlightIcon size={14} className="text-sky-700" aria-hidden="true" />
+                        {label}
                       </span>
                     ))}
-                  </div>
-                </div>
-                <div className="order-3 min-w-0 self-stretch">
-                  <div className="group/price relative overflow-hidden h-full rounded-[24px] border border-white bg-white/80 p-1.5 shadow-[0_18px_44px_rgba(15,23,42,0.09)] ring-1 ring-sky-100/70 backdrop-blur-sm transition-[box-shadow,border-color,background-color] duration-300 hover:border-sky-100 hover:bg-white/95 hover:shadow-[0_24px_52px_rgba(15,23,42,0.12)]">
-                    <span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 -z-10 rounded-[24px] bg-[radial-gradient(circle_at_50%_-14%,rgba(56,189,248,0.26),transparent_54%),radial-gradient(circle_at_100%_100%,rgba(45,212,191,0.2),transparent_50%),linear-gradient(160deg,rgba(224,242,254,0.65)_0%,rgba(240,253,250,0.4)_55%,rgba(255,255,255,0)_100%)] opacity-0 transition-opacity duration-500 ease-out group-hover/price:opacity-100"
-                    />
-                    <ProductPurchasePanelClient
-                      lookupKeys={lookupKeys}
-                      isModalView={isModalView}
-                      initialPriceUah={initialPriceUah}
-                      initialCostPriceUah={initialCostPriceUah}
-                      hasKnownNoPrice={product.priceEuro === null}
-                      resolvedCode={resolvedCode}
-                      product={product}
-                      isInStock={isInStock}
-                    />
                   </div>
                 </div>
               </div>
@@ -2493,51 +2441,29 @@ export default async function ProductPage({ params }: ProductPageProps) {
             description={product.description || ""}
           />
 
-          {producerDescription && product.producer ? (
-            <div className="border-b border-slate-100/80 px-3 py-3 sm:px-4 sm:py-3.5">
-              <div className="flex items-start gap-3 rounded-[18px] border border-slate-200/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(248,250,252,0.94))] px-3.5 py-3 shadow-[0_2px_8px_rgba(15,23,42,0.04),0_6px_18px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)] sm:px-4 sm:py-3.5">
-                {producerLogoPath ? (
-                  <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[9px] border border-slate-200/70 bg-white shadow-[0_2px_6px_rgba(15,23,42,0.07)]">
-                    <Image
-                      src={producerLogoPath}
-                      alt={`Логотип виробника ${product.producer}`}
-                      width={48}
-                      height={30}
-                      className="h-6 w-8 object-contain"
-                    />
-                  </div>
-                ) : null}
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
-                      Про виробника
-                    </p>
-                    {producerLandingPath ? (
-                      <Link
-                        href={producerLandingPath}
-                        className="text-[10px] font-semibold text-sky-600 transition hover:text-sky-800 hover:underline"
-                      >
-                        {product.producer}
-                      </Link>
-                    ) : (
-                      <span className="text-[10px] font-semibold text-slate-600">{product.producer}</span>
-                    )}
-                  </div>
-                  <p className="mt-1 text-[12.5px] leading-[1.55] text-slate-600 [overflow-wrap:anywhere]">
-                    {producerDescription
-                      .replace(
-                        new RegExp(`^\\s*${(product.producer || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[-–—]?\\s*`, "i"),
-                        ""
-                      )
-                      .trim()}
-                  </p>
-                </div>
+          {!isModalView ? (
+            <nav aria-label="Розділи сторінки товару" className="border-b border-slate-200/80 bg-white px-3 py-2.5 sm:px-5 lg:px-7">
+              <div className="mx-auto flex max-w-[1280px] items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {[
+                  { href: "#product-description", label: "Опис і характеристики" },
+                  { href: "#product-alternatives", label: "Аналоги" },
+                  { href: "#product-reviews", label: "Відгуки" },
+                ].map((item, index) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[11px] font-extrabold transition sm:px-3.5 sm:text-[12px] ${index === 0 ? "bg-slate-950 text-white shadow-[0_8px_18px_rgba(15,23,42,0.16)]" : "border border-slate-200 bg-slate-50 text-slate-600 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"}`}
+                  >
+                    {item.label}
+                    <ChevronRight size={13} aria-hidden="true" />
+                  </a>
+                ))}
               </div>
-            </div>
+            </nav>
           ) : null}
 
           <div className={contentGridClass}>
-            <section className="space-y-2.5">
+            <section id="product-description" className="scroll-mt-24 space-y-3">
               <div className="grid gap-2.5">
                 <ProductDescriptionClientCard
                   initialText={product.description || null}
@@ -2548,8 +2474,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   fitmentText={productFitmentText}
                   contactPhone={STORE_PHONE_DISPLAY}
                   contactAddress={STORE_ADDRESS}
-                  productName={visibleProductName || undefined}
-                  seoDetails={productSeoDetails}
                   chatButton={
                     <OpenChatButton
                       message={chatPrefillMessage}
@@ -2558,51 +2482,21 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     />
                   }
                 />
-                {(categoryHierarchyParts.length > 0 || Boolean(visibleProductGroup)) && (
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-2 rounded-[14px] border border-slate-100 bg-white/80 px-3 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-                    <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.1em] text-sky-700">
-                      Розділ:
-                    </span>
-                    <nav aria-label="Шлях до категорії" className="flex flex-wrap items-center gap-1.5">
-                      {[
-                        topCategoryPath
-                          ? { label: buildVisibleProductName(productCategory), href: topCategoryPath }
-                          : null,
-                        groupLandingPath && productGroup
-                          ? { label: visibleProductGroup, href: groupLandingPath }
-                          : null,
-                        productSubgroup &&
-                        productSubgroup.toLowerCase() !== productGroup.toLowerCase()
-                          ? { label: visibleProductSubgroup, href: categoryLandingHref }
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .map((item, index) => (
-                          <span key={(item as { href: string }).href} className="inline-flex items-center gap-1.5">
-                            {index > 0 && (
-                              <span className="text-slate-300" aria-hidden="true">›</span>
-                            )}
-                            <Link
-                              href={(item as { href: string; label: string }).href}
-                              className="inline-flex items-center rounded-[9px] border border-slate-200 bg-[linear-gradient(180deg,#f8fafc,#ffffff)] px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-                            >
-                              {(item as { href: string; label: string }).label}
-                            </Link>
-                          </span>
-                        ))}
-                    </nav>
-                    <Link
-                      href={categoryCatalogPath}
-                      className="ml-auto text-[10px] font-semibold text-sky-600 transition hover:text-sky-800 hover:underline"
-                    >
-                      Усі товари →
-                    </Link>
-                  </div>
-                )}
               </div>
 
               {!isModalView && (
-                <>
+                <ProductFaqSection
+                  name={visibleProductName}
+                  producer={product.producer}
+                  group={productGroup}
+                  subGroup={productSubgroup}
+                  hasPrice={initialPriceUah != null}
+                  quantity={product.quantity}
+                />
+              )}
+
+              {!isModalView && (
+                <div id="product-alternatives" className="scroll-mt-24 space-y-3">
                   <Suspense fallback={<ProductRelatedItemsFallback />}>
                     <ProductRelatedItemsSection
                       product={{
@@ -2632,52 +2526,20 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     }}
                     euroRate={recommendationEuroRate}
                   />
-                </>
+                </div>
               )}
             </section>
           </div>
 
           {!isModalView && resolvedCode && (
-            <ProductReviewsSection
-              productCode={resolvedCode}
-              initialReviews={initialReviews}
-            />
+            <div id="product-reviews" className="scroll-mt-24">
+              <ProductReviewsSection
+                productCode={resolvedCode}
+                initialReviews={initialReviews}
+              />
+            </div>
           )}
 
-          {!isModalView && (
-            <section className="border-t border-slate-100/80 bg-[linear-gradient(180deg,rgba(226,232,240,0.28),rgba(255,255,255,0.92))] px-3 py-3 sm:px-4 sm:py-3.5">
-              <div className="overflow-hidden rounded-[20px] border border-slate-900/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,244,248,0.96))] shadow-[0_16px_36px_rgba(2,6,23,0.09)]">
-                <div className="border-b border-slate-900/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(8,47,73,0.9))] px-4 py-3 sm:px-5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-300">
-                    Сумісність та характеристики
-                  </p>
-                  <h2
-                    style={{ fontStyle: "normal" }}
-                    className="font-display mt-0.5 text-[1rem] font-extrabold leading-[1.2] tracking-[-0.01em] text-white sm:text-[1.1rem]"
-                  >
-                    {visibleProductName
-                      ? `Характеристики: ${visibleProductName.length > 52 ? `${visibleProductName.slice(0, 52).trimEnd()}…` : visibleProductName}`
-                      : "Що важливо знати про цей товар"}
-                  </h2>
-                </div>
-                <div className="grid gap-2.5 px-3 py-3 sm:px-4 sm:py-3.5 lg:grid-cols-3">
-                  {faqItems.map((item) => (
-                    <div
-                      key={item.question}
-                      className="rounded-[16px] border border-slate-900/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(236,243,248,0.96))] px-3.5 py-3 shadow-[0_8px_18px_rgba(2,6,23,0.05)] transition-[border-color,box-shadow,background-color] duration-200 hover:border-sky-200 hover:bg-sky-50/35 hover:shadow-[0_12px_24px_rgba(14,165,233,0.09)]"
-                    >
-                      <h3 className="text-[13.5px] font-bold leading-5 text-slate-950 not-italic">
-                        {item.question}
-                      </h3>
-                      <p className="mt-1.5 text-[13px] font-medium leading-[1.55] text-slate-600">
-                        {item.answer}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-          )}
         </article>
       </div>
 
@@ -2695,7 +2557,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
-      {!isModalView && (
+      {faqJsonLd && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: safeJsonLd(faqJsonLd) }}

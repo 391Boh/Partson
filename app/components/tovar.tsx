@@ -7,7 +7,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { ProductNode } from "./FlipCard";
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import { useSectionReveal } from "app/lib/use-section-reveal";
-import { ArrowLeft, Search, LayoutGrid, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Search, LayoutGrid, X, ChevronRight } from "lucide-react";
 import {
   fetchCatalogVersionHash,
   readCatalogBrowserCache,
@@ -19,6 +19,7 @@ import { safeSetStorageItem } from "app/lib/safe-storage";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { transliterateLatinToUkrainian, stripSoftSign, fixLayoutEnglishToUkrainian } from "app/lib/transliterate";
 import GroupPreviewImage, { loadGroupPreview } from "app/components/GroupPreviewImage";
+import SectionPagination from "./SectionPagination";
 import TovarPartsBackdrop from "app/components/TovarPartsBackdrop";
 
 interface CategoryRow {
@@ -1126,12 +1127,15 @@ const ProductFetcher: React.FC<Props> = ({
 
               <span className="reveal-bar mt-4 block h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#0369a1_0%,#0ea5e9_28%,#e0f2fe_48%,#67e8f9_68%,transparent_100%)] shadow-[0_1px_2px_rgba(3,105,161,0.18)]" />
 
-              {/* lead */}
-              <p className="mt-4 max-w-[48ch] text-[15px] font-medium leading-[1.72] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
-                Весь каталог розкладено за{" "}
-                <span className="font-semibold text-slate-800">категоріями та групами</span>{" "}
-                — оберіть напрям поруч або знайдіть деталь через{" "}
-                <span className="font-semibold text-sky-700">пошук</span>.
+              {/* lead — concrete category examples read as more informative
+                  than "categories and groups" while staying just as short;
+                  points at the cards below by content ("оберіть категорію"),
+                  not by screen position ("поруч" — meaningless once this
+                  card and the grid stack on mobile). */}
+              <p className="mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
+                Деталі згруповано за{" "}
+                <span className="font-semibold text-slate-800">категоріями</span> — від гальм і ходової до електрики та кузова. Оберіть категорію або скористайтеся{" "}
+                <span className="font-semibold text-sky-700">пошуком</span>.
               </p>
 
               {/* search — the primary action. Same collapse-to-button
@@ -1581,29 +1585,16 @@ const ProductFetcher: React.FC<Props> = ({
                   {browseTrail.length > 0 ? "Назад" : "Категорії"}
                 </button>
                 {totalPages > 1 ? (
-                  <div className="col-start-2 inline-flex items-center gap-1.5 justify-self-center whitespace-nowrap text-[11px] font-bold tabular-nums sm:gap-2 sm:text-xs">
-                    <button
-                      type="button"
-                      onClick={prevPage}
-                      disabled={page <= 1}
-                      aria-label="Попередня сторінка"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200/80 bg-white/70 text-sky-700 shadow-[0_4px_12px_rgba(3,105,161,0.10)] transition-colors duration-200 hover:border-cyan-300 hover:text-cyan-700 disabled:pointer-events-none disabled:opacity-35"
-                    >
-                      <ChevronLeft size={14} strokeWidth={2.8} />
-                    </button>
-                    <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
-                    <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(3,105,161,0.11)]">{page}</span>
-                    <span className="font-semibold text-cyan-500">/</span>
-                    <span className="font-extrabold text-slate-500">{totalPages}</span>
-                    <button
-                      type="button"
-                      onClick={nextPage}
-                      disabled={page >= totalPages}
-                      aria-label="Наступна сторінка"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200/80 bg-white/70 text-sky-700 shadow-[0_4px_12px_rgba(3,105,161,0.10)] transition-colors duration-200 hover:border-cyan-300 hover:text-cyan-700 disabled:pointer-events-none disabled:opacity-35"
-                    >
-                      <ChevronRight size={14} strokeWidth={2.8} />
-                    </button>
+                  <div className="col-start-2 justify-self-center">
+                    <SectionPagination
+                      page={page}
+                      totalPages={totalPages}
+                      onPrev={prevPage}
+                      onNext={nextPage}
+                      canGoPrev={page > 1}
+                      canGoNext={page < totalPages}
+                      tone="sky"
+                    />
                   </div>
                 ) : null}
                 <div className="col-start-3 min-w-0 justify-self-end text-right">
@@ -1630,29 +1621,16 @@ const ProductFetcher: React.FC<Props> = ({
                   </h3>
                 </div>
                 {totalPages > 1 ? (
-                  <div className="shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-bold tabular-nums sm:gap-2 sm:text-xs">
-                    <button
-                      type="button"
-                      onClick={prevPage}
-                      disabled={page <= 1}
-                      aria-label="Попередня сторінка"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200/80 bg-white/70 text-sky-700 shadow-[0_4px_12px_rgba(3,105,161,0.10)] transition-colors duration-200 hover:border-cyan-300 hover:text-cyan-700 disabled:pointer-events-none disabled:opacity-35"
-                    >
-                      <ChevronLeft size={14} strokeWidth={2.8} />
-                    </button>
-                    <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
-                    <span className="text-[15px] font-black text-sky-800 drop-shadow-[0_2px_4px_rgba(3,105,161,0.11)]">{page}</span>
-                    <span className="font-semibold text-cyan-500">/</span>
-                    <span className="font-extrabold text-slate-500">{totalPages}</span>
-                    <button
-                      type="button"
-                      onClick={nextPage}
-                      disabled={page >= totalPages}
-                      aria-label="Наступна сторінка"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200/80 bg-white/70 text-sky-700 shadow-[0_4px_12px_rgba(3,105,161,0.10)] transition-colors duration-200 hover:border-cyan-300 hover:text-cyan-700 disabled:pointer-events-none disabled:opacity-35"
-                    >
-                      <ChevronRight size={14} strokeWidth={2.8} />
-                    </button>
+                  <div className="shrink-0">
+                    <SectionPagination
+                      page={page}
+                      totalPages={totalPages}
+                      onPrev={prevPage}
+                      onNext={nextPage}
+                      canGoPrev={page > 1}
+                      canGoNext={page < totalPages}
+                      tone="sky"
+                    />
                   </div>
                 ) : null}
               </div>

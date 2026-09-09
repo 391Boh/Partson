@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CreditCard, Headphones, Truck } from "lucide-react";
 
 import ProductPageActions from "app/components/ProductPageActions";
 import ProductViewTracking from "app/components/ProductViewTracking";
+import { registerParallax } from "app/lib/parallax-controller";
 
 type ProductPurchasePanelClientProps = {
   lookupKeys: string[];
@@ -302,37 +304,63 @@ export default function ProductPurchasePanelClient(
   const isLoading = priceUah === undefined;
   const hasPrice = typeof priceUah === "number" && Number.isFinite(priceUah) && priceUah > 0;
   const helperText = isLoading
-    ? "Уточнюємо актуальну ціну. Запит менеджеру вже доступний."
+    ? "Перевіряємо актуальну ціну — це зазвичай займає кілька секунд."
     : hasPrice
-      ? "Замовлення доступне одразу зі сторінки."
-      : "Надішліть запит менеджеру для уточнення ціни.";
-  const statusCardClass = isInStock
-    ? "rounded-[17px] border border-emerald-200/90 bg-[linear-gradient(145deg,#ecfdf5,#f8fffc)] px-3 py-3 shadow-[0_12px_26px_rgba(16,185,129,0.09)]"
-    : "rounded-[17px] border border-amber-200/90 bg-[linear-gradient(145deg,#fffbeb,#fffdf7)] px-3 py-3 shadow-[0_12px_26px_rgba(245,158,11,0.09)]";
-  const statusLabelClass = isInStock ? "text-emerald-700" : "text-amber-700";
-  const statusValueClass = isInStock ? "text-emerald-950" : "text-amber-950";
-  const priceCardClass = isLoading
-    ? "rounded-[17px] border border-sky-200 bg-[linear-gradient(145deg,#f0f9ff,#ffffff)] px-3 py-3 shadow-[0_12px_26px_rgba(14,165,233,0.09)]"
-    : hasPrice
-      ? "rounded-[17px] border border-cyan-200 bg-[linear-gradient(145deg,#ecfeff,#ffffff)] px-3 py-3 shadow-[0_12px_26px_rgba(6,182,212,0.09)]"
-      : "rounded-[17px] border border-rose-200 bg-[linear-gradient(145deg,#fff1f2,#ffffff)] px-3 py-3 shadow-[0_12px_26px_rgba(244,63,94,0.08)]";
-  const priceLabelClass = isLoading
-    ? "text-sky-700"
-    : hasPrice
-      ? "text-cyan-700"
-      : "text-rose-700";
-  const priceValueClass = isLoading
-    ? "text-sky-950"
-    : hasPrice
-      ? "text-cyan-950"
-      : "text-rose-950";
-  const panelIndicatorClass = isInStock
-    ? "bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.14)]"
-    : "bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.14)]";
+      ? "Ціна актуальна. Після оформлення менеджер підтвердить замовлення."
+      : "Залиште запит — менеджер швидко уточнить ціну та строк постачання.";
+
+  const panelRef = useRef<HTMLDivElement>(null);
+  const glowTopRef = useRef<HTMLSpanElement>(null);
+  const glowBottomRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    const glowTop = glowTopRef.current;
+    const glowBottom = glowBottomRef.current;
+    if (!panel || !glowTop || !glowBottom) return;
+
+    const handle = registerParallax({
+      el: panel,
+      compute: (scrollY, viewportH, top, height) => {
+        const progress = (scrollY + viewportH - top) / (viewportH + height);
+        return Math.min(Math.max(progress, 0), 1);
+      },
+      apply: (progress) => {
+        const shift = (progress - 0.5) * 24;
+        glowTop.style.transform = `translate3d(0, ${shift.toFixed(2)}px, 0)`;
+        glowBottom.style.transform = `translate3d(0, ${(-shift).toFixed(2)}px, 0)`;
+      },
+    });
+
+    return () => handle.release();
+  }, []);
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-[22px] border border-slate-200/80 bg-[radial-gradient(circle_at_100%_0%,rgba(56,189,248,0.10),transparent_34%),linear-gradient(160deg,rgba(255,255,255,0.99),rgba(248,250,252,0.97))] p-3.5 text-slate-900 shadow-[0_18px_40px_rgba(15,23,42,0.075)] sm:p-4">
-      <span className="pointer-events-none absolute inset-x-7 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/70 to-transparent" />
+    <div
+      ref={panelRef}
+      className="relative overflow-hidden rounded-[22px] border border-sky-200/70 bg-[linear-gradient(155deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.92)_46%,rgba(236,254,255,0.88)_100%)] text-slate-900 shadow-[0_22px_52px_-18px_rgba(14,116,144,0.26),inset_0_1px_0_rgba(255,255,255,0.9)] sm:rounded-[24px]"
+    >
+      {/* Subtle dot-grid texture — this panel is the page's actual "Offer"
+          (schema.org sense: price + buy action), so it gets its own,
+          slightly more tactile/premium treatment than the plain glows used
+          elsewhere on the page, instead of just another soft blur. Faint
+          enough to read as texture, not pattern, behind the price/CTA. */}
+      <span
+        className="pointer-events-none absolute inset-0 opacity-[0.05]"
+        style={{
+          backgroundImage: "radial-gradient(circle, #0369a1 1px, transparent 1.6px)",
+          backgroundSize: "16px 16px",
+        }}
+        aria-hidden="true"
+      />
+      {/* Soft glow anchored behind the price — same language as the other
+          homepage/product cards' heading glows, tinted to this panel's own
+          sky/teal accent. The two glows drift in opposite directions on
+          scroll (registered below) — a layered, multi-plane parallax
+          instead of a single flat drift. */}
+      <span ref={glowTopRef} className="pointer-events-none absolute -left-10 -top-10 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(14,165,233,0.22),transparent_70%)] blur-2xl will-change-transform" aria-hidden="true" />
+      <span ref={glowBottomRef} className="pointer-events-none absolute -right-10 bottom-0 h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(20,184,166,0.18),transparent_70%)] blur-2xl will-change-transform" aria-hidden="true" />
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,#0ea5e9,#22d3ee_50%,#14b8a6)]" />
       <ProductViewTracking
         item_id={product.code || resolvedCode}
         item_name={product.name}
@@ -343,76 +371,83 @@ export default function ProductPurchasePanelClient(
         item_variant={product.article || undefined}
         price={priceUah}
       />
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-sky-700">
-            Готові замовити?
-          </p>
-          <p className="mt-0.5 text-[12.5px] font-medium leading-5 text-slate-600">
-            Ціна та наявність
-          </p>
-        </div>
-        <span className={`h-2.5 w-2.5 rounded-full ${panelIndicatorClass}`} />
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className={statusCardClass}>
-          <p className={`text-[10px] font-bold uppercase tracking-[0.08em] ${statusLabelClass}`}>
-            Статус
-          </p>
-          <p className={`mt-1 text-[13.5px] font-bold leading-5 ${statusValueClass} sm:text-[14px]`}>
-            {isInStock
-              ? `В наявності${product.quantity > 0 ? ` · ${product.quantity} шт.` : ""}`
-              : "Під замовлення"}
-          </p>
-        </div>
-        <div className={showCostPrice && hasCostPrice
-          ? "rounded-[16px] border border-amber-200 bg-amber-50 px-3 py-2.5 shadow-[0_12px_24px_rgba(245,158,11,0.08)]"
-          : priceCardClass}>
-          <div className="flex items-center justify-between gap-1">
-            <p className={`text-[10px] font-bold uppercase tracking-[0.08em] ${showCostPrice && hasCostPrice ? "text-amber-700" : priceLabelClass}`}>
-              {showCostPrice && hasCostPrice ? "Закуп" : "Ціна"}
-            </p>
-            {hasCostPrice && (
-              <div className="flex rounded-[7px] border border-slate-200 bg-slate-100/60 p-[2px] gap-[2px]">
+      <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(190px,0.72fr)_minmax(290px,1.28fr)] xl:items-center xl:gap-6">
+        <div className="min-w-0">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700">
+              Ціна товару
+            </h3>
+            {hasCostPrice ? (
+              <div className="flex rounded-[8px] border border-slate-200 bg-slate-100 p-[2px]">
                 <button
                   type="button"
                   onClick={() => setShowCostPrice(false)}
-                  className={`rounded-[5px] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.06em] transition-all leading-none ${!showCostPrice ? "bg-white text-blue-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
-                >Прод</button>
+                  className={`rounded-[6px] px-2 py-1 text-[8px] font-black uppercase tracking-[0.06em] transition ${!showCostPrice ? "bg-white text-sky-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                >Продаж</button>
                 <button
                   type="button"
                   onClick={() => setShowCostPrice(true)}
-                  className={`rounded-[5px] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.06em] transition-all leading-none ${showCostPrice ? "bg-white text-amber-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                  className={`rounded-[6px] px-2 py-1 text-[8px] font-black uppercase tracking-[0.06em] transition ${showCostPrice ? "bg-white text-amber-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
                 >Закуп</button>
               </div>
-            )}
+            ) : null}
           </div>
-          <p className={`mt-1 text-[14.5px] font-extrabold leading-5 sm:text-[15px] ${showCostPrice && hasCostPrice ? "text-amber-950" : priceValueClass}`}>
-            {showCostPrice && hasCostPrice
-              ? `${initialCostPriceUah!.toLocaleString("uk-UA")} грн`
-              : isLoading ? "Завантажуємо" : formatPriceUah(priceUah ?? null)}
-          </p>
+
+          {isLoading && !showCostPrice ? (
+            <div className="mt-2 h-10 w-44 animate-pulse rounded-xl bg-slate-100" role="status" aria-label="Завантажуємо ціну" />
+          ) : (
+            <p className={`mt-1.5 break-words text-[clamp(1.75rem,4vw,2.35rem)] font-black leading-none tracking-[-0.035em] ${showCostPrice && hasCostPrice ? "text-amber-700" : hasPrice ? "text-slate-950" : "text-slate-800"}`}>
+              {showCostPrice && hasCostPrice
+                ? `${initialCostPriceUah!.toLocaleString("uk-UA")} грн`
+                : formatPriceUah(priceUah ?? null)}
+            </p>
+          )}
+
+          <div className={`mt-3 inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-[10px] font-extrabold ${isInStock ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
+            <Truck size={14} aria-hidden="true" />
+            {isInStock
+              ? "Відправимо після підтвердження"
+              : "Уточнимо термін постачання"}
+          </div>
+        </div>
+
+        <div className="min-w-0 xl:border-l xl:border-slate-200 xl:pl-6">
+          <p className="mb-3 text-[12px] font-medium leading-5 text-slate-500">{helperText}</p>
+          <ProductPageActions
+            code={product.code || resolvedCode}
+            article={product.article}
+            name={product.name}
+            producer={product.producer}
+            category={product.category || undefined}
+            group={product.group || undefined}
+            subGroup={product.subGroup || undefined}
+            priceUah={priceUah ?? null}
+            quantity={product.quantity}
+            compact
+            prominent
+          />
         </div>
       </div>
 
-      <p className="mt-3 rounded-[16px] border border-slate-200/80 bg-white/75 px-3 py-2.5 text-[12.5px] font-medium leading-5 text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
-        {helperText}
-      </p>
-
-      <div className="mt-auto flex items-center gap-2 pt-3">
-        <ProductPageActions
-          code={product.code || resolvedCode}
-          article={product.article}
-          name={product.name}
-          producer={product.producer}
-          category={product.category || undefined}
-          group={product.group || undefined}
-          subGroup={product.subGroup || undefined}
-          priceUah={priceUah ?? null}
-          quantity={product.quantity}
-          compact
-        />
+      <div className="grid border-t border-slate-200/80 bg-slate-50/80 sm:grid-cols-2">
+        <div className="flex items-center gap-3 border-b border-slate-200/80 px-4 py-3 sm:border-b-0 sm:border-r sm:px-5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/70">
+            <CreditCard size={17} aria-hidden="true" />
+          </span>
+          <span>
+            <span className="block text-[11px] font-extrabold text-slate-800">Зручна оплата</span>
+            <span className="block text-[10px] font-medium text-slate-500">Онлайн, карткою або готівкою</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-3 px-4 py-3 sm:px-5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-sky-700 shadow-sm ring-1 ring-slate-200/70">
+            <Headphones size={17} aria-hidden="true" />
+          </span>
+          <span>
+            <span className="block text-[11px] font-extrabold text-slate-800">Підтвердження менеджером</span>
+            <span className="block text-[10px] font-medium text-slate-500">Перевіримо деталі замовлення</span>
+          </span>
+        </div>
       </div>
     </div>
   );

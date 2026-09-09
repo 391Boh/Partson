@@ -77,10 +77,14 @@ export default function DeferredSeoPhotosBackdrop() {
   );
 }
 
-/** Google Maps is substantially heavier than the surrounding store card.
- * Mount it only near the viewport and only once native scrolling is idle. */
+/** Google Maps is substantially heavier than the surrounding store card —
+ * its own embed pulls in a real amount of JS once it starts. 450px wasn't
+ * enough head start; by the time a normal scroll speed reached it, the
+ * iframe had barely begun loading, reading as "the map is slow" even though
+ * nothing here can speed up Google's own bundle — only how early it starts.
+ * 900px matches SeoPhotosBackdrop's own margin for the same reason. */
 export function DeferredStoreMap({ src, title }: { src: string; title: string }) {
-  const { ref, ready } = useDeferredNearViewport<HTMLDivElement>("450px 0px");
+  const { ref, ready } = useDeferredNearViewport<HTMLDivElement>("900px 0px");
 
   return (
     <div ref={ref} className="absolute inset-0">

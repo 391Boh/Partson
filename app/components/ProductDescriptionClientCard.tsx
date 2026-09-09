@@ -1,16 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
-import { Check, MapPin, Phone } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MapPin, Phone } from "lucide-react";
 
-// seoDetails items are server-built as "Label: rest of the sentence." (see
-// productSeoDetails in app/product/[code]/page.tsx) — bolding the label
-// when that shape holds gives each bullet a scannable lead-in instead of a
-// flat wall of same-weight text. Capped label length + requiring the rest
-// to be non-empty guards against a stray mid-sentence colon (e.g. a time
-// "10:00") being mistaken for one.
-const SEO_DETAIL_LABEL_PATTERN = /^([^:]{2,42}):\s+(\S.*)$/s;
+import { registerParallax } from "app/lib/parallax-controller";
 
 type ProductDescriptionClientCardProps = {
   initialText?: string | null;
@@ -22,11 +16,6 @@ type ProductDescriptionClientCardProps = {
   fitmentText?: string;
   contactPhone?: string;
   contactAddress?: string;
-  productName?: string;
-  seoDetails?: {
-    title: string;
-    items: string[];
-  };
 };
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
@@ -47,8 +36,6 @@ export default function ProductDescriptionClientCard({
   fitmentText = "",
   contactPhone = "",
   contactAddress = "",
-  productName,
-  seoDetails,
 }: ProductDescriptionClientCardProps) {
   const normalizedInitialText =
     typeof initialText === "string" && initialText.trim() ? initialText.trim() : null;
@@ -100,9 +87,6 @@ export default function ProductDescriptionClientCard({
 
   useEffect(() => {
     if (!enableClientLookup || !requestUrl) return;
-    // The server already supplied the canonical 1C description. Avoid a
-    // duplicate client request and keep the rendered text stable.
-    if (normalizedInitialText) return;
 
     const readCachedDescription = () => {
       if (typeof window === "undefined" || !cacheKey) return null;
@@ -155,11 +139,16 @@ export default function ProductDescriptionClientCard({
       }
     };
 
-    const cachedDescription = readCachedDescription();
-    if (cachedDescription) {
-      setDescriptionText(cachedDescription);
-      setDescriptionStatus("ready");
-      return;
+    // Skip the client-cache shortcut when the server already rendered a
+    // description — we want this pass to check against live 1C data, not
+    // hand back a possibly-equally-stale cached copy instead.
+    if (!normalizedInitialText) {
+      const cachedDescription = readCachedDescription();
+      if (cachedDescription) {
+        setDescriptionText(cachedDescription);
+        setDescriptionStatus("ready");
+        return;
+      }
     }
 
     let cancelled = false;
@@ -210,13 +199,21 @@ export default function ProductDescriptionClientCard({
 
         if (nextDescription) {
           writeCachedDescription(nextDescription);
-          setDescriptionText(nextDescription);
+          // Only swap the on-screen text if the live 1C value actually
+          // differs — keeps this a silent correction instead of a visible
+          // flicker when the server-rendered text was already current.
+          setDescriptionText((current) =>
+            current === nextDescription ? current : nextDescription
+          );
           setDescriptionStatus("ready");
-        } else {
+        } else if (!normalizedInitialText) {
           setDescriptionStatus("missing");
         }
+        // Empty result with server text already on screen: a transient 1C
+        // hiccup here shouldn't blank out text we already know is real —
+        // leave the server-rendered description showing.
       } catch {
-        if (!cancelled) {
+        if (!cancelled && !normalizedInitialText) {
           setDescriptionStatus("missing");
         }
       }
@@ -229,7 +226,12 @@ export default function ProductDescriptionClientCard({
       }
 
       // Starting the network request shortly after hydration makes missing
-      // catalog content arrive sooner without competing with the first paint.
+      // catalog content arrive sooner without competing with the first
+      // paint. When server text already exists this is a quiet background
+      // revalidation — previously skipped entirely, which meant an ISR
+      // page render (revalidate: 3600) that captured a stale or wrong 1C
+      // description could show it for up to an hour with no way to
+      // self-correct.
       loadTimerId = window.setTimeout(() => void loadDescription(), 80);
     };
 
@@ -253,19 +255,47 @@ export default function ProductDescriptionClientCard({
     [descriptionText]
   );
 
+  const sectionRef = useRef<HTMLElement>(null);
+  const glowRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    const glow = glowRef.current;
+    if (!section || !glow) return;
+
+    const handle = registerParallax({
+      el: section,
+      compute: (scrollY, viewportH, top, height) => {
+        const progress = (scrollY + viewportH - top) / (viewportH + height);
+        return Math.min(Math.max(progress, 0), 1);
+      },
+      apply: (progress) => {
+        const shift = (progress - 0.5) * 28;
+        glow.style.transform = `translate3d(0, ${shift.toFixed(2)}px, 0)`;
+      },
+    });
+
+    return () => handle.release();
+  }, []);
+
   return (
-    <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-3 shadow-[0_18px_42px_rgba(15,23,42,0.07)] ring-1 ring-white/80 transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_20px_44px_rgba(14,165,233,0.1)] sm:rounded-[24px] sm:p-4">
-      <div className="flex flex-wrap items-end justify-between gap-2.5 border-b border-slate-900/8 pb-3">
+    <section
+      ref={sectionRef}
+      className="relative overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-3 shadow-[0_18px_42px_rgba(15,23,42,0.07)] ring-1 ring-white/80 transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_20px_44px_rgba(14,165,233,0.1)] sm:rounded-[24px] sm:p-4"
+    >
+      <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
+      <span
+        ref={glowRef}
+        className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(14,165,233,0.16),transparent_70%)] blur-2xl will-change-transform"
+        aria-hidden="true"
+      />
+      <div className="relative flex flex-wrap items-end justify-between gap-2.5 border-b border-slate-900/8 pb-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-sky-900">
-            Характеристики та застосування
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700">
+            Інформація про товар
           </p>
-          <h2 className="font-display mt-1 text-[1.05rem] font-extrabold leading-[1.18] tracking-[-0.015em] text-slate-800 sm:text-[1.16rem]">
-            {productName
-              ? productName.length > 58
-                ? `${productName.slice(0, 58).trimEnd()}…`
-                : productName
-              : "Основні характеристики товару"}
+          <h2 className="font-display mt-1 text-[1.2rem] font-extrabold leading-[1.15] tracking-[-0.02em] text-slate-900 sm:text-[1.35rem]">
+            Опис товару
           </h2>
         </div>
         <div className="flex items-center gap-2">
@@ -298,23 +328,11 @@ export default function ProductDescriptionClientCard({
           </p>
         )}
       </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        <span className="inline-flex rounded-[10px] border border-slate-200 bg-white/86 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-slate-500 shadow-[0_6px_14px_rgba(15,23,42,0.04)]">
-          {descriptionStatus === "ready"
-            ? "Опис товару"
-            : descriptionStatus === "loading"
-              ? "Завантаження опису"
-              : "Опис уточнюється"}
-        </span>
-        <span className="inline-flex rounded-[10px] border border-sky-100 bg-sky-50/80 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-sky-700 shadow-[0_6px_14px_rgba(14,165,233,0.05)]">
-          Сумісність і підбір
-        </span>
-      </div>
       {fitmentText ? (
         <div className="mt-3 rounded-[18px] border border-sky-100 bg-[linear-gradient(145deg,rgba(240,249,255,0.82),rgba(255,255,255,0.96))] p-3 shadow-[0_10px_22px_rgba(14,165,233,0.06)]">
-          <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-sky-800">
+          <h3 className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-sky-800">
             Підбір і сумісність
-          </p>
+          </h3>
           <p className="mt-1.5 text-[13.5px] font-medium leading-[1.62] text-slate-700 sm:text-sm">
             {fitmentText}
           </p>
@@ -355,38 +373,6 @@ export default function ProductDescriptionClientCard({
               ) : null}
             </div>
           ) : null}
-        </div>
-      ) : null}
-      {seoDetails && seoDetails.items.length > 0 ? (
-        <div className="mt-3 rounded-[18px] border border-slate-200/85 bg-white/82 p-3 shadow-[0_10px_22px_rgba(15,23,42,0.05)]">
-          <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-600">
-            {seoDetails.title}
-          </p>
-          <ul className="mt-2 grid gap-2 text-[13px] leading-[1.55] text-slate-600 sm:grid-cols-2">
-            {seoDetails.items.map((item) => {
-              const match = item.match(SEO_DETAIL_LABEL_PATTERN);
-              return (
-                <li
-                  key={item}
-                  className="flex items-start gap-2.5 rounded-[12px] border border-slate-100 bg-slate-50/70 px-3 py-2.5 transition-colors duration-200 hover:border-sky-100 hover:bg-sky-50/50"
-                >
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700">
-                    <Check size={11} strokeWidth={3} />
-                  </span>
-                  <span>
-                    {match ? (
-                      <>
-                        <span className="font-bold text-slate-900">{match[1]}: </span>
-                        {match[2]}
-                      </>
-                    ) : (
-                      item
-                    )}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
         </div>
       ) : null}
     </section>

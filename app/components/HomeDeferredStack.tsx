@@ -4,10 +4,18 @@ import dynamic from "next/dynamic";
 import { startTransition, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import SectionBoundary from "./SectionBoundary";
+import { prefetchManufacturerCounts } from "app/lib/manufacturer-counts-client";
 
 const loadProductSection = () => import("./tovar");
 const loadAutoSection = () => import("./Auto");
 const loadBrandsSection = () => import("./Brands");
+// Footer has its own on-scroll-intersection mount (DeferredFooter.tsx) but,
+// unlike the three sections above, was never part of this early background
+// prefetch — its chunk only started downloading the moment it scrolled into
+// view, with nothing warmed up in advance. Warming it here too means
+// DeferredFooter's own dynamic import() just resolves against an
+// already-fetched module instead of starting a fresh network request.
+const loadFooterSection = () => import("./footer");
 
 const ProductFetcher = dynamic(loadProductSection, {
   ssr: false,
@@ -149,9 +157,23 @@ export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataP
       // Download code while the main thread/network are idle, but keep the
       // sections unmounted so their data requests and React work still happen
       // only near the viewport. Staggering avoids one large parse burst.
+      // Tightened from 500/1000ms — Brands (Виробники) was reported as slow
+      // to appear, and a fast scroller can reach it well before a 1000ms-
+      // delayed prefetch (on top of this whole callback's own idle/1800ms
+      // wait) has even started, let alone finished.
+      //
+      // The Brands section's own /api/manufacturer-counts request used to
+      // only start once the component actually mounted (already gated
+      // behind an IntersectionObserver + scroll-settle delay), so the
+      // network round trip was the real bottleneck, not the JS chunk. Kick
+      // it off first, right alongside the chunk prefetch — Brands.tsx reads
+      // the same cached promise via getManufacturerCounts() instead of
+      // firing a fresh fetch.
+      void prefetchManufacturerCounts();
       void loadAutoSection();
-      timers.push(window.setTimeout(() => void loadProductSection(), 500));
-      timers.push(window.setTimeout(() => void loadBrandsSection(), 1000));
+      timers.push(window.setTimeout(() => void loadProductSection(), 300));
+      timers.push(window.setTimeout(() => void loadBrandsSection(), 650));
+      timers.push(window.setTimeout(() => void loadFooterSection(), 1100));
     };
 
     if (typeof window.requestIdleCallback === "function") {

@@ -126,8 +126,11 @@ const ensureDiskCacheDir = () => {
 };
 // 480px keeps catalog thumbnails crisp on 2x/3x phone screens while the WebP
 // payload remains far smaller than the original 1C image. The cache version
-// ensures previously generated 320px/quality-64 files are not reused.
-const IMAGE_OPTIMIZATION_VERSION = "v2-retina";
+// ensures previously generated 320px/quality-64 files are not reused. Bumped
+// again for the "full" variant now upscaling small sources (see its
+// withoutEnlargement comment below) — old sub-696px cached files must not
+// keep being served under the same key.
+const IMAGE_OPTIMIZATION_VERSION = "v3-seo-upscale";
 const CATALOG_IMAGE_MAX_WIDTH = 480;
 const CATALOG_IMAGE_MAX_HEIGHT = 480;
 const CATALOG_IMAGE_QUALITY = 74;
@@ -335,7 +338,15 @@ const optimizeImageBuffer = async (
           width: resizeOptions.width,
           height: resizeOptions.height,
           fit: "inside",
-          withoutEnlargement: true,
+          // Catalog thumbnails should never enlarge — a small source photo
+          // stays small and fast in the grid. The "full" variant is the one
+          // JSON-LD/OG/the image sitemap all point at, and 1C's source
+          // photos are frequently well under Google's documented ~696px
+          // width floor for image thumbnails in search results (measured
+          // live: 310x310, 600x400, 200x150). Below that floor the image is
+          // simply not eligible, so upscale it up toward the 1400px box
+          // instead of leaving it disqualified by size.
+          withoutEnlargement: options.variant === "catalog",
         });
 
       const transformed = await (options.acceptsAvif

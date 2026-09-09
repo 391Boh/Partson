@@ -3,14 +3,16 @@
 import Image from "next/image";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, ChevronLeft, ChevronRight, Factory, Search, X } from "lucide-react";
+import { ArrowRight, ChevronRight, Factory, Search, X } from "lucide-react";
 import SmartLink from "app/components/SmartLink";
 import BrandsLogosBackdrop from "./BrandsLogosBackdrop";
+import SectionPagination from "./SectionPagination";
 import { useSectionReveal } from "app/lib/use-section-reveal";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { pluralizeManufacturers, pluralizeProducts, pluralizeUk } from "app/lib/pluralize-uk";
 import { brands } from "./brandsData";
+import { getManufacturerCounts, type ManufacturerCountsApiPayload } from "app/lib/manufacturer-counts-client";
 
 // 4 cols at every breakpoint, 2 rows per page.
 const ITEMS_PER_PAGE = 6;
@@ -28,16 +30,7 @@ type BrandItem = {
   productCount?: number;
   groupsCount?: number;
 };
-type ManufacturerCountsApiItem = {
-  label: string;
-  logoPath: string | null;
-  description: string | null;
-  productCount: number;
-  groupsCount: number;
-};
-type ManufacturerCountsApiPayload = {
-  clientProducers?: ManufacturerCountsApiItem[];
-};
+type ManufacturerCountsApiItem = NonNullable<ManufacturerCountsApiPayload["clientProducers"]>[number];
 const BRAND_LOGO_FALLBACK_PATH = "/partson-mark-v3.webp";
 const INITIAL_BRANDS: BrandItem[] = brands.map((brand) => ({
   name: brand.name,
@@ -630,10 +623,7 @@ export default function BrandCarousel({
 
     let cancelled = false;
 
-    fetch("/api/manufacturer-counts", {
-      headers: { Accept: "application/json" },
-    })
-      .then((response) => (response.ok ? response.json() : null))
+    getManufacturerCounts()
       .then((payload: ManufacturerCountsApiPayload | null) => {
         if (cancelled) return;
         const items = payload?.clientProducers;
@@ -685,7 +675,7 @@ export default function BrandCarousel({
       <span className="pointer-events-none absolute inset-0 z-[1] opacity-60 bg-[linear-gradient(101deg,transparent_0%,transparent_33%,rgba(255,255,255,0.24)_47%,rgba(255,255,255,0.32)_50%,rgba(255,255,255,0.2)_53%,transparent_66%,transparent_100%)]" />
       <motion.div
         ref={brandsRevealRef}
-        className={`section-reveal-brands ${brandsRevealClassName} page-shell-inline relative z-10 flex max-w-[1200px] flex-col gap-3 sm:gap-4`}
+        className={`section-reveal-brands ${brandsRevealClassName} page-shell-inline relative z-10 flex flex-col gap-3 sm:gap-4`}
         initial={shouldAnimate ? { opacity: 0, y: 14 } : false}
         animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
         transition={shouldAnimate ? { duration: 0.32, ease: "easeOut" } : undefined}
@@ -728,12 +718,15 @@ export default function BrandCarousel({
               <span className="text-blue-600">оригінали та аналоги</span>
             </h2>
             <span className="mt-4 block h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#0d9488_0%,#14b8a6_26%,#ccfbf1_46%,#38bdf8_64%,transparent_100%)] shadow-[0_1px_2px_rgba(15,118,110,0.28)]" />
-            <p className="mt-4 max-w-[48ch] text-[15px] font-medium leading-[1.72] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
-              Оригінальні запчастини провідних{" "}
-              <span className="font-semibold text-slate-800">виробників</span>{" "}
-              і перевірені{" "}
-              <span className="font-semibold text-blue-700">аналоги</span> — з
-              переходом до каталогу бренду.
+            {/* lead — cites the real catalog size (brands.length, not a
+                hardcoded figure) instead of the old vague "з переходом до
+                каталогу бренду" closer, which described the click-through
+                rather than giving the reader any actual information. */}
+            <p className="mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
+              <span className="font-semibold text-slate-800">{brands.length}+ виробників</span> —
+              оригінальні запчастини та перевірені{" "}
+              <span className="font-semibold text-blue-700">аналоги</span> для
+              кожної марки авто.
             </p>
 
             {/* Search — collapse-to-button, same pattern as Auto.tsx's
@@ -862,17 +855,6 @@ export default function BrandCarousel({
                   exit={{ opacity: 0, y: -8, scale: 0.98 }}
                   transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  {totalPages > 1 && (
-                    <button
-                      type="button"
-                      onClick={handlePrevPage}
-                      disabled={!canGoPrev}
-                      className="absolute left-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
-                      aria-label="Попередня сторінка"
-                    >
-                      <ChevronLeft size={34} strokeWidth={2.6} />
-                    </button>
-                  )}
                   <div
                     ref={brandPagesRef}
                     onScroll={handleBrandPagesScroll}
@@ -921,29 +903,16 @@ export default function BrandCarousel({
                       ))}
                     </div>
                   </div>
-                  {totalPages > 1 && (
-                    <button
-                      type="button"
-                      onClick={handleNextPage}
-                      disabled={!canGoNext}
-                      className="absolute right-0 top-1/2 z-10 inline-flex h-12 w-10 -translate-y-1/2 items-center justify-center bg-transparent text-sky-900 drop-shadow-[0_4px_6px_rgba(2,132,199,0.28)] transition-[color,filter,opacity] duration-300 hover:text-cyan-600 hover:drop-shadow-[0_6px_9px_rgba(8,145,178,0.38)] disabled:pointer-events-none disabled:text-slate-400 disabled:opacity-40 sm:h-14 sm:w-12"
-                      aria-label="Наступна сторінка"
-                    >
-                      <ChevronRight size={34} strokeWidth={2.6} />
-                    </button>
-                  )}
-
-                  <div className="reveal-tail relative mt-3 flex min-h-9 items-center px-2 sm:px-3">
-                    {totalPages > 1 && (
-                      <div className="absolute left-1/2 top-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">
-                        <span className="h-px w-4 bg-gradient-to-r from-transparent to-blue-500/70 sm:w-6" />
-                        <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
-                        <span className="text-[15px] font-black text-blue-800 drop-shadow-[0_2px_4px_rgba(30,64,175,0.14)]">{safePage + 1}</span>
-                        <span className="font-semibold text-sky-400">/</span>
-                        <span className="font-extrabold text-slate-500">{totalPages}</span>
-                        <span className="h-px w-4 bg-gradient-to-l from-transparent to-blue-500/70 sm:w-6" />
-                      </div>
-                    )}
+                  <div className="reveal-tail mt-3 flex min-h-9 items-center justify-center">
+                    <SectionPagination
+                      page={safePage + 1}
+                      totalPages={totalPages}
+                      onPrev={handlePrevPage}
+                      onNext={handleNextPage}
+                      canGoPrev={canGoPrev}
+                      canGoNext={canGoNext}
+                      tone="blue"
+                    />
                   </div>
                 </motion.div>
               )}

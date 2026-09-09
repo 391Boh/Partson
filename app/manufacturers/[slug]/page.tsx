@@ -1282,7 +1282,13 @@ export default async function ManufacturerDetailPage({
     ...seoCopy.paragraphs
   ).slice(0, 4);
   const seoHighlights = buildUniqueTextBlocks(...seoCopy.highlights).slice(0, 4);
-  const h1Title = `${producer.label} - каталог автозапчастин виробника`;
+  // Em-dash, matching buildManufacturerTitle above and the site's heading
+  // convention elsewhere — was a plain hyphen with an awkward triple-
+  // genitive ("каталог автозапчастин виробника"), the only H1 on the site
+  // phrased that way. "виробника" was also redundant: the whole page is
+  // already about this one producer, so the H1 doesn't need to spell that
+  // out again on top of the brand name it already leads with.
+  const h1Title = `${producer.label} — каталог автозапчастин`;
   const manufacturerJsonLdGroups = producer.topCategories?.length
     ? producer.topCategories.flatMap((category) =>
         category.groups.map((group) => ({ group, categoryLabel: category.label }))

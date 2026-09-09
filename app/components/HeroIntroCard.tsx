@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
+import { getPublishedBlogPosts } from 'app/lib/blog';
 
 const heroTextShadow =
   '[text-shadow:0_1px_0_rgba(2,6,23,0.95),0_3px_16px_rgba(2,6,23,0.92),0_1px_4px_rgba(2,6,23,0.85),0_0_34px_rgba(2,6,23,0.55)]';
@@ -11,17 +12,26 @@ const heroTextShadow =
 // the photo). Solid white reads crisp at any size against the shadow.
 const heroQuickLinkText =
   'font-display text-[15px] font-extrabold leading-[1.25] tracking-[-0.01em] sm:text-[16px]';
-const blogImage = '/Car-parts-fullwidth.webp';
-const blogTitle = 'Поради з вибору автозапчастин';
-const blogHref = '/blog';
-const blogAlt = 'Поради з вибору автозапчастин у блозі PartsON';
 
 // No card panel / flip mechanism here — the intro text sits directly on the
 // hero photo, so legibility comes from `heroTextShadow` plus the toned-down
 // top-left glow in hero.tsx instead of a background box. The diagnostics
 // and blog links used to be hidden behind a "Новинки" flip trigger; they're
 // shown immediately as two image-led preview cards instead.
-export default function HeroIntroCard() {
+export default async function HeroIntroCard() {
+  // getPublishedBlogPosts is unstable_cache (10 min) + React-cache wrapped,
+  // so this costs a real Firestore read only once per revalidation window,
+  // not per visit or per homepage regeneration — safe to await directly
+  // instead of hardcoding a generic teaser (which previously showed the
+  // PartsON logo mark here instead of a real article photo).
+  const posts = await getPublishedBlogPosts().catch(() => []);
+  const latestPost = posts.find((post) => post.imageDataUrl?.trim()) ?? posts[0] ?? null;
+  const blogImage = latestPost?.imageDataUrl || '/Car-parts-fullwidth.webp';
+  const blogTitle = latestPost?.title?.trim() || 'Поради з вибору автозапчастин';
+  const blogHref = latestPost?.slug ? `/blog/${latestPost.slug}` : '/blog';
+  const blogAlt =
+    latestPost?.imageAlt?.trim() || latestPost?.title?.trim() || 'Остання стаття блогу PartsON';
+
   return (
     <div
       className="flex h-full min-w-0 flex-col justify-center gap-3 sm:gap-4 md:pr-3 lg:pr-5"
@@ -112,6 +122,7 @@ export default function HeroIntroCard() {
               src={blogImage}
               alt={blogAlt}
               fill
+              unoptimized={Boolean(latestPost?.imageDataUrl)}
               sizes="(max-width: 640px) 45vw, 220px"
               className="object-cover transition-transform duration-500 ease-out group-hover/blog:scale-[1.07]"
             />

@@ -146,6 +146,14 @@ export default function ProductRecentlyViewedSection({
     product.quantity,
     product.subGroup,
   ]);
+  // Reverted: a lazy useState initializer that reads localStorage computes
+  // different output on the client's first render than the server's (which
+  // always renders empty — no window). That's a hydration mismatch, and
+  // React's recovery from one can restructure a bigger part of the tree
+  // than the clean "empty section appears" swap this was meant to replace —
+  // measured live, CLS got worse after this change, not better. Back to
+  // matching SSR exactly on first render; the real content is filled in via
+  // the effect below, same as before.
   const [items, setItems] = useState<RecentlyViewedProduct[]>([]);
   const [blockedRecommendationKeys, setBlockedRecommendationKeys] = useState<Set<string>>(
     () => new Set()
@@ -302,10 +310,10 @@ export default function ProductRecentlyViewedSection({
   }, [resolvedPrices, visibleItems]);
 
   if (visibleItems.length === 0) return null;
-  const listClass =
-    visibleItems.length > 2
-      ? "mt-3 grid grid-flow-col grid-rows-1 auto-cols-[minmax(286px,92%)] gap-2 overflow-x-auto overscroll-x-contain pb-2 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(330px,70%)] sm:gap-2.5 lg:grid-rows-2 lg:auto-cols-[minmax(292px,31%)] lg:gap-2.5"
-      : "mt-3 grid grid-flow-col grid-rows-1 auto-cols-[minmax(286px,92%)] gap-2 overflow-x-auto overscroll-x-contain pb-1 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(330px,70%)] sm:gap-2.5 lg:auto-cols-[minmax(292px,31%)] lg:gap-2.5";
+  // Same narrower, single-row, fade-masked treatment as the analogs/similar
+  // carousels (ProductRelatedItemsClientSection) — kept in sync so every
+  // horizontal product strip on the page swipes and looks the same way.
+  const listClass = `mt-3 grid grid-flow-col grid-rows-1 auto-cols-[150px] gap-2.5 overflow-x-auto overscroll-x-contain ${visibleItems.length > 2 ? "pb-2" : "pb-1"} text-left snap-x snap-mandatory scroll-smooth [scrollbar-width:thin] [mask-image:linear-gradient(to_right,black_0%,black_92%,transparent_100%)] sm:auto-cols-[168px] sm:gap-3 lg:auto-cols-[180px]`;
 
   return (
     <section className="relative overflow-hidden rounded-[22px] border border-amber-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(255,251,235,0.88),rgba(248,250,252,0.98))] p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.075)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">

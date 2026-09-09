@@ -3,13 +3,14 @@
 import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Car, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Info, Plus, Search, X } from "lucide-react";
+import { Car, Check, ChevronDown, ChevronRight, ChevronUp, Info, Plus, Search, X } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { carBrands, CarBrand } from "../components/carBrands";
 import { transliterateCyrillicToLatin, fixLayoutUkrainianToEnglish } from "../lib/transliterate";
 import type { YearMeta } from "./CarModels";
 import AutoLogosBackdrop from "./AutoLogosBackdrop";
+import SectionPagination from "./SectionPagination";
 import { useSectionReveal } from "app/lib/use-section-reveal";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 
@@ -136,7 +137,7 @@ const CarBrandButton = React.memo(function CarBrandButton({
       // past this list's own column into the neighbouring search panel /
       // page edges). Now stays close enough to the card to never visibly
       // escape the grid's own gaps.
-      className="card-metal group/category relative flex h-[92px] w-full flex-col items-center justify-center overflow-hidden rounded-[16px] bg-white/35 px-2 shadow-[0_3px_10px_-3px_rgba(30,64,175,0.12),inset_0_1px_0_rgba(255,255,255,0.6)] transition-[background-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-[0_8px_18px_-8px_rgba(79,70,229,0.4),inset_0_1px_0_rgba(255,255,255,0.95)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 sm:h-[104px]"
+      className="card-metal group/category relative flex h-[92px] w-full flex-col items-center justify-center overflow-hidden rounded-[18px] bg-white/35 px-2 shadow-[0_3px_10px_-3px_rgba(30,64,175,0.12),inset_0_1px_0_rgba(255,255,255,0.6)] transition-[background-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-[0_8px_18px_-8px_rgba(79,70,229,0.4),inset_0_1px_0_rgba(255,255,255,0.95)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 sm:h-[104px]"
     >
       <span className="pointer-events-none absolute inset-x-8 top-0 z-[3] h-[3px] rounded-full bg-[linear-gradient(90deg,transparent,#3b82f6_30%,#e0f2fe_50%,#38bdf8_70%,transparent)] opacity-0 transition-opacity duration-300 group-hover/category:opacity-100" />
 
@@ -1439,34 +1440,17 @@ const AutoSection: React.FC<AutoProps> = ({
           </div>
         </div>
       )}
-      <div className="mt-3 flex min-h-9 items-center justify-center gap-2.5">
-        {!showAllBrands && totalBrandPages > 1 ? (
-          <>
-            <button
-              type="button"
-              onClick={handlePrevPage}
-              disabled={!canGoPrev}
-              aria-label="Попередня сторінка"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-sky-200/80 bg-white/70 text-sky-700 shadow-[0_4px_12px_rgba(14,116,144,0.12)] transition-colors duration-200 hover:border-cyan-300 hover:text-cyan-600 disabled:pointer-events-none disabled:opacity-35"
-            >
-              <ChevronLeft size={17} strokeWidth={2.8} />
-            </button>
-            <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-bold tabular-nums sm:text-xs">
-              <span className="hidden font-semibold tracking-wide text-slate-400 sm:inline">Сторінка</span>
-              <span className="text-[15px] font-black text-sky-800">{safeBrandPage + 1}</span>
-              <span className="font-semibold text-cyan-400">/</span>
-              <span className="font-extrabold text-slate-500">{totalBrandPages}</span>
-            </span>
-            <button
-              type="button"
-              onClick={handleNextPage}
-              disabled={!canGoNext}
-              aria-label="Наступна сторінка"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-sky-200/80 bg-white/70 text-sky-700 shadow-[0_4px_12px_rgba(14,116,144,0.12)] transition-colors duration-200 hover:border-cyan-300 hover:text-cyan-600 disabled:pointer-events-none disabled:opacity-35"
-            >
-              <ChevronRight size={17} strokeWidth={2.8} />
-            </button>
-          </>
+      <div className="mt-3 flex min-h-9 items-center justify-center">
+        {!showAllBrands ? (
+          <SectionPagination
+            page={safeBrandPage + 1}
+            totalPages={totalBrandPages}
+            onPrev={handlePrevPage}
+            onNext={handleNextPage}
+            canGoPrev={canGoPrev}
+            canGoNext={canGoNext}
+            tone="sky"
+          />
         ) : null}
       </div>
     </motion.div>
@@ -1518,7 +1502,7 @@ const AutoSection: React.FC<AutoProps> = ({
                   narrow screens, order-1 restores it to the actual left
                   column from md up. */}
               <div className="reveal-search order-2 min-w-0 md:order-1">
-                <div className="relative flex h-full min-w-0 flex-col overflow-hidden rounded-[24px] border border-white/22 bg-[radial-gradient(circle_at_8%_0%,rgba(56,189,248,0.2),transparent_42%),radial-gradient(circle_at_96%_100%,rgba(45,212,191,0.12),transparent_44%),linear-gradient(150deg,rgba(12,21,45,0.74)_0%,rgba(17,35,76,0.68)_54%,rgba(14,43,66,0.7)_100%)] p-4 text-white shadow-[0_22px_60px_rgba(15,23,42,0.26),inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur-[36px] sm:p-5">
+                <div className="relative flex h-full min-w-0 flex-col overflow-hidden rounded-[26px] border border-white/22 bg-[radial-gradient(circle_at_8%_0%,rgba(56,189,248,0.2),transparent_42%),radial-gradient(circle_at_96%_100%,rgba(45,212,191,0.12),transparent_44%),linear-gradient(150deg,rgba(12,21,45,0.74)_0%,rgba(17,35,76,0.68)_54%,rgba(14,43,66,0.7)_100%)] p-4 text-white shadow-[0_22px_60px_rgba(15,23,42,0.26),inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur-[36px] sm:p-5">
                   <span className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-sky-200/55 to-transparent" />
 
                   <div>

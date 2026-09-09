@@ -390,7 +390,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
 
                     <div className="min-w-0">
                       <span className={directoryBadgeClass}>Підбір для вашого авто</span>
-                      <h1 className="directory-heading-hero mt-3 text-[1.75rem] leading-[1.12] text-slate-950 sm:text-[2.15rem]">
+                      <h1 className="directory-heading-hero mt-3 text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
                         Запчастини для {brand} {model}
                       </h1>
                       <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-slate-600 sm:text-[15px]">

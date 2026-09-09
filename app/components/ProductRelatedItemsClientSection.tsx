@@ -107,10 +107,16 @@ const buildRecommendationIdentityKeys = (
     )
   );
 
+// Fixed pixel column widths, not percentage-of-viewport ones — minmax(...,
+// 42%) meant the same card rendered at a different width on a 360px phone
+// than a 428px one, which fights "always the same size" instead of
+// delivering it. A flat px value is identical on every phone regardless of
+// screen width. Narrow enough that the next card peeks in at the trailing
+// edge (the "there's more" cue), reinforced by the trailing mask fade.
+// Single row at every breakpoint — a 2-row desktop layout worked for the
+// old short cards but would make this section very tall with taller ones.
 const getRecommendationListClass = (count: number) =>
-  count > 2
-    ? "mt-3 grid grid-flow-col grid-rows-1 auto-cols-[minmax(286px,92%)] gap-2 overflow-x-auto overscroll-x-contain pb-2 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(330px,70%)] sm:gap-2.5 lg:grid-rows-2 lg:auto-cols-[minmax(292px,31%)] lg:gap-2.5"
-    : "mt-3 grid grid-flow-col grid-rows-1 auto-cols-[minmax(286px,92%)] gap-2 overflow-x-auto overscroll-x-contain pb-1 text-left snap-x snap-mandatory [scrollbar-width:thin] sm:auto-cols-[minmax(330px,70%)] sm:gap-2.5 lg:auto-cols-[minmax(292px,31%)] lg:gap-2.5";
+  `mt-3 grid grid-flow-col grid-rows-1 auto-cols-[150px] gap-2.5 overflow-x-auto overscroll-x-contain ${count > 2 ? "pb-2" : "pb-1"} text-left snap-x snap-mandatory scroll-smooth [scrollbar-width:thin] [mask-image:linear-gradient(to_right,black_0%,black_92%,transparent_100%)] sm:auto-cols-[168px] sm:gap-3 lg:auto-cols-[180px]`;
 
 const scheduleProductRecommendationTask = (task: () => void) => {
   if (typeof window === "undefined") {
@@ -174,11 +180,15 @@ const Skeleton = () => (
       </div>
       <div className="h-6 w-24 animate-pulse rounded-full bg-slate-100" />
     </div>
-    <div className="mt-3 grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
+    {/* Matches the real card row's shape (height + column width) exactly —
+        a skeleton sized differently from what replaces it just moves the
+        layout-shift problem from "section pops in" to "section resizes
+        when it fills in", which is the same CLS hit under another name. */}
+    <div className="mt-3 grid grid-flow-col grid-rows-1 auto-cols-[150px] gap-2.5 overflow-hidden sm:auto-cols-[168px] sm:gap-3 lg:auto-cols-[180px]">
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={`rel-skeleton-${index}`}
-          className="h-[92px] animate-pulse rounded-[14px] border border-slate-200 bg-slate-100 sm:h-[88px]"
+          className="h-[166px] animate-pulse rounded-[16px] border border-slate-200 bg-slate-100"
         />
       ))}
     </div>
@@ -206,16 +216,16 @@ const RecommendationBlock = ({
   euroRate: number;
   resolvedPrices: Record<string, number | null>;
   resolvedImages: Record<string, string>;
-  tone?: "sky" | "indigo";
+  tone?: "sky" | "teal";
 }) => {
   if (items.length === 0) return null;
 
   return (
-    <section className={`relative overflow-hidden rounded-[22px] border p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.075)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4 ${tone === "indigo" ? "border-indigo-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(238,242,255,0.92),rgba(248,250,252,0.98))]" : "border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(248,250,252,0.98))]"}`}>
-      <div className={`absolute inset-x-6 top-0 h-px ${tone === "indigo" ? "bg-gradient-to-r from-transparent via-indigo-400/70 to-transparent" : "bg-gradient-to-r from-transparent via-sky-400/70 to-transparent"}`} />
+    <section className={`relative overflow-hidden rounded-[22px] border p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.075)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4 ${tone === "teal" ? "border-teal-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,253,250,0.94),rgba(248,250,252,0.98))]" : "border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(248,250,252,0.98))]"}`}>
+      <div className={`absolute inset-x-6 top-0 h-px ${tone === "teal" ? "bg-gradient-to-r from-transparent via-teal-400/70 to-transparent" : "bg-gradient-to-r from-transparent via-sky-400/70 to-transparent"}`} />
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/8 pb-3">
         <div className="min-w-0 max-w-3xl">
-          <p className={`mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${tone === "indigo" ? "text-indigo-800" : "text-sky-800"}`}>
+          <p className={`mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${tone === "teal" ? "text-teal-800" : "text-sky-800"}`}>
             {eyebrow}
           </p>
           <h2 className="font-display mt-0.5 break-words text-[1.05rem] font-extrabold leading-tight tracking-[-0.015em] text-slate-800 sm:text-[1.18rem]">
@@ -225,7 +235,7 @@ const RecommendationBlock = ({
             {description}
           </p>
         </div>
-        <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] ${tone === "indigo" ? "border-indigo-200 bg-indigo-50 text-indigo-800" : "border-sky-200 bg-sky-50 text-sky-800"}`}>
+        <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] ${tone === "teal" ? "border-teal-200 bg-teal-50 text-teal-800" : "border-sky-200 bg-sky-50 text-sky-800"}`}>
           {badgeLabel}
         </span>
       </div>
@@ -808,7 +818,7 @@ export default function ProductRelatedItemsClientSection({
           euroRate={euroRate}
           resolvedPrices={resolvedPrices}
           resolvedImages={resolvedImages}
-          tone="indigo"
+          tone="teal"
         />
       ) : null}
       {hasSimilar ? (

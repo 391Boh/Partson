@@ -14,6 +14,10 @@ import {
   writeProductImageMissing,
   writeProductImageSuccess,
 } from "app/lib/product-image-client";
+import {
+  PRODUCT_GALLERY_SELECTION_EVENT,
+  type ProductGallerySelectionDetail,
+} from "app/lib/product-gallery-events";
 
 interface ProductImageWithFallbackProps {
   alt: string;
@@ -30,6 +34,7 @@ interface ProductImageWithFallbackProps {
   preferCachedPreview?: boolean;
   variant?: "full" | "catalog";
   unoptimized?: boolean;
+  syncWithProductGallery?: boolean;
 }
 
 const BLUR_DATA_URL =
@@ -64,6 +69,7 @@ export default function ProductImageWithFallback({
   preferCachedPreview = true,
   variant = "full",
   unoptimized: unoptimizedProp = false,
+  syncWithProductGallery = false,
 }: ProductImageWithFallbackProps) {
   const openPhotoTitle = "Відкрити зображення";
   const photoLabel = "Фото";
@@ -127,6 +133,7 @@ export default function ProductImageWithFallback({
   const [status, setStatus] = useState<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
   const [finalRetryQueued, setFinalRetryQueued] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [selectedGallerySrc, setSelectedGallerySrc] = useState("");
   const requestSrcRef = useRef("");
   const statusRef = useRef<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
 
@@ -138,10 +145,42 @@ export default function ProductImageWithFallback({
     statusRef.current = status;
   }, [status]);
 
+  useEffect(() => {
+    if (!syncWithProductGallery || !normalizedProductCode) return;
+
+    const handleGallerySelection = (event: Event) => {
+      const detail = (event as CustomEvent<ProductGallerySelectionDetail>).detail;
+      if (!detail || detail.code.trim() !== normalizedProductCode) return;
+
+      const nextSrc = (detail.imageUrl || "").trim();
+      setLightboxOpen(false);
+      setFinalRetryQueued(false);
+      setSelectedGallerySrc(nextSrc);
+
+      if (nextSrc) {
+        setRequestSrc(nextSrc);
+        setStatus("loading");
+        return;
+      }
+
+      if (primarySrc) {
+        setRequestSrc(primarySrc);
+        setStatus("loading");
+      } else {
+        setRequestSrc("");
+        setStatus("missing");
+      }
+    };
+
+    window.addEventListener(PRODUCT_GALLERY_SELECTION_EVENT, handleGallerySelection);
+    return () => window.removeEventListener(PRODUCT_GALLERY_SELECTION_EVENT, handleGallerySelection);
+  }, [normalizedProductCode, primarySrc, syncWithProductGallery]);
+
   // Initialize / reset when product identity changes
   useEffect(() => {
     setLightboxOpen(false);
     setFinalRetryQueued(false);
+    setSelectedGallerySrc("");
 
     if (!hasKnownPhoto) {
       if (normalizedProductCode) {
@@ -196,6 +235,7 @@ export default function ProductImageWithFallback({
 
   // Delayed final retry — mirrors ProductCardImage behaviour
   useEffect(() => {
+    if (selectedGallerySrc) return;
     if (!hasKnownPhoto) return;
     if (status !== "missing") return;
     if (!finalRetrySrc) return;
@@ -208,22 +248,36 @@ export default function ProductImageWithFallback({
     }, FINAL_RETRY_DELAY_MS);
 
     return () => window.clearTimeout(timeoutId);
-  }, [finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
+  }, [finalRetryQueued, finalRetrySrc, hasKnownPhoto, selectedGallerySrc, status]);
 
   const handleLoad = useCallback(() => {
       if (!requestSrc) return;
-      writeProductImageSuccess(
-        normalizedProductCode,
-        normalizedArticleHint || undefined,
-        requestSrc
-      );
-      clearProductImageMissing(normalizedProductCode, normalizedArticleHint || undefined);
+      if (!selectedGallerySrc || requestSrc !== selectedGallerySrc) {
+        writeProductImageSuccess(
+          normalizedProductCode,
+          normalizedArticleHint || undefined,
+          requestSrc
+        );
+        clearProductImageMissing(normalizedProductCode, normalizedArticleHint || undefined);
+      }
       setStatus("loaded");
     },
-    [normalizedArticleHint, normalizedProductCode, requestSrc]
+    [normalizedArticleHint, normalizedProductCode, requestSrc, selectedGallerySrc]
   );
 
   const handleError = useCallback(() => {
+    if (selectedGallerySrc && requestSrc === selectedGallerySrc) {
+      setSelectedGallerySrc("");
+      if (primarySrc) {
+        setRequestSrc(primarySrc);
+        setStatus("loading");
+      } else {
+        setRequestSrc("");
+        setStatus("missing");
+      }
+      return;
+    }
+
     clearProductImageSuccess(normalizedProductCode, normalizedArticleHint || undefined);
 
     if (!hasKnownPhoto) {
@@ -258,8 +312,10 @@ export default function ProductImageWithFallback({
     hasKnownPhoto,
     normalizedArticleHint,
     normalizedProductCode,
+    primarySrc,
     recoverySrc,
     requestSrc,
+    selectedGallerySrc,
   ]);
 
   const handleImageRef = useCallback(
@@ -281,7 +337,7 @@ export default function ProductImageWithFallback({
   );
 
   const isLoaded = status === "loaded";
-  const showPlaceholder = !hasKnownPhoto || status === "missing";
+  const showPlaceholder = (!hasKnownPhoto && !selectedGallerySrc) || status === "missing";
   const showSkeleton = !showPlaceholder && !isLoaded;
   const canOpen = zoomEnabled && isLoaded;
   const preferImmediateDecode = loading === "eager" && fetchPriority === "high";

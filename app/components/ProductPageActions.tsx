@@ -17,6 +17,7 @@ type ProductPageActionsProps = {
   priceUah: number | null;
   quantity: number;
   compact?: boolean;
+  prominent?: boolean;
 };
 
 const ProductPageActions = ({
@@ -30,6 +31,7 @@ const ProductPageActions = ({
   priceUah,
   quantity,
   compact = false,
+  prominent = false,
 }: ProductPageActionsProps) => {
   const { addToCart, removeFromCart, cartItems } = useCart();
   const [orderQty, setOrderQty] = useState(1);
@@ -129,52 +131,36 @@ const ProductPageActions = ({
     <div
       className={
         compact
-          ? "flex flex-col gap-2.5"
+          ? "flex w-full flex-col gap-2.5"
           : "mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4"
       }
     >
       {hasPrice ? (
-        <div className="flex items-center gap-2">
-          <div className="inline-flex min-w-0 flex-1 items-center justify-between rounded-[18px] border border-slate-200 bg-white p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_8px_18px_rgba(15,23,42,0.05)]">
-            <button
-              type="button"
-              onClick={() => setOrderQty((prev) => Math.max(1, prev - 1))}
-              disabled={orderQty <= 1}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500"
-              aria-label="Зменшити кількість"
-            >
-              <Minus size={16} />
-            </button>
-            <span className="inline-flex min-w-12 flex-1 items-center justify-center px-3 text-sm font-extrabold text-slate-900 sm:flex-none">
-              {orderQty}
-            </span>
-            <button
-              type="button"
-              onClick={() => setOrderQty((prev) => Math.min(maxQty, prev + 1))}
-              disabled={isPlusDisabled}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500"
-              aria-label="Збільшити кількість"
-            >
-              <Plus size={16} />
-            </button>
-          </div>
-
-          {/* Cart status lives on this same row (a compact remove button +
-              a count badge on the Add button below) instead of a banner
-              stacked above it — that used to grow the panel's height the
-              moment something got added, shifting the whole 3-column header
-              layout (all columns share height via items-stretch). */}
-          {cartQty > 0 && (
-            <button
-              type="button"
-              onClick={handleRemoveFromCart}
-              className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] border border-rose-200 bg-white text-rose-600 shadow-sm transition-[transform,border-color,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-50 hover:shadow-[0_8px_16px_rgba(244,63,94,0.10)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-100 active:translate-y-0"
-              title="Видалити товар із кошика"
-              aria-label={`Видалити ${name} із кошика`}
-            >
-              <Trash2 size={16} strokeWidth={2} aria-hidden="true" />
-            </button>
-          )}
+        <>
+          <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-2 sm:grid-cols-[126px_minmax(0,1fr)]">
+            <div className={`inline-flex items-center justify-between rounded-[16px] border border-slate-200 bg-slate-50 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] ${prominent ? "min-h-[52px]" : "min-h-12"}`}>
+              <button
+                type="button"
+                onClick={() => setOrderQty((prev) => Math.max(1, prev - 1))}
+                disabled={orderQty <= 1}
+                className="inline-flex h-10 w-9 items-center justify-center rounded-[12px] text-slate-500 transition hover:bg-white hover:text-slate-900 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:shadow-none"
+                aria-label="Зменшити кількість"
+              >
+                <Minus size={15} />
+              </button>
+              <span className="inline-flex min-w-7 items-center justify-center text-sm font-black text-slate-950" aria-label={`Кількість: ${orderQty}`}>
+                {orderQty}
+              </span>
+              <button
+                type="button"
+                onClick={() => setOrderQty((prev) => Math.min(maxQty, prev + 1))}
+                disabled={isPlusDisabled}
+                className="inline-flex h-10 w-9 items-center justify-center rounded-[12px] text-slate-500 transition hover:bg-white hover:text-slate-900 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:shadow-none"
+                aria-label="Збільшити кількість"
+              >
+                <Plus size={15} />
+              </button>
+            </div>
 
           <button
             type="button"
@@ -194,12 +180,12 @@ const ProductPageActions = ({
                   ? "Товар додано"
                   : "Додати в замовлення"
             }
-            className={`relative inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border text-white transition-transform duration-200 hover:-translate-y-0.5 active:scale-95 ${
+              className={`relative inline-flex min-w-0 items-center justify-center gap-2 rounded-[16px] border px-3 text-[11px] font-black text-white transition-[transform,filter,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] sm:px-4 sm:text-sm ${prominent ? "min-h-[52px]" : "min-h-12"} ${
               isAddDisabled
                 ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none hover:translate-y-0"
                 : justAdded
-                ? "border-emerald-300/50 bg-[linear-gradient(135deg,#059669,#10b981)] shadow-[0_16px_30px_rgba(5,150,105,0.22)]"
-                : "border-sky-300/40 bg-[linear-gradient(135deg,#0891b2,#2563eb)] shadow-[0_16px_30px_rgba(14,116,144,0.22)] hover:brightness-105"
+                  ? "border-emerald-400/50 bg-[linear-gradient(135deg,#059669,#10b981)] shadow-[0_14px_28px_rgba(5,150,105,0.24)]"
+                  : "border-sky-400/40 bg-[linear-gradient(135deg,#0284c7,#2563eb)] shadow-[0_14px_28px_rgba(2,132,199,0.25)] hover:brightness-105 hover:shadow-[0_18px_34px_rgba(2,132,199,0.3)]"
             }`}
           >
             {cartQty > 0 && (
@@ -207,16 +193,45 @@ const ProductPageActions = ({
                 {cartQty}
               </span>
             )}
-            {justAdded ? <Check size={19} /> : <ShoppingCart size={19} />}
+              {justAdded ? <Check size={18} /> : <ShoppingCart size={18} />}
+              <span className="truncate">
+                {isCartLimitReached
+                  ? "У кошику максимум"
+                  : justAdded
+                    ? "Додано до кошика"
+                    : cartQty > 0
+                      ? "Додати ще"
+                      : "Додати до кошика"}
+              </span>
           </button>
-        </div>
+          </div>
+
+          {cartQty > 0 ? (
+            <div className="flex items-center justify-between gap-3 rounded-[13px] border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-[10px] font-bold text-emerald-800">
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <Check size={13} aria-hidden="true" />
+                У кошику: {cartQty} шт.
+              </span>
+              <button
+                type="button"
+                onClick={handleRemoveFromCart}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg px-1.5 py-1 text-rose-600 transition hover:bg-white hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                title="Видалити товар із кошика"
+                aria-label={`Видалити ${name} із кошика`}
+              >
+                <Trash2 size={13} strokeWidth={2} aria-hidden="true" />
+                Видалити
+              </button>
+            </div>
+          ) : null}
+        </>
       ) : (
         <button
           type="button"
           onClick={handleRequestManager}
           title="Запит менеджеру"
           aria-label="Запит менеджеру"
-          className="inline-flex h-12 min-w-[168px] items-center justify-center gap-2 rounded-[18px] border border-amber-300/50 bg-[linear-gradient(135deg,#d97706,#f97316)] px-4 text-sm font-bold text-white shadow-[0_16px_30px_rgba(217,119,6,0.22)] transition-transform duration-200 hover:-translate-y-0.5 hover:brightness-105"
+          className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/50 bg-[linear-gradient(135deg,#d97706,#f97316)] px-4 text-sm font-black text-white shadow-[0_14px_28px_rgba(217,119,6,0.24)] transition-[transform,filter,box-shadow] duration-200 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_18px_34px_rgba(217,119,6,0.3)]"
         >
           <MessageCircle size={18} />
           <span>Запит ціни</span>

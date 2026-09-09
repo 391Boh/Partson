@@ -26,6 +26,9 @@ type GoogleMerchantFeedItem = {
   brand: string;
   mpn: string;
   productType: string;
+  googleProductCategory: string;
+  customLabel0?: string;
+  customLabel1?: string;
 };
 
 type GoogleMerchantFeedSnapshot = {
@@ -339,11 +342,16 @@ const toGoogleMerchantFeedItem = (
     retryToken: 1,
   });
 
+  // Brand + article first: buyers on Shopping search by exactly that
+  // ("bosch 0986424815"), and Google's own matching against its GTIN/MPN
+  // catalog weighs the front of the title more heavily than the tail.
+  const producer = (entry.producer || "").trim();
+  const visibleName = buildVisibleProductName(entry.name || code);
+  const title = [producer, article, visibleName].filter(Boolean).join(" ").trim() || visibleName;
+
   return {
     id: code,
-    title: `${buildVisibleProductName(entry.name || code)}${
-      entry.producer ? ` ${entry.producer}` : ""
-    }${article ? ` ${article}` : ""}`.trim(),
+    title,
     description: buildProductDescription(entry),
     link: `${siteUrl}${buildProductPath({
       code,
@@ -364,9 +372,18 @@ const toGoogleMerchantFeedItem = (
     availability: entry.quantity > 0 ? "in stock" : "out of stock",
     condition: "new",
     price: `${priceUah.toFixed(2)} UAH`,
-    brand: (entry.producer || "").trim() || "PartsON",
+    brand: producer || "PartsON",
     mpn: article || code,
     productType: buildProductType(entry),
+    // Every item in this catalogue is a motor vehicle part — Google's own
+    // taxonomy ID 899 ("Vehicles & Parts > Vehicle Parts & Accessories >
+    // Motor Vehicle Parts"). A single verified-correct category beats a
+    // finer per-group mapping guessed without checking each leaf against
+    // Google's real taxonomy — a wrong specific category risks disapproval,
+    // a correct broad one never does.
+    googleProductCategory: "Vehicles & Parts > Vehicle Parts & Accessories > Motor Vehicle Parts",
+    customLabel0: producer || undefined,
+    customLabel1: entry.quantity > 0 ? "in_stock" : "backorder",
   };
 };
 
@@ -393,6 +410,13 @@ const buildGoogleMerchantFeedXml = (
         `      <g:mpn>${escapeXml(item.mpn)}</g:mpn>`,
         item.productType
           ? `      <g:product_type>${escapeXml(item.productType)}</g:product_type>`
+          : null,
+        `      <g:google_product_category>${escapeXml(item.googleProductCategory)}</g:google_product_category>`,
+        item.customLabel0
+          ? `      <g:custom_label_0>${escapeXml(item.customLabel0)}</g:custom_label_0>`
+          : null,
+        item.customLabel1
+          ? `      <g:custom_label_1>${escapeXml(item.customLabel1)}</g:custom_label_1>`
           : null,
         "    </item>",
       ]

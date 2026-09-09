@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Loader2, Maximize2, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, ImagePlus, Loader2, RotateCcw, X } from "lucide-react";
 
 import { prepareProductImage, PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
+import {
+  PRODUCT_GALLERY_SELECTION_EVENT,
+  type ProductGallerySelectionDetail,
+} from "app/lib/product-gallery-events";
 
 interface GalleryImage {
   id: string;
@@ -26,8 +30,7 @@ export default function ProductGallery({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [lightboxVisible, setLightboxVisible] = useState(false);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -122,6 +125,21 @@ export default function ProductGallery({
     }
   };
 
+  const selectImage = useCallback((imageUrl: string | null) => {
+    setSelectedImageUrl(imageUrl);
+    window.dispatchEvent(
+      new CustomEvent<ProductGallerySelectionDetail>(PRODUCT_GALLERY_SELECTION_EVENT, {
+        detail: { code, imageUrl },
+      })
+    );
+  }, [code]);
+
+  useEffect(() => {
+    if (!selectedImageUrl) return;
+    if (images.some((image) => image.url === selectedImageUrl)) return;
+    selectImage(null);
+  }, [images, selectImage, selectedImageUrl]);
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -163,7 +181,11 @@ export default function ProductGallery({
         body: JSON.stringify({ code, imageId }),
       });
       const data = (await res.json()) as { ok: boolean; error?: string };
-      if (!data.ok) setError(data.error || "Не вдалося видалити фото");
+      if (!data.ok) {
+        setError(data.error || "Не вдалося видалити фото");
+      } else if (images.find((image) => image.id === imageId)?.url === selectedImageUrl) {
+        selectImage(null);
+      }
     } catch {
       setError("Помилка мережі");
     } finally {
@@ -171,30 +193,38 @@ export default function ProductGallery({
     }
   };
 
-  const openLightbox = (url: string) => {
-    setLightboxUrl(url);
-    requestAnimationFrame(() => setLightboxVisible(true));
-  };
-
-  const closeLightbox = () => {
-    setLightboxVisible(false);
-    window.setTimeout(() => setLightboxUrl(null), 200);
-  };
-
   if (images.length === 0 && !isAdmin) return null;
 
   return (
-    <div className="shrink-0 border-t border-slate-100 bg-slate-50/60 px-2.5 py-2">
-      <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
-        Додаткові фото
-      </p>
-      <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
+    <div className="relative z-20 shrink-0 border-t border-slate-100 bg-slate-50/70 px-3 py-2.5 sm:px-4 sm:py-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-slate-500">
+          Галерея · {images.length} фото
+        </p>
+        {selectedImageUrl ? (
+          <button
+            type="button"
+            onClick={() => selectImage(null)}
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-bold text-sky-700 transition hover:bg-white hover:text-sky-900"
+          >
+            <RotateCcw size={11} aria-hidden="true" />
+            Основне фото
+          </button>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-2.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
         {images.map((image, index) => (
-          <div key={image.id} className="group relative h-14 w-14 shrink-0 sm:h-16 sm:w-16">
+          <div key={image.id} className="group relative h-16 w-16 shrink-0 sm:h-[72px] sm:w-[72px]">
             <button
               type="button"
-              onClick={() => openLightbox(image.url)}
-              className="relative h-full w-full overflow-hidden rounded-[13px] border border-slate-200/90 bg-white shadow-[0_2px_6px_rgba(15,23,42,0.06)] transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-[0_10px_20px_rgba(14,165,233,0.16)]"
+              onClick={() => selectImage(image.url)}
+              aria-label={`Показати як основне фото ${index + 1}`}
+              aria-pressed={selectedImageUrl === image.url}
+              className={`relative h-full w-full overflow-hidden rounded-[14px] bg-white transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 ${
+                selectedImageUrl === image.url
+                  ? "border-2 border-sky-500 shadow-[0_10px_22px_rgba(14,165,233,0.22)] ring-2 ring-sky-100"
+                  : "border border-slate-200/90 shadow-[0_3px_10px_rgba(15,23,42,0.07)] hover:border-sky-300 hover:shadow-[0_10px_20px_rgba(14,165,233,0.16)]"
+              }`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -206,9 +236,11 @@ export default function ProductGallery({
                 decoding="async"
                 className="h-full w-full object-contain p-1"
               />
-              <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/0 opacity-0 transition group-hover:bg-slate-950/15 group-hover:opacity-100">
-                <Maximize2 className="h-4 w-4 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
-              </span>
+              {selectedImageUrl === image.url ? (
+                <span className="pointer-events-none absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-sky-600 text-white shadow-md">
+                  <Check size={12} strokeWidth={3} aria-hidden="true" />
+                </span>
+              ) : null}
             </button>
             {isAdmin && (
               <button
@@ -234,7 +266,7 @@ export default function ProductGallery({
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
             title="Додати фото"
-            className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[13px] border border-dashed border-violet-200 bg-violet-50/40 text-violet-500 transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-violet-300 hover:bg-violet-50 disabled:opacity-60 sm:h-16 sm:w-16"
+            className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[14px] border border-dashed border-sky-200 bg-sky-50/50 text-sky-600 transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 disabled:opacity-60 sm:h-[72px] sm:w-[72px]"
           >
             {uploading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -258,36 +290,6 @@ export default function ProductGallery({
         />
       )}
 
-      {lightboxUrl && (
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={closeLightbox}
-          onKeyDown={(e) => e.key === "Escape" && closeLightbox()}
-          className={`fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm transition-opacity duration-200 ${
-            lightboxVisible ? "opacity-100" : "opacity-0"
-          }`}
-        >
-          <button
-            type="button"
-            onClick={closeLightbox}
-            aria-label="Закрити"
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full text-white transition hover:rotate-90 hover:text-sky-300"
-          >
-            <X className="h-6 w-6" />
-          </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={lightboxUrl}
-            alt={`${productName} — збільшене додаткове фото`}
-            decoding="async"
-            className={`max-h-[85vh] max-w-[92vw] rounded-[16px] object-contain shadow-[0_30px_80px_rgba(0,0,0,0.5)] transition-transform duration-200 ${
-              lightboxVisible ? "scale-100" : "scale-95"
-            }`}
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
     </div>
   );
 }

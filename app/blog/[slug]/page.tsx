@@ -160,10 +160,14 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
     .map((w) => w.trim())
     .filter((w) => w.length >= 5 && !/^\d+$/.test(w))
     .slice(0, 6);
-  const socialImage =
-    post.imageDataUrl && isStorageMediaUrl(post.imageDataUrl)
+  const socialImage = !post.imageDataUrl
+    ? "/opengraph-partson-v3.png"
+    : isStorageMediaUrl(post.imageDataUrl)
       ? post.imageDataUrl
-      : "/opengraph-partson-v3.png";
+      // Legacy posts store the cover image as an inline data: URI, which
+      // social crawlers can't fetch directly — proxy it through a real URL
+      // instead of falling back to the generic branded card.
+      : `/api/blog/og-image/${post.slug}`;
   return buildPageMetadata({
     title: post.title,
     description: appendSeoContact(post.excerpt),
@@ -184,10 +188,11 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const canonicalUrl = `${siteUrl.replace(/\/$/, "")}/blog/${post.slug}`;
   const published = post.publishedAt || post.createdAt;
   const updated = post.updatedAt || published;
-  const seoImage =
-    post.imageDataUrl && isStorageMediaUrl(post.imageDataUrl)
+  const seoImage = !post.imageDataUrl
+    ? `${siteUrl.replace(/\/$/, "")}/opengraph-partson-v3.png`
+    : isStorageMediaUrl(post.imageDataUrl)
       ? post.imageDataUrl
-      : `${siteUrl.replace(/\/$/, "")}/opengraph-partson-v3.png`;
+      : `${siteUrl.replace(/\/$/, "")}/api/blog/og-image/${post.slug}`;
 
   const contentBlocks = parseContent(post.content);
   const extraImages = post.extraImages ?? [];

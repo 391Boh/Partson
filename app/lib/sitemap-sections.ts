@@ -313,7 +313,7 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
     return logo
       ? {
           loc: logo,
-          title: `${label} - виробник автозапчастин`,
+          title: `${label} — виробник автозапчастин`,
           caption: `Офіційний логотип бренду ${label} у каталозі автозапчастин PartsON`,
         }
       : null;
@@ -353,7 +353,7 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
         producer.logoPath
           ? {
               loc: producer.logoPath,
-              title: `${producer.label} - виробник автозапчастин`,
+              title: `${producer.label} — виробник автозапчастин`,
               caption: `Логотип бренду ${producer.label} у каталозі автозапчастин PartsON`,
             }
           : buildProducerImage(producer.label)
@@ -372,7 +372,7 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
       brand.logo
         ? {
             loc: brand.logo,
-            title: `${brand.name} - виробник автозапчастин`,
+            title: `${brand.name} — виробник автозапчастин`,
             caption: `Офіційний логотип бренду ${brand.name} у каталозі автозапчастин PartsON`,
           }
         : buildProducerImage(brand.name)
@@ -441,7 +441,7 @@ const buildAutoSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
       logo
         ? {
             loc: logo,
-            title: `${brand.name} - моделі авто`,
+            title: `${brand.name} — моделі авто`,
             caption: `Моделі ${brand.name} для підбору автозапчастин у PartsON`,
           }
         : null
@@ -470,7 +470,7 @@ const buildAutoSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
           logo
             ? {
                 loc: logo,
-                title: `${group.brand} ${model.name} - запчастини`,
+                title: `${group.brand} ${model.name} — запчастини`,
                 caption: `Групи запчастин для ${group.brand} ${model.name} у каталозі PartsON`,
               }
             : null

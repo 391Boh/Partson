@@ -91,10 +91,13 @@ export default function Footer() {
     return () => observer.disconnect();
   }, []);
 
+  // Richer than before on purpose — the old values (0.22/0.16/0.10) read as
+  // almost flat against the light base gradient, especially next to the
+  // more saturated glow accents used on the homepage sections above it.
   const baseGradient =
-    "radial-gradient(circle at 12% 20%, rgba(14,165,233,0.22), transparent 45%), radial-gradient(circle at 88% 0%, rgba(45,212,191,0.16), transparent 48%), radial-gradient(circle at 52% 95%, rgba(99,102,241,0.10), transparent 52%), linear-gradient(135deg,#f8fafc 0%,#eef4ff 45%,#eaf8fb 100%)";
+    "radial-gradient(circle at 12% 20%, rgba(14,165,233,0.30), transparent 46%), radial-gradient(circle at 88% 0%, rgba(45,212,191,0.22), transparent 50%), radial-gradient(circle at 52% 95%, rgba(99,102,241,0.15), transparent 54%), linear-gradient(135deg,#f6fafd 0%,#eaf1ff 45%,#e4f7f9 100%)";
   const hoverGradient =
-    "radial-gradient(circle at 12% 20%, rgba(14,165,233,0.34), transparent 45%), radial-gradient(circle at 88% 0%, rgba(16,185,129,0.22), transparent 48%), radial-gradient(circle at 52% 95%, rgba(99,102,241,0.14), transparent 52%), linear-gradient(135deg,#ffffff 0%,#e0f2fe 46%,#ecfdf5 100%)";
+    "radial-gradient(circle at 12% 20%, rgba(14,165,233,0.42), transparent 46%), radial-gradient(circle at 88% 0%, rgba(16,185,129,0.28), transparent 50%), radial-gradient(circle at 52% 95%, rgba(99,102,241,0.19), transparent 54%), linear-gradient(135deg,#ffffff 0%,#dceefe 46%,#e6fdf3 100%)";
 
   const infoLinkClass =
     "group/info inline-flex w-full items-center gap-2 rounded-xl border border-transparent px-2.5 py-2 text-slate-700 no-underline transition-[color,background-color,border-color,box-shadow] duration-150 ease-linear hover:border-sky-100/90 hover:bg-white/78 hover:text-sky-900 hover:shadow-[0_8px_18px_rgba(56,189,248,0.12),inset_0_1px_0_rgba(255,255,255,0.86)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300";
@@ -141,6 +144,10 @@ export default function Footer() {
           atPageBottom ? "opacity-100" : "opacity-0"
         }`}
       />
+      {/* Same top-hairline accent used on the cards throughout the rest of
+          the site — the footer previously had no seam treatment at all
+          where it meets the section above it. */}
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
 
       <div className="page-shell-inline relative z-10">
         {/* 3-column grid */}

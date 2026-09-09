@@ -136,7 +136,7 @@ export default async function BlogPage() {
               </span>
             )}
           </div>
-          <h1 className="max-w-xl text-[1.35rem] font-black leading-[1.1] tracking-[-0.04em] text-white sm:text-[1.75rem]">
+          <h1 className="max-w-xl text-[1.35rem] font-black leading-[1.1] tracking-[-0.04em] text-white sm:text-[1.75rem] lg:text-[2rem]">
             Статті про автозапчастини, підбір деталей і&nbsp;ТО
           </h1>
           <p className="mt-2 max-w-lg text-[12.5px] font-medium leading-relaxed text-sky-100/60 sm:text-[13px]">

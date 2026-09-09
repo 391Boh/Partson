@@ -78,10 +78,10 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
       <span className="home-scroll-decor pointer-events-none absolute inset-x-0 top-0 z-[2] h-[3px] bg-[linear-gradient(to_bottom,rgba(255,255,255,0.95),rgba(255,255,255,0.32)_46%,transparent)] transition-[box-shadow] duration-500 group-hover/seo:shadow-[0_0_22px_rgba(13,148,136,0.7)]" />
       <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[2px] bg-[linear-gradient(to_top,rgba(15,118,110,0.18),transparent)]" />
       <span className="pointer-events-none absolute inset-0 z-[1] opacity-50 bg-[linear-gradient(101deg,transparent_0%,transparent_34%,rgba(255,255,255,0.22)_48%,rgba(255,255,255,0.3)_50%,rgba(255,255,255,0.18)_52%,transparent_66%,transparent_100%)]" />
-      <div className="section-reveal-advantages is-revealed page-shell-inline relative z-10 max-w-[1200px] space-y-7 sm:space-y-10">
+      <div className="section-reveal-advantages is-revealed page-shell-inline relative z-10 space-y-7 sm:space-y-10">
         {/* ---- Header + store card: one balanced two-column row ---- */}
         <div className="grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8 xl:gap-10">
-          <div className="reveal-adv-copy relative min-w-0 rounded-[24px] border border-white/80 bg-white/78 p-5 shadow-[0_18px_42px_-20px_rgba(15,56,86,0.28),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm sm:p-7 lg:min-h-[520px] lg:p-8">
+          <div className="reveal-adv-copy relative min-w-0 rounded-[26px] border border-white/80 bg-white/78 p-5 shadow-[0_18px_42px_-20px_rgba(15,56,86,0.28),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm sm:p-7 lg:min-h-[520px] lg:p-8">
             {/* Soft glow behind the heading — light, blurred wash lifting
                 the title off the section background, same treatment as the
                 other homepage sections' card headings. */}
@@ -114,11 +114,11 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
             </p>
 
             <div className="mt-5 rounded-[18px] border border-slate-200/90 bg-slate-50/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:mt-6 sm:p-5">
-              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-teal-700">Що знайдете в каталозі</p>
+              <h3 className="text-[11px] font-black uppercase tracking-[0.12em] text-teal-700">Що знайдете в каталозі</h3>
               <dl className="mt-3.5 space-y-3.5">
                 {catalogScope.map((row) => (
                   <div key={row.label} className="grid gap-1 border-b border-slate-200/80 pb-3 last:border-0 last:pb-0 sm:grid-cols-[138px_minmax(0,1fr)] sm:gap-4">
-                    <dt className="text-[13px] font-black leading-snug text-slate-900">{row.label}</dt>
+                    <dt><h4 className="text-[13px] font-black leading-snug text-slate-900">{row.label}</h4></dt>
                     <dd className="text-[13px] leading-[1.58] text-slate-600">{row.items}</dd>
                   </div>
                 ))}
@@ -127,7 +127,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
           </div>
 
           {/* store / map card — frosted glass, height roughly matches the column */}
-          <div className="reveal-adv-map flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/75 bg-white/70 shadow-[0_26px_58px_-20px_rgba(15,56,86,0.34),inset_0_1px_0_rgba(255,255,255,0.95)] ring-1 ring-white/55">
+          <div className="reveal-adv-map flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] border border-white/75 bg-white/70 shadow-[0_26px_58px_-20px_rgba(15,56,86,0.34),inset_0_1px_0_rgba(255,255,255,0.95)] ring-1 ring-white/55">
             <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" className="group/map relative block aspect-[16/9] min-h-[220px] flex-1 cursor-zoom-in overflow-hidden bg-sky-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-400/60 lg:aspect-auto lg:min-h-[360px]">
               <DeferredStoreMap src={STORE_MAP_EMBED_URL} title="Карта розташування PartsON у Львові" />
               <span className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-white/10" />

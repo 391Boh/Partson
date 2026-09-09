@@ -787,7 +787,16 @@ useEffect(() => {
                     aria-hidden={!isFrontVisible}
                     inert={!isFrontVisible ? true : undefined}
                 >
-                    {/* Р¤РѕС‚Рѕ + РЅР°Р·РІР° */}
+                    {/* Same top-hairline + corner-glow language used on the
+                        homepage/product-page cards elsewhere on the site —
+                        this card was still the plain flat-gradient version
+                        from before that treatment existed. Small and low-
+                        opacity on purpose: this card is dense with real
+                        information (code/article/producer/price), so the
+                        accent should read as polish, not compete with it. */}
+                    <span className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
+                    <span className="pointer-events-none absolute -left-6 -top-6 h-20 w-20 rounded-full bg-[radial-gradient(circle,rgba(14,165,233,0.14),transparent_70%)] blur-xl" aria-hidden="true" />
+                    {/* Фото + назва */}
                     <div
                         className={`
                             catalog-card-hero group flex flex-row w-full ${quickEditName ? "h-auto min-h-20" : "h-20"} mb-2 p-1.5 rounded-xl
@@ -925,7 +934,7 @@ useEffect(() => {
                         </div>
                     </div>
 
-                    {/* Р†РЅС„Рѕ */}
+                    {/* Інфо */}
                     <div className="catalog-card-meta flex flex-col gap-1 text-slate-700 mt-2 font-semibold">
                         <div className="flex justify-between hover:bg-slate-100/70 px-1 py-0.5 rounded transition-colors">
                             <span className="font-bold text-slate-500">{"\u041A\u043E\u0434:"}</span>

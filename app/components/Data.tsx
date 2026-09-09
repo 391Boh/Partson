@@ -1421,9 +1421,20 @@ function useCatalogData(params: {
   const prevFiltersSignatureExcludingSortRef = useRef(filtersSignatureExcludingSort);
   const isInitialResetRunRef = useRef(true);
   const activeQuerySignatureRef = useRef(querySignature);
-  const primedInitialPayloadSignatureRef = useRef<string | null>(
-    hasInitialPage ? initialQuerySignature ?? null : null
-  );
+  // Must start as "nothing primed yet" (null), not initialQuerySignature —
+  // seeding it with the very value the guard below compares against made
+  // `primedInitialPayloadSignatureRef.current !== querySignature` false on
+  // the first run (initialQuerySignature !== initialQuerySignature), which
+  // skipped priming the memory/session cache from the SSR payload
+  // entirely. With nothing primed, the first render's memory/session
+  // lookups both missed, so the code cleared the grid to empty and
+  // fetched fresh from /api/catalog-page — throwing away content that was
+  // already there and replacing it once that fetch resolved. Measured
+  // live, that swap was the page's single largest layout shift (CLS
+  // score ~0.80 on its own). The ref still does its real job afterward:
+  // once set to querySignature post-priming, it correctly blocks
+  // re-priming on subsequent runs with the same signature.
+  const primedInitialPayloadSignatureRef = useRef<string | null>(null);
   const firstPageReadySignatureRef = useRef<string | null>(
     hasInitialPage ? initialQuerySignature ?? null : null
   );
@@ -2358,6 +2369,24 @@ function useCatalogData(params: {
                   })
                   .catch((error) => {
                     if (isAbortLikeError(error)) return;
+                    // Same gap as the outer catch above, but for the deep-
+                    // recovery attempt specifically: this inner promise
+                    // always resolves via .finally(resolve) regardless of
+                    // its own failure, so the outer .catch() never sees
+                    // this error — recoveryItems' keys need their own
+                    // release here, or they're stuck exactly like the
+                    // outer case.
+                    applyMissingImageEntries(
+                      recoveryItems
+                        .map((item) => buildProductImageBatchKey(item.code, item.article))
+                        .filter((key) => Boolean(key && !pageImagesRef.current[key]))
+                        .map((key) => ({ key, status: "missing" as const, transient: true }))
+                    );
+                    for (const key of recoveryKeySet) {
+                      if (pageImagePendingOwnerRef.current[key] === pendingOwner) {
+                        imageBatchAttemptKeysRef.current.delete(key);
+                      }
+                    }
                   })
                   .finally(resolve);
               }, VISIBLE_IMAGE_DEEP_RECOVERY_DELAY_MS);
@@ -2366,6 +2395,28 @@ function useCatalogData(params: {
         })
         .catch((error) => {
           if (isAbortLikeError(error)) return;
+          // A genuine failure (network blip, timeout, non-2xx) here left
+          // requestItems' keys stuck forever: still marked as "attempted"
+          // (imageBatchAttemptKeysRef, only cleared below on abort/stale —
+          // not on a real error) and never marked "missing" either, so
+          // ProductCardImage's own direct-load fallback never kicked in.
+          // The image just never arrived until a full page reload reset
+          // every in-memory ref. Release them the same way a successful-
+          // but-not-ready response already does: mark missing (unblocks
+          // each card's direct fallback) — the finally block below then
+          // also frees the attempt marker so a future pass can retry the
+          // batch route too.
+          applyMissingImageEntries(
+            requestItems
+              .map((item) => buildProductImageBatchKey(item.code, item.article))
+              .filter((key) => Boolean(key && !pageImagesRef.current[key]))
+              .map((key) => ({ key, status: "missing" as const, transient: true }))
+          );
+          for (const key of pendingKeys) {
+            if (pageImagePendingOwnerRef.current[key] === pendingOwner) {
+              imageBatchAttemptKeysRef.current.delete(key);
+            }
+          }
         })
         .finally(() => {
           const requestBecameStale = Boolean(
@@ -4954,6 +5005,33 @@ const Data: React.FC<DataProps> = ({
     if (!grid) return;
     let gridTop = window.scrollY + grid.getBoundingClientRect().top;
 
+    // One-time measurement, taken when this effect (re-)runs — not inside
+    // updateRange, which fires on every scroll tick and must stay free of
+    // forced-layout reads (see the comment on the ResizeObserver effect
+    // above). Without this, updateRange's very first call used the rough
+    // VIRTUAL_ROW_ESTIMATED_HEIGHT_PX guess to size the top/bottom spacers,
+    // then a moment later re-ran with the real height once the separate
+    // ResizeObserver-driven effect corrected virtualRowHeightPx in state —
+    // that correction resized the whole results container, which is what
+    // measured live as a large, single Cumulative Layout Shift. Seeding the
+    // first calculation with a real measurement (when a card already
+    // exists to measure) removes that two-step "guess, then correct" jump.
+    let effectiveRowHeightPx = virtualRowHeightPx;
+    const firstCardForMeasurement = grid.querySelector<HTMLElement>("[data-catalog-card='1']");
+    if (firstCardForMeasurement) {
+      const cardRect = firstCardForMeasurement.getBoundingClientRect();
+      const gridStyle = window.getComputedStyle(grid);
+      const rowGap = Number.parseFloat(gridStyle.rowGap || "0") || 0;
+      const measuredRowHeight = cardRect.height + rowGap;
+      if (
+        Number.isFinite(measuredRowHeight) &&
+        measuredRowHeight >= 220 &&
+        measuredRowHeight <= 520
+      ) {
+        effectiveRowHeightPx = measuredRowHeight;
+      }
+    }
+
     const refreshGridTop = () => {
       gridTop = window.scrollY + grid.getBoundingClientRect().top;
     };
@@ -4964,7 +5042,7 @@ const Data: React.FC<DataProps> = ({
       const totalRows = Math.ceil(totalItems / columns);
       const viewportTop = window.scrollY;
       const viewportBottom = viewportTop + window.innerHeight;
-      const rowHeight = Math.max(1, virtualRowHeightPx);
+      const rowHeight = Math.max(1, effectiveRowHeightPx);
       const overscanPx = VIRTUAL_OVERSCAN_ROWS * rowHeight;
 
       const rawStartRow = Math.floor(

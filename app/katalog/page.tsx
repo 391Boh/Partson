@@ -327,13 +327,13 @@ const resolveCatalogSeoState = (
     canonicalPath = buildCatalogProducerPath(producer, group, null, {
       expandHierarchy,
     });
-    title = `${producer}: ${group} - каталог автозапчастин`;
+    title = `${producer}: ${group} — каталог автозапчастин`;
     description = appendSeoContact(
       `${producer} у групі ${group}: автозапчастини за артикулом, категорією, ціною й наявністю в PartsON, консультація та доставка по Україні.`
     );
   } else if (producer) {
     canonicalPath = buildManufacturerLandingPath(producer);
-    title = `${producer} - виробник автозапчастин`;
+    title = `${producer} — виробник автозапчастин`;
     description = appendSeoContact(
       `Автозапчастини ${producer} у PartsON: сторінка виробника, пошук за артикулом, категорією і наявністю, підбір сумісних деталей та доставка по Україні.`
     );
@@ -341,13 +341,13 @@ const resolveCatalogSeoState = (
     canonicalPath = buildCatalogCategoryPath(group, subcategory, {
       expandHierarchy,
     });
-    title = `${subcategory} - ${group} | Каталог автозапчастин`;
+    title = `${subcategory} — ${group} | Каталог автозапчастин`;
     description = appendSeoContact(
       `${subcategory} у групі ${group}: каталог автозапчастин PartsON з виробниками, цінами, наявністю, підбором за артикулом і доставкою по Україні.`
     );
   } else if (group) {
     canonicalPath = buildGroupLandingPath(group);
-    title = `${group} - група автозапчастин`;
+    title = `${group} — група автозапчастин`;
     description = appendSeoContact(
       `${group} у каталозі PartsON: підгрупи автозапчастин, пошук за артикулом і виробником, перевірка сумісності, самовивіз і доставка по Україні.`
     );
@@ -369,7 +369,7 @@ const resolveCatalogSeoState = (
     // brand-picker content, and pointing here would split the SEO signal
     // between two URLs for the same page instead of consolidating it.
     canonicalPath = buildAutoBrandPath(brand);
-    title = `${brand} - підбір автозапчастин по авто`;
+    title = `${brand} — підбір автозапчастин по авто`;
     description = appendSeoContact(
       `${brand}: підбір автозапчастин у PartsON за моделлю, модифікацією та VIN, швидкий перехід до сумісних товарів і доставка по Україні.`
     );
@@ -819,7 +819,7 @@ const buildCatalogItemListJsonLd = (
     "@context": "https://schema.org",
     "@type": "ItemList",
     "@id": `${currentUrl}#catalog-products`,
-    name: `${state.title} - товари`,
+    name: `${state.title} — товари`,
     itemListOrder: "https://schema.org/ItemListOrderAscending",
     numberOfItems: itemListElement.length,
     itemListElement,
