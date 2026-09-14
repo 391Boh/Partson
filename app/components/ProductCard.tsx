@@ -2,7 +2,7 @@
 
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle, Copy, Check, Pencil, ImagePlus, X, Save, Plus, Minus } from "lucide-react";
+import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle, Copy, Check, Pencil, ImagePlus, X, Save, Plus, Minus, BadgePercent } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
 import { brands } from "app/components/brandsData";
@@ -86,6 +86,16 @@ interface Props {
     qty: number;
     cartQty: number;
     priceUAH: number | null;
+    promoPriceUAH?: number | null;
+    isPartner?: boolean;
+    // Public-safe teaser: an active partner promo exists on this item, known
+    // even to anonymous/non-partner visitors — never the discounted amount
+    // itself, which stays gated behind isPartner/promoPriceUAH.
+    hasPromo?: boolean;
+    // Public-safe teaser: the discount size in whole percent — safe to show
+    // because the regular price is already public, but the exact discounted
+    // amount stays gated behind isPartner/promoPriceUAH.
+    promoPercent?: number | null;
     costPriceUAH?: number | null;
     costPriceEuro?: number | null;
     isAdmin?: boolean;
@@ -118,6 +128,10 @@ const ProductCard: React.FC<Props> = ({
     qty,
     cartQty,
     priceUAH,
+    promoPriceUAH,
+    isPartner = false,
+    hasPromo = false,
+    promoPercent = null,
     costPriceUAH,
     costPriceEuro,
     isAdmin = false,
@@ -242,11 +256,22 @@ const ProductCard: React.FC<Props> = ({
         typeof costPriceUAH === "number" &&
         Number.isFinite(costPriceUAH) &&
         costPriceUAH > 0;
+    const hasPromoPrice =
+        isPartner &&
+        typeof promoPriceUAH === "number" &&
+        Number.isFinite(promoPriceUAH) &&
+        promoPriceUAH > 0 &&
+        (typeof priceUAH !== "number" || promoPriceUAH < priceUAH);
+    const effectivePriceUAH = hasPromoPrice ? promoPriceUAH : priceUAH;
     const hasPrice =
         priceStatus === "ready" &&
-        typeof priceUAH === "number" &&
-        Number.isFinite(priceUAH) &&
-        priceUAH > 0;
+        typeof effectivePriceUAH === "number" &&
+        Number.isFinite(effectivePriceUAH) &&
+        effectivePriceUAH > 0;
+    // A promo exists but this visitor isn't a partner (or isn't logged in) —
+    // mark it without revealing the discounted amount, reserved for verified
+    // partners (see hasPromo's own comment above).
+    const showPartnerDiscountTeaser = !hasPromoPrice && hasPromo;
     const isPlusDisabled = !isAvailable || (isAvailable && cartQty + qty >= quantity);
     const isAddDisabled = !isAvailable || (isAvailable && cartQty + qty > quantity);
     const isCartButtonDisabled = isPriceLoading ? true : hasPrice ? isAddDisabled : false;
@@ -749,7 +774,7 @@ useEffect(() => {
                     />
                     <div itemProp="offers" itemScope itemType="https://schema.org/Offer">
                         <meta itemProp="priceCurrency" content="UAH" />
-                        <meta itemProp="price" content={String(priceUAH)} />
+                        <meta itemProp="price" content={String(effectivePriceUAH)} />
                         <link
                             itemProp="availability"
                             href={isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"}
@@ -806,6 +831,19 @@ useEffect(() => {
                         `}
                     >
                         <div className="catalog-card-image relative mr-2 flex h-full w-1/3 items-center justify-center overflow-hidden rounded-lg bg-white sm:w-2/5 group/imgarea">
+                            {/* Pinned to the photo's own corner (not the card's), so it
+                                never sits on top of the title text below — a fixed,
+                                self-contained box instead of floating over whatever
+                                happens to be underneath it. Opposite corner from the
+                                admin replace-photo trigger. Shortened from "Акція
+                                партнера" — this corner is roughly a third of the card's
+                                width, nowhere near enough for the full phrase; "партнер"
+                                is already spelled out next to the price itself below. */}
+                            {hasPromoPrice && (
+                                <span className="pointer-events-none absolute right-1 top-1 z-10 inline-flex items-center rounded-full border border-rose-200 bg-rose-50/95 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.06em] text-rose-700 shadow-sm">
+                                    Акція
+                                </span>
+                            )}
                             <ProductCardImage
                                 productCode={code}
                                 articleHint={item.article}
@@ -909,7 +947,7 @@ useEffect(() => {
                                                         ...(analyticsListId ? { item_list_id: analyticsListId } : {}),
                                                         ...(analyticsListName ? { item_list_name: analyticsListName } : {}),
                                                         ...(typeof analyticsIndex === "number" ? { index: analyticsIndex } : {}),
-                                                        ...(priceUAH != null ? { price: priceUAH } : {}),
+                                                        ...(effectivePriceUAH != null ? { price: effectivePriceUAH } : {}),
                                                     },
                                                 ],
                                             });
@@ -1133,9 +1171,19 @@ useEffect(() => {
                                         ) : (
                                             <span className="text-slate-400 italic text-[10px] font-bold">не вказано</span>
                                         )
+                                    ) : hasPromoPrice ? (
+                                        <>
+                                            {typeof priceUAH === "number" && (
+                                                <span className="text-[10px] font-bold text-slate-400 line-through decoration-rose-400">
+                                                    {priceUAH.toLocaleString('uk-UA')}
+                                                </span>
+                                            )}
+                                            <span className="text-rose-600 font-black text-[14px] leading-none">{promoPriceUAH.toLocaleString('uk-UA')}</span>
+                                            <span className="text-[10px] font-bold text-rose-400">грн</span>
+                                        </>
                                     ) : hasPrice ? (
                                         <>
-                                            <span className="text-blue-600 font-black text-[13px] leading-none">{priceUAH.toLocaleString('uk-UA')}</span>
+                                            <span className="text-blue-600 font-black text-[13px] leading-none">{effectivePriceUAH!.toLocaleString('uk-UA')}</span>
                                             <span className="text-[10px] font-bold text-slate-400">грн</span>
                                         </>
                                     ) : isPriceLoading ? (
@@ -1145,6 +1193,20 @@ useEffect(() => {
                                     )}
                                 </span>
                             </div>
+                            {/* Teaser for a non-partner/anonymous visitor — the actual
+                                discounted price stays hidden, only the fact that one
+                                exists is shown. Sibling of the price pill (not nested
+                                inside its own overflow-hidden/nowrap box) so the parent
+                                row's flex-wrap can drop it to its own line on a narrow
+                                card instead of clipping it. */}
+                            {!showCostPrice && showPartnerDiscountTeaser && (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-gradient-to-r from-rose-50 to-rose-100 px-2 py-1 text-[9px] font-black uppercase tracking-[0.04em] text-rose-700 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset]">
+                                    <BadgePercent className="h-3 w-3 shrink-0" strokeWidth={2.4} aria-hidden="true" />
+                                    {typeof promoPercent === "number" && promoPercent > 0
+                                        ? `-${promoPercent}% для партнерів`
+                                        : "Знижка для партнерів"}
+                                </span>
+                            )}
                             {/* Admin edit pencil */}
                             {isAdmin && onAdminEdit && (
                                 <button
@@ -1295,10 +1357,10 @@ useEffect(() => {
                                          return;
                                      }
                                      onAddToCart(item);
-                                     if (priceUAH != null) {
+                                     if (effectivePriceUAH != null) {
                                          pushEcommerceEvent("add_to_cart", {
                                              currency: "UAH",
-                                             value: priceUAH * (qty || 1),
+                                             value: effectivePriceUAH * (qty || 1),
                                              items: [
                                                  {
                                                      item_id: item.code,
@@ -1311,7 +1373,7 @@ useEffect(() => {
                                                      ...(analyticsListId ? { item_list_id: analyticsListId } : {}),
                                                      ...(analyticsListName ? { item_list_name: analyticsListName } : {}),
                                                      ...(typeof analyticsIndex === "number" ? { index: analyticsIndex } : {}),
-                                                     price: priceUAH,
+                                                     price: effectivePriceUAH,
                                                      quantity: qty || 1,
                                                  },
                                              ],
@@ -1332,7 +1394,7 @@ useEffect(() => {
                                              ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-wait"
                                              : "bg-slate-200 text-slate-500 cursor-not-allowed"
                                          : isRequestAction
-                                             ? "min-w-[132px] border border-amber-300 bg-amber-50 text-amber-900 shadow-[0_6px_16px_rgba(245,158,11,0.14)] hover:border-amber-400 hover:bg-amber-100 hover:text-amber-950 hover:shadow-[0_8px_20px_rgba(245,158,11,0.18)]"
+                                             ? "min-w-[44px] border border-amber-300 bg-amber-50 text-amber-900 shadow-[0_6px_16px_rgba(245,158,11,0.14)] hover:border-amber-400 hover:bg-amber-100 hover:text-amber-950 hover:shadow-[0_8px_20px_rgba(245,158,11,0.18)]"
                                              : "border border-rose-300/80 bg-[linear-gradient(135deg,#fb7185,#e11d48)] text-white shadow-[0_10px_18px_rgba(225,29,72,0.22)] hover:brightness-105 hover:shadow-[0_12px_22px_rgba(225,29,72,0.26)]"
                                  } ${tapMotionClass} ${
                                      justAdded && motionEnabled ? "scale-105" : "scale-100"
@@ -1356,10 +1418,7 @@ useEffect(() => {
                                  {isPriceLoading ? (
                                      <span className="inline-block h-[18px] w-[18px] rounded-full border-2 border-slate-300 border-t-slate-500 animate-spin" />
                                  ) : isRequestAction ? (
-                                     <>
-                                         <MessageCircle size={17} />
-                                         <span>Уточнити ціну</span>
-                                     </>
+                                     <MessageCircle size={18} />
                                  ) : (
                                      <ShoppingCart size={18} />
                                  )}

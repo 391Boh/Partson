@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from "react";
 
-import { registerParallax } from "app/lib/parallax-controller";
+import {
+  getCenteredParallaxProgress,
+  registerParallax,
+} from "app/lib/parallax-controller";
 
 // Atmospheric layer behind the manufacturers picker — parts-maker wordmarks as
 // CSS masks filled with a chrome ramp. Even, non-overlapping scatter (four down
@@ -214,10 +217,12 @@ export default function BrandsLogosBackdrop() {
     let lastStep = NaN;
 
     const recompute = () => {
-      const factor =
-        window.innerWidth <= MOBILE_MAX_WIDTH ? MOBILE_MOTION_FACTOR : 1;
+      const isMobile = window.innerWidth <= MOBILE_MAX_WIDTH;
+      const factor = isMobile ? MOBILE_MOTION_FACTOR : 1;
       planes = allPlanes.filter((p, index) => {
-        if (index % 2 !== 0) return false;
+        // One left and one right wordmark are enough to express the lateral
+        // spread on phones without promoting the whole logo field.
+        if (isMobile ? index !== 1 && index !== 8 : index % 2 !== 0) return false;
         const r = p.el.getBoundingClientRect();
         return r.width > 0 && r.height > 0;
       });
@@ -267,13 +272,7 @@ export default function BrandsLogosBackdrop() {
       handle = registerParallax({
         el: section as HTMLElement,
         heavy: true,
-        compute: (scrollY, vh, top, height) => {
-          const centre = top - scrollY + height / 2;
-          return Math.max(
-            -1,
-            Math.min(1, (vh / 2 - centre) / (vh / 2 + height / 2))
-          );
-        },
+        compute: getCenteredParallaxProgress,
         apply,
       });
     };
@@ -286,35 +285,18 @@ export default function BrandsLogosBackdrop() {
       window.removeEventListener("orientationchange", onResize);
     };
 
-    // Phones: marks stay at their resting transform (parallax on ~10 masked
-    // layers is the main mobile-GPU stutter and barely reads at that width).
-    const coarse = window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`);
-    let io: IntersectionObserver | null = null;
-
-    const install = () => {
-      if (io) return;
-      io = new IntersectionObserver(
-        (entries) => {
-          if (entries.some((e) => e.isIntersecting)) start();
-          else stop();
-        },
-        { rootMargin: "180px 0px" }
-      );
-      io.observe(section);
-    };
-    const uninstall = () => {
-      io?.disconnect();
-      io = null;
-      stop();
-    };
-
-    const sync = () => (coarse.matches ? uninstall() : install());
-    sync();
-    coarse.addEventListener("change", sync);
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) start();
+        else stop();
+      },
+      { rootMargin: "180px 0px" }
+    );
+    io.observe(section);
 
     return () => {
-      coarse.removeEventListener("change", sync);
-      uninstall();
+      io.disconnect();
+      stop();
     };
   }, []);
 

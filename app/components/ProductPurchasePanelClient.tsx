@@ -1,17 +1,30 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CreditCard, Headphones, Truck } from "lucide-react";
+import Link from "next/link";
+import { BadgePercent, CreditCard, Headphones, Truck } from "lucide-react";
 
 import ProductPageActions from "app/components/ProductPageActions";
 import ProductViewTracking from "app/components/ProductViewTracking";
-import { registerParallax } from "app/lib/parallax-controller";
+import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
+import {
+  getViewportParallaxProgress,
+  registerParallax,
+} from "app/lib/parallax-controller";
 
 type ProductPurchasePanelClientProps = {
   lookupKeys: string[];
   isModalView: boolean;
   initialPriceUah?: number | null;
   initialCostPriceUah?: number | null;
+  // Public-safe teaser resolved server-side, alongside initialPriceUah —
+  // without these the discount badge only appeared after a client-side
+  // fetch resolved post-mount, inserting new height below the price and
+  // shifting everything under it (a measured layout-shift source on this
+  // page). Passing them in means the very first render already matches
+  // what the client fetch below would eventually confirm.
+  initialHasPromo?: boolean;
+  initialPromoPercent?: number | null;
   hasKnownNoPrice: boolean;
   resolvedCode: string;
   product: {
@@ -44,6 +57,8 @@ export default function ProductPurchasePanelClient(
   const {
     initialPriceUah,
     initialCostPriceUah,
+    initialHasPromo = false,
+    initialPromoPercent = null,
     hasKnownNoPrice,
     isInStock,
     isModalView,
@@ -54,6 +69,36 @@ export default function ProductPurchasePanelClient(
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [showCostPrice, setShowCostPrice] = useState(false);
+  const [hasAuthenticatedUser, setHasAuthenticatedUser] = useState(false);
+  const [isPartner, setIsPartner] = useState(false);
+  const [promoPriceUah, setPromoPriceUah] = useState<number | null>(null);
+  // Public-safe teaser: true when this item has an active partner promo at
+  // all, known even to anonymous/non-partner visitors — never the actual
+  // discounted amount, which stays gated behind isPartner/promoPriceUah.
+  // Seeded from the server-resolved initial prop so the badge is already
+  // correct on first paint instead of popping in after a client fetch.
+  const [hasPromo, setHasPromo] = useState(initialHasPromo);
+  // Public-safe teaser: the discount size in whole percent — see hasPromo's
+  // own comment above.
+  const [promoPercent, setPromoPercent] = useState<number | null>(initialPromoPercent);
+
+  useEffect(() => {
+    const syncStoredAuth = () => {
+      try {
+        setHasAuthenticatedUser(Boolean(localStorage.getItem("user_id")));
+      } catch {
+        setHasAuthenticatedUser(false);
+      }
+    };
+    const handleAuthChange = (event: Event) => {
+      const uid = (event as CustomEvent<{ uid?: string | null }>).detail?.uid;
+      setHasAuthenticatedUser(Boolean(uid));
+    };
+
+    syncStoredAuth();
+    window.addEventListener("partson:authStateChange", handleAuthChange);
+    return () => window.removeEventListener("partson:authStateChange", handleAuthChange);
+  }, []);
 
   useEffect(() => {
     const checkStoredAdminFlag = () => {
@@ -134,6 +179,34 @@ export default function ProductPurchasePanelClient(
     () => (requestUrl ? `${PRODUCT_PRICE_CACHE_PREFIX}${requestUrl}` : ""),
     [requestUrl]
   );
+
+  const partnerRequestUrl = useMemo(() => {
+    const params = new URLSearchParams({ mode: "partner" });
+    for (const key of lookupKeys) {
+      const normalized = (key || "").trim();
+      if (normalized) params.append("lookup", normalized);
+    }
+    return params.getAll("lookup").length > 0
+      ? `/api/product-price?${params.toString()}`
+      : "";
+  }, [lookupKeys]);
+
+  // Deliberately independent of normalizedInitialPrice/hasKnownNoPrice (unlike
+  // requestUrl above): the public "has a partner promo at all" flag isn't
+  // known from the page's own initial price data, so it must still be
+  // checked even when the regular price arrived inline and requestUrl is
+  // therefore "" — otherwise the teaser badge never appears for the (common)
+  // case of a product whose price was already known at render time.
+  const publicPromoCheckUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    for (const key of lookupKeys) {
+      const normalized = (key || "").trim();
+      if (normalized) params.append("lookup", normalized);
+    }
+    return params.getAll("lookup").length > 0
+      ? `/api/product-price?${params.toString()}`
+      : "";
+  }, [lookupKeys]);
 
   useEffect(() => {
     if (!requestUrl) {
@@ -301,12 +374,113 @@ export default function ProductPurchasePanelClient(
     };
   }, [cacheKey, normalizedInitialPrice, requestUrl]);
 
+  // Independent of the price-cache pipeline above (which only ever tracks a
+  // plain number) — a separate, minimal fetch of the same public endpoint
+  // just for the "has a partner promo at all" flag. The server dedupes an
+  // identical concurrent request to /api/product-price itself (same URL as
+  // the main price fetch whenever that one also runs), so this adds a
+  // same-origin round trip, not a second 1C lookup.
+  useEffect(() => {
+    if (!publicPromoCheckUrl) {
+      setHasPromo(false);
+      setPromoPercent(null);
+      return;
+    }
+
+    let cancelled = false;
+    fetch(publicPromoCheckUrl, { method: "GET", headers: { Accept: "application/json" } })
+      .then((response) => response.json())
+      .then((payload: { hasPromo?: boolean; promoPercent?: number | null }) => {
+        if (cancelled) return;
+        setHasPromo(payload.hasPromo === true);
+        setPromoPercent(typeof payload.promoPercent === "number" ? payload.promoPercent : null);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [publicPromoCheckUrl]);
+
+  useEffect(() => {
+    if (!hasAuthenticatedUser || !partnerRequestUrl) {
+      setIsPartner(false);
+      setPromoPriceUah(null);
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const loadPartnerPrice = async () => {
+      const snapshot = await waitForFirebaseAuthReady();
+      const token = snapshot.user
+        ? await snapshot.user.getIdToken().catch(() => null)
+        : null;
+      if (!token || cancelled) return;
+
+      const response = await fetch(partnerRequestUrl, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+        signal: controller.signal,
+      }).catch(() => null);
+      if (!response?.ok || cancelled) return;
+
+      const payload = (await response.json()) as {
+        promoPriceUah?: number | null;
+        isPartner?: boolean;
+      };
+      const partnerAccess = payload.isPartner === true;
+      const nextPromoPrice =
+        partnerAccess &&
+        typeof payload.promoPriceUah === "number" &&
+        Number.isFinite(payload.promoPriceUah) &&
+        payload.promoPriceUah > 0
+          ? payload.promoPriceUah
+          : null;
+
+      if (!cancelled) {
+        setIsPartner(partnerAccess);
+        setPromoPriceUah(nextPromoPrice);
+      }
+    };
+
+    void loadPartnerPrice();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [hasAuthenticatedUser, partnerRequestUrl]);
+
   const isLoading = priceUah === undefined;
-  const hasPrice = typeof priceUah === "number" && Number.isFinite(priceUah) && priceUah > 0;
+  const hasPromoPrice =
+    isPartner &&
+    typeof promoPriceUah === "number" &&
+    Number.isFinite(promoPriceUah) &&
+    promoPriceUah > 0 &&
+    (typeof priceUah !== "number" || promoPriceUah < priceUah);
+  const effectivePriceUah = hasPromoPrice ? promoPriceUah : priceUah;
+  const hasPrice =
+    typeof effectivePriceUah === "number" &&
+    Number.isFinite(effectivePriceUah) &&
+    effectivePriceUah > 0;
+  // A promo exists but this visitor isn't a partner (or isn't logged in) —
+  // say so without revealing the discounted amount, which stays reserved for
+  // verified partners (see hasPromo's own comment above).
+  const showPartnerDiscountTeaser = !hasPromoPrice && hasPromo;
   const helperText = isLoading
     ? "Перевіряємо актуальну ціну — це зазвичай займає кілька секунд."
     : hasPrice
-      ? "Ціна актуальна. Після оформлення менеджер підтвердить замовлення."
+      ? hasPromoPrice
+        ? "Акційна ціна доступна партнеру. Додаткові знижки на неї не нараховуються."
+        : showPartnerDiscountTeaser
+          ? typeof promoPercent === "number" && promoPercent > 0
+            ? `На цей товар діє знижка -${promoPercent}% для партнерів — стає видимою після входу в партнерський акаунт.`
+            : "На цей товар діє знижка для партнерів — стає видимою після входу в партнерський акаунт."
+          : "Ціна актуальна. Після оформлення менеджер підтвердить замовлення."
       : "Залиште запит — менеджер швидко уточнить ціну та строк постачання.";
 
   const panelRef = useRef<HTMLDivElement>(null);
@@ -321,10 +495,7 @@ export default function ProductPurchasePanelClient(
 
     const handle = registerParallax({
       el: panel,
-      compute: (scrollY, viewportH, top, height) => {
-        const progress = (scrollY + viewportH - top) / (viewportH + height);
-        return Math.min(Math.max(progress, 0), 1);
-      },
+      compute: getViewportParallaxProgress,
       apply: (progress) => {
         const shift = (progress - 0.5) * 24;
         glowTop.style.transform = `translate3d(0, ${shift.toFixed(2)}px, 0)`;
@@ -369,13 +540,13 @@ export default function ProductPurchasePanelClient(
         item_category2={product.group || undefined}
         item_category3={product.subGroup || undefined}
         item_variant={product.article || undefined}
-        price={priceUah}
+        price={effectivePriceUah ?? null}
       />
       <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(190px,0.72fr)_minmax(290px,1.28fr)] xl:items-center xl:gap-6">
         <div className="min-w-0">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700">
-              Ціна товару
+              {hasPromoPrice ? "Акційна ціна партнера" : "Ціна товару"}
             </h3>
             {hasCostPrice ? (
               <div className="flex rounded-[8px] border border-slate-200 bg-slate-100 p-[2px]">
@@ -395,12 +566,38 @@ export default function ProductPurchasePanelClient(
 
           {isLoading && !showCostPrice ? (
             <div className="mt-2 h-10 w-44 animate-pulse rounded-xl bg-slate-100" role="status" aria-label="Завантажуємо ціну" />
+          ) : hasPromoPrice && !showCostPrice ? (
+            <div className="mt-1.5 flex flex-wrap items-end gap-x-3 gap-y-1">
+              {typeof priceUah === "number" && (
+                <span className="text-base font-bold text-slate-400 line-through decoration-rose-400 decoration-2">
+                  {formatPriceUah(priceUah)}
+                </span>
+              )}
+              <span className="break-words text-[clamp(1.75rem,4vw,2.35rem)] font-black leading-none tracking-[-0.035em] text-rose-600">
+                {formatPriceUah(promoPriceUah)}
+              </span>
+              <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-rose-700">
+                Для партнера
+              </span>
+            </div>
           ) : (
             <p className={`mt-1.5 break-words text-[clamp(1.75rem,4vw,2.35rem)] font-black leading-none tracking-[-0.035em] ${showCostPrice && hasCostPrice ? "text-amber-700" : hasPrice ? "text-slate-950" : "text-slate-800"}`}>
               {showCostPrice && hasCostPrice
                 ? `${initialCostPriceUah!.toLocaleString("uk-UA")} грн`
-                : formatPriceUah(priceUah ?? null)}
+                : formatPriceUah(effectivePriceUah ?? null)}
             </p>
+          )}
+
+          {showPartnerDiscountTeaser && !isLoading && !showCostPrice && (
+            <Link
+              href="/partnership"
+              className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full border border-rose-200 bg-gradient-to-r from-rose-50 to-rose-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.04em] text-rose-700 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset] transition hover:border-rose-300 hover:from-rose-100 hover:to-rose-200"
+            >
+              <BadgePercent size={12} strokeWidth={2.4} aria-hidden="true" />
+              {typeof promoPercent === "number" && promoPercent > 0
+                ? `Знижка -${promoPercent}% для партнерів`
+                : "Знижка для партнерів"}
+            </Link>
           )}
 
           <div className={`mt-3 inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-[10px] font-extrabold ${isInStock ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
@@ -421,7 +618,9 @@ export default function ProductPurchasePanelClient(
             category={product.category || undefined}
             group={product.group || undefined}
             subGroup={product.subGroup || undefined}
-            priceUah={priceUah ?? null}
+            priceUah={effectivePriceUah ?? null}
+            originalPriceUah={hasPromoPrice ? priceUah ?? null : null}
+            isPromoPrice={hasPromoPrice}
             quantity={product.quantity}
             compact
             prominent

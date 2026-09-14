@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, ImagePlus, Minus, Pencil, Plus, ShoppingCart, Trash2, X } from "lucide-react";
+import { BadgePercent, Check, ChevronDown, ImagePlus, Minus, Pencil, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 
 import ProductCardImage from "app/components/ProductCardImage";
 import type { Product } from "app/components/Data";
@@ -19,6 +19,16 @@ interface Props {
     qty: number;
     cartQty: number;
     priceUAH: number | null;
+    promoPriceUAH?: number | null;
+    isPartner?: boolean;
+    // Public-safe teaser: an active partner promo exists on this item, known
+    // even to anonymous/non-partner visitors — never the discounted amount
+    // itself, which stays gated behind isPartner/promoPriceUAH.
+    hasPromo?: boolean;
+    // Public-safe teaser: the discount size in whole percent — safe to show
+    // because the regular price is already public, but the exact discounted
+    // amount stays gated behind isPartner/promoPriceUAH.
+    promoPercent?: number | null;
     priceStatus: "loading" | "ready" | "request";
     imageLoadingMode?: "lazy" | "eager";
     imageFetchPriority?: "high" | "low" | "auto";
@@ -65,6 +75,10 @@ const ProductListRow: React.FC<Props> = ({
     qty,
     cartQty,
     priceUAH,
+    promoPriceUAH,
+    isPartner = false,
+    hasPromo = false,
+    promoPercent = null,
     priceStatus,
     imageLoadingMode = "lazy",
     imageFetchPriority = "auto",
@@ -86,8 +100,22 @@ const ProductListRow: React.FC<Props> = ({
     const name = buildVisibleProductName(item.name);
     const isAvailable = quantity > 0;
     const isPriceLoading = priceStatus === "loading";
+    const hasPromoPrice =
+        isPartner &&
+        typeof promoPriceUAH === "number" &&
+        Number.isFinite(promoPriceUAH) &&
+        promoPriceUAH > 0 &&
+        (typeof priceUAH !== "number" || promoPriceUAH < priceUAH);
+    const effectivePriceUAH = hasPromoPrice ? promoPriceUAH : priceUAH;
     const hasPrice =
-        priceStatus === "ready" && typeof priceUAH === "number" && Number.isFinite(priceUAH) && priceUAH > 0;
+        priceStatus === "ready" &&
+        typeof effectivePriceUAH === "number" &&
+        Number.isFinite(effectivePriceUAH) &&
+        effectivePriceUAH > 0;
+    // A promo exists but this visitor isn't a partner (or isn't logged in) —
+    // mark it without revealing the discounted amount, reserved for verified
+    // partners (see hasPromo's own comment above).
+    const showPartnerDiscountTeaser = !hasPromoPrice && hasPromo;
     const isRequestAction = priceStatus === "request";
     const isPlusDisabled = !isAvailable || (isAvailable && cartQty + qty >= quantity);
     const isAddDisabled = !isAvailable || (isAvailable && cartQty + qty > quantity);
@@ -579,9 +607,33 @@ const ProductListRow: React.FC<Props> = ({
                                 ) : (
                                     <span className="text-[11px] font-semibold italic text-slate-400">не вказано</span>
                                 )
+                            ) : hasPromoPrice ? (
+                                <span className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5">
+                                    <span className="rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.06em] text-rose-700">
+                                        Акція
+                                    </span>
+                                    {typeof priceUAH === "number" && (
+                                        <span className="text-[11px] font-bold text-slate-400 line-through decoration-rose-400">
+                                            {priceUAH.toLocaleString("uk-UA")}
+                                        </span>
+                                    )}
+                                    <span className="catalog-list-price-depth text-[15px] font-black text-rose-600">
+                                        {promoPriceUAH!.toLocaleString("uk-UA")} <span className="text-[11px] font-bold text-rose-400">грн</span>
+                                    </span>
+                                </span>
                             ) : hasPrice ? (
-                                <span className="catalog-list-price-depth text-[15px] font-black text-slate-900">
-                                    {priceUAH!.toLocaleString("uk-UA")} <span className="text-[11px] font-bold text-slate-400">грн</span>
+                                <span className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5">
+                                    <span className="catalog-list-price-depth text-[15px] font-black text-slate-900">
+                                        {effectivePriceUAH!.toLocaleString("uk-UA")} <span className="text-[11px] font-bold text-slate-400">грн</span>
+                                    </span>
+                                    {showPartnerDiscountTeaser && (
+                                        <span className="inline-flex items-center gap-0.5 rounded-full border border-rose-200 bg-gradient-to-r from-rose-50 to-rose-100 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.04em] text-rose-700 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset]">
+                                            <BadgePercent className="h-2.5 w-2.5 shrink-0" strokeWidth={2.4} aria-hidden="true" />
+                                            {typeof promoPercent === "number" && promoPercent > 0
+                                                ? `-${promoPercent}% для партнерів`
+                                                : "Знижка для партнерів"}
+                                        </span>
+                                    )}
                                 </span>
                             ) : isPriceLoading ? (
                                 <span className="text-[11px] font-semibold text-slate-400">Ціна...</span>

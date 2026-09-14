@@ -34,10 +34,29 @@ export default function HeroParallaxBackground() {
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    const motionFactor = window.innerWidth <= 640 ? 0.46 : 1;
+    let motionFactor = window.innerWidth <= 640 ? 0.46 : 1;
+    const desktopMotion = window.matchMedia("(min-width: 641px)");
+    const documentRoot = document.documentElement;
     let handle: ReturnType<typeof registerParallax> | null = null;
     let lastPhotoStep = NaN;
     let lastAmbientStep = NaN;
+    let animateAmbient =
+      desktopMotion.matches &&
+      !documentRoot.classList.contains("reduce-scroll-effects");
+
+    const syncAmbientBudget = () => {
+      const nextMotionFactor = desktopMotion.matches ? 1 : 0.46;
+      const next =
+        desktopMotion.matches &&
+        !documentRoot.classList.contains("reduce-scroll-effects");
+      if (next === animateAmbient && nextMotionFactor === motionFactor) return;
+      motionFactor = nextMotionFactor;
+      animateAmbient = next;
+      lastPhotoStep = NaN;
+      lastAmbientStep = NaN;
+      spotlight.style.willChange = next && handle ? "transform, opacity" : "";
+      sweep.style.willChange = next && handle ? "transform, opacity" : "";
+    };
 
     const apply = (progress: number) => {
       // Quantisation removes imperceptible sub-pixel writes at the end of the
@@ -58,6 +77,10 @@ export default function HeroParallaxBackground() {
       // The ambient planes move much less than the photo. Updating them at a
       // quarter of the photo's cadence preserves the depth effect while
       // avoiding two extra full-hero compositor writes on most frames.
+      // Phones and the adaptive low-power mode animate only the photo: one
+      // compositor write retains depth without moving two full-viewport
+      // gradient textures on every frame.
+      if (!animateAmbient) return;
       const ambientStep = Math.round(progress * AMBIENT_PROGRESS_STEPS);
       if (ambientStep === lastAmbientStep) return;
       lastAmbientStep = ambientStep;
@@ -79,8 +102,10 @@ export default function HeroParallaxBackground() {
         return;
       }
       photo.style.willChange = "transform";
-      spotlight.style.willChange = "transform, opacity";
-      sweep.style.willChange = "transform, opacity";
+      if (animateAmbient) {
+        spotlight.style.willChange = "transform, opacity";
+        sweep.style.willChange = "transform, opacity";
+      }
       handle = registerParallax({
         el: section,
         // 0 while the hero sits at the top of the page, ramping to 1 as it
@@ -91,6 +116,7 @@ export default function HeroParallaxBackground() {
         // A very short shared easing half-life removes trackpad/wheel steps
         // while still keeping the camera visually attached to the page.
         ease: true,
+        heavy: true,
       });
     };
     const stop = () => {
@@ -111,7 +137,16 @@ export default function HeroParallaxBackground() {
     );
     io.observe(section);
 
+    desktopMotion.addEventListener("change", syncAmbientBudget);
+    const classObserver = new MutationObserver(syncAmbientBudget);
+    classObserver.observe(documentRoot, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
     return () => {
+      desktopMotion.removeEventListener("change", syncAmbientBudget);
+      classObserver.disconnect();
       io.disconnect();
       stop();
     };

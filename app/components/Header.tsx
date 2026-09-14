@@ -77,6 +77,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
   const { cartItems } = useCart();
   const logoFallbackPath = '/partson-mark-v3.webp';
   const [hasMounted, setHasMounted] = useState(false);
+  const [hasDesktopSearch, setHasDesktopSearch] = useState(false);
   const { user } = useFirebaseAuthState();
 
   const [activeMenu, setActiveMenu] = useState<string>('');
@@ -299,6 +300,16 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
   }, []);
 
   useEffect(() => {
+    // CSS hiding still mounts Search, downloads its chunk and runs its
+    // effects. On mobile it is only needed when the search dialog opens.
+    const desktopViewport = window.matchMedia('(min-width: 1024px)');
+    const syncDesktopSearch = () => setHasDesktopSearch(desktopViewport.matches);
+    syncDesktopSearch();
+    desktopViewport.addEventListener('change', syncDesktopSearch);
+    return () => desktopViewport.removeEventListener('change', syncDesktopSearch);
+  }, []);
+
+  useEffect(() => {
     if (!modals.contact || ContactComponent) return;
 
     let cancelled = false;
@@ -492,7 +503,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
               alt="Логотип інтернет-магазину автозапчастин PartsON"
               width={184}
               height={100}
-              quality={100}
+              quality={90}
               priority
               fetchPriority="high"
               sizes="(max-width: 639px) 65px, (max-width: 767px) 82px, 92px"
@@ -608,7 +619,9 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
         {/* SEARCH CENTER */}
         <div className="flex min-w-0 flex-1 justify-center px-1 sm:px-3">
           <div className="hidden lg:block w-full max-w-[380px]">
-            {renderSearchBar(() => {})}
+            {hasDesktopSearch ? renderSearchBar(() => {}) : (
+              <div className="h-10 w-full rounded-xl border border-gray-600 bg-gray-800/80 shadow-md" />
+            )}
           </div>
 
           <button

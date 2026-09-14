@@ -119,6 +119,18 @@ const PURCHASE_PRICE_FIELDS = [
   "\u0426\u0456\u043d\u0430\u041f\u043e\u0441\u0442\u0430\u0447\u0430\u043b\u044c\u043d\u0438\u043a\u0430",
   "\u0426\u0435\u043d\u0430\u041f\u043e\u0441\u0442\u0430\u0432\u0449\u0438\u043a\u0430",
 ];
+// Partner-only promotional price from 1C. Keep this value out of
+// CatalogProduct/normal public catalog payloads; it is parsed only by the
+// authenticated catalog-prices endpoint below.
+const PROMO_PRICE_FIELDS = [
+  "\u0410\u043a\u0446\u0456\u044f", // Акція — exact 1C column name
+  "\u0410\u043a\u0446\u0438\u044f",
+  "promoPriceEuro",
+  "promo_price_euro",
+  "actionPriceEuro",
+  "salePriceEuro",
+  "discountPriceEuro",
+];
 const PHOTO_FIELDS = [
   "\u0415\u0441\u0442\u044c\u0424\u043e\u0442\u043e",
   "\u0415\u0441\u0442\u044c\u0444\u043e\u0442\u043e",
@@ -403,7 +415,7 @@ const isExactCatalogLookupMatch = (
   );
 };
 
-const fetchAllgoodsProductsByExactLookup = async (
+const fetchAllgoodsResponsesByExactLookup = async (
   lookupValue: string,
   options?: {
     limit?: number;
@@ -413,10 +425,11 @@ const fetchAllgoodsProductsByExactLookup = async (
     cacheTtlMs?: number;
     includeDescription?: boolean;
     includeCostPrice?: boolean;
+    lookupFields?: string[];
   }
 ) => {
   const normalized = (lookupValue || "").trim();
-  if (!normalized) return [] as CatalogProduct[];
+  if (!normalized) return [] as Awaited<ReturnType<typeof oneCRequest>>[];
 
   const limit =
     Number.isFinite(options?.limit) && (options?.limit || 0) > 0
@@ -426,30 +439,18 @@ const fetchAllgoodsProductsByExactLookup = async (
   // Same ВключатьЦінуЗакуп flag the batched price-details lookup sends —
   // without it here too, the per-key fallback below always comes back with
   // ЦінаПрод but no cost price, even for admin callers that asked for one.
-  const requestBodies: Array<Record<string, unknown>> = [
-    {
-      [ALLGOODS_LIMIT_FIELD]: limit,
-      [ALLGOODS_CODE_FIELD]: normalized,
-      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: options?.includeDescription === true,
-      [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: options?.includeCostPrice === true,
-    },
-    {
-      [ALLGOODS_LIMIT_FIELD]: limit,
-      [ALLGOODS_ARTICLE_FIELD]: normalized,
-      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: options?.includeDescription === true,
-      [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: options?.includeCostPrice === true,
-    },
-    {
-      [ALLGOODS_LIMIT_FIELD]: limit,
-      [ALLGOODS_ARTICLE_ALT_FIELD]: normalized,
-      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: options?.includeDescription === true,
-      [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: options?.includeCostPrice === true,
-    },
-  ];
-
-  const target = normalizeFacetValue(normalized);
-  const merged: CatalogProduct[] = [];
-  const seenProducts = new Set<string>();
+  const lookupFields =
+    options?.lookupFields && options.lookupFields.length > 0
+      ? options.lookupFields
+      : [ALLGOODS_CODE_FIELD, ALLGOODS_ARTICLE_FIELD, ALLGOODS_ARTICLE_ALT_FIELD];
+  const requestBodies: Array<Record<string, unknown>> = lookupFields.map((field) => ({
+    [ALLGOODS_LIMIT_FIELD]: limit,
+    [field]: normalized,
+    [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: options?.includeDescription === true,
+    ...(options?.includeCostPrice === true
+      ? { [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: true }
+      : {}),
+  }));
 
   // Deduplicate request bodies before sending, then fire all in parallel
   const uniqueBodies = requestBodies.filter(
@@ -477,10 +478,40 @@ const fetchAllgoodsProductsByExactLookup = async (
     )
   );
 
-  for (const result of responses) {
-    if (result.status === "rejected") continue;
+  return responses.flatMap((result) => {
+    if (result.status === "rejected") return [];
     const response = result.value;
-    if (!response || response.status < 200 || response.status >= 300) continue;
+    return response && response.status >= 200 && response.status < 300
+      ? [response]
+      : [];
+  });
+};
+
+const fetchAllgoodsProductsByExactLookup = async (
+  lookupValue: string,
+  options?: {
+    limit?: number;
+    timeoutMs?: number;
+    retries?: number;
+    retryDelayMs?: number;
+    cacheTtlMs?: number;
+    includeDescription?: boolean;
+    includeCostPrice?: boolean;
+  }
+) => {
+  const normalized = (lookupValue || "").trim();
+  if (!normalized) return [] as CatalogProduct[];
+
+  const limit =
+    Number.isFinite(options?.limit) && (options?.limit || 0) > 0
+      ? Math.min(Math.floor(options?.limit as number), 24)
+      : 8;
+  const target = normalizeFacetValue(normalized);
+  const merged: CatalogProduct[] = [];
+  const seenProducts = new Set<string>();
+  const responses = await fetchAllgoodsResponsesByExactLookup(normalized, options);
+
+  for (const response of responses) {
 
     const parsed = parseAllgoodsPayload(response.text).items;
     for (const item of parsed) {
@@ -1096,6 +1127,8 @@ const buildCatalogPriceLookupMaps = (
       : null;
   const prices = new Map<string, number>();
   const costPrices = new Map<string, number>();
+  const promoPrices = new Map<string, number>();
+  const matchedKeys = new Set<string>();
   const seenRecords = new WeakSet<Record<string, unknown>>();
 
   const addCandidate = (
@@ -1118,6 +1151,11 @@ const buildCatalogPriceLookupMaps = (
       readFirstString(record, [PRICE_CODE_FIELD, ...CODE_FIELDS]),
       readFirstString(record, ARTICLE_FIELDS),
     ];
+    for (const rawKey of candidateKeys) {
+      const normalizedKey = normalizeFacetValue(rawKey);
+      if (!normalizedKey) continue;
+      if (!requested || requested.has(normalizedKey)) matchedKeys.add(normalizedKey);
+    }
 
     if (
       typeof product.priceEuro === "number" &&
@@ -1136,6 +1174,16 @@ const buildCatalogPriceLookupMaps = (
     ) {
       for (const key of candidateKeys) {
         addCandidate(costPrices, key, product.costPriceEuro);
+      }
+    }
+
+    const promoPriceEuro = readFirstNumber(record, PROMO_PRICE_FIELDS, Number.NaN);
+    if (
+      Number.isFinite(promoPriceEuro) &&
+      promoPriceEuro > 0
+    ) {
+      for (const key of candidateKeys) {
+        addCandidate(promoPrices, key, promoPriceEuro);
       }
     }
   };
@@ -1161,7 +1209,7 @@ const buildCatalogPriceLookupMaps = (
   };
 
   visit(payload);
-  return { prices, costPrices };
+  return { prices, costPrices, promoPrices, matchedKeys };
 };
 
 export const toPriceUah = (priceEuro: number | null, euroRate: number) => {
@@ -1561,7 +1609,18 @@ const fetchCatalogProductsByQueryInner = async (options: {
       if (searchFilter === "name" || searchFilter === "article") return [ALLGOODS_NAME_FIELD];
       if (searchFilter === "code") return [ALLGOODS_CODE_FIELD];
       if (searchFilter === "producer") return [ALLGOODS_PRODUCER_FIELD];
-      return [ALLGOODS_NAME_FIELD, ALLGOODS_ARTICLE_FIELD, ALLGOODS_CODE_FIELD];
+      // The loop below (effectiveAllgoodsSearchKeys) stops at the first field
+      // that returns anything — and 1C's own "Наименование" (name) search is
+      // loose/fuzzy, so it returns SOME items for almost any short query,
+      // which used to always win this race and hide a real, exact article/code
+      // match sitting deeper in the catalog (e.g. searching "oc90" returned
+      // 135 loosely name-matched products while the actual "OC90" oil filter
+      // was never reached). looksLikeIdentifierSearch already exists for
+      // exactly this call — it's what the legacy getdata path above uses to
+      // make the same choice; this just brings allgoods in line with it.
+      return looksLikeIdentifierSearch
+        ? [ALLGOODS_ARTICLE_FIELD, ALLGOODS_CODE_FIELD, ALLGOODS_NAME_FIELD]
+        : [ALLGOODS_NAME_FIELD, ALLGOODS_ARTICLE_FIELD, ALLGOODS_CODE_FIELD];
     })();
 
     const runAllgoods = async (searchKey?: string, queryOverride?: string) => {
@@ -2424,12 +2483,250 @@ export const fetchCatalogPricesByLookupKeys = async (
   return Object.fromEntries(resolved);
 };
 
+// Public-safe signal for anonymous/non-partner visitors: does this item have
+// an active partner promo at all — never the discounted price itself, which
+// stays behind the partner-authenticated endpoints (see PROMO_PRICE_FIELDS'
+// own comment). Mirrors fetchCatalogPricesByLookupKeys's exact per-key
+// allgoods request (same endpoint, body shape, cache key) so calling both for
+// the same keys in the same request cycle resolves the second one from
+// oneCRequest's in-flight dedupe/cache — this never costs a second real 1C
+// round trip, it just reads one more field off a request already being made.
+export type PromoAvailability = {
+  hasPromo: boolean;
+  // Public-safe teaser: the discount size, rounded to a whole percent — never
+  // the discounted amount itself (that stays gated behind isPartner). Safe
+  // to show anyone because the regular price is already public; a percent
+  // alone still requires knowing the regular price to reconstruct the promo
+  // price, which keeps the exact partner price a small step away rather than
+  // handed over outright.
+  promoPercent: number | null;
+};
+
+export const fetchPromoAvailabilityByLookupKeys = async (
+  lookupKeys: string[],
+  options?: {
+    timeoutMs?: number;
+    retries?: number;
+    retryDelayMs?: number;
+    cacheTtlMs?: number;
+    concurrency?: number;
+  }
+): Promise<Record<string, PromoAvailability>> => {
+  const normalizedKeys = Array.from(
+    new Set(lookupKeys.map((key) => normalizeFacetValue(key)).filter(Boolean))
+  );
+  if (normalizedKeys.length === 0) return {};
+
+  const timeoutMs =
+    Number.isFinite(options?.timeoutMs) && (options?.timeoutMs || 0) > 0
+      ? Math.floor(options?.timeoutMs as number)
+      : 1800;
+  const cacheTtlMs =
+    Number.isFinite(options?.cacheTtlMs) && (options?.cacheTtlMs || 0) > 0
+      ? Math.floor(options?.cacheTtlMs as number)
+      : 1000 * 60 * 3;
+  const concurrency = Math.min(
+    Number.isFinite(options?.concurrency) && (options?.concurrency || 0) > 0
+      ? Math.floor(options?.concurrency as number)
+      : 8,
+    normalizedKeys.length
+  );
+
+  const resolved = new Map<string, PromoAvailability>();
+  let keyCursor = 0;
+
+  const lookupPromoForKey = async (key: string): Promise<void> => {
+    for (const field of [ALLGOODS_CODE_FIELD, ALLGOODS_ARTICLE_FIELD]) {
+      const body: Record<string, unknown> = {
+        [ALLGOODS_LIMIT_FIELD]: 1,
+        [field]: key,
+        [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: false,
+        [ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD]: false,
+      };
+
+      const response = await oneCRequest("allgoods", {
+        method: "POST",
+        body,
+        timeoutMs,
+        retries: options?.retries ?? 0,
+        retryDelayMs: options?.retryDelayMs,
+        cacheTtlMs,
+        cacheKey: JSON.stringify({ endpoint: "allgoods", body }),
+      }).catch(() => null);
+
+      if (!response || response.status < 200 || response.status >= 300) continue;
+
+      let records: Record<string, unknown>[] = [];
+      try {
+        const parsed = JSON.parse(response.text) as { items?: unknown };
+        records = Array.isArray(parsed?.items)
+          ? (parsed.items.filter((item) => asRecord(item)) as Record<string, unknown>[])
+          : [];
+      } catch {
+        continue;
+      }
+
+      const match = records.find((record) => {
+        const codeKey = normalizeFacetValue(readFirstString(record, CODE_FIELDS));
+        const articleKey = normalizeFacetValue(readFirstString(record, ARTICLE_FIELDS));
+        return codeKey === key || articleKey === key;
+      });
+
+      if (match) {
+        const promoPriceEuro = readFirstNumber(match, PROMO_PRICE_FIELDS, Number.NaN);
+        const hasPromo = Number.isFinite(promoPriceEuro) && promoPriceEuro > 0;
+        let promoPercent: number | null = null;
+        if (hasPromo) {
+          const regularPriceEuro = readFirstNumber(match, PRICE_FIELDS, Number.NaN);
+          if (
+            Number.isFinite(regularPriceEuro) &&
+            regularPriceEuro > 0 &&
+            promoPriceEuro < regularPriceEuro
+          ) {
+            const percent = Math.round((1 - promoPriceEuro / regularPriceEuro) * 100);
+            promoPercent = percent > 0 ? percent : null;
+          }
+        }
+        resolved.set(key, { hasPromo, promoPercent });
+        return;
+      }
+    }
+  };
+
+  const workers = Array.from({ length: concurrency }, async () => {
+    while (keyCursor < normalizedKeys.length) {
+      const idx = keyCursor++;
+      const key = normalizedKeys[idx];
+      await lookupPromoForKey(key).catch(() => undefined);
+    }
+  });
+
+  await Promise.allSettled(workers);
+  return Object.fromEntries(resolved);
+};
+
+// 1C has no server-side filter for "only promo items" — verified directly
+// against the live allgoods endpoint: passing "Акція"/"ТолькоАкція" in the
+// request body (any value) is silently ignored, total_count and the returned
+// items stay identical to an unfiltered call. The "Акція" price field is,
+// however, present on every record of the normal paginated allgoods
+// response, so the only way to know which items are currently on promo is to
+// walk the whole catalog once and remember which ones qualified.
+const PROMO_CATALOG_PAGE_LIMIT = 500;
+const PROMO_CATALOG_MAX_PAGES = 40; // ceiling ~20 000 items; catalog is ~10 100
+const PROMO_CATALOG_FRESH_TTL_MS = 1000 * 60 * 30;
+const PROMO_CATALOG_STALE_TTL_MS = 1000 * 60 * 60 * 6;
+
+let promoCatalogCache: { products: CatalogProduct[]; fetchedAt: number } | null = null;
+let promoCatalogRefreshPromise: Promise<CatalogProduct[]> | null = null;
+
+const scanPromoCatalogProducts = async (): Promise<CatalogProduct[]> => {
+  const matches: CatalogProduct[] = [];
+  const seen = new Set<string>();
+  let cursor = "";
+
+  for (let pageIndex = 0; pageIndex < PROMO_CATALOG_MAX_PAGES; pageIndex += 1) {
+    const body: Record<string, unknown> = {
+      [ALLGOODS_LIMIT_FIELD]: PROMO_CATALOG_PAGE_LIMIT,
+      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: false,
+      [ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD]: false,
+    };
+    if (cursor) body[ALLGOODS_CURSOR_FIELD] = cursor;
+
+    const response = await oneCRequest("allgoods", {
+      method: "POST",
+      body,
+      retries: 1,
+      retryDelayMs: 300,
+      cacheTtlMs: 1000 * 60 * 20,
+    }).catch(() => null);
+
+    if (!response || response.status < 200 || response.status >= 300) break;
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(response.text) as Record<string, unknown>;
+    } catch {
+      break;
+    }
+
+    const records = Array.isArray(parsed?.items)
+      ? (parsed.items.filter((item) => item && typeof item === "object") as Record<string, unknown>[])
+      : [];
+
+    for (const record of records) {
+      const promoPriceEuro = readFirstNumber(record, PROMO_PRICE_FIELDS, Number.NaN);
+      if (!Number.isFinite(promoPriceEuro) || promoPriceEuro <= 0) continue;
+
+      const product = normalizeProduct(record);
+      const key = product.code || product.article;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      matches.push(product);
+    }
+
+    const nextCursor = [parsed?.next_cursor, parsed?.nextCursor].find(
+      (value) => typeof value === "string" && value.trim()
+    ) as string | undefined;
+    const hasMore = Boolean(
+      parsed?.has_more === true ||
+        parsed?.hasMore === true ||
+        (nextCursor && records.length > 0)
+    );
+
+    if (!hasMore || !nextCursor || records.length === 0) break;
+    cursor = nextCursor;
+  }
+
+  return matches;
+};
+
+// Stale-while-revalidate: a full catalog walk costs ~20 sequential 1C calls
+// (see scanPromoCatalogProducts), far too slow to run inline on every request
+// behind the "Акційні товари" button. Serve whatever snapshot is cached
+// (even a stale one) immediately, and kick off a background refresh once
+// it's past PROMO_CATALOG_FRESH_TTL_MS. Only a genuinely empty cache (first
+// hit after a server restart) blocks on the scan.
+export const fetchPromoCatalogProducts = async (): Promise<{
+  products: CatalogProduct[];
+  stale: boolean;
+}> => {
+  const now = Date.now();
+
+  if (promoCatalogCache && now - promoCatalogCache.fetchedAt < PROMO_CATALOG_FRESH_TTL_MS) {
+    return { products: promoCatalogCache.products, stale: false };
+  }
+
+  const refresh = () => {
+    if (!promoCatalogRefreshPromise) {
+      promoCatalogRefreshPromise = scanPromoCatalogProducts()
+        .then((products) => {
+          promoCatalogCache = { products, fetchedAt: Date.now() };
+          return products;
+        })
+        .finally(() => {
+          promoCatalogRefreshPromise = null;
+        });
+    }
+    return promoCatalogRefreshPromise;
+  };
+
+  if (promoCatalogCache && now - promoCatalogCache.fetchedAt < PROMO_CATALOG_STALE_TTL_MS) {
+    void refresh().catch(() => undefined);
+    return { products: promoCatalogCache.products, stale: true };
+  }
+
+  const products = await refresh();
+  return { products, stale: false };
+};
+
 export const fetchCatalogPriceDetailsByLookupKeys = async (
   lookupKeys: string[],
   options?: {
     timeoutMs?: number;
     cacheTtlMs?: number;
     includePricesPost?: boolean;
+    includeCostPrices?: boolean;
   }
 ) => {
   const normalizedKeys = Array.from(
@@ -2439,13 +2736,16 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
     return {
       prices: {} as Record<string, number>,
       costPrices: {} as Record<string, number>,
+      promoPrices: {} as Record<string, number>,
     };
   }
 
   const mergeFromResponse = (
     text: string,
     targetPrices: Map<string, number>,
-    targetCostPrices: Map<string, number>
+    targetCostPrices: Map<string, number>,
+    targetPromoPrices: Map<string, number>,
+    targetMatchedKeys: Set<string>
   ) => {
     const payload = parseLoosePayloadText(text);
     if (payload == null) return;
@@ -2461,10 +2761,19 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
         targetCostPrices.set(key, value);
       }
     }
+    for (const [key, value] of nextMaps.promoPrices.entries()) {
+      if (!targetPromoPrices.has(key)) {
+        targetPromoPrices.set(key, value);
+      }
+    }
+    for (const key of nextMaps.matchedKeys) targetMatchedKeys.add(key);
   };
 
   const resolvedPrices = new Map<string, number>();
   const resolvedCostPrices = new Map<string, number>();
+  const resolvedPromoPrices = new Map<string, number>();
+  const matchedKeys = new Set<string>();
+  const includeCostPrices = options?.includeCostPrices !== false;
   const timeoutMs =
     Number.isFinite(options?.timeoutMs) && (options?.timeoutMs || 0) > 0
       ? Math.floor(options?.timeoutMs as number)
@@ -2473,86 +2782,97 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
     Number.isFinite(options?.cacheTtlMs) && (options?.cacheTtlMs || 0) > 0
       ? Math.floor(options?.cacheTtlMs as number)
       : 1000 * 12;
-  const sourceReaders: Array<() => Promise<Awaited<ReturnType<typeof oneCRequest>> | null>> = [
-    async () =>
-      oneCRequest("allgoods", {
-        method: "POST",
-        body: {
-          [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(normalizedKeys.length * 6, 120)),
-          [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: true,
-        },
-        timeoutMs,
-        retries: 0,
-        cacheTtlMs,
-        cacheKey: JSON.stringify({
-          endpoint: "allgoods:price-details",
-          body: {
-            [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(normalizedKeys.length * 6, 120)),
-            [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: true,
-          },
-        }),
-      }).catch(() => null),
-  ];
-
-  const attempts = sourceReaders.map((reader, index) =>
-    Promise.resolve()
-      .then(() => reader())
-      .then((response) => ({ index, response }))
-      .catch(() => ({ index, response: null }))
-  );
-
-  const pending = new Set<number>(attempts.map((_, index) => index));
-  while (pending.size > 0) {
-    const result = await Promise.race(
-      Array.from(pending, (index) => attempts[index])
-    );
-    pending.delete(result.index);
-
-    const response = result.response;
-    if (!response) continue;
-    if (response.status < 200 || response.status >= 300) continue;
-
-    mergeFromResponse(response.text, resolvedPrices, resolvedCostPrices);
-  }
-
-  // Targeted per-key allgoods lookups — more reliable than the generic batch
-  // for finding specific items' cost prices. Run for all unresolved keys in parallel.
-  const unresolvedCostKeys = normalizedKeys.filter((k) => !resolvedCostPrices.has(k));
-  if (unresolvedCostKeys.length > 0) {
-    const lookupTimeoutMs = Math.min(1500, Math.max(300, Math.floor(timeoutMs * 0.5)));
+  const lookupTimeoutMs = Math.min(1500, Math.max(300, Math.floor(timeoutMs * 0.5)));
+  const fetchTargetedDetails = async (keys: string[], lookupFields: string[]) => {
     await Promise.allSettled(
-      unresolvedCostKeys.map(async (key) => {
-        const exactProduct = await fetchExactCatalogProductByLookup(key, {
+      keys.map(async (key) => {
+        const responses = await fetchAllgoodsResponsesByExactLookup(key, {
           limit: 2,
           timeoutMs: lookupTimeoutMs,
           retries: 0,
           retryDelayMs: 80,
           cacheTtlMs,
-          includeCostPrice: true,
-        }).catch(() => null);
-        if (!exactProduct) return;
-        if (
-          typeof exactProduct.costPriceEuro === "number" &&
-          Number.isFinite(exactProduct.costPriceEuro) &&
-          exactProduct.costPriceEuro > 0
-        ) {
-          resolvedCostPrices.set(key, exactProduct.costPriceEuro);
-        }
-        if (
-          !resolvedPrices.has(key) &&
-          typeof exactProduct.priceEuro === "number" &&
-          Number.isFinite(exactProduct.priceEuro) &&
-          exactProduct.priceEuro > 0
-        ) {
-          resolvedPrices.set(key, exactProduct.priceEuro);
+          includeCostPrice: includeCostPrices,
+          lookupFields,
+        }).catch(() => []);
+        for (const response of responses) {
+          mergeFromResponse(
+            response.text,
+            resolvedPrices,
+            resolvedCostPrices,
+            resolvedPromoPrices,
+            matchedKeys
+          );
         }
       })
     );
+  };
+
+  // The broad, unfiltered sweep and the targeted per-key lookup (by Код —
+  // resolves almost every card, since catalog state keys are codes whenever
+  // 1C provides one) used to run strictly in sequence: wait out the full
+  // sweep, THEN start the targeted fallback for whatever it missed. For a
+  // typical visible page (a dozen-odd items), the parallel per-key lookups
+  // routinely finish before the 500-item sweep even returns, so that
+  // ordering added a second lookup's worth of pure, avoidable latency to
+  // every partner/full price batch — exactly the delay before the promo
+  // price/badge appears. Firing both at once lets whichever resolves each
+  // key first win; mergeFromResponse only ever writes a key once, so running
+  // them concurrently changes nothing about the result, only how long it
+  // takes to get there.
+  const broadSweepPromise = oneCRequest("allgoods", {
+    method: "POST",
+    body: {
+      [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(normalizedKeys.length * 6, 120)),
+      ...(includeCostPrices ? { [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: true } : {}),
+    },
+    timeoutMs,
+    retries: 0,
+    cacheTtlMs,
+    cacheKey: JSON.stringify({
+      endpoint: "allgoods:price-details",
+      body: {
+        [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(normalizedKeys.length * 6, 120)),
+        ...(includeCostPrices ? { [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: true } : {}),
+      },
+    }),
+  })
+    .then((response) => {
+      if (response.status < 200 || response.status >= 300) return;
+      mergeFromResponse(
+        response.text,
+        resolvedPrices,
+        resolvedCostPrices,
+        resolvedPromoPrices,
+        matchedKeys
+      );
+    })
+    .catch(() => {});
+
+  await Promise.all([
+    broadSweepPromise,
+    fetchTargetedDetails(normalizedKeys, [ALLGOODS_CODE_FIELD]),
+  ]);
+
+  // Only genuine article-only keys (no match under Код from either source
+  // above) fall through to this last-resort tier, kept sequential since it's
+  // rare — the common path never reaches it.
+  const unresolvedArticleKeys = normalizedKeys.filter(
+    (key) =>
+      !matchedKeys.has(key) ||
+      (includeCostPrices && !resolvedCostPrices.has(key))
+  );
+  if (unresolvedArticleKeys.length > 0) {
+    await fetchTargetedDetails(unresolvedArticleKeys, [
+      ALLGOODS_ARTICLE_FIELD,
+      ALLGOODS_ARTICLE_ALT_FIELD,
+    ]);
   }
 
   return {
     prices: Object.fromEntries(resolvedPrices),
     costPrices: Object.fromEntries(resolvedCostPrices),
+    promoPrices: Object.fromEntries(resolvedPromoPrices),
   };
 };
 

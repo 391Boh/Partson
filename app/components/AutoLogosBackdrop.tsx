@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from "react";
 
-import { registerParallax } from "app/lib/parallax-controller";
+import {
+  getCenteredParallaxProgress,
+  registerParallax,
+} from "app/lib/parallax-controller";
 
 // Atmospheric layer behind the car-picker. Each brand mark is a
 // gradient-filled silhouette — the SVG is a CSS `mask`, the shape is filled
@@ -252,12 +255,14 @@ export default function AutoLogosBackdrop() {
     let lastStep = NaN;
 
     const recompute = () => {
-      const factor =
-        window.innerWidth <= MOBILE_MAX_WIDTH ? MOBILE_MOTION_FACTOR : 1;
+      const isMobile = window.innerWidth <= MOBILE_MAX_WIDTH;
+      const factor = isMobile ? MOBILE_MOTION_FACTOR : 1;
       // Half the marks move and half remain as stable depth anchors. The eye
       // still reads several planes, while each frame writes only six styles.
+      // Mobile keeps one mark at each edge moving, so the section retains its
+      // signature depth push for the cost of only two small compositor layers.
       planes = allPlanes.filter((p, index) => {
-        if (index % 2 !== 0) return false;
+        if (isMobile ? index !== 1 && index !== 10 : index % 2 !== 0) return false;
         const r = p.el.getBoundingClientRect();
         return r.width > 0 && r.height > 0;
       });
@@ -303,13 +308,7 @@ export default function AutoLogosBackdrop() {
       handle = registerParallax({
         el: section as HTMLElement,
         heavy: true,
-        compute: (scrollY, vh, top, height) => {
-          const centre = top - scrollY + height / 2;
-          return Math.max(
-            -1,
-            Math.min(1, (vh / 2 - centre) / (vh / 2 + height / 2))
-          );
-        },
+        compute: getCenteredParallaxProgress,
         apply,
       });
     };
@@ -322,38 +321,18 @@ export default function AutoLogosBackdrop() {
       window.removeEventListener("orientationchange", onResize);
     };
 
-    // Phones: the marks stay at their resting transform. A scroll-linked
-    // transform on ~10 masked / gradient layers is the biggest single source of
-    // compositor stutter on mobile GPUs, and the parallax barely reads at that
-    // width. The effect installs only above the breakpoint, and follows the
-    // viewport across it.
-    const coarse = window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`);
-    let io: IntersectionObserver | null = null;
-
-    const install = () => {
-      if (io) return;
-      io = new IntersectionObserver(
-        (entries) => {
-          if (entries.some((e) => e.isIntersecting)) start();
-          else stop();
-        },
-        { rootMargin: "180px 0px" }
-      );
-      io.observe(section);
-    };
-    const uninstall = () => {
-      io?.disconnect();
-      io = null;
-      stop();
-    };
-
-    const sync = () => (coarse.matches ? uninstall() : install());
-    sync();
-    coarse.addEventListener("change", sync);
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) start();
+        else stop();
+      },
+      { rootMargin: "180px 0px" }
+    );
+    io.observe(section);
 
     return () => {
-      coarse.removeEventListener("change", sync);
-      uninstall();
+      io.disconnect();
+      stop();
     };
   }, []);
 

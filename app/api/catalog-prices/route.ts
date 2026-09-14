@@ -1,37 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import {
   fetchCatalogPriceDetailsByLookupKeys,
   fetchPriceEuroMapByLookupKeys,
+  fetchPromoAvailabilityByLookupKeys,
+  type PromoAvailability,
 } from "app/lib/catalog-server";
-import { getFirebaseAdminAuth } from "app/lib/firebase-admin";
+import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { verifyPartnerRequest } from "app/api/_lib/partner-auth";
 
 export const runtime = "nodejs";
 
-// Cost/purchase price ("full" mode) is sensitive business data — same
-// admin-email gate as product-update-price. Regular sale-price lookups
-// ("fast" mode) stay open to any visitor, as before.
-const ADMIN_EMAILS = new Set(
-  (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
-);
-
-const verifyAdminToken = async (request: Request): Promise<boolean> => {
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  if (!token) return false;
-
-  try {
-    const auth = getFirebaseAdminAuth();
-    const decoded = await auth.verifyIdToken(token);
-    const email = (decoded.email || "").toLowerCase();
-    return Boolean(email && ADMIN_EMAILS.has(email));
-  } catch {
-    return false;
-  }
-};
+// fast: public sale prices; partner: partner-only Акція prices; full:
+// admin-only purchase prices. Authorization is resolved before cache access,
+// so a public request can never reuse a protected payload.
 
 type PriceBatchItem = {
   stateKey?: unknown;
@@ -41,6 +23,15 @@ type PriceBatchItem = {
 type CatalogPricesPayload = {
   prices: Record<string, number | null>;
   costPrices: Record<string, number | null>;
+  promoPrices: Record<string, number | null>;
+  // Public-safe: true when the item has an active partner promo at all,
+  // regardless of who's asking or whether they're a partner. Never reveals
+  // the discounted amount — that stays in promoPrices, gated by isPartner.
+  hasPromo: Record<string, boolean>;
+  // Public-safe teaser: rounded discount percent, shown to every visitor
+  // regardless of isPartner — see PromoAvailability's own comment.
+  promoPercent: Record<string, number | null>;
+  isPartner: boolean;
 };
 
 const CATALOG_PRICES_ROUTE_CACHE_TTL_MS = 1000 * 60 * 4;
@@ -52,7 +43,14 @@ const catalogPricesRouteCache = new Map<
 >();
 const catalogPriceItemCache = new Map<
   string,
-  { price: number | null; costPrice: number | null; expiresAt: number }
+  {
+    price: number | null;
+    costPrice: number | null;
+    promoPrice: number | null;
+    hasPromo: boolean;
+    promoPercent: number | null;
+    expiresAt: number;
+  }
 >();
 const catalogPricesRouteInFlight = new Map<string, Promise<CatalogPricesPayload>>();
 
@@ -119,11 +117,17 @@ const writeCatalogPriceItemCache = (
   item: { stateKey: string; lookupKeys: string[] },
   price: number | null,
   costPrice: number | null,
+  promoPrice: number | null,
+  hasPromo: boolean,
+  promoPercent: number | null,
   ttlMs: number
 ) => {
   catalogPriceItemCache.set(buildCatalogPriceItemCacheKey(mode, item), {
     price,
     costPrice,
+    promoPrice,
+    hasPromo,
+    promoPercent,
     expiresAt: Date.now() + ttlMs,
   });
 };
@@ -143,21 +147,30 @@ const pruneCatalogPriceItemCache = (now: number) => {
   }
 };
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const requestUrl = new URL(request.url);
-    const requestedFullMode = requestUrl.searchParams.get("mode") === "full";
-    // Cost prices only ever get computed/returned for a verified admin —
-    // an unauthenticated "full" request silently behaves as "fast" instead
-    // of erroring, so the regular sale-price lookup still works normally.
-    const mode = requestedFullMode && (await verifyAdminToken(request)) ? "full" : "fast";
+    const requestedMode = requestUrl.searchParams.get("mode");
+    const mode: "fast" | "partner" | "full" =
+      requestedMode === "full" && (await verifyAdminRequest(request))
+        ? "full"
+        : requestedMode === "partner" && (await verifyPartnerRequest(request))
+          ? "partner"
+          : "fast";
     const body = (await request.json().catch(() => ({}))) as {
       items?: PriceBatchItem[];
     };
 
     const items = Array.isArray(body.items) ? body.items : [];
     if (items.length === 0) {
-      return NextResponse.json({ prices: {} });
+      return NextResponse.json({
+        prices: {},
+        costPrices: {},
+        promoPrices: {},
+        hasPromo: {},
+        promoPercent: {},
+        isPartner: mode === "partner",
+      });
     }
 
     const normalizedItems = items
@@ -168,7 +181,14 @@ export async function POST(request: Request) {
       .filter((item) => item.stateKey && item.lookupKeys.length > 0);
 
     if (normalizedItems.length === 0) {
-      return NextResponse.json({ prices: {} });
+      return NextResponse.json({
+        prices: {},
+        costPrices: {},
+        promoPrices: {},
+        hasPromo: {},
+        promoPercent: {},
+        isPartner: mode === "partner",
+      });
     }
 
     const cacheKey = buildCatalogPricesRouteCacheKey(mode, normalizedItems);
@@ -185,6 +205,9 @@ export async function POST(request: Request) {
 
     const cachedItemPrices: Record<string, number | null> = {};
     const cachedItemCostPrices: Record<string, number | null> = {};
+    const cachedItemPromoPrices: Record<string, number | null> = {};
+    const cachedItemHasPromo: Record<string, boolean> = {};
+    const cachedItemPromoPercent: Record<string, number | null> = {};
     const missingItems: typeof normalizedItems = [];
 
     for (const item of normalizedItems) {
@@ -196,12 +219,19 @@ export async function POST(request: Request) {
 
       cachedItemPrices[item.stateKey] = cachedItem.price;
       cachedItemCostPrices[item.stateKey] = cachedItem.costPrice;
+      cachedItemPromoPrices[item.stateKey] = cachedItem.promoPrice;
+      cachedItemHasPromo[item.stateKey] = cachedItem.hasPromo;
+      cachedItemPromoPercent[item.stateKey] = cachedItem.promoPercent;
     }
 
     if (missingItems.length === 0) {
       const payload = {
         prices: cachedItemPrices,
         costPrices: cachedItemCostPrices,
+        promoPrices: cachedItemPromoPrices,
+        hasPromo: cachedItemHasPromo,
+        promoPercent: cachedItemPromoPercent,
+        isPartner: mode === "partner",
       };
       catalogPricesRouteCache.set(cacheKey, {
         payload,
@@ -221,6 +251,10 @@ export async function POST(request: Request) {
       const payload = {
         prices: { ...cachedItemPrices, ...missingPayload.prices },
         costPrices: { ...cachedItemCostPrices, ...missingPayload.costPrices },
+        promoPrices: { ...cachedItemPromoPrices, ...missingPayload.promoPrices },
+        hasPromo: { ...cachedItemHasPromo, ...missingPayload.hasPromo },
+        promoPercent: { ...cachedItemPromoPercent, ...missingPayload.promoPercent },
+        isPartner: mode === "partner",
       };
       catalogPricesRouteCache.set(cacheKey, {
         payload,
@@ -237,47 +271,72 @@ export async function POST(request: Request) {
       const allLookupKeys = Array.from(
         new Set(missingItems.flatMap((item) => item.lookupKeys))
       );
+      const detailLookupKeys = Array.from(
+        new Set(missingItems.map((item) => item.stateKey).filter(Boolean))
+      );
 
       const isFullMode = mode === "full";
-      const lookupDetailsPromise = isFullMode
-        ? fetchCatalogPriceDetailsByLookupKeys(allLookupKeys, {
+      const isPartnerMode = mode === "partner";
+      const needsProtectedDetails = isFullMode || isPartnerMode;
+      const lookupDetailsPromise = needsProtectedDetails
+        ? fetchCatalogPriceDetailsByLookupKeys(detailLookupKeys, {
             timeoutMs: 3000,
             cacheTtlMs: 1000 * 20,
             includePricesPost: true,
+            includeCostPrices: isFullMode,
           }).catch(() => ({
             prices: {} as Record<string, number>,
             costPrices: {} as Record<string, number>,
+            promoPrices: {} as Record<string, number>,
           }))
         : Promise.resolve({
             prices: {} as Record<string, number>,
             costPrices: {} as Record<string, number>,
+            promoPrices: {} as Record<string, number>,
           });
 
       const lookupPricesPromise = fetchPriceEuroMapByLookupKeys(allLookupKeys, {
-        sourceTimeoutMs: isFullMode ? 2000 : 1800,
+        sourceTimeoutMs: needsProtectedDetails ? 2000 : 1800,
         sourceCacheTtlMs: 1000 * 20,
-        timeoutMs: isFullMode ? 2000 : 1800,
+        timeoutMs: needsProtectedDetails ? 2000 : 1800,
         retries: 0,
         retryDelayMs: 80,
         cacheTtlMs: 1000 * 60 * 5,
-        includeDirectLookup: isFullMode,
+        includeDirectLookup: needsProtectedDetails,
         includePricesPost: true,
-        directConcurrency: isFullMode ? 4 : 6,
-        maxKeys: isFullMode ? 36 : 120,
+        directConcurrency: needsProtectedDetails ? 4 : 6,
+        maxKeys: needsProtectedDetails ? 36 : 120,
       }).catch(() => ({} as Record<string, number>));
 
-      const [lookupDetails, fallbackLookupPrices] = await Promise.all([
+      // Public-safe "has a partner promo at all" signal — fetched for every
+      // mode, including anonymous "fast" requests. It shares its exact
+      // request shape with fetchPriceEuroMapByLookupKeys's own per-key
+      // allgoods fallback (same endpoint/body/cache key), so this rarely
+      // costs a second real 1C round trip. Never exposes the discounted
+      // amount itself — only whether one exists.
+      const hasPromoPromise = fetchPromoAvailabilityByLookupKeys(allLookupKeys, {
+        timeoutMs: needsProtectedDetails ? 2000 : 1800,
+        cacheTtlMs: 1000 * 60 * 5,
+        concurrency: needsProtectedDetails ? 4 : 6,
+      }).catch(() => ({} as Record<string, PromoAvailability>));
+
+      const [lookupDetails, fallbackLookupPrices, lookupHasPromo] = await Promise.all([
         lookupDetailsPromise,
         lookupPricesPromise,
+        hasPromoPromise,
       ]);
       const lookupPrices = {
         ...fallbackLookupPrices,
         ...lookupDetails.prices,
       };
       const lookupCostPrices = lookupDetails.costPrices;
+      const lookupPromoPrices = lookupDetails.promoPrices;
 
       const prices: Record<string, number | null> = {};
       const costPrices: Record<string, number | null> = {};
+      const promoPrices: Record<string, number | null> = {};
+      const hasPromo: Record<string, boolean> = {};
+      const promoPercent: Record<string, number | null> = {};
       for (const item of missingItems) {
         const matched = item.lookupKeys
           .map((lookupKey) => lookupPrices[lookupKey.trim().toLowerCase()])
@@ -293,12 +352,45 @@ export async function POST(request: Request) {
           .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
 
         costPrices[item.stateKey] =
+          isFullMode &&
           typeof matchedCost === "number" && Number.isFinite(matchedCost) && matchedCost > 0
             ? matchedCost
             : null;
+
+        const matchedPromo = item.lookupKeys
+          .map((lookupKey) => lookupPromoPrices[lookupKey.trim().toLowerCase()])
+          .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
+        const regularPrice = prices[item.stateKey];
+        promoPrices[item.stateKey] =
+          isPartnerMode &&
+          typeof matchedPromo === "number" &&
+          Number.isFinite(matchedPromo) &&
+          matchedPromo > 0 &&
+          (regularPrice === null || matchedPromo < regularPrice)
+            ? matchedPromo
+            : null;
+
+        const matchedAvailability = item.lookupKeys
+          .map((lookupKey) => lookupHasPromo[lookupKey.trim().toLowerCase()])
+          .find((entry) => entry?.hasPromo === true);
+
+        // A resolved partner promoPrice already proves one exists; otherwise
+        // fall back to the dedicated public availability check (the only
+        // source at all in "fast" mode, where promoPrices above is never
+        // populated).
+        hasPromo[item.stateKey] = promoPrices[item.stateKey] !== null || Boolean(matchedAvailability);
+        promoPercent[item.stateKey] =
+          typeof matchedAvailability?.promoPercent === "number" ? matchedAvailability.promoPercent : null;
       }
 
-      return { prices, costPrices };
+      return {
+        prices,
+        costPrices,
+        promoPrices,
+        hasPromo,
+        promoPercent,
+        isPartner: isPartnerMode,
+      };
     })();
 
     catalogPricesRouteInFlight.set(missingCacheKey, resolvePayloadPromise);
@@ -328,6 +420,13 @@ export async function POST(request: Request) {
         Object.prototype.hasOwnProperty.call(missingPayload.costPrices, item.stateKey)
           ? missingPayload.costPrices[item.stateKey]
           : null,
+        Object.prototype.hasOwnProperty.call(missingPayload.promoPrices, item.stateKey)
+          ? missingPayload.promoPrices[item.stateKey]
+          : null,
+        missingPayload.hasPromo[item.stateKey] === true,
+        Object.prototype.hasOwnProperty.call(missingPayload.promoPercent, item.stateKey)
+          ? missingPayload.promoPercent[item.stateKey]
+          : null,
         itemCacheTtlMs
       );
     }
@@ -335,6 +434,10 @@ export async function POST(request: Request) {
     const payload = {
       prices: { ...cachedItemPrices, ...missingPayload.prices },
       costPrices: { ...cachedItemCostPrices, ...missingPayload.costPrices },
+      promoPrices: { ...cachedItemPromoPrices, ...missingPayload.promoPrices },
+      hasPromo: { ...cachedItemHasPromo, ...missingPayload.hasPromo },
+      promoPercent: { ...cachedItemPromoPercent, ...missingPayload.promoPercent },
+      isPartner: mode === "partner",
     };
 
     catalogPricesRouteCache.set(cacheKey, {
@@ -354,6 +457,11 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         prices: {},
+        costPrices: {},
+        promoPrices: {},
+        hasPromo: {},
+        promoPercent: {},
+        isPartner: false,
         error: error instanceof Error ? error.message : "Failed to resolve catalog prices",
       },
       { status: 500 }

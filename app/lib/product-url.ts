@@ -57,6 +57,58 @@ export const buildVisibleCategoryLabel = (value: string) => {
   return cleaned || source;
 };
 
+// Real cross-reference codes only ever use Latin letters, digits, dots,
+// hyphens and "/" separators — a parenthetical remark in the name (e.g. a
+// Cyrillic fitment note) never matches this, so it's safely skipped instead
+// of misread as a code. Spaces are allowed here even though a real code never
+// contains one: 1C data routinely separates codes as "AD1/ LIN2" (a space
+// right after the slash) rather than "AD1/LIN2" — the space itself is
+// trimmed off each token below, but rejecting the whole group over it here
+// silently dropped every analog list written that way.
+const ANALOG_CODE_GROUP_PATTERN = /^[A-Za-z0-9/.\- ]+$/;
+// A slash-separated token this short (e.g. the "2" in "op590/2") is never a
+// standalone analog code — it's a suffix of the code right before it, so it
+// gets rejoined with "/" instead of listed as its own analog.
+const ANALOG_TOKEN_CONTINUATION_MAX_LENGTH = 3;
+
+// Product names carry cross-reference/analog part numbers in a trailing
+// "(...)" group, e.g. "(LIN030104/AD030213)" or "(op590/2/op495/22/op333/33d)"
+// — the latter is three codes (op590/2, op495/22, op333/33d), not six, since
+// each short segment after a "/" continues the code before it rather than
+// starting a new one. buildVisibleProductName strips this group from the
+// visible name entirely; this extracts it instead, for display elsewhere.
+export const parseAnalogCodesFromName = (name: string): string[] => {
+  const source = (name || "").trim();
+  if (!source) return [];
+
+  const codes: string[] = [];
+  const groupMatches = source.match(/\(([^)]*)\)/g) || [];
+
+  for (const rawGroup of groupMatches) {
+    const inner = rawGroup.slice(1, -1).trim();
+    if (!inner || !ANALOG_CODE_GROUP_PATTERN.test(inner)) continue;
+
+    const tokens = inner
+      .split("/")
+      .map((token) => token.trim())
+      .filter(Boolean);
+
+    // Merged per group, not across groups — a short leading token in one
+    // "(...)" group must never silently glue onto the previous group's code.
+    const groupCodes: string[] = [];
+    for (const token of tokens) {
+      if (groupCodes.length > 0 && token.length <= ANALOG_TOKEN_CONTINUATION_MAX_LENGTH) {
+        groupCodes[groupCodes.length - 1] = `${groupCodes[groupCodes.length - 1]}/${token}`;
+      } else {
+        groupCodes.push(token);
+      }
+    }
+    codes.push(...groupCodes);
+  }
+
+  return Array.from(new Set(codes));
+};
+
 export const extractProductCodeFromParam = (value: string) => {
   const decoded = safeDecodeURIComponent(value || "").trim();
   if (!decoded) return "";

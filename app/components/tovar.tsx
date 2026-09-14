@@ -21,6 +21,7 @@ import { transliterateLatinToUkrainian, stripSoftSign, fixLayoutEnglishToUkraini
 import GroupPreviewImage, { loadGroupPreview } from "app/components/GroupPreviewImage";
 import SectionPagination from "./SectionPagination";
 import TovarPartsBackdrop from "app/components/TovarPartsBackdrop";
+import { createPagedRailScrollGuard } from "app/lib/paged-rail-scroll";
 
 interface CategoryRow {
   group: string;
@@ -944,6 +945,9 @@ const ProductFetcher: React.FC<Props> = ({
 
   const groupPagesRef = useRef<HTMLDivElement | null>(null);
   const groupScrollFrameRef = useRef<number | null>(null);
+  // Skips the scroll→page sync while an arrow-tap / clamp `scrollTo` animates
+  // (see paged-rail-scroll.ts).
+  const scrollGuardRef = useRef(createPagedRailScrollGuard());
   const groupPages = useMemo(() => {
     const pages: ProductNode[][] = [];
     for (let index = 0; index < browseNodes.length; index += browseItemsPerPage) {
@@ -1006,7 +1010,9 @@ const ProductFetcher: React.FC<Props> = ({
       if (!container) return;
       const pageWidth = getGroupPageWidth();
       if (!pageWidth) return;
-      container.scrollTo({ left: (targetPage - 1) * pageWidth, behavior });
+      const left = (targetPage - 1) * pageWidth;
+      scrollGuardRef.current.arm(left, behavior);
+      container.scrollTo({ left, behavior });
     },
     [getGroupPageWidth]
   );
@@ -1015,6 +1021,7 @@ const ProductFetcher: React.FC<Props> = ({
     if (!container) return;
     const pageWidth = container.clientWidth || getGroupPageWidth();
     if (!pageWidth) return;
+    if (scrollGuardRef.current.isSettling(container.scrollLeft)) return;
     const nextPage = Math.max(
       1,
       Math.min(totalPages, Math.round(container.scrollLeft / pageWidth) + 1)

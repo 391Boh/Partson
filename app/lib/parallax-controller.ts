@@ -1,10 +1,9 @@
 // One scroll listener and one requestAnimationFrame loop for every
 // scroll-linked background effect on the page (hero photo, category-browser
 // parts). Sharing them means a single passive `scroll` handler, a single rAF,
-// and — crucially — the geometry of each section is measured only on register
-// and on resize, never on the scroll path. Per frame we read `window.scrollY`
-// (a layout-free property) and nothing else, so scrolling never triggers a
-// forced synchronous layout no matter how many effects are active.
+// and — crucially — geometry is measured on register/resize/ResizeObserver,
+// never on the scroll path. Per frame we read `window.scrollY` (a layout-free
+// property) and nothing else, so scrolling never forces synchronous layout.
 //
 // Each registrant supplies `compute` (raw target from scrollY + cached
 // geometry) and `apply` (write transforms). The controller eases every
@@ -35,26 +34,58 @@ const registrations = new Set<Registration>();
 let viewportH = 0;
 let viewportW = 0;
 let running = false;
+let frameId = 0;
 let lastFrameTime = 0;
 let targetsDirty = true;
 let listenersAttached = false;
 let reduceHeavyMotion = false;
 let constrainedHardware: boolean | null = null;
+let elementResizeObserver: ResizeObserver | null = null;
+let geometryFrameId = 0;
+const pendingGeometryElements = new Set<HTMLElement>();
+let documentResizeObserver: ResizeObserver | null = null;
+let documentRemeasureFrameId = 0;
 
 // A short half-life removes raw wheel stepping without making the artwork
 // trail behind the scrollbar. The wider previous value felt floaty on a
 // Windows mouse wheel and kept the rAF loop alive longer after scrollend.
-const EASE_HALF_LIFE_MS = 48;
+const EASE_HALF_LIFE_MS = 42;
 const SETTLE_EPSILON = 0.001;
-// Decorative multi-plane backdrops do not gain visible quality above 60 Hz,
-// while their style writes still consume main-thread/compositor bandwidth on
-// 90/120/144 Hz displays. The hero photo remains uncapped; only registrations
-// explicitly marked `heavy` use this cadence.
-const HEAVY_FRAME_INTERVAL_MS = 15.5;
+// Keep multi-plane effects fluid on 60/90 Hz screens while naturally landing
+// around 60–72 updates on 120/144 Hz displays. Writing every 8 ms on a 144 Hz
+// panel is imperceptibly different for these slow-moving background layers but
+// costs almost twice as much compositor work.
+const HEAVY_FRAME_INTERVAL_MS = 10.5;
+// Registrations owned by product cards remain mounted for the lifetime of the
+// page. Do not update an off-screen glow just because another visible effect
+// keeps the shared frame loop alive. The small overscan primes the transform
+// before the element reaches the viewport, so entry is still seamless.
+const ACTIVE_OVERSCAN_PX = 240;
 
 // `window.scrollY` never forces layout; `documentElement.scrollTop` can, so
 // it is deliberately not used as a fallback.
 const readScrollY = () => window.scrollY;
+
+const smoothstep = (value: number) => value * value * (3 - 2 * value);
+
+/** Smooth 0→1 transit from just below the viewport to just above it. */
+export const getViewportParallaxProgress = (
+  scrollY: number,
+  viewportH: number,
+  top: number,
+  height: number
+) => {
+  const raw = (scrollY + viewportH - top) / (viewportH + height);
+  return smoothstep(Math.min(Math.max(raw, 0), 1));
+};
+
+/** The same transit expressed as -1 entering, 0 centred, +1 leaving. */
+export const getCenteredParallaxProgress = (
+  scrollY: number,
+  viewportH: number,
+  top: number,
+  height: number
+) => getViewportParallaxProgress(scrollY, viewportH, top, height) * 2 - 1;
 
 const refreshMotionBudget = () => {
   if (constrainedHardware === null) {
@@ -74,14 +105,51 @@ const measure = (reg: Registration) => {
   reg.height = rect.height || 1;
 };
 
+const observeGeometry = (el: HTMLElement) => {
+  if (typeof ResizeObserver === "undefined") return;
+  if (!elementResizeObserver) {
+    elementResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        pendingGeometryElements.add(entry.target as HTMLElement);
+      }
+      if (geometryFrameId) return;
+      geometryFrameId = requestAnimationFrame(() => {
+        geometryFrameId = 0;
+        if (pendingGeometryElements.size === 0) return;
+        registrations.forEach((reg) => {
+          if (pendingGeometryElements.has(reg.el)) measure(reg);
+        });
+        pendingGeometryElements.clear();
+        targetsDirty = true;
+        ensureRunning();
+      });
+    });
+  }
+  elementResizeObserver.observe(el);
+};
+
+const unobserveGeometry = (el: HTMLElement) => {
+  if (Array.from(registrations).some((reg) => reg.el === el)) return;
+  elementResizeObserver?.unobserve(el);
+  pendingGeometryElements.delete(el);
+};
+
 const remeasureAll = (force = false) => {
   const nextWidth = window.innerWidth || 1;
+  const nextHeight = window.innerHeight || 1;
   // Mobile browser chrome continuously changes innerHeight while scrolling.
   // Measuring every section for those height-only resizes forces layout on the
   // hottest path. Geometry only needs rebuilding when the layout width changes.
-  if (!force && viewportW === nextWidth) return;
+  if (!force && viewportW === nextWidth) {
+    if (viewportH !== nextHeight) {
+      viewportH = nextHeight;
+      targetsDirty = true;
+      ensureRunning();
+    }
+    return;
+  }
   viewportW = nextWidth;
-  viewportH = window.innerHeight || 1;
+  viewportH = nextHeight;
   registrations.forEach(measure);
   targetsDirty = true;
   ensureRunning();
@@ -96,6 +164,17 @@ const frame = (now: number) => {
   let anyActive = false;
 
   registrations.forEach((reg) => {
+    const isNearViewport =
+      reg.top + reg.height >= scrollY - ACTIVE_OVERSCAN_PX &&
+      reg.top <= scrollY + viewportH + ACTIVE_OVERSCAN_PX;
+    if (!isNearViewport) {
+      // Re-prime at the exact current position when it comes back. Continuing
+      // to ease from an old off-screen value creates a visible catch-up sweep.
+      reg.primed = false;
+      reg.applied = NaN;
+      return;
+    }
+
     if (targetsDirty || !reg.primed) {
       reg.target = reg.compute(scrollY, viewportH, reg.top, reg.height);
     }
@@ -151,9 +230,10 @@ const frame = (now: number) => {
   targetsDirty = false;
 
   if (anyActive) {
-    requestAnimationFrame(frame);
+    frameId = requestAnimationFrame(frame);
   } else {
     running = false;
+    frameId = 0;
     lastFrameTime = 0;
   }
 };
@@ -162,7 +242,7 @@ function ensureRunning() {
   if (running || registrations.size === 0) return;
   running = true;
   lastFrameTime = 0;
-  requestAnimationFrame(frame);
+  frameId = requestAnimationFrame(frame);
 }
 
 const onScroll = () => {
@@ -174,6 +254,24 @@ const onScroll = () => {
 const onViewportResize = () => remeasureAll(false);
 const forceRemeasureAll = () => remeasureAll(true);
 
+// Homepage sections below a registered layer can grow after it registers —
+// `.home-slot-auto`/`-product`/`-brands` only reserve a *minimum* skeleton
+// height (see globals.css), and real catalogue content is free to exceed it
+// once it mounts mid-scroll. That growth pushes every section below it down
+// without the moved section itself resizing or re-entering the viewport, so
+// neither `elementResizeObserver` nor the IntersectionObserver in each
+// registrant fires — the moved section's cached `top` goes stale and its
+// parallax transform jumps. Watching total document height catches this (and
+// any other content-driven reflow: images loading in, fonts swapping) and
+// re-syncs every registration's geometry against the page as it actually is.
+const scheduleDocumentRemeasure = () => {
+  if (documentRemeasureFrameId) return;
+  documentRemeasureFrameId = requestAnimationFrame(() => {
+    documentRemeasureFrameId = 0;
+    remeasureAll(true);
+  });
+};
+
 const attachListeners = () => {
   if (listenersAttached) return;
   listenersAttached = true;
@@ -184,6 +282,10 @@ const attachListeners = () => {
   window.addEventListener("touchmove", onScroll, { passive: true });
   window.addEventListener("resize", onViewportResize, { passive: true });
   window.addEventListener("orientationchange", forceRemeasureAll);
+  if (typeof ResizeObserver !== "undefined" && !documentResizeObserver) {
+    documentResizeObserver = new ResizeObserver(scheduleDocumentRemeasure);
+    documentResizeObserver.observe(document.body);
+  }
 };
 
 const detachListenersIfIdle = () => {
@@ -193,6 +295,19 @@ const detachListenersIfIdle = () => {
   window.removeEventListener("touchmove", onScroll);
   window.removeEventListener("resize", onViewportResize);
   window.removeEventListener("orientationchange", forceRemeasureAll);
+  if (frameId) cancelAnimationFrame(frameId);
+  if (geometryFrameId) cancelAnimationFrame(geometryFrameId);
+  if (documentRemeasureFrameId) cancelAnimationFrame(documentRemeasureFrameId);
+  frameId = 0;
+  geometryFrameId = 0;
+  documentRemeasureFrameId = 0;
+  running = false;
+  lastFrameTime = 0;
+  pendingGeometryElements.clear();
+  elementResizeObserver?.disconnect();
+  elementResizeObserver = null;
+  documentResizeObserver?.disconnect();
+  documentResizeObserver = null;
 };
 
 export type ParallaxHandle = {
@@ -236,6 +351,7 @@ export function registerParallax(opts: {
   if (!viewportW) viewportW = window.innerWidth || 1;
   measure(reg);
   registrations.add(reg);
+  observeGeometry(reg.el);
   attachListeners();
   refreshMotionBudget();
   targetsDirty = true;
@@ -249,6 +365,7 @@ export function registerParallax(opts: {
     },
     release: () => {
       registrations.delete(reg);
+      unobserveGeometry(reg.el);
       detachListenersIfIdle();
     },
   };

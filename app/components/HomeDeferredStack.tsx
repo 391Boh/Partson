@@ -5,17 +5,26 @@ import { startTransition, useCallback, useEffect, useRef, useState, type ReactNo
 
 import SectionBoundary from "./SectionBoundary";
 import { prefetchManufacturerCounts } from "app/lib/manufacturer-counts-client";
+import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
+
+const MAX_SCROLL_MOUNT_DELAY_MS = 320;
+const SCROLL_SETTLE_RETRY_MS = 80;
+// Auto/product/brands each watch their own 800px-early IntersectionObserver
+// independently. On a normal-to-fast scroll, two or three of them can cross
+// that threshold within the same second and commit their (real, non-trivial)
+// React trees back to back — profiling a scroll through the homepage showed
+// this compounding into the worst style-recalc/paint stalls (150ms+), well
+// above any single section's own cost. Staggering actual mounts across
+// sibling sections spreads that unavoidable paint cost over more frames
+// instead of letting it land in one burst.
+const MIN_SECTION_MOUNT_STAGGER_MS = 220;
+let lastSectionMountAt = 0;
 
 const loadProductSection = () => import("./tovar");
 const loadAutoSection = () => import("./Auto");
 const loadBrandsSection = () => import("./Brands");
-// Footer has its own on-scroll-intersection mount (DeferredFooter.tsx) but,
-// unlike the three sections above, was never part of this early background
-// prefetch — its chunk only started downloading the moment it scrolled into
-// view, with nothing warmed up in advance. Warming it here too means
-// DeferredFooter's own dynamic import() just resolves against an
-// already-fetched module instead of starting a fresh network request.
-const loadFooterSection = () => import("./footer");
+const preloadBrandsSection = () =>
+  Promise.all([loadBrandsSection(), prefetchManufacturerCounts()]);
 
 const ProductFetcher = dynamic(loadProductSection, {
   ssr: false,
@@ -34,6 +43,7 @@ type DeferredHomeSectionProps = {
   children: (onReady: () => void) => ReactNode;
   className: string;
   label: string;
+  preload: () => Promise<unknown>;
   tone: "auto" | "product" | "brands";
 };
 
@@ -41,6 +51,7 @@ function DeferredHomeSection({
   children,
   className,
   label,
+  preload,
   tone,
 }: DeferredHomeSectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
@@ -53,41 +64,125 @@ function DeferredHomeSection({
     if (!section) return;
 
     let mountTimer: number | null = null;
+    let mountRequestedAt = 0;
+    let mountRequested = false;
+    let cancelled = false;
+    let cancelBackgroundTask: (() => void) | null = null;
+    let nearObserver: IntersectionObserver | null = null;
+    let visibleObserver: IntersectionObserver | null = null;
     const mountWhenScrollSettles = () => {
-      if (document.documentElement.classList.contains("is-scrolling")) {
-        mountTimer = window.setTimeout(mountWhenScrollSettles, 100);
+      if (cancelled) return;
+      const isScrolling = document.documentElement.classList.contains("is-scrolling");
+      const waitedMs = performance.now() - mountRequestedAt;
+
+      // Avoid committing a large React tree on the first frame of a gesture,
+      // but keep the wait bounded. Previously a long trackpad gesture or a
+      // scrollbar drag could postpone mounting indefinitely, leaving a user
+      // who had already reached the section looking at only its skeleton.
+      // startTransition below still lets React yield to input if the gesture
+      // is active when the short deadline expires.
+      if (isScrolling && waitedMs < MAX_SCROLL_MOUNT_DELAY_MS) {
+        mountTimer = window.setTimeout(mountWhenScrollSettles, SCROLL_SETTLE_RETRY_MS);
         return;
       }
+
+      const now = performance.now();
+      const sinceLastMount = now - lastSectionMountAt;
+      if (sinceLastMount < MIN_SECTION_MOUNT_STAGGER_MS && waitedMs < MAX_SCROLL_MOUNT_DELAY_MS) {
+        mountTimer = window.setTimeout(
+          mountWhenScrollSettles,
+          MIN_SECTION_MOUNT_STAGGER_MS - sinceLastMount
+        );
+        return;
+      }
+
+      lastSectionMountAt = now;
       startTransition(() => setShouldMount(true));
     };
 
-    if (typeof IntersectionObserver === "undefined") {
+    const requestMount = () => {
+      if (cancelled || mountRequested) return;
+      mountRequested = true;
+      cancelBackgroundTask?.();
+      nearObserver?.disconnect();
+      visibleObserver?.disconnect();
+      // Fetch while the bounded scroll-settle delay runs. Only this section's
+      // chunk/data are warmed; unused catalogue modules stay off the network.
+      // The dynamic component/error boundary handles an actual load failure.
+      void preload().catch(() => undefined);
+      mountRequestedAt = performance.now();
       mountWhenScrollSettles();
-      return () => {
-        if (mountTimer !== null) window.clearTimeout(mountTimer);
-      };
-    }
+    };
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        observer.disconnect();
-        // Parsing/mounting a large catalogue tree in the middle of a wheel or
-        // momentum gesture is the most visible source of dropped frames.
-        // Wait for the shared scroll state to settle; the reserved skeleton
-        // keeps geometry stable during this short delay.
-        mountWhenScrollSettles();
-      },
-      // Start the network request before the section is visible without
-      // competing with the hero image/font during the initial paint.
-      { rootMargin: "250px 0px", threshold: 0 }
-    );
-    observer.observe(section);
-    return () => {
-      observer.disconnect();
+    const cleanup = () => {
+      cancelled = true;
+      cancelBackgroundTask?.();
+      nearObserver?.disconnect();
+      visibleObserver?.disconnect();
       if (mountTimer !== null) window.clearTimeout(mountTimer);
     };
-  }, []);
+
+    if (typeof IntersectionObserver === "undefined") {
+      requestMount();
+      return cleanup;
+    }
+
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    const conserveData = connection?.saveData ||
+      connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g";
+
+    nearObserver = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting || mountRequested) return;
+        nearObserver?.disconnect();
+        // Only an actual scrolled/restored position means the visitor already
+        // moved past the hero and needs this section promptly. A section
+        // merely being visible at scrollY 0 is not that — on a common
+        // ~900px-tall laptop viewport, the hero (~500-600px incl. header)
+        // already leaves Auto's slot peeking into view on first paint, so
+        // checking visibility alone made this fire immediately for most
+        // real users, mounting a full section tree while the hero photo/LCP
+        // was still loading (measured: this is what regressed LCP and CLS).
+        if (window.scrollY > 0) {
+          requestMount();
+          return;
+        }
+        // At the top of the page the 800px margin can include multiple
+        // sections. Their speculative work must wait for the hero resources,
+        // then start in separate idle slots instead of racing the LCP image.
+        const sectionIndex = tone === "auto" ? 0 : tone === "product" ? 1 : 2;
+        cancelBackgroundTask = scheduleBackgroundTask(requestMount, {
+          delayMs: sectionIndex * MIN_SECTION_MOUNT_STAGGER_MS,
+        });
+      },
+      { rootMargin: conserveData ? "0px" : "800px 0px", threshold: 0 }
+    );
+    // If the user reaches a queued section before window.load/an idle slot,
+    // bypass that background wait. Fast scrolling cannot leave it parked
+    // behind a slow image or an unrelated third-party request.
+    //
+    // IntersectionObserver always delivers one callback immediately on
+    // observe() reporting the *current* state — for a section already inside
+    // the viewport at scrollY 0 (a common ~900px laptop viewport already
+    // shows part of Auto below a ~500-600px hero), that first callback alone
+    // used to trigger an unconditional, unstaggered requestMount() here,
+    // reintroducing the exact premature-mount-during-LCP regression the
+    // nearObserver fix above addresses. Skip that initial snapshot and only
+    // act on a real, later transition into view from an actual scroll.
+    let visibleObserverPrimed = false;
+    visibleObserver = new IntersectionObserver(([entry]) => {
+      if (!visibleObserverPrimed) {
+        visibleObserverPrimed = true;
+        return;
+      }
+      if (entry?.isIntersecting) requestMount();
+    });
+    nearObserver.observe(section);
+    visibleObserver.observe(section);
+    return cleanup;
+  }, [preload, tone]);
 
   useEffect(() => {
     if (!shouldMount || ready) return;
@@ -127,75 +222,12 @@ export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataP
   // no longer serialized into the active homepage route.
   void _legacyInitialData;
 
-  useEffect(() => {
-    const connection = (navigator as Navigator & {
-      connection?: { saveData?: boolean; effectiveType?: string };
-    }).connection;
-    if (
-      connection?.saveData ||
-      connection?.effectiveType === "slow-2g" ||
-      connection?.effectiveType === "2g"
-    ) {
-      return;
-    }
-
-    let idleId: number | null = null;
-    let cancelled = false;
-    const timers: number[] = [];
-    const preloadBelowFoldChunks = () => {
-      if (cancelled) return;
-      // requestIdleCallback's timeout is allowed to fire while the browser is
-      // busy. Re-check the real page state so a timeout never turns three
-      // speculative module parses into dropped frames during a gesture.
-      if (
-        document.visibilityState === "hidden" ||
-        document.documentElement.classList.contains("is-scrolling")
-      ) {
-        timers.push(window.setTimeout(preloadBelowFoldChunks, 700));
-        return;
-      }
-      // Download code while the main thread/network are idle, but keep the
-      // sections unmounted so their data requests and React work still happen
-      // only near the viewport. Staggering avoids one large parse burst.
-      // Tightened from 500/1000ms — Brands (Виробники) was reported as slow
-      // to appear, and a fast scroller can reach it well before a 1000ms-
-      // delayed prefetch (on top of this whole callback's own idle/1800ms
-      // wait) has even started, let alone finished.
-      //
-      // The Brands section's own /api/manufacturer-counts request used to
-      // only start once the component actually mounted (already gated
-      // behind an IntersectionObserver + scroll-settle delay), so the
-      // network round trip was the real bottleneck, not the JS chunk. Kick
-      // it off first, right alongside the chunk prefetch — Brands.tsx reads
-      // the same cached promise via getManufacturerCounts() instead of
-      // firing a fresh fetch.
-      void prefetchManufacturerCounts();
-      void loadAutoSection();
-      timers.push(window.setTimeout(() => void loadProductSection(), 300));
-      timers.push(window.setTimeout(() => void loadBrandsSection(), 650));
-      timers.push(window.setTimeout(() => void loadFooterSection(), 1100));
-    };
-
-    if (typeof window.requestIdleCallback === "function") {
-      idleId = window.requestIdleCallback(preloadBelowFoldChunks, {
-        timeout: 3500,
-      });
-    } else {
-      timers.push(window.setTimeout(preloadBelowFoldChunks, 1800));
-    }
-
-    return () => {
-      cancelled = true;
-      if (idleId !== null) window.cancelIdleCallback?.(idleId);
-      timers.forEach((timer) => window.clearTimeout(timer));
-    };
-  }, []);
-
   return (
     <>
       <DeferredHomeSection
         className="home-slot-auto"
         label="Підбір запчастин за автомобілем"
+        preload={loadAutoSection}
         tone="auto"
       >
         {(onReady) => (
@@ -208,6 +240,7 @@ export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataP
       <DeferredHomeSection
         className="home-slot-product"
         label="Каталог груп товарів"
+        preload={loadProductSection}
         tone="product"
       >
         {(onReady) => (
@@ -220,6 +253,7 @@ export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataP
       <DeferredHomeSection
         className="home-slot-brands"
         label="Виробники автозапчастин"
+        preload={preloadBrandsSection}
         tone="brands"
       >
         {(onReady) => (

@@ -8,6 +8,7 @@ import SmartLink from "app/components/SmartLink";
 import BrandsLogosBackdrop from "./BrandsLogosBackdrop";
 import SectionPagination from "./SectionPagination";
 import { useSectionReveal } from "app/lib/use-section-reveal";
+import { createPagedRailScrollGuard } from "app/lib/paged-rail-scroll";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { pluralizeManufacturers, pluralizeProducts, pluralizeUk } from "app/lib/pluralize-uk";
@@ -413,6 +414,9 @@ export default function BrandCarousel({
 
   const brandPagesRef = useRef<HTMLDivElement | null>(null);
   const suppressBrandClickRef = useRef(false);
+  // Holds the scroll-driven page sync while a programmatic `scrollTo` (arrow
+  // tap, swipe release, clamp) is still animating — see paged-rail-scroll.ts.
+  const scrollGuardRef = useRef(createPagedRailScrollGuard());
   const swipeRef = useRef<{
     pointerId: number;
     startX: number;
@@ -437,7 +441,14 @@ export default function BrandCarousel({
       if (!container) return;
       const pageWidth = getBrandPageWidth();
       if (!pageWidth) return;
-      container.scrollTo({ left: targetPage * pageWidth, behavior });
+      const left = targetPage * pageWidth;
+      scrollGuardRef.current.arm(left, behavior);
+      // Mandatory scroll-snap fights a smooth `scrollTo` in WebKit — the snap
+      // engine yanks toward the nearest snap point while the animation runs,
+      // which reads as a bounce. Drop snap for the duration of our own
+      // animation; it is restored once the scroll settles (see the handler).
+      if (behavior === "smooth") container.style.scrollSnapType = "none";
+      container.scrollTo({ left, behavior });
     },
     [getBrandPageWidth]
   );
@@ -449,6 +460,10 @@ export default function BrandCarousel({
       if (!container) return;
 
       suppressBrandClickRef.current = false;
+      // A fresh grab overrides any in-flight settle animation from the
+      // previous gesture / arrow tap.
+      scrollGuardRef.current.release();
+      container.style.scrollSnapType = "";
       swipeRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -571,6 +586,18 @@ export default function BrandCarousel({
       if (!container) return;
       const pageWidth = getBrandPageWidth();
       if (!pageWidth) return;
+
+      // The custom pointer drag owns the scroll position while it is active;
+      // `finishBrandSwipe` commits the final page. Re-rendering the whole
+      // carousel on every frame of the drag only causes flicker.
+      if (swipeRef.current?.dragging) return;
+
+      if (scrollGuardRef.current.isSettling(container.scrollLeft)) return;
+      // Settled (or never armed): restore snap for subsequent native scrolls.
+      if (container.style.scrollSnapType === "none") {
+        container.style.scrollSnapType = "";
+      }
+
       const nextPage = Math.max(
         0,
         Math.min(totalPages - 1, Math.round(container.scrollLeft / pageWidth))

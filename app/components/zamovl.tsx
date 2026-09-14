@@ -81,6 +81,8 @@ interface CartItem {
   article: string;
   producer?: string;
   price: number;
+  originalPrice?: number;
+  isPromoPrice?: boolean;
   quantity: number;
   code: string;
   category?: string;
@@ -139,9 +141,14 @@ const Zamovl: React.FC<ZamovlProps> = ({
   const [confirmedPaymentStatus, setConfirmedPaymentStatus] = useState("");
   const [confirmedEstimatedDeliveryDate, setConfirmedEstimatedDeliveryDate] =
     useState("");
+  const discountableAmount = cartItems.reduce(
+    (sum, item) =>
+      item.isPromoPrice ? sum : sum + Number(item.price) * Number(item.quantity),
+    0
+  );
   const itemDiscountRate =
-    totalAmount > 0 && discountAmount > 0
-      ? Math.min(1, discountAmount / totalAmount)
+    discountableAmount > 0 && discountAmount > 0
+      ? Math.min(1, discountAmount / discountableAmount)
       : 0;
   const ecommerceItems = cartItems.map((item) => ({
     item_id: item.code,
@@ -153,7 +160,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
     ...(item.article ? { item_variant: item.article } : {}),
     price: Number(item.price),
     quantity: Number(item.quantity),
-    ...(itemDiscountRate > 0
+    ...(itemDiscountRate > 0 && !item.isPromoPrice
       ? {
           discount:
             Math.round(Number(item.price) * itemDiscountRate * 100) / 100,
@@ -223,6 +230,8 @@ const Zamovl: React.FC<ZamovlProps> = ({
       article: item.article || "",
       producer: item.producer || "",
       price: item.price,
+      originalPrice: item.originalPrice ?? null,
+      isPromoPrice: item.isPromoPrice === true,
       quantity: item.quantity,
       code: item.code,
       category: item.category || "",

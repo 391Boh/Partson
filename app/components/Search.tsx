@@ -163,6 +163,16 @@ const swapKeyboardLayout = (value: string) => {
 const toArticle = (v: string) =>
   v.toLowerCase().replace(/[Ѐ-ӿ]/g, ch => CYR[ch] ?? "").replace(/[^a-z0-9/]/g, "");
 
+// A layout-corrected reading that turns into a compact alnum/digit code
+// (e.g. "щс90" -> "oc90") is almost certainly what the user actually meant
+// to type — a real Ukrainian word never comes out of this swap looking like
+// that. Worth knowing before the raw query even runs: 1C's own search isn't
+// a strict substring match, so the literal Cyrillic gibberish can still
+// return loose, unrelated matches instead of the empty result this fallback
+// was originally written to wait for (see its call site below).
+const looksLikeGarbledIdentifier = (fixed: string) =>
+  /\d/.test(fixed) && /^[a-z0-9/.-]+$/i.test(fixed);
+
 const fetchSuggestions = async (
   query: string, filter: SearchFilter, signal: AbortSignal
 ): Promise<SuggestionResult> => {
@@ -293,6 +303,38 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
       abortRef.current = ctrl;
 
       try {
+        const layoutQuery = swapKeyboardLayout(trimmed);
+        const hasLayoutAlternative =
+          layoutQuery.length >= SUGGESTION_MIN_CHARS && layoutQuery !== normalizeSearchKey(trimmed);
+
+        // Exactly one fallback request corrects a forgotten UA/EN keyboard
+        // switch while preserving the user's active search filter.
+        const tryLayoutFallback = async () => {
+          const layoutKey = ck(layoutQuery, ef);
+          const layoutCached = cGet(layoutKey);
+          const layoutResult = layoutCached ?? await fetchSuggestions(layoutQuery, ef, ctrl.signal);
+          if (ctrl.signal.aborted) return true;
+          if (layoutResult.items.length > 0) {
+            if (!layoutCached) cSet(layoutKey, layoutResult);
+            setSuggestions(layoutResult.items);
+            setTotalCount(layoutResult.totalCount);
+            setFallback(layoutQuery);
+            return true;
+          }
+          return false;
+        };
+
+        // A layout-corrected reading shaped like a real code (has a digit,
+        // otherwise plain alnum) is tried before the raw text — 1C's search
+        // isn't a strict substring match, so raw Cyrillic gibberish can come
+        // back with loose, unrelated matches instead of the empty result
+        // this fallback originally waited for, permanently hiding the actual
+        // intended match. A real Ukrainian word never swaps into this shape,
+        // so this never preempts a genuine name search.
+        const identifierShaped = hasLayoutAlternative && looksLikeGarbledIdentifier(layoutQuery);
+        if (identifierShaped && (await tryLayoutFallback())) return;
+        if (ctrl.signal.aborted) return;
+
         const results = await fetchSuggestions(trimmed, ef, ctrl.signal);
         if (ctrl.signal.aborted) return;
 
@@ -302,22 +344,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           return;
         }
 
-        // Exactly one fallback request corrects a forgotten UA/EN keyboard
-        // switch while preserving the user's active search filter.
-        const layoutQuery = swapKeyboardLayout(trimmed);
-        if (layoutQuery.length >= SUGGESTION_MIN_CHARS && layoutQuery !== normalizeSearchKey(trimmed)) {
-            const layoutKey = ck(layoutQuery, ef);
-            const layoutCached = cGet(layoutKey);
-            const layoutResult = layoutCached ?? await fetchSuggestions(layoutQuery, ef, ctrl.signal);
-            if (ctrl.signal.aborted) return;
-            if (layoutResult.items.length > 0) {
-              if (!layoutCached) cSet(layoutKey, layoutResult);
-              setSuggestions(layoutResult.items);
-              setTotalCount(layoutResult.totalCount);
-              setFallback(layoutQuery);
-              return;
-            }
-        }
+        if (!identifierShaped && hasLayoutAlternative && (await tryLayoutFallback())) return;
+        if (ctrl.signal.aborted) return;
 
         setSuggestions([]); setTotalCount(0); setFallback(null);
       } catch {

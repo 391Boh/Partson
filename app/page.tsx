@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 
-import { buildSeoContactLine, buildPageMetadata } from "app/lib/seo-metadata";
+import { buildPageMetadata } from "app/lib/seo-metadata";
 import HomePageContent from "./components/HomePageContent";
 import AdvantagesSection from "./components/AdvantagesSection";
 import HomeDeferredStack from "./components/HomeDeferredStack";
 
 const homeTitle = "Інтернет-магазин автозапчастин у Львові";
-const homeDescription = `${buildSeoContactLine()} PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні.`;
+const homeDescription = "PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні.";
 
 export const revalidate = 86400;
 

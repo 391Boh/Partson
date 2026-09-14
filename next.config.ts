@@ -52,6 +52,13 @@ const nextConfig: NextConfig = {
   },
   poweredByHeader: false,
   compress: true,
+  // Product thumbnails are a runtime cache, not application inputs. Without
+  // this exclusion Next's file tracer follows the dynamic readFile() path in
+  // /product-image/[code] and considers every cached image for inclusion in
+  // the server output (10k+ files on a warm development machine).
+  outputFileTracingExcludes: {
+    "/product-image/[code]": [".cache/product-images/**/*"],
+  },
   experimental: {
     // Note: optimizeCss (critters-based critical CSS inlining) is intentionally
     // NOT enabled — it's only wired into Next's legacy Pages Router rendering
@@ -114,6 +121,11 @@ const nextConfig: NextConfig = {
       { pathname: "/**", search: "" },
       // Allow article hint query for dynamic product image endpoint.
       { pathname: "/product-image/**" },
+      // HeroIntroCard appends a `?v=<updatedAt>` cache-busting query when
+      // rendering a blog post's cover through this endpoint (see
+      // app/components/HeroIntroCard.tsx) — without this entry that request
+      // fails the strict `search: ""` rule above.
+      { pathname: "/api/blog/og-image/**" },
     ],
   },
   async redirects() {

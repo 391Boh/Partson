@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from "react";
 
-import { registerParallax } from "app/lib/parallax-controller";
+import {
+  getCenteredParallaxProgress,
+  registerParallax,
+} from "app/lib/parallax-controller";
 
 // Atmospheric layer behind the category browser: catalog product photos with
 // the studio background cut out (public/Parts/cutout/*), so only the bare
@@ -32,10 +35,9 @@ type Part = {
   cx?: boolean;
 };
 
-// On phones the parallax is off entirely (see the effect below) and every
-// part is shown — smaller and pulled toward the edges — plus a firm opacity
-// bump in globals.css (`.tovar-part`), so the watermark actually reads on a
-// flat single-column layout instead of nearly vanishing.
+// On phones only two opposite-edge parts move (see the effect below); the
+// remaining pieces stay as stable depth anchors. Everything is smaller and
+// pulled toward the edges, with a light opacity bump in globals.css.
 const MOBILE_MAX_WIDTH = 640;
 const MOBILE_MOTION_FACTOR = 0.5;
 
@@ -185,14 +187,6 @@ export default function TovarPartsBackdrop() {
       return stopImagePreload;
     }
 
-    // Phones: same treatment as reduced motion. A scroll-linked transform on
-    // ~7 masked / gradient layers is exactly the compositor work that stutters
-    // on mobile GPUs, and at that width the drift is barely perceptible — so
-    // load the photos and leave the parts static.
-    if (window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`).matches) {
-      return stopImagePreload;
-    }
-
     type Plane = {
       el: HTMLElement;
       rot: number;
@@ -220,10 +214,12 @@ export default function TovarPartsBackdrop() {
     let lastStep = NaN;
 
     const recompute = () => {
-      const factor =
-        window.innerWidth <= MOBILE_MAX_WIDTH ? MOBILE_MOTION_FACTOR : 1;
+      const isMobile = window.innerWidth <= MOBILE_MAX_WIDTH;
+      const factor = isMobile ? MOBILE_MOTION_FACTOR : 1;
       planes = allPlanes.filter((p, index) => {
-        if (index % 2 !== 0) return false;
+        // Two opposite-edge parts keep the orbital tumble visible on phones;
+        // the other five remain stable depth anchors.
+        if (isMobile ? index !== 0 && index !== 4 : index % 2 !== 0) return false;
         const r = p.el.getBoundingClientRect();
         return r.width > 0 && r.height > 0;
       });
@@ -281,13 +277,7 @@ export default function TovarPartsBackdrop() {
         heavy: true,
         // -1 while the section sits just below the fold, 0 centred, +1 once it
         // has scrolled up past the top.
-        compute: (scrollY, vh, top, height) => {
-          const centre = top - scrollY + height / 2;
-          return Math.max(
-            -1,
-            Math.min(1, (vh / 2 - centre) / (vh / 2 + height / 2))
-          );
-        },
+        compute: getCenteredParallaxProgress,
         apply,
       });
     };

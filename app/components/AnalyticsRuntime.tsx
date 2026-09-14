@@ -21,6 +21,7 @@ import {
   sanitizeAnalyticsSearchTerm,
   updateGoogleConsent,
 } from "app/lib/gtm";
+import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
 
 type ConsentChoice = "granted" | "denied";
 type AnalyticsMode = "gtm" | "gtag";
@@ -35,11 +36,32 @@ type AnalyticsRuntimeProps = {
 };
 
 type AnalyticsLoaderWindow = Window & {
+  __PARTSON_ANALYTICS_QUEUE_INITIALIZED__?: boolean;
   __PARTSON_ANALYTICS_LOADER_STARTED__?: boolean;
   __PARTSON_PLERDY_LOADER_STARTED__?: boolean;
   _protocol?: string;
   _site_hash_code?: string;
   _suid?: number;
+};
+
+const prepareAnalyticsQueue = (
+  mode: AnalyticsMode,
+  googleTagManagerId = "",
+  googleAnalyticsId = ""
+) => {
+  const analyticsWindow = window as AnalyticsLoaderWindow;
+  if (analyticsWindow.__PARTSON_ANALYTICS_QUEUE_INITIALIZED__) return;
+
+  if (mode === "gtm" && /^GTM-[A-Z0-9]+$/.test(googleTagManagerId)) {
+    (window.dataLayer ??= []).push({ "gtm.start": Date.now(), event: "gtm.js" });
+  } else if (mode === "gtag" && /^G-[A-Z0-9]+$/.test(googleAnalyticsId)) {
+    window.gtag?.("js", new Date());
+    window.gtag?.("config", googleAnalyticsId, { send_page_view: false });
+  } else {
+    return;
+  }
+
+  analyticsWindow.__PARTSON_ANALYTICS_QUEUE_INITIALIZED__ = true;
 };
 
 // Plerdy (heatmaps/click tracking) is an analytics tool like GTM/GA — loaded
@@ -78,13 +100,10 @@ const loadAnalyticsScript = (
 ) => {
   const analyticsWindow = window as AnalyticsLoaderWindow;
   if (analyticsWindow.__PARTSON_ANALYTICS_LOADER_STARTED__) return;
+  prepareAnalyticsQueue(mode, googleTagManagerId, googleAnalyticsId);
 
   if (mode === "gtm" && /^GTM-[A-Z0-9]+$/.test(googleTagManagerId)) {
     analyticsWindow.__PARTSON_ANALYTICS_LOADER_STARTED__ = true;
-    (window.dataLayer ??= []).push({
-      "gtm.start": Date.now(),
-      event: "gtm.js",
-    });
 
     const script = document.createElement("script");
     script.id = "google-tag-manager";
@@ -106,8 +125,6 @@ const loadAnalyticsScript = (
 
   if (mode === "gtag" && /^G-[A-Z0-9]+$/.test(googleAnalyticsId)) {
     analyticsWindow.__PARTSON_ANALYTICS_LOADER_STARTED__ = true;
-    window.gtag?.("js", new Date());
-    window.gtag?.("config", googleAnalyticsId, { send_page_view: false });
 
     const script = document.createElement("script");
     script.id = "google-tag-script";
@@ -404,18 +421,44 @@ export default function AnalyticsRuntime({
   plerdySuid = "",
 }: AnalyticsRuntimeProps) {
   const [analyticsGranted, setAnalyticsGranted] = useState(false);
+  const [advertisingGranted, setAdvertisingGranted] = useState(false);
   const handleConsentChange = useCallback(
     (selection: GoogleConsentSelection) => {
-      setAnalyticsGranted(selection.analyticsGranted);
       if (selection.analyticsGranted || selection.advertisingGranted) {
+        // Configure the queue before enabling page views. GA events queued
+        // ahead of config would otherwise have no destination on slow loads.
+        prepareAnalyticsQueue(mode, googleTagManagerId, googleAnalyticsId);
+      }
+      setAnalyticsGranted(selection.analyticsGranted);
+      setAdvertisingGranted(selection.advertisingGranted);
+    },
+    [googleAnalyticsId, googleTagManagerId, mode]
+  );
+
+  useEffect(() => {
+    if (!enabled || (!analyticsGranted && !advertisingGranted)) return;
+
+    // Returning visitors can already have consent at hydration. Keep third
+    // party downloads behind the page's own resources; page views/events
+    // remain queued in dataLayer until the Google loader is ready.
+    return scheduleBackgroundTask(() => {
+      if (analyticsGranted || advertisingGranted) {
         loadAnalyticsScript(mode, googleTagManagerId, googleAnalyticsId);
       }
-      if (selection.analyticsGranted) {
+      if (analyticsGranted) {
         loadPlerdyScript(plerdySiteHash, plerdySuid);
       }
-    },
-    [googleAnalyticsId, googleTagManagerId, mode, plerdySiteHash, plerdySuid]
-  );
+    });
+  }, [
+    enabled,
+    analyticsGranted,
+    advertisingGranted,
+    googleAnalyticsId,
+    googleTagManagerId,
+    mode,
+    plerdySiteHash,
+    plerdySuid,
+  ]);
 
   if (!enabled) return null;
 

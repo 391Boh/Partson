@@ -5,6 +5,7 @@ import { CalendarRange, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Compa
 import { AUTO_FIELDS } from "./autoFields";
 import { DirectoryPagePagination } from "./HorizontalDirectoryRail";
 import type { YearMeta } from "./CarModels";
+import { createPagedRailScrollGuard } from "../lib/paged-rail-scroll";
 
 interface ModDetails {
   volume: string | null;
@@ -579,6 +580,9 @@ const CarModifications: React.FC<Props> = ({
 
   const optionPagesRef = useRef<HTMLDivElement | null>(null);
   const optionPagesScrollRafRef = useRef(0);
+  // Skips the scroll→page sync while an arrow-tap / clamp `scrollTo` animates
+  // (see paged-rail-scroll.ts).
+  const scrollGuardRef = useRef(createPagedRailScrollGuard());
   useEffect(() => {
     return () => {
       if (optionPagesScrollRafRef.current) {
@@ -598,7 +602,9 @@ const CarModifications: React.FC<Props> = ({
       if (!container) return;
       const pageWidth = getOptionPageWidth();
       if (!pageWidth) return;
-      container.scrollTo({ left: page * pageWidth, behavior });
+      const left = page * pageWidth;
+      scrollGuardRef.current.arm(left, behavior);
+      container.scrollTo({ left, behavior });
     },
     [getOptionPageWidth]
   );
@@ -610,6 +616,7 @@ const CarModifications: React.FC<Props> = ({
       if (!container) return;
       const pageWidth = getOptionPageWidth();
       if (!pageWidth) return;
+      if (scrollGuardRef.current.isSettling(container.scrollLeft)) return;
       const nextPage = Math.max(
         0,
         Math.min(totalOptionPages - 1, Math.round(container.scrollLeft / pageWidth))

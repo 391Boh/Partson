@@ -1,7 +1,6 @@
-import Link from "next/link";
 import {
-  ArrowRight, MapPin, MessageCircle,
-  PackageSearch, Star, Truck, Wrench,
+  ArrowRight, Gauge, MapPin, MessageCircle,
+  PackageSearch, Settings, Star, Truck, Wrench, Zap,
 } from "lucide-react";
 import DeferredSeoPhotosBackdrop, { DeferredStoreMap } from "./DeferredHomeVisuals";
 import OpenChatButton from "./OpenChatButton";
@@ -12,30 +11,36 @@ const STORE_MAP_EMBED_URL = "https://www.google.com/maps?q=PartsON,+вул.+Пе
 
 // One quiet, keyword-rich list of what the catalog covers — replaces the
 // old three mini-cards that visually duplicated the service cards below.
+// Each row also carries its own icon now for quicker scanning.
 const catalogScope = [
   {
     label: "Двигун і ТО",
+    icon: Settings,
     items: "олива, фільтри, ремені та ролики ГРМ, помпи, термостати, свічки, радіатори, патрубки",
   },
   {
     label: "Ходова і гальма",
+    icon: Gauge,
     items: "амортизатори, пружини, важелі, сайлентблоки, кульові опори, підшипники, диски, колодки, супорти",
   },
   {
     label: "Електрика і кузов",
+    icon: Zap,
     items: "датчики, котушки, стартери, генератори, фари, ліхтарі, дзеркала, склоочисники, автохімія",
   },
 ] as const;
 
 // Three non-overlapping steps: підбір → наявність → отримання. Each links to
 // a distinct set of routes; the copy no longer restates the others.
+// Purely informational now — each card's own links used to restate entries
+// already in the footer's "Інформація" column (групи товарів, виробники,
+// доставка/оплата/повернення), so the duplicate CTA row was dropped.
 const serviceCards = [
   {
     title: "Підбір за авто чи артикулом",
     eyebrow: "VIN · артикул · модель",
     icon: PackageSearch,
     text: "Перевіримо, чи підходить деталь до вашої моделі, року й модифікації, та підкажемо різницю між оригіналом і аналогом.",
-    links: [["/auto", "Підбір за авто"], ["/katalog", "Пошук за артикулом"], ["/groups", "Групи товарів"]],
     tone: "sky" as const,
   },
   {
@@ -43,7 +48,6 @@ const serviceCards = [
     eyebrow: "Актуальні залишки складу",
     icon: Wrench,
     text: "Уточнимо виробника, характеристики та залишок на складі. Якщо позиції немає — запропонуємо сумісний аналог у вашому бюджеті.",
-    links: [["/manufacturers", "Виробники"], ["/blog", "Поради фахівців"], ["/inform/warranty", "Гарантія"]],
     tone: "cyan" as const,
   },
   {
@@ -51,15 +55,36 @@ const serviceCards = [
     eyebrow: "Львів і вся Україна",
     icon: Truck,
     text: "Самовивіз із магазину на вул. Перфецького або доставка Новою поштою по Україні. Підкажемо щодо оплати, термінів і повернення.",
-    links: [["/inform/delivery", "Доставка"], ["/inform/payment", "Оплата"], ["/inform/returns", "Повернення"]],
     tone: "blue" as const,
   },
 ] as const;
 
+// Same base/hover gradient crossfade technique as footer.tsx — a static
+// background layer and a second, slightly deeper one that fades in on
+// hover, so the card gains warmth without moving (no translate) or costing
+// an extra paint beyond one opacity transition.
 const cardTones = {
-  sky: { chip: "from-sky-500 to-cyan-400", glow: "rgba(14,165,233,0.5)", link: "text-sky-700 hover:text-sky-500", dot: "bg-sky-500", hoverText: "group-hover/service:text-sky-900" },
-  cyan: { chip: "from-teal-500 to-cyan-400", glow: "rgba(13,148,136,0.5)", link: "text-teal-700 hover:text-teal-500", dot: "bg-teal-500", hoverText: "group-hover/service:text-teal-900" },
-  blue: { chip: "from-blue-600 to-indigo-400", glow: "rgba(79,70,229,0.5)", link: "text-blue-700 hover:text-blue-500", dot: "bg-blue-500", hoverText: "group-hover/service:text-blue-900" },
+  sky: {
+    iconBg: "bg-sky-50", iconText: "text-sky-600",
+    tagBg: "bg-sky-50", tagText: "text-sky-700",
+    cardHoverBorder: "hover:border-sky-200",
+    baseGradient: "linear-gradient(135deg, #ffffff 0%, #f5fafe 55%, #eef8ff 100%)",
+    hoverGradient: "linear-gradient(135deg, #ffffff 0%, #e6f4ff 45%, #e0f7fa 100%)",
+  },
+  cyan: {
+    iconBg: "bg-teal-50", iconText: "text-teal-600",
+    tagBg: "bg-teal-50", tagText: "text-teal-700",
+    cardHoverBorder: "hover:border-teal-200",
+    baseGradient: "linear-gradient(135deg, #ffffff 0%, #f3fbf9 55%, #ecfbf7 100%)",
+    hoverGradient: "linear-gradient(135deg, #ffffff 0%, #ccfbf1 45%, #ecfeff 100%)",
+  },
+  blue: {
+    iconBg: "bg-indigo-50", iconText: "text-indigo-600",
+    tagBg: "bg-indigo-50", tagText: "text-indigo-700",
+    cardHoverBorder: "hover:border-indigo-200",
+    baseGradient: "linear-gradient(135deg, #ffffff 0%, #f5f6fe 55%, #eef1fd 100%)",
+    hoverGradient: "linear-gradient(135deg, #ffffff 0%, #e0e7ff 45%, #eef2ff 100%)",
+  },
 } as const;
 
 type Props = { googleRatingValue?: number; googleReviewCount?: number };
@@ -81,65 +106,69 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
       <div className="section-reveal-advantages is-revealed page-shell-inline relative z-10 space-y-7 sm:space-y-10">
         {/* ---- Header + store card: one balanced two-column row ---- */}
         <div className="grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8 xl:gap-10">
-          <div className="reveal-adv-copy relative min-w-0 rounded-[26px] border border-white/80 bg-white/78 p-5 shadow-[0_18px_42px_-20px_rgba(15,56,86,0.28),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm sm:p-7 lg:min-h-[520px] lg:p-8">
-            {/* Soft glow behind the heading — light, blurred wash lifting
-                the title off the section background, same treatment as the
-                other homepage sections' card headings. */}
-            <span className="pointer-events-none absolute -left-6 top-10 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(13,148,136,0.22),transparent_70%)] blur-2xl" aria-hidden="true" />
+          <div className="reveal-adv-copy flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:min-h-[520px] lg:p-8">
             <div className="flex items-center gap-3">
-              <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-teal-500 via-sky-500 to-sky-400 text-white shadow-[0_13px_30px_-8px_rgba(13,148,136,0.6),inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-2px_6px_-2px_rgba(4,47,46,0.45)] after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.6),transparent_52%)] sm:h-11 sm:w-11">
-                {/* Original simple line-art open-box mark — the anchor for
-                    this whole icon family: same style language (viewBox 24,
-                    thin round-cap stroke, no fill) as HeroIntroCard's own
-                    custom eyebrow SVG, now shared by every homepage
-                    section's eyebrow badge instead of four different
-                    lucide-react glyphs. */}
+              <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-600 sm:h-11 sm:w-11">
+                {/* Shared line-art open-box mark — same style language (viewBox
+                    24, thin round-cap stroke, no fill) as HeroIntroCard's own
+                    eyebrow SVG, now flattened to match the rest of the
+                    homepage's icon tiles instead of a gradient chip. */}
                 <svg viewBox="0 0 24 24" className="relative h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M3.5 8.2 12 3.5l8.5 4.7" />
                   <path d="M3.5 8.2v8.4L12 21l8.5-4.4V8.2" />
                   <path d="M12 12.6 20.5 8.2M12 12.6 3.5 8.2M12 12.6V21" />
                 </svg>
               </span>
-              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase leading-snug tracking-[0.14em] text-teal-600 sm:text-[11px] sm:tracking-[0.18em]">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-teal-500 shadow-[0_0_10px_rgba(13,148,136,0.6)]" />
+              <span className="inline-flex items-center rounded-full bg-teal-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-teal-700">
                 PartsON · Львів
               </span>
             </div>
-            <h2 className="relative mt-3.5 max-w-[20ch] font-display text-[27px] font-black leading-[1.08] tracking-[-0.025em] text-slate-950 min-[480px]:text-[30px] sm:text-[34px] lg:text-[31px] xl:text-[35px]">
+            <h2 className="mt-4 max-w-[20ch] font-display text-[27px] font-black leading-[1.08] tracking-[-0.025em] text-slate-950 min-[480px]:text-[30px] sm:text-[34px] lg:text-[31px] xl:text-[35px]">
               Інтернет-магазин <span className="text-teal-600">автозапчастин у Львові</span>
             </h2>
-            <span className="mt-4 block h-[3px] w-24 rounded-full bg-[linear-gradient(90deg,#0d9488_0%,#14b8a6_26%,#ccfbf1_46%,#38bdf8_64%,transparent_100%)] shadow-[0_1px_2px_rgba(15,118,110,0.28)]" />
-            <p className="mt-3.5 max-w-[50ch] text-[15px] font-medium leading-[1.68] text-slate-700 sm:text-[16px]">
-              <strong className="font-extrabold text-slate-900">PartsON підбирає оригінальні деталі та перевірені аналоги</strong> для легкових авто. Шукайте за VIN, артикулом або моделлю — заберіть у Львові чи замовте доставку по Україні.
+            {/* Distinct from the hero's own H1/lead ("Автозапчастини у Львові
+                з доставкою по Україні" + оригінальні деталі й аналоги) —
+                this paragraph covers catalog scale and search methods
+                instead of repeating that claim, and sets up the category
+                breakdown below with matching keywords (двигун, ходова,
+                електрика й кузов). */}
+            <p className="mt-3.5 max-w-[50ch] text-[15px] leading-[1.68] text-slate-600 sm:text-[16px]">
+              Понад 10&nbsp;000 запчастин у каталозі — від двигуна й ходової до електрики та кузовних деталей — для десятків марок легкових авто. Знайдіть потрібну позицію за VIN-кодом, номером кузова, артикулом чи моделлю.
             </p>
 
-            <div className="mt-5 rounded-[18px] border border-slate-200/90 bg-slate-50/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:mt-6 sm:p-5">
+            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:mt-6 sm:p-5">
               <h3 className="text-[11px] font-black uppercase tracking-[0.12em] text-teal-700">Що знайдете в каталозі</h3>
               <dl className="mt-3.5 space-y-3.5">
-                {catalogScope.map((row) => (
-                  <div key={row.label} className="grid gap-1 border-b border-slate-200/80 pb-3 last:border-0 last:pb-0 sm:grid-cols-[138px_minmax(0,1fr)] sm:gap-4">
-                    <dt><h4 className="text-[13px] font-black leading-snug text-slate-900">{row.label}</h4></dt>
-                    <dd className="text-[13px] leading-[1.58] text-slate-600">{row.items}</dd>
-                  </div>
-                ))}
+                {catalogScope.map((row) => {
+                  const RowIcon = row.icon;
+                  return (
+                    <div key={row.label} className="border-b border-slate-200 pb-3 last:border-0 last:pb-0">
+                      <dt className="flex items-center gap-2">
+                        <RowIcon className="h-4 w-4 shrink-0 text-teal-600" strokeWidth={2} aria-hidden="true" />
+                        <h4 className="text-[13px] font-black leading-snug text-slate-900">{row.label}</h4>
+                      </dt>
+                      <dd className="mt-1 pl-6 text-[13px] leading-[1.58] text-slate-600">{row.items}</dd>
+                    </div>
+                  );
+                })}
               </dl>
             </div>
           </div>
 
-          {/* store / map card — frosted glass, height roughly matches the column */}
-          <div className="reveal-adv-map flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] border border-white/75 bg-white/70 shadow-[0_26px_58px_-20px_rgba(15,56,86,0.34),inset_0_1px_0_rgba(255,255,255,0.95)] ring-1 ring-white/55">
+          {/* store / map card — same flat card language as the rest of the section */}
+          <div className="reveal-adv-map flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" className="group/map relative block aspect-[16/9] min-h-[220px] flex-1 cursor-zoom-in overflow-hidden bg-sky-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-400/60 lg:aspect-auto lg:min-h-[360px]">
               <DeferredStoreMap src={STORE_MAP_EMBED_URL} title="Карта розташування PartsON у Львові" />
               <span className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-white/10" />
-              <span className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 rounded-[14px] border border-white/35 bg-slate-950/78 px-3 py-2.5 text-white shadow-lg backdrop-blur-md transition-[transform,background-color] duration-200 group-hover/map:-translate-y-0.5 group-hover/map:bg-sky-950/90">
+              <span className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 rounded-[14px] border border-white/35 bg-slate-950/78 px-3 py-2.5 text-white shadow-lg backdrop-blur-md transition-colors duration-200 group-hover/map:bg-sky-950/90">
                 <span className="flex min-w-0 items-center gap-2.5"><MapPin className="h-5 w-5 shrink-0 text-cyan-300" /><span><strong className="block text-[12px] font-black">Львів, вул. Перфецького, 8</strong><small className="block text-[10px] font-semibold text-sky-100/80">Відкрити маршрут у Google Maps</small></span></span><ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover/map:translate-x-1" />
               </span>
             </a>
-            <div className="grid grid-cols-2 divide-x divide-white/60 border-t border-white/60">
-              <a href="tel:+380634211851" className="group/phone flex items-center justify-center gap-2 px-3 py-3.5 text-[12px] font-black text-slate-700 transition-colors hover:bg-white/60 hover:text-sky-800"><MessageCircle className="h-4 w-4 text-sky-600 transition-transform group-hover/phone:scale-110" />+38 (063) 421-18-51</a>
+            <div className="grid grid-cols-2 divide-x divide-slate-200 border-t border-slate-200">
+              <a href="tel:+380634211851" className="group/phone flex items-center justify-center gap-2 px-3 py-3.5 text-[12px] font-black text-slate-700 transition-colors hover:bg-slate-50 hover:text-sky-800"><MessageCircle className="h-4 w-4 text-sky-600 transition-transform group-hover/phone:scale-110" />+38 (063) 421-18-51</a>
               <StoreOpenStatus />
             </div>
-            {googleReviewCount > 0 && <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" aria-label={`Переглянути ${googleReviewCount} відгуків PartsON у Google`} className="group/reviews flex cursor-pointer items-center justify-center gap-2 border-t border-amber-200/70 bg-[linear-gradient(135deg,rgba(255,253,245,0.85),rgba(255,247,214,0.8))] px-3 py-3 text-[12px] font-extrabold text-amber-900 transition-[background-color,color,box-shadow] duration-200 hover:bg-[linear-gradient(135deg,#fff8d8,#ffed9c)] hover:text-amber-950 hover:shadow-[inset_0_3px_0_rgba(245,158,11,0.55),0_-8px_20px_rgba(245,158,11,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-400 text-white shadow-[0_5px_12px_rgba(245,158,11,0.28)] transition-[transform,background-color] duration-200 group-hover/reviews:-translate-y-0.5 group-hover/reviews:scale-110 group-hover/reviews:bg-amber-500"><Star className="h-3.5 w-3.5 fill-current" /></span><span>{googleRatingValue.toFixed(1)} · {googleReviewCount} відгуків Google</span><ArrowRight className="h-3.5 w-3.5 text-amber-600 opacity-60 transition-[transform,opacity] group-hover/reviews:translate-x-1 group-hover/reviews:opacity-100" /></a>}
+            {googleReviewCount > 0 && <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" aria-label={`Переглянути ${googleReviewCount} відгуків PartsON у Google`} className="group/reviews flex cursor-pointer items-center justify-center gap-2 border-t border-amber-200/70 bg-amber-50 px-3 py-3 text-[12px] font-extrabold text-amber-900 transition-colors duration-200 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-400 text-white transition-transform duration-200 group-hover/reviews:scale-110"><Star className="h-3.5 w-3.5 fill-current" /></span><span>{googleRatingValue.toFixed(1)} · {googleReviewCount} відгуків Google</span><ArrowRight className="h-3.5 w-3.5 text-amber-600 opacity-60 transition-[transform,opacity] group-hover/reviews:translate-x-1 group-hover/reviews:opacity-100" /></a>}
           </div>
         </div>
 
@@ -149,46 +178,62 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
             const Icon = item.icon;
             const tone = cardTones[item.tone];
             return (
-              <article key={item.title} className="card-metal group/service relative flex h-full flex-col overflow-hidden rounded-[20px] border border-white/55 bg-white/40 p-5 shadow-[0_14px_32px_-12px_rgba(15,56,86,0.22),inset_0_1px_0_rgba(255,255,255,0.7)] transition-[transform,box-shadow,background-color] duration-300 ease-out hover:-translate-y-1 hover:bg-white/70 hover:shadow-[0_26px_50px_-16px_rgba(14,116,144,0.34),inset_0_1px_0_white] sm:p-6">
-                <div className="relative z-[3] flex items-start gap-3.5">
-                  <span
-                    className={`relative inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[15px] bg-gradient-to-br text-white transition-transform duration-300 group-hover/service:-translate-y-0.5 group-hover/service:scale-110 ${tone.chip} after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.6),transparent_52%)]`}
-                    style={{ boxShadow: `0 12px 26px -8px ${tone.glow}, inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -2px 6px -2px rgba(4,32,46,0.4)` }}
-                  >
-                    <Icon className="relative h-[21px] w-[21px]" strokeWidth={2.2} />
+              <article
+                key={item.title}
+                className={`group/service relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 p-6 shadow-sm transition-[box-shadow,border-color] duration-300 ease-out hover:shadow-md ${tone.cardHoverBorder}`}
+              >
+                {/* Base/hover gradient crossfade — a pure opacity transition
+                    between two static layers, so the card warms up on hover
+                    without moving or repainting a live gradient. */}
+                <span
+                  className="pointer-events-none absolute inset-0 transition-opacity duration-300 ease-in-out"
+                  style={{ backgroundImage: tone.baseGradient }}
+                />
+                <span
+                  className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 ease-in-out group-hover/service:opacity-100"
+                  style={{ backgroundImage: tone.hoverGradient }}
+                />
+                <div className="relative z-10 flex items-center gap-3">
+                  <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tone.iconBg} ${tone.iconText}`}>
+                    <Icon className="h-5 w-5" strokeWidth={2} />
                   </span>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">{item.eyebrow}</p>
-                    <h3 className={`mt-1 font-display text-[19px] font-black leading-[1.12] tracking-[-0.015em] text-slate-900 transition-colors sm:text-[21px] ${tone.hoverText}`}>{item.title}</h3>
-                  </div>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.04em] ${tone.tagBg} ${tone.tagText}`}>
+                    {item.eyebrow}
+                  </span>
                 </div>
-                <p className="relative z-[3] mt-3.5 text-[14px] font-medium leading-[1.68] text-slate-600 sm:text-[14.5px]">{item.text}</p>
-                <div className="relative z-[3] mt-auto flex flex-wrap gap-x-4 gap-y-2 pt-5">
-                  {item.links.map(([href, label]) => (
-                    <Link key={href} href={href} className={`group inline-flex items-center gap-1.5 text-[12.5px] font-extrabold ${tone.link}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
-                      {label}
-                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
-                    </Link>
-                  ))}
-                </div>
+                <h3 className="relative z-10 mt-4 text-[19px] font-bold leading-snug text-slate-900 sm:text-[20px]">{item.title}</h3>
+                <p className="relative z-10 mt-2 text-[14px] leading-relaxed text-slate-600 sm:text-[14.5px]">{item.text}</p>
               </article>
             );
           })}
         </div>
 
         {/* ---- CTA ---- */}
-        <div className="reveal-adv-cta grid gap-4 overflow-hidden rounded-[22px] border border-white/55 bg-white/45 px-5 py-6 shadow-[0_18px_40px_-16px_rgba(15,56,86,0.24),inset_0_1px_0_rgba(255,255,255,0.75)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-8 sm:py-7">
-          <div>
-            <h3 className="font-display text-[20px] font-black tracking-[-0.015em] text-slate-950 [text-shadow:0_1px_0_#fff] sm:text-[23px]">Не знайшли потрібну деталь?</h3>
-            <p className="mt-1.5 text-[14px] leading-[1.62] text-slate-600 sm:text-[15px]">Напишіть менеджеру — підкажемо сумісний аналог, перевіримо наявність і порахуємо вартість доставки.</p>
+        <div className="reveal-adv-cta parts-help" aria-labelledby="parts-help-title">
+          <div className="parts-help-copy">
+            <div className="parts-help-eyebrow">
+              <span className="parts-help-icon" aria-hidden="true">
+                <PackageSearch size={22} strokeWidth={1.8} />
+              </span>
+              <span>Допомога з підбором</span>
+            </div>
+            <h3 id="parts-help-title" className="parts-help-title">
+              Підберемо деталь <span>для вашого авто</span>
+            </h3>
+            <p className="parts-help-description">
+              Надішліть VIN, артикул або модель авто — перевіримо сумісність,
+              наявність і ціну.
+            </p>
           </div>
-          <OpenChatButton
-            message="Допоможіть підібрати автозапчастину."
-            label="Написати менеджеру"
-            title="Відкрити чат для підбору автозапчастини"
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-[14px] bg-gradient-to-r from-teal-600 via-sky-600 to-cyan-500 px-6 text-[13px] font-black text-white shadow-[0_14px_30px_-8px_rgba(13,148,136,0.5),inset_0_1px_0_rgba(255,255,255,0.4)] transition-[filter,box-shadow] hover:brightness-105 hover:shadow-[0_18px_38px_-8px_rgba(13,148,136,0.55),inset_0_1px_0_rgba(255,255,255,0.5)]"
-          />
+          <div className="parts-help-action">
+            <OpenChatButton
+              message="Допоможіть підібрати деталь для мого авто."
+              label="Написати менеджеру"
+              title="Написати менеджеру для підбору запчастини"
+              className="parts-help-button"
+            />
+            <p className="parts-help-note">Деталі запиту уточнимо в чаті</p>
+          </div>
         </div>
       </div>
     </section>

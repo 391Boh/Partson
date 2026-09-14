@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { createPagedRailScrollGuard } from "../lib/paged-rail-scroll";
 
 type HorizontalDirectoryRailProps = {
   children: ReactNode;
@@ -65,6 +66,12 @@ export default function HorizontalDirectoryRail({
 }: HorizontalDirectoryRailProps) {
   const railRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | null>(null);
+  // While a page jump / arrow tap is still scrolling, the browser's `scroll`
+  // events would drive `updateControls()` to re-derive `currentPage` from the
+  // in-flight position — the page counter flickers through every page the
+  // scroll passes over. `goToPage` already sets the final page imperatively;
+  // one `updateControls()` runs once the scroll settles (see paged-rail-scroll.ts).
+  const scrollGuardRef = useRef(createPagedRailScrollGuard());
   const [canScrollBack, setCanScrollBack] = useState(false);
   const [canScrollForward, setCanScrollForward] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
@@ -151,6 +158,8 @@ export default function HorizontalDirectoryRail({
     if (frameRef.current != null) return;
     frameRef.current = window.requestAnimationFrame(() => {
       frameRef.current = null;
+      const rail = railRef.current;
+      if (rail && scrollGuardRef.current.isSettling(rail.scrollLeft)) return;
       updateControls();
     });
   };
@@ -168,10 +177,10 @@ export default function HorizontalDirectoryRail({
     // intercepted by scroll-snap mid-flight and stop short of the actual
     // target. move() below always requests a single adjacent page, where
     // smooth reads better and isn't at risk of that.
-    rail.scrollTo({
-      left: target ? Math.min(target.offsetLeft, maxScrollLeft) : 0,
-      behavior: reduceMotion ? "auto" : behavior,
-    });
+    const targetLeft = target ? Math.min(target.offsetLeft, maxScrollLeft) : 0;
+    const resolvedBehavior: ScrollBehavior = reduceMotion ? "auto" : behavior;
+    scrollGuardRef.current.arm(targetLeft, resolvedBehavior);
+    rail.scrollTo({ left: targetLeft, behavior: resolvedBehavior });
     // Trust the explicit target instead of re-measuring: a trailing page
     // near the end can't scroll its column flush to the left edge (there's
     // no more room past it), so the scroll clamps — and re-deriving "current

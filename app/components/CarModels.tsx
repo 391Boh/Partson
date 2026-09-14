@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
 import { transliterateCyrillicToLatin, fixLayoutUkrainianToEnglish } from "../lib/transliterate";
 import { DirectoryPagePagination } from "./HorizontalDirectoryRail";
+import { createPagedRailScrollGuard } from "../lib/paged-rail-scroll";
 
 interface Props {
   selectedBrand: string;
@@ -587,6 +588,10 @@ const extractErrorMessage = (text: string) => {
   }, [modelYearMap]);
   const modelPagesRef = useRef<HTMLDivElement | null>(null);
   const modelPagesScrollRafRef = useRef(0);
+  // Skips the scroll→page sync while an arrow-tap / clamp `scrollTo` animates,
+  // so the active page doesn't flicker through the values it passes over
+  // (see paged-rail-scroll.ts).
+  const scrollGuardRef = useRef(createPagedRailScrollGuard());
   useEffect(() => {
     return () => {
       if (modelPagesScrollRafRef.current) {
@@ -606,7 +611,9 @@ const extractErrorMessage = (text: string) => {
       if (!container) return;
       const pageWidth = getModelPageWidth();
       if (!pageWidth) return;
-      container.scrollTo({ left: page * pageWidth, behavior });
+      const left = page * pageWidth;
+      scrollGuardRef.current.arm(left, behavior);
+      container.scrollTo({ left, behavior });
     },
     [getModelPageWidth]
   );
@@ -634,6 +641,7 @@ const extractErrorMessage = (text: string) => {
       if (!container) return;
       const pageWidth = getModelPageWidth();
       if (!pageWidth) return;
+      if (scrollGuardRef.current.isSettling(container.scrollLeft)) return;
       const nextPage = Math.max(
         0,
         Math.min(totalModelPages - 1, Math.round(container.scrollLeft / pageWidth))

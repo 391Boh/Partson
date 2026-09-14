@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { fetchCatalogProductsByQuery } from "app/lib/catalog-server";
+import { fetchCatalogProductsByQuery, fetchPromoCatalogProducts } from "app/lib/catalog-server";
 import type { CatalogProduct } from "app/lib/catalog-server";
 import {
   routeSuccessCache,
@@ -197,6 +197,32 @@ export async function POST(request: Request) {
 
   try {
     body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+
+    // "Акційні товари" — 1C has no server-side promo filter (verified against
+    // the live endpoint), so this reads a precomputed, periodically refreshed
+    // snapshot instead of running the normal 1C query below at all.
+    if (body.promoOnly === true) {
+      const { products, stale } = await fetchPromoCatalogProducts();
+      const page = toPositiveInt(body.page, 1);
+      const limit = toPositiveInt(body.limit, 10);
+      const start = (page - 1) * limit;
+      const items = products.slice(start, start + limit);
+
+      return NextResponse.json(
+        {
+          items,
+          prices: buildInlinePrices(items),
+          images: {},
+          hasMore: start + limit < products.length,
+          nextCursor: "",
+          cursorField: "",
+          totalCount: products.length,
+          stale,
+        },
+        { headers: { "cache-control": "private, max-age=60, stale-while-revalidate=600" } }
+      );
+    }
+
     routeCacheKey = buildRouteCacheKey(body);
     pruneRouteSuccessCache();
 

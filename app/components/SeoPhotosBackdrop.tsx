@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from "react";
 
-import { registerParallax } from "app/lib/parallax-controller";
+import {
+  getCenteredParallaxProgress,
+  registerParallax,
+} from "app/lib/parallax-controller";
 
 // Atmospheric layer behind the SEO / store section — real storefront photos as
 // a parallax backdrop. Only five, generously spaced (two per edge + one off the
@@ -126,10 +129,6 @@ export default function SeoPhotosBackdrop() {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       return stopImagePreload;
     }
-    if (window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`).matches) {
-      return stopImagePreload;
-    }
-
     type Plane = {
       el: HTMLElement;
       rot: number;
@@ -153,10 +152,13 @@ export default function SeoPhotosBackdrop() {
     let lastStep = NaN;
 
     const recompute = () => {
-      const factor =
-        window.innerWidth <= MOBILE_MAX_WIDTH ? MOBILE_MOTION_FACTOR : 1;
+      const isMobile = window.innerWidth <= MOBILE_MAX_WIDTH;
+      const factor = isMobile ? MOBILE_MOTION_FACTOR : 1;
       planes = allPlanes.filter((p, index) => {
-        if (index % 2 !== 0) return false;
+        // Keep the mobile dolly to two opposite corners. Five filtered,
+        // full-photo layers moving together cost far more GPU memory while
+        // adding little depth on a narrow viewport.
+        if (isMobile ? index !== 0 && index !== 3 : index % 2 !== 0) return false;
         const r = p.el.getBoundingClientRect();
         return r.width > 0 && r.height > 0;
       });
@@ -210,13 +212,7 @@ export default function SeoPhotosBackdrop() {
       handle = registerParallax({
         el: section as HTMLElement,
         heavy: true,
-        compute: (scrollY, vh, top, height) => {
-          const centre = top - scrollY + height / 2;
-          return Math.max(
-            -1,
-            Math.min(1, (vh / 2 - centre) / (vh / 2 + height / 2))
-          );
-        },
+        compute: getCenteredParallaxProgress,
         apply,
       });
     };

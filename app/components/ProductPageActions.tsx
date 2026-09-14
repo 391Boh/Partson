@@ -15,6 +15,8 @@ type ProductPageActionsProps = {
   group?: string;
   subGroup?: string;
   priceUah: number | null;
+  originalPriceUah?: number | null;
+  isPromoPrice?: boolean;
   quantity: number;
   compact?: boolean;
   prominent?: boolean;
@@ -29,6 +31,8 @@ const ProductPageActions = ({
   group,
   subGroup,
   priceUah,
+  originalPriceUah = null,
+  isPromoPrice = false,
   quantity,
   compact = false,
   prominent = false,
@@ -78,6 +82,11 @@ const ProductPageActions = ({
       name,
       producer,
       price: priceUah,
+      originalPrice:
+        isPromoPrice && typeof originalPriceUah === "number"
+          ? originalPriceUah
+          : undefined,
+      isPromoPrice,
       quantity: quantityToAdd,
       category,
       group,

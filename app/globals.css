@@ -11,6 +11,159 @@
   font-display: optional;
 }
 
+/* Static surfaces keep this contact panel inexpensive to paint over the
+   storefront backdrop; no image, backdrop blur or animation is required. */
+.parts-help {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid #cbe4e3;
+  border-radius: 24px;
+  background: linear-gradient(115deg, #fff 35%, #f0faf8 100%);
+  box-shadow: 0 12px 32px -20px rgb(15 76 81 / 30%);
+}
+
+.parts-help::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #0f766e, #5bc8be 42%, #d5f0ee);
+  content: "";
+}
+
+.parts-help-copy {
+  min-width: 0;
+  padding: 24px;
+}
+
+.parts-help-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #0f766e;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.parts-help-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid #cce9e3;
+  border-radius: 11px;
+  background: #e9f7f2;
+}
+
+.parts-help .parts-help-title {
+  max-width: 27ch;
+  margin: 14px 0 0;
+  color: #122c38;
+  font-family: var(--font-ui-stack);
+  font-size: clamp(25px, 2.3vw, 34px);
+  font-style: normal;
+  font-weight: 800;
+  font-variation-settings: "wght" 800;
+  line-height: 1.14;
+  letter-spacing: -.025em;
+  text-shadow: none;
+  text-wrap: balance;
+}
+
+.parts-help-title span {
+  color: #0f766e;
+}
+
+.parts-help-description {
+  max-width: 65ch;
+  margin: 12px 0 0;
+  color: #506471;
+  font-size: 14px;
+  font-weight: 500;
+  font-variation-settings: "wght" 500;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+.parts-help-action {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 24px;
+  padding: 22px 0 24px;
+  border-top: 1px solid #d6e9e5;
+}
+
+.parts-help-button {
+  display: inline-flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 14px 22px;
+  background: #0f766e;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 750;
+  font-variation-settings: "wght" 750;
+  line-height: 1.35;
+  box-shadow: 0 6px 14px -7px rgb(15 118 110 / 45%);
+  transition: background-color 160ms ease;
+}
+
+.parts-help-button:hover {
+  background: #115e59;
+}
+
+.parts-help-button:focus-visible {
+  outline: 3px solid #0d9488;
+  outline-offset: 4px;
+}
+
+.parts-help-button svg {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+.parts-help-note {
+  margin: 0;
+  color: #576e73;
+  font-size: 12px;
+  font-weight: 500;
+  font-variation-settings: "wght" 500;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .parts-help {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, auto);
+    align-items: center;
+  }
+
+  .parts-help-copy {
+    padding: 28px 32px;
+  }
+
+  .parts-help-action {
+    margin: 28px 32px 28px 0;
+    padding: 12px 0 12px 32px;
+    border-top: 0;
+    border-left: 1px solid #d6e9e5;
+  }
+
+  .parts-help-description {
+    font-size: 15px;
+  }
+}
+
 html[data-consent-preferences="complete"] .analytics-consent-banner {
   display: none;
 }
@@ -570,6 +723,33 @@ html.reduce-scroll-effects.is-scrolling
 @keyframes homeSkeletonLight {
   0%, 18% { background-position: 110% 0; }
   75%, 100% { background-position: -90% 0; }
+}
+
+/* Footer skeleton — same sweep technique as the hero account placeholder
+   above, but tuned for the footer's light background (slate blocks with a
+   brighter sheen) instead of the hero's dark-photo tuning. */
+.footer-skeleton-block {
+  border-radius: 8px;
+  background-color: rgba(148, 163, 184, 0.16);
+  background-image: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.7) 46%,
+    transparent 72%
+  );
+  background-size: 220% 100%;
+  animation: footerSkeletonSweep 1.8s ease-in-out infinite;
+}
+
+@keyframes footerSkeletonSweep {
+  0%, 18% { background-position: 130% 0; }
+  75%, 100% { background-position: -110% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .footer-skeleton-block {
+    animation: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1392,9 +1572,8 @@ html:not(.is-scrolling)
 
 /* Backdrop marks (car-picker + manufacturer brand logos, category-browser
    cut-out parts). Base opacity comes in per-layer as the `--mo` / `--po`
-   custom property. On phones the scroll parallax is off and the panels read
-   flat, so the marks get a gentle bump to stay present without ever competing
-   with the copy. */
+   custom property. Phones animate only two accents per section, so all marks
+   get a gentle bump and the mostly-static field still reads as intentional. */
 .auto-logos-mark,
 .brands-logos-mark {
   opacity: calc(var(--mo, 0.18) * 1.45);

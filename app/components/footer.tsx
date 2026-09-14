@@ -99,6 +99,13 @@ export default function Footer() {
   const hoverGradient =
     "radial-gradient(circle at 12% 20%, rgba(14,165,233,0.42), transparent 46%), radial-gradient(circle at 88% 0%, rgba(16,185,129,0.28), transparent 50%), radial-gradient(circle at 52% 95%, rgba(99,102,241,0.19), transparent 54%), linear-gradient(135deg,#ffffff 0%,#dceefe 46%,#e6fdf3 100%)";
 
+  // Small colored accent before each column header — the headers read as
+  // interchangeable gray labels otherwise, with no visual anchor tying them
+  // to the section's own accent color used elsewhere in this footer/on the
+  // homepage (indigo → blue → cyan → teal down the page).
+  const sectionHeadingClass =
+    "mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.1em] text-slate-500";
+
   const infoLinkClass =
     "group/info inline-flex w-full items-center gap-2 rounded-xl border border-transparent px-2.5 py-2 text-slate-700 no-underline transition-[color,background-color,border-color,box-shadow] duration-150 ease-linear hover:border-sky-100/90 hover:bg-white/78 hover:text-sky-900 hover:shadow-[0_8px_18px_rgba(56,189,248,0.12),inset_0_1px_0_rgba(255,255,255,0.86)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300";
 
@@ -169,7 +176,7 @@ export default function Footer() {
                 width={184}
                 height={100}
                 sizes="(max-width: 640px) 118px, 138px"
-                quality={100}
+                quality={90}
                 className="h-auto w-[118px] object-contain drop-shadow-[0_10px_18px_rgba(14,165,233,0.16)] sm:w-[138px]"
                 onError={(e) => {
                   const img = e.currentTarget;
@@ -182,7 +189,8 @@ export default function Footer() {
             </SmartLink>
 
             <div className="mt-6">
-              <p className="mb-3 text-center text-sm font-semibold uppercase tracking-[0.1em] text-slate-500">
+              <p className={`${sectionHeadingClass} justify-center`}>
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-400" aria-hidden="true" />
                 Ми в соцмережах
               </p>
               <div className="flex items-center justify-center gap-3">
@@ -228,7 +236,8 @@ export default function Footer() {
             className={`${colBase} ${visible ? colVisible : colHidden} flex flex-col md:border-r md:border-slate-200/45 md:pr-8`}
             style={{ transitionDelay: visible ? "110ms" : "0ms" }}
           >
-            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.1em] text-slate-500">
+            <p className={sectionHeadingClass}>
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-400" aria-hidden="true" />
               Інформація
             </p>
             <ul className="grid grid-cols-2 content-start gap-x-4 gap-y-1 text-sm">
@@ -248,7 +257,8 @@ export default function Footer() {
             className={`${colBase} ${visible ? colVisible : colHidden} flex flex-col md:pl-2`}
             style={{ transitionDelay: visible ? "220ms" : "0ms" }}
           >
-            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.1em] text-slate-500">
+            <p className={sectionHeadingClass}>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
               Контакти
             </p>
 

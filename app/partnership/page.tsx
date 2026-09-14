@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import {
-  Handshake, Percent, BadgeCheck,
+  Handshake, Percent, BadgeCheck, BadgePercent,
   Zap, Package, Wrench, Store, Clock,
   Navigation, ShieldCheck,
   Users, Building2, TrendingUp, Tag,
@@ -320,6 +321,83 @@ export default function PartnershipPage() {
                   </div>
                 </div>
 
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── АКЦІЙНІ ТОВАРИ ── */}
+      <section className="relative isolate overflow-hidden bg-gradient-to-br from-rose-50/90 via-white to-amber-50/50 py-10 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+        <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_16%,rgba(244,63,94,0.10),transparent_36%),radial-gradient(circle_at_92%_84%,rgba(251,191,36,0.10),transparent_38%)]" />
+
+        <div className="page-shell-inline relative z-10">
+          <div className="relative overflow-hidden rounded-[22px] border border-white/80 bg-[linear-gradient(150deg,rgba(255,255,255,0.97),rgba(255,241,242,0.85),rgba(255,251,235,0.75))] shadow-[0_18px_44px_rgba(159,18,57,0.10),inset_0_1px_0_rgba(255,255,255,0.94)]">
+            <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/95 to-transparent" />
+            <span className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-rose-200/24 blur-3xl" />
+
+            <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:gap-8">
+              <div>
+                <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.18em] text-rose-700">
+                  <BadgePercent size={12} strokeWidth={2.4} />
+                  Акційні товари
+                </span>
+                <h2 className="text-[1.25rem] font-black leading-tight tracking-[-0.02em] text-slate-900 sm:text-[1.5rem]">
+                  Окремі товари — ще дешевше за звичайну знижку партнера
+                </h2>
+                <p className="mt-2.5 max-w-xl text-[13px] font-medium leading-relaxed text-slate-600">
+                  Крім постійних {PARTNER_DISCOUNT_PERCENT}% на весь асортимент, частина товарів у каталозі
+                  має окрему акційну ціну — вигіднішу, ніж стандартна знижка. Це рішення постачальника
+                  щодо конкретних позицій, і список оновлюється без попередження.
+                </p>
+                <ul className="mt-4 space-y-2">
+                  {[
+                    "Позначені бейджем «Акція» прямо на картці товару в каталозі та на сторінці товару",
+                    "Видно автоматично, щойно ви залогінені під партнерським акаунтом — нічого активувати не треба",
+                    "Діють на додачу до асортименту зі знижкою, а не замість нього",
+                  ].map((text) => (
+                    <li key={text} className="flex items-start gap-2 text-[12.5px] font-medium leading-relaxed text-slate-700">
+                      <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                        <BadgeCheck size={10} strokeWidth={2.5} />
+                      </span>
+                      {text}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/katalog"
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-rose-300 bg-rose-600 px-4 py-2 text-[12.5px] font-extrabold text-white shadow-[0_10px_22px_rgba(225,29,72,0.24)] transition hover:bg-rose-700 hover:shadow-[0_12px_26px_rgba(225,29,72,0.3)]"
+                >
+                  Переглянути каталог
+                  <BadgePercent size={14} strokeWidth={2.4} />
+                </Link>
+              </div>
+
+              {/* Realistic mini-preview — matches the actual catalog badge/price
+                  treatment (rose "Акція" pill on the photo corner, struck-through
+                  regular price, promo price) so it's recognizable, not an abstract
+                  mockup. Not a real ProductCard: no data fetching on a page that
+                  doesn't otherwise touch the catalog. */}
+              <div className="relative mx-auto w-full max-w-[280px] rounded-[18px] border border-rose-100 bg-white/90 p-3 shadow-[0_16px_36px_rgba(159,18,57,0.12)] sm:max-w-[300px]">
+                <div className="relative flex h-20 w-full items-center gap-2 rounded-xl border border-rose-100/80 bg-[linear-gradient(135deg,rgba(255,241,242,0.9),rgba(255,251,235,0.7))] p-1.5">
+                  <div className="relative flex h-full w-2/5 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+                    <Package size={26} strokeWidth={1.6} className="text-rose-300" aria-hidden="true" />
+                    <span className="pointer-events-none absolute right-1 top-1 inline-flex items-center rounded-full border border-rose-200 bg-rose-50/95 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.06em] text-rose-700 shadow-sm">
+                      Акція
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] font-bold text-slate-700">Гальмівні колодки Bosch</p>
+                    <p className="text-[9.5px] font-medium text-slate-400">Код: 00-01234</p>
+                  </div>
+                </div>
+                <div className="mt-2.5 flex items-end gap-2">
+                  <span className="text-[12px] font-bold text-slate-400 line-through decoration-rose-400">1&nbsp;240&nbsp;грн</span>
+                  <span className="text-[19px] font-black leading-none text-rose-600">980&nbsp;грн</span>
+                </div>
+                <span className="mt-1.5 inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.06em] text-rose-700">
+                  Для партнера
+                </span>
               </div>
             </div>
           </div>

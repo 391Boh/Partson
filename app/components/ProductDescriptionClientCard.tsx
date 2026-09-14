@@ -4,7 +4,10 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MapPin, Phone } from "lucide-react";
 
-import { registerParallax } from "app/lib/parallax-controller";
+import {
+  getViewportParallaxProgress,
+  registerParallax,
+} from "app/lib/parallax-controller";
 
 type ProductDescriptionClientCardProps = {
   initialText?: string | null;
@@ -265,10 +268,7 @@ export default function ProductDescriptionClientCard({
 
     const handle = registerParallax({
       el: section,
-      compute: (scrollY, viewportH, top, height) => {
-        const progress = (scrollY + viewportH - top) / (viewportH + height);
-        return Math.min(Math.max(progress, 0), 1);
-      },
+      compute: getViewportParallaxProgress,
       apply: (progress) => {
         const shift = (progress - 0.5) * 28;
         glow.style.transform = `translate3d(0, ${shift.toFixed(2)}px, 0)`;

@@ -208,6 +208,11 @@ export function getOneCConfigError() {
 
 const responseCache = new Map();
 const inFlightRequests = new Map();
+const RESPONSE_CACHE_MAX_ENTRIES = parsePositiveIntEnv("ONEC_CACHE_MAX_ENTRIES", 2048);
+const RESPONSE_CACHE_MAX_BYTES = parsePositiveIntEnv("ONEC_CACHE_MAX_BYTES", 64 * 1024 * 1024);
+const RESPONSE_CACHE_PRUNE_INTERVAL_MS = 30_000;
+let responseCacheBytes = 0;
+let nextCachePruneAt = 0;
 
 function nowMs() {
   return Date.now();
@@ -229,24 +234,55 @@ function stableStringify(value) {
 
 function pruneCache() {
   const now = nowMs();
+  // Price/image lookups fan out into many requests. Scanning the entire cache
+  // on every hit turns a warm catalogue request into work proportional to all
+  // previously visited products. Individual reads still check their own TTL.
+  if (now < nextCachePruneAt) return;
+  nextCachePruneAt = now + RESPONSE_CACHE_PRUNE_INTERVAL_MS;
   for (const [key, entry] of responseCache.entries()) {
-    if (!entry || entry.expiresAt <= now) responseCache.delete(key);
+    if (entry.expiresAt <= now) deleteCached(key);
   }
+}
+
+function deleteCached(key) {
+  const entry = responseCache.get(key);
+  if (!entry) return;
+  responseCacheBytes -= entry.sizeBytes;
+  responseCache.delete(key);
 }
 
 function getCached(key) {
   const entry = responseCache.get(key);
   if (!entry) return null;
   if (entry.expiresAt <= nowMs()) {
-    responseCache.delete(key);
+    deleteCached(key);
     return null;
   }
+  // Map insertion order doubles as the LRU list without another allocation.
+  responseCache.delete(key);
+  responseCache.set(key, entry);
   return entry.value;
 }
 
 function setCached(key, value, ttlMs) {
   if (!ttlMs || ttlMs <= 0) return;
-  responseCache.set(key, { expiresAt: nowMs() + ttlMs, value });
+  // Count UTF-16 string storage conservatively, including request keys. Image
+  // responses can be several MB, so an entry count alone cannot bound memory.
+  const sizeBytes = 2 * (key.length + value.text.length + (value.contentType || "").length);
+  deleteCached(key);
+  if (sizeBytes > RESPONSE_CACHE_MAX_BYTES) return;
+
+  while (
+    responseCache.size >= RESPONSE_CACHE_MAX_ENTRIES ||
+    responseCacheBytes + sizeBytes > RESPONSE_CACHE_MAX_BYTES
+  ) {
+    const oldestKey = responseCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    deleteCached(oldestKey);
+  }
+
+  responseCache.set(key, { expiresAt: nowMs() + ttlMs, value, sizeBytes });
+  responseCacheBytes += sizeBytes;
 }
 
 export function getOneCUrl(endpoint) {
@@ -300,7 +336,7 @@ export function clearOneCCacheForProduct(catalogNumber) {
   let cleared = 0;
   for (const key of responseCache.keys()) {
     if (key.includes(normalized)) {
-      responseCache.delete(key);
+      deleteCached(key);
       cleared++;
     }
   }
@@ -315,6 +351,8 @@ export function clearOneCCacheForProduct(catalogNumber) {
 export function clearAllOneCCache() {
   const size = responseCache.size;
   responseCache.clear();
+  responseCacheBytes = 0;
+  nextCachePruneAt = 0;
   if (DEV_DISK_CACHE) {
     try {
       fs.rmSync(DEV_DISK_CACHE_DIR, { recursive: true, force: true });

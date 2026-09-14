@@ -936,7 +936,10 @@ const CatalogSeoSnapshot = async ({
   return (
     <section
       aria-labelledby="catalog-seo-block-title"
-      className="catalog-seo-section mx-auto mt-7 w-full max-w-7xl px-3 pb-12 sm:mt-9 sm:px-4 lg:px-6"
+      // page-shell-inline (not max-w-7xl) — this block sits directly below
+      // KatalogPageShell's own page-shell-inline grid; a different container
+      // system here left its edges narrower than the filters/grid above it.
+      className="catalog-seo-section page-shell-inline mt-7 pb-12 sm:mt-9"
     >
       <div className="catalog-seo-shell relative overflow-hidden rounded-[26px] border border-sky-200/80 bg-white ring-1 ring-white">
 
@@ -1295,21 +1298,30 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     producer: state.producer || null,
     expandHierarchy: state.expandHierarchy,
   });
-  const [rawInitialPagePayload, rawSeoFacets, productTreeDataset, euroRate] = await Promise.all([
+  const seoFacetsPromise = getCatalogSeoFacetsWithTimeout(CATALOG_SEO_FACETS_TIMEOUT_MS)
+    .catch(() => EMPTY_CATALOG_SEO_FACETS)
+    .then((facets) => resolveCatalogSeoFacetsWithFallback(facets));
+  const manufacturersDirectoryPromise = seoFacetsPromise.then((facets) =>
+    resolveWithTimeout(
+      () => buildManufacturersDirectoryData(facets),
+      null,
+      MANUFACTURERS_DIRECTORY_TIMEOUT_MS
+    )
+  );
+  const [rawInitialPagePayload, seoFacets, productTreeDataset, euroRate, manufacturersDirectoryData] = await Promise.all([
     resolveWithTimeout(
       () => getCatalogSeoSnapshotPayloadCached(snapshotCacheKey),
       null,
       initialCatalogTimeoutMs
     ),
-    getCatalogSeoFacetsWithTimeout(CATALOG_SEO_FACETS_TIMEOUT_MS).catch(
-      () => EMPTY_CATALOG_SEO_FACETS
-    ),
+    seoFacetsPromise,
     resolveWithTimeout(
       () => getProductTreeDataset(),
       null,
       CATALOG_PRODUCT_TREE_TIMEOUT_MS
     ).catch(() => null),
     resolveWithTimeout(() => fetchEuroRate(), null, 500).catch(() => null),
+    manufacturersDirectoryPromise,
   ]);
   const initialPagePayload = rawInitialPagePayload
     ? {
@@ -1319,7 +1331,6 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         images: {},
       }
     : null;
-  const seoFacets = await resolveCatalogSeoFacetsWithFallback(rawSeoFacets);
   const seoTotalCount = resolveCatalogSeoTotalCount(state, seoFacets);
   const collectionJsonLd = buildCatalogCollectionJsonLd(siteUrl, state);
   const breadcrumbJsonLd = buildCatalogBreadcrumbJsonLd(siteUrl, state);
@@ -1344,11 +1355,6 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   // Reuses the seoFacets already fetched above (no extra 1C round-trip) so
   // the producer picker in the filter sidebar renders with real logos/counts
   // on first paint — no static-seed-then-live-swap flicker, no client fetch.
-  const manufacturersDirectoryData = await resolveWithTimeout(
-    () => buildManufacturersDirectoryData(seoFacets),
-    null,
-    MANUFACTURERS_DIRECTORY_TIMEOUT_MS
-  ).catch(() => null);
   const initialProducerBrands = (manufacturersDirectoryData?.clientProducers ?? []).map(
     (producer) => ({
       name: producer.label,

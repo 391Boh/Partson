@@ -1,5 +1,4 @@
 import { cache } from "react";
-import { readFile } from "node:fs/promises";
 import { unstable_cache } from "next/cache";
 
 import { type CatalogProduct, fetchCatalogProductsByQuery } from "app/lib/catalog-server";
@@ -7,6 +6,7 @@ import { resolveProductCategoryHierarchy } from "app/lib/catalog-hierarchy";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
+import { readCatalogSeoFacetsSnapshot } from "app/lib/catalog-seo-snapshot";
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
@@ -24,7 +24,6 @@ const parseOptionalPositiveInt = (value: string | undefined) => {
 const FACET_PAGE_SIZE = parsePositiveInt(process.env.SEO_FACET_PAGE_SIZE, 120);
 const FACET_MAX_PAGES = parseOptionalPositiveInt(process.env.SEO_FACET_MAX_PAGES);
 const FACET_MAX_ITEMS = parseOptionalPositiveInt(process.env.SEO_FACET_MAX_ITEMS);
-const SEO_COUNTS_SNAPSHOT_PATH = ".cache/seo-counts.json";
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
 const normalizeToken = (value: string | null | undefined) =>
@@ -84,28 +83,6 @@ export const EMPTY_CATALOG_SEO_FACETS: CatalogSeoFacets = {
   totalProductCount: 0,
   generatedAt: "",
 };
-
-const isCatalogSeoFacets = (value: unknown): value is CatalogSeoFacets => {
-  if (!value || typeof value !== "object") return false;
-  const record = value as Partial<CatalogSeoFacets>;
-  return (
-    Array.isArray(record.groups) &&
-    Array.isArray(record.producers) &&
-    typeof record.totalProductCount === "number"
-  );
-};
-
-const readCatalogSeoFacetsSnapshot = cache(async () => {
-  const text = await readFile(SEO_COUNTS_SNAPSHOT_PATH, "utf8").catch(() => "");
-  if (!text) return null;
-
-  try {
-    const parsed = JSON.parse(text) as unknown;
-    return isCatalogSeoFacets(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-});
 
 const sortByPopularityThenLabel = (a: SeoFacetItem, b: SeoFacetItem) => {
   if (b.productCount !== a.productCount) return b.productCount - a.productCount;

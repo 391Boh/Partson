@@ -121,6 +121,14 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     (total, item) => total + (item.price || 0) * (item.quantity || 1),
     0
   );
+  const discountableAmount = cartItems.reduce(
+    (total, item) =>
+      item.isPromoPrice
+        ? total
+        : total + (item.price || 0) * (item.quantity || 1),
+    0
+  );
+  const hasPromoItems = cartItems.some((item) => item.isPromoPrice);
   const isFirstOrderDiscountEligible =
     Boolean(user) && firstOrderDiscountStatus === 'eligible';
   const isPartnerEligible =
@@ -130,12 +138,33 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     (Boolean(user) &&
       (firstOrderDiscountStatus === 'loading' || partnerDiscountStatus === 'loading'));
   const discountTotals = useMemo(
-    () => calculateFirstOrderDiscount(totalAmount, isFirstOrderDiscountEligible),
-    [isFirstOrderDiscountEligible, totalAmount]
+    () => {
+      const calculated = calculateFirstOrderDiscount(
+        discountableAmount,
+        isFirstOrderDiscountEligible
+      );
+      return {
+        ...calculated,
+        subtotalAmount: totalAmount,
+        totalAmount: Math.max(0, totalAmount - calculated.discountAmount),
+        discountRate: calculated.isApplied ? calculated.discountRate : 0,
+        discountCode: calculated.isApplied ? calculated.discountCode : null,
+      };
+    },
+    [discountableAmount, isFirstOrderDiscountEligible, totalAmount]
   );
   const partnerDiscountTotals = useMemo(
-    () => calculatePartnerDiscount(totalAmount, isPartnerEligible),
-    [isPartnerEligible, totalAmount]
+    () => {
+      const calculated = calculatePartnerDiscount(discountableAmount, isPartnerEligible);
+      return {
+        ...calculated,
+        subtotalAmount: totalAmount,
+        totalAmount: Math.max(0, totalAmount - calculated.discountAmount),
+        discountRate: calculated.isApplied ? calculated.discountRate : 0,
+        discountCode: calculated.isApplied ? calculated.discountCode : null,
+      };
+    },
+    [discountableAmount, isPartnerEligible, totalAmount]
   );
   // Partner discount takes priority; first-order applies only when not yet a partner
   const effectiveDiscountTotals = isPartnerEligible ? partnerDiscountTotals : discountTotals;
@@ -156,9 +185,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     price: item.price,
     quantity: item.quantity,
   }));
-  const checkoutEcommerceItems = cartEcommerceItems.map((item) => ({
+  const checkoutEcommerceItems = cartEcommerceItems.map((item, index) => ({
     ...item,
-    ...(effectiveDiscountTotals.isApplied
+    ...(effectiveDiscountTotals.isApplied && !cartItems[index]?.isPromoPrice
       ? {
           coupon:
             effectiveDiscountTotals.discountCode ?? FIRST_ORDER_DISCOUNT_CODE,
@@ -794,7 +823,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                       </p>
                       <p className="mt-0.5 text-[11px] font-medium leading-4 text-slate-600 sm:text-xs">
                         {partnerDiscountStatus === 'active'
-                          ? 'Знижку враховано автоматично для цього замовлення.'
+                          ? hasPromoItems
+                            ? 'Знижку враховано лише для товарів без акційної ціни.'
+                            : 'Знижку враховано автоматично для цього замовлення.'
                           : `До активації залишилось ${currencyFormatter.format(Math.ceil(partnerAmountLeft))} грн замовлень`}
                       </p>
                     </div>
@@ -892,6 +923,13 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               </div>
             )}
 
+            {hasPromoItems && (
+              <div className="flex items-start gap-2 rounded-[14px] border border-rose-200/80 bg-rose-50/75 px-3 py-2 text-[11px] font-medium leading-4 text-rose-800">
+                <Percent size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+                Акційна ціна вже є максимальною вигодою, тому додаткові знижки до таких позицій не застосовуються.
+              </div>
+            )}
+
             <div className="flex flex-col gap-2 sm:app-panel-scroll sm:max-h-[40vh] sm:gap-2.5">
               {cartItems.map((item, index) => {
                 const itemName = item.name?.replace(/\s*\(.*?\)/g, '') || 'Товар';
@@ -934,11 +972,21 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                               <span className="truncate">Арт. {item.article}</span>
                             </span>
                           )}
+                          {item.isPromoPrice && (
+                            <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.75 text-[9px] font-black uppercase tracking-[0.06em] text-rose-700 sm:px-2.5 sm:py-1">
+                              Акційна ціна
+                            </span>
+                          )}
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] sm:gap-2 sm:text-xs">
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1.5">
                             <span className="font-semibold text-slate-500">Ціна</span>
                             <span className="font-bold text-slate-900">
+                              {item.isPromoPrice && item.originalPrice ? (
+                                <span className="mr-1.5 text-slate-400 line-through decoration-rose-400">
+                                  {currencyFormatter.format(item.originalPrice)}
+                                </span>
+                              ) : null}
                               {currencyFormatter.format(item.price || 0)} грн
                             </span>
                           </span>

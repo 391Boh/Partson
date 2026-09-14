@@ -1,7 +1,5 @@
 import "server-only";
 
-import { readFile } from "node:fs/promises";
-
 import type {
   CatalogSeoFacets,
   SeoFacetItem,
@@ -13,6 +11,9 @@ import type {
 import { resolveProductCategoryHierarchy } from "app/lib/catalog-hierarchy";
 import type { ProductSitemapEntry } from "app/lib/product-sitemap";
 import { buildSeoSlug } from "app/lib/seo-slug";
+import { readCatalogSeoFacetsSnapshot } from "app/lib/catalog-seo-snapshot";
+
+export { readCatalogSeoFacetsSnapshot } from "app/lib/catalog-seo-snapshot";
 
 type CounterEntry = {
   label: string;
@@ -21,8 +22,6 @@ type CounterEntry = {
 
 type CounterMap = Map<string, CounterEntry>;
 type NestedCounterMap = Map<string, CounterMap>;
-
-const SEO_COUNTS_SNAPSHOT_PATH = ".cache/seo-counts.json";
 
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
@@ -237,28 +236,6 @@ export const buildCatalogSeoFacetsFromSitemapEntries = (
     totalProductCount: productKeys.size,
     generatedAt: new Date().toISOString(),
   };
-};
-
-const isCatalogSeoFacets = (value: unknown): value is CatalogSeoFacets => {
-  if (!value || typeof value !== "object") return false;
-  const record = value as Partial<CatalogSeoFacets>;
-  return (
-    Array.isArray(record.groups) &&
-    Array.isArray(record.producers) &&
-    typeof record.totalProductCount === "number"
-  );
-};
-
-export const readCatalogSeoFacetsSnapshot = async () => {
-  const text = await readFile(SEO_COUNTS_SNAPSHOT_PATH, "utf8").catch(() => "");
-  if (!text) return null;
-
-  try {
-    const parsed = JSON.parse(text) as unknown;
-    return isCatalogSeoFacets(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
 };
 
 export const resolveCatalogSeoFacetsWithFallback = async (

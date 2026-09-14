@@ -3,7 +3,10 @@
 import { useEffect, useRef } from "react";
 import { ChevronDown, HelpCircle } from "lucide-react";
 
-import { registerParallax } from "app/lib/parallax-controller";
+import {
+  getViewportParallaxProgress,
+  registerParallax,
+} from "app/lib/parallax-controller";
 import { buildProductFaqItems } from "app/lib/product-faq";
 
 type ProductFaqSectionProps = {
@@ -38,10 +41,7 @@ export default function ProductFaqSection({
     // just "has a gradient."
     const handle = registerParallax({
       el: section,
-      compute: (scrollY, viewportH, top, height) => {
-        const progress = (scrollY + viewportH - top) / (viewportH + height);
-        return Math.min(Math.max(progress, 0), 1);
-      },
+      compute: getViewportParallaxProgress,
       apply: (progress) => {
         const shift = (progress - 0.5) * 36;
         glow.style.transform = `translate3d(0, ${shift.toFixed(2)}px, 0)`;

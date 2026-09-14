@@ -55,9 +55,9 @@ export default function ScrollPerformanceGuard() {
       }
     } catch {}
 
-    // Below 641px the parallax layers already fully disable themselves
-    // (see AutoLogosBackdrop etc.), so there is nothing here worth reacting
-    // to before that width — same scope the scroll-based sampler below uses.
+    // Below 641px each section already reduces itself to at most two small
+    // moving accents and the hero to one photo layer, so an additional quality
+    // downgrade is unnecessary — same scope the scroll sampler below uses.
     if (window.innerWidth > 640 && isLikelyWeakDevice()) {
       root.classList.add("reduce-scroll-effects");
       try {

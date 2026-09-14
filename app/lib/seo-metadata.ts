@@ -108,38 +108,25 @@ export const trimSeoDescription = (
   return `${content}…`;
 };
 
-export const buildSeoContactLine = () =>
-  `${STORE_ADDRESS}. Телефон: ${STORE_PHONE_DISPLAY}.`;
-
-// Contact info leads every description (address, then a plain phone number
-// with no icon) so it's the first thing visible in a cut-off search snippet,
-// followed by the page-specific text.
+// Every meta description used to lead (appendSeoContact) or close
+// (appendSeoContactLast) with the store's address and phone number, so a
+// cut-off search snippet always showed contact info. That traded away 35%+ of
+// the 160-character budget on every single page for boilerplate repeated
+// verbatim site-wide — competitors' snippets lead with the page's own value
+// proposition/keywords instead, which is what actually drives organic CTR.
+// Decision: drop the contact line from descriptions entirely. The address and
+// phone number still reach Search through the Organization/AutoPartsStore
+// JSON-LD (structured, machine-readable, and doesn't cost snippet space) and
+// remain visible in the on-page UI. Both names are kept as thin wrappers —
+// only around 30 call sites reference them for historical "lead" vs. "trail"
+// contact placement, a distinction that no longer applies — so nothing else
+// has to change.
 export const appendSeoContact = (
   value: string,
   maxLength = SEO_DESCRIPTION_MAX_LENGTH
-) => {
-  const contactLine = buildSeoContactLine();
-  const normalizedValue = value.replace(/\s+/g, " ").trim();
-  const baseMaxLength = Math.max(72, maxLength - contactLine.length - 1);
-  const base = trimSeoDescription(normalizedValue, baseMaxLength);
+) => trimSeoDescription(value, maxLength);
 
-  return trimSeoDescription(`${contactLine} ${base}`, maxLength);
-};
-
-// Directory pages need their differentiating topic first in the snippet.
-// Keep the shared store contact after the unique copy so related pages don't
-// all begin with identical boilerplate.
-export const appendSeoContactLast = (
-  value: string,
-  maxLength = SEO_DESCRIPTION_MAX_LENGTH
-) => {
-  const contactLine = buildSeoContactLine();
-  const normalizedValue = value.replace(/\s+/g, " ").trim();
-  const baseMaxLength = Math.max(72, maxLength - contactLine.length - 1);
-  const base = trimSeoDescription(normalizedValue, baseMaxLength);
-
-  return trimSeoDescription(`${base} ${contactLine}`, maxLength);
-};
+export const appendSeoContactLast = appendSeoContact;
 
 type BuildPageMetadataOptions = {
   title: string;

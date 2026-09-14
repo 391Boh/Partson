@@ -13,9 +13,12 @@ import AutoLogosBackdrop from "./AutoLogosBackdrop";
 import SectionPagination from "./SectionPagination";
 import { useSectionReveal } from "app/lib/use-section-reveal";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
+import { createPagedRailScrollGuard } from "app/lib/paged-rail-scroll";
 
-const CarModels = dynamic(() => import("./CarModels"), { ssr: false });
-const CarModifications = dynamic(() => import("./CarModifications"), { ssr: false });
+const loadCarModels = () => import("./CarModels");
+const loadCarModifications = () => import("./CarModifications");
+const CarModels = dynamic(loadCarModels, { ssr: false });
+const CarModifications = dynamic(loadCarModifications, { ssr: false });
 
 const pluralWord = (n: number | null, one: string, few: string, many: string) => {
   if (n === null) return many;
@@ -468,32 +471,6 @@ const AutoSection: React.FC<AutoProps> = ({
   }, [debouncedSetSearchTerm]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    carBrands.forEach((brand) => {
-      const link = document.createElement("link");
-      link.rel = "prefetch";
-      link.as = "image";
-      link.href = brand.logo;
-      document.head.appendChild(link);
-    });
-  }, []);
-
-  useEffect(() => {
-    const warmUp = () => {
-      import("./CarModels");
-      import("./CarModifications");
-    };
-    const win = window as Window & {
-      requestIdleCallback?: (cb: () => void) => number;
-    };
-    if (typeof win.requestIdleCallback === "function") {
-      win.requestIdleCallback(warmUp);
-    } else {
-      setTimeout(warmUp, 300);
-    }
-  }, []);
-
-  useEffect(() => {
     if (!isStandalonePersistenceEnabled || typeof window === "undefined") return;
 
     try {
@@ -710,6 +687,11 @@ const AutoSection: React.FC<AutoProps> = ({
 
   const brandPagesRef = useRef<HTMLDivElement | null>(null);
   const brandPagesScrollRafRef = useRef(0);
+  // Holds the scroll-driven page sync while an arrow-tap / clamp `scrollTo` is
+  // still animating, so its intermediate `scroll` events don't push
+  // `brandPage` back through every rounded value it passes (see
+  // paged-rail-scroll.ts).
+  const scrollGuardRef = useRef(createPagedRailScrollGuard());
   useEffect(() => {
     return () => {
       if (brandPagesScrollRafRef.current) {
@@ -729,7 +711,9 @@ const AutoSection: React.FC<AutoProps> = ({
       if (!container) return;
       const pageWidth = getBrandPageWidth();
       if (!pageWidth) return;
-      container.scrollTo({ left: page * pageWidth, behavior });
+      const left = page * pageWidth;
+      scrollGuardRef.current.arm(left, behavior);
+      container.scrollTo({ left, behavior });
     },
     [getBrandPageWidth]
   );
@@ -741,6 +725,9 @@ const AutoSection: React.FC<AutoProps> = ({
       if (!container) return;
       const pageWidth = getBrandPageWidth();
       if (!pageWidth) return;
+
+      if (scrollGuardRef.current.isSettling(container.scrollLeft)) return;
+
       const nextPage = Math.max(
         0,
         Math.min(totalBrandPages - 1, Math.round(container.scrollLeft / pageWidth))
@@ -767,6 +754,7 @@ const AutoSection: React.FC<AutoProps> = ({
   const onModelSelect = useCallback(
     (model: string) => {
       if (!selectedBrand) return;
+      void loadCarModifications().catch(() => undefined);
       setSelectedModel(model);
       setSelectedModDetails(null);
       setSelectedCarLabel(null);
@@ -922,6 +910,9 @@ const AutoSection: React.FC<AutoProps> = ({
   };
 
   const handleBrandSelect = useCallback((brand: CarBrand) => {
+    // Start the requested step's chunk during the outgoing card animation.
+    // Browsing the brand grid alone does not need either picker module.
+    void loadCarModels().catch(() => undefined);
     setSelectedBrand(brand);
     setSelectedModel(null);
     setSelectedYear(null);

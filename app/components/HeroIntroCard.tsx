@@ -26,7 +26,16 @@ export default async function HeroIntroCard() {
   // PartsON logo mark here instead of a real article photo).
   const posts = await getPublishedBlogPosts().catch(() => []);
   const latestPost = posts.find((post) => post.imageDataUrl?.trim()) ?? posts[0] ?? null;
-  const blogImage = latestPost?.imageDataUrl || '/Car-parts-fullwidth.webp';
+  const coverImage = latestPost?.imageDataUrl;
+  // Legacy covers can be hundreds of kilobytes of base64. Embedding one in
+  // this server component duplicates it in both HTML and the RSC payload.
+  // Serve those covers through the existing image endpoint so next/image can
+  // send a cached thumbnail at the card's actual size instead.
+  const isInlineCover = coverImage?.startsWith('data:image/');
+  const coverVersion = latestPost?.updatedAt || latestPost?.publishedAt || latestPost?.createdAt;
+  const blogImage = isInlineCover && latestPost?.slug
+    ? `/api/blog/og-image/${encodeURIComponent(latestPost.slug)}${coverVersion ? `?v=${encodeURIComponent(coverVersion)}` : ''}`
+    : coverImage || '/Car-parts-fullwidth.webp';
   const blogTitle = latestPost?.title?.trim() || 'Поради з вибору автозапчастин';
   const blogHref = latestPost?.slug ? `/blog/${latestPost.slug}` : '/blog';
   const blogAlt =
@@ -122,7 +131,9 @@ export default async function HeroIntroCard() {
               src={blogImage}
               alt={blogAlt}
               fill
-              unoptimized={Boolean(latestPost?.imageDataUrl)}
+              unoptimized={Boolean(coverImage && !isInlineCover)}
+              loading="eager"
+              fetchPriority="low"
               sizes="(max-width: 640px) 45vw, 220px"
               className="object-cover transition-transform duration-500 ease-out group-hover/blog:scale-[1.07]"
             />

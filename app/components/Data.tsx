@@ -125,7 +125,13 @@ const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 358;
 // three API pages. This prevents images, card effects and React reconciliation
 // for old pages from competing with the browser's scroll frame.
 const VIRTUALIZATION_MIN_ITEMS = ITEMS_PER_PAGE * 3;
-const VIRTUAL_OVERSCAN_ROWS = 3;
+// Rows of cards kept mounted just outside the viewport on each side. The
+// window only recomputes once per animation frame (see scheduleUpdate
+// below), so on a fast fling/flick — real momentum scrolling can cross a
+// 3-row buffer within a single frame on a tall grid — cards used to become
+// visible before their row entered the mounted window, reading as a visible
+// pop-in right at the viewport edge instead of already being there.
+const VIRTUAL_OVERSCAN_ROWS = 5;
 // Shift the mounted window in small row groups instead of reconciling the
 // product grid every time a single row crosses the viewport boundary.
 const VIRTUAL_WINDOW_STEP_ROWS = 2;
@@ -578,6 +584,31 @@ const getResolvedProductPriceUAH = (
   return toPriceUAH(resolvedEuro, euroRate);
 };
 
+const getResolvedProductPromoPriceEuro = (
+  item: Pick<Product, "code" | "article">,
+  promoPrices: Record<string, number | null>,
+  precomputedPriceKeys?: string[]
+) => {
+  const priceKeys =
+    precomputedPriceKeys ??
+    Array.from(
+      new Set([getProductPriceStateKey(item), ...getProductPriceLookupKeys(item)].filter(Boolean))
+    );
+
+  for (const key of priceKeys) {
+    const promoPrice = promoPrices[key];
+    if (
+      typeof promoPrice === "number" &&
+      Number.isFinite(promoPrice) &&
+      promoPrice > 0
+    ) {
+      return promoPrice;
+    }
+  }
+
+  return null;
+};
+
 const getProductStableListKey = (
   item: Pick<
     Product,
@@ -745,6 +776,25 @@ const inFlightPageRequests = new Map<string, Promise<CatalogPagePayload>>();
 type PriceBatchResult = {
   prices: Record<string, number | null>;
   costPrices: Record<string, number | null>;
+  promoPrices: Record<string, number | null>;
+  // Public-safe: true when the item has an active partner promo at all,
+  // known even in "fast" (anonymous) mode — never the discounted amount
+  // itself, which stays in promoPrices, gated by isPartner.
+  hasPromo: Record<string, boolean>;
+  // Public-safe teaser: rounded discount percent, known even in "fast"
+  // (anonymous) mode — see hasPromo's own comment above.
+  promoPercent: Record<string, number | null>;
+  isPartner: boolean;
+  // True only when a protected ("partner"/"full") request actually carried a
+  // Firebase ID token, i.e. the server had something to verify. Firebase auth
+  // can still be mid-initialization (or a token refresh mid-flight) moments
+  // after a page loads or a new batch of items scrolls into view — that
+  // yields an unauthenticated request, which the server correctly answers
+  // with isPartner: false. That's a "couldn't check this time" outcome, not
+  // "confirmed not a partner", and callers must not treat it as the latter:
+  // that exact conflation used to wipe every already-resolved promo price on
+  // the page the moment one unrelated, unlucky batch raced the token.
+  verified: boolean;
 };
 const inFlightPriceBatchRequests = new Map<
   string,
@@ -850,7 +900,7 @@ const normalizeCacheList = (values: string[]) =>
   ).sort();
 
 const buildPriceBatchRequestKey = (
-  mode: "fast" | "full",
+  mode: "fast" | "partner" | "full",
   batch: Array<{ stateKey: string; lookupKeys: string[] }>
 ) =>
   JSON.stringify({
@@ -1238,12 +1288,14 @@ function useCatalogData(params: {
   subcategoryFromURL: string | null;
   producerFromURL: string | null;
   expandHierarchyFromURL: boolean;
+  promoOnly?: boolean;
   sortOrder: "none" | "asc" | "desc";
   pricedOnly?: boolean;
   priceFrom?: number | null;
   priceTo?: number | null;
   inStock?: boolean;
   includeCostPrices?: boolean;
+  includePartnerPrices?: boolean;
   getAdminAuthToken?: () => Promise<string | null>;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
@@ -1259,12 +1311,14 @@ function useCatalogData(params: {
     subcategoryFromURL,
     producerFromURL,
     expandHierarchyFromURL,
+    promoOnly = false,
     sortOrder,
     pricedOnly = false,
     priceFrom = null,
     priceTo = null,
     inStock = false,
     includeCostPrices = false,
+    includePartnerPrices = false,
     getAdminAuthToken,
     initialPagePayload,
     initialQuerySignature,
@@ -1296,6 +1350,17 @@ function useCatalogData(params: {
     initialPagePayload?.prices ?? {}
   );
   const [costPrices, setCostPrices] = useState<Record<string, number | null>>({});
+  const [promoPrices, setPromoPrices] = useState<Record<string, number | null>>({});
+  const [isPartner, setIsPartner] = useState(false);
+  // Public-safe teaser: true when an item has an active partner promo at
+  // all, known even to anonymous/non-partner visitors from the "fast" batch
+  // response — never the discounted amount itself (that stays in
+  // promoPrices, gated by isPartner).
+  const [hasPromoAvailability, setHasPromoAvailability] = useState<Record<string, boolean>>({});
+  // Public-safe teaser: the discount size, rounded to a whole percent, known
+  // even to anonymous/non-partner visitors — never the discounted amount
+  // itself (see hasPromoAvailability's own comment above).
+  const [promoPercentByKey, setPromoPercentByKey] = useState<Record<string, number | null>>({});
   const [pageImages, setPageImages] = useState<Record<string, string>>(
     initialPagePayload?.images ?? {}
   );
@@ -1354,6 +1419,7 @@ function useCatalogData(params: {
         subcategory: subcategoryFromURL,
         producer: producerFromURL,
         expandHierarchy: expandHierarchyFromURL,
+        promoOnly,
         sortOrder: effectiveServerSortOrder,
         pricedOnly,
         priceFrom,
@@ -1371,6 +1437,7 @@ function useCatalogData(params: {
       subcategoryFromURL,
       producerFromURL,
       expandHierarchyFromURL,
+      promoOnly,
       effectiveServerSortOrder,
       pricedOnly,
       priceFrom,
@@ -1394,6 +1461,7 @@ function useCatalogData(params: {
         subcategory: subcategoryFromURL,
         producer: producerFromURL,
         expandHierarchy: expandHierarchyFromURL,
+        promoOnly,
         sortOrder: "none",
         pricedOnly,
         priceFrom,
@@ -1411,6 +1479,7 @@ function useCatalogData(params: {
       subcategoryFromURL,
       producerFromURL,
       expandHierarchyFromURL,
+      promoOnly,
       pricedOnly,
       priceFrom,
       priceTo,
@@ -1454,6 +1523,9 @@ function useCatalogData(params: {
     initialPagePayload?.prices ?? {}
   );
   const costPricesRef = useRef<Record<string, number | null>>({});
+  const promoPricesRef = useRef<Record<string, number | null>>({});
+  const hasPromoAvailabilityRef = useRef<Record<string, boolean>>({});
+  const promoPercentByKeyRef = useRef<Record<string, number | null>>({});
   const pageImagesRef = useRef<Record<string, string>>(
     initialPagePayload?.images ?? {}
   );
@@ -1480,6 +1552,18 @@ function useCatalogData(params: {
   useEffect(() => {
     costPricesRef.current = costPrices;
   }, [costPrices]);
+
+  useEffect(() => {
+    promoPricesRef.current = promoPrices;
+  }, [promoPrices]);
+
+  useEffect(() => {
+    hasPromoAvailabilityRef.current = hasPromoAvailability;
+  }, [hasPromoAvailability]);
+
+  useEffect(() => {
+    promoPercentByKeyRef.current = promoPercentByKey;
+  }, [promoPercentByKey]);
 
   useEffect(() => {
     pageImagesRef.current = pageImages;
@@ -1671,8 +1755,23 @@ function useCatalogData(params: {
           typeof item.costPriceEuro === "number" &&
           Number.isFinite(item.costPriceEuro) &&
           item.costPriceEuro > 0;
-        // Skip if regular price is already known AND (cost price not needed OR already inline)
-        if (inlinePrice != null && (!includeCostPrices || hasInlineCostPrice)) continue;
+        const needsPromoPrice =
+          (includePartnerPrices &&
+            !Object.prototype.hasOwnProperty.call(promoPricesRef.current, stateKey)) ||
+          // The public "has a partner promo at all" teaser is independent of
+          // login state and of whether the regular price is already known —
+          // without this, an item whose price arrived inline (the common
+          // case) never enters requestItems at all for an anonymous visitor,
+          // so its "fast" batch (the only place hasPromo comes from for them)
+          // never runs and the teaser badge never appears.
+          !Object.prototype.hasOwnProperty.call(hasPromoAvailabilityRef.current, stateKey);
+        // A signed-in user still needs the protected partner lookup even when
+        // the regular public price was already embedded in the page.
+        if (
+          inlinePrice != null &&
+          (!includeCostPrices || hasInlineCostPrice) &&
+          !needsPromoPrice
+        ) continue;
 
         const lookupKeys = getProductPriceLookupKeys(item);
         if (lookupKeys.length === 0) continue;
@@ -1696,13 +1795,13 @@ function useCatalogData(params: {
           Number.isFinite(prefetchedPrice) &&
           prefetchedPrice > 0
         ) {
-          if (!needsCostPrice) continue;
+          if (!needsCostPrice && !needsPromoPrice) continue;
           // Has regular price but cost price not yet fetched — fall through
         } else if (prefetchedPrice === null) {
           immediateUpdates[stateKey] = null;
           priceRetryCooldownUntilRef.current[stateKey] =
             nowTs + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
-          continue;
+          if (!needsPromoPrice) continue;
         } else {
           const currentPrice = pricesRef.current[stateKey];
           if (
@@ -1710,12 +1809,12 @@ function useCatalogData(params: {
             Number.isFinite(currentPrice) &&
             currentPrice > 0
           ) {
-            if (!needsCostPrice) continue;
+            if (!needsCostPrice && !needsPromoPrice) continue;
             // Has regular price in state but cost price not yet fetched — fall through
           } else if (currentPrice === null) {
             // Null already committed — only retry if the cooldown has expired.
             const nullCooldown = priceRetryCooldownUntilRef.current[stateKey] ?? 0;
-            if (nullCooldown > nowTs) {
+            if (nullCooldown > nowTs && !needsPromoPrice) {
               continue;
             }
             // Cooldown elapsed: fall through to retry the price API.
@@ -1726,12 +1825,16 @@ function useCatalogData(params: {
         }
 
         const cooldownUntil = priceRetryCooldownUntilRef.current[stateKey] ?? 0;
-        if (cooldownUntil > nowTs) continue;
+        if (cooldownUntil > nowTs && !needsPromoPrice) continue;
         if (cooldownUntil > 0) {
           delete priceRetryCooldownUntilRef.current[stateKey];
         }
 
-        if (priceLoadingKeysRef.current.has(stateKey) && !needsCostPrice) continue;
+        if (
+          priceLoadingKeysRef.current.has(stateKey) &&
+          !needsCostPrice &&
+          !needsPromoPrice
+        ) continue;
 
         const cachedStateEntry = readCachedPriceEntry(stateKey);
         const cachedEntry = cachedStateEntry.hit
@@ -1745,11 +1848,11 @@ function useCatalogData(params: {
           if (cachedEntry.value === null) {
             priceRetryCooldownUntilRef.current[stateKey] =
               nowTs + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
-            continue;
+            if (!needsPromoPrice) continue;
           } else {
             delete priceRetryCooldownUntilRef.current[stateKey];
           }
-          if (!needsCostPrice) continue;
+          if (!needsCostPrice && !needsPromoPrice) continue;
           // Has cached price but cost price needed — fall through to requestItems
         }
 
@@ -1804,7 +1907,9 @@ function useCatalogData(params: {
       const commitResolvedPrices = (
         resolvedPrices: Record<string, number | null>,
         resolvedCostPrices: Record<string, number | null> | undefined,
-        cooldownMs: number
+        cooldownMs: number,
+        resolvedPromoPrices?: Record<string, number | null>,
+        resolvedPartnerStatus?: boolean
       ) => {
         if (
           options?.querySignatureSnapshot &&
@@ -1882,14 +1987,62 @@ function useCatalogData(params: {
             });
           }
         }
+
+        if (resolvedPartnerStatus !== undefined) {
+          setIsPartner(resolvedPartnerStatus);
+          if (!resolvedPartnerStatus) {
+            promoPricesRef.current = {};
+            setPromoPrices({});
+          }
+        }
+
+        if (
+          resolvedPartnerStatus === true &&
+          resolvedPromoPrices &&
+          Object.keys(resolvedPromoPrices).length > 0
+        ) {
+          const nextPromoUpdates: Record<string, number | null> = {};
+          for (const item of requestItems) {
+            const resolvedPromoPrice = resolvedPromoPrices[item.stateKey];
+            if (resolvedPromoPrice === undefined) continue;
+
+            nextPromoUpdates[item.stateKey] = resolvedPromoPrice;
+            for (const lookupKey of item.lookupKeys) {
+              nextPromoUpdates[lookupKey] = resolvedPromoPrice;
+            }
+          }
+
+          if (Object.keys(nextPromoUpdates).length > 0) {
+            setPromoPrices((prev) => {
+              let didChange = false;
+              const next = { ...prev };
+              for (const [key, value] of Object.entries(nextPromoUpdates)) {
+                if (next[key] !== value) {
+                  next[key] = value;
+                  didChange = true;
+                }
+              }
+              promoPricesRef.current = didChange ? next : prev;
+              return didChange ? next : prev;
+            });
+          }
+        }
       };
 
       const postBatch = async (
         batch: typeof requestItems,
-        mode: "fast" | "full"
+        mode: "fast" | "partner" | "full"
       ) => {
         if (batch.length === 0) {
-          return { prices: {}, costPrices: {} } satisfies PriceBatchResult;
+          return {
+            prices: {},
+            costPrices: {},
+            promoPrices: {},
+            hasPromo: {},
+            promoPercent: {},
+            isPartner: false,
+            verified: false,
+          } satisfies PriceBatchResult;
         }
 
         const requestKey = buildPriceBatchRequestKey(mode, batch);
@@ -1900,11 +2053,32 @@ function useCatalogData(params: {
 
         const requestPromise = (async () => {
           const headers: Record<string, string> = { "Content-Type": "application/json" };
-          if (mode === "full") {
-            // Server only computes/returns costPrices for a verified admin
-            // token — without it, "full" mode silently behaves like "fast".
+          let tokenAttached = mode === "fast";
+          if (mode === "full" || mode === "partner") {
+            // Both protected modes require a Firebase ID token. The server
+            // independently verifies either admin or partner access.
             const adminToken = await getAdminAuthToken?.().catch(() => null);
-            if (adminToken) headers.Authorization = `Bearer ${adminToken}`;
+            if (adminToken) {
+              headers.Authorization = `Bearer ${adminToken}`;
+              tokenAttached = true;
+            }
+          }
+
+          // No token yet for a protected mode (Firebase auth still
+          // initializing, or a token refresh mid-flight) — the server would
+          // just answer isPartner: false with nothing actually verified.
+          // Skip the request rather than let that unverified negative reach
+          // the caller, who would otherwise mistake it for a real answer.
+          if (!tokenAttached) {
+            return {
+              prices: {},
+              costPrices: {},
+              promoPrices: {},
+              hasPromo: {},
+              promoPercent: {},
+              isPartner: false,
+              verified: false,
+            } satisfies PriceBatchResult;
           }
 
           const response = await fetch(`${CATALOG_PRICE_BATCH_ROUTE}?mode=${mode}`, {
@@ -1921,10 +2095,19 @@ function useCatalogData(params: {
           const payload = (await response.json()) as {
             prices?: Record<string, number | null>;
             costPrices?: Record<string, number | null>;
+            promoPrices?: Record<string, number | null>;
+            hasPromo?: Record<string, boolean>;
+            promoPercent?: Record<string, number | null>;
+            isPartner?: boolean;
           };
           return {
             prices: payload?.prices ?? {},
             costPrices: payload?.costPrices ?? {},
+            promoPrices: payload?.promoPrices ?? {},
+            hasPromo: payload?.hasPromo ?? {},
+            promoPercent: payload?.promoPercent ?? {},
+            isPartner: payload?.isPartner === true,
+            verified: true,
           } satisfies PriceBatchResult;
         })();
 
@@ -1942,9 +2125,18 @@ function useCatalogData(params: {
       };
 
       try {
+        // Start the protected partner lookup alongside the public price batch.
+        // Waiting for the public price first made promotional prices visibly
+        // pop in several seconds later on slower mobile connections.
+        const partnerLookupPromise =
+          includePartnerPrices && allowFullLookup
+            ? postBatch(requestItems, "partner")
+            : null;
         const fastResult = await postBatch(requestItems, "fast");
         const normalizedFastPrices: Record<string, number | null> = {};
         const normalizedFastCostPrices: Record<string, number | null> = {};
+        const normalizedFastHasPromo: Record<string, boolean> = {};
+        const normalizedFastPromoPercent: Record<string, number | null> = {};
         for (const item of requestItems) {
           const resolvedPrice = fastResult.prices[item.stateKey];
           if (
@@ -1963,6 +2155,41 @@ function useCatalogData(params: {
           ) {
             normalizedFastCostPrices[item.stateKey] = resolvedCostPrice;
           }
+
+          if (fastResult.hasPromo[item.stateKey] === true) {
+            normalizedFastHasPromo[item.stateKey] = true;
+          }
+
+          const resolvedPromoPercent = fastResult.promoPercent[item.stateKey];
+          if (typeof resolvedPromoPercent === "number" && Number.isFinite(resolvedPromoPercent)) {
+            normalizedFastPromoPercent[item.stateKey] = resolvedPromoPercent;
+          }
+        }
+        if (Object.keys(normalizedFastHasPromo).length > 0) {
+          setHasPromoAvailability((prev) => {
+            let didChange = false;
+            const next = { ...prev };
+            for (const [key, value] of Object.entries(normalizedFastHasPromo)) {
+              if (next[key] !== value) {
+                next[key] = value;
+                didChange = true;
+              }
+            }
+            return didChange ? next : prev;
+          });
+        }
+        if (Object.keys(normalizedFastPromoPercent).length > 0) {
+          setPromoPercentByKey((prev) => {
+            let didChange = false;
+            const next = { ...prev };
+            for (const [key, value] of Object.entries(normalizedFastPromoPercent)) {
+              if (next[key] !== value) {
+                next[key] = value;
+                didChange = true;
+              }
+            }
+            return didChange ? next : prev;
+          });
         }
         if (
           Object.keys(normalizedFastPrices).length > 0 ||
@@ -1981,19 +2208,68 @@ function useCatalogData(params: {
         });
 
         const fullLookupItems = includeCostPrices ? requestItems : unresolvedItems;
-        if (fullLookupItems.length === 0) {
-          return;
-        }
+        const protectedLookupItems = includePartnerPrices ? requestItems : [];
+        if (fullLookupItems.length === 0 && protectedLookupItems.length === 0) return;
 
         if (!allowFullLookup) {
-          for (const item of fullLookupItems) {
+          for (const item of [...fullLookupItems, ...protectedLookupItems]) {
             priceRetryCooldownUntilRef.current[item.stateKey] =
               Date.now() + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
           }
           return;
         }
 
-        void postBatch(fullLookupItems, "full")
+        if (protectedLookupItems.length > 0) {
+          void (partnerLookupPromise ?? postBatch(protectedLookupItems, "partner"))
+            .then((partnerResult) => {
+              // No token made it into this request (see postBatch) — nothing
+              // was actually verified, so isPartner:false here is not a real
+              // answer. Leave the existing isPartner/promoPrices state
+              // untouched instead of wiping already-resolved promo prices
+              // because of an unrelated, unlucky auth-timing race.
+              if (!partnerResult.verified) return;
+
+              const resolvedPartnerPrices: Record<string, number | null> = {};
+              const resolvedPromoPrices: Record<string, number | null> = {};
+
+              for (const item of protectedLookupItems) {
+                const resolvedPrice = partnerResult.prices[item.stateKey];
+                if (
+                  typeof resolvedPrice === "number" &&
+                  Number.isFinite(resolvedPrice) &&
+                  resolvedPrice > 0
+                ) {
+                  resolvedPartnerPrices[item.stateKey] = resolvedPrice;
+                }
+
+                const resolvedPromoPrice = partnerResult.promoPrices[item.stateKey];
+                resolvedPromoPrices[item.stateKey] =
+                  partnerResult.isPartner &&
+                  typeof resolvedPromoPrice === "number" &&
+                  Number.isFinite(resolvedPromoPrice) &&
+                  resolvedPromoPrice > 0
+                    ? resolvedPromoPrice
+                    : null;
+              }
+
+              commitResolvedPrices(
+                resolvedPartnerPrices,
+                undefined,
+                PRICE_REVALIDATE_AFTER_NULL_MS,
+                resolvedPromoPrices,
+                partnerResult.isPartner
+              );
+            })
+            .catch((error) => {
+              // A transient network error/timeout means the partner check
+              // didn't run this time — not that it came back negative. Leave
+              // isPartner/promoPrices as they were; the next successful
+              // batch (or scroll-triggered refetch) will reconcile them.
+              if (isAbortLikeError(error)) return;
+            });
+        }
+
+        if (fullLookupItems.length > 0) void postBatch(fullLookupItems, "full")
           .then((fullResult) => {
             const unresolvedStateKeys = new Set(
               unresolvedItems.map((item) => item.stateKey)
@@ -2065,7 +2341,7 @@ function useCatalogData(params: {
         releaseRequestItems();
       }
     },
-    [includeCostPrices, getAdminAuthToken]
+    [includeCostPrices, includePartnerPrices, getAdminAuthToken]
   );
 
   const fetchCatalogPageImages = useCallback(
@@ -2525,6 +2801,7 @@ function useCatalogData(params: {
         subcat: normalizeOptionalCacheString(subcategoryFromURL),
         producer: normalizeOptionalCacheString(producerFromURL),
         hierarchy: expandHierarchyFromURL,
+        promoOnly,
         sort: effectiveServerSortOrder || "none",
         pricedOnly,
         priceFrom,
@@ -2541,6 +2818,7 @@ function useCatalogData(params: {
       subcategoryFromURL,
       producerFromURL,
       expandHierarchyFromURL,
+      promoOnly,
       effectiveServerSortOrder,
       pricedOnly,
       priceFrom,
@@ -2603,6 +2881,7 @@ function useCatalogData(params: {
             subcategory: subcategoryFromURL,
             producer: producerFromURL,
             expandHierarchy: expandHierarchyFromURL,
+            promoOnly,
             sortOrder: effectiveServerSortOrder,
             pricedOnly,
             priceFrom: priceFrom != null ? Math.round((priceFrom / euroRate) * 100) / 100 : null,
@@ -2690,6 +2969,7 @@ function useCatalogData(params: {
       producerFromURL,
       searchFilter,
       selectedCars,
+      promoOnly,
       effectiveServerSortOrder,
       subcategoryFromURL,
       pricedOnly,
@@ -3680,8 +3960,16 @@ function useCatalogData(params: {
         return;
       }
 
-      const euro = getResolvedProductPriceEuro(item, prices);
-      const priceUAH = toPriceUAH(euro, euroRate);
+      const regularEuro = getResolvedProductPriceEuro(item, prices);
+      const regularPriceUAH = toPriceUAH(regularEuro, euroRate);
+      const promoEuro = isPartner
+        ? getResolvedProductPromoPriceEuro(item, promoPrices)
+        : null;
+      const candidatePromoPriceUAH = toPriceUAH(promoEuro, euroRate);
+      const hasPromoPrice =
+        candidatePromoPriceUAH != null &&
+        (regularPriceUAH == null || candidatePromoPriceUAH < regularPriceUAH);
+      const priceUAH = hasPromoPrice ? candidatePromoPriceUAH : regularPriceUAH;
 
       if (priceUAH == null) {
         return;
@@ -3694,12 +3982,14 @@ function useCatalogData(params: {
         producer: item.producer || undefined,
         quantity: qtyToAdd,
         price: priceUAH,
+        isPromoPrice: hasPromoPrice,
+        originalPrice: hasPromoPrice ? regularPriceUAH ?? undefined : undefined,
         category: item.category || undefined,
         group: item.group || undefined,
         subGroup: item.subGroup || undefined,
       });
     },
-    [cartMap, quantities, prices, euroRate, addToCart]
+    [cartMap, quantities, prices, promoPrices, isPartner, euroRate, addToCart]
   );
 
   const handleRemoveFromCart = useCallback(
@@ -3775,6 +4065,27 @@ function useCatalogData(params: {
       allowFullLookup: true,
     }).catch(swallowAbortError);
   }, [includeCostPrices, fetchCatalogPagePrices]);
+
+  const prevIncludePartnerPricesRef = useRef(includePartnerPrices);
+  useEffect(() => {
+    const justBecameAvailable =
+      includePartnerPrices && !prevIncludePartnerPricesRef.current;
+    prevIncludePartnerPricesRef.current = includePartnerPrices;
+
+    if (!includePartnerPrices) {
+      setIsPartner(false);
+      promoPricesRef.current = {};
+      setPromoPrices({});
+      return;
+    }
+
+    if (!justBecameAvailable || dataRef.current.length === 0) return;
+    void fetchCatalogPagePrices(dataRef.current, {
+      prefetchedPrices: pricesRef.current,
+      querySignatureSnapshot: activeQuerySignatureRef.current,
+      allowFullLookup: true,
+    }).catch(swallowAbortError);
+  }, [includePartnerPrices, fetchCatalogPagePrices]);
 
   // When new items are appended while admin, retry cost prices after a delay in case the
   // initial targeted 1C lookup timed out. The route cache uses a 20s short-TTL on null
@@ -3914,6 +4225,10 @@ function useCatalogData(params: {
     quantities,
     prices,
     costPrices,
+    promoPrices,
+    isPartner,
+    hasPromoAvailability,
+    promoPercentByKey,
     pageImages,
     pageImagePending,
     pageImageMissing,
@@ -3979,6 +4294,7 @@ const Data: React.FC<DataProps> = ({
   const subcategoryFromURL = currentSearchParams.get("subcategory");
   const producerFromURL = (currentSearchParams.get("producer") || "").trim() || null;
   const expandHierarchyFromURL = currentSearchParams.get("scope") === "hierarchy";
+  const promoOnlyFromURL = currentSearchParams.get("promo") === "1";
   const lastFilterSignatureRef = useRef<string | null>(null);
   const lastStableSortedSignatureRef = useRef("");
   const selectedCarsRef = useRef(selectedCars);
@@ -3999,6 +4315,24 @@ const Data: React.FC<DataProps> = ({
   const [viewportWidth, setViewportWidth] = useState(0);
 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [hasAuthenticatedUser, setHasAuthenticatedUser] = useState(false);
+  useEffect(() => {
+    const syncStoredAuth = () => {
+      try {
+        setHasAuthenticatedUser(Boolean(localStorage.getItem("user_id")));
+      } catch {
+        setHasAuthenticatedUser(false);
+      }
+    };
+    const handleAuthChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ uid?: string | null }>).detail;
+      setHasAuthenticatedUser(Boolean(detail?.uid));
+    };
+
+    syncStoredAuth();
+    window.addEventListener("partson:authStateChange", handleAuthChange);
+    return () => window.removeEventListener("partson:authStateChange", handleAuthChange);
+  }, []);
   useEffect(() => {
     const checkStoredAdminFlag = () => {
       try {
@@ -4045,6 +4379,10 @@ const Data: React.FC<DataProps> = ({
     quantities,
     prices,
     costPrices,
+    promoPrices,
+    isPartner,
+    hasPromoAvailability,
+    promoPercentByKey,
     pageImages,
     pageImagePending,
     pageImageMissing,
@@ -4085,12 +4423,14 @@ const Data: React.FC<DataProps> = ({
     subcategoryFromURL,
     producerFromURL,
     expandHierarchyFromURL,
+    promoOnly: promoOnlyFromURL,
     sortOrder,
     pricedOnly,
     priceFrom,
     priceTo,
     inStock,
     includeCostPrices: isAdmin,
+    includePartnerPrices: hasAuthenticatedUser,
     getAdminAuthToken: getAdminToken,
     initialPagePayload,
     initialQuerySignature,
@@ -4405,6 +4745,7 @@ const Data: React.FC<DataProps> = ({
         groupFromURL,
         subcategoryFromURL,
         producerFromURL,
+        promoOnlyFromURL,
         selectedCategories,
         selectedCars,
         sortOrder,
@@ -4419,6 +4760,7 @@ const Data: React.FC<DataProps> = ({
       groupFromURL,
       subcategoryFromURL,
       producerFromURL,
+      promoOnlyFromURL,
       selectedCategories,
       selectedCars,
       sortOrder,
@@ -4575,6 +4917,12 @@ const Data: React.FC<DataProps> = ({
         name: `Пошук: ${safeSearch}`,
       };
     }
+    if (promoOnlyFromURL) {
+      return {
+        id: "catalog_promo",
+        name: "Акційні товари",
+      };
+    }
     if (producerFromURL) {
       return {
         id: "catalog_manufacturer",
@@ -4601,6 +4949,7 @@ const Data: React.FC<DataProps> = ({
   }, [
     groupFromURL,
     producerFromURL,
+    promoOnlyFromURL,
     rawSearchQuery,
     selectedCars.length,
     selectedCategories,
@@ -5215,6 +5564,15 @@ const Data: React.FC<DataProps> = ({
           <div className="text-center text-red-500 mb-4">{error}</div>
         )}
 
+        {/* The page's h1 lives above this component (/katalog's own
+            sr-only heading), and the SEO copy block below the grid has the
+            page's first visible h2 — without this, the DOM order was
+            h1 → h3 (every ProductCard title) → h2, skipping past h2 before
+            one existed. sr-only so it doesn't add visible chrome above the
+            grid. */}
+        {shouldShowCatalogGrid && (
+          <h2 className="sr-only">Товари каталогу</h2>
+        )}
 
         {shouldShowCatalogGrid && (
           <div className="relative">
@@ -5248,6 +5606,24 @@ const Data: React.FC<DataProps> = ({
                 );
                 const priceUAH =
                   entry.priceUAH ?? getResolvedProductPriceUAH(item, prices, euroRate, priceLookupKeys);
+                const statePromoPriceEuro = isPartner
+                  ? getResolvedProductPromoPriceEuro(item, promoPrices, priceLookupKeys)
+                  : null;
+                const candidatePromoPriceUAH = toPriceUAH(statePromoPriceEuro, euroRate);
+                const promoPriceUAH =
+                  candidatePromoPriceUAH != null &&
+                  (priceUAH == null || candidatePromoPriceUAH < priceUAH)
+                    ? candidatePromoPriceUAH
+                    : null;
+                const hasPromo =
+                  hasPromoAvailability[entry.priceKey] === true ||
+                  priceLookupKeys.some((key) => hasPromoAvailability[key] === true);
+                const promoPercent =
+                  promoPercentByKey[entry.priceKey] ??
+                  priceLookupKeys
+                    .map((key) => promoPercentByKey[key])
+                    .find((value) => typeof value === "number") ??
+                  null;
                 if (!item?.code) return null;
 
                 const code = item.code;
@@ -5287,7 +5663,7 @@ const Data: React.FC<DataProps> = ({
                       })();
 
                 const priceStatus =
-                  priceUAH != null
+                  promoPriceUAH != null || priceUAH != null
                     ? "ready"
                     : isKnownNoPrice
                       ? "request"
@@ -5339,6 +5715,10 @@ const Data: React.FC<DataProps> = ({
                         qty={qty}
                         cartQty={cartQty}
                         priceUAH={priceUAH}
+                        promoPriceUAH={promoPriceUAH}
+                        isPartner={isPartner}
+                        hasPromo={hasPromo}
+                        promoPercent={promoPercent}
                         priceStatus={priceStatus}
                         imageLoadingMode={shouldEagerLoadImage ? "eager" : "lazy"}
                         imageFetchPriority={shouldPrioritizeImage ? "high" : "auto"}
@@ -5365,6 +5745,10 @@ const Data: React.FC<DataProps> = ({
                         qty={qty}
                         cartQty={cartQty}
                         priceUAH={priceUAH}
+                        promoPriceUAH={promoPriceUAH}
+                        isPartner={isPartner}
+                        hasPromo={hasPromo}
+                        promoPercent={promoPercent}
                         costPriceUAH={isAdmin && stateCostPriceEuro != null ? Math.round(stateCostPriceEuro * euroRate) : null}
                         costPriceEuro={isAdmin ? stateCostPriceEuro : undefined}
                         isAdmin={isAdmin}

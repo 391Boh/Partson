@@ -13,6 +13,7 @@ import {
   PackageSearch,
   ShieldCheck,
   Star,
+  Tags,
   Truck,
 } from "lucide-react";
 
@@ -20,6 +21,7 @@ import {
   type CatalogProduct,
   fetchCatalogProductsByArticle,
   fetchEuroRate,
+  fetchPromoAvailabilityByLookupKeys,
   findCatalogProductByCode,
   toPriceUah,
 } from "app/lib/catalog-server";
@@ -45,6 +47,7 @@ import {
   buildVisibleProductName,
   extractProductCodeFromParam,
   extractProductRouteSlugsFromParam,
+  parseAnalogCodesFromName,
   safeDecodeURIComponent,
 } from "app/lib/product-url";
 import {
@@ -119,11 +122,31 @@ const fetchProductGalleryImageUrls = async (code: string): Promise<string[]> => 
     .doc(code)
     .collection("images")
     .orderBy("uploadedAt", "asc")
+    .limit(12)
     .get();
   return snap.docs
     .map((doc) => doc.data().url as string)
     .filter((url): url is string => typeof url === "string" && url.length > 0);
 };
+
+type ProductPageReviews = readonly [
+  Awaited<ReturnType<typeof getProductReviewStats>>,
+  ProductReview[] | null,
+];
+
+const loadProductPageReviews = (code: string) =>
+  resolveWithTimeout<ProductPageReviews>(
+    () => Promise.all([getProductReviewStats(code), getProductReviews(code)]),
+    [null, null],
+    PRODUCT_PAGE_REVIEWS_TIMEOUT_MS
+  );
+
+const loadProductPageGallery = (code: string) =>
+  resolveWithTimeout(
+    () => fetchProductGalleryImageUrls(code),
+    [],
+    PRODUCT_PAGE_GALLERY_TIMEOUT_MS
+  );
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_PHONE_TEL = "+380634211851";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
@@ -576,6 +599,25 @@ const buildProductJsonLd = (options: {
             Date.now() + 1000 * 60 * 60 * 24 * 30
           ).toISOString().slice(0, 10),
           url: canonicalUrl,
+          // Google's Product rich-result guidelines recommend a return policy
+          // on the offer; without one, some Search surfaces suppress the
+          // price/availability display entirely. Mirrors the real policy on
+          // /inform/returns (14-day window for unopened, uninstalled goods,
+          // per the Ukrainian consumer-protection law cited there).
+          // `returnFees` is deliberately omitted — who covers return shipping
+          // is negotiated case by case there, not a fixed policy, and
+          // asserting one here would be inaccurate structured data.
+          hasMerchantReturnPolicy: {
+            "@type": "MerchantReturnPolicy",
+            applicableCountry: "UA",
+            returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+            merchantReturnDays: 14,
+            returnMethod: [
+              "https://schema.org/ReturnByMail",
+              "https://schema.org/ReturnInStore",
+            ],
+            merchantReturnLink: new URL("/inform/returns", canonicalUrl).toString(),
+          },
         }
       : undefined;
 
@@ -1080,6 +1122,38 @@ const resolveProductSeoPrice = cache(
       priceEuro,
       priceUah,
       euroRate,
+    };
+  }
+);
+
+// ProductPurchasePanelClient used to learn "has an active promo" only from
+// its own client-side fetch, firing after mount — for any product with a
+// promo, that inserted the whole discount-teaser badge into the DOM well
+// after first paint, shifting everything below it (a real, measured CLS
+// source on this page). Resolving it here, alongside the price the panel
+// already gets as an initial prop, lets the very first render — SSR and
+// hydration alike — already include the badge, so nothing shifts in later.
+const PRODUCT_PAGE_PROMO_TEASER_TIMEOUT_MS = 900;
+const resolveProductPromoTeaser = cache(
+  async (
+    lookupKeys: string[]
+  ): Promise<{ hasPromo: boolean; promoPercent: number | null }> => {
+    if (lookupKeys.length === 0) return { hasPromo: false, promoPercent: null };
+
+    const result = await resolveWithTimeout(
+      () =>
+        fetchPromoAvailabilityByLookupKeys(lookupKeys, {
+          timeoutMs: PRODUCT_PAGE_PROMO_TEASER_TIMEOUT_MS,
+          cacheTtlMs: 1000 * 60 * 5,
+        }),
+      {},
+      PRODUCT_PAGE_PROMO_TEASER_TIMEOUT_MS
+    );
+    const match = Object.values(result).find((entry) => entry.hasPromo === true);
+
+    return {
+      hasPromo: Boolean(match),
+      promoPercent: typeof match?.promoPercent === "number" ? match.promoPercent : null,
     };
   }
 );
@@ -1843,28 +1917,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
   let resolvedCode = (routeData.code || (canUseDirectFallbackCode ? fallbackCodeFromRoute : "") || "").trim();
   let product = routeData.product;
 
-  // Reviews and gallery only depend on the resolved code string, not on the
-  // (possibly fresher) product object below — and in the common case
-  // (sitemap already gave us both a code and a product), resolvedCode here
-  // is already final; every fallback branch between here and the later
-  // notFound() check is gated on `!resolvedCode`/`!product` and is a no-op
-  // once those are already set. So it's safe to fire these Firestore reads
-  // now, in parallel with the freshProduct 1C refresh below, instead of
-  // waiting for that to finish first — the two 900ms-capped waits then
-  // overlap instead of adding up to ~1.8s of pure sequential wait. The
-  // later declaration re-checks resolvedCode/product didn't change before
-  // reusing these, and falls back to a fresh fetch on the rare recovery
-  // path where they did.
+  // Start the Firestore timeout budgets with the reads so they overlap the
+  // product refresh. Starting the timers after that refresh added its entire
+  // duration to the nominal 900ms budget on a slow Firestore response.
   const earlyResolvedCode = resolvedCode;
-  const earlyHasProduct = Boolean(product);
   const earlyReviewsPromise = earlyResolvedCode
-    ? Promise.all([
-        getProductReviewStats(earlyResolvedCode),
-        getProductReviews(earlyResolvedCode),
-      ]).catch(() => [null, null] as const)
+    ? loadProductPageReviews(earlyResolvedCode)
     : null;
   const earlyGalleryImagesPromise = earlyResolvedCode
-    ? fetchProductGalleryImageUrls(earlyResolvedCode).catch(() => [])
+    ? loadProductPageGallery(earlyResolvedCode)
     : null;
 
   if (resolvedCode) {
@@ -2008,33 +2069,26 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const visibleProductGroup = buildVisibleCategoryLabel(productGroup);
   const visibleProductSubgroup = buildVisibleCategoryLabel(productSubgroup);
   const siteUrl = getSiteUrl();
-  // Reuse the promises kicked off before the freshProduct refetch when
-  // nothing that would change their inputs happened in between (the
-  // common case) — only fall back to firing them fresh here on the rare
-  // recovery path where resolvedCode/product changed after that point.
-  const canReuseEarlyPromises =
-    earlyHasProduct && resolvedCode === earlyResolvedCode;
-  const reviewsPromise: Promise<
-    readonly [
-      Awaited<ReturnType<typeof getProductReviewStats>>,
-      ProductReview[] | null,
-    ]
-  > =
+  // Both reads depend only on the code, including recovery paths that found
+  // the product after those reads were started.
+  const canReuseEarlyPromises = resolvedCode === earlyResolvedCode;
+  const reviewsPromise: Promise<ProductPageReviews> =
     canReuseEarlyPromises && earlyReviewsPromise
       ? earlyReviewsPromise
       : resolvedCode
-        ? Promise.all([
-            getProductReviewStats(resolvedCode),
-            getProductReviews(resolvedCode),
-          ]).catch(() => [null, null] as const)
+        ? loadProductPageReviews(resolvedCode)
         : Promise.resolve([null, []]);
   const galleryImagesPromise =
     canReuseEarlyPromises && earlyGalleryImagesPromise
       ? earlyGalleryImagesPromise
-      : fetchProductGalleryImageUrls(resolvedCode).catch(() => []);
-  const [pagePrice, brandLogoMap] = await Promise.all([
+      : loadProductPageGallery(resolvedCode);
+  const [pagePrice, brandLogoMap, promoTeaser] = await Promise.all([
     resolveProductSeoPrice(inlineInitialPriceEuro),
     getBrandLogoMap().catch(() => new Map<string, string>()),
+    resolveProductPromoTeaser(lookupKeys).catch(() => ({
+      hasPromo: false,
+      promoPercent: null,
+    })),
   ]);
   const initialPriceUah = pagePrice.priceUah;
   const recommendationEuroRate = pagePrice.euroRate ?? undefined;
@@ -2086,16 +2140,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? buildProductSeoImagePath(product.code || resolvedCode, product.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const productSeoImageUrl = `${siteUrl}${productSeoImagePath}`;
-  // reviewsPromise and galleryImagesPromise were both kicked off earlier
-  // (right after resolvedCode became available) and are unrelated Firestore
-  // reads — awaiting their per-promise timeouts back-to-back added up to an
-  // extra PRODUCT_PAGE_REVIEWS_TIMEOUT_MS of pure wait on the tail case
-  // where both are slow, instead of the two timeouts overlapping.
   const [[reviewStats, initialReviews], galleryImageUrls] = await Promise.all([
-    resolveWithTimeout<
-      readonly [Awaited<ReturnType<typeof getProductReviewStats>>, ProductReview[] | null]
-    >(() => reviewsPromise, [null, null], PRODUCT_PAGE_REVIEWS_TIMEOUT_MS),
-    resolveWithTimeout(() => galleryImagesPromise, [], PRODUCT_PAGE_GALLERY_TIMEOUT_MS),
+    reviewsPromise,
+    galleryImagesPromise,
   ]);
   // Google's Product rich-result eligibility requires at least one of
   // offers/review/aggregateRating. A price-on-request product with no
@@ -2214,8 +2261,20 @@ export default async function ProductPage({ params }: ProductPageProps) {
     group: productGroup,
     subGroup: productSubgroup,
   });
+  const productAnalogCodes = hasResolvedCatalogProduct
+    ? parseAnalogCodesFromName(product.name).filter(
+        (code) => code.toLowerCase() !== normalizedProductArticle.toLowerCase()
+      )
+    : [];
   const productFitmentText =
     "Не впевнені у сумісності? Надішліть VIN або дані автомобіля в чат — менеджер перевірить деталь і за потреби запропонує аналог.";
+  // The category eyebrow above the H1 used to say "Деталь для автомобіля"
+  // unconditionally — true of every row in the catalog, so it told the
+  // visitor nothing they didn't already know from being on a product page.
+  // The subgroup/group name is real, specific context (e.g. "Гальмівні
+  // колодки"); only fall back to the generic phrase when neither is known.
+  const productEyebrowLabel =
+    visibleProductSubgroup || visibleProductGroup || "Деталь для автомобіля";
   const productHeroHighlights = [
     {
       label: "Перевіримо за VIN",
@@ -2313,7 +2372,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 <div className="order-2 min-w-0 lg:order-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700">
-                      Деталь для автомобіля
+                      {productEyebrowLabel}
                     </span>
                     <span className="h-1 w-1 rounded-full bg-slate-300" aria-hidden="true" />
                     <span
@@ -2356,6 +2415,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     </span>
                     {productIdentifierHint ? <span className="text-slate-500">{productIdentifierHint}</span> : null}
                   </div>
+
+                  {productAnalogCodes.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:mt-3.5">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+                        <Tags size={13} className="text-sky-500" aria-hidden="true" />
+                        Аналогові номери:
+                      </span>
+                      {productAnalogCodes.map((code) => (
+                        <span
+                          key={code}
+                          className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 font-mono text-[11px] font-bold tracking-[-0.01em] text-sky-800"
+                        >
+                          {code}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
 
                   <div className="mt-4 grid overflow-hidden rounded-[18px] border border-slate-200/80 bg-white/80 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:grid-cols-2">
                     {product.producer ? (
@@ -2408,6 +2484,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     isModalView={isModalView}
                     initialPriceUah={initialPriceUah}
                     initialCostPriceUah={initialCostPriceUah}
+                    initialHasPromo={promoTeaser.hasPromo}
+                    initialPromoPercent={promoTeaser.promoPercent}
                     hasKnownNoPrice={product.priceEuro === null}
                     resolvedCode={resolvedCode}
                     product={product}

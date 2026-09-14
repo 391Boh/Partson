@@ -7,6 +7,7 @@ export type CatalogQuerySignatureInput = {
   subcategory: string | null;
   producer: string | null;
   expandHierarchy?: boolean;
+  promoOnly?: boolean;
   sortOrder: "none" | "asc" | "desc";
   pricedOnly?: boolean;
   priceFrom?: number | null;
@@ -24,6 +25,7 @@ export const buildCatalogQuerySignature = ({
   subcategory,
   producer,
   expandHierarchy = false,
+  promoOnly = false,
   sortOrder,
   pricedOnly = false,
   priceFrom = null,
@@ -40,6 +42,7 @@ export const buildCatalogQuerySignature = ({
     subcat: subcategory,
     producer,
     hierarchy: expandHierarchy,
+    promoOnly,
     sort: sortOrder,
     pricedOnly,
     priceFrom,

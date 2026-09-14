@@ -14,6 +14,9 @@ const SeoPhotosBackdrop = dynamic(() => import("./SeoPhotosBackdrop"), {
   loading: () => null,
 });
 
+const MAX_SCROLL_REVEAL_DELAY_MS = 320;
+const SCROLL_SETTLE_RETRY_MS = 80;
+
 function useDeferredNearViewport<T extends HTMLElement>(
   rootMargin: string
 ): { ref: RefObject<T | null>; ready: boolean } {
@@ -26,17 +29,26 @@ function useDeferredNearViewport<T extends HTMLElement>(
 
     let cancelled = false;
     let settleTimer: number | null = null;
+    let revealRequestedAt = 0;
 
     const revealWhenScrollSettles = () => {
       if (cancelled) return;
-      if (document.documentElement.classList.contains("is-scrolling")) {
-        settleTimer = window.setTimeout(revealWhenScrollSettles, 120);
+      const waitedMs = performance.now() - revealRequestedAt;
+      if (
+        document.documentElement.classList.contains("is-scrolling") &&
+        waitedMs < MAX_SCROLL_REVEAL_DELAY_MS
+      ) {
+        settleTimer = window.setTimeout(
+          revealWhenScrollSettles,
+          SCROLL_SETTLE_RETRY_MS
+        );
         return;
       }
       startTransition(() => setReady(true));
     };
 
     if (typeof IntersectionObserver === "undefined") {
+      revealRequestedAt = performance.now();
       revealWhenScrollSettles();
       return () => {
         cancelled = true;
@@ -48,6 +60,7 @@ function useDeferredNearViewport<T extends HTMLElement>(
       ([entry]) => {
         if (!entry?.isIntersecting) return;
         observer.disconnect();
+        revealRequestedAt = performance.now();
         revealWhenScrollSettles();
       },
       { rootMargin, threshold: 0 }
